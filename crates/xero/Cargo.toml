@@ -1,0 +1,10 @@
+[package]
+name = "xero"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui.workspace = true
+gpui_platform.workspace = true
+xero_terminal.workspace = true

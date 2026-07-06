@@ -1,0 +1,43 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[workspace.dependencies]
+xero_core = { path = "crates/xero_core" }
+xero_store = { path = "crates/xero_store" }
+xero_terminal = { path = "crates/xero_terminal" }
+xero_editor = { path = "crates/xero_editor" }
+xero_finder = { path = "crates/xero_finder" }
+xero_ui = { path = "crates/xero_ui" }
+
+# zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a
+# deliberate chore: bump every rev below together, then fix compile errors.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+terminal = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+ropey = "1.6"
+tree-sitter = "0.26"
+tree-sitter-highlight = "0.26"
+nucleo = "0.5"
+ignore = "0.4"
+
+# Mirrored from zed v1.9.0 Cargo.toml: [patch.crates-io] does not propagate to
+# downstream consumers, and zed's crates need these forks (macOS-relevant subset).
+[patch.crates-io]
+async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
+async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
+notify = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
+notify-types = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
+
+[profile.dev]
+split-debuginfo = "unpacked"
+debug = "limited"
