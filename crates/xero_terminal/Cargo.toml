@@ -5,4 +5,14 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+gpui.workspace = true
 terminal.workspace = true
+theme.workspace = true
+theme_settings.workspace = true
+settings.workspace = true
+release_channel.workspace = true
+util.workspace = true
+task.workspace = true
+collections.workspace = true
+semver.workspace = true
+anyhow.workspace = true

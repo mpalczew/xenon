@@ -1,6 +1,11 @@
-//! Terminal backend and view for xero.
-//!
-//! Phase 0: re-exports zed's `terminal` crate to prove it compiles as a git
-//! dependency outside the zed monorepo.
+//! Terminal backend and view for xero: init the zed globals `terminal` needs,
+//! spawn a PTY, and render its grid in a focusable GPUI view.
 
+mod color;
+mod grid;
+mod init;
+mod view;
+
+pub use init::init;
 pub use terminal;
+pub use view::TerminalView;

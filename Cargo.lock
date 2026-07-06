@@ -8489,7 +8489,17 @@ version = "0.1.0"
 name = "xero_terminal"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "collections",
+ "gpui",
+ "release_channel",
+ "semver",
+ "settings",
+ "task",
  "terminal",
+ "theme",
+ "theme_settings",
+ "util",
 ]
 
 [[package]]
