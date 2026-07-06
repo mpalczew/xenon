@@ -20,6 +20,7 @@ impl Render for XeroApp {
 }
 
 fn main() {
+    env_logger::init();
     application().run(|cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(1024.), px(720.)), cx);
         cx.open_window(
