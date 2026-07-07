@@ -15,7 +15,7 @@ use xero_editor::EditorView;
 use xero_terminal::TerminalView;
 
 use crate::finder::{FinderEvent, FinderView};
-use crate::{AddWorkspace, FilePalette, OpenFile, ToggleSidebar};
+use crate::{AddWorkspace, CloseEditor, FilePalette, OpenFile, ToggleSidebar};
 
 pub struct XeroApp {
     registry: Registry,
@@ -200,6 +200,18 @@ impl XeroApp {
         cx.notify();
     }
 
+    /// Close the active stream's editor, leaving the terminal full-width.
+    pub(crate) fn close_editor(&mut self, cx: &mut Context<Self>) {
+        if let Some(id) = self.active {
+            self.editors.remove(&id);
+            cx.notify();
+        }
+    }
+
+    pub(crate) fn has_editor(&self) -> bool {
+        self.active.is_some_and(|id| self.editors.contains_key(&id))
+    }
+
     fn open_palette(&mut self, cx: &mut Context<Self>) {
         let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
             return;
@@ -254,6 +266,7 @@ impl Focusable for XeroApp {
 impl Render for XeroApp {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
+        let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(cx);
         let finder = self.finder.clone();
@@ -267,11 +280,15 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
             .on_action(cx.listener(|this, _: &FilePalette, _, cx| this.open_palette(cx)))
+            .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
             .relative()
+            .flex()
+            .flex_col()
             .size_full()
             .bg(colors.background)
             .text_color(colors.text)
-            .child(div().flex().size_full().children(sidebar).child(main))
+            .child(toolbar)
+            .child(div().flex().flex_1().min_h_0().children(sidebar).child(main))
             .children(finder)
     }
 }
