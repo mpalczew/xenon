@@ -115,7 +115,7 @@ impl TerminalView {
     pub fn title(&self, cx: &App) -> String {
         match &self.state {
             State::Ready(terminal) => {
-                let title = terminal.read(cx).title(true);
+                let title = terminal.read(cx).title(false);
                 if title.is_empty() { "terminal".into() } else { title }
             }
             State::Pending => "terminal".into(),

@@ -147,7 +147,7 @@ impl XeroApp {
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.activate_terminal_tab(index, window, cx)
             }))
-            .child(div().text_sm().child(title.to_string()))
+            .child(div().text_sm().max_w(px(220.)).truncate().child(title.to_string()))
             .child(
                 div()
                     .id(("term-close", index))
@@ -155,9 +155,9 @@ impl XeroApp {
                     .text_color(colors.text_muted)
                     .hover(|s| s.text_color(colors.text))
                     .child("✕")
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                    .on_click(cx.listener(move |this, _, window, cx| {
                         cx.stop_propagation();
-                        this.close_terminal_tab(index, cx);
+                        this.close_terminal_tab(index, window, cx);
                     })),
             )
     }

@@ -268,19 +268,30 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// Close a terminal tab, keeping at least one terminal per stream.
-    pub(crate) fn close_terminal_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+    /// Close a terminal tab, keeping at least one terminal per stream, and move
+    /// focus to the terminal that becomes active.
+    pub(crate) fn close_terminal_tab(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(id) = self.active else {
             return;
         };
-        if let Some(stack) = self.terminals.get_mut(&id)
-            && index < stack.tabs.len()
-            && stack.tabs.len() > 1
-        {
+        let survivor = {
+            let Some(stack) = self.terminals.get_mut(&id) else {
+                return;
+            };
+            if index >= stack.tabs.len() || stack.tabs.len() == 1 {
+                return;
+            }
             stack.tabs.remove(index);
             stack.active = stack.active.min(stack.tabs.len() - 1);
-            cx.notify();
-        }
+            stack.tabs[stack.active].clone()
+        };
+        survivor.read(cx).focus_handle(cx).focus(window, cx);
+        cx.notify();
     }
 
     /// The stream's agent rang the bell: flag it (even when active/focused). The
