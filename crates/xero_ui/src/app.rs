@@ -187,6 +187,20 @@ impl XeroApp {
         cx.notify();
     }
 
+    /// Switch to a stream and focus its terminal, so keyboard focus lands
+    /// somewhere definite on every switch (called from the sidebar click).
+    pub(crate) fn select_stream(
+        &mut self,
+        id: StreamId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.activate_stream(id, cx);
+        if let Some(terminal) = self.active.and_then(|id| self.terminals.get(&id)) {
+            terminal.read(cx).focus_handle(cx).focus(window, cx);
+        }
+    }
+
     fn add_workspace(&mut self, cx: &mut Context<Self>) {
         let rx = cx.prompt_for_paths(PathPromptOptions {
             files: false,

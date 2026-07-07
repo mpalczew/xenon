@@ -132,7 +132,7 @@ impl XeroApp {
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .child(name.to_string())
-            .on_click(cx.listener(move |this, _, _, cx| this.activate_stream(id, cx)))
+            .on_click(cx.listener(move |this, _, window, cx| this.select_stream(id, window, cx)))
     }
 }
 
