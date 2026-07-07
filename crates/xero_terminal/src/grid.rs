@@ -61,26 +61,38 @@ pub fn layout(
 
     let theme = cx.theme().clone();
     let content = terminal.read(cx).last_content().clone();
-    let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height);
-    let lines =
-        shape_rows(&content, bounds.origin, cell_w, line_height, font, font_size, &theme, window);
+    // Scrollback rows carry negative alacritty line numbers; the display row is
+    // `point.line + display_offset` (matches zed's terminal_element). Without
+    // this, scrolling renders history off the top and the viewport empties out.
+    let offset = content.display_offset as i32;
+    let rows = content.terminal_bounds.num_lines() as i32;
+    let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height, offset, rows);
+    let lines = shape_rows(
+        &content, bounds.origin, cell_w, line_height, offset, font, font_size, &theme, window,
+    );
     GridLayout { lines, cursor }
 }
 
-/// The cell rectangle the cursor occupies, if the terminal is not hiding it.
+/// The cell rectangle the cursor occupies, if visible and not hidden.
 fn cursor_bounds(
     content: &terminal::Content,
     origin: GpuiPoint<Pixels>,
     cell_w: Pixels,
     line_height: Pixels,
+    offset: i32,
+    rows: i32,
 ) -> Option<Bounds<Pixels>> {
     let cursor = &content.cursor;
     if matches!(cursor.shape, terminal::CursorShape::Hidden) {
         return None;
     }
+    let display_line = cursor.point.line + offset;
+    if display_line < 0 || display_line >= rows {
+        return None; // Scrolled out of the viewport.
+    }
     let cell_origin = point(
         origin.x + cell_w * (cursor.point.column as f32),
-        origin.y + line_height * (cursor.point.line as f32),
+        origin.y + line_height * (display_line as f32),
     );
     Some(Bounds::new(cell_origin, Size { width: cell_w, height: line_height }))
 }
@@ -91,6 +103,7 @@ fn shape_rows(
     origin: GpuiPoint<Pixels>,
     cell_w: Pixels,
     line_height: Pixels,
+    offset: i32,
     font: &Font,
     font_size: Pixels,
     theme: &Theme,
@@ -103,7 +116,7 @@ fn shape_rows(
             Some(r) if r.line == indexed.point.line => r.push(indexed, theme, font),
             _ => {
                 if let Some(r) = row.take() {
-                    lines.push(r.finish(origin, cell_w, line_height, font_size, window));
+                    lines.push(r.finish(origin, cell_w, line_height, offset, font_size, window));
                 }
                 let mut r = Row::new(indexed.point.line);
                 r.push(indexed, theme, font);
@@ -112,7 +125,7 @@ fn shape_rows(
         }
     }
     if let Some(r) = row {
-        lines.push(r.finish(origin, cell_w, line_height, font_size, window));
+        lines.push(r.finish(origin, cell_w, line_height, offset, font_size, window));
     }
     lines
 }
@@ -160,10 +173,11 @@ impl Row {
         origin: GpuiPoint<Pixels>,
         cell_w: Pixels,
         line_height: Pixels,
+        offset: i32,
         font_size: Pixels,
         window: &mut Window,
     ) -> GridLine {
-        let y = origin.y + line_height * (self.line as f32);
+        let y = origin.y + line_height * ((self.line + offset) as f32);
         let line = window.text_system().shape_line(
             SharedString::from(self.text),
             font_size,
