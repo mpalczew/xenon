@@ -6,6 +6,6 @@ mod grid;
 mod init;
 mod view;
 
-pub use init::init;
+pub use init::{apply_system_theme, init, observe_appearance};
 pub use terminal;
 pub use view::TerminalView;

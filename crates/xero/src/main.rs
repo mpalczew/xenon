@@ -20,7 +20,10 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |_, cx| cx.new(XeroApp::new),
+            |window, cx| {
+                xero_terminal::observe_appearance(window, cx).detach();
+                cx.new(XeroApp::new)
+            },
         )
         .unwrap();
         cx.activate(true);
