@@ -24,6 +24,7 @@ project_bundle() {
     rm -rf "$app"
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$XERO_ROOT/macos/Info.plist" "$app/Contents/Info.plist"
+    cp "$XERO_ROOT/macos/xero.icns" "$app/Contents/Resources/xero.icns"
     cp "$XERO_ROOT/target/release/xero" "$app/Contents/MacOS/xero"
     # Apple Silicon requires at least an ad-hoc signature to launch.
     codesign --force --deep --sign - "$app" >/dev/null 2>&1
