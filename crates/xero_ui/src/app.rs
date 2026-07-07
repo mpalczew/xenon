@@ -1,6 +1,7 @@
 //! `XeroApp`: the window root. Owns the workspace registry, the active
 //! terminal/editor, and the finder overlay; wires the shell's actions.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use gpui::{
@@ -18,8 +19,10 @@ use crate::{AddWorkspace, FilePalette, OpenFile, ToggleSidebar};
 pub struct XeroApp {
     registry: Registry,
     active: Option<WorkspaceId>,
-    terminal: Option<Entity<TerminalView>>,
-    editor: Option<Entity<EditorView>>,
+    // Live terminals/editors are kept per workspace so switching between
+    // workspaces never tears down a running PTY or loses an open file.
+    terminals: HashMap<WorkspaceId, Entity<TerminalView>>,
+    editors: HashMap<WorkspaceId, Entity<EditorView>>,
     finder: Option<Entity<FinderView>>,
     sidebar_collapsed: bool,
     focus: FocusHandle,
@@ -36,8 +39,8 @@ impl XeroApp {
         let mut app = Self {
             registry,
             active: None,
-            terminal: None,
-            editor: None,
+            terminals: HashMap::new(),
+            editors: HashMap::new(),
             finder: None,
             sidebar_collapsed: false,
             focus: cx.focus_handle(),
@@ -71,9 +74,13 @@ impl XeroApp {
             return;
         };
         self.active = Some(id);
-        self.editor = None;
         self.finder = None;
-        self.terminal = Some(cx.new(|cx| TerminalView::new(Some(root), cx)));
+        // Reuse this workspace's terminal if it is already running; only spawn a
+        // fresh PTY the first time the workspace is opened.
+        if !self.terminals.contains_key(&id) {
+            let terminal = cx.new(|cx| TerminalView::new(Some(root), cx));
+            self.terminals.insert(id, terminal);
+        }
         self.persist_active();
         cx.notify();
     }
@@ -121,8 +128,13 @@ impl XeroApp {
     }
 
     pub(crate) fn open_editor(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let Some(id) = self.active else {
+            return;
+        };
         match EditorView::build(path, cx) {
-            Ok(editor) => self.editor = Some(editor),
+            Ok(editor) => {
+                self.editors.insert(id, editor);
+            }
             Err(error) => log::error!("open failed: {error}"),
         }
         self.finder = None;
@@ -203,15 +215,17 @@ impl Render for XeroApp {
 
 impl XeroApp {
     fn render_main(&self, _cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let terminal = self.active.and_then(|id| self.terminals.get(&id)).cloned();
+        let editor = self.active.and_then(|id| self.editors.get(&id)).cloned();
         let mut panel = div().flex().flex_1().size_full();
-        match (&self.terminal, &self.editor) {
+        match (terminal, editor) {
             (Some(terminal), Some(editor)) => {
                 panel = panel
-                    .child(div().flex_1().child(terminal.clone()))
-                    .child(div().flex_1().child(editor.clone()));
+                    .child(div().flex_1().child(terminal))
+                    .child(div().flex_1().child(editor));
             }
             (Some(terminal), None) => {
-                panel = panel.child(div().flex_1().child(terminal.clone()));
+                panel = panel.child(div().flex_1().child(terminal));
             }
             _ => {
                 panel = panel.items_center().justify_center().child("Add a workspace to begin");
