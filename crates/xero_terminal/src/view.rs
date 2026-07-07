@@ -104,14 +104,25 @@ impl TerminalView {
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        if let State::Ready(terminal) = &self.state {
-            let handled =
-                terminal.update(cx, |terminal, _| terminal.try_keystroke(&event.keystroke, false));
-            if handled {
-                cx.stop_propagation();
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let keystroke = &event.keystroke;
+        // Cmd-V pastes the clipboard (bracketed-paste aware); Cmd-C is handled
+        // once terminal selection exists.
+        if keystroke.modifiers.platform && keystroke.key == "v" {
+            if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                terminal.update(cx, |terminal, _| terminal.paste(&text));
             }
+            cx.stop_propagation();
             cx.notify();
+            return;
         }
+        let handled = terminal.update(cx, |terminal, _| terminal.try_keystroke(keystroke, false));
+        if handled {
+            cx.stop_propagation();
+        }
+        cx.notify();
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
