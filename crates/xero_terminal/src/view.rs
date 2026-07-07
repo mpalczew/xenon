@@ -7,8 +7,10 @@
 //! `try_keystroke` on key-down. Both mirror zed's terminal_view
 //! (GPL-3.0-or-later); see ATTRIBUTION.md.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::Result;
 use collections::HashMap;
@@ -53,6 +55,9 @@ pub struct TerminalView {
     /// Position of the right-click Copy/Paste menu, when open (window coords).
     context_menu: Option<Point<Pixels>>,
     _spawn: Task<()>,
+    /// Debounced task that logs the settled screen after output stops (used to
+    /// investigate how to detect when an agent finishes).
+    _log_task: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -83,6 +88,7 @@ impl TerminalView {
             root_name,
             context_menu: None,
             _spawn: spawn,
+            _log_task: Task::ready(()),
             _subscriptions: Vec::new(),
         }
     }
@@ -118,9 +124,41 @@ impl TerminalView {
                 log::info!("terminal title: {:?}", self.title(cx));
                 cx.notify();
             }
-            Event::Wakeup | Event::BreadcrumbsChanged => cx.notify(),
+            Event::Wakeup => {
+                self.schedule_screen_log(cx);
+                cx.notify();
+            }
+            Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
+    }
+
+    /// (Re)arm a debounce that logs the bottom screen rows ~600ms after output
+    /// goes quiet, capturing the settled state (agent working vs. waiting).
+    fn schedule_screen_log(&mut self, cx: &mut Context<Self>) {
+        self._log_task = cx.spawn(async move |view, cx| {
+            cx.background_executor().timer(Duration::from_millis(600)).await;
+            view.update(cx, |view, cx| view.log_bottom_rows(cx)).ok();
+        });
+    }
+
+    /// Log the last few non-blank rows of the visible screen.
+    fn log_bottom_rows(&self, cx: &Context<Self>) {
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let content = terminal.read(cx).last_content().clone();
+        let mut rows: BTreeMap<i32, String> = BTreeMap::new();
+        for indexed in &content.cells {
+            rows.entry(indexed.point.line).or_default().push(indexed.cell.character());
+        }
+        let tail: Vec<String> = rows
+            .into_values()
+            .map(|row| row.trim_end().to_string())
+            .filter(|row| !row.is_empty())
+            .collect();
+        let start = tail.len().saturating_sub(4);
+        log::info!("terminal bottom rows: {:?}", &tail[start..]);
     }
 
     /// The terminal's title (set by the program via OSC, e.g. Claude Code's
