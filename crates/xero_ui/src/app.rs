@@ -392,6 +392,54 @@ impl XeroApp {
         self.activate_stream(stream_id, cx);
     }
 
+    /// Move `dragged` to `target`'s position within their shared workspace.
+    /// No-op across workspaces (drag reorders within one workspace only).
+    pub(crate) fn reorder_stream(
+        &mut self,
+        dragged: StreamId,
+        target: StreamId,
+        cx: &mut Context<Self>,
+    ) {
+        if dragged == target {
+            return;
+        }
+        let Some(workspace) = self.workspace_of(target).map(|w| w.id) else {
+            return;
+        };
+        let Some(record) = self.registry.workspace_mut(workspace) else {
+            return;
+        };
+        let Some(from) = record.streams.iter().position(|&s| s == dragged) else {
+            return;
+        };
+        record.streams.remove(from);
+        let to = record.streams.iter().position(|&s| s == target).unwrap_or(record.streams.len());
+        record.streams.insert(to, dragged);
+        let _ = xero_store::save_registry(&self.registry);
+        cx.notify();
+    }
+
+    /// Move workspace `dragged` to `target`'s position in the sidebar.
+    pub(crate) fn reorder_workspace(
+        &mut self,
+        dragged: WorkspaceId,
+        target: WorkspaceId,
+        cx: &mut Context<Self>,
+    ) {
+        if dragged == target {
+            return;
+        }
+        let list = &mut self.registry.workspaces;
+        let Some(from) = list.iter().position(|w| w.id == dragged) else {
+            return;
+        };
+        let record = list.remove(from);
+        let to = list.iter().position(|w| w.id == target).unwrap_or(list.len());
+        list.insert(to, record);
+        let _ = xero_store::save_registry(&self.registry);
+        cx.notify();
+    }
+
     pub(crate) fn toggle_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
         if !self.collapsed_workspaces.insert(id) {
             self.collapsed_workspaces.remove(&id);

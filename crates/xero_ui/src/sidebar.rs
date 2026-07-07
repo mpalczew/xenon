@@ -2,13 +2,39 @@
 //! beneath. Rendered as methods on `XeroApp` so click handlers use `cx.listener`.
 
 use gpui::{
-    Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px,
+    AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
 use xero_core::{StreamId, WorkspaceId};
 
 use crate::app::XeroApp;
+
+/// Drag payloads, one type per kind so a stream can't drop onto the workspace
+/// list and vice-versa.
+struct DragStream(StreamId);
+struct DragWorkspace(WorkspaceId);
+
+/// The little label that follows the cursor while dragging a row.
+struct DragChip {
+    label: String,
+}
+
+impl Render for DragChip {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        div()
+            .px_2()
+            .py_1()
+            .text_sm()
+            .rounded_sm()
+            .bg(colors.elevated_surface_background)
+            .border_1()
+            .border_color(colors.border)
+            .text_color(colors.text)
+            .child(self.label.clone())
+    }
+}
 
 /// Owned view of one workspace and its streams, snapshotted so the registry
 /// borrow is released before we reborrow `cx` per row.
@@ -97,6 +123,7 @@ impl XeroApp {
         let colors = cx.theme().colors().clone();
         let chevron = if collapsed { "▸" } else { "▾" };
         div()
+            .id(("ws-row", id_hash(id.to_string())))
             .flex()
             .items_center()
             .justify_between()
@@ -104,6 +131,14 @@ impl XeroApp {
             .pt_2()
             .text_xs()
             .text_color(colors.text_muted)
+            .on_drag(DragWorkspace(id), {
+                let label = name.to_string();
+                move |_, _, _, cx| cx.new(|_| DragChip { label: label.clone() })
+            })
+            .drag_over::<DragWorkspace>(move |style, _, _, _| style.bg(colors.element_selected))
+            .on_drop(cx.listener(move |this, dragged: &DragWorkspace, _window, cx| {
+                this.reorder_workspace(dragged.0, id, cx)
+            }))
             .child(
                 div()
                     .id(("ws-toggle", id_hash(id.to_string())))
@@ -172,6 +207,14 @@ impl XeroApp {
                 } else {
                     this.select_stream(id, window, cx);
                 }
+            }))
+            .on_drag(DragStream(id), {
+                let label = name.to_string();
+                move |_, _, _, cx| cx.new(|_| DragChip { label: label.clone() })
+            })
+            .drag_over::<DragStream>(move |style, _, _, _| style.bg(colors.element_selected))
+            .on_drop(cx.listener(move |this, dragged: &DragStream, _window, cx| {
+                this.reorder_stream(dragged.0, id, cx)
             }))
             .child(name.to_string())
             .child(

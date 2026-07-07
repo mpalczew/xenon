@@ -7,7 +7,7 @@ use std::ops::Range;
 use gpui::{
     App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
-    Point, Render, Styled, UTF16Selection, Window, canvas, div, px,
+    Point, Render, Styled, UTF16Selection, Window, canvas, div,
 };
 use theme::ActiveTheme;
 
