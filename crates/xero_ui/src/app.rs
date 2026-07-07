@@ -2,7 +2,7 @@
 //! live terminal + editor. Streams are the unit of switching: each workspace
 //! holds one or more, and every stream keeps its own running PTY.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use gpui::{
@@ -13,7 +13,7 @@ use theme::ActiveTheme;
 use xero_core::{Active, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
 use xero_editor::EditorView;
 use xero_ide::{IdeCommand, IdeServer};
-use xero_terminal::TerminalView;
+use xero_terminal::{TerminalEvent, TerminalView};
 
 use crate::finder::{FinderEvent, FinderView};
 use crate::{
@@ -47,6 +47,10 @@ pub struct XeroApp {
     sidebar_collapsed: bool,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
+    // Streams whose terminal rang the bell while unfocused (agent wants
+    // attention); shown as a dot in the sidebar, cleared when the stream opens.
+    attention: HashSet<StreamId>,
+    _bell_subs: Vec<Subscription>,
     // IDE server: agents in the terminal connect here to drive xero. Its env is
     // injected into every terminal so Claude Code discovers it.
     ide: Option<IdeServer>,
@@ -66,6 +70,8 @@ impl XeroApp {
             sidebar_collapsed: false,
             focus: cx.focus_handle(),
             _finder_sub: None,
+            attention: HashSet::new(),
+            _bell_subs: Vec::new(),
             ide: None,
             _ide_task: None,
         };
@@ -178,13 +184,32 @@ impl XeroApp {
         };
         self.active = Some(id);
         self.finder = None;
+        self.attention.remove(&id);
         if !self.terminals.contains_key(&id) {
             let env = self.terminal_env();
             let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
+            self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| {
+                match event {
+                    TerminalEvent::Bell => this.on_bell(id, cx),
+                }
+            }));
             self.terminals.insert(id, terminal);
         }
         self.persist_active();
         cx.notify();
+    }
+
+    /// A background stream rang the bell: flag it for the sidebar. The active
+    /// stream is assumed watched, so it isn't flagged.
+    fn on_bell(&mut self, id: StreamId, cx: &mut Context<Self>) {
+        if self.active != Some(id) {
+            self.attention.insert(id);
+            cx.notify();
+        }
+    }
+
+    pub(crate) fn needs_attention(&self, id: StreamId) -> bool {
+        self.attention.contains(&id)
     }
 
     /// Switch to a stream and focus its terminal, so keyboard focus lands

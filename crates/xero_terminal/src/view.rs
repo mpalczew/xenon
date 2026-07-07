@@ -14,7 +14,7 @@ use anyhow::Result;
 use collections::HashMap;
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity, EntityInputHandler,
-    FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
+    EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Point, Render,
     ScrollWheelEvent, StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window,
     anchored, canvas, deferred, div, px,
@@ -36,6 +36,12 @@ enum State {
     Failed(String),
 }
 
+/// Events a `TerminalView` emits upward; the shell subscribes to mark streams
+/// that need attention.
+pub enum TerminalEvent {
+    Bell,
+}
+
 pub struct TerminalView {
     state: State,
     focus: FocusHandle,
@@ -45,6 +51,8 @@ pub struct TerminalView {
     _spawn: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
+
+impl EventEmitter<TerminalEvent> for TerminalView {}
 
 impl TerminalView {
     /// Build the view immediately and spawn a `$SHELL` PTY at `working_dir` in
@@ -92,9 +100,11 @@ impl TerminalView {
     ) {
         use terminal::Event;
         match event {
-            Event::Wakeup | Event::TitleChanged | Event::BreadcrumbsChanged | Event::Bell => {
-                cx.notify()
+            Event::Bell => {
+                cx.emit(TerminalEvent::Bell);
+                cx.notify();
             }
+            Event::Wakeup | Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
     }

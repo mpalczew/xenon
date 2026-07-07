@@ -120,10 +120,15 @@ impl XeroApp {
         let colors = cx.theme().colors().clone();
         let background =
             if is_active { colors.element_selected } else { colors.panel_background };
+        // Amber dot when the stream's agent rang the bell while unfocused.
+        let attention = self.needs_attention(id).then(|| {
+            div().w(px(6.)).h(px(6.)).rounded_full().bg(gpui::rgb(0xd19a66))
+        });
         div()
             .id(("stream", id_hash(id.to_string())))
             .flex()
             .items_center()
+            .justify_between()
             .pl_5()
             .pr_3()
             .py_1()
@@ -132,6 +137,7 @@ impl XeroApp {
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .child(name.to_string())
+            .children(attention)
             .on_click(cx.listener(move |this, _, window, cx| this.select_stream(id, window, cx)))
     }
 }

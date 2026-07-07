@@ -8,4 +8,4 @@ mod view;
 
 pub use init::{apply_system_theme, init, observe_appearance};
 pub use terminal;
-pub use view::TerminalView;
+pub use view::{TerminalEvent, TerminalView};
