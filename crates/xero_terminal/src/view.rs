@@ -47,6 +47,9 @@ pub struct TerminalView {
     state: State,
     focus: FocusHandle,
     focused_once: bool,
+    /// Basename of the dir the terminal was spawned in; the title's cwd prefix is
+    /// dropped when it still equals this (redundant with the sidebar).
+    root_name: String,
     /// Position of the right-click Copy/Paste menu, when open (window coords).
     context_menu: Option<Point<Pixels>>,
     _spawn: Task<()>,
@@ -63,6 +66,11 @@ impl TerminalView {
         env: Vec<(String, String)>,
         cx: &mut Context<Self>,
     ) -> Self {
+        let root_name = working_dir
+            .as_deref()
+            .and_then(|dir| dir.file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let builder = build(working_dir, env, cx);
         let spawn = cx.spawn(async move |view, cx| {
             let result = builder.await;
@@ -72,6 +80,7 @@ impl TerminalView {
             state: State::Pending,
             focus: cx.focus_handle(),
             focused_once: false,
+            root_name,
             context_menu: None,
             _spawn: spawn,
             _subscriptions: Vec::new(),
@@ -119,8 +128,15 @@ impl TerminalView {
     pub fn title(&self, cx: &App) -> String {
         match &self.state {
             State::Ready(terminal) => {
+                // zed's default title is `{cwd} — {process}`. Drop the cwd prefix
+                // only while it still equals the spawn dir (redundant with the
+                // sidebar); a cd'd-into subdir is kept, as is a program-set title.
                 let title = terminal.read(cx).title(false);
-                if title.is_empty() { "terminal".into() } else { title }
+                let title = match title.split_once(" — ") {
+                    Some((dir, rest)) if dir == self.root_name => rest,
+                    _ => title.as_str(),
+                };
+                if title.is_empty() { "terminal".into() } else { title.to_string() }
             }
             State::Pending => "terminal".into(),
             State::Failed(_) => "error".into(),
