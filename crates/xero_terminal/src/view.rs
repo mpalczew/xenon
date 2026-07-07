@@ -16,7 +16,8 @@ use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity, EntityInputHandler,
     FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Point, Render,
-    ScrollWheelEvent, Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
+    ScrollWheelEvent, StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window,
+    anchored, canvas, deferred, div, px,
 };
 use task::Shell;
 use terminal::terminal_settings::{AlternateScroll, CursorShape};
@@ -39,6 +40,8 @@ pub struct TerminalView {
     state: State,
     focus: FocusHandle,
     focused_once: bool,
+    /// Position of the right-click Copy/Paste menu, when open (window coords).
+    context_menu: Option<Point<Pixels>>,
     _spawn: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
@@ -60,6 +63,7 @@ impl TerminalView {
             state: State::Pending,
             focus: cx.focus_handle(),
             focused_once: false,
+            context_menu: None,
             _spawn: spawn,
             _subscriptions: Vec::new(),
         }
@@ -109,21 +113,15 @@ impl TerminalView {
             return;
         };
         let keystroke = &event.keystroke;
-        // Cmd-V pastes the clipboard (bracketed-paste aware); Cmd-C is handled
-        // once terminal selection exists.
+        // Cmd-V pastes the clipboard; Cmd-C copies the selection.
         if keystroke.modifiers.platform && keystroke.key == "v" {
-            if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-                terminal.update(cx, |terminal, _| terminal.paste(&text));
-            }
+            self.paste_clipboard(cx);
             cx.stop_propagation();
             cx.notify();
             return;
         }
-        // Cmd-C copies the current selection (no-op without one).
         if keystroke.modifiers.platform && keystroke.key == "c" {
-            if let Some(text) = terminal.read(cx).last_content().selection_text.clone() {
-                cx.write_to_clipboard(ClipboardItem::new_string(text));
-            }
+            self.copy_selection(cx);
             cx.stop_propagation();
             cx.notify();
             return;
@@ -133,6 +131,36 @@ impl TerminalView {
             cx.stop_propagation();
         }
         cx.notify();
+    }
+
+    /// Copy the current selection to the clipboard (no-op without one).
+    fn copy_selection(&self, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state
+            && let Some(text) = terminal.read(cx).last_content().selection_text.clone()
+        {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+        }
+    }
+
+    /// Paste the clipboard into the terminal (bracketed-paste aware).
+    fn paste_clipboard(&self, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state
+            && let Some(text) = cx.read_from_clipboard().and_then(|item| item.text())
+        {
+            terminal.update(cx, |terminal, _| terminal.paste(&text));
+        }
+    }
+
+    fn on_right_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.context_menu = Some(event.position);
+        cx.stop_propagation();
+        cx.notify();
+    }
+
+    fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
+        if self.context_menu.take().is_some() {
+            cx.notify();
+        }
     }
 
     fn on_mouse_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -208,23 +236,81 @@ impl Render for TerminalView {
         let base = div()
             .track_focus(&self.focus)
             .key_context("Terminal")
+            .relative()
             .on_key_down(cx.listener(Self::on_key))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .size_full()
             .bg(background);
 
+        let menu = self.context_menu.map(|position| self.render_context_menu(position, cx));
         match &self.state {
-            State::Ready(terminal) => {
-                base.child(grid_canvas(terminal.clone(), cx.entity(), self.focus.clone()))
-            }
-            State::Pending => base,
+            State::Ready(terminal) => base
+                .child(grid_canvas(terminal.clone(), cx.entity(), self.focus.clone()))
+                .children(menu),
+            State::Pending => base.children(menu),
             State::Failed(error) => {
                 base.text_color(cx.theme().colors().text).child(error.clone())
             }
         }
+    }
+}
+
+impl TerminalView {
+    fn render_context_menu(
+        &self,
+        position: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let item = |id: &'static str, label: &'static str| {
+            div()
+                .id(id)
+                .px_3()
+                .py_1()
+                .text_sm()
+                .cursor_pointer()
+                .hover(|s| s.bg(colors.element_hover))
+                .child(label)
+        };
+        // A full-window scrim dismisses on any click; the menu occludes so its
+        // own clicks don't reach it.
+        div()
+            .absolute()
+            .inset_0()
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
+            .on_mouse_down(MouseButton::Right, cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
+            .child(
+                deferred(
+                    anchored().position(position).child(
+                        div()
+                            .occlude()
+                            .flex()
+                            .flex_col()
+                            .min_w(px(140.))
+                            .rounded_md()
+                            .border_1()
+                            .border_color(colors.border)
+                            .bg(colors.elevated_surface_background)
+                            .child(item("menu-copy", "Copy").on_click(cx.listener(
+                                |this, _, _, cx| {
+                                    this.copy_selection(cx);
+                                    this.dismiss_menu(cx);
+                                },
+                            )))
+                            .child(item("menu-paste", "Paste").on_click(cx.listener(
+                                |this, _, _, cx| {
+                                    this.paste_clipboard(cx);
+                                    this.dismiss_menu(cx);
+                                },
+                            ))),
+                    ),
+                )
+                .with_priority(1),
+            )
     }
 }
 
