@@ -18,6 +18,12 @@ pub struct GridLine {
     pub backgrounds: Vec<(Bounds<Pixels>, Hsla)>,
 }
 
+/// The shaped grid plus the cursor rectangle to overlay on top.
+pub struct GridLayout {
+    pub lines: Vec<GridLine>,
+    pub cursor: Option<Bounds<Pixels>>,
+}
+
 /// The monospace font used for the grid. Menlo is always present on macOS;
 /// ligatures are disabled so cell advances stay uniform.
 pub fn terminal_font() -> Font {
@@ -45,7 +51,7 @@ pub fn layout(
     line_height: Pixels,
     window: &mut Window,
     cx: &mut gpui::App,
-) -> Vec<GridLine> {
+) -> GridLayout {
     let cell_w = cell_width(window, font, font_size);
     let dimensions = TerminalBounds::new(line_height, cell_w, bounds);
     terminal.update(cx, |terminal, cx| {
@@ -55,7 +61,28 @@ pub fn layout(
 
     let theme = cx.theme().clone();
     let content = terminal.read(cx).last_content().clone();
-    shape_rows(&content, bounds.origin, cell_w, line_height, font, font_size, &theme, window)
+    let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height);
+    let lines =
+        shape_rows(&content, bounds.origin, cell_w, line_height, font, font_size, &theme, window);
+    GridLayout { lines, cursor }
+}
+
+/// The cell rectangle the cursor occupies, if the terminal is not hiding it.
+fn cursor_bounds(
+    content: &terminal::Content,
+    origin: GpuiPoint<Pixels>,
+    cell_w: Pixels,
+    line_height: Pixels,
+) -> Option<Bounds<Pixels>> {
+    let cursor = &content.cursor;
+    if matches!(cursor.shape, terminal::CursorShape::Hidden) {
+        return None;
+    }
+    let cell_origin = point(
+        origin.x + cell_w * (cursor.point.column as f32),
+        origin.y + line_height * (cursor.point.line as f32),
+    );
+    Some(Bounds::new(cell_origin, Size { width: cell_w, height: line_height }))
 }
 
 /// Group the flat cell list into rows and shape each into a `ShapedLine`.
@@ -155,14 +182,18 @@ impl Row {
     }
 }
 
-/// Paint the shaped rows and their backgrounds.
-pub fn paint(lines: &[GridLine], line_height: Pixels, window: &mut Window, cx: &mut gpui::App) {
-    for grid_line in lines {
+/// Paint cell backgrounds, the cursor, then the glyphs on top.
+pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: &mut gpui::App) {
+    let cursor_color = cx.theme().players().local().cursor;
+    for grid_line in &layout.lines {
         for (bounds, color) in &grid_line.backgrounds {
             window.paint_quad(fill(*bounds, *color));
         }
     }
-    for grid_line in lines {
+    if let Some(cursor) = layout.cursor {
+        window.paint_quad(fill(cursor, cursor_color));
+    }
+    for grid_line in &layout.lines {
         let _ = grid_line
             .line
             .paint(grid_line.origin, line_height, TextAlign::Left, None, window, cx);

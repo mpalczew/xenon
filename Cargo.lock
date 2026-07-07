@@ -8492,6 +8492,7 @@ dependencies = [
  "anyhow",
  "collections",
  "gpui",
+ "log",
  "release_channel",
  "semver",
  "settings",

@@ -12,7 +12,7 @@ use collections::HashMap;
 use gpui::{
     App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
     IntoElement, KeyDownEvent, ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
-    canvas, div,
+    canvas, div, px,
 };
 use task::Shell;
 use terminal::terminal_settings::{AlternateScroll, CursorShape};
@@ -23,6 +23,7 @@ use util::paths::PathStyle;
 use crate::grid;
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
+const FONT_SIZE: f32 = 14.;
 
 enum State {
     Pending,
@@ -33,6 +34,7 @@ enum State {
 pub struct TerminalView {
     state: State,
     focus: FocusHandle,
+    focused_once: bool,
     _spawn: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
@@ -49,6 +51,7 @@ impl TerminalView {
         Self {
             state: State::Pending,
             focus: cx.focus_handle(),
+            focused_once: false,
             _spawn: spawn,
             _subscriptions: Vec::new(),
         }
@@ -104,7 +107,11 @@ impl Focusable for TerminalView {
 }
 
 impl Render for TerminalView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.focused_once {
+            self.focus.focus(window, cx);
+            self.focused_once = true;
+        }
         let background = cx.theme().colors().terminal_background;
         let base = div()
             .track_focus(&self.focus)
@@ -127,15 +134,12 @@ fn grid_canvas(terminal: Entity<Terminal>) -> impl IntoElement {
     let font = grid::terminal_font();
     canvas(
         move |bounds, window, cx| layout(&terminal, &font, bounds, window, cx),
-        |_bounds, lines, window, cx| {
-            let line_height = grid::line_height(font_size(window), LINE_HEIGHT_MULTIPLIER);
-            grid::paint(&lines, line_height, window, cx);
+        |_bounds, grid_layout, window, cx| {
+            let line_height = grid::line_height(px(FONT_SIZE), LINE_HEIGHT_MULTIPLIER);
+            grid::paint(&grid_layout, line_height, window, cx);
         },
     )
-}
-
-fn font_size(window: &Window) -> Pixels {
-    window.text_style().font_size.to_pixels(window.rem_size())
+    .size_full()
 }
 
 fn layout(
@@ -144,8 +148,8 @@ fn layout(
     bounds: Bounds<Pixels>,
     window: &mut Window,
     cx: &mut App,
-) -> Vec<grid::GridLine> {
-    let size = font_size(window);
+) -> grid::GridLayout {
+    let size = px(FONT_SIZE);
     let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
     grid::layout(terminal, bounds, font, size, line_height, window, cx)
 }
