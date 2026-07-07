@@ -8,6 +8,9 @@ license.workspace = true
 ropey.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
+gpui.workspace = true
+theme.workspace = true
+log = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,0 +1,203 @@
+//! `EditorView`: a focusable gpui view over a `Buffer`. Text input flows through
+//! an `EntityInputHandler`; editing/navigation keys go through key-down; Cmd-S
+//! saves. Mirrors the terminal view's input wiring.
+
+use std::ops::Range;
+use std::path::PathBuf;
+
+use anyhow::Result;
+use gpui::{
+    App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled,
+    UTF16Selection, Window, canvas, div, px,
+};
+use theme::ActiveTheme;
+
+use crate::buffer::Buffer;
+use crate::edit::{EditCommand, Motion};
+use crate::element;
+
+const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
+const FONT_SIZE: f32 = 14.;
+
+pub struct EditorView {
+    buffer: Buffer,
+    focus: FocusHandle,
+    focused_once: bool,
+}
+
+impl EditorView {
+    pub fn open(path: PathBuf, cx: &mut Context<Self>) -> Result<Self> {
+        let buffer = Buffer::open(&path)?;
+        Ok(Self { buffer, focus: cx.focus_handle(), focused_once: false })
+    }
+
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        if keystroke.modifiers.platform && keystroke.key == "s" {
+            if let Err(error) = self.buffer.save() {
+                log::error!("save failed: {error}");
+            }
+            cx.stop_propagation();
+            cx.notify();
+            return;
+        }
+        let Some(command) = command_for(&keystroke.key) else {
+            return;
+        };
+        self.buffer.apply(command);
+        cx.stop_propagation();
+        cx.notify();
+    }
+}
+
+fn command_for(key: &str) -> Option<EditCommand> {
+    Some(match key {
+        "backspace" => EditCommand::Backspace,
+        "delete" => EditCommand::Delete,
+        "enter" => EditCommand::Newline,
+        "tab" => EditCommand::Insert("    ".into()),
+        "left" => EditCommand::Move(Motion::Left),
+        "right" => EditCommand::Move(Motion::Right),
+        "up" => EditCommand::Move(Motion::Up),
+        "down" => EditCommand::Move(Motion::Down),
+        "home" => EditCommand::Move(Motion::LineStart),
+        "end" => EditCommand::Move(Motion::LineEnd),
+        _ => return None,
+    })
+}
+
+impl Focusable for EditorView {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
+impl Render for EditorView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.focused_once {
+            self.focus.focus(window, cx);
+            self.focused_once = true;
+        }
+        let colors = cx.theme().colors();
+        div()
+            .track_focus(&self.focus)
+            .key_context("Editor")
+            .on_key_down(cx.listener(Self::on_key))
+            .size_full()
+            .bg(colors.editor_background)
+            .child(editor_canvas(cx.entity(), self.focus.clone()))
+    }
+}
+
+fn editor_canvas(view: Entity<EditorView>, focus: FocusHandle) -> impl IntoElement {
+    let font = element::editor_font();
+    canvas(
+        {
+            let view = view.clone();
+            move |bounds, window, cx| layout(&view, &font, bounds, window, cx)
+        },
+        move |bounds, editor_layout, window, cx| {
+            let cursor_color = cx.theme().players().local().cursor;
+            element::paint(&editor_layout, cursor_color, window, cx);
+            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
+        },
+    )
+    .size_full()
+}
+
+fn layout(
+    view: &Entity<EditorView>,
+    font: &gpui::Font,
+    bounds: Bounds<Pixels>,
+    window: &mut Window,
+    cx: &mut App,
+) -> element::EditorLayout {
+    let size = px(FONT_SIZE);
+    let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
+    let text_color = cx.theme().colors().editor_foreground;
+    let view = view.read(cx);
+    element::layout(
+        view.buffer.rope(),
+        view.buffer.cursor_position(),
+        text_color,
+        bounds.origin,
+        font,
+        size,
+        line_height,
+        window,
+    )
+}
+
+impl EntityInputHandler for EditorView {
+    fn replace_text_in_range(
+        &mut self,
+        _range: Option<Range<usize>>,
+        text: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !text.is_empty() {
+            self.buffer.apply(EditCommand::Insert(text.to_string()));
+            cx.notify();
+        }
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        _range: Option<Range<usize>>,
+        new_text: &str,
+        _new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !new_text.is_empty() {
+            self.buffer.apply(EditCommand::Insert(new_text.to_string()));
+            cx.notify();
+        }
+    }
+
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        Some(UTF16Selection { range: 0..0, reversed: false })
+    }
+
+    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+        None
+    }
+
+    fn text_for_range(
+        &mut self,
+        _range: Range<usize>,
+        _adjusted: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
+
+    fn bounds_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        _element_bounds: Bounds<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        None
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        None
+    }
+}

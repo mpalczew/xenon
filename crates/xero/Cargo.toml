@@ -9,3 +9,4 @@ env_logger = "0.11"
 gpui.workspace = true
 gpui_platform.workspace = true
 xero_terminal.workspace = true
+xero_editor.workspace = true
