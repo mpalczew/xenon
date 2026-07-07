@@ -2,17 +2,20 @@
 //! draws its grid. The view exists immediately in a `Pending` state and swaps
 //! to `Ready` when the PTY finishes spawning on the background executor.
 //!
-//! Spawn/subscribe patterns follow zed's terminal_view and project::terminals
+//! Text input flows through an `EntityInputHandler` (registered each paint), so
+//! plain typing and IME reach the PTY; control/navigation keys go through
+//! `try_keystroke` on key-down. Both mirror zed's terminal_view
 //! (GPL-3.0-or-later); see ATTRIBUTION.md.
 
+use std::ops::Range;
 use std::path::PathBuf;
 
 use anyhow::Result;
 use collections::HashMap;
 use gpui::{
-    App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, KeyDownEvent, ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
-    canvas, div, px,
+    App, AppContext, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle,
+    Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render,
+    Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
 };
 use task::Shell;
 use terminal::terminal_settings::{AlternateScroll, CursorShape};
@@ -70,11 +73,22 @@ impl TerminalView {
         cx.notify();
     }
 
+    /// Write UTF-8 text straight to the PTY (used by the input handler).
+    fn send_text(&self, text: &str, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state
+            && !text.is_empty()
+        {
+            terminal.update(cx, |terminal, _| terminal.input(text.to_string().into_bytes()));
+        }
+    }
+
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state {
-            terminal.update(cx, |terminal, _cx| {
-                terminal.try_keystroke(&event.keystroke, false);
-            });
+            let handled =
+                terminal.update(cx, |terminal, _| terminal.try_keystroke(&event.keystroke, false));
+            if handled {
+                cx.stop_propagation();
+            }
             cx.notify();
         }
     }
@@ -121,7 +135,9 @@ impl Render for TerminalView {
             .bg(background);
 
         match &self.state {
-            State::Ready(terminal) => base.child(grid_canvas(terminal.clone())),
+            State::Ready(terminal) => {
+                base.child(grid_canvas(terminal.clone(), cx.entity(), self.focus.clone()))
+            }
             State::Pending => base,
             State::Failed(error) => {
                 base.text_color(cx.theme().colors().text).child(error.clone())
@@ -130,13 +146,18 @@ impl Render for TerminalView {
     }
 }
 
-fn grid_canvas(terminal: Entity<Terminal>) -> impl IntoElement {
+fn grid_canvas(
+    terminal: Entity<Terminal>,
+    view: Entity<TerminalView>,
+    focus: FocusHandle,
+) -> impl IntoElement {
     let font = grid::terminal_font();
     canvas(
         move |bounds, window, cx| layout(&terminal, &font, bounds, window, cx),
-        |_bounds, grid_layout, window, cx| {
+        move |bounds, grid_layout, window, cx| {
             let line_height = grid::line_height(px(FONT_SIZE), LINE_HEIGHT_MULTIPLIER);
             grid::paint(&grid_layout, line_height, window, cx);
+            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
         },
     )
     .size_full()
@@ -152,4 +173,73 @@ fn layout(
     let size = px(FONT_SIZE);
     let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
     grid::layout(terminal, bounds, font, size, line_height, window, cx)
+}
+
+/// macOS text input: only `replace_text_in_range` is needed for plain typing;
+/// the rest satisfy the protocol. IME composition is not handled in v1.
+impl EntityInputHandler for TerminalView {
+    fn replace_text_in_range(
+        &mut self,
+        _range: Option<Range<usize>>,
+        text: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.send_text(text, cx);
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        _range: Option<Range<usize>>,
+        new_text: &str,
+        _new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.send_text(new_text, cx);
+    }
+
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        Some(UTF16Selection { range: 0..0, reversed: false })
+    }
+
+    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+        None
+    }
+
+    fn text_for_range(
+        &mut self,
+        _range: Range<usize>,
+        _adjusted: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
+
+    fn bounds_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        _element_bounds: Bounds<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        None
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        None
+    }
 }
