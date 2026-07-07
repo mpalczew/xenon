@@ -15,7 +15,7 @@ use collections::HashMap;
 use gpui::{
     App, AppContext, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle,
     Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render,
-    Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
+    ScrollWheelEvent, Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
 };
 use task::Shell;
 use terminal::terminal_settings::{AlternateScroll, CursorShape};
@@ -27,6 +27,7 @@ use crate::grid;
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
 const FONT_SIZE: f32 = 14.;
+const SCROLL_MULTIPLIER: f32 = 3.;
 
 enum State {
     Pending,
@@ -109,6 +110,13 @@ impl TerminalView {
             cx.notify();
         }
     }
+
+    fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state {
+            terminal.update(cx, |terminal, _| terminal.scroll_wheel(event, SCROLL_MULTIPLIER));
+            cx.notify();
+        }
+    }
 }
 
 fn build(working_dir: Option<PathBuf>, cx: &App) -> Task<Result<TerminalBuilder>> {
@@ -148,6 +156,7 @@ impl Render for TerminalView {
             .track_focus(&self.focus)
             .key_context("Terminal")
             .on_key_down(cx.listener(Self::on_key))
+            .on_scroll_wheel(cx.listener(Self::on_scroll))
             .size_full()
             .bg(background);
 
