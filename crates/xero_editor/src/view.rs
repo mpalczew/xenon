@@ -25,25 +25,25 @@ pub struct EditorView {
     buffer: Buffer,
     highlights: Vec<highlight::Span>,
     focus: FocusHandle,
+    autofocus: bool,
     focused_once: bool,
 }
 
 impl EditorView {
-    pub fn open(path: PathBuf, cx: &mut Context<Self>) -> Result<Self> {
-        Ok(Self::from_buffer(Buffer::open(&path)?, cx))
-    }
-
-    /// Open `path` and wrap it in an entity, propagating open errors.
-    pub fn build(path: PathBuf, cx: &mut App) -> Result<Entity<Self>> {
+    /// Open `path` and wrap it in an entity. `autofocus` grabs keyboard focus on
+    /// first render (true for user-opened files, false for agent-opened ones so
+    /// the terminal keeps focus).
+    pub fn build(path: PathBuf, autofocus: bool, cx: &mut App) -> Result<Entity<Self>> {
         let buffer = Buffer::open(&path)?;
-        Ok(cx.new(|cx| Self::from_buffer(buffer, cx)))
+        Ok(cx.new(|cx| Self::from_buffer(buffer, autofocus, cx)))
     }
 
-    fn from_buffer(buffer: Buffer, cx: &mut Context<Self>) -> Self {
+    fn from_buffer(buffer: Buffer, autofocus: bool, cx: &mut Context<Self>) -> Self {
         let mut view = Self {
             buffer,
             highlights: Vec::new(),
             focus: cx.focus_handle(),
+            autofocus,
             focused_once: false,
         };
         view.recompute_highlights();
@@ -107,7 +107,7 @@ impl Focusable for EditorView {
 
 impl Render for EditorView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
+        if self.autofocus && !self.focused_once {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }

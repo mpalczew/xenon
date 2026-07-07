@@ -127,7 +127,10 @@ impl XeroApp {
 
     fn handle_ide(&mut self, command: IdeCommand, cx: &mut Context<Self>) {
         match command {
-            IdeCommand::OpenFile(path) => self.open_editor(path, cx),
+            IdeCommand::OpenFile(path) => {
+                log::info!("IDE openFile: {}", path.display());
+                self.open_editor(path, false, cx); // don't steal terminal focus
+            }
         }
     }
 
@@ -235,14 +238,15 @@ impl XeroApp {
             if let Ok(Ok(Some(paths))) = rx.await
                 && let Some(path) = paths.into_iter().next()
             {
-                this.update(cx, |this, cx| this.open_editor(path, cx)).ok();
+                this.update(cx, |this, cx| this.open_editor(path, true, cx)).ok();
             }
         })
         .detach();
     }
 
-    pub(crate) fn open_editor(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+    pub(crate) fn open_editor(&mut self, path: PathBuf, focus: bool, cx: &mut Context<Self>) {
         let Some(id) = self.active else {
+            log::warn!("open_editor: no active stream for {}", path.display());
             return;
         };
         let stack = self.editors.entry(id).or_default();
@@ -250,7 +254,7 @@ impl XeroApp {
         if let Some(index) = stack.tabs.iter().position(|tab| tab.path == path) {
             stack.active = index;
         } else {
-            match EditorView::build(path.clone(), cx) {
+            match EditorView::build(path.clone(), focus, cx) {
                 Ok(view) => {
                     let name = file_name(&path);
                     let stack = self.editors.entry(id).or_default();
@@ -326,7 +330,7 @@ impl XeroApp {
         match event {
             FinderEvent::Selected(relative) => {
                 if let Some(root) = self.active.and_then(|id| self.stream_root(id)) {
-                    self.open_editor(root.join(relative), cx);
+                    self.open_editor(root.join(relative), true, cx);
                 }
             }
             FinderEvent::Dismissed => {

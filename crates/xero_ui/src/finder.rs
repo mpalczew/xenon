@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use gpui::{
     App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
-    Point, Render, Styled, UTF16Selection, Window, canvas, div, px,
+    Point, Render, StatefulInteractiveElement, Styled, UTF16Selection, Window, canvas, div, px,
 };
 use theme::ActiveTheme;
 use xero_finder::{FileMatch, Finder};
@@ -99,16 +99,21 @@ impl Render for FinderView {
             self.focused_once = true;
         }
         let colors = cx.theme().colors().clone();
-        // A full-window scrim that centers the palette near the top.
+        // A full-window scrim that centers the palette near the top. Clicking the
+        // scrim (outside the panel) dismisses; the panel occludes clicks so they
+        // don't reach the scrim.
         div()
+            .id("finder-scrim")
             .absolute()
             .inset_0()
             .flex()
             .flex_col()
             .items_center()
             .pt(px(80.))
+            .on_click(cx.listener(|_, _, _, cx| cx.emit(FinderEvent::Dismissed)))
             .child(
                 div()
+                    .occlude()
                     .track_focus(&self.focus)
                     .key_context("Finder")
                     .on_key_down(cx.listener(Self::on_key))
