@@ -110,6 +110,19 @@ impl TerminalView {
         }
     }
 
+    /// The terminal's title (set by the program via OSC, e.g. Claude Code's
+    /// status), for the terminal tab label.
+    pub fn title(&self, cx: &App) -> String {
+        match &self.state {
+            State::Ready(terminal) => {
+                let title = terminal.read(cx).title(true);
+                if title.is_empty() { "terminal".into() } else { title }
+            }
+            State::Pending => "terminal".into(),
+            State::Failed(_) => "error".into(),
+        }
+    }
+
     /// Write UTF-8 text straight to the PTY (used by the input handler).
     fn send_text(&self, text: &str, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state

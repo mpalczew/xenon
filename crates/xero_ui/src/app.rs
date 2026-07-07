@@ -21,6 +21,13 @@ use crate::{
     ResetFontSize, ToggleSidebar,
 };
 
+/// The terminals open in one stream, as tabs, plus which is focused.
+#[derive(Default)]
+pub(crate) struct TerminalStack {
+    pub tabs: Vec<Entity<TerminalView>>,
+    pub active: usize,
+}
+
 /// The open editor tabs for one stream, plus which is focused.
 #[derive(Default)]
 pub(crate) struct EditorStack {
@@ -39,8 +46,8 @@ pub struct XeroApp {
     // Stream metadata (name/session) and, per stream, the live views. Keeping
     // terminals here means switching streams never tears down a running PTY.
     streams: HashMap<StreamId, Stream>,
-    terminals: HashMap<StreamId, Entity<TerminalView>>,
-    // Per stream, a stack of open editor tabs.
+    // Per stream: a stack of terminal tabs and a stack of editor tabs.
+    terminals: HashMap<StreamId, TerminalStack>,
     editors: HashMap<StreamId, EditorStack>,
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
@@ -191,18 +198,89 @@ impl XeroApp {
         self.active = Some(id);
         self.finder = None;
         if !self.terminals.contains_key(&id) {
-            let env = self.terminal_env();
-            let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
-            self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| {
-                match event {
-                    TerminalEvent::Bell => this.flag_attention(id, cx),
-                    TerminalEvent::Interacted => this.clear_attention(id, cx),
-                }
-            }));
-            self.terminals.insert(id, terminal);
+            let terminal = self.spawn_terminal(root, id, cx);
+            self.terminals.insert(id, TerminalStack { tabs: vec![terminal], active: 0 });
         }
         self.persist_active();
         cx.notify();
+    }
+
+    /// Create a terminal for `stream` at `root` and wire its bell/interaction
+    /// events to the stream's attention flag.
+    fn spawn_terminal(
+        &mut self,
+        root: PathBuf,
+        stream: StreamId,
+        cx: &mut Context<Self>,
+    ) -> Entity<TerminalView> {
+        let env = self.terminal_env();
+        let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
+        self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| match event {
+            TerminalEvent::Bell => this.flag_attention(stream, cx),
+            TerminalEvent::Interacted => this.clear_attention(stream, cx),
+        }));
+        terminal
+    }
+
+    /// Add another terminal tab to the active stream.
+    pub(crate) fn add_terminal(&mut self, cx: &mut Context<Self>) {
+        let Some(id) = self.active else {
+            return;
+        };
+        let Some(root) = self.stream_root(id) else {
+            return;
+        };
+        let terminal = self.spawn_terminal(root, id, cx);
+        let stack = self.terminals.entry(id).or_default();
+        stack.tabs.push(terminal);
+        stack.active = stack.tabs.len() - 1;
+        cx.notify();
+    }
+
+    pub(crate) fn terminal_stack(&self) -> Option<&TerminalStack> {
+        self.active.and_then(|id| self.terminals.get(&id))
+    }
+
+    fn active_terminal(&self) -> Option<Entity<TerminalView>> {
+        self.terminal_stack().and_then(|s| s.tabs.get(s.active)).cloned()
+    }
+
+    pub(crate) fn activate_terminal_tab(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = self.active else {
+            return;
+        };
+        let terminal = {
+            let Some(stack) = self.terminals.get_mut(&id) else {
+                return;
+            };
+            if index >= stack.tabs.len() {
+                return;
+            }
+            stack.active = index;
+            stack.tabs[index].clone()
+        };
+        terminal.read(cx).focus_handle(cx).focus(window, cx);
+        cx.notify();
+    }
+
+    /// Close a terminal tab, keeping at least one terminal per stream.
+    pub(crate) fn close_terminal_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(id) = self.active else {
+            return;
+        };
+        if let Some(stack) = self.terminals.get_mut(&id)
+            && index < stack.tabs.len()
+            && stack.tabs.len() > 1
+        {
+            stack.tabs.remove(index);
+            stack.active = stack.active.min(stack.tabs.len() - 1);
+            cx.notify();
+        }
     }
 
     /// The stream's agent rang the bell: flag it (even when active/focused). The
@@ -246,7 +324,7 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) {
         self.activate_stream(id, cx);
-        if let Some(terminal) = self.active.and_then(|id| self.terminals.get(&id)) {
+        if let Some(terminal) = self.active_terminal() {
             terminal.read(cx).focus_handle(cx).focus(window, cx);
         }
     }
@@ -484,7 +562,7 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let terminal = self.active.and_then(|id| self.terminals.get(&id)).cloned();
+        let terminal = self.active_terminal();
         let active_view = self
             .editor_stack()
             .and_then(|stack| stack.tabs.get(stack.active))
@@ -500,32 +578,37 @@ impl XeroApp {
             .as_ref()
             .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx));
 
-        let tab_bar = self.has_editor().then(|| self.render_tab_bar(cx));
+        let terminal_tabs = terminal.is_some().then(|| self.render_terminal_tabs(cx));
+        let editor_tabs = self.has_editor().then(|| self.render_tab_bar(cx));
+        let terminal_pane = terminal.map(|terminal| {
+            div()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .min_w_0()
+                .border_2()
+                .border_color(ring(term_focused))
+                .children(terminal_tabs)
+                .child(div().flex_1().min_h_0().child(terminal))
+        });
+
         let mut panel = div().flex().flex_1().size_full();
-        match (terminal, active_view) {
-            (Some(terminal), Some(view)) => {
-                panel = panel
-                    .child(
-                        div()
-                            .flex_1()
-                            .border_2()
-                            .border_color(ring(term_focused))
-                            .child(terminal),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .flex()
-                            .flex_col()
-                            .min_w_0()
-                            .border_2()
-                            .border_color(ring(editor_focused))
-                            .children(tab_bar)
-                            .child(div().flex_1().min_h_0().child(view)),
-                    );
+        match (terminal_pane, active_view) {
+            (Some(terminal_pane), Some(view)) => {
+                panel = panel.child(terminal_pane).child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .min_w_0()
+                        .border_2()
+                        .border_color(ring(editor_focused))
+                        .children(editor_tabs)
+                        .child(div().flex_1().min_h_0().child(view)),
+                );
             }
-            (Some(terminal), None) => {
-                panel = panel.child(div().flex_1().child(terminal));
+            (Some(terminal_pane), None) => {
+                panel = panel.child(terminal_pane);
             }
             _ => {
                 panel = panel.items_center().justify_center().child("Add a workspace to begin");

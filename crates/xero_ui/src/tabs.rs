@@ -79,3 +79,86 @@ impl XeroApp {
             )
     }
 }
+
+impl XeroApp {
+    /// The terminal tab strip; each tab is labeled with the terminal's title
+    /// (which programs like Claude Code set to show status). `+` adds a terminal.
+    pub(crate) fn render_terminal_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let tabs: Vec<(usize, String, bool)> = self
+            .terminal_stack()
+            .map(|stack| {
+                stack
+                    .tabs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, view)| (i, view.read(cx).title(cx), i == stack.active))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut chips = Vec::with_capacity(tabs.len());
+        for (index, title, is_active) in tabs {
+            chips.push(self.terminal_chip(index, &title, is_active, cx));
+        }
+
+        div()
+            .flex()
+            .items_center()
+            .h(px(30.))
+            .border_b_1()
+            .border_color(colors.border)
+            .bg(colors.panel_background)
+            .children(chips)
+            .child(
+                div()
+                    .id("term-add")
+                    .px_2()
+                    .text_sm()
+                    .cursor_pointer()
+                    .hover(|s| s.bg(colors.element_hover))
+                    .child("+")
+                    .on_click(cx.listener(|this, _, _, cx| this.add_terminal(cx))),
+            )
+    }
+
+    fn terminal_chip(
+        &self,
+        index: usize,
+        title: &str,
+        is_active: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let background =
+            if is_active { colors.terminal_background } else { colors.panel_background };
+        div()
+            .id(("term-tab", index))
+            .flex()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .h_full()
+            .border_r_1()
+            .border_color(colors.border)
+            .bg(background)
+            .cursor_pointer()
+            .hover(|s| s.bg(colors.element_hover))
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.activate_terminal_tab(index, window, cx)
+            }))
+            .child(div().text_sm().child(title.to_string()))
+            .child(
+                div()
+                    .id(("term-close", index))
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .hover(|s| s.text_color(colors.text))
+                    .child("✕")
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
+                        this.close_terminal_tab(index, cx);
+                    })),
+            )
+    }
+}
