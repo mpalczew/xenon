@@ -7,11 +7,12 @@ use std::path::PathBuf;
 
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    ParentElement, PathPromptOptions, Render, Styled, Subscription, Window, div,
+    ParentElement, PathPromptOptions, Render, Styled, Subscription, Task, Window, div,
 };
 use theme::ActiveTheme;
 use xero_core::{Active, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
 use xero_editor::EditorView;
+use xero_ide::{IdeCommand, IdeServer};
 use xero_terminal::TerminalView;
 
 use crate::finder::{FinderEvent, FinderView};
@@ -43,6 +44,10 @@ pub struct XeroApp {
     sidebar_collapsed: bool,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
+    // IDE server: agents in the terminal connect here to drive xero. Its env is
+    // injected into every terminal so Claude Code discovers it.
+    ide: Option<IdeServer>,
+    _ide_task: Option<Task<()>>,
 }
 
 impl XeroApp {
@@ -58,8 +63,11 @@ impl XeroApp {
             sidebar_collapsed: false,
             focus: cx.focus_handle(),
             _finder_sub: None,
+            ide: None,
+            _ide_task: None,
         };
         app.load_streams();
+        app.start_ide_server(cx);
         let active = app
             .registry
             .active
@@ -94,6 +102,38 @@ impl XeroApp {
         if dirty {
             let _ = xero_store::save_registry(&self.registry);
         }
+    }
+
+    /// Start the IDE server over all workspace roots and consume its commands
+    /// (openFile) on the UI thread.
+    fn start_ide_server(&mut self, cx: &mut Context<Self>) {
+        let roots: Vec<_> = self.registry.workspaces.iter().map(|w| w.root.clone()).collect();
+        let (tx, rx) = async_channel::unbounded();
+        match IdeServer::start(roots, tx) {
+            Ok(server) => self.ide = Some(server),
+            Err(error) => {
+                log::error!("IDE server failed to start: {error}");
+                return;
+            }
+        }
+        self._ide_task = Some(cx.spawn(async move |view, cx| {
+            while let Ok(command) = rx.recv().await {
+                if view.update(cx, |app, cx| app.handle_ide(command, cx)).is_err() {
+                    break;
+                }
+            }
+        }));
+    }
+
+    fn handle_ide(&mut self, command: IdeCommand, cx: &mut Context<Self>) {
+        match command {
+            IdeCommand::OpenFile(path) => self.open_editor(path, cx),
+        }
+    }
+
+    /// Environment injected into every terminal so agents find the IDE server.
+    fn terminal_env(&self) -> Vec<(String, String)> {
+        self.ide.as_ref().map(|server| server.env()).unwrap_or_default()
     }
 
     pub(crate) fn registry(&self) -> &Registry {
@@ -133,7 +173,8 @@ impl XeroApp {
         self.active = Some(id);
         self.finder = None;
         if !self.terminals.contains_key(&id) {
-            let terminal = cx.new(|cx| TerminalView::new(Some(root), cx));
+            let env = self.terminal_env();
+            let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
             self.terminals.insert(id, terminal);
         }
         self.persist_active();

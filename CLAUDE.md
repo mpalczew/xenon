@@ -41,6 +41,10 @@ Seven crates under `crates/`:
 - `xero_editor` — ropey `Buffer` (edit ops, save, mtime external-change) + gpui
   `EditorView`. Tree-sitter highlighting is still TODO.
 - `xero_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
+- `xero_ide` — Claude Code IDE integration: a localhost WebSocket MCP server
+  (`~/.claude/ide/<port>.lock` + `CLAUDE_CODE_SSE_PORT` injected into terminals)
+  that lets agents open files in xero. Protocol captured in
+  `crates/xero_ide/PROTOCOL.md`.
 
 Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
 an `EntityInputHandler` registered during paint (`window.handle_input`), NOT

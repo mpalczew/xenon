@@ -46,8 +46,12 @@ pub struct TerminalView {
 impl TerminalView {
     /// Build the view immediately and spawn a `$SHELL` PTY at `working_dir` in
     /// the background; the view repaints itself when the terminal is ready.
-    pub fn new(working_dir: Option<PathBuf>, cx: &mut Context<Self>) -> Self {
-        let builder = build(working_dir, cx);
+    pub fn new(
+        working_dir: Option<PathBuf>,
+        env: Vec<(String, String)>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let builder = build(working_dir, env, cx);
         let spawn = cx.spawn(async move |view, cx| {
             let result = builder.await;
             view.update(cx, |view, cx| view.resolve(result, cx)).ok();
@@ -119,12 +123,16 @@ impl TerminalView {
     }
 }
 
-fn build(working_dir: Option<PathBuf>, cx: &App) -> Task<Result<TerminalBuilder>> {
+fn build(
+    working_dir: Option<PathBuf>,
+    env: Vec<(String, String)>,
+    cx: &App,
+) -> Task<Result<TerminalBuilder>> {
     TerminalBuilder::new(
         working_dir,
         None,
         Shell::System,
-        HashMap::default(),
+        env.into_iter().collect(),
         CursorShape::default(),
         AlternateScroll::On,
         None,

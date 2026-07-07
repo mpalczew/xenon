@@ -14,6 +14,7 @@ xero_terminal = { path = "crates/xero_terminal" }
 xero_editor = { path = "crates/xero_editor" }
 xero_finder = { path = "crates/xero_finder" }
 xero_ui = { path = "crates/xero_ui" }
+xero_ide = { path = "crates/xero_ide" }
 
 # zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a
 # deliberate chore: bump every rev below together, then fix compile errors.
@@ -31,6 +32,8 @@ collections = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636
 semver = "1"
 anyhow = "1"
 thiserror = "2"
+async-channel = "2"
+tungstenite = "0.24"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
