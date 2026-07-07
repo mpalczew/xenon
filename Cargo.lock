@@ -8489,6 +8489,11 @@ dependencies = [
 [[package]]
 name = "xero_core"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "uuid",
+]
 
 [[package]]
 name = "xero_editor"
@@ -8510,6 +8515,13 @@ version = "0.1.0"
 [[package]]
 name = "xero_store"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "xero_core",
+]
 
 [[package]]
 name = "xero_terminal"
