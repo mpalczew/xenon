@@ -62,6 +62,18 @@ fn lang_for_ext(ext: &str) -> Option<Lang> {
     })
 }
 
+/// Language named by a markdown fenced-code-block info string (```rust).
+fn lang_for_name(name: &str) -> Option<Lang> {
+    Some(match name {
+        "rust" | "rs" => Lang::Rust,
+        "json" => Lang::Json,
+        "toml" => Lang::Toml,
+        "python" | "py" => Lang::Python,
+        "javascript" | "js" | "jsx" => Lang::JavaScript,
+        _ => return None,
+    })
+}
+
 fn build(language: tree_sitter::Language, query: &str) -> Option<HighlightConfiguration> {
     let mut config = HighlightConfiguration::new(language, "source", query, "", "").ok()?;
     config.configure(HIGHLIGHT_NAMES);
@@ -100,6 +112,15 @@ pub fn spans_for_path(path: &Path, source: &str) -> Vec<Span> {
         .and_then(lang_for_ext)
         .and_then(config)
     else {
+        return Vec::new();
+    };
+    highlight(config, source)
+}
+
+/// Highlight spans for source in a named language (markdown code fences). Empty
+/// for unsupported languages.
+pub fn spans_for_lang(name: &str, source: &str) -> Vec<Span> {
+    let Some(config) = lang_for_name(name).and_then(config) else {
         return Vec::new();
     };
     highlight(config, source)

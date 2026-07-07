@@ -17,6 +17,7 @@ tree-sitter-json.workspace = true
 tree-sitter-toml-ng.workspace = true
 tree-sitter-python.workspace = true
 tree-sitter-javascript.workspace = true
+pulldown-cmark.workspace = true
 xero_settings.workspace = true
 log = "0.4"
 

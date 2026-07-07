@@ -602,6 +602,22 @@ impl XeroApp {
         self.editor_stack().is_some_and(|stack| !stack.tabs.is_empty())
     }
 
+    fn active_editor(&self) -> Option<Entity<EditorView>> {
+        self.editor_stack().and_then(|s| s.tabs.get(s.active)).map(|tab| tab.view.clone())
+    }
+
+    /// Whether the focused editor is a markdown file (drives the Preview button).
+    pub(crate) fn active_editor_is_markdown(&self, cx: &App) -> bool {
+        self.active_editor().is_some_and(|view| view.read(cx).is_markdown())
+    }
+
+    /// Toggle the focused markdown editor between source and preview.
+    pub(crate) fn toggle_preview(&mut self, cx: &mut Context<Self>) {
+        if let Some(view) = self.active_editor() {
+            view.update(cx, |view, cx| view.toggle_preview(cx));
+        }
+    }
+
     fn open_palette(&mut self, cx: &mut Context<Self>) {
         let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
             return;

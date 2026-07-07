@@ -27,6 +27,8 @@ pub struct EditorView {
     focus: FocusHandle,
     autofocus: bool,
     focused_once: bool,
+    /// Render the markdown preview instead of the source (markdown files only).
+    preview: bool,
 }
 
 impl EditorView {
@@ -46,9 +48,26 @@ impl EditorView {
             focus: cx.focus_handle(),
             autofocus,
             focused_once: false,
+            preview: false,
         };
         view.recompute_highlights();
         view
+    }
+
+    /// Whether this file can show a markdown preview.
+    pub fn is_markdown(&self) -> bool {
+        matches!(
+            self.buffer.path().extension().and_then(|e| e.to_str()),
+            Some("md" | "markdown" | "mdx")
+        )
+    }
+
+    /// Toggle between source and rendered markdown (no-op for non-markdown).
+    pub fn toggle_preview(&mut self, cx: &mut Context<Self>) {
+        if self.is_markdown() {
+            self.preview = !self.preview;
+            cx.notify();
+        }
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -118,6 +137,17 @@ impl Render for EditorView {
             self.focused_once = true;
         }
         let colors = cx.theme().colors();
+        if self.preview {
+            let size = px(xero_settings::font_size(cx));
+            return div()
+                .track_focus(&self.focus)
+                .key_context("Editor")
+                .on_key_down(cx.listener(Self::on_key))
+                .size_full()
+                .bg(colors.editor_background)
+                .child(crate::markdown::render(&self.buffer.text(), size, cx))
+                .into_any_element();
+        }
         div()
             .track_focus(&self.focus)
             .key_context("Editor")
@@ -126,6 +156,7 @@ impl Render for EditorView {
             .size_full()
             .bg(colors.editor_background)
             .child(editor_canvas(cx.entity(), self.focus.clone()))
+            .into_any_element()
     }
 }
 

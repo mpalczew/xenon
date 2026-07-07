@@ -5068,6 +5068,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulldown-cmark"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f86ba2052aebccc42cbbb3ed234b8b13ce76f75c3551a303cb2bcffcff12bb14"
+dependencies = [
+ "bitflags 2.13.0",
+ "memchr",
+ "unicase",
+]
+
+[[package]]
 name = "pulley-interpreter"
 version = "36.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8616,6 +8627,7 @@ dependencies = [
  "anyhow",
  "gpui",
  "log",
+ "pulldown-cmark",
  "ropey",
  "tempfile",
  "theme",
