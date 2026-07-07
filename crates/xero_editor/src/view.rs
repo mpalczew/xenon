@@ -7,9 +7,9 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled,
-    UTF16Selection, Window, canvas, div, px,
+    App, AppContext, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle,
+    Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render,
+    Styled, UTF16Selection, Window, canvas, div, px,
 };
 use theme::ActiveTheme;
 
@@ -30,6 +30,12 @@ impl EditorView {
     pub fn open(path: PathBuf, cx: &mut Context<Self>) -> Result<Self> {
         let buffer = Buffer::open(&path)?;
         Ok(Self { buffer, focus: cx.focus_handle(), focused_once: false })
+    }
+
+    /// Open `path` and wrap it in an entity, propagating open errors.
+    pub fn build(path: PathBuf, cx: &mut App) -> Result<Entity<Self>> {
+        let buffer = Buffer::open(&path)?;
+        Ok(cx.new(|cx| Self { buffer, focus: cx.focus_handle(), focused_once: false }))
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {

@@ -8503,8 +8503,8 @@ dependencies = [
  "env_logger",
  "gpui",
  "gpui_platform",
- "xero_editor",
  "xero_terminal",
+ "xero_ui",
 ]
 
 [[package]]
@@ -8570,6 +8570,17 @@ dependencies = [
 [[package]]
 name = "xero_ui"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gpui",
+ "log",
+ "theme",
+ "xero_core",
+ "xero_editor",
+ "xero_finder",
+ "xero_store",
+ "xero_terminal",
+]
 
 [[package]]
 name = "xml-rs"
