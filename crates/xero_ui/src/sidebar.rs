@@ -134,10 +134,22 @@ impl XeroApp {
         name: &str,
         is_active: bool,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
+    ) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
         let background =
             if is_active { colors.element_selected } else { colors.panel_background };
+        // While renaming, the row is just the inline edit field.
+        if let Some(field) = self.rename_field(id) {
+            return div()
+                .flex()
+                .items_center()
+                .pl_5()
+                .pr_2()
+                .py_1()
+                .bg(background)
+                .child(field)
+                .into_any_element();
+        }
         // Amber dot when the stream's agent rang the bell while unfocused.
         let attention = self.needs_attention(id).then(|| {
             div().w(px(6.)).h(px(6.)).rounded_full().bg(gpui::rgb(0xd19a66))
@@ -154,7 +166,13 @@ impl XeroApp {
             .bg(background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
-            .on_click(cx.listener(move |this, _, window, cx| this.select_stream(id, window, cx)))
+            .on_click(cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+                if event.click_count() >= 2 {
+                    this.start_rename(id, cx);
+                } else {
+                    this.select_stream(id, window, cx);
+                }
+            }))
             .child(name.to_string())
             .child(
                 div()
@@ -175,6 +193,7 @@ impl XeroApp {
                             })),
                     ),
             )
+            .into_any_element()
     }
 }
 

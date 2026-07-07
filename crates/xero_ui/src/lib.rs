@@ -3,6 +3,7 @@
 
 mod app;
 mod finder;
+mod rename;
 mod sidebar;
 mod tabs;
 mod toolbar;

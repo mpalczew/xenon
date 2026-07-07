@@ -16,6 +16,7 @@ use xero_ide::{IdeCommand, IdeServer};
 use xero_terminal::{TerminalEvent, TerminalView};
 
 use crate::finder::{FinderEvent, FinderView};
+use crate::rename::{RenameEvent, RenameView};
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
     ResetFontSize, ToggleSidebar,
@@ -54,6 +55,9 @@ pub struct XeroApp {
     sidebar_collapsed: bool,
     // Workspaces whose streams are hidden in the sidebar.
     collapsed_workspaces: HashSet<WorkspaceId>,
+    // The stream currently being renamed inline, plus its editing field.
+    renaming: Option<(StreamId, Entity<RenameView>)>,
+    _rename_sub: Option<Subscription>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     // Streams whose terminal rang the bell while unfocused (agent wants
@@ -82,6 +86,8 @@ impl XeroApp {
             finder: None,
             sidebar_collapsed: false,
             collapsed_workspaces: HashSet::new(),
+            renaming: None,
+            _rename_sub: None,
             focus: cx.focus_handle(),
             _finder_sub: None,
             attention: HashSet::new(),
@@ -395,6 +401,39 @@ impl XeroApp {
 
     pub(crate) fn is_workspace_collapsed(&self, id: WorkspaceId) -> bool {
         self.collapsed_workspaces.contains(&id)
+    }
+
+    /// Begin renaming a stream: open an inline field seeded with its name.
+    pub(crate) fn start_rename(&mut self, id: StreamId, cx: &mut Context<Self>) {
+        let name = self.stream_name(id).to_string();
+        let field = cx.new(|cx| RenameView::new(name, cx));
+        self._rename_sub = Some(cx.subscribe(&field, move |this, _field, event, cx| match event {
+            RenameEvent::Committed(name) => this.apply_rename(id, name.clone(), cx),
+            RenameEvent::Cancelled => this.cancel_rename(cx),
+        }));
+        self.renaming = Some((id, field));
+        cx.notify();
+    }
+
+    /// The inline rename field for `id`, if that stream is being renamed.
+    pub(crate) fn rename_field(&self, id: StreamId) -> Option<Entity<RenameView>> {
+        self.renaming.as_ref().filter(|(target, _)| *target == id).map(|(_, field)| field.clone())
+    }
+
+    fn apply_rename(&mut self, id: StreamId, name: String, cx: &mut Context<Self>) {
+        if let Some(stream) = self.streams.get_mut(&id) {
+            stream.name = name;
+            if let Some(workspace) = self.workspace_of(id).map(|w| w.id) {
+                let _ = xero_store::save_session(workspace, &self.streams[&id]);
+            }
+        }
+        self.cancel_rename(cx);
+    }
+
+    fn cancel_rename(&mut self, cx: &mut Context<Self>) {
+        self.renaming = None;
+        self._rename_sub = None;
+        cx.notify();
     }
 
     /// Close a stream: drop its terminals/editors, delete its session, and remove
