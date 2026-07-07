@@ -105,7 +105,11 @@ impl TerminalView {
                 cx.emit(TerminalEvent::Bell);
                 cx.notify();
             }
-            Event::Wakeup | Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
+            Event::TitleChanged => {
+                log::info!("terminal title: {:?}", self.title(cx));
+                cx.notify();
+            }
+            Event::Wakeup | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
     }
