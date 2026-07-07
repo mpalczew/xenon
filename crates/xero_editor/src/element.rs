@@ -1,11 +1,19 @@
-//! Editor rendering: shape each line of the buffer and place the cursor. Plain
-//! text for now; syntax highlighting will add per-span colors here later.
+//! Editor rendering: shape each line of the buffer with syntax colors and place
+//! the cursor. Highlight spans arrive pre-resolved to colors (byte ranges over
+//! the whole rope); gaps fall back to the default text color.
 
 use gpui::{
     Bounds, Font, FontFeatures, Hsla, Pixels, Point as GpuiPoint, ShapedLine, SharedString, Size,
     TextAlign, TextRun, Window, fill, point, px,
 };
 use ropey::Rope;
+
+/// A colored byte range `[start, end)` over the whole buffer.
+pub struct ColoredSpan {
+    pub start: usize,
+    pub end: usize,
+    pub color: Hsla,
+}
 
 /// A shaped buffer with the cursor rectangle to overlay.
 pub struct EditorLayout {
@@ -31,11 +39,12 @@ fn cell_width(window: &Window, font: &Font, font_size: Pixels) -> Pixels {
         .unwrap_or(font_size * 0.6)
 }
 
-/// Shape every line and compute the cursor rectangle from `(row, col)`.
+/// Shape every line with its highlight colors and compute the cursor rectangle.
 pub fn layout(
     rope: &Rope,
     cursor: (usize, usize),
-    color: Hsla,
+    default_color: Hsla,
+    spans: &[ColoredSpan],
     origin: GpuiPoint<Pixels>,
     font: &Font,
     font_size: Pixels,
@@ -43,10 +52,13 @@ pub fn layout(
     window: &mut Window,
 ) -> EditorLayout {
     let cell_w = cell_width(window, font, font_size);
-    let lines = rope
-        .lines()
-        .map(|line| shape(line.to_string(), color, font, font_size, window))
-        .collect();
+    let mut lines = Vec::with_capacity(rope.len_lines());
+    for row in 0..rope.len_lines() {
+        let line_start = rope.line_to_byte(row);
+        let text = trim_newline(rope.line(row).to_string());
+        let runs = line_runs(&text, line_start, default_color, spans, font);
+        lines.push(shape(text, runs, font_size, window));
+    }
 
     let (row, col) = cursor;
     let cursor_origin = point(
@@ -57,29 +69,60 @@ pub fn layout(
     EditorLayout { lines, origin, line_height, cursor }
 }
 
-fn shape(
-    mut text: String,
-    color: Hsla,
-    font: &Font,
-    font_size: Pixels,
-    window: &mut Window,
-) -> ShapedLine {
-    // ropey lines carry their trailing newline; shaping must not see it.
+fn trim_newline(mut text: String) -> String {
     if text.ends_with('\n') {
         text.pop();
         if text.ends_with('\r') {
             text.pop();
         }
     }
-    let run = TextRun {
-        len: text.len(),
+    text
+}
+
+/// Split one line into text runs: span colors where they cover the line,
+/// `default_color` in the gaps. Spans are sorted, non-overlapping (source order).
+fn line_runs(
+    text: &str,
+    line_start: usize,
+    default_color: Hsla,
+    spans: &[ColoredSpan],
+    font: &Font,
+) -> Vec<TextRun> {
+    let line_end = line_start + text.len();
+    let mut runs = Vec::new();
+    let mut pos = line_start;
+    for span in spans {
+        if span.end <= line_start || span.start >= line_end {
+            continue;
+        }
+        let start = span.start.max(line_start);
+        let end = span.end.min(line_end);
+        if start > pos {
+            runs.push(run(start - pos, default_color, font));
+        }
+        if end > start {
+            runs.push(run(end - start, span.color, font));
+            pos = end;
+        }
+    }
+    if pos < line_end {
+        runs.push(run(line_end - pos, default_color, font));
+    }
+    runs
+}
+
+fn run(len: usize, color: Hsla, font: &Font) -> TextRun {
+    TextRun {
+        len,
         color,
         background_color: None,
         font: font.clone(),
         underline: None,
         strikethrough: None,
-    };
-    let runs = if text.is_empty() { Vec::new() } else { vec![run] };
+    }
+}
+
+fn shape(text: String, runs: Vec<TextRun>, font_size: Pixels, window: &mut Window) -> ShapedLine {
     window
         .text_system()
         .shape_line(SharedString::from(text), font_size, &runs, None)

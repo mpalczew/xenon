@@ -15,27 +15,49 @@ use theme::ActiveTheme;
 
 use crate::buffer::Buffer;
 use crate::edit::{EditCommand, Motion};
-use crate::element;
+use crate::element::{self, ColoredSpan};
+use crate::highlight;
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 const FONT_SIZE: f32 = 14.;
 
 pub struct EditorView {
     buffer: Buffer,
+    highlights: Vec<highlight::Span>,
     focus: FocusHandle,
     focused_once: bool,
 }
 
 impl EditorView {
     pub fn open(path: PathBuf, cx: &mut Context<Self>) -> Result<Self> {
-        let buffer = Buffer::open(&path)?;
-        Ok(Self { buffer, focus: cx.focus_handle(), focused_once: false })
+        Ok(Self::from_buffer(Buffer::open(&path)?, cx))
     }
 
     /// Open `path` and wrap it in an entity, propagating open errors.
     pub fn build(path: PathBuf, cx: &mut App) -> Result<Entity<Self>> {
         let buffer = Buffer::open(&path)?;
-        Ok(cx.new(|cx| Self { buffer, focus: cx.focus_handle(), focused_once: false }))
+        Ok(cx.new(|cx| Self::from_buffer(buffer, cx)))
+    }
+
+    fn from_buffer(buffer: Buffer, cx: &mut Context<Self>) -> Self {
+        let mut view = Self {
+            buffer,
+            highlights: Vec::new(),
+            focus: cx.focus_handle(),
+            focused_once: false,
+        };
+        view.recompute_highlights();
+        view
+    }
+
+    /// Re-highlight the whole buffer. Cheap enough for v1 file sizes; called
+    /// after every edit. Non-Rust files get no spans (default color).
+    fn recompute_highlights(&mut self) {
+        self.highlights = if highlight::is_highlightable(self.buffer.path()) {
+            highlight::rust_spans(&self.buffer.text())
+        } else {
+            Vec::new()
+        };
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -51,7 +73,11 @@ impl EditorView {
         let Some(command) = command_for(&keystroke.key) else {
             return;
         };
+        let edits = command.edits();
         self.buffer.apply(command);
+        if edits {
+            self.recompute_highlights();
+        }
         cx.stop_propagation();
         cx.notify();
     }
@@ -121,12 +147,27 @@ fn layout(
 ) -> element::EditorLayout {
     let size = px(FONT_SIZE);
     let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
-    let text_color = cx.theme().colors().editor_foreground;
     let view = view.read(cx);
+    let theme = cx.theme();
+    let text_color = theme.colors().editor_foreground;
+    let syntax = theme.syntax();
+    // Resolve each highlight span to a concrete color against the active theme.
+    let spans: Vec<ColoredSpan> = view
+        .highlights
+        .iter()
+        .map(|span| {
+            let color = syntax
+                .style_for_name(span.name)
+                .and_then(|style| style.color)
+                .unwrap_or(text_color);
+            ColoredSpan { start: span.start, end: span.end, color }
+        })
+        .collect();
     element::layout(
         view.buffer.rope(),
         view.buffer.cursor_position(),
         text_color,
+        &spans,
         bounds.origin,
         font,
         size,
@@ -145,6 +186,7 @@ impl EntityInputHandler for EditorView {
     ) {
         if !text.is_empty() {
             self.buffer.apply(EditCommand::Insert(text.to_string()));
+            self.recompute_highlights();
             cx.notify();
         }
     }
@@ -159,6 +201,7 @@ impl EntityInputHandler for EditorView {
     ) {
         if !new_text.is_empty() {
             self.buffer.apply(EditCommand::Insert(new_text.to_string()));
+            self.recompute_highlights();
             cx.notify();
         }
     }

@@ -38,6 +38,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 ropey = "1.6"
 tree-sitter = "0.26"
 tree-sitter-highlight = "0.26"
+tree-sitter-rust = "0.24"
 nucleo = "0.5"
 ignore = "0.4"
 

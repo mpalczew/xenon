@@ -4,6 +4,7 @@
 mod buffer;
 mod edit;
 mod element;
+mod highlight;
 mod view;
 
 pub use buffer::{Buffer, ExternalState, OpenError, SaveError};

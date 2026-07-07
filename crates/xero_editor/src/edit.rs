@@ -21,6 +21,19 @@ pub enum Motion {
     LineEnd,
 }
 
+impl EditCommand {
+    /// Whether this command mutates the text (vs. just moving the cursor).
+    pub fn edits(&self) -> bool {
+        matches!(
+            self,
+            EditCommand::Insert(_)
+                | EditCommand::Newline
+                | EditCommand::Backspace
+                | EditCommand::Delete
+        )
+    }
+}
+
 impl Buffer {
     pub fn apply(&mut self, command: EditCommand) {
         match command {
