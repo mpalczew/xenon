@@ -363,11 +363,11 @@ impl Focusable for XeroApp {
 }
 
 impl Render for XeroApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
-        let main = self.render_main(cx);
+        let main = self.render_main(window, cx);
         let finder = self.finder.clone();
         div()
             .track_focus(&self.focus)
@@ -393,25 +393,51 @@ impl Render for XeroApp {
 }
 
 impl XeroApp {
-    fn render_main(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    fn render_main(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
         let terminal = self.active.and_then(|id| self.terminals.get(&id)).cloned();
         let active_view = self
             .editor_stack()
             .and_then(|stack| stack.tabs.get(stack.active))
             .map(|tab| tab.view.clone());
+
+        let ring = |focused: bool| {
+            if focused { colors.border_focused } else { gpui::transparent_black() }
+        };
+        let term_focused = terminal
+            .as_ref()
+            .is_some_and(|t| t.read(cx).focus_handle(cx).contains_focused(window, cx));
+        let editor_focused = active_view
+            .as_ref()
+            .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx));
+
         let tab_bar = self.has_editor().then(|| self.render_tab_bar(cx));
         let mut panel = div().flex().flex_1().size_full();
         match (terminal, active_view) {
             (Some(terminal), Some(view)) => {
-                panel = panel.child(div().flex_1().child(terminal)).child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .flex_col()
-                        .min_w_0()
-                        .children(tab_bar)
-                        .child(div().flex_1().min_h_0().child(view)),
-                );
+                panel = panel
+                    .child(
+                        div()
+                            .flex_1()
+                            .border_2()
+                            .border_color(ring(term_focused))
+                            .child(terminal),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .flex()
+                            .flex_col()
+                            .min_w_0()
+                            .border_2()
+                            .border_color(ring(editor_focused))
+                            .children(tab_bar)
+                            .child(div().flex_1().min_h_0().child(view)),
+                    );
             }
             (Some(terminal), None) => {
                 panel = panel.child(div().flex_1().child(terminal));
