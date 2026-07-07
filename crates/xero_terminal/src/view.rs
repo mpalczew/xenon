@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use collections::HashMap;
@@ -58,6 +58,8 @@ pub struct TerminalView {
     /// Debounced task that logs the settled screen after output stops (used to
     /// investigate how to detect when an agent finishes).
     _log_task: Task<()>,
+    /// Time of the previous `Wakeup`, to log inter-output gaps (output cadence).
+    last_wakeup: Option<Instant>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -89,6 +91,7 @@ impl TerminalView {
             context_menu: None,
             _spawn: spawn,
             _log_task: Task::ready(()),
+            last_wakeup: None,
             _subscriptions: Vec::new(),
         }
     }
@@ -125,6 +128,10 @@ impl TerminalView {
                 cx.notify();
             }
             Event::Wakeup => {
+                let now = Instant::now();
+                let gap = self.last_wakeup.map(|prev| now.duration_since(prev).as_millis());
+                log::info!("wakeup (gap: {gap:?}ms)");
+                self.last_wakeup = Some(now);
                 self.schedule_screen_log(cx);
                 cx.notify();
             }
