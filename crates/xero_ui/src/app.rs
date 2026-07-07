@@ -17,13 +17,27 @@ use xero_terminal::TerminalView;
 use crate::finder::{FinderEvent, FinderView};
 use crate::{AddWorkspace, CloseEditor, FilePalette, OpenFile, ToggleSidebar};
 
+/// The open editor tabs for one stream, plus which is focused.
+#[derive(Default)]
+pub(crate) struct EditorStack {
+    pub tabs: Vec<EditorTab>,
+    pub active: usize,
+}
+
+pub(crate) struct EditorTab {
+    pub path: PathBuf,
+    pub name: String,
+    pub view: Entity<EditorView>,
+}
+
 pub struct XeroApp {
     registry: Registry,
     // Stream metadata (name/session) and, per stream, the live views. Keeping
     // terminals here means switching streams never tears down a running PTY.
     streams: HashMap<StreamId, Stream>,
     terminals: HashMap<StreamId, Entity<TerminalView>>,
-    editors: HashMap<StreamId, Entity<EditorView>>,
+    // Per stream, a stack of open editor tabs.
+    editors: HashMap<StreamId, EditorStack>,
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
     sidebar_collapsed: bool,
@@ -190,26 +204,66 @@ impl XeroApp {
         let Some(id) = self.active else {
             return;
         };
-        match EditorView::build(path, cx) {
-            Ok(editor) => {
-                self.editors.insert(id, editor);
+        let stack = self.editors.entry(id).or_default();
+        // Focus an already-open tab rather than opening a duplicate.
+        if let Some(index) = stack.tabs.iter().position(|tab| tab.path == path) {
+            stack.active = index;
+        } else {
+            match EditorView::build(path.clone(), cx) {
+                Ok(view) => {
+                    let name = file_name(&path);
+                    let stack = self.editors.entry(id).or_default();
+                    stack.tabs.push(EditorTab { path, name, view });
+                    stack.active = stack.tabs.len() - 1;
+                }
+                Err(error) => log::error!("open failed: {error}"),
             }
-            Err(error) => log::error!("open failed: {error}"),
         }
         self.finder = None;
         cx.notify();
     }
 
-    /// Close the active stream's editor, leaving the terminal full-width.
-    pub(crate) fn close_editor(&mut self, cx: &mut Context<Self>) {
-        if let Some(id) = self.active {
-            self.editors.remove(&id);
+    /// The open tabs and focused index for the active stream.
+    pub(crate) fn editor_stack(&self) -> Option<&EditorStack> {
+        self.active.and_then(|id| self.editors.get(&id))
+    }
+
+    pub(crate) fn activate_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+        if let Some(id) = self.active
+            && let Some(stack) = self.editors.get_mut(&id)
+            && index < stack.tabs.len()
+        {
+            stack.active = index;
             cx.notify();
         }
     }
 
+    /// Close the tab at `index` in the active stream; drops the stack when empty.
+    pub(crate) fn close_tab(&mut self, index: usize, cx: &mut Context<Self>) {
+        if let Some(id) = self.active
+            && let Some(stack) = self.editors.get_mut(&id)
+            && index < stack.tabs.len()
+        {
+            stack.tabs.remove(index);
+            if stack.tabs.is_empty() {
+                self.editors.remove(&id);
+            } else {
+                stack.active = stack.active.min(stack.tabs.len() - 1);
+            }
+            cx.notify();
+        }
+    }
+
+    /// Close the focused tab (Cmd-W / toolbar).
+    pub(crate) fn close_editor(&mut self, cx: &mut Context<Self>) {
+        if let Some(stack) = self.editor_stack() {
+            let active = stack.active;
+            self.close_tab(active, cx);
+        }
+    }
+
     pub(crate) fn has_editor(&self) -> bool {
-        self.active.is_some_and(|id| self.editors.contains_key(&id))
+        self.editor_stack().is_some_and(|stack| !stack.tabs.is_empty())
     }
 
     fn open_palette(&mut self, cx: &mut Context<Self>) {
@@ -294,15 +348,25 @@ impl Render for XeroApp {
 }
 
 impl XeroApp {
-    fn render_main(&self, _cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    fn render_main(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let terminal = self.active.and_then(|id| self.terminals.get(&id)).cloned();
-        let editor = self.active.and_then(|id| self.editors.get(&id)).cloned();
+        let active_view = self
+            .editor_stack()
+            .and_then(|stack| stack.tabs.get(stack.active))
+            .map(|tab| tab.view.clone());
+        let tab_bar = self.has_editor().then(|| self.render_tab_bar(cx));
         let mut panel = div().flex().flex_1().size_full();
-        match (terminal, editor) {
-            (Some(terminal), Some(editor)) => {
-                panel = panel
-                    .child(div().flex_1().child(terminal))
-                    .child(div().flex_1().child(editor));
+        match (terminal, active_view) {
+            (Some(terminal), Some(view)) => {
+                panel = panel.child(div().flex_1().child(terminal)).child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .min_w_0()
+                        .children(tab_bar)
+                        .child(div().flex_1().min_h_0().child(view)),
+                );
             }
             (Some(terminal), None) => {
                 panel = panel.child(div().flex_1().child(terminal));
@@ -313,4 +377,11 @@ impl XeroApp {
         }
         panel
     }
+}
+
+/// The display name for an editor tab (file name, or the path if none).
+fn file_name(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned())
 }

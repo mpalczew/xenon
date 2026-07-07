@@ -4,6 +4,7 @@
 mod app;
 mod finder;
 mod sidebar;
+mod tabs;
 mod toolbar;
 
 use gpui::{App, KeyBinding, actions};
