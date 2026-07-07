@@ -54,9 +54,9 @@ impl EditorView {
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let line_height = element::line_height(px(xero_settings::font_size(cx)), LINE_HEIGHT_MULTIPLIER);
         let delta = event.delta.pixel_delta(line_height).y;
-        // Clamp so the last line can reach the top but not scroll past it.
-        let max = (line_height * (self.buffer.rope().len_lines() as f32 - 1.)).max(px(0.));
-        self.scroll_top = (self.scroll_top - delta).clamp(px(0.), max);
+        // Lower-bound only; the upper bound needs the viewport height, so `layout`
+        // clamps it against the content each frame.
+        self.scroll_top = (self.scroll_top - delta).max(px(0.));
         cx.notify();
     }
 
@@ -154,6 +154,11 @@ fn layout(
 ) -> element::EditorLayout {
     let size = px(xero_settings::font_size(cx));
     let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
+    // Clamp the scroll so the last line rests at the viewport bottom, not the
+    // top. Needs the viewport height, which is only known here (in layout).
+    let content_height = line_height * (view.read(cx).buffer.rope().len_lines() as f32);
+    let max_scroll = (content_height - bounds.size.height).max(px(0.));
+    view.update(cx, |v, _| v.scroll_top = v.scroll_top.min(max_scroll));
     let view = view.read(cx);
     let theme = cx.theme();
     let text_color = theme.colors().editor_foreground;

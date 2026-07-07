@@ -18,10 +18,11 @@ pub struct GridLine {
     pub backgrounds: Vec<(Bounds<Pixels>, Hsla)>,
 }
 
-/// The shaped grid plus the cursor rectangle to overlay on top.
+/// The shaped grid plus the cursor and selection rectangles to overlay.
 pub struct GridLayout {
     pub lines: Vec<GridLine>,
     pub cursor: Option<Bounds<Pixels>>,
+    pub selection: Vec<Bounds<Pixels>>,
 }
 
 /// The monospace font used for the grid. Menlo is always present on macOS;
@@ -67,10 +68,47 @@ pub fn layout(
     let offset = content.display_offset as i32;
     let rows = content.terminal_bounds.num_lines() as i32;
     let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height, offset, rows);
+    let selection = selection_rects(&content, bounds.origin, cell_w, line_height, offset);
     let lines = shape_rows(
         &content, bounds.origin, cell_w, line_height, offset, font, font_size, &theme, window,
     );
-    GridLayout { lines, cursor }
+    GridLayout { lines, cursor, selection }
+}
+
+/// Highlight rectangles for the active selection, one per display row.
+fn selection_rects(
+    content: &terminal::Content,
+    origin: GpuiPoint<Pixels>,
+    cell_w: Pixels,
+    line_height: Pixels,
+    offset: i32,
+) -> Vec<Bounds<Pixels>> {
+    let Some(selection) = content.selection else {
+        return Vec::new();
+    };
+    let range = selection.point_range();
+    let (start, end) = (range.start(), range.end());
+    let num_cols = content.terminal_bounds.num_columns();
+    let mut rects = Vec::new();
+    for line in start.line..=end.line {
+        let y = origin.y + line_height * ((line + offset) as f32);
+        let (first, last) = if start.line == end.line {
+            (start.column, end.column + 1)
+        } else if line == start.line {
+            (start.column, num_cols)
+        } else if line == end.line {
+            (0, end.column + 1)
+        } else {
+            (0, num_cols)
+        };
+        let last = last.min(num_cols);
+        if last > first {
+            let x = origin.x + cell_w * (first as f32);
+            let width = cell_w * ((last - first) as f32);
+            rects.push(Bounds::new(point(x, y), Size { width, height: line_height }));
+        }
+    }
+    rects
 }
 
 /// The cell rectangle the cursor occupies, if visible and not hidden.
@@ -196,13 +234,17 @@ impl Row {
     }
 }
 
-/// Paint cell backgrounds, the cursor, then the glyphs on top.
+/// Paint cell backgrounds, the selection, the cursor, then the glyphs on top.
 pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: &mut gpui::App) {
-    let cursor_color = cx.theme().players().local().cursor;
+    let players = cx.theme().players().local();
+    let (cursor_color, selection_color) = (players.cursor, players.selection);
     for grid_line in &layout.lines {
         for (bounds, color) in &grid_line.backgrounds {
             window.paint_quad(fill(*bounds, *color));
         }
+    }
+    for rect in &layout.selection {
+        window.paint_quad(fill(*rect, selection_color));
     }
     if let Some(cursor) = layout.cursor {
         window.paint_quad(fill(cursor, cursor_color));

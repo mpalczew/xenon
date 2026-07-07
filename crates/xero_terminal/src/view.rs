@@ -13,8 +13,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use collections::HashMap;
 use gpui::{
-    App, AppContext, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render,
+    App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity, EntityInputHandler,
+    FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Point, Render,
     ScrollWheelEvent, Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
 };
 use task::Shell;
@@ -118,11 +119,45 @@ impl TerminalView {
             cx.notify();
             return;
         }
+        // Cmd-C copies the current selection (no-op without one).
+        if keystroke.modifiers.platform && keystroke.key == "c" {
+            if let Some(text) = terminal.read(cx).last_content().selection_text.clone() {
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+            }
+            cx.stop_propagation();
+            cx.notify();
+            return;
+        }
         let handled = terminal.update(cx, |terminal, _| terminal.try_keystroke(keystroke, false));
         if handled {
             cx.stop_propagation();
         }
         cx.notify();
+    }
+
+    fn on_mouse_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state {
+            terminal.update(cx, |terminal, cx| terminal.mouse_down(event, cx));
+            cx.notify();
+        }
+    }
+
+    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if event.pressed_button != Some(MouseButton::Left) {
+            return;
+        }
+        if let State::Ready(terminal) = &self.state {
+            let region = terminal.read(cx).last_content().terminal_bounds.bounds;
+            terminal.update(cx, |terminal, cx| terminal.mouse_drag(event, region, cx));
+            cx.notify();
+        }
+    }
+
+    fn on_mouse_up(&mut self, event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state {
+            terminal.update(cx, |terminal, cx| terminal.mouse_up(event, cx));
+            cx.notify();
+        }
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -175,6 +210,9 @@ impl Render for TerminalView {
             .key_context("Terminal")
             .on_key_down(cx.listener(Self::on_key))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .size_full()
             .bg(background);
 
