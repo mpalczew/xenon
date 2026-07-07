@@ -37,9 +37,10 @@ enum State {
 }
 
 /// Events a `TerminalView` emits upward; the shell subscribes to mark streams
-/// that need attention.
+/// that need attention (`Bell`) and clear the mark on use (`Interacted`).
 pub enum TerminalEvent {
     Bell,
+    Interacted,
 }
 
 pub struct TerminalView {
@@ -115,6 +116,7 @@ impl TerminalView {
             && !text.is_empty()
         {
             terminal.update(cx, |terminal, _| terminal.input(text.to_string().into_bytes()));
+            cx.emit(TerminalEvent::Interacted);
         }
     }
 
@@ -122,6 +124,7 @@ impl TerminalView {
         let State::Ready(terminal) = &self.state else {
             return;
         };
+        cx.emit(TerminalEvent::Interacted);
         let keystroke = &event.keystroke;
         // Cmd-V pastes the clipboard; Cmd-C copies the selection.
         if keystroke.modifiers.platform && keystroke.key == "v" {
@@ -175,6 +178,7 @@ impl TerminalView {
 
     fn on_mouse_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state {
+            cx.emit(TerminalEvent::Interacted);
             terminal.update(cx, |terminal, cx| terminal.mouse_down(event, cx));
             cx.notify();
         }
@@ -200,6 +204,7 @@ impl TerminalView {
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state {
+            cx.emit(TerminalEvent::Interacted);
             terminal.update(cx, |terminal, _| terminal.scroll_wheel(event, SCROLL_MULTIPLIER));
             cx.notify();
         }

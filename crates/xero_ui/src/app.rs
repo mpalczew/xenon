@@ -184,13 +184,13 @@ impl XeroApp {
         };
         self.active = Some(id);
         self.finder = None;
-        self.attention.remove(&id);
         if !self.terminals.contains_key(&id) {
             let env = self.terminal_env();
             let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
             self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| {
                 match event {
-                    TerminalEvent::Bell => this.on_bell(id, cx),
+                    TerminalEvent::Bell => this.flag_attention(id, cx),
+                    TerminalEvent::Interacted => this.clear_attention(id, cx),
                 }
             }));
             self.terminals.insert(id, terminal);
@@ -199,11 +199,16 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// A background stream rang the bell: flag it for the sidebar. The active
-    /// stream is assumed watched, so it isn't flagged.
-    fn on_bell(&mut self, id: StreamId, cx: &mut Context<Self>) {
-        if self.active != Some(id) {
-            self.attention.insert(id);
+    /// The stream's agent rang the bell: flag it (even when active/focused). The
+    /// flag stays until the user acts in that terminal (click/type/scroll).
+    fn flag_attention(&mut self, id: StreamId, cx: &mut Context<Self>) {
+        if self.attention.insert(id) {
+            cx.notify();
+        }
+    }
+
+    fn clear_attention(&mut self, id: StreamId, cx: &mut Context<Self>) {
+        if self.attention.remove(&id) {
             cx.notify();
         }
     }
