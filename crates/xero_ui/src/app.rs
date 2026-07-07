@@ -52,6 +52,8 @@ pub struct XeroApp {
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
     sidebar_collapsed: bool,
+    // Workspaces whose streams are hidden in the sidebar.
+    collapsed_workspaces: HashSet<WorkspaceId>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     // Streams whose terminal rang the bell while unfocused (agent wants
@@ -79,6 +81,7 @@ impl XeroApp {
             active: None,
             finder: None,
             sidebar_collapsed: false,
+            collapsed_workspaces: HashSet::new(),
             focus: cx.focus_handle(),
             _finder_sub: None,
             attention: HashSet::new(),
@@ -359,7 +362,7 @@ impl XeroApp {
 
     fn register_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let mut record = WorkspaceRec::new(root);
-        let stream = Stream::new("main");
+        let stream = Stream::new("stream 1");
         let stream_id = stream.id;
         record.streams.push(stream_id);
         let workspace_id = record.id;
@@ -381,6 +384,51 @@ impl XeroApp {
         let _ = xero_store::save_session(workspace, &stream);
         let _ = xero_store::save_registry(&self.registry);
         self.activate_stream(stream_id, cx);
+    }
+
+    pub(crate) fn toggle_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+        if !self.collapsed_workspaces.insert(id) {
+            self.collapsed_workspaces.remove(&id);
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn is_workspace_collapsed(&self, id: WorkspaceId) -> bool {
+        self.collapsed_workspaces.contains(&id)
+    }
+
+    /// Close a stream: drop its terminals/editors, delete its session, and remove
+    /// it from its workspace. Refuses to remove a workspace's last stream.
+    pub(crate) fn close_stream(
+        &mut self,
+        id: StreamId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(workspace) = self.workspace_of(id).map(|w| w.id) else {
+            return;
+        };
+        let Some(record) = self.registry.workspace_mut(workspace) else {
+            return;
+        };
+        if record.streams.len() <= 1 {
+            return;
+        }
+        record.streams.retain(|&stream| stream != id);
+        let fallback = record.streams.first().copied();
+        self.streams.remove(&id);
+        self.terminals.remove(&id);
+        self.editors.remove(&id);
+        self.attention.remove(&id);
+        let _ = xero_store::delete_session(workspace, id);
+        let _ = xero_store::save_registry(&self.registry);
+        if self.active == Some(id) {
+            self.active = None;
+            if let Some(next) = fallback {
+                self.select_stream(next, window, cx);
+            }
+        }
+        cx.notify();
     }
 
     fn open_file_dialog(&mut self, cx: &mut Context<Self>) {

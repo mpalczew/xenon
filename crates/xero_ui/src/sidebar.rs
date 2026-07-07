@@ -15,6 +15,7 @@ use crate::app::XeroApp;
 struct WorkspaceRows {
     id: WorkspaceId,
     name: String,
+    collapsed: bool,
     streams: Vec<(StreamId, String, bool)>,
 }
 
@@ -29,6 +30,7 @@ impl XeroApp {
             .map(|w| WorkspaceRows {
                 id: w.id,
                 name: w.name.clone(),
+                collapsed: self.is_workspace_collapsed(w.id),
                 streams: w
                     .streams
                     .iter()
@@ -39,9 +41,12 @@ impl XeroApp {
 
         let mut rows = Vec::new();
         for workspace in workspaces {
-            rows.push(self.workspace_header(workspace.id, &workspace.name, cx).into_any_element());
-            for (id, name, is_active) in workspace.streams {
-                rows.push(self.stream_row(id, &name, is_active, cx).into_any_element());
+            let header = self.workspace_header(workspace.id, &workspace.name, workspace.collapsed, cx);
+            rows.push(header.into_any_element());
+            if !workspace.collapsed {
+                for (id, name, is_active) in workspace.streams {
+                    rows.push(self.stream_row(id, &name, is_active, cx).into_any_element());
+                }
             }
         }
 
@@ -86,9 +91,11 @@ impl XeroApp {
         &self,
         id: WorkspaceId,
         name: &str,
+        collapsed: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
+        let chevron = if collapsed { "▸" } else { "▾" };
         div()
             .flex()
             .items_center()
@@ -97,7 +104,18 @@ impl XeroApp {
             .pt_2()
             .text_xs()
             .text_color(colors.text_muted)
-            .child(name.to_uppercase())
+            .child(
+                div()
+                    .id(("ws-toggle", id_hash(id.to_string())))
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .cursor_pointer()
+                    .hover(|s| s.text_color(colors.text))
+                    .child(chevron)
+                    .child(name.to_uppercase())
+                    .on_click(cx.listener(move |this, _, _, cx| this.toggle_workspace(id, cx))),
+            )
             .child(
                 div()
                     .id(("add-stream", id_hash(id.to_string())))
@@ -130,15 +148,33 @@ impl XeroApp {
             .items_center()
             .justify_between()
             .pl_5()
-            .pr_3()
+            .pr_2()
             .py_1()
             .text_sm()
             .bg(background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
-            .child(name.to_string())
-            .children(attention)
             .on_click(cx.listener(move |this, _, window, cx| this.select_stream(id, window, cx)))
+            .child(name.to_string())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .children(attention)
+                    .child(
+                        div()
+                            .id(("stream-close", id_hash(id.to_string())))
+                            .text_xs()
+                            .text_color(colors.text_muted)
+                            .hover(|s| s.text_color(colors.text))
+                            .child("✕")
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                this.close_stream(id, window, cx);
+                            })),
+                    ),
+            )
     }
 }
 

@@ -58,6 +58,16 @@ pub fn save_session(workspace: WorkspaceId, stream: &Stream) -> Result<(), Store
     write_atomic(&session_path(workspace, stream.id), stream)
 }
 
+/// Remove a stream's session file. Missing file is not an error (already gone).
+pub fn delete_session(workspace: WorkspaceId, stream: StreamId) -> Result<(), StoreError> {
+    let path = session_path(workspace, stream);
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> Result<T, StoreError> {
     if !path.exists() {
         return Ok(T::default());
