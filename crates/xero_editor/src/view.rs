@@ -9,7 +9,7 @@ use anyhow::Result;
 use gpui::{
     App, AppContext, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle,
     Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render,
-    Styled, UTF16Selection, Window, canvas, div, px,
+    ScrollWheelEvent, Styled, UTF16Selection, Window, canvas, div, px,
 };
 use theme::ActiveTheme;
 
@@ -24,6 +24,7 @@ const FONT_SIZE: f32 = 14.;
 pub struct EditorView {
     buffer: Buffer,
     highlights: Vec<highlight::Span>,
+    scroll_top: Pixels,
     focus: FocusHandle,
     autofocus: bool,
     focused_once: bool,
@@ -42,12 +43,22 @@ impl EditorView {
         let mut view = Self {
             buffer,
             highlights: Vec::new(),
+            scroll_top: px(0.),
             focus: cx.focus_handle(),
             autofocus,
             focused_once: false,
         };
         view.recompute_highlights();
         view
+    }
+
+    fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let line_height = element::line_height(px(FONT_SIZE), LINE_HEIGHT_MULTIPLIER);
+        let delta = event.delta.pixel_delta(line_height).y;
+        // Clamp so the last line can reach the top but not scroll past it.
+        let max = (line_height * (self.buffer.rope().len_lines() as f32 - 1.)).max(px(0.));
+        self.scroll_top = (self.scroll_top - delta).clamp(px(0.), max);
+        cx.notify();
     }
 
     /// Re-highlight the whole buffer. Cheap enough for v1 file sizes; called
@@ -116,6 +127,7 @@ impl Render for EditorView {
             .track_focus(&self.focus)
             .key_context("Editor")
             .on_key_down(cx.listener(Self::on_key))
+            .on_scroll_wheel(cx.listener(Self::on_scroll))
             .size_full()
             .bg(colors.editor_background)
             .child(editor_canvas(cx.entity(), self.focus.clone()))
@@ -169,6 +181,8 @@ fn layout(
         text_color,
         &spans,
         bounds.origin,
+        bounds.size.height,
+        view.scroll_top,
         font,
         size,
         line_height,

@@ -15,11 +15,12 @@ pub struct ColoredSpan {
     pub color: Hsla,
 }
 
-/// A shaped buffer with the cursor rectangle to overlay.
+/// The shaped visible lines (each with its absolute row) plus the cursor.
 pub struct EditorLayout {
-    pub lines: Vec<ShapedLine>,
+    pub lines: Vec<(usize, ShapedLine)>,
     pub origin: GpuiPoint<Pixels>,
     pub line_height: Pixels,
+    pub scroll_top: Pixels,
     pub cursor: Bounds<Pixels>,
 }
 
@@ -46,27 +47,35 @@ pub fn layout(
     default_color: Hsla,
     spans: &[ColoredSpan],
     origin: GpuiPoint<Pixels>,
+    viewport_height: Pixels,
+    scroll_top: Pixels,
     font: &Font,
     font_size: Pixels,
     line_height: Pixels,
     window: &mut Window,
 ) -> EditorLayout {
     let cell_w = cell_width(window, font, font_size);
-    let mut lines = Vec::with_capacity(rope.len_lines());
-    for row in 0..rope.len_lines() {
+    // Only shape the rows in view (plus one), offset by the scroll position.
+    let total = rope.len_lines();
+    let first = (f32::from(scroll_top) / f32::from(line_height)).floor().max(0.) as usize;
+    let visible = (f32::from(viewport_height) / f32::from(line_height)).ceil() as usize + 1;
+    let last = (first + visible).min(total);
+
+    let mut lines = Vec::with_capacity(last.saturating_sub(first));
+    for row in first..last {
         let line_start = rope.line_to_byte(row);
         let text = trim_newline(rope.line(row).to_string());
         let runs = line_runs(&text, line_start, default_color, spans, font);
-        lines.push(shape(text, runs, font_size, window));
+        lines.push((row, shape(text, runs, font_size, window)));
     }
 
     let (row, col) = cursor;
     let cursor_origin = point(
         origin.x + cell_w * (col as f32),
-        origin.y + line_height * (row as f32),
+        origin.y + line_height * (row as f32) - scroll_top,
     );
     let cursor = Bounds::new(cursor_origin, Size { width: cell_w, height: line_height });
-    EditorLayout { lines, origin, line_height, cursor }
+    EditorLayout { lines, origin, line_height, scroll_top, cursor }
 }
 
 fn trim_newline(mut text: String) -> String {
@@ -128,11 +137,11 @@ fn shape(text: String, runs: Vec<TextRun>, font_size: Pixels, window: &mut Windo
         .shape_line(SharedString::from(text), font_size, &runs, None)
 }
 
-/// Paint the cursor, then the shaped lines on top.
+/// Paint the cursor, then the visible shaped lines on top.
 pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx: &mut gpui::App) {
     window.paint_quad(fill(layout.cursor, cursor_color));
-    for (row, line) in layout.lines.iter().enumerate() {
-        let y = layout.origin.y + layout.line_height * (row as f32);
+    for (row, line) in &layout.lines {
+        let y = layout.origin.y + layout.line_height * (*row as f32) - layout.scroll_top;
         let _ = line.paint(
             point(layout.origin.x, y),
             layout.line_height,
