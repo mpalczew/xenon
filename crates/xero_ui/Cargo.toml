@@ -12,6 +12,7 @@ xero_finder.workspace = true
 xero_terminal.workspace = true
 xero_editor.workspace = true
 xero_ide.workspace = true
+xero_settings.workspace = true
 theme.workspace = true
 anyhow.workspace = true
 async-channel.workspace = true

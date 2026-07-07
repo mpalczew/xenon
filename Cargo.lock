@@ -8627,6 +8627,7 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-toml-ng",
+ "xero_settings",
 ]
 
 [[package]]
@@ -8649,6 +8650,13 @@ dependencies = [
  "serde_json",
  "tungstenite",
  "uuid",
+]
+
+[[package]]
+name = "xero_settings"
+version = "0.1.0"
+dependencies = [
+ "gpui",
 ]
 
 [[package]]
@@ -8678,6 +8686,7 @@ dependencies = [
  "theme",
  "theme_settings",
  "util",
+ "xero_settings",
 ]
 
 [[package]]
@@ -8693,6 +8702,7 @@ dependencies = [
  "xero_editor",
  "xero_finder",
  "xero_ide",
+ "xero_settings",
  "xero_store",
  "xero_terminal",
 ]

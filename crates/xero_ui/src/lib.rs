@@ -11,7 +11,19 @@ use gpui::{App, KeyBinding, actions};
 
 pub use app::XeroApp;
 
-actions!(xero, [ToggleSidebar, OpenFile, AddWorkspace, FilePalette, CloseEditor]);
+actions!(
+    xero,
+    [
+        ToggleSidebar,
+        OpenFile,
+        AddWorkspace,
+        FilePalette,
+        CloseEditor,
+        IncreaseFontSize,
+        DecreaseFontSize,
+        ResetFontSize,
+    ]
+);
 
 /// Bind the shell's keyboard shortcuts. Call once at startup.
 pub fn bind_keys(cx: &mut App) {
@@ -21,5 +33,9 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-p", FilePalette, None),
         KeyBinding::new("cmd-w", CloseEditor, None),
         KeyBinding::new("cmd-shift-o", AddWorkspace, None),
+        KeyBinding::new("cmd-=", IncreaseFontSize, None),
+        KeyBinding::new("cmd-+", IncreaseFontSize, None),
+        KeyBinding::new("cmd--", DecreaseFontSize, None),
+        KeyBinding::new("cmd-0", ResetFontSize, None),
     ]);
 }

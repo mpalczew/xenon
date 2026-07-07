@@ -15,6 +15,7 @@ xero_editor = { path = "crates/xero_editor" }
 xero_finder = { path = "crates/xero_finder" }
 xero_ui = { path = "crates/xero_ui" }
 xero_ide = { path = "crates/xero_ide" }
+xero_settings = { path = "crates/xero_settings" }
 
 # zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a
 # deliberate chore: bump every rev below together, then fix compile errors.

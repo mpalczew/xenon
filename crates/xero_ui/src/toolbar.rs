@@ -8,15 +8,20 @@ use gpui::{
 use theme::ActiveTheme;
 
 use crate::app::XeroApp;
-use crate::{CloseEditor, FilePalette, ToggleSidebar};
+use crate::{CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, ToggleSidebar};
 
 impl XeroApp {
     pub(crate) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let title = self.active_stream().map(|id| self.stream_name(id).to_string());
+        let size = xero_settings::font_size(cx) as i32;
         let mut buttons = div().flex().items_center().gap_1();
         buttons = buttons.child(button("tb-sidebar", "☰", Box::new(ToggleSidebar), cx));
         buttons = buttons.child(button("tb-find", "⌕", Box::new(FilePalette), cx));
+        buttons = buttons.child(button("tb-font-dec", "A-", Box::new(DecreaseFontSize), cx));
+        buttons =
+            buttons.child(div().text_xs().text_color(colors.text_muted).child(format!("{size}")));
+        buttons = buttons.child(button("tb-font-inc", "A+", Box::new(IncreaseFontSize), cx));
         if self.has_editor() {
             buttons =
                 buttons.child(button("tb-close-editor", "✕ editor", Box::new(CloseEditor), cx));

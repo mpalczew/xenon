@@ -19,7 +19,6 @@ use crate::element::{self, ColoredSpan};
 use crate::highlight;
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
-const FONT_SIZE: f32 = 14.;
 
 pub struct EditorView {
     buffer: Buffer,
@@ -53,7 +52,7 @@ impl EditorView {
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        let line_height = element::line_height(px(FONT_SIZE), LINE_HEIGHT_MULTIPLIER);
+        let line_height = element::line_height(px(xero_settings::font_size(cx)), LINE_HEIGHT_MULTIPLIER);
         let delta = event.delta.pixel_delta(line_height).y;
         // Clamp so the last line can reach the top but not scroll past it.
         let max = (line_height * (self.buffer.rope().len_lines() as f32 - 1.)).max(px(0.));
@@ -153,7 +152,7 @@ fn layout(
     window: &mut Window,
     cx: &mut App,
 ) -> element::EditorLayout {
-    let size = px(FONT_SIZE);
+    let size = px(xero_settings::font_size(cx));
     let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
     let view = view.read(cx);
     let theme = cx.theme();

@@ -16,7 +16,10 @@ use xero_ide::{IdeCommand, IdeServer};
 use xero_terminal::TerminalView;
 
 use crate::finder::{FinderEvent, FinderView};
-use crate::{AddWorkspace, CloseEditor, FilePalette, OpenFile, ToggleSidebar};
+use crate::{
+    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
+    ResetFontSize, ToggleSidebar,
+};
 
 /// The open editor tabs for one stream, plus which is focused.
 #[derive(Default)]
@@ -380,6 +383,18 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
             .on_action(cx.listener(|this, _: &FilePalette, _, cx| this.open_palette(cx)))
             .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
+            .on_action(cx.listener(|_, _: &IncreaseFontSize, window, cx| {
+                xero_settings::adjust_font_size(cx, 1.0);
+                window.refresh();
+            }))
+            .on_action(cx.listener(|_, _: &DecreaseFontSize, window, cx| {
+                xero_settings::adjust_font_size(cx, -1.0);
+                window.refresh();
+            }))
+            .on_action(cx.listener(|_, _: &ResetFontSize, window, cx| {
+                xero_settings::reset_font_size(cx);
+                window.refresh();
+            }))
             .relative()
             .flex()
             .flex_col()

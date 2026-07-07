@@ -26,7 +26,6 @@ use util::paths::PathStyle;
 use crate::grid;
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
-const FONT_SIZE: f32 = 14.;
 const SCROLL_MULTIPLIER: f32 = 3.;
 
 enum State {
@@ -189,7 +188,8 @@ fn grid_canvas(
     canvas(
         move |bounds, window, cx| layout(&terminal, &font, bounds, window, cx),
         move |bounds, grid_layout, window, cx| {
-            let line_height = grid::line_height(px(FONT_SIZE), LINE_HEIGHT_MULTIPLIER);
+            let size = px(xero_settings::font_size(cx));
+            let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
             grid::paint(&grid_layout, line_height, window, cx);
             window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
         },
@@ -204,7 +204,7 @@ fn layout(
     window: &mut Window,
     cx: &mut App,
 ) -> grid::GridLayout {
-    let size = px(FONT_SIZE);
+    let size = px(xero_settings::font_size(cx));
     let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
     grid::layout(terminal, bounds, font, size, line_height, window, cx)
 }
