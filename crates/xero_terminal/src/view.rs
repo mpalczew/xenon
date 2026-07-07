@@ -64,13 +64,30 @@ impl TerminalView {
         match result {
             Ok(builder) => {
                 let terminal = cx.new(|cx| builder.subscribe(cx));
+                // The PTY loop emits `Wakeup` on new output; it does not call
+                // `notify`, so we repaint here or output lags to the next frame.
                 self._subscriptions
-                    .push(cx.observe(&terminal, |_, _, cx| cx.notify()));
+                    .push(cx.subscribe(&terminal, Self::on_terminal_event));
                 self.state = State::Ready(terminal);
             }
             Err(error) => self.state = State::Failed(error.to_string()),
         }
         cx.notify();
+    }
+
+    fn on_terminal_event(
+        &mut self,
+        _terminal: Entity<Terminal>,
+        event: &terminal::Event,
+        cx: &mut Context<Self>,
+    ) {
+        use terminal::Event;
+        match event {
+            Event::Wakeup | Event::TitleChanged | Event::BreadcrumbsChanged | Event::Bell => {
+                cx.notify()
+            }
+            _ => {}
+        }
     }
 
     /// Write UTF-8 text straight to the PTY (used by the input handler).
