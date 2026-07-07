@@ -216,7 +216,7 @@ impl XeroApp {
         let env = self.terminal_env();
         let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
         self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| match event {
-            TerminalEvent::Bell => this.flag_attention(stream, cx),
+            TerminalEvent::Bell | TerminalEvent::Finished => this.flag_attention(stream, cx),
             TerminalEvent::Interacted => this.clear_attention(stream, cx),
         }));
         terminal

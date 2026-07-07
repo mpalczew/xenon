@@ -7,13 +7,11 @@
 //! `try_keystroke` on key-down. Both mirror zed's terminal_view
 //! (GPL-3.0-or-later); see ATTRIBUTION.md.
 
-use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Result;
-use collections::HashMap;
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity, EntityInputHandler,
     EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
@@ -43,7 +41,15 @@ enum State {
 pub enum TerminalEvent {
     Bell,
     Interacted,
+    /// A busy Claude terminal went quiet: the agent likely finished its turn.
+    Finished,
 }
+
+/// Output must be quiet this long before a terminal counts as settled.
+const IDLE_AFTER: Duration = Duration::from_millis(2500);
+/// A settled burst below this many output batches is a short command, not an
+/// agent working; only larger bursts flag attention.
+const BUSY_WAKEUPS: u32 = 15;
 
 pub struct TerminalView {
     state: State,
@@ -55,11 +61,10 @@ pub struct TerminalView {
     /// Position of the right-click Copy/Paste menu, when open (window coords).
     context_menu: Option<Point<Pixels>>,
     _spawn: Task<()>,
-    /// Debounced task that logs the settled screen after output stops (used to
-    /// investigate how to detect when an agent finishes).
-    _log_task: Task<()>,
-    /// Time of the previous `Wakeup`, to log inter-output gaps (output cadence).
-    last_wakeup: Option<Instant>,
+    /// Output batches in the current burst; reset when output settles.
+    wakeups: u32,
+    /// Debounce that fires `on_idle` once output has been quiet for `IDLE_AFTER`.
+    _idle_check: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -90,8 +95,8 @@ impl TerminalView {
             root_name,
             context_menu: None,
             _spawn: spawn,
-            _log_task: Task::ready(()),
-            last_wakeup: None,
+            wakeups: 0,
+            _idle_check: Task::ready(()),
             _subscriptions: Vec::new(),
         }
     }
@@ -123,49 +128,33 @@ impl TerminalView {
                 cx.emit(TerminalEvent::Bell);
                 cx.notify();
             }
-            Event::TitleChanged => {
-                log::info!("terminal title: {:?}", self.title(cx));
-                cx.notify();
-            }
             Event::Wakeup => {
-                let now = Instant::now();
-                let gap = self.last_wakeup.map(|prev| now.duration_since(prev).as_millis());
-                log::info!("wakeup (gap: {gap:?}ms)");
-                self.last_wakeup = Some(now);
-                self.schedule_screen_log(cx);
+                self.wakeups = self.wakeups.saturating_add(1);
+                self.arm_idle_check(cx);
                 cx.notify();
             }
-            Event::BreadcrumbsChanged => cx.notify(),
+            Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
     }
 
-    /// (Re)arm a debounce that logs the bottom screen rows ~600ms after output
-    /// goes quiet, capturing the settled state (agent working vs. waiting).
-    fn schedule_screen_log(&mut self, cx: &mut Context<Self>) {
-        self._log_task = cx.spawn(async move |view, cx| {
-            cx.background_executor().timer(Duration::from_millis(600)).await;
-            view.update(cx, |view, cx| view.log_bottom_rows(cx)).ok();
+    /// (Re)arm the finish detector: a debounce that fires once output has been
+    /// quiet for `IDLE_AFTER`. An agent redraws its spinner continuously while
+    /// working, so a gap that long means it stopped.
+    fn arm_idle_check(&mut self, cx: &mut Context<Self>) {
+        self._idle_check = cx.spawn(async move |view, cx| {
+            cx.background_executor().timer(IDLE_AFTER).await;
+            view.update(cx, |view, cx| view.on_idle(cx)).ok();
         });
     }
 
-    /// Log the last few non-blank rows of the visible screen.
-    fn log_bottom_rows(&self, cx: &Context<Self>) {
-        let State::Ready(terminal) = &self.state else {
-            return;
-        };
-        let content = terminal.read(cx).last_content().clone();
-        let mut rows: BTreeMap<i32, String> = BTreeMap::new();
-        for indexed in &content.cells {
-            rows.entry(indexed.point.line).or_default().push(indexed.cell.character());
+    /// Output settled after a burst. If that burst was substantial (an agent
+    /// working, not a one-line command) and this is a Claude terminal, flag it.
+    fn on_idle(&mut self, cx: &mut Context<Self>) {
+        let busy = std::mem::replace(&mut self.wakeups, 0);
+        if busy >= BUSY_WAKEUPS && self.title(cx).to_lowercase().contains("claude") {
+            cx.emit(TerminalEvent::Finished);
         }
-        let tail: Vec<String> = rows
-            .into_values()
-            .map(|row| row.trim_end().to_string())
-            .filter(|row| !row.is_empty())
-            .collect();
-        let start = tail.len().saturating_sub(4);
-        log::info!("terminal bottom rows: {:?}", &tail[start..]);
     }
 
     /// The terminal's title (set by the program via OSC, e.g. Claude Code's
