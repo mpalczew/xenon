@@ -62,13 +62,9 @@ impl EditorView {
     }
 
     /// Re-highlight the whole buffer. Cheap enough for v1 file sizes; called
-    /// after every edit. Non-Rust files get no spans (default color).
+    /// after every edit. Unsupported languages get no spans (default color).
     fn recompute_highlights(&mut self) {
-        self.highlights = if highlight::is_highlightable(self.buffer.path()) {
-            highlight::rust_spans(&self.buffer.text())
-        } else {
-            Vec::new()
-        };
+        self.highlights = highlight::spans_for_path(self.buffer.path(), &self.buffer.text());
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
