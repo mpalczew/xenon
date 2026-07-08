@@ -45,6 +45,8 @@ pub enum TerminalEvent {
     Finished,
     /// The shell process exited; the terminal is dead but stays open.
     Exited,
+    /// A file path was cmd-clicked in the terminal; open it in the editor.
+    OpenPath(PathBuf),
 }
 
 /// Output must be quiet this long before a terminal counts as settled.
@@ -143,8 +145,21 @@ impl TerminalView {
                 cx.emit(TerminalEvent::Exited);
                 cx.notify();
             }
+            Event::Open(target) => self.open_target(target, cx),
             Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
+        }
+    }
+
+    /// A cmd-click landed on a URL or path-like target in the terminal.
+    fn open_target(&mut self, target: &terminal::MaybeNavigationTarget, cx: &mut Context<Self>) {
+        match target {
+            terminal::MaybeNavigationTarget::Url(url) => cx.open_url(url),
+            terminal::MaybeNavigationTarget::PathLike(path_like) => {
+                if let Some(path) = resolve_clicked_path(path_like) {
+                    cx.emit(TerminalEvent::OpenPath(path));
+                }
+            }
         }
     }
 
@@ -427,6 +442,38 @@ impl TerminalView {
                 .with_priority(1),
             )
     }
+}
+
+/// Resolve a cmd-clicked path-like target to an existing file: strip any trailing
+/// `:line[:col]` and resolve relative paths against the terminal's directory.
+fn resolve_clicked_path(target: &terminal::PathLikeTarget) -> Option<PathBuf> {
+    for candidate in [target.maybe_path.as_str(), strip_line_suffix(&target.maybe_path)] {
+        let mut path = PathBuf::from(candidate);
+        if path.is_relative() {
+            match &target.terminal_dir {
+                Some(dir) => path = dir.join(path),
+                None => continue,
+            }
+        }
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Drop up to two trailing `:<digits>` segments (line and column) from a path.
+fn strip_line_suffix(text: &str) -> &str {
+    let mut text = text;
+    for _ in 0..2 {
+        match text.rsplit_once(':') {
+            Some((head, tail)) if !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit()) => {
+                text = head;
+            }
+            _ => break,
+        }
+    }
+    text
 }
 
 fn grid_canvas(

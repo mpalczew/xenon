@@ -235,6 +235,7 @@ impl XeroApp {
             TerminalEvent::Bell | TerminalEvent::Finished => this.flag_attention(stream, cx),
             TerminalEvent::Interacted => this.clear_attention(stream, cx),
             TerminalEvent::Exited => cx.notify(),
+            TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
         }));
         terminal
     }
