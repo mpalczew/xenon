@@ -18,6 +18,7 @@ const VISIBLE_RESULTS: usize = 20;
 
 pub enum FinderEvent {
     Selected(PathBuf),
+    RevealDir(PathBuf),
     Dismissed,
 }
 
@@ -65,7 +66,11 @@ impl FinderView {
 
     fn confirm(&mut self, cx: &mut Context<Self>) {
         if let Some(result) = self.results.get(self.selected) {
-            cx.emit(FinderEvent::Selected(result.path.clone()));
+            if result.is_dir {
+                cx.emit(FinderEvent::RevealDir(result.path.clone()));
+            } else {
+                cx.emit(FinderEvent::Selected(result.path.clone()));
+            }
         }
     }
 
@@ -158,11 +163,12 @@ impl FinderView {
             .take(VISIBLE_RESULTS)
             .enumerate()
             .map(|(i, m)| {
-                let mut row = div()
-                    .px_3()
-                    .py_1()
-                    .text_sm()
-                    .child(m.path.to_string_lossy().into_owned());
+                let label = if m.is_dir {
+                    format!("{}/", m.path.to_string_lossy())
+                } else {
+                    m.path.to_string_lossy().into_owned()
+                };
+                let mut row = div().px_3().py_1().text_sm().child(label);
                 if i == self.selected {
                     row = row.bg(colors.element_selected);
                 }

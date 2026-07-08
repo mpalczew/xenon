@@ -21,8 +21,8 @@ fn fixture() -> TempDir {
 fn walk_respects_gitignore() {
     let dir = fixture();
     let finder = Finder::start(dir.path());
-    // main.rs, lib.rs, README.md, .gitignore — but not ignored.txt.
-    assert_eq!(finder.file_count(), 4);
+    // Files main.rs, lib.rs, README.md, .gitignore + the src/ dir; not ignored.txt.
+    assert_eq!(finder.file_count(), 5);
 }
 
 #[test]

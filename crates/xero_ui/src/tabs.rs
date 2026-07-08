@@ -2,12 +2,33 @@
 //! close affordance; clicking a chip focuses that tab.
 
 use gpui::{
-    Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px,
+    App, AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
+    StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
 
 use crate::app::XeroApp;
+
+/// A hover tooltip showing a terminal tab's full (untruncated) title.
+struct TabTooltip {
+    text: SharedString,
+}
+
+impl Render for TabTooltip {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        div()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .bg(colors.elevated_surface_background)
+            .border_1()
+            .border_color(colors.border)
+            .text_color(colors.text)
+            .text_sm()
+            .child(self.text.clone())
+    }
+}
 
 impl XeroApp {
     pub(crate) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -171,6 +192,12 @@ impl XeroApp {
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.activate_terminal_tab(index, window, cx)
             }))
+            .tooltip({
+                let full = SharedString::from(title.to_string());
+                move |_window: &mut Window, cx: &mut App| {
+                    cx.new(|_| TabTooltip { text: full.clone() }).into()
+                }
+            })
             .child(div().text_sm().max_w(px(220.)).truncate().child(title.to_string()))
             .child(
                 div()

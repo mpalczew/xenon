@@ -762,11 +762,32 @@ impl XeroApp {
                     self.open_editor(root.join(relative), true, cx);
                 }
             }
+            FinderEvent::RevealDir(relative) => {
+                if let Some(root) = self.active.and_then(|id| self.stream_root(id)) {
+                    self.reveal_dir(&root, &root.join(relative), cx);
+                }
+            }
             FinderEvent::Dismissed => {
                 self.finder = None;
                 cx.notify();
             }
         }
+    }
+
+    /// Expand `dir` and every ancestor up to (but excluding) `root`, then show
+    /// the browser so the path is visible.
+    fn reveal_dir(&mut self, root: &Path, dir: &Path, cx: &mut Context<Self>) {
+        let mut current = Some(dir);
+        while let Some(path) = current {
+            if path == root || !path.starts_with(root) {
+                break;
+            }
+            self.expanded_dirs.insert(path.to_path_buf());
+            current = path.parent();
+        }
+        self.browsing = true;
+        self.finder = None;
+        cx.notify();
     }
 
     fn persist_active(&self) {
