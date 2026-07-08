@@ -120,7 +120,7 @@ impl XeroApp {
             if workspace.streams.is_empty() {
                 let stream = Stream::new("main");
                 workspace.streams.push(stream.id);
-                let _ = xero_store::save_session(workspace.id, &stream);
+                save_session(workspace.id, &stream, "load_streams default stream");
                 self.streams.insert(stream.id, stream);
                 dirty = true;
                 continue;
@@ -132,14 +132,19 @@ impl XeroApp {
             }
         }
         if dirty {
-            let _ = xero_store::save_registry(&self.registry);
+            save_registry(&self.registry, "load_streams default stream");
         }
     }
 
     /// Start the IDE server over all workspace roots and consume its commands
     /// (openFile) on the UI thread.
     fn start_ide_server(&mut self, cx: &mut Context<Self>) {
-        let roots: Vec<_> = self.registry.workspaces.iter().map(|w| w.root.clone()).collect();
+        let roots: Vec<_> = self
+            .registry
+            .workspaces
+            .iter()
+            .map(|w| w.root.clone())
+            .collect();
         let (tx, rx) = async_channel::unbounded();
         match IdeServer::start(roots, tx) {
             Ok(server) => self.ide = Some(server),
@@ -150,7 +155,10 @@ impl XeroApp {
         }
         self._ide_task = Some(cx.spawn(async move |view, cx| {
             while let Ok(command) = rx.recv().await {
-                if view.update(cx, |app, cx| app.handle_ide(command, cx)).is_err() {
+                if view
+                    .update(cx, |app, cx| app.handle_ide(command, cx))
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -168,7 +176,10 @@ impl XeroApp {
 
     /// Environment injected into every terminal so agents find the IDE server.
     fn terminal_env(&self) -> Vec<(String, String)> {
-        self.ide.as_ref().map(|server| server.env()).unwrap_or_default()
+        self.ide
+            .as_ref()
+            .map(|server| server.env())
+            .unwrap_or_default()
     }
 
     pub(crate) fn registry(&self) -> &Registry {
@@ -179,20 +190,25 @@ impl XeroApp {
         self.active
     }
 
-    pub(crate) fn sidebar_collapsed(&self) -> bool {
-        self.sidebar_collapsed
-    }
-
     pub(crate) fn stream_name(&self, id: StreamId) -> &str {
-        self.streams.get(&id).map(|s| s.name.as_str()).unwrap_or("stream")
+        self.streams
+            .get(&id)
+            .map(|s| s.name.as_str())
+            .unwrap_or("stream")
     }
 
     fn first_stream(&self) -> Option<StreamId> {
-        self.registry.workspaces.iter().find_map(|w| w.streams.first().copied())
+        self.registry
+            .workspaces
+            .iter()
+            .find_map(|w| w.streams.first().copied())
     }
 
     fn workspace_of(&self, stream: StreamId) -> Option<&WorkspaceRec> {
-        self.registry.workspaces.iter().find(|w| w.streams.contains(&stream))
+        self.registry
+            .workspaces
+            .iter()
+            .find(|w| w.streams.contains(&stream))
     }
 
     fn stream_root(&self, stream: StreamId) -> Option<PathBuf> {
@@ -209,7 +225,13 @@ impl XeroApp {
         self.finder = None;
         if !self.terminals.contains_key(&id) {
             let terminal = self.spawn_terminal(root, id, cx);
-            self.terminals.insert(id, TerminalStack { tabs: vec![terminal], active: 0 });
+            self.terminals.insert(
+                id,
+                TerminalStack {
+                    tabs: vec![terminal],
+                    active: 0,
+                },
+            );
         }
         self.persist_active();
         cx.notify();
@@ -225,12 +247,14 @@ impl XeroApp {
     ) -> Entity<TerminalView> {
         let env = self.terminal_env();
         let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
-        self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| match event {
-            TerminalEvent::Bell | TerminalEvent::Finished => this.flag_attention(stream, cx),
-            TerminalEvent::Interacted => this.clear_attention(stream, cx),
-            TerminalEvent::Exited => cx.notify(),
-            TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
-        }));
+        self._bell_subs.push(
+            cx.subscribe(&terminal, move |this, _view, event, cx| match event {
+                TerminalEvent::Bell | TerminalEvent::Finished => this.flag_attention(stream, cx),
+                TerminalEvent::Interacted => this.clear_attention(stream, cx),
+                TerminalEvent::Exited => cx.notify(),
+                TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
+            }),
+        );
         terminal
     }
 
@@ -254,7 +278,9 @@ impl XeroApp {
     }
 
     fn active_terminal(&self) -> Option<Entity<TerminalView>> {
-        self.terminal_stack().and_then(|s| s.tabs.get(s.active)).cloned()
+        self.terminal_stack()
+            .and_then(|s| s.tabs.get(s.active))
+            .cloned()
     }
 
     pub(crate) fn activate_terminal_tab(
@@ -353,7 +379,8 @@ impl XeroApp {
             if let Ok(Ok(Some(paths))) = rx.await
                 && let Some(path) = paths.into_iter().next()
             {
-                this.update(cx, |this, cx| this.register_workspace(path, cx)).ok();
+                this.update(cx, |this, cx| this.register_workspace(path, cx))
+                    .ok();
             }
         })
         .detach();
@@ -367,8 +394,8 @@ impl XeroApp {
         let workspace_id = record.id;
         self.registry.workspaces.push(record);
         self.streams.insert(stream_id, stream.clone());
-        let _ = xero_store::save_session(workspace_id, &stream);
-        let _ = xero_store::save_registry(&self.registry);
+        save_session(workspace_id, &stream, "register_workspace");
+        save_registry(&self.registry, "register_workspace");
         self.activate_stream(stream_id, cx);
     }
 
@@ -380,8 +407,8 @@ impl XeroApp {
         let stream_id = stream.id;
         record.streams.push(stream_id);
         self.streams.insert(stream_id, stream.clone());
-        let _ = xero_store::save_session(workspace, &stream);
-        let _ = xero_store::save_registry(&self.registry);
+        save_session(workspace, &stream, "add_stream");
+        save_registry(&self.registry, "add_stream");
         self.activate_stream(stream_id, cx);
     }
 
@@ -406,9 +433,13 @@ impl XeroApp {
             return;
         };
         record.streams.remove(from);
-        let to = record.streams.iter().position(|&s| s == target).unwrap_or(record.streams.len());
+        let to = record
+            .streams
+            .iter()
+            .position(|&s| s == target)
+            .unwrap_or(record.streams.len());
         record.streams.insert(to, dragged);
-        let _ = xero_store::save_registry(&self.registry);
+        save_registry(&self.registry, "reorder_stream");
         cx.notify();
     }
 
@@ -427,9 +458,12 @@ impl XeroApp {
             return;
         };
         let record = list.remove(from);
-        let to = list.iter().position(|w| w.id == target).unwrap_or(list.len());
+        let to = list
+            .iter()
+            .position(|w| w.id == target)
+            .unwrap_or(list.len());
         list.insert(to, record);
-        let _ = xero_store::save_registry(&self.registry);
+        save_registry(&self.registry, "reorder_workspace");
         cx.notify();
     }
 
@@ -448,24 +482,29 @@ impl XeroApp {
     pub(crate) fn start_rename(&mut self, id: StreamId, cx: &mut Context<Self>) {
         let name = self.stream_name(id).to_string();
         let field = cx.new(|cx| RenameView::new(name, cx));
-        self._rename_sub = Some(cx.subscribe(&field, move |this, _field, event, cx| match event {
-            RenameEvent::Committed(name) => this.apply_rename(id, name.clone(), cx),
-            RenameEvent::Cancelled => this.cancel_rename(cx),
-        }));
+        self._rename_sub = Some(
+            cx.subscribe(&field, move |this, _field, event, cx| match event {
+                RenameEvent::Committed(name) => this.apply_rename(id, name.clone(), cx),
+                RenameEvent::Cancelled => this.cancel_rename(cx),
+            }),
+        );
         self.renaming = Some((id, field));
         cx.notify();
     }
 
     /// The inline rename field for `id`, if that stream is being renamed.
     pub(crate) fn rename_field(&self, id: StreamId) -> Option<Entity<RenameView>> {
-        self.renaming.as_ref().filter(|(target, _)| *target == id).map(|(_, field)| field.clone())
+        self.renaming
+            .as_ref()
+            .filter(|(target, _)| *target == id)
+            .map(|(_, field)| field.clone())
     }
 
     fn apply_rename(&mut self, id: StreamId, name: String, cx: &mut Context<Self>) {
         if let Some(stream) = self.streams.get_mut(&id) {
             stream.name = name;
             if let Some(workspace) = self.workspace_of(id).map(|w| w.id) {
-                let _ = xero_store::save_session(workspace, &self.streams[&id]);
+                save_session(workspace, &self.streams[&id], "apply_rename");
             }
         }
         self.cancel_rename(cx);
@@ -500,8 +539,8 @@ impl XeroApp {
         self.terminals.remove(&id);
         self.editors.remove(&id);
         self.attention.remove(&id);
-        let _ = xero_store::delete_session(workspace, id);
-        let _ = xero_store::save_registry(&self.registry);
+        delete_session(workspace, id, "close_stream");
+        save_registry(&self.registry, "close_stream");
         if self.active == Some(id) {
             self.active = None;
             if let Some(next) = fallback {
@@ -522,7 +561,8 @@ impl XeroApp {
             if let Ok(Ok(Some(paths))) = rx.await
                 && let Some(path) = paths.into_iter().next()
             {
-                this.update(cx, |this, cx| this.open_editor(path, true, cx)).ok();
+                this.update(cx, |this, cx| this.open_editor(path, true, cx))
+                    .ok();
             }
         })
         .detach();
@@ -592,16 +632,20 @@ impl XeroApp {
     }
 
     pub(crate) fn has_editor(&self) -> bool {
-        self.editor_stack().is_some_and(|stack| !stack.tabs.is_empty())
+        self.editor_stack()
+            .is_some_and(|stack| !stack.tabs.is_empty())
     }
 
     fn active_editor(&self) -> Option<Entity<EditorView>> {
-        self.editor_stack().and_then(|s| s.tabs.get(s.active)).map(|tab| tab.view.clone())
+        self.editor_stack()
+            .and_then(|s| s.tabs.get(s.active))
+            .map(|tab| tab.view.clone())
     }
 
     /// Whether the focused editor is a markdown file (drives the Preview button).
     pub(crate) fn active_editor_is_markdown(&self, cx: &App) -> bool {
-        self.active_editor().is_some_and(|view| view.read(cx).is_markdown())
+        self.active_editor()
+            .is_some_and(|view| view.read(cx).is_markdown())
     }
 
     /// Toggle the focused markdown editor between source and preview.
@@ -658,8 +702,13 @@ impl XeroApp {
         let Some(root) = self.stream_root(id) else {
             return div().into_any_element();
         };
-        let workspace = self.workspace_of(id).map(|w| w.name.clone()).unwrap_or_default();
-        let open_file = self.active_editor().map(|view| view.read(cx).path().to_path_buf());
+        let workspace = self
+            .workspace_of(id)
+            .map(|w| w.name.clone())
+            .unwrap_or_default();
+        let open_file = self
+            .active_editor()
+            .map(|view| view.read(cx).path().to_path_buf());
         let mut rows = Vec::new();
         self.tree_rows(&root, 0, open_file.as_deref(), &mut rows, cx);
 
@@ -671,7 +720,13 @@ impl XeroApp {
             .py_1()
             .border_b_1()
             .border_color(colors.border)
-            .child(div().text_xs().text_color(colors.text).truncate().child(workspace))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(colors.text)
+                    .truncate()
+                    .child(workspace),
+            )
             .child(
                 div()
                     .id("tree-collapse")
@@ -695,7 +750,13 @@ impl XeroApp {
             .bg(colors.panel_background)
             .child(header)
             .child(
-                div().id("browser").flex_1().min_h_0().overflow_y_scroll().py_1().children(rows),
+                div()
+                    .id("browser")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .py_1()
+                    .children(rows),
             )
             .into_any_element()
     }
@@ -724,39 +785,45 @@ impl XeroApp {
             .collect();
         // Directories first, then case-insensitive by name.
         entries.sort_by(|a, b| {
-            b.2.cmp(&a.2).then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+            b.2.cmp(&a.2)
+                .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
         });
         for (path, name, is_dir) in entries {
             let expanded = is_dir && self.expanded_dirs.contains(&path);
             let is_open = open_file == Some(path.as_path());
-            rows.push(self.tree_row(path.clone(), &name, is_dir, expanded, is_open, depth, cx));
+            rows.push(self.tree_row(
+                TreeRow {
+                    path: path.clone(),
+                    name,
+                    is_dir,
+                    expanded,
+                    is_open,
+                    depth,
+                },
+                cx,
+            ));
             if expanded {
                 self.tree_rows(&path, depth + 1, open_file, rows, cx);
             }
         }
     }
 
-    fn tree_row(
-        &self,
-        path: PathBuf,
-        name: &str,
-        is_dir: bool,
-        expanded: bool,
-        is_open: bool,
-        depth: usize,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
+    fn tree_row(&self, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
-        let indent = px(6. + depth as f32 * 12.);
-        let marker = if !is_dir {
+        let indent = px(6. + row.depth as f32 * 12.);
+        let marker = if !row.is_dir {
             ""
-        } else if expanded {
+        } else if row.expanded {
             "▾"
         } else {
             "▸"
         };
-        let background = if is_open { colors.element_selected } else { gpui::transparent_black() };
-        let id = SharedString::from(path.to_string_lossy().into_owned());
+        let background = if row.is_open {
+            colors.element_selected
+        } else {
+            gpui::transparent_black()
+        };
+        let id = SharedString::from(row.path.to_string_lossy().into_owned());
         div()
             .id(id)
             .flex()
@@ -770,12 +837,12 @@ impl XeroApp {
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .child(div().w(px(12.)).text_color(colors.text_muted).child(marker))
-            .child(name.to_string())
+            .child(row.name.clone())
             .on_click(cx.listener(move |this, _, _window, cx| {
-                if is_dir {
-                    this.toggle_dir(path.clone(), cx);
+                if row.is_dir {
+                    this.toggle_dir(row.path.clone(), cx);
                 } else {
-                    this.open_editor(path.clone(), true, cx);
+                    this.open_editor(row.path.clone(), true, cx);
                 }
             }))
             .into_any_element()
@@ -836,15 +903,50 @@ impl XeroApp {
             && let Some(workspace) = self.workspace_of(stream)
         {
             let mut registry = self.registry.clone();
-            registry.active = Some(Active { workspace: workspace.id, stream });
-            let _ = xero_store::save_registry(&registry);
+            registry.active = Some(Active {
+                workspace: workspace.id,
+                stream,
+            });
+            save_registry(&registry, "persist_active");
         }
+    }
+}
+
+fn save_registry(registry: &Registry, context: &str) {
+    if let Err(error) = xero_store::save_registry(registry) {
+        log::error!("{context}: failed to save registry: {error}");
+    }
+}
+
+fn save_session(workspace: WorkspaceId, stream: &Stream, context: &str) {
+    if let Err(error) = xero_store::save_session(workspace, stream) {
+        log::error!("{context}: failed to save session {}: {error}", stream.id);
+    }
+}
+
+fn delete_session(workspace: WorkspaceId, stream: StreamId, context: &str) {
+    if let Err(error) = xero_store::delete_session(workspace, stream) {
+        log::error!("{context}: failed to delete session {stream}: {error}");
     }
 }
 
 /// A placeholder stream for an id whose session file is missing or corrupt.
 fn synthesize_stream(id: StreamId) -> Stream {
-    Stream { id, name: "main".into(), backing: Default::default(), session: Default::default() }
+    Stream {
+        id,
+        name: "main".into(),
+        backing: Default::default(),
+        session: Default::default(),
+    }
+}
+
+struct TreeRow {
+    path: PathBuf,
+    name: String,
+    is_dir: bool,
+    expanded: bool,
+    is_open: bool,
+    depth: usize,
 }
 
 impl Focusable for XeroApp {
@@ -891,17 +993,20 @@ impl Render for XeroApp {
             .bg(colors.background)
             .text_color(colors.text)
             .child(toolbar)
-            .child(div().flex().flex_1().min_h_0().children(sidebar).child(main))
+            .child(
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_h_0()
+                    .children(sidebar)
+                    .child(main),
+            )
             .children(finder)
     }
 }
 
 impl XeroApp {
-    fn render_main(
-        &self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
+    fn render_main(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let terminal = self.active_terminal();
         let active_view = self
@@ -910,7 +1015,11 @@ impl XeroApp {
             .map(|tab| tab.view.clone());
 
         let ring = |focused: bool| {
-            if focused { colors.border_focused } else { gpui::transparent_black() }
+            if focused {
+                colors.border_focused
+            } else {
+                gpui::transparent_black()
+            }
         };
         let term_focused = terminal
             .as_ref()
@@ -958,7 +1067,14 @@ impl XeroApp {
                 .border_2()
                 .border_color(ring(editor_focused))
                 .children(editor_tabs)
-                .child(div().flex().flex_1().min_h_0().children(tree).child(editor_body))
+                .child(
+                    div()
+                        .flex()
+                        .flex_1()
+                        .min_h_0()
+                        .children(tree)
+                        .child(editor_body),
+                )
         });
 
         let mut panel = div().flex().flex_1().size_full();
@@ -970,7 +1086,10 @@ impl XeroApp {
                 panel = panel.child(terminal_pane);
             }
             _ => {
-                panel = panel.items_center().justify_center().child("Add a workspace to begin");
+                panel = panel
+                    .items_center()
+                    .justify_center()
+                    .child("Add a workspace to begin");
             }
         }
         panel

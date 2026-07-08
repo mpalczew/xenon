@@ -108,7 +108,8 @@ fn build_injected(
     highlights: &str,
     injections: &str,
 ) -> Option<HighlightConfiguration> {
-    let mut config = HighlightConfiguration::new(language, name, highlights, injections, "").ok()?;
+    let mut config =
+        HighlightConfiguration::new(language, name, highlights, injections, "").ok()?;
     config.configure(HIGHLIGHT_NAMES);
     Some(config)
 }
@@ -145,11 +146,31 @@ macro_rules! config {
     };
 }
 
-config!(RUST, tree_sitter_rust::LANGUAGE, tree_sitter_rust::HIGHLIGHTS_QUERY);
-config!(JSON, tree_sitter_json::LANGUAGE, tree_sitter_json::HIGHLIGHTS_QUERY);
-config!(TOML, tree_sitter_toml_ng::LANGUAGE, tree_sitter_toml_ng::HIGHLIGHTS_QUERY);
-config!(PYTHON, tree_sitter_python::LANGUAGE, tree_sitter_python::HIGHLIGHTS_QUERY);
-config!(JAVASCRIPT, tree_sitter_javascript::LANGUAGE, tree_sitter_javascript::HIGHLIGHT_QUERY);
+config!(
+    RUST,
+    tree_sitter_rust::LANGUAGE,
+    tree_sitter_rust::HIGHLIGHTS_QUERY
+);
+config!(
+    JSON,
+    tree_sitter_json::LANGUAGE,
+    tree_sitter_json::HIGHLIGHTS_QUERY
+);
+config!(
+    TOML,
+    tree_sitter_toml_ng::LANGUAGE,
+    tree_sitter_toml_ng::HIGHLIGHTS_QUERY
+);
+config!(
+    PYTHON,
+    tree_sitter_python::LANGUAGE,
+    tree_sitter_python::HIGHLIGHTS_QUERY
+);
+config!(
+    JAVASCRIPT,
+    tree_sitter_javascript::LANGUAGE,
+    tree_sitter_javascript::HIGHLIGHT_QUERY
+);
 
 fn config(lang: Lang) -> Option<&'static HighlightConfiguration> {
     match lang {
@@ -198,7 +219,11 @@ macro_rules! collect_spans {
                 }
                 Ok(HighlightEvent::Source { start, end }) => {
                     if let Some(&index) = stack.last() {
-                        spans.push(Span { start, end, name: theme_key(HIGHLIGHT_NAMES[index]) });
+                        spans.push(Span {
+                            start,
+                            end,
+                            name: theme_key(HIGHLIGHT_NAMES[index]),
+                        });
                     }
                 }
                 Err(_) => break,
@@ -222,9 +247,10 @@ fn highlight_markdown(source: &str) -> Vec<Span> {
         return Vec::new();
     };
     let mut highlighter = Highlighter::new();
-    let Ok(events) =
-        highlighter.highlight(config, source.as_bytes(), None, |name| injection_config(name))
-    else {
+    #[allow(clippy::redundant_closure)]
+    let Ok(events) = highlighter.highlight(config, source.as_bytes(), None, |name| {
+        injection_config(name)
+    }) else {
         return Vec::new();
     };
     collect_spans!(events)
@@ -257,7 +283,11 @@ mod tests {
         // The heading maps to the theme's `title` key...
         assert!(spans.iter().any(|s| s.name == "title"));
         // ...and the fenced Rust block is highlighted via injection.
-        assert!(spans.iter().any(|s| s.name == "keyword" && &source[s.start..s.end] == "fn"));
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.name == "keyword" && &source[s.start..s.end] == "fn")
+        );
     }
 
     #[test]

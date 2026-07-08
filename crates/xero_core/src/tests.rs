@@ -19,8 +19,18 @@ fn stream_working_dir_is_checkout_root() {
 
 #[test]
 fn layout_split_ratio_is_clamped() {
-    assert_eq!(Layout::split(0.01), Layout::Split { ratio: Layout::MIN_RATIO });
-    assert_eq!(Layout::split(0.99), Layout::Split { ratio: Layout::MAX_RATIO });
+    assert_eq!(
+        Layout::split(0.01),
+        Layout::Split {
+            ratio: Layout::MIN_RATIO
+        }
+    );
+    assert_eq!(
+        Layout::split(0.99),
+        Layout::Split {
+            ratio: Layout::MAX_RATIO
+        }
+    );
     assert_eq!(Layout::split(0.5), Layout::Split { ratio: 0.5 });
 }
 

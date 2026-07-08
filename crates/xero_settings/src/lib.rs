@@ -16,7 +16,9 @@ impl Global for FontSize {}
 
 /// The current font size (or the default if unset).
 pub fn font_size(cx: &App) -> f32 {
-    cx.try_global::<FontSize>().map(|f| f.0).unwrap_or(DEFAULT_FONT_SIZE)
+    cx.try_global::<FontSize>()
+        .map(|f| f.0)
+        .unwrap_or(DEFAULT_FONT_SIZE)
 }
 
 /// Set the font size, clamped to the supported range.

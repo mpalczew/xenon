@@ -39,7 +39,10 @@ impl Finder {
     /// Walk `root` now, collecting files and directories. Respects .gitignore
     /// and skips hidden entries (so `.git` and friends stay out of results).
     pub fn start(root: &Path) -> Finder {
-        Finder { entries: walk(root), matcher: Matcher::new(Config::DEFAULT) }
+        Finder {
+            entries: walk(root),
+            matcher: Matcher::new(Config::DEFAULT),
+        }
     }
 
     pub fn file_count(&self) -> usize {

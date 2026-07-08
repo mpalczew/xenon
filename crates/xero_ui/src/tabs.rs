@@ -61,7 +61,11 @@ impl XeroApp {
                 .flex()
                 .items_center()
                 .text_sm()
-                .text_color(if active { colors.text } else { colors.text_muted })
+                .text_color(if active {
+                    colors.text
+                } else {
+                    colors.text_muted
+                })
                 .cursor_pointer()
                 .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
                 .child(label)
@@ -100,8 +104,11 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let background =
-            if is_active { colors.editor_background } else { colors.panel_background };
+        let background = if is_active {
+            colors.editor_background
+        } else {
+            colors.panel_background
+        };
         div()
             .id(("tab", index))
             .flex()
@@ -185,10 +192,17 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let background =
-            if is_active { colors.terminal_background } else { colors.panel_background };
+        let background = if is_active {
+            colors.terminal_background
+        } else {
+            colors.panel_background
+        };
         // Dead terminals get a dim ✗ and muted label.
-        let label_color = if is_exited { colors.text_muted } else { colors.text };
+        let label_color = if is_exited {
+            colors.text_muted
+        } else {
+            colors.text
+        };
         let dead = is_exited.then(|| div().text_xs().text_color(colors.text_muted).child("✗"));
         div()
             .id(("term-tab", index))
@@ -202,9 +216,11 @@ impl XeroApp {
             .bg(background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.activate_terminal_tab(index, window, cx)
-            }))
+            .on_click(
+                cx.listener(move |this, _, window, cx| {
+                    this.activate_terminal_tab(index, window, cx)
+                }),
+            )
             .tooltip({
                 let full = SharedString::from(title.to_string());
                 move |_window: &mut Window, cx: &mut App| {

@@ -79,24 +79,26 @@ fn serve_connection(
     commands: &Sender<IdeCommand>,
 ) -> Result<()> {
     let expected = token.to_string();
-    let auth = move |req: &Request, res: Response| -> std::result::Result<Response, ErrorResponse> {
-        let presented = req
-            .headers()
-            .get("x-claude-code-ide-authorization")
-            .and_then(|v| v.to_str().ok());
-        if presented == Some(expected.as_str()) {
-            Ok(res)
-        } else {
-            Err(ErrorResponse::new(Some("unauthorized".into())))
-        }
-    };
+    #[allow(clippy::result_large_err)]
+    let auth =
+        move |req: &Request, res: Response| -> std::result::Result<Response, ErrorResponse> {
+            let presented = req
+                .headers()
+                .get("x-claude-code-ide-authorization")
+                .and_then(|v| v.to_str().ok());
+            if presented == Some(expected.as_str()) {
+                Ok(res)
+            } else {
+                Err(ErrorResponse::new(Some("unauthorized".into())))
+            }
+        };
 
     let mut ws = accept_hdr(stream, auth)?;
     loop {
         match ws.read()? {
             Message::Text(text) => {
                 if let Some(reply) = protocol::handle(&text, roots, commands) {
-                    ws.send(Message::Text(reply.into()))?;
+                    ws.send(Message::Text(reply))?;
                 }
             }
             Message::Close(_) => return Ok(()),

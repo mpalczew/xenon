@@ -61,7 +61,10 @@ fn tool_list() -> Value {
 
 fn call_tool(message: &Value, roots: &[PathBuf], commands: &Sender<IdeCommand>) -> Value {
     let params = message.get("params");
-    let name = params.and_then(|p| p.get("name")).and_then(Value::as_str).unwrap_or("");
+    let name = params
+        .and_then(|p| p.get("name"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let args = params.and_then(|p| p.get("arguments"));
 
     match name {
@@ -89,4 +92,60 @@ fn call_tool(message: &Value, roots: &[PathBuf], commands: &Sender<IdeCommand>) 
 
 fn text_result(text: &str) -> Value {
     json!({ "content": [{ "type": "text", "text": text }] })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn request(method: &str, params: Value) -> String {
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": method,
+            "params": params,
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn initialize_returns_server_info() {
+        let (tx, _rx) = async_channel::unbounded();
+        let reply = handle(&request("initialize", json!({})), &[], &tx).expect("reply");
+        let value: Value = serde_json::from_str(&reply).expect("json");
+
+        assert_eq!(value["result"]["serverInfo"]["name"], "xero");
+        assert_eq!(
+            value["result"]["capabilities"]["tools"]["listChanged"],
+            true
+        );
+    }
+
+    #[test]
+    fn tools_list_advertises_open_file() {
+        let (tx, _rx) = async_channel::unbounded();
+        let reply = handle(&request("tools/list", json!({})), &[], &tx).expect("reply");
+        let value: Value = serde_json::from_str(&reply).expect("json");
+        let tools = value["result"]["tools"].as_array().expect("tools");
+
+        assert!(tools.iter().any(|tool| tool["name"] == "openFile"));
+    }
+
+    #[test]
+    fn open_file_sends_command() {
+        let (tx, rx) = async_channel::unbounded();
+        let params = json!({
+            "name": "openFile",
+            "arguments": { "filePath": "/tmp/example.rs" },
+        });
+
+        let reply = handle(&request("tools/call", params), &[], &tx).expect("reply");
+        let command = rx.try_recv().expect("command");
+
+        assert!(reply.contains("Opened /tmp/example.rs"));
+        assert!(
+            matches!(command, IdeCommand::OpenFile(path) if path.as_path() == Path::new("/tmp/example.rs"))
+        );
+    }
 }

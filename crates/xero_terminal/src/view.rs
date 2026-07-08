@@ -13,11 +13,11 @@ use std::time::Duration;
 
 use anyhow::Result;
 use gpui::{
-    App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity, EntityInputHandler,
-    EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Point, Render,
-    ScrollWheelEvent, StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window,
-    anchored, canvas, deferred, div, px,
+    App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
+    EntityInputHandler, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
+    KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels,
+    Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled, Subscription, Task,
+    UTF16Selection, Window, anchored, canvas, deferred, div, px,
 };
 use task::Shell;
 use terminal::terminal_settings::{AlternateScroll, CursorShape};
@@ -200,7 +200,11 @@ impl TerminalView {
                     Some((dir, rest)) if dir == self.root_name => rest,
                     _ => title.as_str(),
                 };
-                if title.is_empty() { "terminal".into() } else { title.to_string() }
+                if title.is_empty() {
+                    "terminal".into()
+                } else {
+                    title.to_string()
+                }
             }
             State::Pending => "terminal".into(),
             State::Failed(_) => "error".into(),
@@ -224,7 +228,9 @@ impl TerminalView {
             return;
         };
         let terminal = terminal.clone();
-        terminal.update(cx, |terminal, _| terminal.input(text.to_string().into_bytes()));
+        terminal.update(cx, |terminal, _| {
+            terminal.input(text.to_string().into_bytes())
+        });
         self.note_interaction(cx);
     }
 
@@ -273,7 +279,12 @@ impl TerminalView {
         }
     }
 
-    fn on_right_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_right_down(
+        &mut self,
+        event: &MouseDownEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.context_menu = Some(event.position);
         cx.stop_propagation();
         cx.notify();
@@ -285,7 +296,12 @@ impl TerminalView {
         }
     }
 
-    fn on_mouse_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let State::Ready(terminal) = &self.state else {
             return;
         };
@@ -295,7 +311,12 @@ impl TerminalView {
         cx.notify();
     }
 
-    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if event.pressed_button != Some(MouseButton::Left) {
             return;
         }
@@ -313,13 +334,20 @@ impl TerminalView {
         }
     }
 
-    fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_scroll(
+        &mut self,
+        event: &ScrollWheelEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let State::Ready(terminal) = &self.state else {
             return;
         };
         let terminal = terminal.clone();
         self.note_interaction(cx);
-        terminal.update(cx, |terminal, _| terminal.scroll_wheel(event, SCROLL_MULTIPLIER));
+        terminal.update(cx, |terminal, _| {
+            terminal.scroll_wheel(event, SCROLL_MULTIPLIER)
+        });
         cx.notify();
     }
 }
@@ -391,16 +419,22 @@ impl Render for TerminalView {
                 .child("⊘ session ended — process exited")
         });
 
-        let menu = self.context_menu.map(|position| self.render_context_menu(position, cx));
+        let menu = self
+            .context_menu
+            .map(|position| self.render_context_menu(position, cx));
         match &self.state {
             State::Ready(terminal) => base
-                .child(grid_canvas(terminal.clone(), cx.entity(), self.focus.clone()))
+                .child(grid_canvas(
+                    terminal.clone(),
+                    cx.entity(),
+                    self.focus.clone(),
+                ))
                 .children(exited)
                 .children(menu),
             State::Pending => base.children(menu),
-            State::Failed(error) => {
-                base.text_color(cx.theme().colors().text).child(error.clone())
-            }
+            State::Failed(error) => base
+                .text_color(cx.theme().colors().text)
+                .child(error.clone()),
         }
     }
 }
@@ -427,8 +461,14 @@ impl TerminalView {
         div()
             .absolute()
             .inset_0()
-            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
-            .on_mouse_down(MouseButton::Right, cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
+            )
             .child(
                 deferred(
                     anchored().position(position).child(
@@ -463,7 +503,10 @@ impl TerminalView {
 /// Resolve a cmd-clicked path-like target to an existing file: strip any trailing
 /// `:line[:col]` and resolve relative paths against the terminal's directory.
 fn resolve_clicked_path(target: &terminal::PathLikeTarget) -> Option<PathBuf> {
-    for candidate in [target.maybe_path.as_str(), strip_line_suffix(&target.maybe_path)] {
+    for candidate in [
+        target.maybe_path.as_str(),
+        strip_line_suffix(&target.maybe_path),
+    ] {
         let mut path = PathBuf::from(candidate);
         if path.is_relative() {
             match &target.terminal_dir {
@@ -552,10 +595,17 @@ impl EntityInputHandler for TerminalView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        Some(UTF16Selection { range: 0..0, reversed: false })
+        Some(UTF16Selection {
+            range: 0..0,
+            reversed: false,
+        })
     }
 
-    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
         None
     }
 

@@ -24,6 +24,22 @@ pub struct EditorLayout {
     pub cursor: Bounds<Pixels>,
 }
 
+pub struct LayoutInput<'a> {
+    pub rope: &'a Rope,
+    pub cursor: (usize, usize),
+    pub default_color: Hsla,
+    pub spans: &'a [ColoredSpan],
+    pub origin: GpuiPoint<Pixels>,
+    pub viewport_height: Pixels,
+    pub scroll_top: Pixels,
+}
+
+pub struct TextMetrics<'a> {
+    pub font: &'a Font,
+    pub font_size: Pixels,
+    pub line_height: Pixels,
+}
+
 /// The monospace font used for the editor (Menlo, no ligatures).
 pub fn editor_font() -> Font {
     let mut font = gpui::font("Menlo");
@@ -42,40 +58,53 @@ fn cell_width(window: &Window, font: &Font, font_size: Pixels) -> Pixels {
 
 /// Shape every line with its highlight colors and compute the cursor rectangle.
 pub fn layout(
-    rope: &Rope,
-    cursor: (usize, usize),
-    default_color: Hsla,
-    spans: &[ColoredSpan],
-    origin: GpuiPoint<Pixels>,
-    viewport_height: Pixels,
-    scroll_top: Pixels,
-    font: &Font,
-    font_size: Pixels,
-    line_height: Pixels,
+    input: LayoutInput<'_>,
+    metrics: TextMetrics<'_>,
     window: &mut Window,
 ) -> EditorLayout {
-    let cell_w = cell_width(window, font, font_size);
+    let cell_w = cell_width(window, metrics.font, metrics.font_size);
     // Only shape the rows in view (plus one), offset by the scroll position.
-    let total = rope.len_lines();
-    let first = (f32::from(scroll_top) / f32::from(line_height)).floor().max(0.) as usize;
-    let visible = (f32::from(viewport_height) / f32::from(line_height)).ceil() as usize + 1;
+    let total = input.rope.len_lines();
+    let first = (f32::from(input.scroll_top) / f32::from(metrics.line_height))
+        .floor()
+        .max(0.) as usize;
+    let visible =
+        (f32::from(input.viewport_height) / f32::from(metrics.line_height)).ceil() as usize + 1;
     let last = (first + visible).min(total);
 
     let mut lines = Vec::with_capacity(last.saturating_sub(first));
     for row in first..last {
-        let line_start = rope.line_to_byte(row);
-        let text = trim_newline(rope.line(row).to_string());
-        let runs = line_runs(&text, line_start, default_color, spans, font);
-        lines.push((row, shape(text, runs, font_size, window)));
+        let line_start = input.rope.line_to_byte(row);
+        let text = trim_newline(input.rope.line(row).to_string());
+        let runs = line_runs(
+            &text,
+            line_start,
+            input.default_color,
+            input.spans,
+            metrics.font,
+        );
+        lines.push((row, shape(text, runs, metrics.font_size, window)));
     }
 
-    let (row, col) = cursor;
+    let (row, col) = input.cursor;
     let cursor_origin = point(
-        origin.x + cell_w * (col as f32),
-        origin.y + line_height * (row as f32) - scroll_top,
+        input.origin.x + cell_w * (col as f32),
+        input.origin.y + metrics.line_height * (row as f32) - input.scroll_top,
     );
-    let cursor = Bounds::new(cursor_origin, Size { width: cell_w, height: line_height });
-    EditorLayout { lines, origin, line_height, scroll_top, cursor }
+    let cursor = Bounds::new(
+        cursor_origin,
+        Size {
+            width: cell_w,
+            height: metrics.line_height,
+        },
+    );
+    EditorLayout {
+        lines,
+        origin: input.origin,
+        line_height: metrics.line_height,
+        scroll_top: input.scroll_top,
+        cursor,
+    }
 }
 
 fn trim_newline(mut text: String) -> String {

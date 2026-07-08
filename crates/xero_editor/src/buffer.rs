@@ -54,7 +54,13 @@ impl Buffer {
         }
         let rope = Rope::from_reader(&bytes[..])?;
         let disk_mtime = mtime(&path);
-        Ok(Buffer { rope, path, cursor: 0, dirty: false, disk_mtime })
+        Ok(Buffer {
+            rope,
+            path,
+            cursor: 0,
+            dirty: false,
+            disk_mtime,
+        })
     }
 
     /// Write the buffer to disk. Refuses when the file changed under a dirty

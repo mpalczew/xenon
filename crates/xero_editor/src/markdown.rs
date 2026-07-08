@@ -90,7 +90,9 @@ impl Builder {
             }
             Event::SoftBreak if self.code.is_none() => self.inline.push(' '),
             Event::HardBreak if self.code.is_none() => self.inline.push('\n'),
-            Event::Rule => self.blocks.push(div().my_3().h(px(1.)).bg(self.rule).into_any_element()),
+            Event::Rule => self
+                .blocks
+                .push(div().my_3().h(px(1.)).bg(self.rule).into_any_element()),
             _ => {}
         }
     }
@@ -165,8 +167,11 @@ impl Builder {
         if let Some(pad) = pad_left {
             block = block.pl(pad);
         }
-        self.blocks
-            .push(block.child(StyledText::new(text).with_highlights(highlights)).into_any_element());
+        self.blocks.push(
+            block
+                .child(StyledText::new(text).with_highlights(highlights))
+                .into_any_element(),
+        );
     }
 
     fn flush_code(&mut self) {
@@ -179,7 +184,10 @@ impl Builder {
         let highlights: Vec<_> = highlight::spans_for_lang(&lang, &code)
             .into_iter()
             .map(|span| {
-                let style = HighlightStyle { color: self.code_color(span.name), ..Default::default() };
+                let style = HighlightStyle {
+                    color: self.code_color(span.name),
+                    ..Default::default()
+                };
                 (span.start..span.end, style)
             })
             .collect();
@@ -197,7 +205,10 @@ impl Builder {
     }
 
     fn code_color(&self, name: &str) -> Option<Hsla> {
-        self.theme.syntax().style_for_name(name).and_then(|style| style.color)
+        self.theme
+            .syntax()
+            .style_for_name(name)
+            .and_then(|style| style.color)
     }
 }
 

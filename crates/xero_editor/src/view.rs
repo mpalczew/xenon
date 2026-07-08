@@ -75,8 +75,14 @@ impl EditorView {
         }
     }
 
-    fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        let line_height = element::line_height(px(xero_settings::font_size(cx)), LINE_HEIGHT_MULTIPLIER);
+    fn on_scroll(
+        &mut self,
+        event: &ScrollWheelEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let line_height =
+            element::line_height(px(xero_settings::font_size(cx)), LINE_HEIGHT_MULTIPLIER);
         let delta = event.delta.pixel_delta(line_height).y;
         // Lower-bound only; the upper bound needs the viewport height, so `layout`
         // clamps it against the content each frame.
@@ -208,20 +214,28 @@ fn layout(
                 .style_for_name(span.name)
                 .and_then(|style| style.color)
                 .unwrap_or(text_color);
-            ColoredSpan { start: span.start, end: span.end, color }
+            ColoredSpan {
+                start: span.start,
+                end: span.end,
+                color,
+            }
         })
         .collect();
     element::layout(
-        view.buffer.rope(),
-        view.buffer.cursor_position(),
-        text_color,
-        &spans,
-        bounds.origin,
-        bounds.size.height,
-        view.scroll_top,
-        font,
-        size,
-        line_height,
+        element::LayoutInput {
+            rope: view.buffer.rope(),
+            cursor: view.buffer.cursor_position(),
+            default_color: text_color,
+            spans: &spans,
+            origin: bounds.origin,
+            viewport_height: bounds.size.height,
+            scroll_top: view.scroll_top,
+        },
+        element::TextMetrics {
+            font,
+            font_size: size,
+            line_height,
+        },
         window,
     )
 }
@@ -262,10 +276,17 @@ impl EntityInputHandler for EditorView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        Some(UTF16Selection { range: 0..0, reversed: false })
+        Some(UTF16Selection {
+            range: 0..0,
+            reversed: false,
+        })
     }
 
-    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
         None
     }
 

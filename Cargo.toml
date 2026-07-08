@@ -7,6 +7,16 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
+[workspace.lints.rust]
+unused = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+result_large_err = "warn"
+todo = "deny"
+too_many_arguments = "warn"
+unimplemented = "deny"
+
 [workspace.dependencies]
 xero_core = { path = "crates/xero_core" }
 xero_store = { path = "crates/xero_store" }

@@ -1,6 +1,6 @@
 //! Persistence for xero: the workspace registry and per-stream session files,
 //! stored as JSON under `data_dir()` (`~/.xero`). Writes are atomic (temp file
-//! + rename); a corrupt file is backed up and defaults are returned so a bad
+//! plus rename); a corrupt file is backed up and defaults are returned so a bad
 //! file never blocks startup.
 
 use std::fs;
@@ -24,7 +24,9 @@ pub fn data_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("XERO_DATA_DIR") {
         return PathBuf::from(dir);
     }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
     home.join(".xero")
 }
 
@@ -84,7 +86,10 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, StoreError> {
     serde_json::from_str(&contents).map_err(|_| {
         let backup = path.with_extension("corrupt");
         let _ = fs::rename(path, &backup);
-        StoreError::Corrupt { path: path.to_path_buf(), backup }
+        StoreError::Corrupt {
+            path: path.to_path_buf(),
+            backup,
+        }
     })
 }
 

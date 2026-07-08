@@ -35,12 +35,22 @@ fn main() {
 /// Log to `~/.xero/xero.log` (bundled apps have no terminal for stderr), at
 /// info for xero crates. `RUST_LOG` still overrides.
 fn init_logging() {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
     let dir = home.join(".xero");
     let _ = std::fs::create_dir_all(&dir);
     let mut builder = env_logger::Builder::new();
-    builder.parse_filters(&std::env::var("RUST_LOG").unwrap_or_else(|_| "warn,xero=info,xero_ui=info,xero_ide=info,xero_terminal=info".into()));
-    if let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("xero.log")) {
+    builder.parse_filters(
+        &std::env::var("RUST_LOG").unwrap_or_else(|_| {
+            "warn,xero=info,xero_ui=info,xero_ide=info,xero_terminal=info".into()
+        }),
+    );
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("xero.log"))
+    {
         builder.target(env_logger::Target::Pipe(Box::new(file)));
     }
     let _ = builder.try_init();

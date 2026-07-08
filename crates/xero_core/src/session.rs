@@ -6,18 +6,15 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 /// How the main panel is arranged.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Layout {
+    #[default]
     TerminalOnly,
     EditorOnly,
-    Split { ratio: f32 },
-}
-
-impl Default for Layout {
-    fn default() -> Self {
-        Layout::TerminalOnly
-    }
+    Split {
+        ratio: f32,
+    },
 }
 
 impl Layout {
@@ -26,7 +23,9 @@ impl Layout {
     pub const MAX_RATIO: f32 = 0.85;
 
     pub fn split(ratio: f32) -> Self {
-        Layout::Split { ratio: ratio.clamp(Self::MIN_RATIO, Self::MAX_RATIO) }
+        Layout::Split {
+            ratio: ratio.clamp(Self::MIN_RATIO, Self::MAX_RATIO),
+        }
     }
 }
 
@@ -55,7 +54,9 @@ pub struct TerminalState {
 
 impl Default for TerminalState {
     fn default() -> Self {
-        TerminalState { cwd: PathBuf::from(".") }
+        TerminalState {
+            cwd: PathBuf::from("."),
+        }
     }
 }
 

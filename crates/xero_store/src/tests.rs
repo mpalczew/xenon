@@ -30,7 +30,9 @@ fn missing_registry_loads_default() {
 fn registry_saves_and_loads() {
     with_data_dir(|| {
         let mut registry = Registry::default();
-        registry.workspaces.push(WorkspaceRec::new("/tmp/proj".into()));
+        registry
+            .workspaces
+            .push(WorkspaceRec::new("/tmp/proj".into()));
         save_registry(&registry).unwrap();
         assert_eq!(load_registry().unwrap(), registry);
     });

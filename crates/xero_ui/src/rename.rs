@@ -26,7 +26,11 @@ impl EventEmitter<RenameEvent> for RenameView {}
 
 impl RenameView {
     pub fn new(initial: String, cx: &mut Context<Self>) -> Self {
-        Self { text: initial, focus: cx.focus_handle(), focused_once: false }
+        Self {
+            text: initial,
+            focus: cx.focus_handle(),
+            focused_once: false,
+        }
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -123,10 +127,17 @@ impl EntityInputHandler for RenameView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        Some(UTF16Selection { range: 0..0, reversed: false })
+        Some(UTF16Selection {
+            range: 0..0,
+            reversed: false,
+        })
     }
 
-    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
         None
     }
 

@@ -67,7 +67,8 @@ impl XeroApp {
 
         let mut rows = Vec::new();
         for workspace in workspaces {
-            let header = self.workspace_header(workspace.id, &workspace.name, workspace.collapsed, cx);
+            let header =
+                self.workspace_header(workspace.id, &workspace.name, workspace.collapsed, cx);
             rows.push(header.into_any_element());
             if !workspace.collapsed {
                 for (id, name, is_active) in workspace.streams {
@@ -133,12 +134,18 @@ impl XeroApp {
             .text_color(colors.text_muted)
             .on_drag(DragWorkspace(id), {
                 let label = name.to_string();
-                move |_, _, _, cx| cx.new(|_| DragChip { label: label.clone() })
+                move |_, _, _, cx| {
+                    cx.new(|_| DragChip {
+                        label: label.clone(),
+                    })
+                }
             })
             .drag_over::<DragWorkspace>(move |style, _, _, _| style.bg(colors.element_selected))
-            .on_drop(cx.listener(move |this, dragged: &DragWorkspace, _window, cx| {
-                this.reorder_workspace(dragged.0, id, cx)
-            }))
+            .on_drop(
+                cx.listener(move |this, dragged: &DragWorkspace, _window, cx| {
+                    this.reorder_workspace(dragged.0, id, cx)
+                }),
+            )
             .child(
                 div()
                     .id(("ws-toggle", id_hash(id.to_string())))
@@ -171,8 +178,11 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
-        let background =
-            if is_active { colors.element_selected } else { colors.panel_background };
+        let background = if is_active {
+            colors.element_selected
+        } else {
+            colors.panel_background
+        };
         // While renaming, the row is just the inline edit field.
         if let Some(field) = self.rename_field(id) {
             return div()
@@ -187,7 +197,11 @@ impl XeroApp {
         }
         // Amber dot when the stream's agent rang the bell while unfocused.
         let attention = self.needs_attention(id).then(|| {
-            div().w(px(6.)).h(px(6.)).rounded_full().bg(gpui::rgb(0xd19a66))
+            div()
+                .w(px(6.))
+                .h(px(6.))
+                .rounded_full()
+                .bg(gpui::rgb(0xd19a66))
         });
         div()
             .id(("stream", id_hash(id.to_string())))
@@ -201,16 +215,22 @@ impl XeroApp {
             .bg(background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
-            .on_click(cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
-                if event.click_count() >= 2 {
-                    this.start_rename(id, cx);
-                } else {
-                    this.select_stream(id, window, cx);
-                }
-            }))
+            .on_click(
+                cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+                    if event.click_count() >= 2 {
+                        this.start_rename(id, cx);
+                    } else {
+                        this.select_stream(id, window, cx);
+                    }
+                }),
+            )
             .on_drag(DragStream(id), {
                 let label = name.to_string();
-                move |_, _, _, cx| cx.new(|_| DragChip { label: label.clone() })
+                move |_, _, _, cx| {
+                    cx.new(|_| DragChip {
+                        label: label.clone(),
+                    })
+                }
             })
             .drag_over::<DragStream>(move |style, _, _, _| style.bg(colors.element_selected))
             .on_drop(cx.listener(move |this, dragged: &DragStream, _window, cx| {

@@ -151,7 +151,11 @@ impl FinderView {
             .py_2()
             .border_b_1()
             .border_color(colors.border)
-            .text_color(if self.query.is_empty() { colors.text_muted } else { colors.text })
+            .text_color(if self.query.is_empty() {
+                colors.text_muted
+            } else {
+                colors.text
+            })
             .child(shown)
     }
 
@@ -226,10 +230,17 @@ impl EntityInputHandler for FinderView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        Some(UTF16Selection { range: 0..0, reversed: false })
+        Some(UTF16Selection {
+            range: 0..0,
+            reversed: false,
+        })
     }
 
-    fn marked_text_range(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<Range<usize>> {
+    fn marked_text_range(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<Range<usize>> {
         None
     }
 

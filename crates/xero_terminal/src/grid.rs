@@ -25,6 +25,18 @@ pub struct GridLayout {
     pub selection: Vec<Bounds<Pixels>>,
 }
 
+struct Viewport {
+    origin: GpuiPoint<Pixels>,
+    cell_w: Pixels,
+    line_height: Pixels,
+    offset: i32,
+}
+
+struct TextMetrics<'a> {
+    font: &'a Font,
+    font_size: Pixels,
+}
+
 /// The monospace font used for the grid. Menlo is always present on macOS;
 /// ligatures are disabled so cell advances stay uniform.
 pub fn terminal_font() -> Font {
@@ -70,9 +82,22 @@ pub fn layout(
     let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height, offset, rows);
     let selection = selection_rects(&content, bounds.origin, cell_w, line_height, offset);
     let lines = shape_rows(
-        &content, bounds.origin, cell_w, line_height, offset, font, font_size, &theme, window,
+        &content,
+        Viewport {
+            origin: bounds.origin,
+            cell_w,
+            line_height,
+            offset,
+        },
+        TextMetrics { font, font_size },
+        &theme,
+        window,
     );
-    GridLayout { lines, cursor, selection }
+    GridLayout {
+        lines,
+        cursor,
+        selection,
+    }
 }
 
 /// Highlight rectangles for the active selection, one per display row.
@@ -105,7 +130,13 @@ fn selection_rects(
         if last > first {
             let x = origin.x + cell_w * (first as f32);
             let width = cell_w * ((last - first) as f32);
-            rects.push(Bounds::new(point(x, y), Size { width, height: line_height }));
+            rects.push(Bounds::new(
+                point(x, y),
+                Size {
+                    width,
+                    height: line_height,
+                },
+            ));
         }
     }
     rects
@@ -132,18 +163,20 @@ fn cursor_bounds(
         origin.x + cell_w * (cursor.point.column as f32),
         origin.y + line_height * (display_line as f32),
     );
-    Some(Bounds::new(cell_origin, Size { width: cell_w, height: line_height }))
+    Some(Bounds::new(
+        cell_origin,
+        Size {
+            width: cell_w,
+            height: line_height,
+        },
+    ))
 }
 
 /// Group the flat cell list into rows and shape each into a `ShapedLine`.
 fn shape_rows(
     content: &terminal::Content,
-    origin: GpuiPoint<Pixels>,
-    cell_w: Pixels,
-    line_height: Pixels,
-    offset: i32,
-    font: &Font,
-    font_size: Pixels,
+    viewport: Viewport,
+    metrics: TextMetrics<'_>,
     theme: &Theme,
     window: &mut Window,
 ) -> Vec<GridLine> {
@@ -151,19 +184,19 @@ fn shape_rows(
     let mut row: Option<Row> = None;
     for indexed in &content.cells {
         match &mut row {
-            Some(r) if r.line == indexed.point.line => r.push(indexed, theme, font),
+            Some(r) if r.line == indexed.point.line => r.push(indexed, theme, metrics.font),
             _ => {
                 if let Some(r) = row.take() {
-                    lines.push(r.finish(origin, cell_w, line_height, offset, font_size, window));
+                    lines.push(r.finish(&viewport, metrics.font_size, window));
                 }
                 let mut r = Row::new(indexed.point.line);
-                r.push(indexed, theme, font);
+                r.push(indexed, theme, metrics.font);
                 row = Some(r);
             }
         }
     }
     if let Some(r) = row {
-        lines.push(r.finish(origin, cell_w, line_height, offset, font_size, window));
+        lines.push(r.finish(&viewport, metrics.font_size, window));
     }
     lines
 }
@@ -178,7 +211,12 @@ struct Row {
 
 impl Row {
     fn new(line: i32) -> Self {
-        Row { line, text: String::new(), runs: Vec::new(), backgrounds: Vec::new() }
+        Row {
+            line,
+            text: String::new(),
+            runs: Vec::new(),
+            backgrounds: Vec::new(),
+        }
     }
 
     fn push(&mut self, indexed: &terminal::IndexedCell, theme: &Theme, font: &Font) {
@@ -206,16 +244,8 @@ impl Row {
         });
     }
 
-    fn finish(
-        self,
-        origin: GpuiPoint<Pixels>,
-        cell_w: Pixels,
-        line_height: Pixels,
-        offset: i32,
-        font_size: Pixels,
-        window: &mut Window,
-    ) -> GridLine {
-        let y = origin.y + line_height * ((self.line + offset) as f32);
+    fn finish(self, viewport: &Viewport, font_size: Pixels, window: &mut Window) -> GridLine {
+        let y = viewport.origin.y + viewport.line_height * ((self.line + viewport.offset) as f32);
         let line = window.text_system().shape_line(
             SharedString::from(self.text),
             font_size,
@@ -226,11 +256,24 @@ impl Row {
             .backgrounds
             .into_iter()
             .map(|(col, color)| {
-                let cell_origin = point(origin.x + cell_w * (col as f32), y);
-                (Bounds::new(cell_origin, Size { width: cell_w, height: line_height }), color)
+                let cell_origin = point(viewport.origin.x + viewport.cell_w * (col as f32), y);
+                (
+                    Bounds::new(
+                        cell_origin,
+                        Size {
+                            width: viewport.cell_w,
+                            height: viewport.line_height,
+                        },
+                    ),
+                    color,
+                )
             })
             .collect();
-        GridLine { origin: point(origin.x, y), line, backgrounds }
+        GridLine {
+            origin: point(viewport.origin.x, y),
+            line,
+            backgrounds,
+        }
     }
 }
 
@@ -250,9 +293,14 @@ pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: 
         window.paint_quad(fill(cursor, cursor_color));
     }
     for grid_line in &layout.lines {
-        let _ = grid_line
-            .line
-            .paint(grid_line.origin, line_height, TextAlign::Left, None, window, cx);
+        let _ = grid_line.line.paint(
+            grid_line.origin,
+            line_height,
+            TextAlign::Left,
+            None,
+            window,
+            cx,
+        );
     }
 }
 

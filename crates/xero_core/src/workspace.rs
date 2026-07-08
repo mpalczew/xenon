@@ -23,7 +23,12 @@ impl WorkspaceRec {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| root.to_string_lossy().into_owned());
-        WorkspaceRec { id: WorkspaceId::new(), name, root, streams: Vec::new() }
+        WorkspaceRec {
+            id: WorkspaceId::new(),
+            name,
+            root,
+            streams: Vec::new(),
+        }
     }
 }
 
@@ -40,7 +45,11 @@ pub struct Registry {
 
 impl Default for Registry {
     fn default() -> Self {
-        Registry { version: CURRENT_VERSION, workspaces: Vec::new(), active: None }
+        Registry {
+            version: CURRENT_VERSION,
+            workspaces: Vec::new(),
+            active: None,
+        }
     }
 }
 

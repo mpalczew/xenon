@@ -8,6 +8,10 @@ project_help() {
 xero commands:
   build     cargo build --release
   bundle    assemble target/release/xero.app (ad-hoc signed)
+  fmt       cargo fmt --all
+  fmtcheck  cargo fmt --all --check
+  lint      cargo clippy --workspace --all-targets -- -D warnings
+  health    fmtcheck, lint, and test
   install   bundle and copy xero.app into /Applications
   run       cargo run (debug); pass a file path to open the editor
   test      cargo test
@@ -16,6 +20,24 @@ EOF
 
 project_build() {
     (cd "$XERO_ROOT" && cargo build --release)
+}
+
+project_fmt() {
+    (cd "$XERO_ROOT" && cargo fmt --all)
+}
+
+project_fmtcheck() {
+    (cd "$XERO_ROOT" && cargo fmt --all --check)
+}
+
+project_lint() {
+    (cd "$XERO_ROOT" && cargo clippy --workspace --all-targets -- -D warnings)
+}
+
+project_health() {
+    project_fmtcheck || return 1
+    project_lint || return 1
+    project_test
 }
 
 project_bundle() {

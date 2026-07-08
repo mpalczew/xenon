@@ -11,18 +11,13 @@ use crate::session::SessionState;
 
 /// What filesystem a stream operates on. Serialized with a `kind` tag so new
 /// variants (e.g. `Worktree`) are a forward-compatible addition.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Backing {
     /// The workspace's own checkout, shared with every other stream.
+    #[default]
     Checkout,
     // Future: Worktree { branch: String, path: PathBuf },
-}
-
-impl Default for Backing {
-    fn default() -> Self {
-        Backing::Checkout
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
