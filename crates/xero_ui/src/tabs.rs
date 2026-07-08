@@ -31,20 +31,25 @@ impl XeroApp {
             chips.push(self.tab_chip(index, &name, is_active, cx));
         }
 
-        // A Preview toggle, right-aligned, when the focused file is markdown.
-        let preview = self.active_editor_is_markdown(cx).then(|| {
+        // Right-aligned controls: Files (browser) always, Preview for markdown.
+        let button = |id: &'static str, label: &'static str, active: bool| {
             div()
-                .id("md-preview-toggle")
-                .ml_auto()
+                .id(id)
                 .px_3()
                 .h_full()
                 .flex()
                 .items_center()
                 .text_sm()
-                .text_color(colors.text_muted)
+                .text_color(if active { colors.text } else { colors.text_muted })
                 .cursor_pointer()
                 .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                .child("Preview")
+                .child(label)
+        };
+        let files = button("browse-toggle", "Files", self.is_browsing())
+            .ml_auto()
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx)));
+        let preview = self.active_editor_is_markdown(cx).then(|| {
+            button("md-preview-toggle", "Preview", false)
                 .on_click(cx.listener(|this, _, _, cx| this.toggle_preview(cx)))
         });
 
@@ -56,6 +61,7 @@ impl XeroApp {
             .border_color(colors.border)
             .bg(colors.panel_background)
             .children(chips)
+            .child(files)
             .children(preview)
     }
 

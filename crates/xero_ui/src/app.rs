@@ -3,11 +3,12 @@
 //! holds one or more, and every stream keeps its own running PTY.
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    ParentElement, PathPromptOptions, Render, Styled, Subscription, Task, Window, div,
+    ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement, Styled,
+    Subscription, Task, Window, div, px,
 };
 use theme::ActiveTheme;
 use xero_core::{Active, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
@@ -55,6 +56,10 @@ pub struct XeroApp {
     sidebar_collapsed: bool,
     // Workspaces whose streams are hidden in the sidebar.
     collapsed_workspaces: HashSet<WorkspaceId>,
+    // The editor-pane file browser: expanded directories, and whether the
+    // browser (vs. the open editor) is showing.
+    expanded_dirs: HashSet<PathBuf>,
+    browsing: bool,
     // The stream currently being renamed inline, plus its editing field.
     renaming: Option<(StreamId, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
@@ -86,6 +91,8 @@ impl XeroApp {
             finder: None,
             sidebar_collapsed: false,
             collapsed_workspaces: HashSet::new(),
+            expanded_dirs: HashSet::new(),
+            browsing: false,
             renaming: None,
             _rename_sub: None,
             focus: cx.focus_handle(),
@@ -556,6 +563,7 @@ impl XeroApp {
             }
         }
         self.finder = None;
+        self.browsing = false;
         cx.notify();
     }
 
@@ -570,6 +578,7 @@ impl XeroApp {
             && index < stack.tabs.len()
         {
             stack.active = index;
+            self.browsing = false;
             cx.notify();
         }
     }
@@ -616,6 +625,119 @@ impl XeroApp {
         if let Some(view) = self.active_editor() {
             view.update(cx, |view, cx| view.toggle_preview(cx));
         }
+    }
+
+    /// The editor pane shows the file browser when explicitly toggled, or
+    /// whenever a stream is active with no editor open.
+    pub(crate) fn is_browsing(&self) -> bool {
+        self.active.is_some() && (self.browsing || !self.has_editor())
+    }
+
+    pub(crate) fn toggle_browser(&mut self, cx: &mut Context<Self>) {
+        self.browsing = !self.browsing;
+        cx.notify();
+    }
+
+    fn toggle_dir(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if !self.expanded_dirs.insert(path.clone()) {
+            self.expanded_dirs.remove(&path);
+        }
+        cx.notify();
+    }
+
+    /// The file browser: a lazy, expandable tree rooted at the active stream's
+    /// working dir, rendered in the editor pane.
+    fn render_browser(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let colors = cx.theme().colors().clone();
+        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+            return div().into_any_element();
+        };
+        let mut rows = Vec::new();
+        self.tree_rows(&root, 0, &mut rows, cx);
+        div()
+            .id("browser")
+            .size_full()
+            .overflow_y_scroll()
+            .py_1()
+            .bg(colors.editor_background)
+            .children(rows)
+            .into_any_element()
+    }
+
+    fn tree_rows(
+        &self,
+        dir: &Path,
+        depth: usize,
+        rows: &mut Vec<gpui::AnyElement>,
+        cx: &mut Context<Self>,
+    ) {
+        let Ok(read) = std::fs::read_dir(dir) else {
+            return;
+        };
+        let mut entries: Vec<(PathBuf, String, bool)> = read
+            .flatten()
+            .filter_map(|entry| {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with('.') {
+                    return None;
+                }
+                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                Some((entry.path(), name, is_dir))
+            })
+            .collect();
+        // Directories first, then case-insensitive by name.
+        entries.sort_by(|a, b| {
+            b.2.cmp(&a.2).then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+        });
+        for (path, name, is_dir) in entries {
+            let expanded = is_dir && self.expanded_dirs.contains(&path);
+            rows.push(self.tree_row(path.clone(), &name, is_dir, expanded, depth, cx));
+            if expanded {
+                self.tree_rows(&path, depth + 1, rows, cx);
+            }
+        }
+    }
+
+    fn tree_row(
+        &self,
+        path: PathBuf,
+        name: &str,
+        is_dir: bool,
+        expanded: bool,
+        depth: usize,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let colors = cx.theme().colors().clone();
+        let indent = px(8. + depth as f32 * 14.);
+        let marker = if !is_dir {
+            ""
+        } else if expanded {
+            "▾"
+        } else {
+            "▸"
+        };
+        let id = SharedString::from(path.to_string_lossy().into_owned());
+        div()
+            .id(id)
+            .flex()
+            .items_center()
+            .gap_1()
+            .pl(indent)
+            .pr_2()
+            .py_1()
+            .text_sm()
+            .cursor_pointer()
+            .hover(|s| s.bg(colors.element_hover))
+            .child(div().w(px(12.)).text_color(colors.text_muted).child(marker))
+            .child(name.to_string())
+            .on_click(cx.listener(move |this, _, _window, cx| {
+                if is_dir {
+                    this.toggle_dir(path.clone(), cx);
+                } else {
+                    this.open_editor(path.clone(), true, cx);
+                }
+            }))
+            .into_any_element()
     }
 
     fn open_palette(&mut self, cx: &mut Context<Self>) {
@@ -754,20 +876,28 @@ impl XeroApp {
                 .child(div().flex_1().min_h_0().child(terminal))
         });
 
+        // Right pane body: the file browser, or the focused editor.
+        let body = if self.is_browsing() {
+            Some(self.render_browser(cx))
+        } else {
+            active_view.map(|view| div().flex_1().min_h_0().child(view).into_any_element())
+        };
+        let right_pane = body.map(|body| {
+            div()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .min_w_0()
+                .border_2()
+                .border_color(ring(editor_focused))
+                .children(editor_tabs)
+                .child(body)
+        });
+
         let mut panel = div().flex().flex_1().size_full();
-        match (terminal_pane, active_view) {
-            (Some(terminal_pane), Some(view)) => {
-                panel = panel.child(terminal_pane).child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .flex_col()
-                        .min_w_0()
-                        .border_2()
-                        .border_color(ring(editor_focused))
-                        .children(editor_tabs)
-                        .child(div().flex_1().min_h_0().child(view)),
-                );
+        match (terminal_pane, right_pane) {
+            (Some(terminal_pane), Some(right_pane)) => {
+                panel = panel.child(terminal_pane).child(right_pane);
             }
             (Some(terminal_pane), None) => {
                 panel = panel.child(terminal_pane);
