@@ -69,10 +69,6 @@ pub struct XeroApp {
     // attention); shown as a dot in the sidebar, cleared when the stream opens.
     attention: HashSet<StreamId>,
     _bell_subs: Vec<Subscription>,
-    // Foreground state, so bells only raise a desktop notification when xero is
-    // in the background (the sidebar dot covers the foreground case).
-    window_active: bool,
-    _activation_sub: Option<Subscription>,
     // IDE server: agents in the terminal connect here to drive xero. Its env is
     // injected into every terminal so Claude Code discovers it.
     ide: Option<IdeServer>,
@@ -99,8 +95,6 @@ impl XeroApp {
             _finder_sub: None,
             attention: HashSet::new(),
             _bell_subs: Vec::new(),
-            window_active: true,
-            _activation_sub: None,
             ide: None,
             _ide_task: None,
         };
@@ -312,26 +306,13 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// The stream's agent rang the bell: flag it (even when active/focused). The
-    /// flag stays until the user acts in that terminal (click/type/scroll). Also
-    /// raises a macOS notification when xero is in the background.
+    /// The stream's agent rang the bell (or went quiet): flag it in the sidebar,
+    /// even when active/focused. The flag stays until the user acts in that
+    /// terminal (click/type/scroll) or switches to the stream.
     fn flag_attention(&mut self, id: StreamId, cx: &mut Context<Self>) {
         if self.attention.insert(id) {
-            if !self.window_active {
-                self.post_notification(id);
-            }
             cx.notify();
         }
-    }
-
-    /// Show a native macOS notification via osascript (fire-and-forget).
-    fn post_notification(&self, id: StreamId) {
-        let stream = self.stream_name(id).to_string();
-        let workspace = self.workspace_of(id).map(|w| w.name.clone()).unwrap_or_default();
-        let body = format!("{workspace} / {stream}").replace(['"', '\\'], "");
-        let script =
-            format!("display notification \"{body}\" with title \"xero\" subtitle \"Agent finished\"");
-        let _ = std::process::Command::new("osascript").arg("-e").arg(script).spawn();
     }
 
     fn clear_attention(&mut self, id: StreamId, cx: &mut Context<Self>) {
@@ -874,12 +855,6 @@ impl Focusable for XeroApp {
 
 impl Render for XeroApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if self._activation_sub.is_none() {
-            self.window_active = window.is_window_active();
-            self._activation_sub = Some(cx.observe_window_activation(window, |this, window, _| {
-                this.window_active = window.is_window_active();
-            }));
-        }
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
