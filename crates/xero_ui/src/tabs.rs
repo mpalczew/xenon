@@ -69,6 +69,11 @@ impl XeroApp {
         let files = button("browse-toggle", "Files", self.is_browsing())
             .ml_auto()
             .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx)));
+        // "Reveal" shows the open file's location in the tree; only while editing.
+        let reveal = (!self.is_browsing()).then(|| {
+            button("reveal-file", "Reveal", false)
+                .on_click(cx.listener(|this, _, _, cx| this.reveal_current_file(cx)))
+        });
         let preview = self.active_editor_is_markdown(cx).then(|| {
             button("md-preview-toggle", "Preview", false)
                 .on_click(cx.listener(|this, _, _, cx| this.toggle_preview(cx)))
@@ -83,6 +88,7 @@ impl XeroApp {
             .bg(colors.panel_background)
             .children(chips)
             .child(files)
+            .children(reveal)
             .children(preview)
     }
 

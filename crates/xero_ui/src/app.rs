@@ -638,6 +638,25 @@ impl XeroApp {
         cx.notify();
     }
 
+    /// Expand the tree to the focused file's folder and show the browser, so the
+    /// open file is revealed (and highlighted) in its location.
+    pub(crate) fn reveal_current_file(&mut self, cx: &mut Context<Self>) {
+        let Some(view) = self.active_editor() else {
+            return;
+        };
+        let path = view.read(cx).path().to_path_buf();
+        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+            return;
+        };
+        match path.parent() {
+            Some(parent) => self.reveal_dir(&root, parent, cx),
+            None => {
+                self.browsing = true;
+                cx.notify();
+            }
+        }
+    }
+
     fn toggle_dir(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         if !self.expanded_dirs.insert(path.clone()) {
             self.expanded_dirs.remove(&path);
@@ -652,8 +671,9 @@ impl XeroApp {
         let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
             return div().into_any_element();
         };
+        let open_file = self.active_editor().map(|view| view.read(cx).path().to_path_buf());
         let mut rows = Vec::new();
-        self.tree_rows(&root, 0, &mut rows, cx);
+        self.tree_rows(&root, 0, open_file.as_deref(), &mut rows, cx);
         div()
             .id("browser")
             .size_full()
@@ -668,6 +688,7 @@ impl XeroApp {
         &self,
         dir: &Path,
         depth: usize,
+        open_file: Option<&Path>,
         rows: &mut Vec<gpui::AnyElement>,
         cx: &mut Context<Self>,
     ) {
@@ -691,9 +712,10 @@ impl XeroApp {
         });
         for (path, name, is_dir) in entries {
             let expanded = is_dir && self.expanded_dirs.contains(&path);
-            rows.push(self.tree_row(path.clone(), &name, is_dir, expanded, depth, cx));
+            let is_open = open_file == Some(path.as_path());
+            rows.push(self.tree_row(path.clone(), &name, is_dir, expanded, is_open, depth, cx));
             if expanded {
-                self.tree_rows(&path, depth + 1, rows, cx);
+                self.tree_rows(&path, depth + 1, open_file, rows, cx);
             }
         }
     }
@@ -704,6 +726,7 @@ impl XeroApp {
         name: &str,
         is_dir: bool,
         expanded: bool,
+        is_open: bool,
         depth: usize,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
@@ -716,6 +739,7 @@ impl XeroApp {
         } else {
             "▸"
         };
+        let background = if is_open { colors.element_selected } else { gpui::transparent_black() };
         let id = SharedString::from(path.to_string_lossy().into_owned());
         div()
             .id(id)
@@ -726,6 +750,7 @@ impl XeroApp {
             .pr_2()
             .py_1()
             .text_sm()
+            .bg(background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .child(div().w(px(12.)).text_color(colors.text_muted).child(marker))

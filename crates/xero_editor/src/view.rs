@@ -54,6 +54,11 @@ impl EditorView {
         view
     }
 
+    /// The file this editor is showing.
+    pub fn path(&self) -> &std::path::Path {
+        self.buffer.path()
+    }
+
     /// Whether this file can show a markdown preview.
     pub fn is_markdown(&self) -> bool {
         matches!(
