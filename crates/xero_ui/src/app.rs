@@ -353,6 +353,9 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) {
         self.activate_stream(id, cx);
+        // Opening the stream means the user is now looking at its terminal, so
+        // any pending attention mark is answered.
+        self.clear_attention(id, cx);
         if let Some(terminal) = self.active_terminal() {
             terminal.read(cx).focus_handle(cx).focus(window, cx);
         }

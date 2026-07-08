@@ -207,21 +207,33 @@ impl TerminalView {
         }
     }
 
+    /// The user acted in this terminal: clear the attention mark and reset the
+    /// finish detector, so their own keystroke echo can't be mistaken for an
+    /// agent working (only output that arrives without interaction counts).
+    fn note_interaction(&mut self, cx: &mut Context<Self>) {
+        self.wakeups = 0;
+        cx.emit(TerminalEvent::Interacted);
+    }
+
     /// Write UTF-8 text straight to the PTY (used by the input handler).
-    fn send_text(&self, text: &str, cx: &mut Context<Self>) {
-        if let State::Ready(terminal) = &self.state
-            && !text.is_empty()
-        {
-            terminal.update(cx, |terminal, _| terminal.input(text.to_string().into_bytes()));
-            cx.emit(TerminalEvent::Interacted);
+    fn send_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        if text.is_empty() {
+            return;
         }
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let terminal = terminal.clone();
+        terminal.update(cx, |terminal, _| terminal.input(text.to_string().into_bytes()));
+        self.note_interaction(cx);
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let State::Ready(terminal) = &self.state else {
             return;
         };
-        cx.emit(TerminalEvent::Interacted);
+        let terminal = terminal.clone();
+        self.note_interaction(cx);
         let keystroke = &event.keystroke;
         // Cmd-V pastes the clipboard; Cmd-C copies the selection.
         if keystroke.modifiers.platform && keystroke.key == "v" {
@@ -274,11 +286,13 @@ impl TerminalView {
     }
 
     fn on_mouse_down(&mut self, event: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        if let State::Ready(terminal) = &self.state {
-            cx.emit(TerminalEvent::Interacted);
-            terminal.update(cx, |terminal, cx| terminal.mouse_down(event, cx));
-            cx.notify();
-        }
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let terminal = terminal.clone();
+        self.note_interaction(cx);
+        terminal.update(cx, |terminal, cx| terminal.mouse_down(event, cx));
+        cx.notify();
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -300,11 +314,13 @@ impl TerminalView {
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        if let State::Ready(terminal) = &self.state {
-            cx.emit(TerminalEvent::Interacted);
-            terminal.update(cx, |terminal, _| terminal.scroll_wheel(event, SCROLL_MULTIPLIER));
-            cx.notify();
-        }
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let terminal = terminal.clone();
+        self.note_interaction(cx);
+        terminal.update(cx, |terminal, _| terminal.scroll_wheel(event, SCROLL_MULTIPLIER));
+        cx.notify();
     }
 }
 
