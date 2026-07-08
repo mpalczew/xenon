@@ -43,6 +43,8 @@ pub enum TerminalEvent {
     Interacted,
     /// A busy Claude terminal went quiet: the agent likely finished its turn.
     Finished,
+    /// The shell process exited; the terminal is dead but stays open.
+    Exited,
 }
 
 /// Output must be quiet this long before a terminal counts as settled.
@@ -58,6 +60,8 @@ pub struct TerminalView {
     /// Basename of the dir the terminal was spawned in; the title's cwd prefix is
     /// dropped when it still equals this (redundant with the sidebar).
     root_name: String,
+    /// The shell exited; the view stays but is marked dead.
+    exited: bool,
     /// Position of the right-click Copy/Paste menu, when open (window coords).
     context_menu: Option<Point<Pixels>>,
     _spawn: Task<()>,
@@ -93,6 +97,7 @@ impl TerminalView {
             focus: cx.focus_handle(),
             focused_once: false,
             root_name,
+            exited: false,
             context_menu: None,
             _spawn: spawn,
             wakeups: 0,
@@ -133,6 +138,11 @@ impl TerminalView {
                 self.arm_idle_check(cx);
                 cx.notify();
             }
+            Event::CloseTerminal => {
+                self.exited = true;
+                cx.emit(TerminalEvent::Exited);
+                cx.notify();
+            }
             Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
@@ -155,6 +165,11 @@ impl TerminalView {
         if busy >= BUSY_WAKEUPS && self.title(cx).to_lowercase().contains("claude") {
             cx.emit(TerminalEvent::Finished);
         }
+    }
+
+    /// Whether the shell process has exited (the terminal is dead).
+    pub fn is_exited(&self) -> bool {
+        self.exited
     }
 
     /// The terminal's title (set by the program via OSC, e.g. Claude Code's
@@ -314,7 +329,7 @@ impl Render for TerminalView {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
-        let background = cx.theme().colors().terminal_background;
+        let colors = cx.theme().colors().clone();
         let base = div()
             .track_focus(&self.focus)
             .key_context("Terminal")
@@ -326,12 +341,30 @@ impl Render for TerminalView {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .size_full()
-            .bg(background);
+            .bg(colors.terminal_background);
+
+        // A dim bar across the top once the shell has exited.
+        let exited = self.exited.then(|| {
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .px_2()
+                .py_1()
+                .bg(colors.surface_background)
+                .border_b_1()
+                .border_color(colors.border)
+                .text_xs()
+                .text_color(colors.text_muted)
+                .child("⊘ session ended — process exited")
+        });
 
         let menu = self.context_menu.map(|position| self.render_context_menu(position, cx));
         match &self.state {
             State::Ready(terminal) => base
                 .child(grid_canvas(terminal.clone(), cx.entity(), self.focus.clone()))
+                .children(exited)
                 .children(menu),
             State::Pending => base.children(menu),
             State::Failed(error) => {

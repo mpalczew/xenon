@@ -136,21 +136,24 @@ impl XeroApp {
     /// (which programs like Claude Code set to show status). `+` adds a terminal.
     pub(crate) fn render_terminal_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let tabs: Vec<(usize, String, bool)> = self
+        let tabs: Vec<(usize, String, bool, bool)> = self
             .terminal_stack()
             .map(|stack| {
                 stack
                     .tabs
                     .iter()
                     .enumerate()
-                    .map(|(i, view)| (i, view.read(cx).title(cx), i == stack.active))
+                    .map(|(i, view)| {
+                        let view = view.read(cx);
+                        (i, view.title(cx), i == stack.active, view.is_exited())
+                    })
                     .collect()
             })
             .unwrap_or_default();
 
         let mut chips = Vec::with_capacity(tabs.len());
-        for (index, title, is_active) in tabs {
-            chips.push(self.terminal_chip(index, &title, is_active, cx));
+        for (index, title, is_active, is_exited) in tabs {
+            chips.push(self.terminal_chip(index, &title, is_active, is_exited, cx));
         }
 
         div()
@@ -178,11 +181,15 @@ impl XeroApp {
         index: usize,
         title: &str,
         is_active: bool,
+        is_exited: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let background =
             if is_active { colors.terminal_background } else { colors.panel_background };
+        // Dead terminals get a dim ✗ and muted label.
+        let label_color = if is_exited { colors.text_muted } else { colors.text };
+        let dead = is_exited.then(|| div().text_xs().text_color(colors.text_muted).child("✗"));
         div()
             .id(("term-tab", index))
             .flex()
@@ -204,7 +211,15 @@ impl XeroApp {
                     cx.new(|_| TabTooltip { text: full.clone() }).into()
                 }
             })
-            .child(div().text_sm().max_w(px(220.)).truncate().child(title.to_string()))
+            .children(dead)
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(label_color)
+                    .max_w(px(220.))
+                    .truncate()
+                    .child(title.to_string()),
+            )
             .child(
                 div()
                     .id(("term-close", index))

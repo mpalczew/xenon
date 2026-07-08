@@ -234,6 +234,7 @@ impl XeroApp {
         self._bell_subs.push(cx.subscribe(&terminal, move |this, _view, event, cx| match event {
             TerminalEvent::Bell | TerminalEvent::Finished => this.flag_attention(stream, cx),
             TerminalEvent::Interacted => this.clear_attention(stream, cx),
+            TerminalEvent::Exited => cx.notify(),
         }));
         terminal
     }
