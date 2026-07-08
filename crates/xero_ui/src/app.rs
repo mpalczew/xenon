@@ -20,7 +20,7 @@ use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
-    ResetFontSize, ToggleSidebar,
+    ResetFontSize, ToggleBrowser, ToggleSidebar,
 };
 
 /// The terminals open in one stream, as tabs, plus which is focused.
@@ -568,7 +568,6 @@ impl XeroApp {
             }
         }
         self.finder = None;
-        self.browsing = false;
         cx.notify();
     }
 
@@ -583,7 +582,6 @@ impl XeroApp {
             && index < stack.tabs.len()
         {
             stack.active = index;
-            self.browsing = false;
             cx.notify();
         }
     }
@@ -632,10 +630,10 @@ impl XeroApp {
         }
     }
 
-    /// The editor pane shows the file browser when explicitly toggled, or
-    /// whenever a stream is active with no editor open.
+    /// Whether the file-tree sidebar is open (a collapsible sidebar beside the
+    /// editor, toggled by the toolbar/tab-bar buttons and cmd-e).
     pub(crate) fn is_browsing(&self) -> bool {
-        self.active.is_some() && (self.browsing || !self.has_editor())
+        self.active.is_some() && self.browsing
     }
 
     pub(crate) fn toggle_browser(&mut self, cx: &mut Context<Self>) {
@@ -669,23 +667,55 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// The file browser: a lazy, expandable tree rooted at the active stream's
-    /// working dir, rendered in the editor pane.
-    fn render_browser(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    /// The file-tree sidebar: a header naming the workspace, then a lazy,
+    /// expandable tree rooted at the active stream's working dir.
+    fn render_tree_sidebar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
-        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+        let Some(id) = self.active else {
             return div().into_any_element();
         };
+        let Some(root) = self.stream_root(id) else {
+            return div().into_any_element();
+        };
+        let workspace = self.workspace_of(id).map(|w| w.name.clone()).unwrap_or_default();
         let open_file = self.active_editor().map(|view| view.read(cx).path().to_path_buf());
         let mut rows = Vec::new();
         self.tree_rows(&root, 0, open_file.as_deref(), &mut rows, cx);
-        div()
-            .id("browser")
-            .size_full()
-            .overflow_y_scroll()
+
+        let header = div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .px_2()
             .py_1()
-            .bg(colors.editor_background)
-            .children(rows)
+            .border_b_1()
+            .border_color(colors.border)
+            .child(div().text_xs().text_color(colors.text).truncate().child(workspace))
+            .child(
+                div()
+                    .id("tree-collapse")
+                    .px_1()
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .cursor_pointer()
+                    .hover(|s| s.text_color(colors.text))
+                    .child("«")
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx))),
+            );
+
+        div()
+            .w(px(240.))
+            .flex_none()
+            .flex()
+            .flex_col()
+            .min_h_0()
+            .border_r_1()
+            .border_color(colors.border)
+            .bg(colors.panel_background)
+            .child(header)
+            .child(
+                div().id("browser").flex_1().min_h_0().overflow_y_scroll().py_1().children(rows),
+            )
             .into_any_element()
     }
 
@@ -736,7 +766,7 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
-        let indent = px(8. + depth as f32 * 14.);
+        let indent = px(6. + depth as f32 * 12.);
         let marker = if !is_dir {
             ""
         } else if expanded {
@@ -753,7 +783,7 @@ impl XeroApp {
             .gap_1()
             .pl(indent)
             .pr_2()
-            .py_1()
+            .py(px(1.))
             .text_sm()
             .bg(background)
             .cursor_pointer()
@@ -865,6 +895,7 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
             .on_action(cx.listener(|this, _: &FilePalette, _, cx| this.open_palette(cx)))
+            .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| this.toggle_browser(cx)))
             .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
             .on_action(cx.listener(|_, _: &IncreaseFontSize, window, cx| {
                 xero_settings::adjust_font_size(cx, 1.0);
@@ -927,13 +958,23 @@ impl XeroApp {
                 .child(div().flex_1().min_h_0().child(terminal))
         });
 
-        // Right pane body: the file browser, or the focused editor.
-        let body = if self.is_browsing() {
-            Some(self.render_browser(cx))
-        } else {
-            active_view.map(|view| div().flex_1().min_h_0().child(view).into_any_element())
+        // Right pane = an optional file-tree sidebar beside the editor body. It
+        // exists whenever an editor is open or the tree sidebar is toggled on.
+        let tree_open = self.is_browsing();
+        let editor_body = match active_view {
+            Some(view) => div().flex_1().min_h_0().child(view).into_any_element(),
+            None => div()
+                .flex_1()
+                .min_h_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(colors.text_muted)
+                .child("Open a file from the tree or cmd-p")
+                .into_any_element(),
         };
-        let right_pane = body.map(|body| {
+        let right_pane = (self.has_editor() || tree_open).then(|| {
+            let tree = tree_open.then(|| self.render_tree_sidebar(cx));
             div()
                 .flex_1()
                 .flex()
@@ -942,7 +983,7 @@ impl XeroApp {
                 .border_2()
                 .border_color(ring(editor_focused))
                 .children(editor_tabs)
-                .child(body)
+                .child(div().flex().flex_1().min_h_0().children(tree).child(editor_body))
         });
 
         let mut panel = div().flex().flex_1().size_full();

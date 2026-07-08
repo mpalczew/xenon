@@ -16,6 +16,7 @@ actions!(
     xero,
     [
         ToggleSidebar,
+        ToggleBrowser,
         OpenFile,
         AddWorkspace,
         FilePalette,
@@ -30,6 +31,7 @@ actions!(
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("cmd-b", ToggleSidebar, None),
+        KeyBinding::new("cmd-e", ToggleBrowser, None),
         KeyBinding::new("cmd-o", OpenFile, None),
         KeyBinding::new("cmd-p", FilePalette, None),
         KeyBinding::new("cmd-w", CloseEditor, None),
