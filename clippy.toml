@@ -1,6 +1,16 @@
-too-many-lines-threshold = 20
-# 4, not 3: GPUI event handlers are inherently (self, event, window, cx) and
-# clippy counts self, so 4 is the floor for idiomatic GPUI callbacks.
-too-many-arguments-threshold = 4
-cognitive-complexity-threshold = 7
+# Clippy thresholds, calibrated to GPUI reality rather than the aspirational
+# Rule-of-7 numbers (which belong in review judgment, not a CI gate).
+
+# GPUI event handlers are (self, event, window, cx) and clippy counts self, so 4
+# is the floor for idiomatic callbacks; 5 leaves one slot of headroom.
+too-many-arguments-threshold = 5
+
+# GPUI render functions are builder chains (div().flex().child(...)) that are
+# legitimately long; only gate on genuinely huge bodies. (clippy default: 100.)
+too-many-lines-threshold = 100
+
+# clippy default. Nesting-weighted readability score (not cyclomatic complexity).
+cognitive-complexity-threshold = 25
+
+# clippy default. Flags absurdly nested types that deserve a type alias.
 type-complexity-threshold = 250
