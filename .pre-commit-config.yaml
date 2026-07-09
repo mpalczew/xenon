@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: xero-fmtcheck
+        name: xero fmtcheck
+        entry: bash -lc 'source .project.sh && project_fmtcheck'
+        language: system
+        pass_filenames: false
+      - id: xero-lint
+        name: xero lint
+        entry: bash -lc 'source .project.sh && project_lint'
+        language: system
+        pass_filenames: false
+      - id: xero-lint-shape
+        name: xero lint-shape
+        entry: bash -lc 'source .project.sh && project_lint_shape'
+        language: system
+        pass_filenames: false

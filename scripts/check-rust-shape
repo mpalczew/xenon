@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+baseline="$root/scripts/rust-shape-baseline.tsv"
+
+max_file_lines="${XERO_MAX_FILE_LINES:-500}"
+max_fn_items="${XERO_MAX_FN_ITEMS:-21}"
+max_pub_fns="${XERO_MAX_PUB_FNS:-7}"
+
+fail=0
+
+report() {
+    printf '%s\n' "$1"
+    fail=1
+}
+
+allowed_for() {
+    local file="$1"
+    local metric="$2"
+    local cap="$3"
+    local value
+
+    if [[ -f "$baseline" ]]; then
+        value="$(
+            awk -F '\t' -v file="$file" -v metric="$metric" '
+                $1 == file {
+                    if (metric == "lines") print $2
+                    if (metric == "functions") print $3
+                    if (metric == "public") print $4
+                }
+            ' "$baseline"
+        )"
+    fi
+    if [[ -n "${value:-}" && "$value" -gt "$cap" ]]; then
+        printf '%s\n' "$value"
+    else
+        printf '%s\n' "$cap"
+    fi
+}
+
+count_matches() {
+    local pattern="$1"
+    local file="$2"
+    (rg -n "$pattern" "$file" || true) | wc -l | tr -d ' '
+}
+
+cd "$root"
+
+while IFS= read -r file; do
+    lines="$(wc -l <"$file" | tr -d ' ')"
+    fn_items="$(count_matches '^\s*(pub(\([^)]*\))?\s+)?(async\s+)?(unsafe\s+)?(const\s+)?fn\s+[A-Za-z_]' "$file")"
+    pub_fns="$(count_matches '^\s*pub\s+(async\s+)?(unsafe\s+)?(const\s+)?fn\s+[A-Za-z_]' "$file")"
+    line_limit="$(allowed_for "$file" lines "$max_file_lines")"
+    fn_limit="$(allowed_for "$file" functions "$max_fn_items")"
+    pub_limit="$(allowed_for "$file" public "$max_pub_fns")"
+
+    if (( lines > line_limit )); then
+        report "$file: $lines lines exceeds $line_limit"
+    fi
+    if (( fn_items > fn_limit )); then
+        report "$file: $fn_items function items exceeds $fn_limit"
+    fi
+    if (( pub_fns > pub_limit )); then
+        report "$file: $pub_fns public functions exceeds $pub_limit"
+    fi
+done < <(rg --files -g '*.rs')
+
+if (( fail )); then
+    exit 1
+fi
+
+printf 'rust shape ok: files <=%s lines, <=%s fn items, <=%s public fns\n' \
+    "$max_file_lines" "$max_fn_items" "$max_pub_fns"
