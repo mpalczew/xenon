@@ -68,3 +68,16 @@ forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   just the debug build.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request.
+
+## Never kill xero processes
+
+Never run `pkill`, `killall`, or any command that could terminate running xero
+instances or background agents without explicit user instruction. This includes:
+- Never bypass `/Users/mpalczew/bin/xero` (the slot launcher) to directly
+  interact with xero.app
+- Never run diagnostics on running processes without understanding side effects
+- Always ask first if unsure whether a command could kill something
+
+Context: I killed a running xero instance and all background agents by running
+diagnostics without understanding the implications. This destroyed work in
+progress. Use the slot launcher for all xero operations.
