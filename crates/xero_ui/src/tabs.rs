@@ -30,6 +30,19 @@ impl Render for TabTooltip {
     }
 }
 
+struct TabChip<'a> {
+    index: usize,
+    name: &'a str,
+    is_active: bool,
+}
+
+struct TerminalChip<'a> {
+    index: usize,
+    title: &'a str,
+    is_active: bool,
+    is_exited: bool,
+}
+
 impl XeroApp {
     pub(crate) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
@@ -49,7 +62,14 @@ impl XeroApp {
 
         let mut chips = Vec::with_capacity(tabs.len());
         for (index, name, is_active) in tabs {
-            chips.push(self.tab_chip(index, &name, is_active, cx));
+            chips.push(self.tab_chip(
+                TabChip {
+                    index,
+                    name: &name,
+                    is_active,
+                },
+                cx,
+            ));
         }
 
         let previewing = self.active_editor_is_previewing(cx);
@@ -84,13 +104,12 @@ impl XeroApp {
             .children(preview)
     }
 
-    fn tab_chip(
-        &self,
-        index: usize,
-        name: &str,
-        is_active: bool,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
+    fn tab_chip(&self, chip: TabChip, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let TabChip {
+            index,
+            name,
+            is_active,
+        } = chip;
         let colors = cx.theme().colors().clone();
         let background = if is_active {
             colors.editor_background
@@ -148,7 +167,15 @@ impl XeroApp {
 
         let mut chips = Vec::with_capacity(tabs.len());
         for (index, title, is_active, is_exited) in tabs {
-            chips.push(self.terminal_chip(index, &title, is_active, is_exited, cx));
+            chips.push(self.terminal_chip(
+                TerminalChip {
+                    index,
+                    title: &title,
+                    is_active,
+                    is_exited,
+                },
+                cx,
+            ));
         }
 
         div()
@@ -173,12 +200,15 @@ impl XeroApp {
 
     fn terminal_chip(
         &self,
-        index: usize,
-        title: &str,
-        is_active: bool,
-        is_exited: bool,
+        chip: TerminalChip,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
+        let TerminalChip {
+            index,
+            title,
+            is_active,
+            is_exited,
+        } = chip;
         let colors = cx.theme().colors().clone();
         let background = if is_active {
             colors.terminal_background

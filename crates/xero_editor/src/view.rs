@@ -485,11 +485,10 @@ fn small_button(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::D
 }
 
 fn editor_canvas(view: Entity<EditorView>, focus: FocusHandle) -> impl IntoElement {
-    let font = element::editor_font();
     canvas(
         {
             let view = view.clone();
-            move |bounds, window, cx| layout(&view, &font, bounds, window, cx)
+            move |bounds, window, cx| layout(&view, bounds, window, cx)
         },
         move |bounds, editor_layout, window, cx| {
             let cursor_color = cx.theme().players().local().cursor;
@@ -502,7 +501,6 @@ fn editor_canvas(view: Entity<EditorView>, focus: FocusHandle) -> impl IntoEleme
 
 fn layout(
     view: &Entity<EditorView>,
-    font: &gpui::Font,
     bounds: Bounds<Pixels>,
     window: &mut Window,
     cx: &mut App,
@@ -560,7 +558,7 @@ fn layout(
                 show_line_numbers,
             },
             element::TextMetrics {
-                font,
+                font: &element::editor_font(),
                 font_size: size,
                 line_height,
             },

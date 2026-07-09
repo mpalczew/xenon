@@ -7,6 +7,12 @@ pub(crate) struct FileBrowser {
     open: bool,
 }
 
+struct RowQuery<'a> {
+    dir: &'a Path,
+    depth: usize,
+    open_file: Option<&'a Path>,
+}
+
 pub(crate) struct TreeRow {
     pub path: PathBuf,
     pub name: String,
@@ -49,17 +55,23 @@ impl FileBrowser {
 
     pub fn rows(&self, root: &Path, open_file: Option<&Path>) -> Vec<TreeRow> {
         let mut rows = Vec::new();
-        self.push_rows(root, 0, open_file, &mut rows);
+        self.push_rows(
+            RowQuery {
+                dir: root,
+                depth: 0,
+                open_file,
+            },
+            &mut rows,
+        );
         rows
     }
 
-    fn push_rows(
-        &self,
-        dir: &Path,
-        depth: usize,
-        open_file: Option<&Path>,
-        rows: &mut Vec<TreeRow>,
-    ) {
+    fn push_rows(&self, query: RowQuery, rows: &mut Vec<TreeRow>) {
+        let RowQuery {
+            dir,
+            depth,
+            open_file,
+        } = query;
         for (path, name, is_dir) in sorted_entries(dir) {
             let expanded = is_dir && self.expanded_dirs.contains(&path);
             rows.push(TreeRow {
@@ -71,7 +83,14 @@ impl FileBrowser {
                 depth,
             });
             if expanded {
-                self.push_rows(&path, depth + 1, open_file, rows);
+                self.push_rows(
+                    RowQuery {
+                        dir: &path,
+                        depth: depth + 1,
+                        open_file,
+                    },
+                    rows,
+                );
             }
         }
     }

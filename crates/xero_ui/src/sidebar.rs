@@ -50,6 +50,18 @@ struct ClosedWorkspaceRow {
     name: String,
 }
 
+struct WorkspaceHeader<'a> {
+    id: WorkspaceId,
+    name: &'a str,
+    collapsed: bool,
+}
+
+struct StreamRow<'a> {
+    id: StreamId,
+    name: &'a str,
+    is_active: bool,
+}
+
 impl XeroApp {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
@@ -81,12 +93,28 @@ impl XeroApp {
 
         let mut rows = Vec::new();
         for workspace in workspaces {
-            let header =
-                self.workspace_header(workspace.id, &workspace.name, workspace.collapsed, cx);
+            let header = self.workspace_header(
+                WorkspaceHeader {
+                    id: workspace.id,
+                    name: &workspace.name,
+                    collapsed: workspace.collapsed,
+                },
+                cx,
+            );
             rows.push(header.into_any_element());
             if !workspace.collapsed {
                 for (id, name, is_active) in workspace.streams {
-                    rows.push(self.stream_row(id, &name, is_active, cx).into_any_element());
+                    rows.push(
+                        self.stream_row(
+                            StreamRow {
+                                id,
+                                name: &name,
+                                is_active,
+                            },
+                            cx,
+                        )
+                        .into_any_element(),
+                    );
                 }
             }
         }
@@ -150,11 +178,14 @@ impl XeroApp {
 
     fn workspace_header(
         &self,
-        id: WorkspaceId,
-        name: &str,
-        collapsed: bool,
+        header: WorkspaceHeader,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
+        let WorkspaceHeader {
+            id,
+            name,
+            collapsed,
+        } = header;
         let colors = cx.theme().colors().clone();
         let chevron = if collapsed { "▸" } else { "▾" };
         div()
@@ -253,13 +284,12 @@ impl XeroApp {
             .on_click(cx.listener(move |this, _, _, cx| this.reopen_workspace(id, cx)))
     }
 
-    fn stream_row(
-        &self,
-        id: StreamId,
-        name: &str,
-        is_active: bool,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
+    fn stream_row(&self, row: StreamRow, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let StreamRow {
+            id,
+            name,
+            is_active,
+        } = row;
         let colors = cx.theme().colors().clone();
         let background = if is_active {
             colors.element_selected

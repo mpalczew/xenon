@@ -1,4 +1,6 @@
 too-many-lines-threshold = 20
-too-many-arguments-threshold = 3
+# 4, not 3: GPUI event handlers are inherently (self, event, window, cx) and
+# clippy counts self, so 4 is the floor for idiomatic GPUI callbacks.
+too-many-arguments-threshold = 4
 cognitive-complexity-threshold = 7
 type-complexity-threshold = 250

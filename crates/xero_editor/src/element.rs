@@ -121,8 +121,10 @@ pub fn layout(
         let line_start = input.rope.line_to_byte(row);
         let text = trim_newline(input.rope.line(row).to_string());
         let runs = line_runs(
-            &text,
-            line_start,
+            LineSlice {
+                text: &text,
+                start: line_start,
+            },
             input.default_color,
             input.spans,
             metrics.font,
@@ -282,14 +284,20 @@ fn trim_newline(mut text: String) -> String {
 
 /// Split one line into text runs: span colors where they cover the line,
 /// `default_color` in the gaps. Spans are sorted, non-overlapping (source order).
+/// A line's text together with its byte offset in the rope.
+struct LineSlice<'a> {
+    text: &'a str,
+    start: usize,
+}
+
 fn line_runs(
-    text: &str,
-    line_start: usize,
+    line: LineSlice,
     default_color: Hsla,
     spans: &[ColoredSpan],
     font: &Font,
 ) -> Vec<TextRun> {
-    let line_end = line_start + text.len();
+    let line_start = line.start;
+    let line_end = line_start + line.text.len();
     let mut runs = Vec::new();
     let mut pos = line_start;
     for span in spans {

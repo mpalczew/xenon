@@ -20,27 +20,33 @@ impl XeroApp {
         let colors = cx.theme().colors().clone();
         let mut buttons = div().flex().items_center().gap_1();
         buttons = buttons.child(button(
-            "tb-sidebar",
-            PanelIcon::Left,
-            "Workspace Sidebar",
-            self.sidebar_visible(),
-            Box::new(ToggleSidebar),
+            Button {
+                id: "tb-sidebar",
+                icon: PanelIcon::Left,
+                label: "Workspace Sidebar",
+                active: self.sidebar_visible(),
+                action: Box::new(ToggleSidebar),
+            },
             cx,
         ));
         buttons = buttons.child(button(
-            "tb-terminal",
-            PanelIcon::Center,
-            "Terminal Panel",
-            self.terminal_visible(),
-            Box::new(ToggleTerminal),
+            Button {
+                id: "tb-terminal",
+                icon: PanelIcon::Center,
+                label: "Terminal Panel",
+                active: self.terminal_visible(),
+                action: Box::new(ToggleTerminal),
+            },
             cx,
         ));
         buttons = buttons.child(button(
-            "tb-editor",
-            PanelIcon::Right,
-            "Editor Panel",
-            self.editor_visible(),
-            Box::new(ToggleEditor),
+            Button {
+                id: "tb-editor",
+                icon: PanelIcon::Right,
+                label: "Editor Panel",
+                active: self.editor_visible(),
+                action: Box::new(ToggleEditor),
+            },
             cx,
         ));
 
@@ -57,15 +63,23 @@ impl XeroApp {
     }
 }
 
-/// A small toolbar button that dispatches `action` on click.
-fn button(
+struct Button {
     id: &'static str,
     icon: PanelIcon,
     label: &'static str,
     active: bool,
-    boxed: Box<dyn Action>,
-    cx: &mut Context<XeroApp>,
-) -> impl IntoElement + use<> {
+    action: Box<dyn Action>,
+}
+
+/// A small toolbar button that dispatches `action` on click.
+fn button(button: Button, cx: &mut Context<XeroApp>) -> impl IntoElement + use<> {
+    let Button {
+        id,
+        icon,
+        label,
+        active,
+        action: boxed,
+    } = button;
     let colors = cx.theme().colors().clone();
     let background = if active {
         colors.element_selected
