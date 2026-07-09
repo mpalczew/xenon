@@ -13,7 +13,7 @@ fn main() {
     init_logging();
     application().run(|cx: &mut App| {
         xero_terminal::init(cx);
-        xero_ui::bind_keys(cx);
+        xero_ui::init(cx);
         wire_quit(cx);
 
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);

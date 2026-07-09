@@ -12,6 +12,7 @@ ropey.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 gpui.workspace = true
+image = "0.25.10"
 theme.workspace = true
 tree-sitter.workspace = true
 tree-sitter-highlight.workspace = true

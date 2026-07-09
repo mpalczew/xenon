@@ -20,7 +20,7 @@ use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
-    ResetFontSize, ToggleBrowser, ToggleSidebar,
+    ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
 };
 
 /// The terminals open in one stream, as tabs, plus which is focused.
@@ -54,12 +54,15 @@ pub struct XeroApp {
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
     sidebar_collapsed: bool,
+    terminal_collapsed: bool,
+    editor_collapsed: bool,
     // Workspaces whose streams are hidden in the sidebar.
     collapsed_workspaces: HashSet<WorkspaceId>,
     // The editor-pane file browser: expanded directories, and whether the
     // browser (vs. the open editor) is showing.
     expanded_dirs: HashSet<PathBuf>,
     browsing: bool,
+    settings_open: bool,
     // The stream currently being renamed inline, plus its editing field.
     renaming: Option<(StreamId, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
@@ -86,9 +89,12 @@ impl XeroApp {
             active: None,
             finder: None,
             sidebar_collapsed: false,
+            terminal_collapsed: false,
+            editor_collapsed: false,
             collapsed_workspaces: HashSet::new(),
             expanded_dirs: HashSet::new(),
             browsing: false,
+            settings_open: false,
             renaming: None,
             _rename_sub: None,
             focus: cx.focus_handle(),
@@ -139,14 +145,8 @@ impl XeroApp {
     /// Start the IDE server over all workspace roots and consume its commands
     /// (openFile) on the UI thread.
     fn start_ide_server(&mut self, cx: &mut Context<Self>) {
-        let roots: Vec<_> = self
-            .registry
-            .workspaces
-            .iter()
-            .map(|w| w.root.clone())
-            .collect();
         let (tx, rx) = async_channel::unbounded();
-        match IdeServer::start(roots, tx) {
+        match IdeServer::start(self.active_roots(), tx) {
             Ok(server) => self.ide = Some(server),
             Err(error) => {
                 log::error!("IDE server failed to start: {error}");
@@ -182,12 +182,56 @@ impl XeroApp {
             .unwrap_or_default()
     }
 
+    fn active_roots(&self) -> Vec<PathBuf> {
+        self.registry
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.root.clone())
+            .collect()
+    }
+
+    fn update_ide_roots(&mut self) {
+        let roots = self.active_roots();
+        if let Some(server) = &mut self.ide
+            && let Err(error) = server.update_roots(roots)
+        {
+            log::error!("failed to update IDE workspace roots: {error}");
+        }
+    }
+
     pub(crate) fn registry(&self) -> &Registry {
         &self.registry
     }
 
     pub(crate) fn active_stream(&self) -> Option<StreamId> {
         self.active
+    }
+
+    pub(crate) fn sidebar_visible(&self) -> bool {
+        !self.sidebar_collapsed
+    }
+
+    pub(crate) fn terminal_visible(&self) -> bool {
+        !self.terminal_collapsed && self.active_terminal().is_some()
+    }
+
+    pub(crate) fn editor_visible(&self) -> bool {
+        !self.editor_collapsed && self.active.is_some()
+    }
+
+    fn toggle_terminal_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.terminal_collapsed = !self.terminal_collapsed;
+        if !self.terminal_collapsed
+            && let Some(terminal) = self.active_terminal()
+        {
+            terminal.read(cx).focus_handle(cx).focus(window, cx);
+        }
+        cx.notify();
+    }
+
+    fn toggle_editor_panel(&mut self, cx: &mut Context<Self>) {
+        self.editor_collapsed = !self.editor_collapsed;
+        cx.notify();
     }
 
     pub(crate) fn stream_name(&self, id: StreamId) -> &str {
@@ -387,6 +431,15 @@ impl XeroApp {
     }
 
     fn register_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        if let Some(record) = self
+            .registry
+            .closed_workspaces
+            .iter()
+            .find(|record| record.root == root)
+        {
+            self.reopen_workspace(record.id, cx);
+            return;
+        }
         let mut record = WorkspaceRec::new(root);
         let stream = Stream::new("stream 1");
         let stream_id = stream.id;
@@ -396,6 +449,7 @@ impl XeroApp {
         self.streams.insert(stream_id, stream.clone());
         save_session(workspace_id, &stream, "register_workspace");
         save_registry(&self.registry, "register_workspace");
+        self.update_ide_roots();
         self.activate_stream(stream_id, cx);
     }
 
@@ -465,6 +519,77 @@ impl XeroApp {
         list.insert(to, record);
         save_registry(&self.registry, "reorder_workspace");
         cx.notify();
+    }
+
+    pub(crate) fn close_workspace(
+        &mut self,
+        id: WorkspaceId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(index) = self
+            .registry
+            .workspaces
+            .iter()
+            .position(|workspace| workspace.id == id)
+        else {
+            return;
+        };
+        let record = self.registry.workspaces.remove(index);
+        let closed_active = self
+            .active
+            .is_some_and(|active| record.streams.contains(&active));
+        for stream in &record.streams {
+            self.streams.remove(stream);
+            self.terminals.remove(stream);
+            self.editors.remove(stream);
+            self.attention.remove(stream);
+        }
+        self.collapsed_workspaces.remove(&id);
+        self.registry.closed_workspaces.push(record);
+        if closed_active {
+            self.active = None;
+            self.registry.active = None;
+        }
+        save_registry(&self.registry, "close_workspace");
+        self.update_ide_roots();
+        if closed_active && let Some(next) = self.first_stream() {
+            self.select_stream(next, window, cx);
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn reopen_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+        let Some(index) = self
+            .registry
+            .closed_workspaces
+            .iter()
+            .position(|workspace| workspace.id == id)
+        else {
+            return;
+        };
+        let mut record = self.registry.closed_workspaces.remove(index);
+        if record.streams.is_empty() {
+            let stream = Stream::new("main");
+            record.streams.push(stream.id);
+            save_session(record.id, &stream, "reopen_workspace default stream");
+            self.streams.insert(stream.id, stream);
+        } else {
+            for &stream in &record.streams {
+                let loaded = xero_store::load_session(record.id, stream)
+                    .unwrap_or_else(|_| synthesize_stream(stream));
+                self.streams.insert(stream, loaded);
+            }
+        }
+        let first = record.streams.first().copied();
+        self.registry.workspaces.push(record);
+        save_registry(&self.registry, "reopen_workspace");
+        self.update_ide_roots();
+        if let Some(stream) = first {
+            self.activate_stream(stream, cx);
+        } else {
+            cx.notify();
+        }
     }
 
     pub(crate) fn toggle_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
@@ -573,6 +698,7 @@ impl XeroApp {
             log::warn!("open_editor: no active stream for {}", path.display());
             return;
         };
+        self.editor_collapsed = false;
         let stack = self.editors.entry(id).or_default();
         // Focus an already-open tab rather than opening a duplicate.
         if let Some(index) = stack.tabs.iter().position(|tab| tab.path == path) {
@@ -589,6 +715,9 @@ impl XeroApp {
             }
         }
         self.finder = None;
+        if self.browsing {
+            self.reveal_active_file(cx);
+        }
         cx.notify();
     }
 
@@ -648,6 +777,11 @@ impl XeroApp {
             .is_some_and(|view| view.read(cx).is_markdown())
     }
 
+    pub(crate) fn active_editor_is_previewing(&self, cx: &App) -> bool {
+        self.active_editor()
+            .is_some_and(|view| view.read(cx).is_previewing())
+    }
+
     /// Toggle the focused markdown editor between source and preview.
     pub(crate) fn toggle_preview(&mut self, cx: &mut Context<Self>) {
         if let Some(view) = self.active_editor() {
@@ -662,27 +796,35 @@ impl XeroApp {
     }
 
     pub(crate) fn toggle_browser(&mut self, cx: &mut Context<Self>) {
-        self.browsing = !self.browsing;
-        cx.notify();
+        if self.browsing {
+            self.browsing = false;
+            cx.notify();
+            return;
+        }
+        self.show_browser(cx);
     }
 
-    /// Expand the tree to the focused file's folder and show the browser, so the
-    /// open file is revealed (and highlighted) in its location.
-    pub(crate) fn reveal_current_file(&mut self, cx: &mut Context<Self>) {
+    fn show_browser(&mut self, cx: &mut Context<Self>) {
+        if !self.reveal_active_file(cx) {
+            self.browsing = true;
+            self.editor_collapsed = false;
+            cx.notify();
+        }
+    }
+
+    fn reveal_active_file(&mut self, cx: &mut Context<Self>) -> bool {
         let Some(view) = self.active_editor() else {
-            return;
+            return false;
         };
         let path = view.read(cx).path().to_path_buf();
         let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
-            return;
+            return false;
         };
-        match path.parent() {
-            Some(parent) => self.reveal_dir(&root, parent, cx),
-            None => {
-                self.browsing = true;
-                cx.notify();
-            }
+        if let Some(parent) = path.parent() {
+            self.reveal_dir(&root, parent, cx);
+            return true;
         }
+        false
     }
 
     fn toggle_dir(&mut self, path: PathBuf, cx: &mut Context<Self>) {
@@ -716,26 +858,30 @@ impl XeroApp {
             .flex()
             .items_center()
             .justify_between()
-            .px_2()
-            .py_1()
+            .px_3()
+            .py_2()
             .border_b_1()
             .border_color(colors.border)
             .child(
                 div()
                     .text_xs()
-                    .text_color(colors.text)
+                    .text_color(colors.text_muted)
                     .truncate()
-                    .child(workspace),
+                    .child(workspace.to_uppercase()),
             )
             .child(
                 div()
                     .id("tree-collapse")
-                    .px_1()
-                    .text_xs()
+                    .w(px(22.))
+                    .h(px(22.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_sm()
                     .text_color(colors.text_muted)
                     .cursor_pointer()
-                    .hover(|s| s.text_color(colors.text))
-                    .child("«")
+                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+                    .child("x")
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx))),
             );
 
@@ -755,7 +901,7 @@ impl XeroApp {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .py_1()
+                    .py_2()
                     .children(rows),
             )
             .into_any_element()
@@ -810,14 +956,9 @@ impl XeroApp {
 
     fn tree_row(&self, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
-        let indent = px(6. + row.depth as f32 * 12.);
-        let marker = if !row.is_dir {
-            ""
-        } else if row.expanded {
-            "▾"
-        } else {
-            "▸"
-        };
+        let indent = px(8. + row.depth as f32 * 16.);
+        let marker = dir_marker(row.is_dir, row.expanded);
+        let icon = file_icon(&row);
         let background = if row.is_open {
             colors.element_selected
         } else {
@@ -831,13 +972,19 @@ impl XeroApp {
             .gap_1()
             .pl(indent)
             .pr_2()
-            .py(px(1.))
+            .py(px(2.))
             .text_sm()
+            .text_color(if row.is_open {
+                colors.text
+            } else {
+                colors.text_muted
+            })
             .bg(background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .child(div().w(px(12.)).text_color(colors.text_muted).child(marker))
-            .child(row.name.clone())
+            .child(div().w(px(16.)).text_color(colors.text_muted).child(icon))
+            .child(div().truncate().child(row.name.clone()))
             .on_click(cx.listener(move |this, _, _window, cx| {
                 if row.is_dir {
                     this.toggle_dir(row.path.clone(), cx);
@@ -894,6 +1041,7 @@ impl XeroApp {
             current = path.parent();
         }
         self.browsing = true;
+        self.editor_collapsed = false;
         self.finder = None;
         cx.notify();
     }
@@ -949,6 +1097,34 @@ struct TreeRow {
     depth: usize,
 }
 
+fn dir_marker(is_dir: bool, expanded: bool) -> &'static str {
+    match (is_dir, expanded) {
+        (false, _) => "",
+        (true, true) => "▾",
+        (true, false) => "▸",
+    }
+}
+
+fn file_icon(row: &TreeRow) -> &'static str {
+    if row.is_dir {
+        return "▭";
+    }
+    match row
+        .path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+    {
+        "md" | "markdown" | "mdx" => "▰",
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" | "tif" | "tiff" => "▣",
+        "rs" | "js" | "ts" | "tsx" | "py" | "toml" | "json" => "◆",
+        "sh" | "bash" | "zsh" => "▸",
+        "env" => "≡",
+        _ if row.name == ".gitignore" => "⌁",
+        _ => "·",
+    }
+}
+
 impl Focusable for XeroApp {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus.clone()
@@ -957,11 +1133,13 @@ impl Focusable for XeroApp {
 
 impl Render for XeroApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        window.set_window_title(&self.window_title());
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
+        let settings = self.settings_open.then(|| self.render_settings_modal(cx));
         div()
             .track_focus(&self.focus)
             .key_context("XeroApp")
@@ -973,6 +1151,16 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
             .on_action(cx.listener(|this, _: &FilePalette, _, cx| this.open_palette(cx)))
             .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| this.toggle_browser(cx)))
+            .on_action(cx.listener(|this, _: &ToggleTerminal, window, cx| {
+                this.toggle_terminal_panel(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ToggleEditor, _, cx| {
+                this.toggle_editor_panel(cx);
+            }))
+            .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
+                this.settings_open = !this.settings_open;
+                cx.notify();
+            }))
             .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
             .on_action(cx.listener(|_, _: &IncreaseFontSize, window, cx| {
                 xero_settings::adjust_font_size(cx, 1.0);
@@ -1002,17 +1190,35 @@ impl Render for XeroApp {
                     .child(main),
             )
             .children(finder)
+            .children(settings)
     }
 }
 
 impl XeroApp {
+    fn window_title(&self) -> String {
+        let mut title = "xero".to_string();
+        if let Some(stream) = self.active
+            && let Some(workspace) = self.workspace_of(stream)
+        {
+            title = format!("xero - {} / {}", workspace.name, self.stream_name(stream));
+        }
+        match std::env::var("XERO_SLOT") {
+            Ok(slot) if !slot.trim().is_empty() => format!("{} {title}", slot.trim()),
+            _ => title,
+        }
+    }
+
     fn render_main(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let terminal = self.active_terminal();
-        let active_view = self
-            .editor_stack()
-            .and_then(|stack| stack.tabs.get(stack.active))
-            .map(|tab| tab.view.clone());
+        let terminal = (!self.terminal_collapsed)
+            .then(|| self.active_terminal())
+            .flatten();
+        let active_view = self.editor_visible().then(|| {
+            self.editor_stack()
+                .and_then(|stack| stack.tabs.get(stack.active))
+                .map(|tab| tab.view.clone())
+        });
+        let active_view = active_view.flatten();
 
         let ring = |focused: bool| {
             if focused {
@@ -1029,7 +1235,8 @@ impl XeroApp {
             .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx));
 
         let terminal_tabs = terminal.is_some().then(|| self.render_terminal_tabs(cx));
-        let editor_tabs = self.has_editor().then(|| self.render_tab_bar(cx));
+        let editor_tabs =
+            (self.editor_visible() && self.has_editor()).then(|| self.render_tab_bar(cx));
         let terminal_pane = terminal.map(|terminal| {
             div()
                 .flex_1()
@@ -1044,7 +1251,7 @@ impl XeroApp {
 
         // Right pane = an optional file-tree sidebar beside the editor body. It
         // exists whenever an editor is open or the tree sidebar is toggled on.
-        let tree_open = self.is_browsing();
+        let tree_open = self.editor_visible() && self.is_browsing();
         let editor_body = match active_view {
             Some(view) => div().flex_1().min_h_0().child(view).into_any_element(),
             None => div()
@@ -1057,7 +1264,7 @@ impl XeroApp {
                 .child("Open a file from the tree or cmd-p")
                 .into_any_element(),
         };
-        let right_pane = (self.has_editor() || tree_open).then(|| {
+        let right_pane = self.editor_visible().then(|| {
             let tree = tree_open.then(|| self.render_tree_sidebar(cx));
             div()
                 .flex_1()
@@ -1086,14 +1293,132 @@ impl XeroApp {
                 panel = panel.child(terminal_pane);
             }
             _ => {
-                panel = panel
-                    .items_center()
-                    .justify_center()
-                    .child("Add a workspace to begin");
+                let message = if self.active.is_some() {
+                    "Use the toolbar to show a panel"
+                } else {
+                    "Add a workspace to begin"
+                };
+                panel = panel.items_center().justify_center().child(message);
             }
         }
         panel
     }
+
+    fn render_settings_modal(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let line_numbers = xero_settings::show_line_numbers(cx);
+        div()
+            .id("settings-scrim")
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(gpui::hsla(0., 0., 0., 0.35))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.settings_open = false;
+                cx.notify();
+            }))
+            .child(
+                div()
+                    .id("settings-modal")
+                    .occlude()
+                    .w(px(360.))
+                    .flex()
+                    .flex_col()
+                    .rounded_sm()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.elevated_surface_background)
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .px_3()
+                            .py_2()
+                            .border_b_1()
+                            .border_color(colors.border)
+                            .child(div().text_sm().text_color(colors.text).child("Settings"))
+                            .child(
+                                div()
+                                    .id("settings-close")
+                                    .w(px(24.))
+                                    .h(px(24.))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded_sm()
+                                    .text_color(colors.text_muted)
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+                                    .child("x")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        cx.stop_propagation();
+                                        this.settings_open = false;
+                                        cx.notify();
+                                    })),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("line-number-toggle")
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .px_3()
+                            .py_3()
+                            .cursor_pointer()
+                            .hover(|s| s.bg(colors.element_hover))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(colors.text)
+                                            .child("Line numbers"),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(colors.text_muted)
+                                            .child("Show row numbers in text editors"),
+                                    ),
+                            )
+                            .child(check_box(line_numbers, cx))
+                            .on_click(cx.listener(|_, _, window, cx| {
+                                xero_settings::toggle_line_numbers(cx);
+                                window.refresh();
+                                cx.notify();
+                            })),
+                    ),
+            )
+    }
+}
+
+fn check_box(checked: bool, cx: &mut Context<XeroApp>) -> impl IntoElement + use<> {
+    let colors = cx.theme().colors().clone();
+    let background = if checked {
+        colors.element_selected
+    } else {
+        colors.elevated_surface_background
+    };
+    div()
+        .w(px(18.))
+        .h(px(18.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_sm()
+        .border_1()
+        .border_color(colors.border)
+        .bg(background)
+        .text_xs()
+        .text_color(colors.text)
+        .children(checked.then_some("x"))
 }
 
 /// The display name for an editor tab (file name, or the path if none).

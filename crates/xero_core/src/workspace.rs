@@ -40,6 +40,8 @@ pub struct Registry {
     #[serde(default)]
     pub workspaces: Vec<WorkspaceRec>,
     #[serde(default)]
+    pub closed_workspaces: Vec<WorkspaceRec>,
+    #[serde(default)]
     pub active: Option<Active>,
 }
 
@@ -48,6 +50,7 @@ impl Default for Registry {
         Registry {
             version: CURRENT_VERSION,
             workspaces: Vec::new(),
+            closed_workspaces: Vec::new(),
             active: None,
         }
     }

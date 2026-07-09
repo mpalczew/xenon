@@ -1,44 +1,48 @@
-//! The top toolbar: panel toggles and the active stream's name. Buttons
-//! dispatch the same actions as the keyboard shortcuts.
+//! The top toolbar: panel toggles.
 
 use gpui::{
-    Action, Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement,
-    Styled, Window, div, px,
+    Action, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
+    StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
 
 use crate::app::XeroApp;
-use crate::{
-    CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, ToggleBrowser, ToggleSidebar,
-};
+use crate::{ToggleEditor, ToggleSidebar, ToggleTerminal};
+
+enum PanelIcon {
+    Left,
+    Center,
+    Right,
+}
 
 impl XeroApp {
     pub(crate) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let title = self
-            .active_stream()
-            .map(|id| self.stream_name(id).to_string());
-        let size = xero_settings::font_size(cx) as i32;
         let mut buttons = div().flex().items_center().gap_1();
-        buttons = buttons.child(button("tb-sidebar", "☰", Box::new(ToggleSidebar), cx));
-        buttons = buttons.child(button("tb-files", "▤", Box::new(ToggleBrowser), cx));
-        buttons = buttons.child(button("tb-find", "⌕", Box::new(FilePalette), cx));
-        buttons = buttons.child(button("tb-font-dec", "A-", Box::new(DecreaseFontSize), cx));
-        buttons = buttons.child(
-            div()
-                .text_xs()
-                .text_color(colors.text_muted)
-                .child(format!("{size}")),
-        );
-        buttons = buttons.child(button("tb-font-inc", "A+", Box::new(IncreaseFontSize), cx));
-        if self.has_editor() {
-            buttons = buttons.child(button(
-                "tb-close-editor",
-                "✕ editor",
-                Box::new(CloseEditor),
-                cx,
-            ));
-        }
+        buttons = buttons.child(button(
+            "tb-sidebar",
+            PanelIcon::Left,
+            "Workspace Sidebar",
+            self.sidebar_visible(),
+            Box::new(ToggleSidebar),
+            cx,
+        ));
+        buttons = buttons.child(button(
+            "tb-terminal",
+            PanelIcon::Center,
+            "Terminal Panel",
+            self.terminal_visible(),
+            Box::new(ToggleTerminal),
+            cx,
+        ));
+        buttons = buttons.child(button(
+            "tb-editor",
+            PanelIcon::Right,
+            "Editor Panel",
+            self.editor_visible(),
+            Box::new(ToggleEditor),
+            cx,
+        ));
 
         div()
             .flex()
@@ -50,35 +54,100 @@ impl XeroApp {
             .border_color(colors.border)
             .bg(colors.panel_background)
             .child(buttons)
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(colors.text_muted)
-                    .children(title.map(|name| div().child(name))),
-            )
     }
 }
 
 /// A small toolbar button that dispatches `action` on click.
 fn button(
     id: &'static str,
+    icon: PanelIcon,
     label: &'static str,
+    active: bool,
     boxed: Box<dyn Action>,
     cx: &mut Context<XeroApp>,
 ) -> impl IntoElement + use<> {
     let colors = cx.theme().colors().clone();
+    let background = if active {
+        colors.element_selected
+    } else {
+        colors.panel_background
+    };
     div()
         .id(id)
         .flex()
         .items_center()
-        .px_2()
-        .py_1()
+        .justify_center()
+        .w(px(28.))
+        .h(px(26.))
         .rounded_sm()
-        .text_sm()
+        .bg(background)
         .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .child(label)
+        .hover(move |s| s.bg(colors.element_hover))
+        .child(panel_icon(icon, active, cx))
+        .tooltip({
+            let text = gpui::SharedString::from(label);
+            move |_window: &mut Window, cx: &mut gpui::App| {
+                cx.new(|_| ToolbarTooltip { text: text.clone() }).into()
+            }
+        })
         .on_click(move |_, window: &mut Window, cx| {
             window.dispatch_action(boxed.boxed_clone(), cx);
         })
+}
+
+fn panel_icon(
+    icon: PanelIcon,
+    active: bool,
+    cx: &mut Context<XeroApp>,
+) -> impl IntoElement + use<> {
+    let colors = cx.theme().colors().clone();
+    let fill = if active {
+        colors.text
+    } else {
+        colors.text_muted
+    };
+    let empty = colors.panel_background;
+
+    let column = |highlighted| {
+        div()
+            .w(px(4.))
+            .h(px(10.))
+            .rounded_sm()
+            .bg(if highlighted { fill } else { empty })
+    };
+
+    div()
+        .flex()
+        .items_center()
+        .justify_center()
+        .gap(px(2.))
+        .w(px(18.))
+        .h(px(14.))
+        .rounded_sm()
+        .border_1()
+        .border_color(colors.text_muted)
+        .bg(colors.panel_background)
+        .child(column(matches!(icon, PanelIcon::Left)))
+        .child(column(matches!(icon, PanelIcon::Center)))
+        .child(column(matches!(icon, PanelIcon::Right)))
+}
+
+struct ToolbarTooltip {
+    text: gpui::SharedString,
+}
+
+impl gpui::Render for ToolbarTooltip {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        div()
+            .px_2()
+            .py_1()
+            .rounded_sm()
+            .bg(colors.elevated_surface_background)
+            .border_1()
+            .border_color(colors.border)
+            .text_color(colors.text)
+            .text_sm()
+            .child(self.text.clone())
+    }
 }

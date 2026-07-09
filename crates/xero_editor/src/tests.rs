@@ -58,6 +58,22 @@ fn newline_then_up_keeps_column() {
 }
 
 #[test]
+fn set_cursor_position_clamps_column() {
+    let file = file_with("abc\nde\n");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_cursor_position(1, 99);
+    assert_eq!(buffer.cursor_position(), (1, 2));
+}
+
+#[test]
+fn set_cursor_position_clamps_row() {
+    let file = file_with("abc\nde");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_cursor_position(99, 1);
+    assert_eq!(buffer.cursor_position(), (1, 1));
+}
+
+#[test]
 fn save_round_trips_bytes() {
     let file = file_with("one\ntwo\n");
     let mut buffer = Buffer::open(file.path()).unwrap();

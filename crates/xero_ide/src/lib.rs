@@ -7,6 +7,7 @@ mod protocol;
 
 use std::net::TcpListener;
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 use std::thread;
 
 use anyhow::Result;
@@ -23,7 +24,9 @@ pub enum IdeCommand {
 /// A running IDE server. Dropping it removes the discovery lock file.
 pub struct IdeServer {
     port: u16,
+    token: String,
     lock_path: PathBuf,
+    roots: Arc<RwLock<Vec<PathBuf>>>,
 }
 
 impl IdeServer {
@@ -33,18 +36,36 @@ impl IdeServer {
         let port = listener.local_addr()?.port();
         let token = Uuid::new_v4().to_string();
         let lock_path = lock::write(port, &token, &roots)?;
+        let roots = Arc::new(RwLock::new(roots));
         log::info!("xero IDE server on 127.0.0.1:{port}");
 
+        let server_roots = roots.clone();
+        let server_token = token.clone();
         thread::Builder::new()
             .name("xero-ide".into())
-            .spawn(move || accept_loop(listener, token, roots, commands))?;
+            .spawn(move || accept_loop(listener, server_token, server_roots, commands))?;
 
-        Ok(IdeServer { port, lock_path })
+        Ok(IdeServer {
+            port,
+            token,
+            lock_path,
+            roots,
+        })
     }
 
     /// Environment for the integrated terminal so Claude Code finds this server.
     pub fn env(&self) -> Vec<(String, String)> {
         vec![("CLAUDE_CODE_SSE_PORT".to_string(), self.port.to_string())]
+    }
+
+    /// Replace the advertised workspace folders without changing the server port.
+    pub fn update_roots(&mut self, roots: Vec<PathBuf>) -> Result<()> {
+        {
+            let mut current = self.roots.write().expect("IDE roots lock poisoned");
+            *current = roots.clone();
+        }
+        self.lock_path = lock::write(self.port, &self.token, &roots)?;
+        Ok(())
     }
 }
 
@@ -57,7 +78,7 @@ impl Drop for IdeServer {
 fn accept_loop(
     listener: TcpListener,
     token: String,
-    roots: Vec<PathBuf>,
+    roots: Arc<RwLock<Vec<PathBuf>>>,
     commands: Sender<IdeCommand>,
 ) {
     for stream in listener.incoming().flatten() {
@@ -75,7 +96,7 @@ fn accept_loop(
 fn serve_connection(
     stream: std::net::TcpStream,
     token: &str,
-    roots: &[PathBuf],
+    roots: &Arc<RwLock<Vec<PathBuf>>>,
     commands: &Sender<IdeCommand>,
 ) -> Result<()> {
     let expected = token.to_string();
@@ -97,7 +118,8 @@ fn serve_connection(
     loop {
         match ws.read()? {
             Message::Text(text) => {
-                if let Some(reply) = protocol::handle(&text, roots, commands) {
+                let current_roots = roots.read().expect("IDE roots lock poisoned").clone();
+                if let Some(reply) = protocol::handle(&text, &current_roots, commands) {
                     ws.send(Message::Text(reply))?;
                 }
             }

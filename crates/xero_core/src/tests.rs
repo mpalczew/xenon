@@ -49,6 +49,31 @@ fn registry_round_trips_through_json() {
 }
 
 #[test]
+fn old_registry_json_defaults_closed_workspaces() {
+    let json = r#"{
+  "version": 1,
+  "workspaces": [],
+  "active": null
+}"#;
+    let parsed: Registry = serde_json::from_str(json).unwrap();
+
+    assert!(parsed.closed_workspaces.is_empty());
+}
+
+#[test]
+fn registry_preserves_closed_workspaces() {
+    let mut registry = Registry::default();
+    registry
+        .closed_workspaces
+        .push(WorkspaceRec::new(PathBuf::from("/tmp/closed")));
+
+    let json = serde_json::to_string_pretty(&registry).unwrap();
+    let parsed: Registry = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(parsed.closed_workspaces, registry.closed_workspaces);
+}
+
+#[test]
 fn stream_round_trips_through_json() {
     let stream = Stream::new("main");
     let json = serde_json::to_string(&stream).unwrap();

@@ -3696,6 +3696,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lucide-icons"
+version = "1.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6622735ce403d5ecacee585200bfbb5afd22878131a4a66ade8bcd9443d68fc7"
+
+[[package]]
 name = "lyon"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8636,6 +8642,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "gpui",
+ "image",
  "log",
  "pulldown-cmark",
  "ropey",
@@ -8700,6 +8707,7 @@ dependencies = [
  "anyhow",
  "collections",
  "gpui",
+ "image",
  "log",
  "release_channel",
  "semver",
@@ -8720,6 +8728,7 @@ dependencies = [
  "async-channel 2.5.0",
  "gpui",
  "log",
+ "lucide-icons",
  "theme",
  "xero_core",
  "xero_editor",

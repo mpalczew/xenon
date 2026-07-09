@@ -19,5 +19,6 @@ task.workspace = true
 collections.workspace = true
 semver.workspace = true
 anyhow.workspace = true
+image = "0.25.10"
 xero_settings.workspace = true
 log = "0.4"

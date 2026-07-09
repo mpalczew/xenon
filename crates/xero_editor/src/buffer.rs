@@ -131,6 +131,14 @@ impl Buffer {
         (row, col)
     }
 
+    /// Move the cursor to a zero-based row/column, clamping both to the buffer.
+    pub fn set_cursor_position(&mut self, row: usize, col: usize) {
+        let last_row = self.rope.len_lines().saturating_sub(1);
+        let row = row.min(last_row);
+        let col = col.min(self.line_len(row));
+        self.cursor = self.rope.line_to_char(row) + col;
+    }
+
     /// Whole-buffer text (used by tests and highlighting).
     pub fn text(&self) -> String {
         self.rope.to_string()
@@ -148,6 +156,16 @@ impl Buffer {
 
     pub(crate) fn mark_dirty(&mut self) {
         self.dirty = true;
+    }
+
+    fn line_len(&self, row: usize) -> usize {
+        let line = self.rope.line(row);
+        let len = line.len_chars();
+        if len > 0 && line.char(len - 1) == '\n' {
+            len - 1
+        } else {
+            len
+        }
     }
 }
 

@@ -39,6 +39,20 @@ fn registry_saves_and_loads() {
 }
 
 #[test]
+fn registry_saves_closed_workspaces() {
+    with_data_dir(|| {
+        let mut registry = Registry::default();
+        registry
+            .closed_workspaces
+            .push(WorkspaceRec::new("/tmp/closed".into()));
+
+        save_registry(&registry).unwrap();
+
+        assert_eq!(load_registry().unwrap(), registry);
+    });
+}
+
+#[test]
 fn session_saves_and_loads_by_id() {
     with_data_dir(|| {
         let ws = WorkspaceRec::new("/tmp/proj".into());

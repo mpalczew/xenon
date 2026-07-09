@@ -45,6 +45,11 @@ struct WorkspaceRows {
     streams: Vec<(StreamId, String, bool)>,
 }
 
+struct ClosedWorkspaceRow {
+    id: WorkspaceId,
+    name: String,
+}
+
 impl XeroApp {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
@@ -64,6 +69,15 @@ impl XeroApp {
                     .collect(),
             })
             .collect();
+        let closed_workspaces: Vec<ClosedWorkspaceRow> = self
+            .registry()
+            .closed_workspaces
+            .iter()
+            .map(|workspace| ClosedWorkspaceRow {
+                id: workspace.id,
+                name: workspace.name.clone(),
+            })
+            .collect();
 
         let mut rows = Vec::new();
         for workspace in workspaces {
@@ -74,6 +88,15 @@ impl XeroApp {
                 for (id, name, is_active) in workspace.streams {
                     rows.push(self.stream_row(id, &name, is_active, cx).into_any_element());
                 }
+            }
+        }
+        if !closed_workspaces.is_empty() {
+            rows.push(self.closed_title(cx).into_any_element());
+            for workspace in closed_workspaces {
+                rows.push(
+                    self.closed_workspace_row(workspace.id, &workspace.name, cx)
+                        .into_any_element(),
+                );
             }
         }
 
@@ -112,6 +135,17 @@ impl XeroApp {
                         window.dispatch_action(Box::new(crate::AddWorkspace), cx);
                     })),
             )
+    }
+
+    fn closed_title(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        div()
+            .px_3()
+            .pt_4()
+            .pb_1()
+            .text_xs()
+            .text_color(colors.text_muted)
+            .child("CLOSED")
     }
 
     fn workspace_header(
@@ -160,14 +194,63 @@ impl XeroApp {
             )
             .child(
                 div()
-                    .id(("add-stream", id_hash(id.to_string())))
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .child(
+                        div()
+                            .id(("add-stream", id_hash(id.to_string())))
+                            .px_1()
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|s| s.bg(colors.element_hover))
+                            .child("+")
+                            .on_click(cx.listener(move |this, _, _, cx| this.add_stream(id, cx))),
+                    )
+                    .child(
+                        div()
+                            .id(("workspace-close", id_hash(id.to_string())))
+                            .px_1()
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|s| s.bg(colors.element_hover))
+                            .child("✕")
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                this.close_workspace(id, window, cx);
+                            })),
+                    ),
+            )
+    }
+
+    fn closed_workspace_row(
+        &self,
+        id: WorkspaceId,
+        name: &str,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        div()
+            .id(("closed-workspace", id_hash(id.to_string())))
+            .flex()
+            .items_center()
+            .justify_between()
+            .pl_5()
+            .pr_2()
+            .py_1()
+            .text_sm()
+            .text_color(colors.text_muted)
+            .cursor_pointer()
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .child(name.to_string())
+            .child(
+                div()
+                    .id(("workspace-reopen", id_hash(id.to_string())))
                     .px_1()
                     .rounded_sm()
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover))
-                    .child("+")
-                    .on_click(cx.listener(move |this, _, _, cx| this.add_stream(id, cx))),
+                    .child("↩"),
             )
+            .on_click(cx.listener(move |this, _, _, cx| this.reopen_workspace(id, cx)))
     }
 
     fn stream_row(

@@ -3,6 +3,7 @@
 
 mod app;
 mod finder;
+mod icons;
 mod rename;
 mod sidebar;
 mod tabs;
@@ -11,11 +12,14 @@ mod toolbar;
 use gpui::{App, KeyBinding, actions};
 
 pub use app::XeroApp;
+pub(crate) use icons::preview_icon;
 
 actions!(
     xero,
     [
         ToggleSidebar,
+        ToggleTerminal,
+        ToggleEditor,
         ToggleBrowser,
         OpenFile,
         AddWorkspace,
@@ -24,6 +28,7 @@ actions!(
         IncreaseFontSize,
         DecreaseFontSize,
         ResetFontSize,
+        ToggleSettings,
     ]
 );
 
@@ -40,5 +45,11 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-+", IncreaseFontSize, None),
         KeyBinding::new("cmd--", DecreaseFontSize, None),
         KeyBinding::new("cmd-0", ResetFontSize, None),
+        KeyBinding::new("cmd-,", ToggleSettings, None),
     ]);
+}
+
+pub fn init(cx: &mut App) {
+    icons::load_icon_font(cx);
+    bind_keys(cx);
 }

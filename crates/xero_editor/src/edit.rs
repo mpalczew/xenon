@@ -92,7 +92,7 @@ impl Buffer {
 
     fn line_end(&self, cursor: usize) -> usize {
         let row = self.rope().char_to_line(cursor);
-        self.line_start(cursor) + self.line_len(row)
+        self.line_start(cursor) + line_len(self, row)
     }
 
     /// Move `delta` rows, keeping the column where possible.
@@ -105,18 +105,17 @@ impl Buffer {
             return cursor;
         }
         let target_row = target_row as usize;
-        let clamped_col = col.min(self.line_len(target_row));
+        let clamped_col = col.min(line_len(self, target_row));
         rope.line_to_char(target_row) + clamped_col
     }
+}
 
-    /// Character length of a line, excluding a trailing newline.
-    fn line_len(&self, row: usize) -> usize {
-        let line = self.rope().line(row);
-        let len = line.len_chars();
-        if len > 0 && line.char(len - 1) == '\n' {
-            len - 1
-        } else {
-            len
-        }
+fn line_len(buffer: &Buffer, row: usize) -> usize {
+    let line = buffer.rope().line(row);
+    let len = line.len_chars();
+    if len > 0 && line.char(len - 1) == '\n' {
+        len - 1
+    } else {
+        len
     }
 }
