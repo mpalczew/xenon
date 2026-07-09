@@ -47,7 +47,27 @@ count_matches() {
 
 cd "$root"
 
+# Files adapted from upstream (see ATTRIBUTION.md) are exempt: we sync them
+# from upstream rather than reshaping them to our limits.
+adapted=(
+    "crates/xero_terminal/src/color.rs"
+    "crates/xero_terminal/src/grid.rs"
+    "crates/xero_terminal/src/view.rs"
+)
+
+is_adapted() {
+    local candidate="$1"
+    local entry
+    for entry in "${adapted[@]}"; do
+        [[ "$candidate" == "$entry" ]] && return 0
+    done
+    return 1
+}
+
 while IFS= read -r file; do
+    if is_adapted "$file"; then
+        continue
+    fi
     lines="$(wc -l <"$file" | tr -d ' ')"
     fn_items="$(count_matches '^\s*(pub(\([^)]*\))?\s+)?(async\s+)?(unsafe\s+)?(const\s+)?fn\s+[A-Za-z_]' "$file")"
     pub_fns="$(count_matches '^\s*pub\s+(async\s+)?(unsafe\s+)?(const\s+)?fn\s+[A-Za-z_]' "$file")"
