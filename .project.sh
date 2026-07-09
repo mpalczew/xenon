@@ -35,11 +35,13 @@ project_fmtcheck() {
 }
 
 project_lint() {
+    # too_many_arguments / too_many_lines are enabled incrementally as their
+    # violations are fixed; cognitive_complexity is nursery (off by default) so
+    # it needs an explicit -D to both enable and enforce it.
     (cd "$XERO_ROOT" && cargo clippy --workspace --all-targets -- -D warnings \
+        -D clippy::cognitive_complexity \
         -A clippy::too_many_arguments \
-        -A clippy::too_many_lines \
-        -A clippy::cognitive_complexity \
-        -A clippy::type_complexity)
+        -A clippy::too_many_lines)
 }
 
 project_lint_shape() {
