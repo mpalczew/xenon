@@ -5,26 +5,21 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-/// How the main panel is arranged.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Layout {
-    #[default]
-    TerminalOnly,
-    EditorOnly,
-    Split {
-        ratio: f32,
-    },
+/// Which panes are visible in the main window.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Layout {
+    pub terminal_visible: bool,
+    pub editor_visible: bool,
+    pub sidebar_visible: bool,
 }
 
-impl Layout {
-    /// Clamp a split ratio to a sane visible range.
-    pub const MIN_RATIO: f32 = 0.15;
-    pub const MAX_RATIO: f32 = 0.85;
-
-    pub fn split(ratio: f32) -> Self {
-        Layout::Split {
-            ratio: ratio.clamp(Self::MIN_RATIO, Self::MAX_RATIO),
+impl Default for Layout {
+    fn default() -> Self {
+        Layout {
+            terminal_visible: true,
+            editor_visible: true,
+            sidebar_visible: true,
         }
     }
 }

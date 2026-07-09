@@ -3,7 +3,7 @@
 //! holds one or more, and every stream keeps its own running PTY.
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
@@ -11,11 +11,12 @@ use gpui::{
     Subscription, Task, Window, div, px,
 };
 use theme::ActiveTheme;
-use xero_core::{Active, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
+use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
 use xero_editor::EditorView;
 use xero_ide::{IdeCommand, IdeServer};
 use xero_terminal::{TerminalEvent, TerminalView};
 
+use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
 use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::{
@@ -58,10 +59,7 @@ pub struct XeroApp {
     editor_collapsed: bool,
     // Workspaces whose streams are hidden in the sidebar.
     collapsed_workspaces: HashSet<WorkspaceId>,
-    // The editor-pane file browser: expanded directories, and whether the
-    // browser (vs. the open editor) is showing.
-    expanded_dirs: HashSet<PathBuf>,
-    browsing: bool,
+    file_browser: FileBrowser,
     settings_open: bool,
     // The stream currently being renamed inline, plus its editing field.
     renaming: Option<(StreamId, Entity<RenameView>)>,
@@ -92,8 +90,7 @@ impl XeroApp {
             terminal_collapsed: false,
             editor_collapsed: false,
             collapsed_workspaces: HashSet::new(),
-            expanded_dirs: HashSet::new(),
-            browsing: false,
+            file_browser: FileBrowser::default(),
             settings_open: false,
             renaming: None,
             _rename_sub: None,
@@ -219,18 +216,61 @@ impl XeroApp {
         !self.editor_collapsed && self.active.is_some()
     }
 
+    /// Write the live collapsed flags into the active stream's session and
+    /// save, so pane visibility survives a stream switch or app restart.
+    fn save_layout(&mut self, id: StreamId) {
+        if let Some(stream) = self.streams.get_mut(&id) {
+            stream.session.layout = Layout {
+                terminal_visible: !self.terminal_collapsed,
+                editor_visible: !self.editor_collapsed,
+                sidebar_visible: !self.sidebar_collapsed,
+            };
+            if let Some(workspace) = self.workspace_of(id).map(|w| w.id) {
+                save_session(workspace, &self.streams[&id], "save_layout");
+            }
+        }
+    }
+
     fn toggle_terminal_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.terminal_collapsed = !self.terminal_collapsed;
-        if !self.terminal_collapsed
-            && let Some(terminal) = self.active_terminal()
-        {
-            terminal.read(cx).focus_handle(cx).focus(window, cx);
+        if !self.terminal_collapsed {
+            let id = self.active;
+            if let Some(id) = id
+                && !self.terminals.contains_key(&id)
+                && let Some(root) = self.stream_root(id)
+            {
+                let terminal = self.spawn_terminal(root, id, cx);
+                self.terminals.insert(
+                    id,
+                    TerminalStack {
+                        tabs: vec![terminal],
+                        active: 0,
+                    },
+                );
+            }
+            if let Some(terminal) = self.active_terminal() {
+                terminal.read(cx).focus_handle(cx).focus(window, cx);
+            }
+        }
+        if let Some(id) = self.active {
+            self.save_layout(id);
         }
         cx.notify();
     }
 
     fn toggle_editor_panel(&mut self, cx: &mut Context<Self>) {
         self.editor_collapsed = !self.editor_collapsed;
+        if let Some(id) = self.active {
+            self.save_layout(id);
+        }
+        cx.notify();
+    }
+
+    fn toggle_sidebar_panel(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
+        if let Some(id) = self.active {
+            self.save_layout(id);
+        }
         cx.notify();
     }
 
@@ -267,6 +307,12 @@ impl XeroApp {
         };
         self.active = Some(id);
         self.finder = None;
+        if let Some(stream) = self.streams.get(&id) {
+            let layout = &stream.session.layout;
+            self.terminal_collapsed = !layout.terminal_visible;
+            self.editor_collapsed = !layout.editor_visible;
+            self.sidebar_collapsed = !layout.sidebar_visible;
+        }
         if !self.terminals.contains_key(&id) {
             let terminal = self.spawn_terminal(root, id, cx);
             self.terminals.insert(
@@ -314,6 +360,8 @@ impl XeroApp {
         let stack = self.terminals.entry(id).or_default();
         stack.tabs.push(terminal);
         stack.active = stack.tabs.len() - 1;
+        self.terminal_collapsed = false;
+        self.save_layout(id);
         cx.notify();
     }
 
@@ -350,8 +398,8 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// Close a terminal tab, keeping at least one terminal per stream, and move
-    /// focus to the terminal that becomes active.
+    /// Close a terminal tab and move focus to the terminal that becomes
+    /// active. Closing the last tab collapses the terminal panel.
     pub(crate) fn close_terminal_tab(
         &mut self,
         index: usize,
@@ -365,14 +413,25 @@ impl XeroApp {
             let Some(stack) = self.terminals.get_mut(&id) else {
                 return;
             };
-            if index >= stack.tabs.len() || stack.tabs.len() == 1 {
+            if index >= stack.tabs.len() {
                 return;
             }
             stack.tabs.remove(index);
-            stack.active = stack.active.min(stack.tabs.len() - 1);
-            stack.tabs[stack.active].clone()
+            if stack.tabs.is_empty() {
+                None
+            } else {
+                stack.active = stack.active.min(stack.tabs.len() - 1);
+                Some(stack.tabs[stack.active].clone())
+            }
         };
-        survivor.read(cx).focus_handle(cx).focus(window, cx);
+        match survivor {
+            Some(terminal) => terminal.read(cx).focus_handle(cx).focus(window, cx),
+            None => {
+                self.terminals.remove(&id);
+                self.terminal_collapsed = true;
+                self.save_layout(id);
+            }
+        }
         cx.notify();
     }
 
@@ -699,6 +758,7 @@ impl XeroApp {
             return;
         };
         self.editor_collapsed = false;
+        self.save_layout(id);
         let stack = self.editors.entry(id).or_default();
         // Focus an already-open tab rather than opening a duplicate.
         if let Some(index) = stack.tabs.iter().position(|tab| tab.path == path) {
@@ -715,7 +775,7 @@ impl XeroApp {
             }
         }
         self.finder = None;
-        if self.browsing {
+        if self.file_browser.is_open() {
             self.reveal_active_file(cx);
         }
         cx.notify();
@@ -745,6 +805,8 @@ impl XeroApp {
             stack.tabs.remove(index);
             if stack.tabs.is_empty() {
                 self.editors.remove(&id);
+                self.editor_collapsed = true;
+                self.save_layout(id);
             } else {
                 stack.active = stack.active.min(stack.tabs.len() - 1);
             }
@@ -792,12 +854,12 @@ impl XeroApp {
     /// Whether the file-tree sidebar is open (a collapsible sidebar beside the
     /// editor, toggled by the toolbar/tab-bar buttons and cmd-e).
     pub(crate) fn is_browsing(&self) -> bool {
-        self.active.is_some() && self.browsing
+        self.active.is_some() && self.file_browser.is_open()
     }
 
     pub(crate) fn toggle_browser(&mut self, cx: &mut Context<Self>) {
-        if self.browsing {
-            self.browsing = false;
+        if self.file_browser.is_open() {
+            self.file_browser.close();
             cx.notify();
             return;
         }
@@ -806,8 +868,11 @@ impl XeroApp {
 
     fn show_browser(&mut self, cx: &mut Context<Self>) {
         if !self.reveal_active_file(cx) {
-            self.browsing = true;
+            self.file_browser.open();
             self.editor_collapsed = false;
+            if let Some(id) = self.active {
+                self.save_layout(id);
+            }
             cx.notify();
         }
     }
@@ -828,9 +893,7 @@ impl XeroApp {
     }
 
     fn toggle_dir(&mut self, path: PathBuf, cx: &mut Context<Self>) {
-        if !self.expanded_dirs.insert(path.clone()) {
-            self.expanded_dirs.remove(&path);
-        }
+        self.file_browser.toggle_dir(path);
         cx.notify();
     }
 
@@ -851,8 +914,7 @@ impl XeroApp {
         let open_file = self
             .active_editor()
             .map(|view| view.read(cx).path().to_path_buf());
-        let mut rows = Vec::new();
-        self.tree_rows(&root, 0, open_file.as_deref(), &mut rows, cx);
+        let rows = self.file_browser.rows(&root, open_file.as_deref());
 
         let header = div()
             .flex()
@@ -902,56 +964,9 @@ impl XeroApp {
                     .min_h_0()
                     .overflow_y_scroll()
                     .py_2()
-                    .children(rows),
+                    .children(rows.into_iter().map(|row| self.tree_row(row, cx))),
             )
             .into_any_element()
-    }
-
-    fn tree_rows(
-        &self,
-        dir: &Path,
-        depth: usize,
-        open_file: Option<&Path>,
-        rows: &mut Vec<gpui::AnyElement>,
-        cx: &mut Context<Self>,
-    ) {
-        let Ok(read) = std::fs::read_dir(dir) else {
-            return;
-        };
-        let mut entries: Vec<(PathBuf, String, bool)> = read
-            .flatten()
-            .filter_map(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                if name.starts_with('.') {
-                    return None;
-                }
-                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                Some((entry.path(), name, is_dir))
-            })
-            .collect();
-        // Directories first, then case-insensitive by name.
-        entries.sort_by(|a, b| {
-            b.2.cmp(&a.2)
-                .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
-        });
-        for (path, name, is_dir) in entries {
-            let expanded = is_dir && self.expanded_dirs.contains(&path);
-            let is_open = open_file == Some(path.as_path());
-            rows.push(self.tree_row(
-                TreeRow {
-                    path: path.clone(),
-                    name,
-                    is_dir,
-                    expanded,
-                    is_open,
-                    depth,
-                },
-                cx,
-            ));
-            if expanded {
-                self.tree_rows(&path, depth + 1, open_file, rows, cx);
-            }
-        }
     }
 
     fn tree_row(&self, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -1031,17 +1046,17 @@ impl XeroApp {
 
     /// Expand `dir` and every ancestor up to (but excluding) `root`, then show
     /// the browser so the path is visible.
-    fn reveal_dir(&mut self, root: &Path, dir: &Path, cx: &mut Context<Self>) {
-        let mut current = Some(dir);
-        while let Some(path) = current {
-            if path == root || !path.starts_with(root) {
-                break;
-            }
-            self.expanded_dirs.insert(path.to_path_buf());
-            current = path.parent();
-        }
-        self.browsing = true;
+    fn reveal_dir(
+        &mut self,
+        root: &std::path::Path,
+        dir: &std::path::Path,
+        cx: &mut Context<Self>,
+    ) {
+        self.file_browser.reveal_dir(root, dir);
         self.editor_collapsed = false;
+        if let Some(id) = self.active {
+            self.save_layout(id);
+        }
         self.finder = None;
         cx.notify();
     }
@@ -1088,43 +1103,6 @@ fn synthesize_stream(id: StreamId) -> Stream {
     }
 }
 
-struct TreeRow {
-    path: PathBuf,
-    name: String,
-    is_dir: bool,
-    expanded: bool,
-    is_open: bool,
-    depth: usize,
-}
-
-fn dir_marker(is_dir: bool, expanded: bool) -> &'static str {
-    match (is_dir, expanded) {
-        (false, _) => "",
-        (true, true) => "▾",
-        (true, false) => "▸",
-    }
-}
-
-fn file_icon(row: &TreeRow) -> &'static str {
-    if row.is_dir {
-        return "▭";
-    }
-    match row
-        .path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("")
-    {
-        "md" | "markdown" | "mdx" => "▰",
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" | "tif" | "tiff" => "▣",
-        "rs" | "js" | "ts" | "tsx" | "py" | "toml" | "json" => "◆",
-        "sh" | "bash" | "zsh" => "▸",
-        "env" => "≡",
-        _ if row.name == ".gitignore" => "⌁",
-        _ => "·",
-    }
-}
-
 impl Focusable for XeroApp {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus.clone()
@@ -1144,8 +1122,7 @@ impl Render for XeroApp {
             .track_focus(&self.focus)
             .key_context("XeroApp")
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
-                this.sidebar_collapsed = !this.sidebar_collapsed;
-                cx.notify();
+                this.toggle_sidebar_panel(cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))

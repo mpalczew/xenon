@@ -5,6 +5,7 @@ mod buffer;
 mod edit;
 mod element;
 mod highlight;
+mod image_viewer;
 mod markdown;
 mod view;
 

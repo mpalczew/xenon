@@ -1,6 +1,7 @@
 //! Terminal backend and view for xero: init the zed globals `terminal` needs,
 //! spawn a PTY, and render its grid in a focusable GPUI view.
 
+mod clipboard;
 mod color;
 mod grid;
 mod init;

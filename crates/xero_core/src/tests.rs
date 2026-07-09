@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::{Backing, Layout, Registry, Stream, WorkspaceRec};
+use crate::{Backing, Layout, Registry, SessionState, Stream, WorkspaceRec};
 
 #[test]
 fn workspace_name_from_root() {
@@ -18,20 +18,34 @@ fn stream_working_dir_is_checkout_root() {
 }
 
 #[test]
-fn layout_split_ratio_is_clamped() {
+fn layout_default_is_all_visible() {
     assert_eq!(
-        Layout::split(0.01),
-        Layout::Split {
-            ratio: Layout::MIN_RATIO
+        Layout::default(),
+        Layout {
+            terminal_visible: true,
+            editor_visible: true,
+            sidebar_visible: true,
         }
     );
-    assert_eq!(
-        Layout::split(0.99),
-        Layout::Split {
-            ratio: Layout::MAX_RATIO
-        }
-    );
-    assert_eq!(Layout::split(0.5), Layout::Split { ratio: 0.5 });
+}
+
+#[test]
+fn layout_round_trips_through_json() {
+    let layout = Layout {
+        terminal_visible: false,
+        editor_visible: true,
+        sidebar_visible: false,
+    };
+    let json = serde_json::to_string_pretty(&layout).unwrap();
+    let parsed: Layout = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed, layout);
+}
+
+#[test]
+fn old_layout_json_defaults_all_visible() {
+    let json = r#"{"editors": [], "active_editor": null, "terminal": {"cwd": "."}}"#;
+    let parsed: SessionState = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.layout, Layout::default());
 }
 
 #[test]

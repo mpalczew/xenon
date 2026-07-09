@@ -2,6 +2,7 @@
 //! hosting a terminal and editor, with a cmd-p fuzzy finder.
 
 mod app;
+mod file_browser;
 mod finder;
 mod icons;
 mod rename;
