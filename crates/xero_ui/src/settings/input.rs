@@ -33,6 +33,7 @@ impl EntityInputHandler for SettingsView {
         {
             self.filter.push_str(text);
             self.highlight = 0;
+            self.caret_on = true;
             cx.notify();
         }
     }

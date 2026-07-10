@@ -8,11 +8,35 @@ use gpui::{App, SharedString, Subscription, Window};
 use settings::Settings;
 use xero_settings::ThemeMode;
 
-/// Bundled theme families (from zed's `assets/themes/`). See ATTRIBUTION.md.
+/// Bundled theme families. Zed-derived ones: see ATTRIBUTION.md.
 const THEME_FILES: &[&[u8]] = &[
+    // Classic / zed-derived
     include_bytes!("../assets/one.json"),
     include_bytes!("../assets/ayu.json"),
     include_bytes!("../assets/gruvbox.json"),
+    include_bytes!("../assets/solarized.json"),
+    include_bytes!("../assets/nord.json"),
+    // IDE familiarity
+    include_bytes!("../assets/vscode.json"),
+    include_bytes!("../assets/intellij.json"),
+    include_bytes!("../assets/xcode.json"),
+    // Defaults / a11y
+    include_bytes!("../assets/high_contrast.json"),
+    // Brand pack
+    include_bytes!("../assets/neon.json"),
+    include_bytes!("../assets/abyss.json"),
+    include_bytes!("../assets/tokyo.json"),
+    include_bytes!("../assets/runner.json"),
+    include_bytes!("../assets/aurora.json"),
+    include_bytes!("../assets/ember.json"),
+    // Culture
+    include_bytes!("../assets/ink.json"),
+    // Personality / fun
+    include_bytes!("../assets/imperial.json"),
+    include_bytes!("../assets/mithril.json"),
+    include_bytes!("../assets/synthwave.json"),
+    include_bytes!("../assets/radioactive.json"),
+    include_bytes!("../assets/hotdog.json"),
 ];
 
 /// Install every global the terminal backend needs. Call once, at startup,
@@ -79,7 +103,8 @@ fn active_theme_name(cx: &App) -> String {
     }
 }
 
-fn refresh_windows(cx: &mut App) {
+/// Refresh every open window (settings changes that affect the main UI).
+pub fn refresh_windows(cx: &mut App) {
     for window in cx.windows() {
         let _ = window.update(cx, |_, window, _| window.refresh());
     }

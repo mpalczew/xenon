@@ -15,3 +15,10 @@ Every copied/adapted file also carries a header comment naming its entry here.
 | `crates/xero_terminal/assets/one.json` | zed-industries/zed | ced90fc (v1.9.0) | GPL-3.0-or-later | One theme family (`assets/themes/one/one.json`); One Dark surfaces set to pure black; One Light unchanged. |
 | `crates/xero_terminal/assets/ayu.json` | zed-industries/zed | ced90fc (v1.9.0) | MIT (via zed themes) | Ayu family (`assets/themes/ayu/ayu.json`); Dark / Light / Mirage. |
 | `crates/xero_terminal/assets/gruvbox.json` | zed-industries/zed | ced90fc (v1.9.0) | Apache-2.0 (via zed themes) | Gruvbox family (`assets/themes/gruvbox/gruvbox.json`); Dark/Light Soft/Hard variants. |
+| `crates/xero_terminal/assets/solarized.json` | ethanschoonover/solarized | (palette) | MIT | Official Solarized palette mapped to zed theme schema; not copied from zed assets. |
+| `crates/xero_terminal/assets/nord.json` | arcticicestudio/nord | (palette) | MIT | Official Nord palette mapped to zed theme schema. |
+
+Original xero theme families (no third-party source file): `neon`, `ember`, `aurora`,
+`abyss`, `tokyo`, `runner`, `ink`, `high_contrast`, `imperial`, `mithril`, `synthwave`,
+`radioactive`, `hotdog`. IDE-familiar families (`vscode`, `intellij`, `xcode`) recreate
+well-known editor palettes for migration; not copied from vendor assets.

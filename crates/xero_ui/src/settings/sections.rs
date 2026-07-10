@@ -1,19 +1,21 @@
 //! Settings window section builders (appearance, fonts, editor toggles).
 
 use gpui::{
-    App, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
+    App, Context, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString,
     StatefulInteractiveElement, Styled, div, px,
 };
 use theme::ActiveTheme;
 
 use super::SettingsView;
-use crate::dropdown::{DropdownId, DropdownProps, dropdown_row, format_size};
+use crate::dropdown::{DropdownId, DropdownProps, SizeTarget, dropdown_row, size_row};
 
 #[derive(Clone, Copy)]
 pub(super) struct OpenState<'a> {
     pub open: Option<DropdownId>,
     pub filter: &'a str,
     pub highlight: usize,
+    pub caret_on: bool,
+    pub viewport_height: Pixels,
 }
 
 pub(super) fn appearance_section(
@@ -24,106 +26,97 @@ pub(super) fn appearance_section(
     let mode_opts: Vec<SharedString> = vec!["System".into(), "Light".into(), "Dark".into()];
     let light = xero_terminal::theme_names(theme::Appearance::Light, cx);
     let dark = xero_terminal::theme_names(theme::Appearance::Dark, cx);
-    div()
+    let body = div()
         .flex()
         .flex_col()
-        .child(section_header("Appearance", cx))
         .child(dropdown_row(
             DropdownProps {
                 id: DropdownId::Mode,
                 title: "Mode",
-                subtitle: "Light, dark, or match the system",
                 selected: mode_label(settings.theme),
                 options: &mode_opts,
                 filterable: false,
                 open: state.open == Some(DropdownId::Mode),
                 filter: state.filter,
                 highlight: state.highlight,
+                caret_on: state.caret_on,
+                viewport_height: state.viewport_height,
             },
             cx,
         ))
+        .child(row_divider(cx))
         .child(dropdown_row(
             DropdownProps {
                 id: DropdownId::LightTheme,
                 title: "Light Theme",
-                subtitle: "When mode is Light, or System is light",
                 selected: &settings.light_theme,
                 options: &light,
                 filterable: true,
                 open: state.open == Some(DropdownId::LightTheme),
                 filter: state.filter,
                 highlight: state.highlight,
+                caret_on: state.caret_on,
+                viewport_height: state.viewport_height,
             },
             cx,
         ))
+        .child(row_divider(cx))
         .child(dropdown_row(
             DropdownProps {
                 id: DropdownId::DarkTheme,
                 title: "Dark Theme",
-                subtitle: "When mode is Dark, or System is dark",
                 selected: &settings.dark_theme,
                 options: &dark,
                 filterable: true,
                 open: state.open == Some(DropdownId::DarkTheme),
                 filter: state.filter,
                 highlight: state.highlight,
+                caret_on: state.caret_on,
+                viewport_height: state.viewport_height,
             },
             cx,
-        ))
+        ));
+    group_card("Appearance", body, cx)
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn font_section(
     title: &'static str,
     family_id: DropdownId,
-    size_id: DropdownId,
+    size_target: SizeTarget,
     family: &str,
     size: f32,
     families: &[SharedString],
-    sizes: &[SharedString],
     state: OpenState<'_>,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    let size_label = format_size(size);
-    div()
+    let body = div()
         .flex()
         .flex_col()
-        .child(section_header(title, cx))
         .child(dropdown_row(
             DropdownProps {
                 id: family_id,
-                title: "Font Family",
-                subtitle: "Typeface for this surface",
+                title: "Family",
                 selected: family,
                 options: families,
                 filterable: true,
                 open: state.open == Some(family_id),
                 filter: state.filter,
                 highlight: state.highlight,
+                caret_on: state.caret_on,
+                viewport_height: state.viewport_height,
             },
             cx,
         ))
-        .child(dropdown_row(
-            DropdownProps {
-                id: size_id,
-                title: "Font Size",
-                subtitle: "Point size for this surface",
-                selected: &size_label,
-                options: sizes,
-                filterable: true,
-                open: state.open == Some(size_id),
-                filter: state.filter,
-                highlight: state.highlight,
-            },
-            cx,
-        ))
+        .child(row_divider(cx))
+        .child(size_row("Size", size_target, size, cx));
+    group_card(title, body, cx)
 }
 
 pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement {
-    div()
+    let body = div()
         .flex()
         .flex_col()
-        .child(section_header("Editor", cx))
         .child(settings_toggle(
             ToggleRow {
                 id: "line-number-toggle",
@@ -137,6 +130,7 @@ pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement
                 xero_settings::save(cx);
             },
         ))
+        .child(row_divider(cx))
         .child(settings_toggle(
             ToggleRow {
                 id: "vim-mode-toggle",
@@ -149,7 +143,8 @@ pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement
                 xero_settings::toggle_vim_mode(cx);
                 xero_settings::save(cx);
             },
-        ))
+        ));
+    group_card("Editor", body, cx)
 }
 
 pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
@@ -159,17 +154,7 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
         DropdownId::LightTheme => settings.light_theme = value,
         DropdownId::DarkTheme => settings.dark_theme = value,
         DropdownId::EditorFamily => settings.editor_font_family = value,
-        DropdownId::EditorSize => {
-            if let Ok(size) = value.parse::<f32>() {
-                settings.editor_font_size = size;
-            }
-        }
         DropdownId::TerminalFamily => settings.terminal_font_family = value,
-        DropdownId::TerminalSize => {
-            if let Ok(size) = value.parse::<f32>() {
-                settings.terminal_font_size = size;
-            }
-        }
     }
     xero_settings::apply(&settings, cx);
     xero_settings::save(cx);
@@ -178,18 +163,54 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
         DropdownId::Mode | DropdownId::LightTheme | DropdownId::DarkTheme
     ) {
         xero_terminal::apply_theme(cx);
+    } else {
+        xero_terminal::refresh_windows(cx);
     }
 }
 
-fn section_header(title: &'static str, cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub(super) fn apply_size_nudge(target: SizeTarget, delta: f32, cx: &mut App) {
+    match target {
+        SizeTarget::Editor => xero_settings::nudge_editor_font_size(cx, delta),
+        SizeTarget::Terminal => xero_settings::nudge_terminal_font_size(cx, delta),
+    }
+    xero_settings::save(cx);
+    xero_terminal::refresh_windows(cx);
+}
+
+fn group_card(
+    title: &'static str,
+    body: impl IntoElement,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
     div()
+        .flex()
+        .flex_col()
         .px_4()
-        .pt_4()
+        .pt_3()
         .pb_1()
-        .text_sm()
-        .text_color(colors.text_muted)
-        .child(title)
+        .child(
+            div()
+                .text_sm()
+                .text_color(colors.text_muted)
+                .mb_1()
+                .child(title),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .rounded_sm()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.elevated_surface_background)
+                .child(body),
+        )
+}
+
+fn row_divider(cx: &mut Context<SettingsView>) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    div().h(px(1.)).bg(colors.border)
 }
 
 struct ToggleRow {
@@ -215,12 +236,16 @@ fn settings_toggle(
         .flex()
         .items_center()
         .justify_between()
-        .px_4()
-        .py_3()
-        .border_b_1()
-        .border_color(colors.border)
+        .px_3()
+        .py_2()
         .cursor_pointer()
         .hover(|s| s.bg(colors.element_hover))
+        .on_click(cx.listener(move |_, _, window, cx| {
+            cx.stop_propagation();
+            on_toggle(cx);
+            window.refresh();
+            cx.notify();
+        }))
         .child(
             div()
                 .flex()
@@ -248,11 +273,6 @@ fn settings_toggle(
                 .text_xs()
                 .children(row.checked.then_some("x")),
         )
-        .on_click(cx.listener(move |_, _, window, cx| {
-            on_toggle(cx);
-            window.refresh();
-            cx.notify();
-        }))
 }
 
 fn mode_label(mode: xero_settings::ThemeMode) -> &'static str {

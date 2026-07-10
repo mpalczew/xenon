@@ -3,34 +3,47 @@
 mod input;
 mod sections;
 
+use std::time::Duration;
+
 use gpui::{
     AnyElement, App, Context, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window,
-    div,
+    KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Task,
+    Window, div,
 };
-use theme::{ActiveTheme, FontFamilyCache};
+use theme::ActiveTheme;
 
 use crate::ToggleSettings;
-use crate::dropdown::{DropdownId, filter_options, font_size_options};
+use crate::dropdown::{DropdownId, SizeTarget, filter_options, mono_font_families};
 use input::input_registrar;
-use sections::{OpenState, appearance_section, apply_dropdown_pick, editor_toggles, font_section};
+use sections::{
+    OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
+    font_section,
+};
+
+const CARET_BLINK: Duration = Duration::from_millis(530);
 
 pub struct SettingsView {
     focus: FocusHandle,
     open: Option<DropdownId>,
     filter: String,
     highlight: usize,
+    caret_on: bool,
     focused_once: bool,
+    _blink: Option<Task<()>>,
 }
 
 impl SettingsView {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        // Warm the mono-font cache so the first family dropdown is instant.
+        let _ = mono_font_families(cx);
         Self {
             focus: cx.focus_handle(),
             open: None,
             filter: String::new(),
             highlight: 0,
+            caret_on: true,
             focused_once: false,
+            _blink: None,
         }
     }
 
@@ -41,12 +54,18 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) {
         if self.open == Some(id) {
-            self.close_dropdown();
+            self.close_dropdown(cx);
         } else {
             self.open = Some(id);
             self.filter.clear();
             self.highlight = 0;
+            self.caret_on = true;
             self.focus.focus(window, cx);
+            if is_filterable(id) {
+                self.start_caret_blink(cx);
+            } else {
+                self._blink = None;
+            }
         }
         cx.notify();
     }
@@ -55,19 +74,62 @@ impl SettingsView {
         &mut self,
         id: DropdownId,
         value: String,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         apply_dropdown_pick(id, value, cx);
-        self.close_dropdown();
-        window.refresh();
+        self.close_dropdown(cx);
         cx.notify();
     }
 
-    fn close_dropdown(&mut self) {
+    pub(crate) fn nudge_font_size(
+        &mut self,
+        target: SizeTarget,
+        delta: f32,
+        cx: &mut Context<Self>,
+    ) {
+        apply_size_nudge(target, delta, cx);
+        cx.notify();
+    }
+
+    pub(crate) fn dismiss_dropdown(&mut self, cx: &mut Context<Self>) {
+        if self.open.is_some() {
+            self.close_dropdown(cx);
+            cx.notify();
+        }
+    }
+
+    fn close_dropdown(&mut self, _cx: &mut Context<Self>) {
         self.open = None;
         self.filter.clear();
         self.highlight = 0;
+        self.caret_on = true;
+        self._blink = None;
+    }
+
+    fn start_caret_blink(&mut self, cx: &mut Context<Self>) {
+        self.caret_on = true;
+        self._blink = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(CARET_BLINK).await;
+                let keep = this
+                    .update(cx, |this, cx| {
+                        if this.open.is_some_and(is_filterable) {
+                            this.caret_on = !this.caret_on;
+                            cx.notify();
+                            true
+                        } else {
+                            this.caret_on = true;
+                            this._blink = None;
+                            false
+                        }
+                    })
+                    .unwrap_or(false);
+                if !keep {
+                    break;
+                }
+            }
+        }));
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -80,7 +142,7 @@ impl SettingsView {
         };
         match event.keystroke.key.as_str() {
             "escape" => {
-                self.close_dropdown();
+                self.close_dropdown(cx);
                 cx.notify();
                 cx.stop_propagation();
             }
@@ -101,6 +163,7 @@ impl SettingsView {
             "backspace" if is_filterable(id) => {
                 self.filter.pop();
                 self.highlight = 0;
+                self.caret_on = true;
                 cx.notify();
                 cx.stop_propagation();
             }
@@ -123,14 +186,15 @@ impl SettingsView {
         filter_options(&options_for(id, cx), is_filterable(id), &self.filter)
     }
 
-    fn body(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn body(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let settings = xero_settings::snapshot(cx);
-        let families = FontFamilyCache::global(cx).list_font_families(cx);
-        let sizes = font_size_options();
+        let families = mono_font_families(cx);
         let state = OpenState {
             open: self.open,
             filter: self.filter.as_str(),
             highlight: self.highlight,
+            caret_on: self.caret_on,
+            viewport_height: window.viewport_size().height,
         };
         div()
             .id("settings-body")
@@ -139,26 +203,27 @@ impl SettingsView {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.dismiss_dropdown(cx);
+            }))
             .child(appearance_section(&settings, state, cx))
             .child(font_section(
                 "Editor Font",
                 DropdownId::EditorFamily,
-                DropdownId::EditorSize,
+                SizeTarget::Editor,
                 &settings.editor_font_family,
                 settings.editor_font_size,
                 &families,
-                &sizes,
                 state,
                 cx,
             ))
             .child(font_section(
                 "Terminal Font",
                 DropdownId::TerminalFamily,
-                DropdownId::TerminalSize,
+                SizeTarget::Terminal,
                 &settings.terminal_font_family,
                 settings.terminal_font_size,
                 &families,
-                &sizes,
                 state,
                 cx,
             ))
@@ -181,7 +246,7 @@ impl Render for SettingsView {
             self.focused_once = true;
         }
         let colors = cx.theme().colors().clone();
-        let body = self.body(cx);
+        let body = self.body(window, cx);
         div()
             .track_focus(&self.focus)
             .key_context("Settings")
@@ -207,7 +272,7 @@ impl Render for SettingsView {
     }
 }
 
-fn is_filterable(id: DropdownId) -> bool {
+pub(super) fn is_filterable(id: DropdownId) -> bool {
     !matches!(id, DropdownId::Mode)
 }
 
@@ -216,9 +281,6 @@ fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
         DropdownId::Mode => vec!["System".into(), "Light".into(), "Dark".into()],
         DropdownId::LightTheme => xero_terminal::theme_names(theme::Appearance::Light, cx),
         DropdownId::DarkTheme => xero_terminal::theme_names(theme::Appearance::Dark, cx),
-        DropdownId::EditorFamily | DropdownId::TerminalFamily => {
-            FontFamilyCache::global(cx).list_font_families(cx)
-        }
-        DropdownId::EditorSize | DropdownId::TerminalSize => font_size_options(),
+        DropdownId::EditorFamily | DropdownId::TerminalFamily => mono_font_families(cx),
     }
 }
