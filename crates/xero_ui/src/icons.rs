@@ -3,7 +3,8 @@ use std::borrow::Cow;
 use gpui::{App, IntoElement, ParentElement, Pixels, Styled, div, px};
 use lucide_icons::{Icon, LUCIDE_FONT_BYTES};
 
-const LUCIDE_FONT_FAMILY: &str = "Lucide";
+// Must match the TTF name table (nameID 1), not a display label.
+const LUCIDE_FONT_FAMILY: &str = "lucide";
 
 pub(crate) fn load_icon_font(cx: &mut App) {
     if let Err(error) = cx
