@@ -2,13 +2,17 @@
 //! hosting a terminal and editor, with a cmd-p fuzzy finder.
 
 mod app;
+mod dropdown;
 mod file_browser;
 mod finder;
 mod icons;
 mod rename;
+mod settings;
 mod sidebar;
 mod tabs;
 mod toolbar;
+
+pub use settings::SettingsView;
 
 use gpui::{App, KeyBinding, actions};
 

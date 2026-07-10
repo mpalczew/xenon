@@ -68,9 +68,9 @@ pub struct TextMetrics<'a> {
     pub line_height: Pixels,
 }
 
-/// The monospace font used for the editor (Menlo, no ligatures).
-pub fn editor_font() -> Font {
-    let mut font = gpui::font("Menlo");
+/// The editor face for `family` (ligatures disabled for uniform cells).
+pub fn editor_font(family: &str) -> Font {
+    let mut font = gpui::font(family);
     font.features = FontFeatures::disable_ligatures();
     font
 }

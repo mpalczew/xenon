@@ -20,7 +20,6 @@ impl Render for XeroApp {
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
-        let settings = self.settings_open.then(|| self.render_settings_modal(cx));
         div()
             .track_focus(&self.focus)
             .key_context("XeroApp")
@@ -40,23 +39,18 @@ impl Render for XeroApp {
                 this.toggle_editor_panel(cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
-                this.settings_open = !this.settings_open;
-                cx.notify();
+                this.toggle_settings_window(cx);
             }))
             .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
             .on_action(cx.listener(|this, _: &Save, _, cx| this.save_active_editor(cx)))
-            .on_action(cx.listener(|_, _: &IncreaseFontSize, window, cx| {
-                xero_settings::adjust_font_size(cx, 1.0);
-                xero_settings::save(cx);
-                window.refresh();
+            .on_action(cx.listener(|this, _: &IncreaseFontSize, window, cx| {
+                this.nudge_font_size(1.0, window, cx);
             }))
-            .on_action(cx.listener(|_, _: &DecreaseFontSize, window, cx| {
-                xero_settings::adjust_font_size(cx, -1.0);
-                xero_settings::save(cx);
-                window.refresh();
+            .on_action(cx.listener(|this, _: &DecreaseFontSize, window, cx| {
+                this.nudge_font_size(-1.0, window, cx);
             }))
             .on_action(cx.listener(|_, _: &ResetFontSize, window, cx| {
-                xero_settings::reset_font_size(cx);
+                xero_settings::reset_font_sizes(cx);
                 xero_settings::save(cx);
                 window.refresh();
             }))
@@ -85,7 +79,6 @@ impl Render for XeroApp {
                     .child(main),
             )
             .children(finder)
-            .children(settings)
     }
 }
 
@@ -198,233 +191,4 @@ impl XeroApp {
         }
         panel
     }
-
-    fn render_settings_modal(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let line_numbers = xero_settings::show_line_numbers(cx);
-        let vim_mode = xero_settings::vim_mode(cx);
-        let theme = xero_settings::snapshot(cx).theme;
-        div()
-            .id("settings-scrim")
-            .absolute()
-            .inset_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(gpui::hsla(0., 0., 0., 0.35))
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.settings_open = false;
-                cx.notify();
-            }))
-            .child(
-                div()
-                    .id("settings-modal")
-                    .occlude()
-                    .w(px(360.))
-                    .flex()
-                    .flex_col()
-                    .rounded_sm()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.elevated_surface_background)
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .px_3()
-                            .py_2()
-                            .border_b_1()
-                            .border_color(colors.border)
-                            .child(div().text_sm().text_color(colors.text).child("Settings"))
-                            .child(
-                                div()
-                                    .id("settings-close")
-                                    .w(px(24.))
-                                    .h(px(24.))
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .rounded_sm()
-                                    .text_color(colors.text_muted)
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                                    .child("x")
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        cx.stop_propagation();
-                                        this.settings_open = false;
-                                        cx.notify();
-                                    })),
-                            ),
-                    )
-                    .child(settings_theme_row(theme, cx))
-                    .child(settings_toggle(
-                        SettingRow {
-                            id: "line-number-toggle",
-                            title: "Line numbers",
-                            subtitle: "Show row numbers in text editors",
-                            checked: line_numbers,
-                        },
-                        cx,
-                        |cx| {
-                            xero_settings::toggle_line_numbers(cx);
-                            xero_settings::save(cx);
-                        },
-                    ))
-                    .child(settings_toggle(
-                        SettingRow {
-                            id: "vim-mode-toggle",
-                            title: "Vim mode",
-                            subtitle: "Modal editing in the text editor",
-                            checked: vim_mode,
-                        },
-                        cx,
-                        |cx| {
-                            xero_settings::toggle_vim_mode(cx);
-                            xero_settings::save(cx);
-                        },
-                    )),
-            )
-    }
-}
-
-struct SettingRow {
-    id: &'static str,
-    title: &'static str,
-    subtitle: &'static str,
-    checked: bool,
-}
-
-fn settings_theme_row(
-    selected: xero_settings::ThemeMode,
-    cx: &mut Context<XeroApp>,
-) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    let options = [
-        (xero_settings::ThemeMode::System, "System"),
-        (xero_settings::ThemeMode::Light, "Light"),
-        (xero_settings::ThemeMode::Dark, "Dark"),
-    ];
-    let mut chips = div().flex().gap_1();
-    for (mode, label) in options {
-        chips = chips.child(theme_chip(mode, label, selected == mode, cx));
-    }
-    div()
-        .id("theme-mode")
-        .flex()
-        .flex_col()
-        .gap_2()
-        .px_3()
-        .py_3()
-        .border_b_1()
-        .border_color(colors.border)
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_1()
-                .child(div().text_sm().text_color(colors.text).child("Theme"))
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(colors.text_muted)
-                        .child("Light, dark, or match the system"),
-                ),
-        )
-        .child(chips)
-}
-
-fn theme_chip(
-    mode: xero_settings::ThemeMode,
-    label: &'static str,
-    selected: bool,
-    cx: &mut Context<XeroApp>,
-) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    let background = if selected {
-        colors.element_selected
-    } else {
-        colors.elevated_surface_background
-    };
-    div()
-        .id(label)
-        .px_2()
-        .py_1()
-        .rounded_sm()
-        .border_1()
-        .border_color(colors.border)
-        .bg(background)
-        .text_xs()
-        .text_color(colors.text)
-        .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .child(label)
-        .on_click(cx.listener(move |_, _, window, cx| {
-            cx.stop_propagation();
-            let mut settings = xero_settings::snapshot(cx);
-            settings.theme = mode;
-            xero_settings::apply(&settings, cx);
-            xero_settings::save(cx);
-            xero_terminal::apply_theme(cx);
-            window.refresh();
-            cx.notify();
-        }))
-}
-
-fn settings_toggle(
-    row: SettingRow,
-    cx: &mut Context<XeroApp>,
-    on_toggle: impl Fn(&mut App) + 'static,
-) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    div()
-        .id(row.id)
-        .flex()
-        .items_center()
-        .justify_between()
-        .px_3()
-        .py_3()
-        .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_1()
-                .child(div().text_sm().text_color(colors.text).child(row.title))
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(colors.text_muted)
-                        .child(row.subtitle),
-                ),
-        )
-        .child(check_box(row.checked, cx))
-        .on_click(cx.listener(move |_, _, window, cx| {
-            on_toggle(cx);
-            window.refresh();
-            cx.notify();
-        }))
-}
-
-fn check_box(checked: bool, cx: &mut Context<XeroApp>) -> impl IntoElement + use<> {
-    let colors = cx.theme().colors().clone();
-    let background = if checked {
-        colors.element_selected
-    } else {
-        colors.elevated_surface_background
-    };
-    div()
-        .w(px(18.))
-        .h(px(18.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_sm()
-        .border_1()
-        .border_color(colors.border)
-        .bg(background)
-        .text_xs()
-        .text_color(colors.text)
-        .children(checked.then_some("x"))
 }

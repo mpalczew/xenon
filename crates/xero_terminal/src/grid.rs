@@ -39,10 +39,9 @@ struct TextMetrics<'a> {
     font_size: Pixels,
 }
 
-/// The monospace font used for the grid. Menlo is always present on macOS;
-/// ligatures are disabled so cell advances stay uniform.
-pub fn terminal_font() -> Font {
-    let mut font = gpui::font("Menlo");
+/// Terminal face for `family` (ligatures disabled so cell advances stay uniform).
+pub fn terminal_font(family: &str) -> Font {
+    let mut font = gpui::font(family);
     font.features = FontFeatures::disable_ligatures();
     font
 }

@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gpui::{
-    App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    ParentElement, PathPromptOptions, Render, SharedString, StatefulInteractiveElement, Styled,
-    Subscription, Task, Window, div, px,
+    App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, ParentElement, PathPromptOptions, Render, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, Task, TitlebarOptions, Window, WindowBounds,
+    WindowHandle, WindowOptions, div, px, size,
 };
 use theme::ActiveTheme;
 use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
@@ -21,6 +22,7 @@ use xero_terminal::{TerminalEvent, TerminalView};
 use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
 use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
+use crate::settings::SettingsView;
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
     ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
@@ -93,7 +95,8 @@ pub struct XeroApp {
     // Closed-workspace list is collapsed by default (archive, not peer list).
     closed_section_collapsed: bool,
     file_browser: FileBrowser,
-    settings_open: bool,
+    /// Dedicated settings window (cmd-,). None when closed or not yet opened.
+    settings_window: Option<WindowHandle<SettingsView>>,
     // The stream currently being renamed inline, plus its editing field.
     renaming: Option<(StreamId, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
@@ -133,7 +136,7 @@ impl XeroApp {
             collapsed_workspaces: HashSet::new(),
             closed_section_collapsed: true,
             file_browser: FileBrowser::default(),
-            settings_open: false,
+            settings_window: None,
             renaming: None,
             _rename_sub: None,
             focus: cx.focus_handle(),
@@ -283,6 +286,42 @@ impl XeroApp {
                 stream,
             });
             save_registry(&registry, "persist_active");
+        }
+    }
+
+    /// Open the settings window, or focus/close it if already open (cmd-,).
+    pub(crate) fn toggle_settings_window(&mut self, cx: &mut Context<Self>) {
+        if let Some(handle) = self.settings_window {
+            match handle.is_active(cx) {
+                Some(true) => {
+                    let _ = handle.update(cx, |_, window, _| window.remove_window());
+                    self.settings_window = None;
+                    return;
+                }
+                Some(false) => {
+                    let _ = handle.update(cx, |_, window, _| window.activate_window());
+                    return;
+                }
+                None => self.settings_window = None,
+            }
+        }
+        let bounds = Bounds::centered(None, size(px(480.), px(560.)), cx);
+        match cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(TitlebarOptions {
+                    title: Some("Settings".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            |window, cx| {
+                xero_terminal::observe_appearance(window, cx).detach();
+                cx.new(SettingsView::new)
+            },
+        ) {
+            Ok(handle) => self.settings_window = Some(handle),
+            Err(error) => log::error!("failed to open settings window: {error}"),
         }
     }
 }

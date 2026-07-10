@@ -70,6 +70,20 @@ impl XeroApp {
         }
     }
 
+    /// cmd-+ / cmd--: nudge the focused pane's font size (both if neither focused).
+    pub(super) fn nudge_font_size(&self, delta: f32, window: &mut Window, cx: &mut Context<Self>) {
+        match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => xero_settings::nudge_editor_font_size(cx, delta),
+            Some(FocusPane::Terminal) => xero_settings::nudge_terminal_font_size(cx, delta),
+            None => {
+                xero_settings::nudge_editor_font_size(cx, delta);
+                xero_settings::nudge_terminal_font_size(cx, delta);
+            }
+        }
+        xero_settings::save(cx);
+        window.refresh();
+    }
+
     /// Route Cut to the focused editor or terminal (app menu / global binding).
     pub(super) fn clipboard_cut(&self, window: &Window, cx: &mut Context<Self>) {
         match self.focused_pane(window, cx) {

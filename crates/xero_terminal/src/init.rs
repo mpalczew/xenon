@@ -4,13 +4,16 @@
 //! `TerminalSettings`, and font settings from `ThemeSettings`, all of which are
 //! gpui globals. They must be installed before the first terminal spawns.
 
-use gpui::{App, Subscription, Window};
+use gpui::{App, SharedString, Subscription, Window};
 use settings::Settings;
 use xero_settings::ThemeMode;
 
-/// zed's built-in One theme family (One Light + One Dark), vendored from
-/// zed's `assets/themes/one/one.json`. See ATTRIBUTION.md.
-const ONE_THEME: &[u8] = include_bytes!("../assets/one.json");
+/// Bundled theme families (from zed's `assets/themes/`). See ATTRIBUTION.md.
+const THEME_FILES: &[&[u8]] = &[
+    include_bytes!("../assets/one.json"),
+    include_bytes!("../assets/ayu.json"),
+    include_bytes!("../assets/gruvbox.json"),
+];
 
 /// Install every global the terminal backend needs. Call once, at startup,
 /// inside `application().run(|cx| ...)`.
@@ -23,39 +26,62 @@ pub fn init(cx: &mut App) {
     load_themes(cx);
 }
 
-/// Load One Light + One Dark, then select per the current theme preference.
+/// Load bundled theme families, then select per the current theme preference.
 fn load_themes(cx: &mut App) {
-    let content = match theme_settings::deserialize_user_theme(ONE_THEME) {
-        Ok(content) => content,
-        Err(error) => {
-            log::error!("failed to parse bundled theme: {error}");
-            return;
+    let mut families = Vec::new();
+    for bytes in THEME_FILES {
+        match theme_settings::deserialize_user_theme(bytes) {
+            Ok(content) => families.push(theme_settings::refine_theme_family(content)),
+            Err(error) => log::error!("failed to parse bundled theme: {error}"),
         }
-    };
-    let family = theme_settings::refine_theme_family(content);
-    theme::ThemeRegistry::global(cx).insert_theme_families([family]);
+    }
+    if !families.is_empty() {
+        theme::ThemeRegistry::global(cx).insert_theme_families(families);
+    }
     apply_theme(cx);
 }
 
-/// Point the global theme at One Light or One Dark from the theme preference.
-/// System follows the OS appearance; Light/Dark force a fixed theme.
+/// Point the global theme at the light or dark theme name from preference.
+/// System follows the OS appearance; Light/Dark force a fixed appearance.
 pub fn apply_theme(cx: &mut App) {
-    let name = theme_name(cx);
-    match theme::ThemeRegistry::global(cx).get(name) {
-        Ok(theme) => theme::GlobalTheme::update_theme(cx, theme),
+    let name = active_theme_name(cx);
+    match theme::ThemeRegistry::global(cx).get(&name) {
+        Ok(theme) => {
+            theme::GlobalTheme::update_theme(cx, theme);
+            refresh_windows(cx);
+        }
         Err(error) => log::error!("theme {name} unavailable: {error}"),
     }
 }
 
-fn theme_name(cx: &App) -> &'static str {
-    let appearance = match xero_settings::snapshot(cx).theme {
+/// Theme names registered for a given appearance, sorted.
+pub fn theme_names(appearance: theme::Appearance, cx: &App) -> Vec<SharedString> {
+    let mut names: Vec<_> = theme::ThemeRegistry::global(cx)
+        .list()
+        .into_iter()
+        .filter(|meta| meta.appearance == appearance)
+        .map(|meta| meta.name)
+        .collect();
+    names.sort();
+    names
+}
+
+fn active_theme_name(cx: &App) -> String {
+    let settings = xero_settings::snapshot(cx);
+    let appearance = match settings.theme {
         ThemeMode::Light => theme::Appearance::Light,
         ThemeMode::Dark => theme::Appearance::Dark,
         ThemeMode::System => theme::SystemAppearance::global(cx).0,
     };
     match appearance {
-        theme::Appearance::Light => "One Light",
-        theme::Appearance::Dark => "One Dark",
+        theme::Appearance::Light => settings.light_theme,
+        theme::Appearance::Dark => settings.dark_theme,
+    }
+}
+
+fn refresh_windows(cx: &mut App) {
+    for window in cx.windows() {
+        let _ = window.update(cx, |_, window, _| window.refresh());
     }
 }
 

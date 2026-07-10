@@ -16,12 +16,11 @@ use theme::{ActiveTheme, Theme};
 
 use crate::highlight;
 
-const MONO: &str = "Menlo";
 const TABLE_CELL_WIDTH: f32 = 160.;
 
 /// Render markdown `source` into a scrollable column of block elements sized
-/// relative to `base`.
-pub fn render(source: &str, base: Pixels, cx: &App) -> AnyElement {
+/// relative to `base`, using `mono_family` for code spans and fences.
+pub fn render(source: &str, base: Pixels, mono_family: &str, cx: &App) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors().clone();
     let mut builder = Builder {
@@ -30,6 +29,7 @@ pub fn render(source: &str, base: Pixels, cx: &App) -> AnyElement {
         code_bg: colors.surface_background,
         rule: colors.border,
         base,
+        mono: mono_family.to_string(),
         blocks: Vec::new(),
         inline: String::new(),
         highlights: Vec::new(),
@@ -52,6 +52,7 @@ struct Builder {
     code_bg: Hsla,
     rule: Hsla,
     base: Pixels,
+    mono: String,
     blocks: Vec<AnyElement>,
     // Current inline run being accumulated for the open block.
     inline: String,
@@ -271,7 +272,7 @@ impl Builder {
                 .p_2()
                 .rounded_md()
                 .bg(self.code_bg)
-                .font_family(MONO)
+                .font_family(self.mono.clone())
                 .text_size(self.base)
                 .child(StyledText::new(SharedString::from(code)).with_highlights(highlights))
                 .into_any_element(),

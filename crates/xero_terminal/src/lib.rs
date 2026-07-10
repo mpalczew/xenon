@@ -30,6 +30,6 @@ mod grid;
 )]
 mod view;
 
-pub use init::{apply_theme, init, observe_appearance};
+pub use init::{apply_theme, init, observe_appearance, theme_names};
 pub use terminal;
 pub use view::{TerminalEvent, TerminalView};

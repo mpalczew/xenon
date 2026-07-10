@@ -128,8 +128,8 @@ impl EditorView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let line_height =
-            element::line_height(px(xero_settings::font_size(cx)), LINE_HEIGHT_MULTIPLIER);
+        let size = px(xero_settings::editor_font(cx).size);
+        let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
         let delta = event.delta.pixel_delta(line_height);
         // Lower-bound only; the upper bound needs the viewport height, so `layout`
         // clamps it against the content each frame.
@@ -264,14 +264,13 @@ impl Render for EditorView {
             Content::Text(_) => {}
         }
         if self.preview {
-            let size = px(xero_settings::font_size(cx));
             return div()
                 .track_focus(&self.focus)
                 .key_context("Editor")
                 .on_key_down(cx.listener(Self::on_key))
                 .size_full()
                 .bg(colors.editor_background)
-                .child(crate::markdown::render(&self.text(), size, cx))
+                .child(layout::markdown_preview(&self.text(), cx))
                 .into_any_element();
         }
         let mode_bar = xero_settings::vim_mode(cx).then(|| {

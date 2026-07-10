@@ -89,10 +89,15 @@ fn settings_default_when_missing() {
 fn settings_round_trip() {
     with_data_dir(|| {
         let settings = AppSettings {
-            font_size: 18.0,
+            editor_font_size: 18.0,
+            terminal_font_size: 12.0,
+            editor_font_family: "SF Mono".into(),
+            terminal_font_family: "Menlo".into(),
             show_line_numbers: false,
             vim_mode: true,
             theme: crate::ThemeMode::Dark,
+            light_theme: "Ayu Light".into(),
+            dark_theme: "Ayu Dark".into(),
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);
@@ -106,12 +111,30 @@ fn settings_missing_theme_defaults_to_system() {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(
             &path,
-            r#"{"font_size":16.0,"show_line_numbers":true,"vim_mode":false}"#,
+            r#"{"editor_font_size":16.0,"show_line_numbers":true,"vim_mode":false}"#,
         )
         .unwrap();
         let settings = load_settings().unwrap();
         assert_eq!(settings.theme, crate::ThemeMode::System);
-        assert_eq!(settings.font_size, 16.0);
+        assert_eq!(settings.editor_font_size, 16.0);
+        assert_eq!(settings.terminal_font_size, 14.0);
+        assert_eq!(settings.editor_font_family, "Menlo");
+    });
+}
+
+#[test]
+fn settings_migrates_legacy_font_size() {
+    with_data_dir(|| {
+        let path = crate::data_dir().join("settings.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"font_size":18.0,"show_line_numbers":true,"vim_mode":false}"#,
+        )
+        .unwrap();
+        let settings = load_settings().unwrap();
+        assert_eq!(settings.editor_font_size, 18.0);
+        assert_eq!(settings.terminal_font_size, 18.0);
     });
 }
 

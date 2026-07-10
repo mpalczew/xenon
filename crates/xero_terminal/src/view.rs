@@ -740,11 +740,14 @@ fn grid_canvas(
     view: Entity<TerminalView>,
     focus: FocusHandle,
 ) -> impl IntoElement {
-    let font = grid::terminal_font();
     canvas(
-        move |bounds, window, cx| layout(&terminal, &font, bounds, window, cx),
+        move |bounds, window, cx| {
+            let face = xero_settings::terminal_font(cx);
+            let font = grid::terminal_font(&face.family);
+            layout(&terminal, &font, face.size, bounds, window, cx)
+        },
         move |bounds, grid_layout, window, cx| {
-            let size = px(xero_settings::font_size(cx));
+            let size = px(xero_settings::terminal_font(cx).size);
             let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
             grid::paint(&grid_layout, line_height, window, cx);
             window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
@@ -756,11 +759,12 @@ fn grid_canvas(
 fn layout(
     terminal: &Entity<Terminal>,
     font: &gpui::Font,
+    font_size: f32,
     bounds: Bounds<Pixels>,
     window: &mut Window,
     cx: &mut App,
 ) -> grid::GridLayout {
-    let size = px(xero_settings::font_size(cx));
+    let size = px(font_size);
     let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
     grid::layout(terminal, bounds, font, size, line_height, window, cx)
 }

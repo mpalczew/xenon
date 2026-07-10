@@ -1,5 +1,11 @@
 //! Editor canvas layout: theme spans, scroll follow, click hit-test cache.
 
+/// Markdown preview using the current editor font settings.
+pub(crate) fn markdown_preview(source: &str, cx: &gpui::App) -> gpui::AnyElement {
+    let face = xero_settings::editor_font(cx);
+    crate::markdown::render(source, gpui::px(face.size), &face.family, cx)
+}
+
 use gpui::{
     App, Bounds, ElementInputHandler, Entity, FocusHandle, Pixels, Styled, Window, canvas, px,
 };
@@ -33,7 +39,8 @@ fn layout(
     window: &mut Window,
     cx: &mut App,
 ) -> element::EditorLayout {
-    let size = px(xero_settings::font_size(cx));
+    let face = xero_settings::editor_font(cx);
+    let size = px(face.size);
     let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
     let lines = match &view.read(cx).content {
         Content::Text(buffer) => buffer.rope().len_lines(),
@@ -101,7 +108,7 @@ fn layout(
                 follow_cursor,
             },
             element::TextMetrics {
-                font: &element::editor_font(),
+                font: &element::editor_font(&face.family),
                 font_size: size,
                 line_height,
             },
