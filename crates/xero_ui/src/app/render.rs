@@ -3,6 +3,16 @@ use super::*;
 impl Render for XeroApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_window_title(&self.window_title());
+        // Restore focus to the pane the finder stole it from (deferred here from
+        // the finder's Dismissed event, which has no Window).
+        if let Some(pane) = self.pending_focus.take() {
+            self.focus_pane(pane, window, cx);
+        }
+        // Open cmd-p prefilled from an ambiguous cmd-click (deferred from the
+        // windowless terminal-event subscription).
+        if let Some(query) = self.pending_palette_query.take() {
+            self.open_palette_with_query(query, window, cx);
+        }
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
@@ -17,7 +27,9 @@ impl Render for XeroApp {
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
-            .on_action(cx.listener(|this, _: &FilePalette, _, cx| this.open_palette(cx)))
+            .on_action(
+                cx.listener(|this, _: &FilePalette, window, cx| this.open_palette(window, cx)),
+            )
             .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| this.toggle_browser(cx)))
             .on_action(cx.listener(|this, _: &ToggleTerminal, window, cx| {
                 this.toggle_terminal_panel(window, cx);

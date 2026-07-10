@@ -63,9 +63,10 @@ global `~/.claude/CLAUDE.md`, sourced from personalfiles
 `doc/ai_rules/core.md`). Those rules apply here; do not duplicate them in this
 file. Key points: minimize cognitive load, present options at real decision
 forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
-- When constructing an implementation plan for this repo, include local QA via
-  `project install` so the installed `/Applications/xero.app` is verified, not
-  just the debug build.
+- Run `project install` at the END of all work, once every change is complete —
+  this is how the user tests. It release-builds and installs
+  `/Applications/xero.app`; the user verifies there, not in the debug build. Do
+  not install mid-way through a multi-step change; batch it as the final step.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request.
 

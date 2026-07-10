@@ -19,8 +19,9 @@ use gpui::{
     Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled, Subscription, Task,
     UTF16Selection, Window, anchored, canvas, deferred, div, px,
 };
+use settings::Settings;
 use task::Shell;
-use terminal::terminal_settings::{AlternateScroll, CursorShape};
+use terminal::terminal_settings::{AlternateScroll, CursorShape, TerminalSettings};
 use terminal::{Terminal, TerminalBuilder};
 use theme::ActiveTheme;
 use util::paths::PathStyle;
@@ -48,6 +49,18 @@ pub enum TerminalEvent {
     Exited,
     /// A file path was cmd-clicked in the terminal; open it in the editor.
     OpenPath(PathBuf),
+    /// A cmd-clicked path-like token that did not resolve to a file on disk; the
+    /// app fuzzy-matches it against the workspace index (carries the raw token,
+    /// `:line:col` already stripped).
+    ResolvePath(String),
+}
+
+/// The link under the cursor while Cmd is held: its matched text and where to
+/// anchor the "⌘-click to open" tooltip. zed only resolves the hovered link while
+/// the Cmd (secondary) modifier is held, so this is `Some` only then.
+struct HoverInfo {
+    label: String,
+    position: Point<Pixels>,
 }
 
 /// Output must be quiet this long before a terminal counts as settled.
@@ -67,6 +80,12 @@ pub struct TerminalView {
     exited: bool,
     /// Position of the right-click Copy/Paste menu, when open (window coords).
     context_menu: Option<Point<Pixels>>,
+    /// Existing file resolved under the right-click, if any; adds an "Open in
+    /// Browser" item to the context menu.
+    menu_path: Option<PathBuf>,
+    /// The link under the cursor while Cmd is held (drives the pointer cursor and
+    /// the "⌘-click to open" tooltip).
+    hovered_link: Option<HoverInfo>,
     _spawn: Task<()>,
     /// Output batches in the current burst; reset when output settles.
     wakeups: u32,
@@ -102,6 +121,8 @@ impl TerminalView {
             root_name,
             exited: false,
             context_menu: None,
+            menu_path: None,
+            hovered_link: None,
             _spawn: spawn,
             wakeups: 0,
             _idle_check: Task::ready(()),
@@ -157,8 +178,13 @@ impl TerminalView {
         match target {
             terminal::MaybeNavigationTarget::Url(url) => cx.open_url(url),
             terminal::MaybeNavigationTarget::PathLike(path_like) => {
-                if let Some(path) = resolve_clicked_path(path_like) {
-                    cx.emit(TerminalEvent::OpenPath(path));
+                match resolve_clicked_path(path_like) {
+                    Some(path) => cx.emit(TerminalEvent::OpenPath(path)),
+                    // Not on disk relative to the PTY cwd (e.g. a bare `grid.rs`): let
+                    // the app fuzzy-resolve it against the workspace index.
+                    None => cx.emit(TerminalEvent::ResolvePath(
+                        strip_line_suffix(&path_like.maybe_path).to_string(),
+                    )),
                 }
             }
         }
@@ -288,11 +314,37 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) {
         self.context_menu = Some(event.position);
+        self.menu_path = self.path_under_cursor(event.position, cx);
         cx.stop_propagation();
         cx.notify();
     }
 
+    /// Resolve an existing file at the grid cell under `position` (window coords),
+    /// for the right-click "Open in Browser" item. zed's own path detector is
+    /// private and Cmd-gated, so extract the token ourselves from `last_content`.
+    fn path_under_cursor(&self, position: Point<Pixels>, cx: &App) -> Option<PathBuf> {
+        let State::Ready(terminal) = &self.state else {
+            return None;
+        };
+        let terminal = terminal.read(cx);
+        let content = terminal.last_content();
+        let bounds = &content.terminal_bounds;
+        let local = position - bounds.bounds.origin;
+        if local.x < px(0.) || local.y < px(0.) {
+            return None;
+        }
+        let col = (local.x / bounds.cell_width()) as usize;
+        let display_row = (local.y / bounds.line_height()) as i32;
+        let line = display_row - content.display_offset as i32;
+        let word = word_at(content, line, col)?;
+        resolve_clicked_path(&terminal::PathLikeTarget {
+            maybe_path: word,
+            terminal_dir: terminal.working_directory(),
+        })
+    }
+
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
+        self.menu_path = None;
         if self.context_menu.take().is_some() {
             cx.notify();
         }
@@ -319,14 +371,35 @@ impl TerminalView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if event.pressed_button != Some(MouseButton::Left) {
+        let State::Ready(terminal) = &self.state else {
             return;
-        }
-        if let State::Ready(terminal) = &self.state {
+        };
+        if event.pressed_button == Some(MouseButton::Left) {
             let region = terminal.read(cx).last_content().terminal_bounds.bounds;
             terminal.update(cx, |terminal, cx| terminal.mouse_drag(event, region, cx));
-            cx.notify();
+        } else {
+            // Hover: zed resolves the link under the cursor only while Cmd is held,
+            // populating `last_hovered_word`; grid.rs underlines it from there.
+            terminal.update(cx, |terminal, cx| terminal.mouse_move(event, cx));
+            self.refresh_hovered_link(event.position, cx);
         }
+        cx.notify();
+    }
+
+    /// Sync the pointer/tooltip state from zed's `last_hovered_word` after a move.
+    fn refresh_hovered_link(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        self.hovered_link = terminal
+            .read(cx)
+            .last_content()
+            .last_hovered_word
+            .as_ref()
+            .map(|word| HoverInfo {
+                label: word.word.clone(),
+                position,
+            });
     }
 
     fn on_mouse_up(&mut self, event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -359,6 +432,12 @@ fn build(
     env: Vec<(String, String)>,
     cx: &App,
 ) -> Task<Result<TerminalBuilder>> {
+    // zed's terminal only detects file-path hyperlinks when given non-empty path
+    // regexes and a non-zero timeout (URL detection is always on). Reuse the
+    // defaults zed loads into the settings store rather than vendoring regexes.
+    let settings = TerminalSettings::get_global(cx);
+    let path_regexes = settings.path_hyperlink_regexes.clone();
+    let path_timeout = settings.path_hyperlink_timeout_ms;
     TerminalBuilder::new(
         working_dir,
         None,
@@ -367,8 +446,8 @@ fn build(
         CursorShape::default(),
         AlternateScroll::On,
         None,
-        Vec::new(),
-        0,
+        path_regexes,
+        path_timeout,
         false,
         0,
         None,
@@ -403,6 +482,12 @@ impl Render for TerminalView {
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .size_full()
             .bg(colors.terminal_background);
+        // Pointer cursor while a link is hovered (Cmd held), matching zed.
+        let base = if self.hovered_link.is_some() {
+            base.cursor_pointer()
+        } else {
+            base
+        };
 
         // A dim bar across the top once the shell has exited.
         let exited = self.exited.then(|| {
@@ -424,6 +509,10 @@ impl Render for TerminalView {
         let menu = self
             .context_menu
             .map(|position| self.render_context_menu(position, cx));
+        let tooltip = self
+            .hovered_link
+            .as_ref()
+            .map(|info| self.render_link_tooltip(info, cx));
         match &self.state {
             State::Ready(terminal) => base
                 .child(grid_canvas(
@@ -432,6 +521,7 @@ impl Render for TerminalView {
                     self.focus.clone(),
                 ))
                 .children(exited)
+                .children(tooltip)
                 .children(menu),
             State::Pending => base.children(menu),
             State::Failed(error) => base
@@ -442,6 +532,35 @@ impl Render for TerminalView {
 }
 
 impl TerminalView {
+    /// A small "⌘-click to open" hint anchored below-right of the cursor while a
+    /// link is hovered. Non-occluding, so the terminal keeps receiving hover moves.
+    fn render_link_tooltip(
+        &self,
+        info: &HoverInfo,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let anchor = Point {
+            x: info.position.x + px(12.),
+            y: info.position.y + px(20.),
+        };
+        deferred(
+            anchored().position(anchor).child(
+                div()
+                    .px_2()
+                    .py_1()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.elevated_surface_background)
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .child(format!("⌘-click to open  {}", info.label)),
+            ),
+        )
+        .with_priority(1)
+    }
+
     fn render_context_menu(
         &self,
         position: Point<Pixels>,
@@ -458,6 +577,37 @@ impl TerminalView {
                 .hover(|s| s.bg(colors.element_hover))
                 .child(label)
         };
+        let mut menu_box = div()
+            .occlude()
+            .flex()
+            .flex_col()
+            .min_w(px(140.))
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background);
+        // "Open in Browser" only when the right-click landed on an existing file.
+        if let Some(path) = self.menu_path.clone() {
+            menu_box = menu_box.child(item("menu-open-browser", "Open in Browser").on_click(
+                cx.listener(move |this, _, _, cx| {
+                    cx.open_url(&format!("file://{}", path.display()));
+                    this.dismiss_menu(cx);
+                }),
+            ));
+        }
+        let menu_box = menu_box
+            .child(
+                item("menu-copy", "Copy").on_click(cx.listener(|this, _, _, cx| {
+                    this.copy_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
+            )
+            .child(
+                item("menu-paste", "Paste").on_click(cx.listener(|this, _, _, cx| {
+                    this.paste_clipboard(cx);
+                    this.dismiss_menu(cx);
+                })),
+            );
         // A full-window scrim dismisses on any click; the menu occludes so its
         // own clicks don't reach it.
         div()
@@ -471,34 +621,7 @@ impl TerminalView {
                 MouseButton::Right,
                 cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
             )
-            .child(
-                deferred(
-                    anchored().position(position).child(
-                        div()
-                            .occlude()
-                            .flex()
-                            .flex_col()
-                            .min_w(px(140.))
-                            .rounded_md()
-                            .border_1()
-                            .border_color(colors.border)
-                            .bg(colors.elevated_surface_background)
-                            .child(item("menu-copy", "Copy").on_click(cx.listener(
-                                |this, _, _, cx| {
-                                    this.copy_selection(cx);
-                                    this.dismiss_menu(cx);
-                                },
-                            )))
-                            .child(item("menu-paste", "Paste").on_click(cx.listener(
-                                |this, _, _, cx| {
-                                    this.paste_clipboard(cx);
-                                    this.dismiss_menu(cx);
-                                },
-                            ))),
-                    ),
-                )
-                .with_priority(1),
-            )
+            .child(deferred(anchored().position(position).child(menu_box)).with_priority(1))
     }
 }
 
@@ -521,6 +644,45 @@ fn resolve_clicked_path(target: &terminal::PathLikeTarget) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// The whitespace-delimited token at grid cell `(line, col)`, trimmed of wrapping
+/// brackets/quotes and trailing sentence punctuation. Used to resolve a path under
+/// a right-click; `resolve_clicked_path` then handles `:line:col` and existence.
+fn word_at(content: &terminal::Content, line: i32, col: usize) -> Option<String> {
+    let num_cols = content.terminal_bounds.num_columns();
+    if col >= num_cols {
+        return None;
+    }
+    let mut row = vec![' '; num_cols];
+    for indexed in &content.cells {
+        if indexed.point.line == line && indexed.point.column < num_cols {
+            row[indexed.point.column] = indexed.cell.character();
+        }
+    }
+    if row[col].is_whitespace() {
+        return None;
+    }
+    let mut start = col;
+    while start > 0 && !row[start - 1].is_whitespace() {
+        start -= 1;
+    }
+    let mut end = col;
+    while end + 1 < num_cols && !row[end + 1].is_whitespace() {
+        end += 1;
+    }
+    let token: String = row[start..=end].iter().collect();
+    trim_token(&token)
+}
+
+/// Strip wrapping brackets/quotes and trailing sentence punctuation from a token,
+/// keeping leading `./` and `/`, mirroring zed's default path-hyperlink boundaries
+/// (e.g. `Added foo.html.` yields `foo.html`; `./rel` stays `./rel`).
+fn trim_token(token: &str) -> Option<String> {
+    let trimmed = token
+        .trim_start_matches(|c: char| "([{<\"'`".contains(c))
+        .trim_end_matches(|c: char| ")]}>\"'`.,;:".contains(c));
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
 /// Drop up to two trailing `:<digits>` segments (line and column) from a path.
@@ -640,5 +802,49 @@ impl EntityInputHandler for TerminalView {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{strip_line_suffix, trim_token};
+
+    #[test]
+    fn trim_token_drops_trailing_sentence_period() {
+        // "Added favicon to amazon-summary-2026.html." -> the bare filename.
+        assert_eq!(
+            trim_token("amazon-summary-2026.html.").as_deref(),
+            Some("amazon-summary-2026.html")
+        );
+    }
+
+    #[test]
+    fn trim_token_keeps_relative_and_absolute_prefixes() {
+        assert_eq!(
+            trim_token("./rel/path.rs").as_deref(),
+            Some("./rel/path.rs")
+        );
+        assert_eq!(trim_token("/abs/path.md").as_deref(), Some("/abs/path.md"));
+    }
+
+    #[test]
+    fn trim_token_strips_wrapping_delimiters_but_keeps_line_col() {
+        assert_eq!(trim_token("(foo.rs:12)").as_deref(), Some("foo.rs:12"));
+        assert_eq!(trim_token("\"quoted\"").as_deref(), Some("quoted"));
+    }
+
+    #[test]
+    fn trim_token_all_punctuation_is_none() {
+        assert_eq!(trim_token("..."), None);
+        assert_eq!(trim_token(""), None);
+    }
+
+    #[test]
+    fn strip_line_suffix_removes_line_and_column() {
+        assert_eq!(strip_line_suffix("foo.rs:12:3"), "foo.rs");
+        assert_eq!(strip_line_suffix("foo.rs:12"), "foo.rs");
+        assert_eq!(strip_line_suffix("foo.rs"), "foo.rs");
+        // A non-numeric ":" tail is part of the path, not a line suffix.
+        assert_eq!(strip_line_suffix("foo:bar"), "foo:bar");
     }
 }

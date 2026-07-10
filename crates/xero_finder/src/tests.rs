@@ -1,9 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use tempfile::TempDir;
 
-use crate::Finder;
+use crate::{FileIndex, Finder};
 
 fn fixture() -> TempDir {
     let dir = TempDir::new().unwrap();
@@ -17,32 +18,44 @@ fn fixture() -> TempDir {
     dir
 }
 
+fn finder(dir: &TempDir) -> Finder {
+    Finder::new(Arc::new(FileIndex::build(dir.path())))
+}
+
 #[test]
 fn walk_respects_gitignore() {
     let dir = fixture();
-    let finder = Finder::start(dir.path());
-    // Files main.rs, lib.rs, README.md, .gitignore + the src/ dir; not ignored.txt.
-    assert_eq!(finder.file_count(), 5);
+    // main.rs, lib.rs, README.md, .gitignore + the src/ dir; not ignored.txt.
+    assert_eq!(finder(&dir).query("").len(), 5);
 }
 
 #[test]
 fn query_ranks_matches_first() {
     let dir = fixture();
-    let mut finder = Finder::start(dir.path());
-    let results = finder.query("main");
+    let results = finder(&dir).query("main");
     assert_eq!(results.first().unwrap().path, PathBuf::from("src/main.rs"));
 }
 
 #[test]
 fn empty_query_lists_all_files() {
     let dir = fixture();
-    let mut finder = Finder::start(dir.path());
-    assert_eq!(finder.query("").len(), finder.file_count());
+    assert_eq!(finder(&dir).query("").len(), 5);
 }
 
 #[test]
 fn nonmatching_query_returns_nothing() {
     let dir = fixture();
-    let mut finder = Finder::start(dir.path());
-    assert!(finder.query("zzzznope").is_empty());
+    assert!(finder(&dir).query("zzzznope").is_empty());
+}
+
+#[test]
+fn a_shared_index_drives_a_finder() {
+    let dir = fixture();
+    // The Arc<FileIndex> is what XeroApp caches and hands to each finder.
+    let index = Arc::new(FileIndex::build(dir.path()));
+    let mut finder = Finder::new(index);
+    assert_eq!(
+        finder.query("main").first().unwrap().path,
+        PathBuf::from("src/main.rs")
+    );
 }

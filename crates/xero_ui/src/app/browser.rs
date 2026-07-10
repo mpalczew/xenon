@@ -160,11 +160,26 @@ impl XeroApp {
             .into_any_element()
     }
 
-    pub(super) fn open_palette(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn open_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_palette_with_query(String::new(), window, cx);
+    }
+
+    /// Open cmd-p prefilled with `query` (used when a cmd-clicked name is
+    /// ambiguous). Serves the cached index instantly and refreshes it in the
+    /// background so newly created files show up next time.
+    pub(super) fn open_palette_with_query(
+        &mut self,
+        query: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
             return;
         };
-        let finder = cx.new(|cx| FinderView::new(root, cx));
+        self.restore_pane = self.focused_pane(window, cx);
+        self.reindex(root.clone(), true, cx);
+        let index = self.file_indexes.get(&root).cloned();
+        let finder = cx.new(|cx| FinderView::new(index, query, cx));
         self._finder_sub = Some(cx.subscribe(&finder, Self::on_finder_event));
         self.finder = Some(finder);
         cx.notify();
@@ -178,17 +193,21 @@ impl XeroApp {
     ) {
         match event {
             FinderEvent::Selected(relative) => {
+                self.restore_pane = None; // open_editor focuses the editor itself
                 if let Some(root) = self.active.and_then(|id| self.stream_root(id)) {
                     self.open_editor(root.join(relative), true, cx);
                 }
             }
             FinderEvent::RevealDir(relative) => {
+                self.restore_pane = None;
                 if let Some(root) = self.active.and_then(|id| self.stream_root(id)) {
                     self.reveal_dir(&root, &root.join(relative), cx);
                 }
             }
             FinderEvent::Dismissed => {
                 self.finder = None;
+                // Re-focus the pre-finder pane on the next render (which has a Window).
+                self.pending_focus = self.restore_pane.take();
                 cx.notify();
             }
         }

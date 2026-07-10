@@ -1,7 +1,10 @@
-//! Fuzzy file finder for cmd-p: walk a directory (respecting .gitignore) and
-//! rank the files against a query with nucleo.
+//! Fuzzy file finder for cmd-p: walk a directory (respecting .gitignore) into a
+//! shareable `FileIndex`, then rank its files against a query with nucleo. The
+//! walk (`FileIndex::build`) is separated from the matcher so the index can be
+//! built off the UI thread and shared (`Arc`) by cmd-p and cmd-click resolution.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use ignore::WalkBuilder;
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
@@ -10,7 +13,7 @@ use nucleo::{Config, Matcher};
 /// Cap on results returned to the UI for a single query.
 const MAX_RESULTS: usize = 200;
 
-/// A ranked entry, its path relative to the finder's root.
+/// A ranked entry, its path relative to the index's root.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileMatch {
     pub path: PathBuf,
@@ -30,30 +33,42 @@ impl AsRef<str> for Entry {
     }
 }
 
-pub struct Finder {
+/// The walked file/directory list for one root. Immutable once built, so it can
+/// be wrapped in an `Arc` and shared across finders and threads.
+pub struct FileIndex {
     entries: Vec<Entry>,
+}
+
+impl FileIndex {
+    /// Walk `root`, collecting files and directories. Respects .gitignore and
+    /// skips hidden entries (so `.git` and friends stay out of results). This is
+    /// the blocking step; run it on a background executor.
+    pub fn build(root: &Path) -> FileIndex {
+        FileIndex {
+            entries: walk(root),
+        }
+    }
+}
+
+pub struct Finder {
+    index: Arc<FileIndex>,
     matcher: Matcher,
 }
 
 impl Finder {
-    /// Walk `root` now, collecting files and directories. Respects .gitignore
-    /// and skips hidden entries (so `.git` and friends stay out of results).
-    pub fn start(root: &Path) -> Finder {
+    /// A finder over an already-built (possibly shared) index.
+    pub fn new(index: Arc<FileIndex>) -> Finder {
         Finder {
-            entries: walk(root),
+            index,
             matcher: Matcher::new(Config::DEFAULT),
         }
-    }
-
-    pub fn file_count(&self) -> usize {
-        self.entries.len()
     }
 
     /// Rank entries against `query`. An empty query lists them unranked.
     pub fn query(&mut self, query: &str) -> Vec<FileMatch> {
         let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
         let mut matches: Vec<FileMatch> = pattern
-            .match_list(self.entries.iter(), &mut self.matcher)
+            .match_list(self.index.entries.iter(), &mut self.matcher)
             .into_iter()
             .map(|(entry, score)| FileMatch {
                 path: PathBuf::from(&entry.path),

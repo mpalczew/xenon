@@ -7,6 +7,7 @@ impl XeroApp {
         };
         self.active = Some(id);
         self.finder = None;
+        self.reindex(root.clone(), false, cx);
         if let Some(stream) = self.streams.get(&id) {
             let layout = &stream.session.layout;
             self.terminal_collapsed = !layout.terminal_visible;
@@ -43,9 +44,54 @@ impl XeroApp {
                 TerminalEvent::Interacted => this.clear_attention(stream, cx),
                 TerminalEvent::Exited => cx.notify(),
                 TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
+                TerminalEvent::ResolvePath(token) => this.resolve_clicked(token.clone(), cx),
             }),
         );
         terminal
+    }
+
+    /// A cmd-clicked token in the terminal did not resolve to a file on disk.
+    /// Fuzzy-match it against the workspace index: open the one clear match, else
+    /// open cmd-p prefilled with the name to disambiguate ("best match, else finder").
+    fn resolve_clicked(&mut self, token: String, cx: &mut Context<Self>) {
+        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+            return;
+        };
+        self.reindex(root.clone(), false, cx);
+        let basename = Path::new(&token)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| token.clone());
+        let Some(index) = self.file_indexes.get(&root).cloned() else {
+            // Index still building; let the prefilled palette populate when ready.
+            self.pending_palette_query = Some(basename);
+            cx.notify();
+            return;
+        };
+        let results = Finder::new(index).query(&basename);
+        let files = || results.iter().filter(|m| !m.is_dir);
+        let exact: Vec<&std::path::PathBuf> = files()
+            .filter(|m| {
+                m.path.file_name().map(|n| n.to_string_lossy()) == Some(basename.as_str().into())
+            })
+            .map(|m| &m.path)
+            .collect();
+        let unique_file = || {
+            files()
+                .next()
+                .filter(|_| files().count() == 1)
+                .map(|m| &m.path)
+        };
+        if let Some(rel) = exact.first().copied().filter(|_| exact.len() == 1) {
+            self.open_editor(root.join(rel), true, cx);
+        } else if exact.is_empty()
+            && let Some(rel) = unique_file()
+        {
+            self.open_editor(root.join(rel), true, cx);
+        } else {
+            self.pending_palette_query = Some(basename);
+            cx.notify();
+        }
     }
 
     /// The stream's agent rang the bell (or went quiet): flag it in the sidebar,

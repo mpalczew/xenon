@@ -18,11 +18,13 @@ pub struct GridLine {
     pub backgrounds: Vec<(Bounds<Pixels>, Hsla)>,
 }
 
-/// The shaped grid plus the cursor and selection rectangles to overlay.
+/// The shaped grid plus the cursor, selection, and hovered-link overlays.
 pub struct GridLayout {
     pub lines: Vec<GridLine>,
     pub cursor: Option<Bounds<Pixels>>,
     pub selection: Vec<Bounds<Pixels>>,
+    /// Thin underline quads for the Cmd-hovered link (empty when nothing hovered).
+    pub underline: Vec<Bounds<Pixels>>,
 }
 
 struct Viewport {
@@ -81,6 +83,7 @@ pub fn layout(
     let rows = content.terminal_bounds.num_lines() as i32;
     let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height, offset, rows);
     let selection = selection_rects(&content, bounds.origin, cell_w, line_height, offset);
+    let underline = underline_rects(&content, bounds.origin, cell_w, line_height, offset);
     let lines = shape_rows(
         &content,
         Viewport {
@@ -97,6 +100,7 @@ pub fn layout(
         lines,
         cursor,
         selection,
+        underline,
     }
 }
 
@@ -135,6 +139,51 @@ fn selection_rects(
                 Size {
                     width,
                     height: line_height,
+                },
+            ));
+        }
+    }
+    rects
+}
+
+/// Thin underline rectangles for the Cmd-hovered link, one per display row.
+/// Mirrors `selection_rects` but draws a 1px rule at the baseline of each row the
+/// link's `word_match` covers.
+fn underline_rects(
+    content: &terminal::Content,
+    origin: GpuiPoint<Pixels>,
+    cell_w: Pixels,
+    line_height: Pixels,
+    offset: i32,
+) -> Vec<Bounds<Pixels>> {
+    let Some(hovered) = &content.last_hovered_word else {
+        return Vec::new();
+    };
+    let range = hovered.word_match;
+    let (start, end) = (range.start(), range.end());
+    let num_cols = content.terminal_bounds.num_columns();
+    let thickness = px(1.);
+    let mut rects = Vec::new();
+    for line in start.line..=end.line {
+        let (first, last) = if start.line == end.line {
+            (start.column, end.column + 1)
+        } else if line == start.line {
+            (start.column, num_cols)
+        } else if line == end.line {
+            (0, end.column + 1)
+        } else {
+            (0, num_cols)
+        };
+        let last = last.min(num_cols);
+        if last > first {
+            let x = origin.x + cell_w * (first as f32);
+            let width = cell_w * ((last - first) as f32);
+            let y = origin.y + line_height * ((line + offset) as f32) + line_height - thickness;
+            rects.push(Bounds::new(
+                point(x, y),
+                Size {
+                    width,
+                    height: thickness,
                 },
             ));
         }
@@ -301,6 +350,10 @@ pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: 
             window,
             cx,
         );
+    }
+    let link_color = cx.theme().colors().text_accent;
+    for rect in &layout.underline {
+        window.paint_quad(fill(*rect, link_color));
     }
 }
 

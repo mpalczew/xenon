@@ -3,7 +3,8 @@
 //! holds one or more, and every stream keeps its own running PTY.
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
@@ -13,6 +14,7 @@ use gpui::{
 use theme::ActiveTheme;
 use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
 use xero_editor::EditorView;
+use xero_finder::{FileIndex, Finder};
 use xero_ide::{IdeCommand, IdeServer};
 use xero_terminal::{TerminalEvent, TerminalView};
 
@@ -26,6 +28,7 @@ use crate::{
 
 mod browser;
 mod editors;
+mod navigation;
 mod panels;
 mod render;
 mod streams;
@@ -52,6 +55,14 @@ pub(crate) struct EditorTab {
     pub view: Entity<EditorView>,
 }
 
+/// Which pane held keyboard focus before the finder opened, so Escape can
+/// return focus there instead of dropping it into the void.
+#[derive(Clone, Copy)]
+enum FocusPane {
+    Terminal,
+    Editor,
+}
+
 pub struct XeroApp {
     registry: Registry,
     // Stream metadata (name/session) and, per stream, the live views. Keeping
@@ -62,6 +73,18 @@ pub struct XeroApp {
     editors: HashMap<StreamId, EditorStack>,
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
+    // Per-root fuzzy index shared by cmd-p and cmd-click resolution, built off
+    // the UI thread. `index_tasks` keeps in-flight builds alive, keyed by root so
+    // a new build for the same root replaces (cancels) the previous one.
+    file_indexes: HashMap<PathBuf, Arc<FileIndex>>,
+    index_tasks: HashMap<PathBuf, Task<()>>,
+    // The pane focused when the finder opened, and (on dismiss) the pane to
+    // re-focus during the next render (render is where a `Window` is available).
+    restore_pane: Option<FocusPane>,
+    pending_focus: Option<FocusPane>,
+    // A cmd-clicked name to open cmd-p with, deferred to render (which has a
+    // Window) from the windowless terminal-event subscription.
+    pending_palette_query: Option<String>,
     sidebar_collapsed: bool,
     terminal_collapsed: bool,
     editor_collapsed: bool,
@@ -94,6 +117,11 @@ impl XeroApp {
             editors: HashMap::new(),
             active: None,
             finder: None,
+            file_indexes: HashMap::new(),
+            index_tasks: HashMap::new(),
+            restore_pane: None,
+            pending_focus: None,
+            pending_palette_query: None,
             sidebar_collapsed: false,
             terminal_collapsed: false,
             editor_collapsed: false,

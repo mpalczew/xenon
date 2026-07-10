@@ -4,6 +4,7 @@
 
 use std::ops::Range;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use gpui::{
     App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
@@ -11,7 +12,7 @@ use gpui::{
     Point, Render, StatefulInteractiveElement, Styled, UTF16Selection, Window, canvas, div, px,
 };
 use theme::ActiveTheme;
-use xero_finder::{FileMatch, Finder};
+use xero_finder::{FileIndex, FileMatch, Finder};
 
 /// How many ranked results to show at once.
 const VISIBLE_RESULTS: usize = 20;
@@ -23,7 +24,9 @@ pub enum FinderEvent {
 }
 
 pub struct FinderView {
-    finder: Finder,
+    /// `None` until the workspace index for this root has finished building in
+    /// the background; the query row shows "Indexing…" until then.
+    finder: Option<Finder>,
     query: String,
     results: Vec<FileMatch>,
     selected: usize,
@@ -34,12 +37,21 @@ pub struct FinderView {
 impl EventEmitter<FinderEvent> for FinderView {}
 
 impl FinderView {
-    pub fn new(root: PathBuf, cx: &mut Context<Self>) -> Self {
-        let mut finder = Finder::start(&root);
-        let results = finder.query("");
+    /// Open over `index` (or `None` if it is still building) with an optional
+    /// prefilled `initial_query` (used when a cmd-clicked name is ambiguous).
+    pub fn new(
+        index: Option<Arc<FileIndex>>,
+        initial_query: String,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut finder = index.map(Finder::new);
+        let results = finder
+            .as_mut()
+            .map(|f| f.query(&initial_query))
+            .unwrap_or_default();
         Self {
             finder,
-            query: String::new(),
+            query: initial_query,
             results,
             selected: 0,
             focus: cx.focus_handle(),
@@ -47,9 +59,23 @@ impl FinderView {
         }
     }
 
+    /// Swap in the index once its background build completes, re-running the
+    /// current query so results appear without the user retyping.
+    pub fn set_index(&mut self, index: Arc<FileIndex>, cx: &mut Context<Self>) {
+        let mut finder = Finder::new(index);
+        self.results = finder.query(&self.query);
+        self.finder = Some(finder);
+        self.selected = 0;
+        cx.notify();
+    }
+
     fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
         self.query = query;
-        self.results = self.finder.query(&self.query);
+        self.results = self
+            .finder
+            .as_mut()
+            .map(|f| f.query(&self.query))
+            .unwrap_or_default();
         self.selected = 0;
         cx.notify();
     }
@@ -72,6 +98,12 @@ impl FinderView {
                 cx.emit(FinderEvent::Selected(result.path.clone()));
             }
         }
+    }
+
+    /// Clicking a result selects and confirms it in one gesture.
+    fn click_result(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.selected = index;
+        self.confirm(cx);
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -131,9 +163,12 @@ impl Render for FinderView {
                     .border_1()
                     .border_color(colors.border)
                     .bg(colors.elevated_surface_background)
+                    // The input registrar is a transparent full-size canvas; keep
+                    // it first so it paints underneath and never intercepts clicks
+                    // meant for the result rows.
+                    .child(input_registrar(cx.entity(), self.focus.clone()))
                     .child(self.query_row(cx))
-                    .child(self.results_list(cx))
-                    .child(input_registrar(cx.entity(), self.focus.clone())),
+                    .child(self.results_list(cx)),
             )
     }
 }
@@ -141,10 +176,12 @@ impl Render for FinderView {
 impl FinderView {
     fn query_row(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let shown = if self.query.is_empty() {
-            "Search files…".to_string()
-        } else {
+        let shown = if !self.query.is_empty() {
             self.query.clone()
+        } else if self.finder.is_none() {
+            "Indexing…".to_string()
+        } else {
+            "Search files…".to_string()
         };
         div()
             .px_3()
@@ -172,7 +209,15 @@ impl FinderView {
                 } else {
                     m.path.to_string_lossy().into_owned()
                 };
-                let mut row = div().px_3().py_1().text_sm().child(label);
+                let mut row = div()
+                    .id(("finder-row", i))
+                    .px_3()
+                    .py_1()
+                    .text_sm()
+                    .cursor_pointer()
+                    .hover(|s| s.bg(colors.element_hover))
+                    .child(label)
+                    .on_click(cx.listener(move |this, _, _, cx| this.click_result(i, cx)));
                 if i == self.selected {
                     row = row.bg(colors.element_selected);
                 }
