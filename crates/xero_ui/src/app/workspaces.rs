@@ -147,4 +147,13 @@ impl XeroApp {
     pub(crate) fn is_workspace_collapsed(&self, id: WorkspaceId) -> bool {
         self.collapsed_workspaces.contains(&id)
     }
+
+    pub(crate) fn closed_section_collapsed(&self) -> bool {
+        self.closed_section_collapsed
+    }
+
+    pub(crate) fn toggle_closed_section(&mut self, cx: &mut Context<Self>) {
+        self.closed_section_collapsed = !self.closed_section_collapsed;
+        cx.notify();
+    }
 }

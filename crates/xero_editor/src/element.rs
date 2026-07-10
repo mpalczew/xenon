@@ -58,6 +58,8 @@ pub struct LayoutInput<'a> {
     pub scroll_top: Pixels,
     pub scroll_left: Pixels,
     pub show_line_numbers: bool,
+    /// When true, scroll so the cursor stays inside the viewport.
+    pub follow_cursor: bool,
 }
 
 pub struct TextMetrics<'a> {
@@ -93,9 +95,24 @@ pub fn layout(
     let text_width = (input.viewport_width - gutter_width).max(px(0.));
     let content_width = content_width(input.rope, cell_w);
     let content_height = metrics.line_height * (input.rope.len_lines() as f32);
-    let scroll_left = input
-        .scroll_left
-        .min((content_width - text_width).max(px(0.)));
+    let (row, col) = input.cursor;
+    let mut scroll_top = input.scroll_top;
+    let mut scroll_left = input.scroll_left;
+    if input.follow_cursor {
+        scroll_top = crate::scroll::keep_row_visible(
+            scroll_top,
+            row,
+            metrics.line_height,
+            input.viewport_height,
+        );
+        scroll_left = crate::scroll::keep_col_visible(scroll_left, col, cell_w, text_width);
+    }
+    scroll_top = scroll_top
+        .min((content_height - input.viewport_height).max(px(0.)))
+        .max(px(0.));
+    scroll_left = scroll_left
+        .min((content_width - text_width).max(px(0.)))
+        .max(px(0.));
     let text_origin = point(input.origin.x + gutter_width - scroll_left, input.origin.y);
     let gutter = input
         .show_line_numbers
@@ -108,11 +125,11 @@ pub fn layout(
         text_width,
         content_width,
         content_height,
-        scroll_top: input.scroll_top,
+        scroll_top,
         scroll_left,
     });
     let total = input.rope.len_lines();
-    let first = (f32::from(input.scroll_top) / f32::from(metrics.line_height))
+    let first = (f32::from(scroll_top) / f32::from(metrics.line_height))
         .floor()
         .max(0.) as usize;
     let visible =
@@ -121,10 +138,9 @@ pub fn layout(
     let (lines, line_numbers) =
         shape_visible_lines(&input, &metrics, VisibleRows { first, last, total }, window);
 
-    let (row, col) = input.cursor;
     let cursor_origin = point(
         text_origin.x + cell_w * (col as f32),
-        input.origin.y + metrics.line_height * (row as f32) - input.scroll_top,
+        input.origin.y + metrics.line_height * (row as f32) - scroll_top,
     );
     let cursor = Bounds::new(
         cursor_origin,
@@ -140,7 +156,7 @@ pub fn layout(
         origin_y: input.origin.y,
         cell_w,
         line_height: metrics.line_height,
-        scroll_top: input.scroll_top,
+        scroll_top,
         first_row: first,
         last_row: last,
     });
@@ -154,7 +170,7 @@ pub fn layout(
         origin: input.origin,
         text_origin,
         line_height: metrics.line_height,
-        scroll_top: input.scroll_top,
+        scroll_top,
         scroll_left,
         cursor,
         selection,

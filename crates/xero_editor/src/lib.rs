@@ -8,6 +8,7 @@ mod highlight;
 mod image_viewer;
 mod markdown;
 mod mouse;
+mod scroll;
 mod selection;
 mod undo;
 mod view;

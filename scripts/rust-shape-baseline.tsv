@@ -1,4 +1,4 @@
-crates/xero_editor/src/view.rs	638	31	5
+crates/xero_editor/src/view.rs	547	29	5
 crates/xero_editor/src/view/input.rs	435	23	0
 crates/xero_editor/src/buffer.rs	306	31	10
 crates/xero_editor/src/image_viewer.rs	329	25	0

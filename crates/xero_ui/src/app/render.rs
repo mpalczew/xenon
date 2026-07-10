@@ -203,6 +203,7 @@ impl XeroApp {
         let colors = cx.theme().colors().clone();
         let line_numbers = xero_settings::show_line_numbers(cx);
         let vim_mode = xero_settings::vim_mode(cx);
+        let theme = xero_settings::snapshot(cx).theme;
         div()
             .id("settings-scrim")
             .absolute()
@@ -256,6 +257,7 @@ impl XeroApp {
                                     })),
                             ),
                     )
+                    .child(settings_theme_row(theme, cx))
                     .child(settings_toggle(
                         SettingRow {
                             id: "line-number-toggle",
@@ -291,6 +293,82 @@ struct SettingRow {
     title: &'static str,
     subtitle: &'static str,
     checked: bool,
+}
+
+fn settings_theme_row(
+    selected: xero_settings::ThemeMode,
+    cx: &mut Context<XeroApp>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    let options = [
+        (xero_settings::ThemeMode::System, "System"),
+        (xero_settings::ThemeMode::Light, "Light"),
+        (xero_settings::ThemeMode::Dark, "Dark"),
+    ];
+    let mut chips = div().flex().gap_1();
+    for (mode, label) in options {
+        chips = chips.child(theme_chip(mode, label, selected == mode, cx));
+    }
+    div()
+        .id("theme-mode")
+        .flex()
+        .flex_col()
+        .gap_2()
+        .px_3()
+        .py_3()
+        .border_b_1()
+        .border_color(colors.border)
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(div().text_sm().text_color(colors.text).child("Theme"))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(colors.text_muted)
+                        .child("Light, dark, or match the system"),
+                ),
+        )
+        .child(chips)
+}
+
+fn theme_chip(
+    mode: xero_settings::ThemeMode,
+    label: &'static str,
+    selected: bool,
+    cx: &mut Context<XeroApp>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    let background = if selected {
+        colors.element_selected
+    } else {
+        colors.elevated_surface_background
+    };
+    div()
+        .id(label)
+        .px_2()
+        .py_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(colors.border)
+        .bg(background)
+        .text_xs()
+        .text_color(colors.text)
+        .cursor_pointer()
+        .hover(|s| s.bg(colors.element_hover))
+        .child(label)
+        .on_click(cx.listener(move |_, _, window, cx| {
+            cx.stop_propagation();
+            let mut settings = xero_settings::snapshot(cx);
+            settings.theme = mode;
+            xero_settings::apply(&settings, cx);
+            xero_settings::save(cx);
+            xero_terminal::apply_theme(cx);
+            window.refresh();
+            cx.notify();
+        }))
 }
 
 fn settings_toggle(

@@ -3,40 +3,43 @@
 //! saves. Mirrors the terminal view's input wiring.
 
 mod input;
+mod layout;
 
 use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    App, AppContext, Bounds, Context, ElementInputHandler, Entity, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement,
-    PinchEvent, Pixels, Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled,
-    Window, anchored, canvas, deferred, div, point, px,
+    App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
+    MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement, PinchEvent, Pixels, Point, Render,
+    ScrollWheelEvent, StatefulInteractiveElement, Styled, Window, anchored, deferred, div, point,
+    px,
 };
 use theme::ActiveTheme;
 
 use crate::buffer::{Buffer, OpenError};
-use crate::element::{self, ColoredSpan};
+use crate::element;
 use crate::highlight;
 use crate::image_viewer::{ImageContentElement, ImageViewer, event_delta, zoom_factor_for_scroll};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use xero_settings::{Copy, Cut, Paste};
 
-const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
+pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 const ZOOM_STEP: f32 = 1.2;
 
 pub struct EditorView {
     pub(super) content: Content,
-    highlights: Vec<highlight::Span>,
-    scroll_top: Pixels,
-    scroll_left: Pixels,
+    pub(super) highlights: Vec<highlight::Span>,
+    pub(super) scroll_top: Pixels,
+    pub(super) scroll_left: Pixels,
+    /// Last laid-out cursor; when it changes, layout scrolls to follow.
+    pub(super) last_cursor: Option<(usize, usize)>,
     focus: FocusHandle,
     autofocus: bool,
     focused_once: bool,
     /// Render the markdown preview instead of the source (markdown files only).
     preview: bool,
-    click_layout: Option<ClickLayout>,
+    pub(super) click_layout: Option<ClickLayout>,
     click_tracker: ClickTracker,
     dragging: bool,
     /// Right-click Cut/Copy/Paste menu position (window coords), when open.
@@ -75,6 +78,7 @@ impl EditorView {
             highlights: Vec::new(),
             scroll_top: px(0.),
             scroll_left: px(0.),
+            last_cursor: None,
             focus: cx.focus_handle(),
             autofocus,
             focused_once: false,
@@ -319,7 +323,7 @@ impl Render for EditorView {
                 div()
                     .flex_1()
                     .min_h_0()
-                    .child(editor_canvas(cx.entity(), self.focus.clone())),
+                    .child(layout::editor_canvas(cx.entity(), self.focus.clone())),
             )
             .children(mode_bar)
             .children(menu)
@@ -503,101 +507,6 @@ fn small_button(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::D
         .border_1()
         .cursor_pointer()
         .child(label)
-}
-
-fn editor_canvas(view: Entity<EditorView>, focus: FocusHandle) -> impl IntoElement {
-    canvas(
-        {
-            let view = view.clone();
-            move |bounds, window, cx| layout(&view, bounds, window, cx)
-        },
-        move |bounds, editor_layout, window, cx| {
-            let cursor_color = cx.theme().players().local().cursor;
-            element::paint(&editor_layout, cursor_color, window, cx);
-            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
-        },
-    )
-    .size_full()
-}
-
-fn layout(
-    view: &Entity<EditorView>,
-    bounds: Bounds<Pixels>,
-    window: &mut Window,
-    cx: &mut App,
-) -> element::EditorLayout {
-    let size = px(xero_settings::font_size(cx));
-    let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
-    let lines = match &view.read(cx).content {
-        Content::Text(buffer) => buffer.rope().len_lines(),
-        Content::Image(_) | Content::Unsupported { .. } => 0,
-    };
-    let content_height = line_height * (lines as f32);
-    let max_scroll = (content_height - bounds.size.height).max(px(0.));
-    view.update(cx, |view, _| {
-        view.scroll_top = view.scroll_top.min(max_scroll)
-    });
-
-    let show_line_numbers = xero_settings::show_line_numbers(cx);
-    let editor_layout = {
-        let view = view.read(cx);
-        let theme = cx.theme();
-        let text_color = theme.colors().editor_foreground;
-        let syntax = theme.syntax();
-        let spans: Vec<ColoredSpan> = view
-            .highlights
-            .iter()
-            .map(|span| {
-                let color = syntax
-                    .style_for_name(span.name)
-                    .and_then(|style| style.color)
-                    .unwrap_or(text_color);
-                ColoredSpan {
-                    start: span.start,
-                    end: span.end,
-                    color,
-                }
-            })
-            .collect();
-        let Content::Text(buffer) = &view.content else {
-            unreachable!("non-text editor content does not render the text canvas");
-        };
-        element::layout(
-            element::LayoutInput {
-                rope: buffer.rope(),
-                cursor: buffer.cursor_position(),
-                selection: buffer.selection_range(),
-                selection_color: theme.colors().element_selected,
-                default_color: text_color,
-                line_number_color: theme.colors().text_muted,
-                gutter_color: theme.colors().panel_background,
-                scrollbar_color: theme.colors().text_muted,
-                spans: &spans,
-                origin: bounds.origin,
-                viewport_width: bounds.size.width,
-                viewport_height: bounds.size.height,
-                scroll_top: view.scroll_top,
-                scroll_left: view.scroll_left,
-                show_line_numbers,
-            },
-            element::TextMetrics {
-                font: &element::editor_font(),
-                font_size: size,
-                line_height,
-            },
-            window,
-        )
-    };
-    view.update(cx, |view, _| {
-        view.scroll_left = editor_layout.scroll_left;
-        view.click_layout = Some(ClickLayout {
-            text_origin: editor_layout.text_origin,
-            line_height: editor_layout.line_height,
-            scroll_top: editor_layout.scroll_top,
-            cell_width: editor_layout.cell_width,
-        });
-    });
-    editor_layout
 }
 
 fn is_supported_image(path: &std::path::Path) -> bool {

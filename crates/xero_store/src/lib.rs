@@ -11,6 +11,16 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use xero_core::{Registry, Stream, StreamId, WorkspaceId};
 
+/// App chrome theme: fixed light/dark, or track the OS appearance.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemeMode {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
 /// Durable UI settings under `settings.json`. All fields default for forward-compat.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -20,6 +30,8 @@ pub struct AppSettings {
     pub show_line_numbers: bool,
     #[serde(default)]
     pub vim_mode: bool,
+    #[serde(default)]
+    pub theme: ThemeMode,
 }
 
 impl Default for AppSettings {
@@ -28,6 +40,7 @@ impl Default for AppSettings {
             font_size: default_font_size(),
             show_line_numbers: true,
             vim_mode: false,
+            theme: ThemeMode::System,
         }
     }
 }

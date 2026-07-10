@@ -90,6 +90,8 @@ pub struct XeroApp {
     editor_collapsed: bool,
     // Workspaces whose streams are hidden in the sidebar.
     collapsed_workspaces: HashSet<WorkspaceId>,
+    // Closed-workspace list is collapsed by default (archive, not peer list).
+    closed_section_collapsed: bool,
     file_browser: FileBrowser,
     settings_open: bool,
     // The stream currently being renamed inline, plus its editing field.
@@ -112,6 +114,7 @@ impl XeroApp {
         let registry = xero_store::load_registry().unwrap_or_default();
         let settings = xero_store::load_settings().unwrap_or_default();
         xero_settings::apply(&settings, cx);
+        xero_terminal::apply_theme(cx);
         let mut app = Self {
             registry,
             streams: HashMap::new(),
@@ -128,6 +131,7 @@ impl XeroApp {
             terminal_collapsed: false,
             editor_collapsed: false,
             collapsed_workspaces: HashSet::new(),
+            closed_section_collapsed: true,
             file_browser: FileBrowser::default(),
             settings_open: false,
             renaming: None,

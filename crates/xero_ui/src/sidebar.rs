@@ -1,21 +1,19 @@
-//! The collapsible left column: workspaces, each with its streams nested
-//! beneath. Rendered as methods on `XeroApp` so click handlers use `cx.listener`.
+//! The collapsible left column: workspaces with nested streams.
 
 use gpui::{
     AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, div, px,
+    StatefulInteractiveElement, Styled, Window, div, px, transparent_black,
 };
+use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xero_core::{StreamId, WorkspaceId};
 
 use crate::app::XeroApp;
+use crate::icons::icon;
 
-/// Drag payloads, one type per kind so a stream can't drop onto the workspace
-/// list and vice-versa.
 struct DragStream(StreamId);
 struct DragWorkspace(WorkspaceId);
 
-/// The little label that follows the cursor while dragging a row.
 struct DragChip {
     label: String,
 }
@@ -36,18 +34,11 @@ impl Render for DragChip {
     }
 }
 
-/// Owned view of one workspace and its streams, snapshotted so the registry
-/// borrow is released before we reborrow `cx` per row.
 struct WorkspaceRows {
     id: WorkspaceId,
     name: String,
     collapsed: bool,
     streams: Vec<(StreamId, String, bool)>,
-}
-
-struct ClosedWorkspaceRow {
-    id: WorkspaceId,
-    name: String,
 }
 
 struct WorkspaceHeader<'a> {
@@ -61,6 +52,11 @@ struct StreamRow<'a> {
     name: &'a str,
     is_active: bool,
 }
+
+const ROW_H: f32 = 24.;
+const ICON_SM: f32 = 12.;
+const ICON_MD: f32 = 13.;
+const ATTENTION: u32 = 0xd19a66;
 
 impl XeroApp {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -81,50 +77,37 @@ impl XeroApp {
                     .collect(),
             })
             .collect();
-        let closed_workspaces: Vec<ClosedWorkspaceRow> = self
+        let closed: Vec<(WorkspaceId, String)> = self
             .registry()
             .closed_workspaces
             .iter()
-            .map(|workspace| ClosedWorkspaceRow {
-                id: workspace.id,
-                name: workspace.name.clone(),
-            })
+            .map(|w| (w.id, w.name.clone()))
             .collect();
+        let closed_collapsed = self.closed_section_collapsed();
 
         let mut rows = Vec::new();
         for workspace in workspaces {
-            let header = self.workspace_header(
-                WorkspaceHeader {
-                    id: workspace.id,
-                    name: &workspace.name,
-                    collapsed: workspace.collapsed,
-                },
-                cx,
+            rows.push(
+                self.workspace_header(
+                    WorkspaceHeader {
+                        id: workspace.id,
+                        name: &workspace.name,
+                        collapsed: workspace.collapsed,
+                    },
+                    cx,
+                )
+                .into_any_element(),
             );
-            rows.push(header.into_any_element());
             if !workspace.collapsed {
-                for (id, name, is_active) in workspace.streams {
-                    rows.push(
-                        self.stream_row(
-                            StreamRow {
-                                id,
-                                name: &name,
-                                is_active,
-                            },
-                            cx,
-                        )
-                        .into_any_element(),
-                    );
-                }
+                rows.push(self.stream_group(workspace.streams, cx).into_any_element());
             }
         }
-        if !closed_workspaces.is_empty() {
-            rows.push(self.closed_title(cx).into_any_element());
-            for workspace in closed_workspaces {
-                rows.push(
-                    self.closed_workspace_row(workspace.id, &workspace.name, cx)
-                        .into_any_element(),
-                );
+        if !closed.is_empty() {
+            rows.push(self.closed_title(closed_collapsed, cx).into_any_element());
+            if !closed_collapsed {
+                for (id, name) in closed {
+                    rows.push(self.closed_workspace_row(id, &name, cx).into_any_element());
+                }
             }
         }
 
@@ -133,11 +116,20 @@ impl XeroApp {
             .flex_col()
             .w(px(240.))
             .h_full()
+            .min_h_0()
             .border_r_1()
             .border_color(colors.border)
             .bg(colors.panel_background)
             .child(self.sidebar_title(cx))
-            .children(rows)
+            .child(
+                div()
+                    .id("sidebar-rows")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .py_1()
+                    .children(rows),
+            )
     }
 
     fn sidebar_title(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -146,34 +138,47 @@ impl XeroApp {
             .flex()
             .items_center()
             .justify_between()
+            .h(px(36.))
             .px_3()
-            .py_2()
             .border_b_1()
             .border_color(colors.border)
-            .child(div().text_sm().child("WORKSPACES"))
             .child(
                 div()
-                    .id("add-workspace")
-                    .px_2()
-                    .rounded_sm()
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover))
-                    .child("+")
-                    .on_click(cx.listener(|_, _, window, cx| {
-                        window.dispatch_action(Box::new(crate::AddWorkspace), cx);
-                    })),
+                    .text_xs()
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(colors.text_muted)
+                    .child("Workspaces"),
             )
+            .child(self.icon_button(
+                "add-workspace",
+                Icon::Plus,
+                colors.clone(),
+                cx.listener(|_, _, window, cx| {
+                    window.dispatch_action(Box::new(crate::AddWorkspace), cx);
+                }),
+            ))
     }
 
-    fn closed_title(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    fn closed_title(&self, collapsed: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         div()
-            .px_3()
-            .pt_4()
-            .pb_1()
+            .id("closed-section")
+            .flex()
+            .items_center()
+            .gap_1()
+            .h(px(ROW_H))
+            .mt_2()
+            .mx_2()
+            .px_1()
+            .rounded_sm()
             .text_xs()
+            .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.text_muted)
-            .child("CLOSED")
+            .cursor_pointer()
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_closed_section(cx)))
+            .child(chevron_slot(collapsed))
+            .child("Closed")
     }
 
     fn workspace_header(
@@ -187,24 +192,21 @@ impl XeroApp {
             collapsed,
         } = header;
         let colors = cx.theme().colors().clone();
-        let chevron = if collapsed { "▸" } else { "▾" };
+        let group = format!("ws-{id}");
         div()
             .id(("ws-row", id_hash(id.to_string())))
+            .group(group.clone())
             .flex()
             .items_center()
             .justify_between()
-            .px_3()
-            .pt_2()
+            .h(px(ROW_H))
+            .mx_1()
+            .px_2()
+            .rounded_sm()
             .text_xs()
+            .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.text_muted)
-            .on_drag(DragWorkspace(id), {
-                let label = name.to_string();
-                move |_, _, _, cx| {
-                    cx.new(|_| DragChip {
-                        label: label.clone(),
-                    })
-                }
-            })
+            .on_drag(DragWorkspace(id), drag_chip(name))
             .drag_over::<DragWorkspace>(move |style, _, _, _| style.bg(colors.element_selected))
             .on_drop(
                 cx.listener(move |this, dragged: &DragWorkspace, _window, cx| {
@@ -217,41 +219,78 @@ impl XeroApp {
                     .flex()
                     .items_center()
                     .gap_1()
+                    .min_w_0()
+                    .flex_1()
                     .cursor_pointer()
                     .hover(|s| s.text_color(colors.text))
-                    .child(chevron)
-                    .child(name.to_uppercase())
-                    .on_click(cx.listener(move |this, _, _, cx| this.toggle_workspace(id, cx))),
+                    .on_click(cx.listener(move |this, _, _, cx| this.toggle_workspace(id, cx)))
+                    .child(chevron_slot(collapsed))
+                    .child(
+                        div()
+                            .text_color(colors.text_muted)
+                            .child(icon(Icon::Folder, px(ICON_SM))),
+                    )
+                    .child(div().truncate().child(name.to_string())),
             )
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap_1()
-                    .child(
-                        div()
-                            .id(("add-stream", id_hash(id.to_string())))
-                            .px_1()
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(colors.element_hover))
-                            .child("+")
-                            .on_click(cx.listener(move |this, _, _, cx| this.add_stream(id, cx))),
-                    )
-                    .child(
-                        div()
-                            .id(("workspace-close", id_hash(id.to_string())))
-                            .px_1()
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(colors.element_hover))
-                            .child("✕")
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                cx.stop_propagation();
-                                this.close_workspace(id, window, cx);
-                            })),
-                    ),
+                    .gap_px()
+                    .invisible()
+                    .group_hover(group, |s| s.visible())
+                    .child(self.icon_button(
+                        ("add-stream", id_hash(id.to_string())),
+                        Icon::Plus,
+                        colors.clone(),
+                        cx.listener(move |this, _, _, cx| this.add_stream(id, cx)),
+                    ))
+                    .child(self.icon_button(
+                        ("workspace-close", id_hash(id.to_string())),
+                        Icon::X,
+                        colors.clone(),
+                        cx.listener(move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            this.close_workspace(id, window, cx);
+                        }),
+                    )),
             )
+    }
+
+    /// Streams under a workspace, indented with a quiet vertical guide.
+    fn stream_group(
+        &self,
+        streams: Vec<(StreamId, String, bool)>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let rows: Vec<_> = streams
+            .iter()
+            .map(|(id, name, is_active)| {
+                self.stream_row(
+                    StreamRow {
+                        id: *id,
+                        name,
+                        is_active: *is_active,
+                    },
+                    cx,
+                )
+                .into_any_element()
+            })
+            .collect();
+        div()
+            .flex()
+            .pl(px(18.))
+            .pr_1()
+            .child(
+                div()
+                    .w(px(1.))
+                    .flex_none()
+                    .my_1()
+                    .bg(colors.border)
+                    .rounded_full(),
+            )
+            .child(div().flex_1().min_w_0().children(rows))
     }
 
     fn closed_workspace_row(
@@ -265,23 +304,17 @@ impl XeroApp {
             .id(("closed-workspace", id_hash(id.to_string())))
             .flex()
             .items_center()
-            .justify_between()
-            .pl_5()
-            .pr_2()
-            .py_1()
+            .h(px(ROW_H))
+            .ml(px(18.))
+            .mr_1()
+            .px_2()
+            .rounded_sm()
             .text_sm()
             .text_color(colors.text_muted)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-            .child(name.to_string())
-            .child(
-                div()
-                    .id(("workspace-reopen", id_hash(id.to_string())))
-                    .px_1()
-                    .rounded_sm()
-                    .child("↩"),
-            )
             .on_click(cx.listener(move |this, _, _, cx| this.reopen_workspace(id, cx)))
+            .child(div().truncate().child(name.to_string()))
     }
 
     fn stream_row(&self, row: StreamRow, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -294,38 +327,48 @@ impl XeroApp {
         let background = if is_active {
             colors.element_selected
         } else {
-            colors.panel_background
+            transparent_black()
         };
-        // While renaming, the row is just the inline edit field.
+        let accent = if is_active {
+            colors.border_selected
+        } else {
+            transparent_black()
+        };
+        let group = format!("stream-{id}");
         if let Some(field) = self.rename_field(id) {
             return div()
                 .flex()
                 .items_center()
-                .pl_5()
-                .pr_2()
-                .py_1()
+                .h(px(ROW_H))
+                .px_1()
+                .rounded_sm()
                 .bg(background)
+                .border_l_2()
+                .border_color(accent)
                 .child(field)
                 .into_any_element();
         }
-        // Amber dot when the stream's agent rang the bell while unfocused.
         let attention = self.needs_attention(id).then(|| {
             div()
                 .w(px(6.))
                 .h(px(6.))
                 .rounded_full()
-                .bg(gpui::rgb(0xd19a66))
+                .bg(gpui::rgb(ATTENTION))
         });
         div()
             .id(("stream", id_hash(id.to_string())))
+            .group(group.clone())
             .flex()
             .items_center()
             .justify_between()
-            .pl_5()
-            .pr_2()
-            .py_1()
+            .h(px(ROW_H))
+            .px_1()
+            .rounded_sm()
             .text_sm()
+            .text_color(colors.text)
             .bg(background)
+            .border_l_2()
+            .border_color(accent)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .on_click(
@@ -337,43 +380,89 @@ impl XeroApp {
                     }
                 }),
             )
-            .on_drag(DragStream(id), {
-                let label = name.to_string();
-                move |_, _, _, cx| {
-                    cx.new(|_| DragChip {
-                        label: label.clone(),
-                    })
-                }
-            })
+            .on_drag(DragStream(id), drag_chip(name))
             .drag_over::<DragStream>(move |style, _, _, _| style.bg(colors.element_selected))
             .on_drop(cx.listener(move |this, dragged: &DragStream, _window, cx| {
                 this.reorder_stream(dragged.0, id, cx)
             }))
-            .child(name.to_string())
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .pl_1()
+                    .child(name.to_string()),
+            )
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .gap_2()
+                    .gap_1()
                     .children(attention)
-                    .child(
-                        div()
-                            .id(("stream-close", id_hash(id.to_string())))
-                            .text_xs()
-                            .text_color(colors.text_muted)
-                            .hover(|s| s.text_color(colors.text))
-                            .child("✕")
-                            .on_click(cx.listener(move |this, _, window, cx| {
+                    .child(div().invisible().group_hover(group, |s| s.visible()).child(
+                        self.icon_button(
+                            ("stream-close", id_hash(id.to_string())),
+                            Icon::X,
+                            colors.clone(),
+                            cx.listener(move |this, _, window, cx| {
                                 cx.stop_propagation();
                                 this.close_stream(id, window, cx);
-                            })),
-                    ),
+                            }),
+                        ),
+                    )),
             )
             .into_any_element()
     }
+
+    fn icon_button(
+        &self,
+        id: impl Into<gpui::ElementId>,
+        glyph: Icon,
+        colors: theme::ThemeColors,
+        on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+    ) -> impl IntoElement {
+        div()
+            .id(id)
+            .flex()
+            .items_center()
+            .justify_center()
+            .w(px(20.))
+            .h(px(20.))
+            .rounded_sm()
+            .text_color(colors.text_muted)
+            .cursor_pointer()
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .child(icon(glyph, px(ICON_MD)))
+            .on_click(on_click)
+    }
 }
 
-/// A stable element id from an id string.
+fn chevron_slot(collapsed: bool) -> impl IntoElement {
+    let glyph = if collapsed {
+        Icon::ChevronRight
+    } else {
+        Icon::ChevronDown
+    };
+    div()
+        .w(px(14.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(icon(glyph, px(ICON_SM)))
+}
+
+fn drag_chip<T: 'static>(
+    label: &str,
+) -> impl Fn(&T, gpui::Point<gpui::Pixels>, &mut Window, &mut gpui::App) -> gpui::Entity<DragChip> + use<T>
+{
+    let label = label.to_string();
+    move |_, _, _, cx| {
+        cx.new(|_| DragChip {
+            label: label.clone(),
+        })
+    }
+}
+
 fn id_hash(id: String) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

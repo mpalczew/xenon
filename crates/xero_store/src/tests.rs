@@ -92,9 +92,26 @@ fn settings_round_trip() {
             font_size: 18.0,
             show_line_numbers: false,
             vim_mode: true,
+            theme: crate::ThemeMode::Dark,
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);
+    });
+}
+
+#[test]
+fn settings_missing_theme_defaults_to_system() {
+    with_data_dir(|| {
+        let path = crate::data_dir().join("settings.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"font_size":16.0,"show_line_numbers":true,"vim_mode":false}"#,
+        )
+        .unwrap();
+        let settings = load_settings().unwrap();
+        assert_eq!(settings.theme, crate::ThemeMode::System);
+        assert_eq!(settings.font_size, 16.0);
     });
 }
 
