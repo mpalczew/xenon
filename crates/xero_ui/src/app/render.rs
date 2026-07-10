@@ -1,4 +1,6 @@
 use super::*;
+use crate::Save;
+use xero_settings::{Copy, Cut, Paste};
 
 impl Render for XeroApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -42,17 +44,30 @@ impl Render for XeroApp {
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
+            .on_action(cx.listener(|this, _: &Save, _, cx| this.save_active_editor(cx)))
             .on_action(cx.listener(|_, _: &IncreaseFontSize, window, cx| {
                 xero_settings::adjust_font_size(cx, 1.0);
+                xero_settings::save(cx);
                 window.refresh();
             }))
             .on_action(cx.listener(|_, _: &DecreaseFontSize, window, cx| {
                 xero_settings::adjust_font_size(cx, -1.0);
+                xero_settings::save(cx);
                 window.refresh();
             }))
             .on_action(cx.listener(|_, _: &ResetFontSize, window, cx| {
                 xero_settings::reset_font_size(cx);
+                xero_settings::save(cx);
                 window.refresh();
+            }))
+            .on_action(cx.listener(|this, _: &Cut, window, cx| {
+                this.clipboard_cut(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &Copy, window, cx| {
+                this.clipboard_copy(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &Paste, window, cx| {
+                this.clipboard_paste(window, cx);
             }))
             .relative()
             .flex()
@@ -187,6 +202,7 @@ impl XeroApp {
     fn render_settings_modal(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let line_numbers = xero_settings::show_line_numbers(cx);
+        let vim_mode = xero_settings::vim_mode(cx);
         div()
             .id("settings-scrim")
             .absolute()
@@ -240,43 +256,77 @@ impl XeroApp {
                                     })),
                             ),
                     )
-                    .child(
-                        div()
-                            .id("line-number-toggle")
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .px_3()
-                            .py_3()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(colors.element_hover))
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_1()
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(colors.text)
-                                            .child("Line numbers"),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(colors.text_muted)
-                                            .child("Show row numbers in text editors"),
-                                    ),
-                            )
-                            .child(check_box(line_numbers, cx))
-                            .on_click(cx.listener(|_, _, window, cx| {
-                                xero_settings::toggle_line_numbers(cx);
-                                window.refresh();
-                                cx.notify();
-                            })),
-                    ),
+                    .child(settings_toggle(
+                        SettingRow {
+                            id: "line-number-toggle",
+                            title: "Line numbers",
+                            subtitle: "Show row numbers in text editors",
+                            checked: line_numbers,
+                        },
+                        cx,
+                        |cx| {
+                            xero_settings::toggle_line_numbers(cx);
+                            xero_settings::save(cx);
+                        },
+                    ))
+                    .child(settings_toggle(
+                        SettingRow {
+                            id: "vim-mode-toggle",
+                            title: "Vim mode",
+                            subtitle: "Modal editing in the text editor",
+                            checked: vim_mode,
+                        },
+                        cx,
+                        |cx| {
+                            xero_settings::toggle_vim_mode(cx);
+                            xero_settings::save(cx);
+                        },
+                    )),
             )
     }
+}
+
+struct SettingRow {
+    id: &'static str,
+    title: &'static str,
+    subtitle: &'static str,
+    checked: bool,
+}
+
+fn settings_toggle(
+    row: SettingRow,
+    cx: &mut Context<XeroApp>,
+    on_toggle: impl Fn(&mut App) + 'static,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    div()
+        .id(row.id)
+        .flex()
+        .items_center()
+        .justify_between()
+        .px_3()
+        .py_3()
+        .cursor_pointer()
+        .hover(|s| s.bg(colors.element_hover))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(div().text_sm().text_color(colors.text).child(row.title))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(colors.text_muted)
+                        .child(row.subtitle),
+                ),
+        )
+        .child(check_box(row.checked, cx))
+        .on_click(cx.listener(move |_, _, window, cx| {
+            on_toggle(cx);
+            window.refresh();
+            cx.notify();
+        }))
 }
 
 fn check_box(checked: bool, cx: &mut Context<XeroApp>) -> impl IntoElement + use<> {

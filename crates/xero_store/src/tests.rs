@@ -3,7 +3,10 @@ use std::fs;
 use tempfile::TempDir;
 use xero_core::{Registry, Stream, WorkspaceRec};
 
-use crate::{StoreError, load_registry, load_session, save_registry, save_session};
+use crate::{
+    AppSettings, StoreError, load_registry, load_session, load_settings, save_registry,
+    save_session, save_settings,
+};
 
 /// Point `data_dir()` at a temp directory for the duration of a closure.
 /// Serialized via a mutex since env vars are process-global.
@@ -71,6 +74,37 @@ fn corrupt_registry_backs_up_and_defaults() {
 
         let registry = load_registry().unwrap();
         assert_eq!(registry, Registry::default());
+        assert!(path.with_extension("corrupt").exists());
+    });
+}
+
+#[test]
+fn settings_default_when_missing() {
+    with_data_dir(|| {
+        assert_eq!(load_settings().unwrap(), AppSettings::default());
+    });
+}
+
+#[test]
+fn settings_round_trip() {
+    with_data_dir(|| {
+        let settings = AppSettings {
+            font_size: 18.0,
+            show_line_numbers: false,
+            vim_mode: true,
+        };
+        save_settings(&settings).unwrap();
+        assert_eq!(load_settings().unwrap(), settings);
+    });
+}
+
+#[test]
+fn corrupt_settings_defaults() {
+    with_data_dir(|| {
+        let path = crate::data_dir().join("settings.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "not json").unwrap();
+        assert_eq!(load_settings().unwrap(), AppSettings::default());
         assert!(path.with_extension("corrupt").exists());
     });
 }

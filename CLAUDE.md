@@ -14,9 +14,16 @@ optionally split with tree-sitter-highlighted editors. License: GPL-3.0.
 - Dev: `cargo build` / `cargo run` (workspace root). `cargo test` runs the unit
   tests (pure crates only; GPUI views are verified by launch tests).
 - Install as an app: `project install` (from `.project.sh`) release-builds,
-  assembles `target/release/xero.app` (Info.plist in `macos/`, ad-hoc signed for
-  Apple Silicon), and copies it to `/Applications`. `project bundle` stops before
-  copying. Use these rather than re-running the steps by hand.
+  assembles `target/release/xero.app` (Info.plist in `macos/`), **stable-codesigns**
+  it, and copies it to `~/Applications` (override with `XERO_INSTALL_DIR`).
+  Not `/Applications`: reinstalling there from a shell hosted by xero triggers
+  macOS App Management TCC every time. `project bundle` stops before copying.
+  Signing identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY`
+  if set, else first `Developer ID Application`, else `Apple Development`, else
+  auto-created local `xero-dev` self-signed cert. Never ad-hoc `-` for install —
+  that changes the CDHash every build and drops Full Disk Access. Use
+  `project sign_setup` to print the identity. Use these rather than re-running
+  the steps by hand.
 - Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
   Toolchain (`xcodebuild -downloadComponent MetalToolchain`). Missing either
   fails the build inside `wasmtime-c-api-impl` / `gpui_macos` respectively.
@@ -65,7 +72,7 @@ file. Key points: minimize cognitive load, present options at real decision
 forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
 - Run `project install` at the END of all work, once every change is complete —
   this is how the user tests. It release-builds and installs
-  `/Applications/xero.app`; the user verifies there, not in the debug build. Do
+  `~/Applications/xero.app`; the user verifies there, not in the debug build. Do
   not install mid-way through a multi-step change; batch it as the final step.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request.

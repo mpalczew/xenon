@@ -2,23 +2,26 @@
 //! an `EntityInputHandler`; editing/navigation keys go through key-down; Cmd-S
 //! saves. Mirrors the terminal view's input wiring.
 
-use std::ops::Range;
+mod input;
+
 use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    App, AppContext, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, KeyDownEvent, MouseButton, MouseDownEvent,
-    MouseMoveEvent, ParentElement, PinchEvent, Pixels, Point, Render, ScrollWheelEvent,
-    StatefulInteractiveElement, Styled, UTF16Selection, Window, canvas, div, point, px,
+    App, AppContext, Bounds, Context, ElementInputHandler, Entity, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement,
+    PinchEvent, Pixels, Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled,
+    Window, anchored, canvas, deferred, div, point, px,
 };
 use theme::ActiveTheme;
 
 use crate::buffer::{Buffer, OpenError};
-use crate::edit::{EditCommand, Motion};
 use crate::element::{self, ColoredSpan};
 use crate::highlight;
 use crate::image_viewer::{ImageContentElement, ImageViewer, event_delta, zoom_factor_for_scroll};
+use crate::mouse::{ClickLayout, ClickTracker};
+use crate::vim::VimState;
+use xero_settings::{Copy, Cut, Paste};
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 const ZOOM_STEP: f32 = 1.2;
@@ -34,20 +37,17 @@ pub struct EditorView {
     /// Render the markdown preview instead of the source (markdown files only).
     preview: bool,
     click_layout: Option<ClickLayout>,
+    click_tracker: ClickTracker,
+    dragging: bool,
+    /// Right-click Cut/Copy/Paste menu position (window coords), when open.
+    context_menu: Option<Point<Pixels>>,
+    vim: VimState,
 }
 
 pub(super) enum Content {
     Text(Buffer),
     Image(ImageViewer),
     Unsupported { path: PathBuf, reason: String },
-}
-
-#[derive(Clone, Copy)]
-struct ClickLayout {
-    text_origin: Point<Pixels>,
-    line_height: Pixels,
-    scroll_top: Pixels,
-    cell_width: Pixels,
 }
 
 impl EditorView {
@@ -80,6 +80,10 @@ impl EditorView {
             focused_once: false,
             preview: false,
             click_layout: None,
+            click_tracker: ClickTracker::default(),
+            dragging: false,
+            context_menu: None,
+            vim: VimState::default(),
         };
         view.recompute_highlights();
         view
@@ -231,86 +235,6 @@ impl EditorView {
         cx.stop_propagation();
         cx.notify();
     }
-
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        let keystroke = &event.keystroke;
-        if matches!(self.content, Content::Image(_)) {
-            if !keystroke.modifiers.platform {
-                return;
-            }
-            match keystroke.key.as_str() {
-                "=" | "+" => self.zoom_image_in(cx),
-                "-" => self.zoom_image_out(cx),
-                "0" => self.fit_image(cx),
-                "1" => self.actual_size_image(cx),
-                _ => return,
-            }
-            cx.stop_propagation();
-            return;
-        }
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        if keystroke.modifiers.platform && keystroke.key == "s" {
-            if let Err(error) = buffer.save() {
-                log::error!("save failed: {error}");
-            }
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        let Some(command) = command_for(&keystroke.key) else {
-            return;
-        };
-        let edits = command.edits();
-        buffer.apply(command);
-        if edits {
-            self.recompute_highlights();
-        }
-        cx.stop_propagation();
-        cx.notify();
-    }
-
-    fn on_mouse_down(
-        &mut self,
-        event: &MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        let Some(layout) = self.click_layout else {
-            return;
-        };
-        let row = ((event.position.y - layout.text_origin.y + layout.scroll_top)
-            / layout.line_height)
-            .floor()
-            .max(0.) as usize;
-        let col = ((event.position.x - layout.text_origin.x) / layout.cell_width + 0.5)
-            .floor()
-            .max(0.) as usize;
-        buffer.set_cursor_position(row, col);
-        self.focus.focus(window, cx);
-        cx.stop_propagation();
-        cx.notify();
-    }
-}
-
-fn command_for(key: &str) -> Option<EditCommand> {
-    Some(match key {
-        "backspace" => EditCommand::Backspace,
-        "delete" => EditCommand::Delete,
-        "enter" => EditCommand::Newline,
-        "tab" => EditCommand::Insert("    ".into()),
-        "left" => EditCommand::Move(Motion::Left),
-        "right" => EditCommand::Move(Motion::Right),
-        "up" => EditCommand::Move(Motion::Up),
-        "down" => EditCommand::Move(Motion::Down),
-        "home" => EditCommand::Move(Motion::LineStart),
-        "end" => EditCommand::Move(Motion::LineEnd),
-        _ => return None,
-    })
 }
 
 impl Focusable for EditorView {
@@ -325,7 +249,7 @@ impl Render for EditorView {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
-        let colors = cx.theme().colors();
+        let colors = cx.theme().colors().clone();
         match &self.content {
             Content::Image(_) => return self.render_image(cx).into_any_element(),
             Content::Unsupported { path, reason } => {
@@ -346,20 +270,117 @@ impl Render for EditorView {
                 .child(crate::markdown::render(&self.text(), size, cx))
                 .into_any_element();
         }
+        let mode_bar = xero_settings::vim_mode(cx).then(|| {
+            let label = if let Some(draft) = &self.vim.search_draft {
+                let prefix = if draft.forward { '/' } else { '?' };
+                format!("{prefix}{}", draft.pattern)
+            } else {
+                self.vim.mode.label().to_string()
+            };
+            div()
+                .px_2()
+                .py_1()
+                .text_xs()
+                .text_color(colors.text_muted)
+                .border_t_1()
+                .border_color(colors.border)
+                .child(label)
+        });
+        let menu = self
+            .context_menu
+            .map(|position| self.render_context_menu(position, &colors, cx));
         div()
             .track_focus(&self.focus)
             .key_context("Editor")
             .on_key_down(cx.listener(Self::on_key))
+            .on_action(cx.listener(|this, _: &Cut, _, cx| {
+                this.cut_selection(cx);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| {
+                this.copy_selection(cx);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &Paste, _, cx| {
+                this.paste_clipboard(cx);
+                cx.notify();
+            }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
+            .relative()
             .size_full()
+            .flex()
+            .flex_col()
             .bg(colors.editor_background)
-            .child(editor_canvas(cx.entity(), self.focus.clone()))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(editor_canvas(cx.entity(), self.focus.clone())),
+            )
+            .children(mode_bar)
+            .children(menu)
             .into_any_element()
     }
 }
 
 impl EditorView {
+    fn render_context_menu(
+        &self,
+        position: Point<Pixels>,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let menu_box = div()
+            .occlude()
+            .flex()
+            .flex_col()
+            .min_w(px(180.))
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .child(
+                context_item("editor-menu-cut", "Cut", "⌘X", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.cut_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("editor-menu-copy", "Copy", "⌘C", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.copy_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("editor-menu-paste", "Paste", "⌘V", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.paste_clipboard(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            );
+        div()
+            .absolute()
+            .inset_0()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
+            )
+            .child(deferred(anchored().position(position).child(menu_box)).with_priority(1))
+    }
+
     fn render_image(&mut self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let Content::Image(_) = &mut self.content else {
@@ -545,6 +566,8 @@ fn layout(
             element::LayoutInput {
                 rope: buffer.rope(),
                 cursor: buffer.cursor_position(),
+                selection: buffer.selection_range(),
+                selection_color: theme.colors().element_selected,
                 default_color: text_color,
                 line_number_color: theme.colors().text_muted,
                 gutter_color: theme.colors().panel_background,
@@ -577,94 +600,6 @@ fn layout(
     editor_layout
 }
 
-impl EntityInputHandler for EditorView {
-    fn replace_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        text: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        if !text.is_empty() {
-            buffer.apply(EditCommand::Insert(text.to_string()));
-            self.recompute_highlights();
-            cx.notify();
-        }
-    }
-
-    fn replace_and_mark_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        new_text: &str,
-        _new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        if !new_text.is_empty() {
-            buffer.apply(EditCommand::Insert(new_text.to_string()));
-            self.recompute_highlights();
-            cx.notify();
-        }
-    }
-
-    fn selected_text_range(
-        &mut self,
-        _ignore_disabled_input: bool,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<UTF16Selection> {
-        Some(UTF16Selection {
-            range: 0..0,
-            reversed: false,
-        })
-    }
-
-    fn marked_text_range(
-        &self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Range<usize>> {
-        None
-    }
-
-    fn text_for_range(
-        &mut self,
-        _range: Range<usize>,
-        _adjusted: &mut Option<Range<usize>>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<String> {
-        None
-    }
-
-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    fn bounds_for_range(
-        &mut self,
-        _range_utf16: Range<usize>,
-        _element_bounds: Bounds<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        None
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        _point: Point<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        None
-    }
-}
-
 fn is_supported_image(path: &std::path::Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
@@ -676,4 +611,28 @@ fn file_title(path: &std::path::Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
+}
+
+/// Context-menu row: label on the left, keybinding on the right.
+fn context_item(
+    id: &'static str,
+    label: &'static str,
+    shortcut: &'static str,
+    colors: &theme::ThemeColors,
+) -> gpui::Stateful<gpui::Div> {
+    let hover = colors.element_hover;
+    let muted = colors.text_muted;
+    div()
+        .id(id)
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap_6()
+        .px_3()
+        .py_1()
+        .text_sm()
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+        .child(label)
+        .child(div().text_xs().text_color(muted).child(shortcut))
 }

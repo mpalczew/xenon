@@ -7,9 +7,38 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use xero_core::{Registry, Stream, StreamId, WorkspaceId};
+
+/// Durable UI settings under `settings.json`. All fields default for forward-compat.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AppSettings {
+    #[serde(default = "default_font_size")]
+    pub font_size: f32,
+    #[serde(default = "default_true")]
+    pub show_line_numbers: bool,
+    #[serde(default)]
+    pub vim_mode: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            font_size: default_font_size(),
+            show_line_numbers: true,
+            vim_mode: false,
+        }
+    }
+}
+
+fn default_font_size() -> f32 {
+    14.0
+}
+
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -32,6 +61,19 @@ pub fn data_dir() -> PathBuf {
 
 fn registry_path() -> PathBuf {
     data_dir().join("workspaces.json")
+}
+
+fn settings_path() -> PathBuf {
+    data_dir().join("settings.json")
+}
+
+/// Load app settings, or defaults if missing/corrupt.
+pub fn load_settings() -> Result<AppSettings, StoreError> {
+    load_or_default(&settings_path())
+}
+
+pub fn save_settings(settings: &AppSettings) -> Result<(), StoreError> {
+    write_atomic(&settings_path(), settings)
 }
 
 fn session_path(workspace: WorkspaceId, stream: StreamId) -> PathBuf {

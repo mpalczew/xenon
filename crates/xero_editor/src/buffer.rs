@@ -2,11 +2,15 @@
 //! Pure logic (no gpui) so it can be unit tested directly.
 
 use std::fs;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use anyhow::Result;
 use ropey::Rope;
+
+use crate::selection;
+use crate::undo::{Edit, UndoStack};
 
 /// How many leading bytes to scan for a NUL when detecting binary files.
 const BINARY_SNIFF_BYTES: usize = 8000;
@@ -40,8 +44,11 @@ pub struct Buffer {
     rope: Rope,
     path: PathBuf,
     cursor: usize,
+    /// Selection anchor; head is always `cursor`. `None` means empty selection.
+    selection_anchor: Option<usize>,
     dirty: bool,
     disk_mtime: Option<SystemTime>,
+    undo: UndoStack,
 }
 
 impl Buffer {
@@ -58,8 +65,10 @@ impl Buffer {
             rope,
             path,
             cursor: 0,
+            selection_anchor: None,
             dirty: false,
             disk_mtime,
+            undo: UndoStack::default(),
         })
     }
 
@@ -99,8 +108,10 @@ impl Buffer {
         let bytes = fs::read(&self.path)?;
         self.rope = Rope::from_reader(&bytes[..])?;
         self.cursor = self.cursor.min(self.rope.len_chars());
+        self.selection_anchor = None;
         self.disk_mtime = mtime(&self.path);
         self.dirty = false;
+        self.undo.clear();
         Ok(())
     }
 
@@ -132,11 +143,66 @@ impl Buffer {
     }
 
     /// Move the cursor to a zero-based row/column, clamping both to the buffer.
+    /// Clears the selection unless `extend` is true.
     pub fn set_cursor_position(&mut self, row: usize, col: usize) {
+        self.set_cursor_position_extend(row, col, false);
+    }
+
+    pub(crate) fn set_cursor_position_extend(&mut self, row: usize, col: usize, extend: bool) {
         let last_row = self.rope.len_lines().saturating_sub(1);
         let row = row.min(last_row);
         let col = col.min(self.line_len(row));
-        self.cursor = self.rope.line_to_char(row) + col;
+        let cursor = self.rope.line_to_char(row) + col;
+        if extend {
+            if self.selection_anchor.is_none() {
+                self.selection_anchor = Some(self.cursor);
+            }
+        } else {
+            self.selection_anchor = None;
+        }
+        self.cursor = cursor;
+    }
+
+    pub(crate) fn selection_anchor(&self) -> Option<usize> {
+        self.selection_anchor
+    }
+
+    /// Active selection as a half-open char range, if non-empty.
+    pub(crate) fn selection_range(&self) -> Option<Range<usize>> {
+        selection::range(self.selection_anchor, self.cursor)
+    }
+
+    /// Selected text, or empty string if none.
+    pub(crate) fn selected_text(&self) -> String {
+        match self.selection_range() {
+            Some(range) => self.rope.slice(range).to_string(),
+            None => String::new(),
+        }
+    }
+
+    /// Set selection explicitly (anchor + head/cursor).
+    pub(crate) fn set_selection(&mut self, anchor: usize, cursor: usize) {
+        let len = self.rope.len_chars();
+        self.selection_anchor = Some(anchor.min(len));
+        self.cursor = cursor.min(len);
+    }
+
+    pub(crate) fn clear_selection(&mut self) {
+        self.selection_anchor = None;
+    }
+
+    /// Select the word under the cursor (or at `offset` if provided).
+    pub(crate) fn select_word_at(&mut self, offset: usize) {
+        let range = selection::word_range_at(&self.rope, offset);
+        self.selection_anchor = Some(range.start);
+        self.cursor = range.end;
+    }
+
+    /// Select the line under the cursor (content only, no newline).
+    pub(crate) fn select_line_at(&mut self, offset: usize) {
+        let range = selection::line_range_at(&self.rope, offset);
+        self.selection_anchor = Some(range.start);
+        self.cursor = range.end;
     }
 
     /// Whole-buffer text (used by tests and highlighting).
@@ -144,18 +210,80 @@ impl Buffer {
         self.rope.to_string()
     }
 
-    // Mutators used by the edit commands live in `edit.rs`; these give it
-    // controlled access without exposing the fields publicly.
-    pub(crate) fn rope_mut(&mut self) -> &mut Rope {
-        &mut self.rope
+    /// Replace the selection (or insert at cursor if empty) with `text`.
+    pub(crate) fn replace_selection(&mut self, text: &str) {
+        let (start, old) = match self.selection_range() {
+            Some(range) => {
+                let old = self.rope.slice(range.clone()).to_string();
+                (range.start, old)
+            }
+            None => (self.cursor, String::new()),
+        };
+        self.apply_edit(Edit {
+            start,
+            old,
+            new: text.to_string(),
+        });
+        self.selection_anchor = None;
+    }
+
+    /// Delete the selection if any; returns whether anything was deleted.
+    pub(crate) fn delete_selection(&mut self) -> bool {
+        let Some(range) = self.selection_range() else {
+            return false;
+        };
+        let old = self.rope.slice(range.clone()).to_string();
+        self.apply_edit(Edit {
+            start: range.start,
+            old,
+            new: String::new(),
+        });
+        self.selection_anchor = None;
+        true
+    }
+
+    pub(crate) fn undo(&mut self) -> bool {
+        let Some(edit) = self.undo.undo() else {
+            return false;
+        };
+        self.apply_raw(&edit.new, &edit.old, edit.start);
+        self.selection_anchor = None;
+        true
+    }
+
+    pub(crate) fn redo(&mut self) -> bool {
+        let Some(edit) = self.undo.redo() else {
+            return false;
+        };
+        self.apply_raw(&edit.old, &edit.new, edit.start);
+        self.selection_anchor = None;
+        true
+    }
+
+    pub(crate) fn apply_edit(&mut self, edit: Edit) {
+        self.apply_raw(&edit.old, &edit.new, edit.start);
+        self.undo.push(edit);
+    }
+
+    fn apply_raw(&mut self, old: &str, new: &str, start: usize) {
+        let old_len = old.chars().count();
+        let end = start + old_len;
+        if old_len > 0 {
+            self.rope.remove(start..end.min(self.rope.len_chars()));
+        }
+        if !new.is_empty() {
+            self.rope.insert(start, new);
+        }
+        self.cursor = start + new.chars().count();
+        self.dirty = true;
     }
 
     pub(crate) fn set_cursor_raw(&mut self, cursor: usize) {
         self.cursor = cursor.min(self.rope.len_chars());
     }
 
-    pub(crate) fn mark_dirty(&mut self) {
-        self.dirty = true;
+    pub(crate) fn set_anchor_raw(&mut self, anchor: Option<usize>) {
+        self.selection_anchor = anchor.map(|a| a.min(self.rope.len_chars()));
     }
 
     fn line_len(&self, row: usize) -> usize {

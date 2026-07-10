@@ -82,6 +82,12 @@ impl XeroApp {
     }
 
     /// Close the focused tab (Cmd-W / toolbar).
+    pub(crate) fn save_active_editor(&self, cx: &mut Context<Self>) {
+        if let Some(editor) = self.active_editor() {
+            editor.update(cx, |editor, cx| editor.save(cx));
+        }
+    }
+
     pub(crate) fn close_editor(&mut self, cx: &mut Context<Self>) {
         if let Some(stack) = self.editor_stack() {
             let active = stack.active;

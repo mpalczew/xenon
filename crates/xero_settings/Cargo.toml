@@ -9,3 +9,5 @@ workspace = true
 
 [dependencies]
 gpui.workspace = true
+xero_store.workspace = true
+log = "0.4"

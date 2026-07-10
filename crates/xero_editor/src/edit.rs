@@ -2,6 +2,7 @@
 //! positions are character indices throughout.
 
 use crate::buffer::Buffer;
+use crate::undo::Edit;
 
 pub enum EditCommand {
     Insert(String),
@@ -9,7 +10,11 @@ pub enum EditCommand {
     Backspace,
     Delete,
     Move(Motion),
+    /// Move while extending the selection (shift+arrow).
+    Extend(Motion),
     SetCursor(usize),
+    Undo,
+    Redo,
 }
 
 pub enum Motion {
@@ -30,6 +35,8 @@ impl EditCommand {
                 | EditCommand::Newline
                 | EditCommand::Backspace
                 | EditCommand::Delete
+                | EditCommand::Undo
+                | EditCommand::Redo
         )
     }
 }
@@ -41,42 +48,88 @@ impl Buffer {
             EditCommand::Newline => self.insert("\n"),
             EditCommand::Backspace => self.backspace(),
             EditCommand::Delete => self.delete(),
-            EditCommand::Move(motion) => self.move_cursor(motion),
-            EditCommand::SetCursor(index) => self.set_cursor_raw(index),
+            EditCommand::Move(motion) => self.move_cursor(motion, false),
+            EditCommand::Extend(motion) => self.move_cursor(motion, true),
+            EditCommand::SetCursor(index) => {
+                self.clear_selection();
+                self.set_cursor_raw(index);
+            }
+            EditCommand::Undo => {
+                self.undo();
+            }
+            EditCommand::Redo => {
+                self.redo();
+            }
         }
     }
 
     fn insert(&mut self, text: &str) {
-        let cursor = self.cursor();
-        self.rope_mut().insert(cursor, text);
-        self.set_cursor_raw(cursor + text.chars().count());
-        self.mark_dirty();
+        self.replace_selection(text);
     }
 
     fn backspace(&mut self) {
+        if self.delete_selection() {
+            return;
+        }
         let cursor = self.cursor();
         if cursor == 0 {
             return;
         }
-        self.rope_mut().remove(cursor - 1..cursor);
-        self.set_cursor_raw(cursor - 1);
-        self.mark_dirty();
+        let start = cursor - 1;
+        let old = self.rope().slice(start..cursor).to_string();
+        self.apply_edit(Edit {
+            start,
+            old,
+            new: String::new(),
+        });
     }
 
     fn delete(&mut self) {
+        if self.delete_selection() {
+            return;
+        }
         let cursor = self.cursor();
         if cursor >= self.rope().len_chars() {
             return;
         }
-        self.rope_mut().remove(cursor..cursor + 1);
-        self.mark_dirty();
+        let old = self.rope().slice(cursor..cursor + 1).to_string();
+        self.apply_edit(Edit {
+            start: cursor,
+            old,
+            new: String::new(),
+        });
     }
 
-    fn move_cursor(&mut self, motion: Motion) {
+    fn move_cursor(&mut self, motion: Motion, extend: bool) {
+        let cursor = self.cursor();
+        if extend {
+            if self.selection_anchor().is_none() {
+                self.set_anchor_raw(Some(cursor));
+            }
+        } else {
+            // Collapse to the edge in the direction of movement when a selection exists.
+            if let Some(range) = self.selection_range() {
+                let target = match motion {
+                    Motion::Left | Motion::Up | Motion::LineStart => range.start,
+                    Motion::Right | Motion::Down | Motion::LineEnd => range.end,
+                };
+                self.clear_selection();
+                self.set_cursor_raw(target);
+                // Arrow once collapses; don't also apply the motion.
+                if matches!(
+                    motion,
+                    Motion::Left | Motion::Right | Motion::Up | Motion::Down
+                ) {
+                    return;
+                }
+            } else {
+                self.clear_selection();
+            }
+        }
         let cursor = self.cursor();
         let target = match motion {
             Motion::Left => cursor.saturating_sub(1),
-            Motion::Right => cursor + 1,
+            Motion::Right => (cursor + 1).min(self.rope().len_chars()),
             Motion::LineStart => self.line_start(cursor),
             Motion::LineEnd => self.line_end(cursor),
             Motion::Up => self.vertical(cursor, -1),

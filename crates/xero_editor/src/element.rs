@@ -32,6 +32,8 @@ pub struct EditorLayout {
     pub scroll_top: Pixels,
     pub scroll_left: Pixels,
     pub cursor: Bounds<Pixels>,
+    pub selection: Vec<Bounds<Pixels>>,
+    pub selection_color: Hsla,
     pub cell_width: Pixels,
     pub gutter: Option<Bounds<Pixels>>,
     pub gutter_color: Hsla,
@@ -42,6 +44,9 @@ pub struct EditorLayout {
 pub struct LayoutInput<'a> {
     pub rope: &'a Rope,
     pub cursor: (usize, usize),
+    /// Half-open char selection, if any.
+    pub selection: Option<std::ops::Range<usize>>,
+    pub selection_color: Hsla,
     pub default_color: Hsla,
     pub line_number_color: Hsla,
     pub gutter_color: Hsla,
@@ -106,7 +111,6 @@ pub fn layout(
         scroll_top: input.scroll_top,
         scroll_left,
     });
-    // Only shape the rows in view (plus one), offset by the scroll position.
     let total = input.rope.len_lines();
     let first = (f32::from(input.scroll_top) / f32::from(metrics.line_height))
         .floor()
@@ -114,10 +118,72 @@ pub fn layout(
     let visible =
         (f32::from(input.viewport_height) / f32::from(metrics.line_height)).ceil() as usize + 1;
     let last = (first + visible).min(total);
+    let (lines, line_numbers) =
+        shape_visible_lines(&input, &metrics, VisibleRows { first, last, total }, window);
 
-    let mut lines = Vec::with_capacity(last.saturating_sub(first));
+    let (row, col) = input.cursor;
+    let cursor_origin = point(
+        text_origin.x + cell_w * (col as f32),
+        input.origin.y + metrics.line_height * (row as f32) - input.scroll_top,
+    );
+    let cursor = Bounds::new(
+        cursor_origin,
+        Size {
+            width: cell_w,
+            height: metrics.line_height,
+        },
+    );
+    let selection = selection_rects(SelectionLayout {
+        rope: input.rope,
+        selection: input.selection.as_ref(),
+        text_origin,
+        origin_y: input.origin.y,
+        cell_w,
+        line_height: metrics.line_height,
+        scroll_top: input.scroll_top,
+        first_row: first,
+        last_row: last,
+    });
+    EditorLayout {
+        lines,
+        line_numbers,
+        viewport: Bounds::new(
+            input.origin,
+            size(input.viewport_width, input.viewport_height),
+        ),
+        origin: input.origin,
+        text_origin,
+        line_height: metrics.line_height,
+        scroll_top: input.scroll_top,
+        scroll_left,
+        cursor,
+        selection,
+        selection_color: input.selection_color,
+        cell_width: cell_w,
+        gutter,
+        gutter_color: input.gutter_color,
+        scrollbars,
+        scrollbar_color: input.scrollbar_color,
+    }
+}
+
+struct VisibleRows {
+    first: usize,
+    last: usize,
+    total: usize,
+}
+
+type ShapedRows = Vec<(usize, ShapedLine)>;
+
+fn shape_visible_lines(
+    input: &LayoutInput<'_>,
+    metrics: &TextMetrics<'_>,
+    rows: VisibleRows,
+    window: &mut Window,
+) -> (ShapedRows, ShapedRows) {
+    let mut lines = Vec::with_capacity(rows.last.saturating_sub(rows.first));
     let mut line_numbers = Vec::with_capacity(lines.capacity());
-    for row in first..last {
+    for row in rows.first..rows.last {
         let line_start = input.rope.line_to_byte(row);
         let text = trim_newline(input.rope.line(row).to_string());
         let runs = line_runs(
@@ -131,7 +197,7 @@ pub fn layout(
         );
         lines.push((row, shape(text, runs, metrics.font_size, window)));
         if input.show_line_numbers {
-            let digits = row_digits(total);
+            let digits = row_digits(rows.total);
             let number = format!("{:>digits$}", row + 1);
             line_numbers.push((
                 row,
@@ -148,38 +214,70 @@ pub fn layout(
             ));
         }
     }
+    (lines, line_numbers)
+}
 
-    let (row, col) = input.cursor;
-    let cursor_origin = point(
-        text_origin.x + cell_w * (col as f32),
-        input.origin.y + metrics.line_height * (row as f32) - input.scroll_top,
-    );
-    let cursor = Bounds::new(
-        cursor_origin,
-        Size {
-            width: cell_w,
-            height: metrics.line_height,
-        },
-    );
-    EditorLayout {
-        lines,
-        line_numbers,
-        viewport: Bounds::new(
-            input.origin,
-            size(input.viewport_width, input.viewport_height),
-        ),
-        origin: input.origin,
-        text_origin,
-        line_height: metrics.line_height,
-        scroll_top: input.scroll_top,
-        scroll_left,
-        cursor,
-        cell_width: cell_w,
-        gutter,
-        gutter_color: input.gutter_color,
-        scrollbars,
-        scrollbar_color: input.scrollbar_color,
+struct SelectionLayout<'a> {
+    rope: &'a Rope,
+    selection: Option<&'a std::ops::Range<usize>>,
+    text_origin: GpuiPoint<Pixels>,
+    origin_y: Pixels,
+    cell_w: Pixels,
+    line_height: Pixels,
+    scroll_top: Pixels,
+    first_row: usize,
+    last_row: usize,
+}
+
+/// One highlight rect per display row covered by the selection.
+fn selection_rects(input: SelectionLayout<'_>) -> Vec<Bounds<Pixels>> {
+    let Some(range) = input.selection else {
+        return Vec::new();
+    };
+    if range.start >= range.end {
+        return Vec::new();
     }
+    let rope = input.rope;
+    let start_row = rope.char_to_line(range.start.min(rope.len_chars().saturating_sub(1)));
+    let end_idx = range.end.min(rope.len_chars());
+    let end_row = if end_idx == 0 {
+        0
+    } else {
+        rope.char_to_line(end_idx.saturating_sub(1))
+    };
+    let mut rects = Vec::new();
+    let last_visible = input.last_row.saturating_sub(1);
+    for row in start_row.max(input.first_row)..=end_row.min(last_visible) {
+        let line_start = rope.line_to_char(row);
+        let line_end = line_start + line_len_chars(rope, row);
+        let sel_start = range.start.max(line_start);
+        let sel_end = range.end.min(line_end);
+        let y = input.origin_y + input.line_height * (row as f32) - input.scroll_top;
+        if sel_end <= sel_start {
+            if range.start <= line_start && range.end > line_start {
+                rects.push(Bounds::new(
+                    point(input.text_origin.x, y),
+                    Size {
+                        width: input.cell_w * 0.5,
+                        height: input.line_height,
+                    },
+                ));
+            }
+            continue;
+        }
+        let col_start = sel_start - line_start;
+        let col_end = sel_end - line_start;
+        let x = input.text_origin.x + input.cell_w * (col_start as f32);
+        let width = input.cell_w * ((col_end - col_start) as f32).max(0.5);
+        rects.push(Bounds::new(
+            point(x, y),
+            Size {
+                width,
+                height: input.line_height,
+            },
+        ));
+    }
+    rects
 }
 
 fn gutter_width(rows: usize, cell_w: Pixels, show: bool) -> Pixels {
@@ -337,13 +435,16 @@ fn shape(text: String, runs: Vec<TextRun>, font_size: Pixels, window: &mut Windo
         .shape_line(SharedString::from(text), font_size, &runs, None)
 }
 
-/// Paint the cursor, then the visible shaped lines on top.
+/// Paint selection, cursor, then the visible shaped lines on top.
 pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx: &mut gpui::App) {
     window.with_content_mask(
         Some(ContentMask {
             bounds: layout.viewport,
         }),
         |window| {
+            for rect in &layout.selection {
+                window.paint_quad(fill(*rect, layout.selection_color));
+            }
             window.paint_quad(fill(layout.cursor, cursor_color));
             for (row, line) in &layout.lines {
                 let y = layout.origin.y + layout.line_height * (*row as f32) - layout.scroll_top;

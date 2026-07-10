@@ -8687,6 +8687,8 @@ name = "xero_settings"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "log",
+ "xero_store",
 ]
 
 [[package]]

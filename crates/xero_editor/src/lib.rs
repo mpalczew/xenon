@@ -7,7 +7,11 @@ mod element;
 mod highlight;
 mod image_viewer;
 mod markdown;
+mod mouse;
+mod selection;
+mod undo;
 mod view;
+mod vim;
 
 pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
 pub use edit::{EditCommand, Motion};

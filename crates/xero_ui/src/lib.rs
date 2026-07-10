@@ -14,6 +14,7 @@ use gpui::{App, KeyBinding, actions};
 
 pub use app::XeroApp;
 pub(crate) use icons::preview_icon;
+pub use xero_settings::{Copy, Cut, Paste};
 
 actions!(
     xero,
@@ -26,6 +27,7 @@ actions!(
         AddWorkspace,
         FilePalette,
         CloseEditor,
+        Save,
         IncreaseFontSize,
         DecreaseFontSize,
         ResetFontSize,
@@ -41,12 +43,16 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-o", OpenFile, None),
         KeyBinding::new("cmd-p", FilePalette, None),
         KeyBinding::new("cmd-w", CloseEditor, None),
+        KeyBinding::new("cmd-s", Save, None),
         KeyBinding::new("cmd-shift-o", AddWorkspace, None),
         KeyBinding::new("cmd-=", IncreaseFontSize, None),
         KeyBinding::new("cmd-+", IncreaseFontSize, None),
         KeyBinding::new("cmd--", DecreaseFontSize, None),
         KeyBinding::new("cmd-0", ResetFontSize, None),
         KeyBinding::new("cmd-,", ToggleSettings, None),
+        KeyBinding::new("cmd-x", Cut, None),
+        KeyBinding::new("cmd-c", Copy, None),
+        KeyBinding::new("cmd-v", Paste, None),
     ]);
 }
 

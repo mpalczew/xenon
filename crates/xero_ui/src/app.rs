@@ -110,6 +110,8 @@ pub struct XeroApp {
 impl XeroApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let registry = xero_store::load_registry().unwrap_or_default();
+        let settings = xero_store::load_settings().unwrap_or_default();
+        xero_settings::apply(&settings, cx);
         let mut app = Self {
             registry,
             streams: HashMap::new(),

@@ -69,4 +69,68 @@ impl XeroApp {
             }
         }
     }
+
+    /// Route Cut to the focused editor or terminal (app menu / global binding).
+    pub(super) fn clipboard_cut(&self, window: &Window, cx: &mut Context<Self>) {
+        match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |editor, cx| {
+                        editor.cut_selection(cx);
+                        cx.notify();
+                    });
+                }
+            }
+            Some(FocusPane::Terminal) | None => {
+                if let Some(terminal) = self.active_terminal() {
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.cut_selection(cx);
+                        cx.notify();
+                    });
+                }
+            }
+        }
+    }
+
+    pub(super) fn clipboard_copy(&self, window: &Window, cx: &mut Context<Self>) {
+        match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |editor, cx| {
+                        editor.copy_selection(cx);
+                        cx.notify();
+                    });
+                }
+            }
+            Some(FocusPane::Terminal) | None => {
+                if let Some(terminal) = self.active_terminal() {
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.copy_selection(cx);
+                        cx.notify();
+                    });
+                }
+            }
+        }
+    }
+
+    pub(super) fn clipboard_paste(&self, window: &Window, cx: &mut Context<Self>) {
+        match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |editor, cx| {
+                        editor.paste_clipboard(cx);
+                        cx.notify();
+                    });
+                }
+            }
+            Some(FocusPane::Terminal) | None => {
+                if let Some(terminal) = self.active_terminal() {
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.paste_clipboard(cx);
+                        cx.notify();
+                    });
+                }
+            }
+        }
+    }
 }

@@ -1,11 +1,14 @@
 use std::path::PathBuf;
 
 use gpui::{
-    App, AppContext, Bounds, KeyBinding, Menu, MenuItem, WindowBounds, WindowOptions, actions, px,
-    size,
+    App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, WindowBounds, WindowOptions,
+    actions, px, size,
 };
 use gpui_platform::application;
-use xero_ui::XeroApp;
+use xero_ui::{
+    AddWorkspace, CloseEditor, Copy, Cut, FilePalette, OpenFile, Paste, Save, ToggleSettings,
+    XeroApp,
+};
 
 actions!(xero, [Quit]);
 
@@ -14,7 +17,7 @@ fn main() {
     application().run(|cx: &mut App| {
         xero_terminal::init(cx);
         xero_ui::init(cx);
-        wire_quit(cx);
+        wire_menus(cx);
 
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
@@ -56,11 +59,31 @@ fn init_logging() {
     let _ = builder.try_init();
 }
 
-/// Quit on Cmd-Q, the app menu, or closing the last window.
-fn wire_quit(cx: &mut App) {
+/// App menus + Quit on Cmd-Q or closing the last window.
+fn wire_menus(cx: &mut App) {
     cx.on_action(|_: &Quit, cx| cx.quit());
     cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
-    cx.set_menus([Menu::new("xero").items([MenuItem::action("Quit", Quit)])]);
+    cx.set_menus([
+        Menu::new("xero").items([
+            MenuItem::action("Preferences…", ToggleSettings),
+            MenuItem::separator(),
+            MenuItem::action("Quit", Quit),
+        ]),
+        Menu::new("File").items([
+            MenuItem::action("Open File…", OpenFile),
+            MenuItem::action("Open Folder…", AddWorkspace),
+            MenuItem::action("Go to File…", FilePalette),
+            MenuItem::separator(),
+            MenuItem::action("Save", Save),
+            MenuItem::separator(),
+            MenuItem::action("Close Editor", CloseEditor),
+        ]),
+        Menu::new("Edit").items([
+            MenuItem::os_action("Cut", Cut, OsAction::Cut),
+            MenuItem::os_action("Copy", Copy, OsAction::Copy),
+            MenuItem::os_action("Paste", Paste, OsAction::Paste),
+        ]),
+    ]);
     cx.on_window_closed(|cx, _| {
         if cx.windows().is_empty() {
             cx.quit();

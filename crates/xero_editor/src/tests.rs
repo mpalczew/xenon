@@ -40,6 +40,27 @@ fn insert_and_cursor_advances() {
 }
 
 #[test]
+fn selection_replace_and_undo() {
+    let file = file_with("abcdef");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_selection(1, 4);
+    assert_eq!(buffer.selected_text(), "bcd");
+    buffer.replace_selection("X");
+    assert_eq!(buffer.text(), "aXef");
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "abcdef");
+}
+
+#[test]
+fn shift_extend_moves() {
+    let file = file_with("hello");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.apply(EditCommand::Extend(Motion::Right));
+    buffer.apply(EditCommand::Extend(Motion::Right));
+    assert_eq!(buffer.selected_text(), "he");
+}
+
+#[test]
 fn backspace_at_start_is_noop() {
     let file = file_with("x");
     let mut buffer = Buffer::open(file.path()).unwrap();

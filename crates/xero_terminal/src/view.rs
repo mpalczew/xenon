@@ -28,6 +28,7 @@ use util::paths::PathStyle;
 
 use crate::clipboard::terminal_clipboard_text;
 use crate::grid;
+use xero_settings::{Copy, Cut, Paste};
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
 const SCROLL_MULTIPLIER: f32 = 3.;
@@ -268,19 +269,6 @@ impl TerminalView {
         let terminal = terminal.clone();
         self.note_interaction(cx);
         let keystroke = &event.keystroke;
-        // Cmd-V pastes the clipboard; Cmd-C copies the selection.
-        if keystroke.modifiers.platform && keystroke.key == "v" {
-            self.paste_clipboard(cx);
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        if keystroke.modifiers.platform && keystroke.key == "c" {
-            self.copy_selection(cx);
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
         let handled = terminal.update(cx, |terminal, _| terminal.try_keystroke(keystroke, false));
         if handled {
             cx.stop_propagation();
@@ -289,7 +277,7 @@ impl TerminalView {
     }
 
     /// Copy the current selection to the clipboard (no-op without one).
-    fn copy_selection(&self, cx: &mut Context<Self>) {
+    pub fn copy_selection(&self, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state
             && let Some(text) = terminal.read(cx).last_content().selection_text.clone()
         {
@@ -297,8 +285,13 @@ impl TerminalView {
         }
     }
 
+    /// Cut: copy the selection (terminal scrollback is not deleted).
+    pub fn cut_selection(&self, cx: &mut Context<Self>) {
+        self.copy_selection(cx);
+    }
+
     /// Paste the clipboard into the terminal (bracketed-paste aware).
-    fn paste_clipboard(&self, cx: &mut Context<Self>) {
+    pub fn paste_clipboard(&self, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state
             && let Some(item) = cx.read_from_clipboard()
             && let Some(text) = terminal_clipboard_text(item)
@@ -475,6 +468,18 @@ impl Render for TerminalView {
             .key_context("Terminal")
             .relative()
             .on_key_down(cx.listener(Self::on_key))
+            .on_action(cx.listener(|this, _: &Cut, _, cx| {
+                this.cut_selection(cx);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| {
+                this.copy_selection(cx);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &Paste, _, cx| {
+                this.paste_clipboard(cx);
+                cx.notify();
+            }))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
@@ -567,46 +572,50 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let item = |id: &'static str, label: &'static str| {
-            div()
-                .id(id)
-                .px_3()
-                .py_1()
-                .text_sm()
-                .cursor_pointer()
-                .hover(|s| s.bg(colors.element_hover))
-                .child(label)
-        };
         let mut menu_box = div()
             .occlude()
             .flex()
             .flex_col()
-            .min_w(px(140.))
+            .min_w(px(180.))
             .rounded_md()
             .border_1()
             .border_color(colors.border)
             .bg(colors.elevated_surface_background);
         // "Open in Browser" only when the right-click landed on an existing file.
         if let Some(path) = self.menu_path.clone() {
-            menu_box = menu_box.child(item("menu-open-browser", "Open in Browser").on_click(
-                cx.listener(move |this, _, _, cx| {
-                    cx.open_url(&format!("file://{}", path.display()));
-                    this.dismiss_menu(cx);
-                }),
-            ));
+            menu_box = menu_box.child(
+                context_item("menu-open-browser", "Open in Browser", "", &colors).on_click(
+                    cx.listener(move |this, _, _, cx| {
+                        cx.open_url(&format!("file://{}", path.display()));
+                        this.dismiss_menu(cx);
+                    }),
+                ),
+            );
         }
         let menu_box = menu_box
             .child(
-                item("menu-copy", "Copy").on_click(cx.listener(|this, _, _, cx| {
-                    this.copy_selection(cx);
-                    this.dismiss_menu(cx);
-                })),
+                context_item("menu-cut", "Cut", "⌘X", &colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.cut_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
             )
             .child(
-                item("menu-paste", "Paste").on_click(cx.listener(|this, _, _, cx| {
-                    this.paste_clipboard(cx);
-                    this.dismiss_menu(cx);
-                })),
+                context_item("menu-copy", "Copy", "⌘C", &colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.copy_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("menu-paste", "Paste", "⌘V", &colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.paste_clipboard(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
             );
         // A full-window scrim dismisses on any click; the menu occludes so its
         // own clicks don't reach it.
@@ -622,6 +631,33 @@ impl TerminalView {
                 cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
             )
             .child(deferred(anchored().position(position).child(menu_box)).with_priority(1))
+    }
+}
+
+fn context_item(
+    id: &'static str,
+    label: &'static str,
+    shortcut: &'static str,
+    colors: &theme::ThemeColors,
+) -> gpui::Stateful<gpui::Div> {
+    let hover = colors.element_hover;
+    let muted = colors.text_muted;
+    let row = div()
+        .id(id)
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap_6()
+        .px_3()
+        .py_1()
+        .text_sm()
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+        .child(label);
+    if shortcut.is_empty() {
+        row
+    } else {
+        row.child(div().text_xs().text_color(muted).child(shortcut))
     }
 }
 
