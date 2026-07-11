@@ -168,6 +168,7 @@ impl XeroApp {
     }
 
     pub(super) fn open_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.task_picker = None;
         self.open_palette_with_query(String::new(), window, cx);
     }
 
@@ -183,6 +184,7 @@ impl XeroApp {
         let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
             return;
         };
+        self.task_picker = None;
         self.restore_pane = self.focused_pane(window, cx);
         self.reindex(root.clone(), true, cx);
         let index = self.file_indexes.get(&root).cloned();

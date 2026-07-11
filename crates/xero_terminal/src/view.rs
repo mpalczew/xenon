@@ -262,6 +262,11 @@ impl TerminalView {
         self.note_interaction(cx);
     }
 
+    /// Inject text into the PTY (e.g. a resolved shell task line).
+    pub fn inject_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.send_text(text, cx);
+    }
+
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let State::Ready(terminal) = &self.state else {
             return;

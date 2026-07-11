@@ -11,6 +11,7 @@ mod resize;
 mod settings;
 mod sidebar;
 mod tabs;
+mod task_picker;
 mod toolbar;
 
 pub use settings::SettingsView;
@@ -31,6 +32,7 @@ actions!(
         OpenFile,
         AddWorkspace,
         FilePalette,
+        RunTask,
         CloseEditor,
         Save,
         IncreaseFontSize,
@@ -47,6 +49,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-e", ToggleBrowser, None),
         KeyBinding::new("cmd-o", OpenFile, None),
         KeyBinding::new("cmd-p", FilePalette, None),
+        KeyBinding::new("cmd-shift-r", RunTask, None),
         KeyBinding::new("cmd-w", CloseEditor, None),
         KeyBinding::new("cmd-s", Save, None),
         KeyBinding::new("cmd-shift-o", AddWorkspace, None),

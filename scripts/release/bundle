@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=codesign.sh
+source "$root/scripts/release/codesign.sh"
+
+(cd "$root" && cargo build --release)
+
+app="$root/target/release/xero.app"
+identity="$(xero_codesign_identity)"
+rm -rf "$app"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp "$root/macos/Info.plist" "$app/Contents/Info.plist"
+cp "$root/macos/xero.icns" "$app/Contents/Resources/xero.icns"
+cp "$root/target/release/xero" "$app/Contents/MacOS/xero"
+codesign --force --deep --sign "$identity" "$app" || {
+    echo "codesign failed with identity: $identity" >&2
+    exit 1
+}
+echo "bundled $app (signed: $identity)"

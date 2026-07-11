@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=codesign.sh
+source "$root/scripts/release/codesign.sh"
+id="$(xero_codesign_identity)"
+echo "codesign identity: $id"
+security find-identity -v -p codesigning 2>/dev/null | grep -F "$id" || true

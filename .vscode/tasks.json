@@ -1,0 +1,85 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "cargo build --release",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "cargo build --release"
+    },
+    {
+      "label": "bundle",
+      "type": "shell",
+      "command": "scripts/release/bundle",
+      "detail": "assemble target/release/xero.app (stable-signed)"
+    },
+    {
+      "label": "fmt",
+      "type": "shell",
+      "command": "cargo fmt --all",
+      "detail": "cargo fmt --all"
+    },
+    {
+      "label": "fmtcheck",
+      "type": "shell",
+      "command": "cargo fmt --all --check",
+      "detail": "cargo fmt --all --check"
+    },
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "cargo clippy --workspace --all-targets -- -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines",
+      "detail": "cargo clippy with shape lints"
+    },
+    {
+      "label": "lint_shape",
+      "type": "shell",
+      "command": "scripts/check-rust-shape",
+      "detail": "enforce Rust file/function shape limits"
+    },
+    {
+      "label": "health",
+      "type": "shell",
+      "command": "scripts/health",
+      "detail": "fmtcheck, lint, lint_shape, test"
+    },
+    {
+      "label": "install",
+      "type": "shell",
+      "command": "scripts/release/install",
+      "detail": "bundle and copy xero.app into ~/Applications"
+    },
+    {
+      "label": "sign_setup",
+      "type": "shell",
+      "command": "scripts/release/sign_setup",
+      "detail": "ensure a stable codesign identity"
+    },
+    {
+      "label": "install_hooks",
+      "type": "shell",
+      "command": "scripts/install-hooks",
+      "detail": "install pre-commit hooks for this checkout"
+    },
+    {
+      "label": "run",
+      "type": "shell",
+      "command": "cargo run --",
+      "detail": "cargo run (debug); pass a file path to open the editor"
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "cargo test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "detail": "cargo test"
+    }
+  ]
+}

@@ -13,17 +13,17 @@ optionally split with tree-sitter-highlighted editors. License: GPL-3.0.
 
 - Dev: `cargo build` / `cargo run` (workspace root). `cargo test` runs the unit
   tests (pure crates only; GPUI views are verified by launch tests).
-- Install as an app: `project install` (from `.project.sh`) release-builds,
-  assembles `target/release/xero.app` (Info.plist in `macos/`), **stable-codesigns**
-  it, and copies it to `~/Applications` (override with `XERO_INSTALL_DIR`).
-  Not `/Applications`: reinstalling there from a shell hosted by xero triggers
-  macOS App Management TCC every time. `project bundle` stops before copying.
-  Signing identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY`
-  if set, else first `Developer ID Application`, else `Apple Development`, else
-  auto-created local `xero-dev` self-signed cert. Never ad-hoc `-` for install —
-  that changes the CDHash every build and drops Full Disk Access. Use
-  `project sign_setup` to print the identity. Use these rather than re-running
-  the steps by hand.
+- Install as an app: `project install` (`.vscode/tasks.json` shell tasks)
+  release-builds, assembles `target/release/xero.app` (Info.plist in `macos/`),
+  **stable-codesigns** it, and copies it to `~/Applications` (override with
+  `XERO_INSTALL_DIR`). Not `/Applications`: reinstalling there from a shell
+  hosted by xero triggers macOS App Management TCC every time. `project bundle`
+  stops before copying. Signing identity (for TCC grants to survive reinstall):
+  `XERO_CODESIGN_IDENTITY` if set, else first `Developer ID Application`, else
+  `Apple Development`, else auto-created local `xero-dev` self-signed cert.
+  Never ad-hoc `-` for install — that changes the CDHash every build and drops
+  Full Disk Access. Use `project sign_setup` to print the identity. Complex
+  release steps live under `scripts/release/`; list all tasks with `project`.
 - Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
   Toolchain (`xcodebuild -downloadComponent MetalToolchain`). Missing either
   fails the build inside `wasmtime-c-api-impl` / `gpui_macos` respectively.
@@ -34,10 +34,10 @@ optionally split with tree-sitter-highlighted editors. License: GPL-3.0.
 
 ## Architecture
 
-Seven crates under `crates/`:
+Crates under `crates/`:
 - `xero` — bin: gpui `Application`, window, quit/menu wiring.
 - `xero_ui` — the app shell: `XeroApp` root view (collapsible workspace sidebar,
-  terminal/editor main panel, cmd-p `FinderView`), keybindings, actions.
+  terminal/editor main panel, cmd-p finder, Run Task palette), keybindings.
 - `xero_core` — pure data model (Workspace/Stream/SessionState). `Stream::
   working_dir()` is the seam that keeps worktree-backed streams a future additive
   change; `Backing` is a serde-tagged enum for the same reason.
@@ -48,10 +48,13 @@ Seven crates under `crates/`:
 - `xero_editor` — ropey `Buffer` (edit ops, save, mtime external-change) + gpui
   `EditorView`. Tree-sitter highlighting is still TODO.
 - `xero_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
+- `xero_settings` — app settings + font size actions.
 - `xero_ide` — Claude Code IDE integration: a localhost WebSocket MCP server
   (`~/.claude/ide/<port>.lock` + `CLAUDE_CODE_SSE_PORT` injected into terminals)
   that lets agents open files in xero. Protocol captured in
   `crates/xero_ide/PROTOCOL.md`.
+- Project commands: shell tasks in `.vscode/tasks.json` (Run Task palette
+  cmd-shift-r injects into the stream terminal; `project <label>` from any shell).
 
 Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
 an `EntityInputHandler` registered during paint (`window.handle_input`), NOT

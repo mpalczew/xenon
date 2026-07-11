@@ -23,6 +23,7 @@ use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
 use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::settings::SettingsView;
+use crate::task_picker::TaskPickerView;
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
     ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
@@ -34,6 +35,7 @@ mod navigation;
 mod panels;
 mod render;
 mod streams;
+mod tasks;
 mod terminals;
 mod workspaces;
 
@@ -99,6 +101,7 @@ pub struct XeroApp {
     editors: HashMap<StreamId, EditorStack>,
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
+    task_picker: Option<Entity<TaskPickerView>>,
     // Per-root fuzzy index shared by cmd-p and cmd-click resolution, built off
     // the UI thread. `index_tasks` keeps in-flight builds alive, keyed by root so
     // a new build for the same root replaces (cancels) the previous one.
@@ -134,6 +137,7 @@ pub struct XeroApp {
     pub(crate) tab_menu: Option<TabContextMenu>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
+    _task_picker_sub: Option<Subscription>,
     // Streams whose terminal rang the bell while unfocused (agent wants
     // attention); shown as a dot in the sidebar, cleared when the stream opens.
     attention: HashSet<StreamId>,
@@ -157,6 +161,7 @@ impl XeroApp {
             editors: HashMap::new(),
             active: None,
             finder: None,
+            task_picker: None,
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
             restore_pane: None,
@@ -178,6 +183,7 @@ impl XeroApp {
             tab_menu: None,
             focus: cx.focus_handle(),
             _finder_sub: None,
+            _task_picker_sub: None,
             attention: HashSet::new(),
             _bell_subs: Vec::new(),
             ide: None,

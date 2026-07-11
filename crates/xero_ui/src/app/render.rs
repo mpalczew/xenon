@@ -1,4 +1,5 @@
 use super::*;
+use crate::RunTask;
 use crate::Save;
 use crate::resize::ResizeEdge;
 use gpui::{AnyElement, DragMoveEvent, MouseButton, MouseUpEvent};
@@ -22,6 +23,7 @@ impl Render for XeroApp {
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
+        let task_picker = self.task_picker.clone();
         let tab_menu = self.render_tab_menu(cx);
         div()
             .track_focus(&self.focus)
@@ -33,6 +35,9 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
             .on_action(
                 cx.listener(|this, _: &FilePalette, window, cx| this.open_palette(window, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &RunTask, window, cx| this.open_task_picker(window, cx)),
             )
             .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| this.toggle_browser(cx)))
             .on_action(cx.listener(|this, _: &ToggleTerminal, window, cx| {
@@ -88,6 +93,7 @@ impl Render for XeroApp {
                     .child(main),
             )
             .children(finder)
+            .children(task_picker)
             .children(tab_menu)
     }
 }

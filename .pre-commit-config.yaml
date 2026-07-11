@@ -3,16 +3,16 @@ repos:
     hooks:
       - id: xero-fmtcheck
         name: xero fmtcheck
-        entry: bash -lc 'source .project.sh && project_fmtcheck'
+        entry: bash -lc 'cargo fmt --all --check'
         language: system
         pass_filenames: false
       - id: xero-lint
         name: xero lint
-        entry: bash -lc 'source .project.sh && project_lint'
+        entry: bash -lc 'cargo clippy --workspace --all-targets -- -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines'
         language: system
         pass_filenames: false
       - id: xero-lint-shape
         name: xero lint-shape
-        entry: bash -lc 'source .project.sh && project_lint_shape'
+        entry: bash -lc 'scripts/check-rust-shape'
         language: system
         pass_filenames: false

@@ -10,7 +10,8 @@ use theme::ActiveTheme;
 use crate::app::XeroApp;
 use crate::icons::icon;
 use crate::{
-    FilePalette, Save, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
+    FilePalette, RunTask, Save, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
+    ToggleTerminal,
 };
 
 const ICON: f32 = 14.;
@@ -98,16 +99,30 @@ impl XeroApp {
         let dirty = self
             .active_editor()
             .is_some_and(|view| view.read(cx).is_dirty());
-        let mut row = div().flex().items_center().gap_1().child(tool_button(
-            ToolButton {
-                id: "tb-palette",
-                glyph: Icon::Search,
-                label: "Go to File · ⌘P",
-                active: false,
-                action: Box::new(FilePalette),
-            },
-            cx,
-        ));
+        let mut row = div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-palette",
+                    glyph: Icon::Search,
+                    label: "Go to File · ⌘P",
+                    active: false,
+                    action: Box::new(FilePalette),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-run-task",
+                    glyph: Icon::Play,
+                    label: "Run Task · ⌘⇧R",
+                    active: false,
+                    action: Box::new(RunTask),
+                },
+                cx,
+            ));
         if dirty {
             row = row.child(tool_button(
                 ToolButton {

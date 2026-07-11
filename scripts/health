@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings \
+    -D clippy::cognitive_complexity \
+    -D clippy::too_many_lines
+scripts/check-rust-shape
+cargo test

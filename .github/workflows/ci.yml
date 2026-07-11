@@ -15,5 +15,5 @@ jobs:
           components: clippy,rustfmt
       - uses: Swatinem/rust-cache@v2
       # Single source of truth: the same checks developers run locally via
-      # .project.sh and the pre-commit hooks (fmtcheck, lint, lint_shape, test).
-      - run: source .project.sh && project_health
+      # Same gates as pre-commit + test (scripts/health = tasks.json "health").
+      - run: scripts/health

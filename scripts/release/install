@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=codesign.sh
+source "$root/scripts/release/codesign.sh"
+
+"$root/scripts/release/bundle"
+
+dest_dir="${XERO_INSTALL_DIR:-$HOME/Applications}"
+dest="$dest_dir/xero.app"
+mkdir -p "$dest_dir"
+rm -rf "$dest"
+cp -R "$root/target/release/xero.app" "$dest"
+identity="$(xero_codesign_identity)"
+codesign --force --deep --sign "$identity" "$dest" || {
+    echo "codesign of installed app failed: $dest" >&2
+    exit 1
+}
+echo "installed $dest (signed: $identity)"
