@@ -6,6 +6,15 @@ pub(crate) fn markdown_preview(source: &str, cx: &gpui::App) -> gpui::AnyElement
     crate::markdown::render(source, gpui::px(face.size), &face.family, cx)
 }
 
+impl super::EditorView {
+    pub fn is_dirty(&self) -> bool {
+        match &self.content {
+            super::Content::Text(buffer) => buffer.is_dirty(),
+            _ => false,
+        }
+    }
+}
+
 use gpui::{
     App, Bounds, ElementInputHandler, Entity, FocusHandle, Pixels, Styled, Window, canvas, px,
 };

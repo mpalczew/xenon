@@ -373,6 +373,8 @@ fn preview_surface(
     div()
         .id("md-preview")
         .size_full()
+        .min_w_0()
+        .min_h_0()
         .overflow_x_scroll()
         .overflow_y_scroll()
         .p_4()

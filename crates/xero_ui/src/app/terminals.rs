@@ -73,7 +73,7 @@ impl XeroApp {
             if stack.tabs.is_empty() {
                 None
             } else {
-                stack.active = stack.active.min(stack.tabs.len() - 1);
+                fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
                 Some(stack.tabs[stack.active].clone())
             }
         };
@@ -86,5 +86,78 @@ impl XeroApp {
             }
         }
         cx.notify();
+    }
+
+    /// Move a terminal tab to another stream in the same workspace, then switch
+    /// to that stream and focus the moved tab.
+    pub(crate) fn move_terminal_tab(
+        &mut self,
+        tab: TabMove,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if tab.from == tab.to || !self.same_workspace(tab.from, tab.to) {
+            return;
+        }
+        let Some(terminal) = self.take_terminal_tab(tab.from, tab.index) else {
+            return;
+        };
+        let stack = self.terminals.entry(tab.to).or_default();
+        stack.tabs.push(terminal.clone());
+        stack.active = stack.tabs.len() - 1;
+        self.terminal_collapsed = false;
+        self.save_layout(tab.to);
+        self.activate_stream(tab.to, cx);
+        self.clear_attention(tab.to, cx);
+        terminal.read(cx).focus_handle(cx).focus(window, cx);
+        cx.notify();
+    }
+
+    pub(crate) fn move_terminal_tab_to_new_stream(
+        &mut self,
+        from: StreamId,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(workspace) = self.workspace_of(from).map(|w| w.id) else {
+            return;
+        };
+        let Some(to) = self.create_stream(workspace) else {
+            return;
+        };
+        self.move_terminal_tab(TabMove { from, index, to }, window, cx);
+    }
+
+    fn take_terminal_tab(&mut self, from: StreamId, index: usize) -> Option<Entity<TerminalView>> {
+        let (terminal, emptied) = {
+            let stack = self.terminals.get_mut(&from)?;
+            if index >= stack.tabs.len() {
+                return None;
+            }
+            let terminal = stack.tabs.remove(index);
+            let emptied = stack.tabs.is_empty();
+            if !emptied {
+                fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
+            }
+            (terminal, emptied)
+        };
+        if emptied {
+            self.terminals.remove(&from);
+            // Leave the stream; panel collapse only if still viewing it.
+            if self.active == Some(from) {
+                self.terminal_collapsed = true;
+                self.save_layout(from);
+            }
+        }
+        Some(terminal)
+    }
+}
+
+fn fix_active_after_remove(active: &mut usize, removed: usize, len: usize) {
+    if *active > removed {
+        *active -= 1;
+    } else if *active >= len {
+        *active = len.saturating_sub(1);
     }
 }

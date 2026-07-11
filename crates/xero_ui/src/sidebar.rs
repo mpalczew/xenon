@@ -112,11 +112,14 @@ impl XeroApp {
         }
 
         div()
+            .relative()
             .flex()
             .flex_col()
-            .w(px(240.))
+            .w(px(self.sidebar_width_px()))
+            .flex_none()
             .h_full()
             .min_h_0()
+            .min_w_0()
             .border_r_1()
             .border_color(colors.border)
             .bg(colors.panel_background)
@@ -130,6 +133,11 @@ impl XeroApp {
                     .py_1()
                     .children(rows),
             )
+            .child(crate::resize::col_resize_handle(
+                "sidebar-resize",
+                crate::resize::ResizeEdge::Sidebar,
+                colors.border,
+            ))
     }
 
     fn sidebar_title(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {

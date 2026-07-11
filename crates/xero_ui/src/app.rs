@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use gpui::{
     App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ParentElement, PathPromptOptions, Render, SharedString,
+    IntoElement, ParentElement, PathPromptOptions, Pixels, Point, Render, SharedString,
     StatefulInteractiveElement, Styled, Subscription, Task, TitlebarOptions, Window, WindowBounds,
     WindowHandle, WindowOptions, div, px, size,
 };
@@ -57,6 +57,30 @@ pub(crate) struct EditorTab {
     pub view: Entity<EditorView>,
 }
 
+/// Right-click target on a terminal or editor tab chip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TabSurface {
+    Terminal,
+    Editor,
+}
+
+/// Open move-tab context menu (stream + index captured at open time).
+#[derive(Clone, Debug)]
+pub(crate) struct TabContextMenu {
+    pub surface: TabSurface,
+    pub stream: StreamId,
+    pub index: usize,
+    pub position: Point<Pixels>,
+}
+
+/// Source tab + destination stream for a move.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TabMove {
+    pub from: StreamId,
+    pub index: usize,
+    pub to: StreamId,
+}
+
 /// Which pane held keyboard focus before the finder opened, so Escape can
 /// return focus there instead of dropping it into the void.
 #[derive(Clone, Copy)]
@@ -90,6 +114,12 @@ pub struct XeroApp {
     sidebar_collapsed: bool,
     terminal_collapsed: bool,
     editor_collapsed: bool,
+    /// Live pane widths (px); persisted per-stream via `Layout`.
+    sidebar_width: f32,
+    tree_width: f32,
+    terminal_width: f32,
+    /// True after a width drag until flushed to the session.
+    layout_dirty: bool,
     // Workspaces whose streams are hidden in the sidebar.
     collapsed_workspaces: HashSet<WorkspaceId>,
     // Closed-workspace list is collapsed by default (archive, not peer list).
@@ -100,6 +130,8 @@ pub struct XeroApp {
     // The stream currently being renamed inline, plus its editing field.
     renaming: Option<(StreamId, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
+    /// Right-click menu on a terminal or editor tab (move to stream).
+    pub(crate) tab_menu: Option<TabContextMenu>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     // Streams whose terminal rang the bell while unfocused (agent wants
@@ -133,12 +165,17 @@ impl XeroApp {
             sidebar_collapsed: false,
             terminal_collapsed: false,
             editor_collapsed: false,
+            sidebar_width: Layout::default().sidebar_width,
+            tree_width: Layout::default().tree_width,
+            terminal_width: Layout::default().terminal_width,
+            layout_dirty: false,
             collapsed_workspaces: HashSet::new(),
             closed_section_collapsed: true,
             file_browser: FileBrowser::default(),
             settings_window: None,
             renaming: None,
             _rename_sub: None,
+            tab_menu: None,
             focus: cx.focus_handle(),
             _finder_sub: None,
             attention: HashSet::new(),

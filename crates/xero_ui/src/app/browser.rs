@@ -98,11 +98,13 @@ impl XeroApp {
             );
 
         div()
-            .w(px(240.))
+            .relative()
+            .w(px(self.tree_width_px()))
             .flex_none()
             .flex()
             .flex_col()
             .min_h_0()
+            .min_w_0()
             .border_r_1()
             .border_color(colors.border)
             .bg(colors.panel_background)
@@ -116,6 +118,11 @@ impl XeroApp {
                     .py_2()
                     .children(rows.into_iter().map(|row| self.tree_row(row, cx))),
             )
+            .child(crate::resize::col_resize_handle(
+                "tree-resize",
+                crate::resize::ResizeEdge::Tree,
+                colors.border,
+            ))
             .into_any_element()
     }
 

@@ -30,7 +30,8 @@ impl XeroApp {
             return;
         }
         let mut record = WorkspaceRec::new(root);
-        let stream = Stream::new("stream 1");
+        let mut stream = Stream::new("stream 1");
+        stream.session.layout = self.current_layout();
         let stream_id = stream.id;
         record.streams.push(stream_id);
         let workspace_id = record.id;
@@ -115,7 +116,8 @@ impl XeroApp {
         };
         let mut record = self.registry.closed_workspaces.remove(index);
         if record.streams.is_empty() {
-            let stream = Stream::new("main");
+            let mut stream = Stream::new("main");
+            stream.session.layout = self.current_layout();
             record.streams.push(stream.id);
             save_session(record.id, &stream, "reopen_workspace default stream");
             self.streams.insert(stream.id, stream);

@@ -1,5 +1,7 @@
 use super::*;
 use crate::Save;
+use crate::resize::ResizeEdge;
+use gpui::{AnyElement, DragMoveEvent, MouseButton, MouseUpEvent};
 use xero_settings::{Copy, Cut, Paste};
 
 impl Render for XeroApp {
@@ -20,6 +22,7 @@ impl Render for XeroApp {
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
+        let tab_menu = self.render_tab_menu(cx);
         div()
             .track_focus(&self.focus)
             .key_context("XeroApp")
@@ -63,6 +66,10 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &Paste, window, cx| {
                 this.clipboard_paste(window, cx);
             }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_resize(cx)),
+            )
             .relative()
             .flex()
             .flex_col()
@@ -75,10 +82,13 @@ impl Render for XeroApp {
                     .flex()
                     .flex_1()
                     .min_h_0()
+                    .min_w_0()
+                    .on_drag_move(cx.listener(Self::on_sidebar_drag))
                     .children(sidebar)
                     .child(main),
             )
             .children(finder)
+            .children(tab_menu)
     }
 }
 
@@ -96,6 +106,39 @@ impl XeroApp {
         }
     }
 
+    fn on_sidebar_drag(
+        &mut self,
+        event: &DragMoveEvent<ResizeEdge>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if matches!(*event.drag(cx), ResizeEdge::Sidebar) {
+            self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Sidebar, cx);
+        }
+    }
+
+    fn on_tree_drag(
+        &mut self,
+        event: &DragMoveEvent<ResizeEdge>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if matches!(*event.drag(cx), ResizeEdge::Tree) {
+            self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Tree, cx);
+        }
+    }
+
+    fn on_terminal_drag(
+        &mut self,
+        event: &DragMoveEvent<ResizeEdge>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if matches!(*event.drag(cx), ResizeEdge::Terminal) {
+            self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Terminal, cx);
+        }
+    }
+
     fn render_main(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let terminal = (!self.terminal_collapsed)
@@ -107,79 +150,41 @@ impl XeroApp {
                 .map(|tab| tab.view.clone())
         });
         let active_view = active_view.flatten();
-
-        let ring = |focused: bool| {
-            if focused {
-                colors.border_focused
-            } else {
-                gpui::transparent_black()
-            }
-        };
         let term_focused = terminal
             .as_ref()
             .is_some_and(|t| t.read(cx).focus_handle(cx).contains_focused(window, cx));
         let editor_focused = active_view
             .as_ref()
             .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx));
-
-        let terminal_tabs = terminal.is_some().then(|| self.render_terminal_tabs(cx));
-        let editor_tabs =
-            (self.editor_visible() && self.has_editor()).then(|| self.render_tab_bar(cx));
-        let terminal_pane = terminal.map(|terminal| {
-            div()
-                .flex_1()
-                .flex()
-                .flex_col()
-                .min_w_0()
-                .border_2()
-                .border_color(ring(term_focused))
-                .children(terminal_tabs)
-                .child(div().flex_1().min_h_0().child(terminal))
+        let both = terminal.is_some() && self.editor_visible();
+        let terminal_pane = terminal.map(|t| {
+            self.render_terminal_pane(
+                PaneFrame {
+                    split: both,
+                    ring: focus_ring(term_focused, &colors),
+                },
+                t,
+                cx,
+            )
         });
-
-        // Right pane = an optional file-tree sidebar beside the editor body. It
-        // exists whenever an editor is open or the tree sidebar is toggled on.
-        let tree_open = self.editor_visible() && self.is_browsing();
-        let editor_body = match active_view {
-            Some(view) => div().flex_1().min_h_0().child(view).into_any_element(),
-            None => div()
-                .flex_1()
-                .min_h_0()
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(colors.text_muted)
-                .child("Open a file from the tree or cmd-p")
-                .into_any_element(),
-        };
         let right_pane = self.editor_visible().then(|| {
-            let tree = tree_open.then(|| self.render_tree_sidebar(cx));
-            div()
-                .flex_1()
-                .flex()
-                .flex_col()
-                .min_w_0()
-                .border_2()
-                .border_color(ring(editor_focused))
-                .children(editor_tabs)
-                .child(
-                    div()
-                        .flex()
-                        .flex_1()
-                        .min_h_0()
-                        .children(tree)
-                        .child(editor_body),
-                )
+            self.render_editor_pane(
+                focus_ring(editor_focused, &colors),
+                active_view,
+                &colors,
+                cx,
+            )
         });
 
-        let mut panel = div().flex().flex_1().size_full();
+        let mut panel = div()
+            .flex()
+            .flex_1()
+            .size_full()
+            .min_w_0()
+            .on_drag_move(cx.listener(Self::on_terminal_drag));
         match (terminal_pane, right_pane) {
-            (Some(terminal_pane), Some(right_pane)) => {
-                panel = panel.child(terminal_pane).child(right_pane);
-            }
-            (Some(terminal_pane), None) => {
-                panel = panel.child(terminal_pane);
-            }
+            (Some(term), Some(right)) => panel = panel.child(term).child(right),
+            (Some(term), None) => panel = panel.child(term),
             _ => {
                 let message = if self.active.is_some() {
                     "Use the toolbar to show a panel"
@@ -190,5 +195,100 @@ impl XeroApp {
             }
         }
         panel
+    }
+
+    fn render_terminal_pane(
+        &self,
+        frame: PaneFrame,
+        terminal: Entity<TerminalView>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let tabs = self.render_terminal_tabs(cx);
+        let mut pane = div()
+            .relative()
+            .flex()
+            .flex_col()
+            .min_w_0()
+            .border_2()
+            .border_color(frame.ring)
+            .child(tabs)
+            .child(div().flex_1().min_h_0().min_w_0().child(terminal));
+        if frame.split {
+            pane = pane.w(px(self.terminal_width_px())).flex_none().child(
+                crate::resize::col_resize_handle(
+                    "terminal-resize",
+                    ResizeEdge::Terminal,
+                    colors.border,
+                ),
+            );
+        } else {
+            pane = pane.flex_1();
+        }
+        pane
+    }
+
+    fn render_editor_pane(
+        &self,
+        ring: gpui::Hsla,
+        active_view: Option<Entity<EditorView>>,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let tabs = self.has_editor().then(|| self.render_tab_bar(cx));
+        let tree = self.is_browsing().then(|| self.render_tree_sidebar(cx));
+        div()
+            .flex_1()
+            .flex()
+            .flex_col()
+            .min_w_0()
+            .border_2()
+            .border_color(ring)
+            .children(tabs)
+            .child(
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_h_0()
+                    .min_w_0()
+                    .on_drag_move(cx.listener(Self::on_tree_drag))
+                    .children(tree)
+                    .child(editor_body(active_view, colors)),
+            )
+    }
+}
+
+struct PaneFrame {
+    split: bool,
+    ring: gpui::Hsla,
+}
+
+fn focus_ring(focused: bool, colors: &theme::ThemeColors) -> gpui::Hsla {
+    if focused {
+        colors.border_focused
+    } else {
+        gpui::transparent_black()
+    }
+}
+
+fn editor_body(view: Option<Entity<EditorView>>, colors: &theme::ThemeColors) -> AnyElement {
+    match view {
+        Some(view) => div()
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .overflow_hidden()
+            .child(view)
+            .into_any_element(),
+        None => div()
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_color(colors.text_muted)
+            .child("Open a file from the tree or cmd-p")
+            .into_any_element(),
     }
 }

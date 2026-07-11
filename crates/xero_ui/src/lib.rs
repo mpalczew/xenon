@@ -7,6 +7,7 @@ mod file_browser;
 mod finder;
 mod icons;
 mod rename;
+mod resize;
 mod settings;
 mod sidebar;
 mod tabs;

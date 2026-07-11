@@ -5,14 +5,17 @@ impl XeroApp {
         let Some(root) = self.stream_root(id) else {
             return;
         };
+        // Flush live widths/visibility before switching so a drag is not lost.
+        if let Some(prev) = self.active
+            && prev != id
+        {
+            self.save_layout(prev);
+        }
         self.active = Some(id);
         self.finder = None;
         self.reindex(root.clone(), false, cx);
         if let Some(stream) = self.streams.get(&id) {
-            let layout = &stream.session.layout;
-            self.terminal_collapsed = !layout.terminal_visible;
-            self.editor_collapsed = !layout.editor_visible;
-            self.sidebar_collapsed = !layout.sidebar_visible;
+            self.apply_layout(stream.session.layout);
         }
         if !self.terminals.contains_key(&id) {
             let terminal = self.spawn_terminal(root, id, cx);
@@ -29,25 +32,43 @@ impl XeroApp {
     }
 
     /// Create a terminal for `stream` at `root` and wire its bell/interaction
-    /// events to the stream's attention flag.
+    /// events. Attention is resolved by which stream owns the terminal view so
+    /// tabs can move between streams without rewiring.
     pub(super) fn spawn_terminal(
         &mut self,
         root: PathBuf,
-        stream: StreamId,
+        _stream: StreamId,
         cx: &mut Context<Self>,
     ) -> Entity<TerminalView> {
         let env = self.terminal_env();
         let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
-        self._bell_subs.push(
-            cx.subscribe(&terminal, move |this, _view, event, cx| match event {
-                TerminalEvent::Bell | TerminalEvent::Finished => this.flag_attention(stream, cx),
-                TerminalEvent::Interacted => this.clear_attention(stream, cx),
-                TerminalEvent::Exited => cx.notify(),
-                TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
-                TerminalEvent::ResolvePath(token) => this.resolve_clicked(token.clone(), cx),
-            }),
-        );
+        self._bell_subs
+            .push(cx.subscribe(&terminal, move |this, view, event, cx| {
+                let owner = this.stream_of_terminal(&view);
+                match event {
+                    TerminalEvent::Bell | TerminalEvent::Finished => {
+                        if let Some(stream) = owner {
+                            this.flag_attention(stream, cx);
+                        }
+                    }
+                    TerminalEvent::Interacted => {
+                        if let Some(stream) = owner {
+                            this.clear_attention(stream, cx);
+                        }
+                    }
+                    TerminalEvent::Exited => cx.notify(),
+                    TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
+                    TerminalEvent::ResolvePath(token) => this.resolve_clicked(token.clone(), cx),
+                }
+            }));
         terminal
+    }
+
+    /// Which stream currently holds this terminal tab (if any).
+    fn stream_of_terminal(&self, view: &Entity<TerminalView>) -> Option<StreamId> {
+        self.terminals
+            .iter()
+            .find_map(|(id, stack)| stack.tabs.iter().any(|tab| tab == view).then_some(*id))
     }
 
     /// A cmd-clicked token in the terminal did not resolve to a file on disk.
@@ -103,7 +124,7 @@ impl XeroApp {
         }
     }
 
-    fn clear_attention(&mut self, id: StreamId, cx: &mut Context<Self>) {
+    pub(crate) fn clear_attention(&mut self, id: StreamId, cx: &mut Context<Self>) {
         if self.attention.remove(&id) {
             cx.notify();
         }
@@ -131,16 +152,47 @@ impl XeroApp {
     }
 
     pub(crate) fn add_stream(&mut self, workspace: WorkspaceId, cx: &mut Context<Self>) {
-        let Some(record) = self.registry.workspace_mut(workspace) else {
-            return;
-        };
-        let stream = Stream::new(format!("stream {}", record.streams.len() + 1));
+        if let Some(stream_id) = self.create_stream(workspace) {
+            self.activate_stream(stream_id, cx);
+        }
+    }
+
+    /// Create a stream in `workspace` without activating it. Used by add-stream
+    /// and by move-tab-to-new-stream.
+    pub(crate) fn create_stream(&mut self, workspace: WorkspaceId) -> Option<StreamId> {
+        // Capture before mutably borrowing the registry.
+        let layout = self.current_layout();
+        let record = self.registry.workspace_mut(workspace)?;
+        let mut stream = Stream::new(format!("stream {}", record.streams.len() + 1));
+        // New streams inherit the live layout (visibility + widths).
+        stream.session.layout = layout;
         let stream_id = stream.id;
         record.streams.push(stream_id);
         self.streams.insert(stream_id, stream.clone());
-        save_session(workspace, &stream, "add_stream");
-        save_registry(&self.registry, "add_stream");
-        self.activate_stream(stream_id, cx);
+        save_session(workspace, &stream, "create_stream");
+        save_registry(&self.registry, "create_stream");
+        Some(stream_id)
+    }
+
+    /// Other streams in the same workspace as `stream` (for move-tab menus).
+    pub(crate) fn sibling_streams(&self, stream: StreamId) -> Vec<(StreamId, String)> {
+        let Some(workspace) = self.workspace_of(stream) else {
+            return Vec::new();
+        };
+        workspace
+            .streams
+            .iter()
+            .copied()
+            .filter(|&id| id != stream)
+            .map(|id| (id, self.stream_name(id).to_string()))
+            .collect()
+    }
+
+    pub(crate) fn same_workspace(&self, a: StreamId, b: StreamId) -> bool {
+        match (self.workspace_of(a), self.workspace_of(b)) {
+            (Some(wa), Some(wb)) => wa.id == wb.id,
+            _ => false,
+        }
     }
 
     /// Move `dragged` to `target`'s position within their shared workspace.
