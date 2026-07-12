@@ -59,7 +59,24 @@ impl XeroApp {
             && index < stack.tabs.len()
         {
             stack.active = index;
+            let view = stack.tabs[index].view.clone();
+            view.update(cx, |view, cx| view.sync_from_disk(cx));
             cx.notify();
+        }
+    }
+
+    /// Re-check open text editors whose paths match any of `paths` (FS events).
+    pub(crate) fn sync_editors_for_paths(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
+        if paths.is_empty() {
+            return;
+        }
+        for stack in self.editors.values() {
+            for tab in &stack.tabs {
+                let open = tab.view.read(cx).path().to_path_buf();
+                if paths.iter().any(|p| p == &open || open.starts_with(p)) {
+                    tab.view.update(cx, |view, cx| view.sync_from_disk(cx));
+                }
+            }
         }
     }
 

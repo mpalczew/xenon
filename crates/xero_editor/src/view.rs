@@ -2,8 +2,10 @@
 //! an `EntityInputHandler`; editing/navigation keys go through key-down; Cmd-S
 //! saves. Mirrors the terminal view's input wiring.
 
+mod disk;
 mod input;
 mod layout;
+mod menu;
 
 use std::path::PathBuf;
 
@@ -11,8 +13,8 @@ use anyhow::Result;
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
     MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement, PinchEvent, Pixels, Point, Render,
-    ScrollWheelEvent, StatefulInteractiveElement, Styled, Window, anchored, deferred, div, point,
-    px,
+    ScrollWheelEvent, StatefulInteractiveElement, Styled, Task, Window, anchored, deferred, div,
+    point, px,
 };
 use theme::ActiveTheme;
 
@@ -22,6 +24,7 @@ use crate::highlight;
 use crate::image_viewer::{ImageContentElement, ImageViewer, event_delta, zoom_factor_for_scroll};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
+use menu::{context_item, file_title, is_supported_image};
 use xero_settings::{Copy, Cut, Paste};
 
 pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
@@ -45,6 +48,8 @@ pub struct EditorView {
     /// Right-click Cut/Copy/Paste menu position (window coords), when open.
     context_menu: Option<Point<Pixels>>,
     vim: VimState,
+    /// Poll disk mtime so agent/other-tool writes refresh a clean buffer.
+    pub(super) _disk_poll: Task<()>,
 }
 
 pub(super) enum Content {
@@ -69,7 +74,11 @@ impl EditorView {
             },
             Err(error) => return Err(error.into()),
         };
-        Ok(cx.new(|cx| Self::from_content(content, autofocus, cx)))
+        Ok(cx.new(|cx| {
+            let mut view = Self::from_content(content, autofocus, cx);
+            view.start_disk_poll(cx);
+            view
+        }))
     }
 
     fn from_content(content: Content, autofocus: bool, cx: &mut Context<Self>) -> Self {
@@ -88,6 +97,7 @@ impl EditorView {
             dragging: false,
             context_menu: None,
             vim: VimState::default(),
+            _disk_poll: disk::idle_disk_poll(),
         };
         view.recompute_highlights();
         view
@@ -140,7 +150,7 @@ impl EditorView {
 
     /// Re-highlight the whole buffer. Cheap enough for v1 file sizes; called
     /// after every edit. Unsupported languages get no spans (default color).
-    fn recompute_highlights(&mut self) {
+    pub(super) fn recompute_highlights(&mut self) {
         self.highlights = match &self.content {
             Content::Text(buffer) => highlight::spans_for_path(buffer.path(), &buffer.text()),
             Content::Image(_) | Content::Unsupported { .. } => Vec::new(),
@@ -253,6 +263,8 @@ impl Render for EditorView {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
+        // Catch disk changes when this view paints (focus/tab switch).
+        self.sync_from_disk(cx);
         let colors = cx.theme().colors().clone();
         match &self.content {
             Content::Image(_) => return self.render_image(cx).into_any_element(),
@@ -506,41 +518,4 @@ fn small_button(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::D
         .border_1()
         .cursor_pointer()
         .child(label)
-}
-
-fn is_supported_image(path: &std::path::Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| gpui::Img::extensions().contains(&ext.to_ascii_lowercase().as_str()))
-        .unwrap_or(false)
-}
-
-fn file_title(path: &std::path::Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.to_string_lossy().into_owned())
-}
-
-/// Context-menu row: label on the left, keybinding on the right.
-fn context_item(
-    id: &'static str,
-    label: &'static str,
-    shortcut: &'static str,
-    colors: &theme::ThemeColors,
-) -> gpui::Stateful<gpui::Div> {
-    let hover = colors.element_hover;
-    let muted = colors.text_muted;
-    div()
-        .id(id)
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_6()
-        .px_3()
-        .py_1()
-        .text_sm()
-        .cursor_pointer()
-        .hover(move |s| s.bg(hover))
-        .child(label)
-        .child(div().text_xs().text_color(muted).child(shortcut))
 }

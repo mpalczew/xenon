@@ -90,10 +90,26 @@ async fn event_loop(
             break;
         };
         let mut pending = HashSet::new();
+        let mut files = HashSet::new();
         mark_workspace(roots, &first, &mut pending);
+        if first.is_file() {
+            files.insert(first);
+        }
         cx.background_executor().timer(DEBOUNCE).await;
         while let Ok(path) = rx.try_recv() {
             mark_workspace(roots, &path, &mut pending);
+            if path.is_file() {
+                files.insert(path);
+            }
+        }
+        if !files.is_empty() {
+            let paths: Vec<_> = files.into_iter().collect();
+            if app
+                .update(cx, |app, cx| app.sync_editors_for_paths(&paths, cx))
+                .is_err()
+            {
+                break;
+            }
         }
         if pending.is_empty() {
             continue;
