@@ -7,7 +7,7 @@ use std::ops::Range;
 use gpui::{
     App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
-    Point, Render, Styled, UTF16Selection, Window, canvas, div,
+    Point, Render, Styled, Subscription, UTF16Selection, Window, canvas, div,
 };
 use theme::ActiveTheme;
 
@@ -20,6 +20,9 @@ pub struct RenameView {
     text: String,
     focus: FocusHandle,
     focused_once: bool,
+    /// Prevent double-emit when blur fires after Escape/Enter already finished.
+    finished: bool,
+    _blur: Option<Subscription>,
 }
 
 impl EventEmitter<RenameEvent> for RenameView {}
@@ -30,23 +33,37 @@ impl RenameView {
             text: initial,
             focus: cx.focus_handle(),
             focused_once: false,
+            finished: false,
+            _blur: None,
+        }
+    }
+
+    fn finish(&mut self, event: RenameEvent, cx: &mut Context<Self>) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        cx.emit(event);
+    }
+
+    fn commit_or_cancel(&mut self, cx: &mut Context<Self>) {
+        let name = self.text.trim().to_string();
+        if name.is_empty() {
+            self.finish(RenameEvent::Cancelled, cx);
+        } else {
+            self.finish(RenameEvent::Committed(name), cx);
         }
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         match event.keystroke.key.as_str() {
-            "escape" => cx.emit(RenameEvent::Cancelled),
-            "enter" => {
-                let name = self.text.trim().to_string();
-                if name.is_empty() {
-                    cx.emit(RenameEvent::Cancelled);
-                } else {
-                    cx.emit(RenameEvent::Committed(name));
-                }
-            }
+            "escape" => self.finish(RenameEvent::Cancelled, cx),
+            "enter" => self.commit_or_cancel(cx),
             "backspace" => {
                 self.text.pop();
                 cx.notify();
+                cx.stop_propagation();
+                return;
             }
             _ => return,
         }
@@ -65,6 +82,13 @@ impl Render for RenameView {
         if !self.focused_once {
             self.focus.focus(window, cx);
             self.focused_once = true;
+        }
+        // Click-away (or focus move to terminal/editor) must leave edit mode.
+        if self._blur.is_none() {
+            let focus = self.focus.clone();
+            self._blur = Some(cx.on_blur(&focus, window, |this, _window, cx| {
+                this.commit_or_cancel(cx);
+            }));
         }
         let colors = cx.theme().colors().clone();
         div()
