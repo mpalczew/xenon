@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>xero</string>
+    <string>Xenon</string>
     <key>CFBundleDisplayName</key>
-    <string>xero</string>
+    <string>Xenon</string>
     <key>CFBundleIdentifier</key>
     <string>dev.xero.xero</string>
     <key>CFBundleVersion</key>
@@ -15,7 +15,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>xero</string>
+    <string>xenon</string>
     <key>CFBundleIconFile</key>
     <string>xero</string>
     <key>CFBundleInfoDictionaryVersion</key>

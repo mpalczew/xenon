@@ -6,11 +6,12 @@ source "$root/scripts/release/codesign.sh"
 
 "$root/scripts/release/bundle"
 
-dest_dir="${XERO_INSTALL_DIR:-$HOME/Applications}"
-dest="$dest_dir/xero.app"
+dest_dir="${XENON_INSTALL_DIR:-${XERO_INSTALL_DIR:-$HOME/Applications}}"
+dest="$dest_dir/Xenon.app"
 mkdir -p "$dest_dir"
-rm -rf "$dest"
-cp -R "$root/target/release/xero.app" "$dest"
+# Remove legacy install name if present.
+rm -rf "$dest_dir/xero.app" "$dest"
+cp -R "$root/target/release/xenon.app" "$dest"
 identity="$(xero_codesign_identity)"
 codesign --force --deep --sign "$identity" "$dest" || {
     echo "codesign of installed app failed: $dest" >&2

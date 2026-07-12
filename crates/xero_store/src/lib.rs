@@ -98,15 +98,39 @@ pub enum StoreError {
     Corrupt { path: PathBuf, backup: PathBuf },
 }
 
-/// Root directory for xero state. Overridable via `XERO_DATA_DIR` (tests).
+/// Root directory for app state. Overridable via `XENON_DATA_DIR` or legacy
+/// `XERO_DATA_DIR` (tests / slot launcher). Default `~/.xenon`; one-time
+/// migrate from `~/.xero` when present.
 pub fn data_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("XERO_DATA_DIR") {
+    if let Some(dir) =
+        std::env::var_os("XENON_DATA_DIR").or_else(|| std::env::var_os("XERO_DATA_DIR"))
+    {
         return PathBuf::from(dir);
     }
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_default();
-    home.join(".xero")
+    let modern = home.join(".xenon");
+    let legacy = home.join(".xero");
+    if !modern.exists() && legacy.exists() {
+        match fs::rename(&legacy, &modern) {
+            Ok(()) => log::info!(
+                "migrated data dir {} -> {}",
+                legacy.display(),
+                modern.display()
+            ),
+            Err(error) => log::warn!(
+                "could not migrate {} to {}: {error}; using legacy path",
+                legacy.display(),
+                modern.display()
+            ),
+        }
+    }
+    if modern.exists() || !legacy.exists() {
+        modern
+    } else {
+        legacy
+    }
 }
 
 fn registry_path() -> PathBuf {

@@ -19,7 +19,7 @@ pub fn handle(text: &str, roots: &[PathBuf], commands: &Sender<IdeCommand>) -> O
         "initialize" => Some(json!({
             "protocolVersion": "2024-11-05",
             "capabilities": { "tools": { "listChanged": true } },
-            "serverInfo": { "name": "xero", "version": env!("CARGO_PKG_VERSION") },
+            "serverInfo": { "name": "xenon", "version": env!("CARGO_PKG_VERSION") },
         })),
         "notifications/initialized" => return None,
         "tools/list" => Some(json!({ "tools": tool_list() })),
@@ -115,7 +115,7 @@ mod tests {
         let reply = handle(&request("initialize", json!({})), &[], &tx).expect("reply");
         let value: Value = serde_json::from_str(&reply).expect("json");
 
-        assert_eq!(value["result"]["serverInfo"]["name"], "xero");
+        assert_eq!(value["result"]["serverInfo"]["name"], "xenon");
         assert_eq!(
             value["result"]["capabilities"]["tools"]["listChanged"],
             true

@@ -100,14 +100,17 @@ impl Render for XeroApp {
 
 impl XeroApp {
     fn window_title(&self) -> String {
-        let mut title = "xero".to_string();
+        let mut title = "Xenon".to_string();
         if let Some(stream) = self.active
             && let Some(workspace) = self.workspace_of(stream)
         {
-            title = format!("xero - {} / {}", workspace.name, self.stream_name(stream));
+            title = format!("Xenon - {} / {}", workspace.name, self.stream_name(stream));
         }
-        match std::env::var("XERO_SLOT") {
-            Ok(slot) if !slot.trim().is_empty() => format!("{} {title}", slot.trim()),
+        let slot = std::env::var("XENON_SLOT")
+            .or_else(|_| std::env::var("XERO_SLOT"))
+            .ok();
+        match slot {
+            Some(slot) if !slot.trim().is_empty() => format!("{} {title}", slot.trim()),
             _ => title,
         }
     }

@@ -1,11 +1,15 @@
 [package]
-name = "xero"
+name = "xenon"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "xenon"
+path = "src/main.rs"
 
 [dependencies]
 env_logger = "0.11"

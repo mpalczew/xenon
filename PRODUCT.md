@@ -41,11 +41,12 @@ The working name **xero** was loved because it sounds like **zero**: nothing.
 Subconsciously: anti-IDE, empty chrome, no opinionated agent stack. That
 semantic is right even if the spelling must change (Xero accounting collision).
 
-**Settled public name: Xenon.** CLI / launcher binary: **`xenon`** (not `xe`:
+**Settled public name: Xenon.** CLI / app binary: **`xenon`** (not `xe`:
 brew + XenServer PATH collision). Metaphor: noble gas, present but inert,
-anti-IDE. Working tree may still say xero until the rename haul lands.
-Rename checklist staged in AIPM `projects/xero/rename-xenon` (do not start
-until scheduled).
+anti-IDE. App: `Xenon.app`. Data: `~/.xenon` (auto-migrate from `~/.xero`).
+Env: `XENON_DATA_DIR` / `XENON_SLOT` with legacy `XERO_*` aliases. Bundle id
+stays `dev.xero.xero` (TCC). Crate paths still `crates/xero_*`. GitHub repo
+rename still open. Checklist: AIPM `projects/xero/rename-xenon`.
 
 Rejected or DQ: xero (accounting), xe CLI, mu (Mu Editor), nyx (Nix verbal +
 brew), vexo (vex), soft metaphors (weft/skiff). zeno/wu kept as also-rans only.

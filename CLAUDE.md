@@ -13,8 +13,9 @@ optionally split with tree-sitter-highlighted editors. License: GPL-3.0.
 (**anti-IDE**) for many agents across workspaces, any terminal harness
 (PTY-agnostic). "IDE" means live-here-all-day (author replaced VS Code), not
 VS Code parity on day one. **Public name: Xenon**; CLI/binary **`xenon`**.
-Repo/data dirs may still say xero until rename haul. Speed must stay instant
-vs Electron-class tools. Install: Homebrew for public. OSS success:
+Public name **Xenon**; binary/`Xenon.app`; data `~/.xenon` (migrates from
+`~/.xero`). Crate paths still `xero_*` until full rename. Install:
+`project install` → `~/Applications/Xenon.app`. Homebrew later. OSS success:
 **substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
 Personas: AIPM `projects/xero/personas`.
 
@@ -23,13 +24,15 @@ Personas: AIPM `projects/xero/personas`.
 - Dev: `cargo build` / `cargo run` (workspace root). `cargo test` runs the unit
   tests (pure crates only; GPUI views are verified by launch tests).
 - Install as an app: `project install` (`.vscode/tasks.json` shell tasks)
-  release-builds, assembles `target/release/xero.app` (Info.plist in `macos/`),
-  **stable-codesigns** it, and copies it to `~/Applications` (override with
-  `XERO_INSTALL_DIR`). Not `/Applications`: reinstalling there from a shell
-  hosted by xero triggers macOS App Management TCC every time. `project bundle`
-  stops before copying. Signing identity (for TCC grants to survive reinstall):
-  `XERO_CODESIGN_IDENTITY` if set, else first `Developer ID Application`, else
-  `Apple Development`, else auto-created local `xero-dev` self-signed cert.
+  release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`),
+  **stable-codesigns** it, and copies it to `~/Applications/Xenon.app` (override
+  with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`). Not `/Applications`:
+  reinstalling there from a shell hosted by the app triggers macOS App
+  Management TCC every time. `project bundle` stops before copying. Signing
+  identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY` if
+  set, else first `Developer ID Application`, else `Apple Development`, else
+  auto-created local `xero-dev` self-signed cert. Bundle id stays
+  `dev.xero.xero` so TCC grants stick.
   Never ad-hoc `-` for install — that changes the CDHash every build and drops
   Full Disk Access. Use `project sign_setup` to print the identity. Complex
   release steps live under `scripts/release/`; list all tasks with `project`.
@@ -89,7 +92,7 @@ forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   ask the user to read diffs for quality control.
 - Run `project install` at the END of all work, once every change is complete —
   this is how the user dogfoods. It release-builds and installs
-  `~/Applications/xero.app`; the user verifies there, not in the debug build. Do
+  `~/Applications/Xenon.app`; the user verifies there, not in the debug build. Do
   not install mid-way through a multi-step change; batch it as the final step.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request.

@@ -36,7 +36,7 @@ pub fn write(port: u16, token: &str, roots: &[PathBuf]) -> Result<PathBuf> {
     let lock = Lock {
         pid: std::process::id(),
         workspace_folders: roots,
-        ide_name: "xero",
+        ide_name: "xenon",
         transport: "ws",
         running_in_windows: false,
         auth_token: token,

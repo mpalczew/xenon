@@ -64,7 +64,7 @@ fn wire_menus(cx: &mut App) {
     cx.on_action(|_: &Quit, cx| cx.quit());
     cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
     cx.set_menus([
-        Menu::new("xero").items([
+        Menu::new("Xenon").items([
             MenuItem::action("Preferences…", ToggleSettings),
             MenuItem::separator(),
             MenuItem::action("Quit", Quit),
