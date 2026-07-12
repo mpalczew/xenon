@@ -152,6 +152,9 @@ impl XeroApp {
     }
 
     pub(crate) fn add_stream(&mut self, workspace: WorkspaceId, cx: &mut Context<Self>) {
+        // Always show streams after + so a collapsed workspace does not hide
+        // the stream that was just created.
+        self.collapsed_workspaces.remove(&workspace);
         if let Some(stream_id) = self.create_stream(workspace) {
             self.activate_stream(stream_id, cx);
         }

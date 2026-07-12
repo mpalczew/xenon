@@ -204,10 +204,11 @@ impl XeroApp {
         }
         let colors = cx.theme().colors().clone();
         let group = format!("ws-{id}");
+        // Title and hover actions share a flex row (not absolute overlay): an
+        // absolute + over the title hit target also toggled collapse.
         div()
             .id(("ws-row", id_hash(id.to_string())))
             .group(group.clone())
-            .relative()
             .flex()
             .items_center()
             .h(px(ROW_H))
@@ -226,10 +227,9 @@ impl XeroApp {
                 }),
             )
             .child(self.workspace_title_hit(id, name, collapsed, cx))
-            .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .children(dirt.map(|(plus, minus)| {
                 div()
-                    .group_hover(group, |s| s.invisible())
+                    .group_hover(group.clone(), |s| s.invisible())
                     .child(crate::git_dirt::badge(
                         plus,
                         minus,
@@ -237,6 +237,7 @@ impl XeroApp {
                         colors.version_control_deleted,
                     ))
             }))
+            .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .into_any_element()
     }
 
@@ -282,19 +283,20 @@ impl XeroApp {
     ) -> impl IntoElement + use<> {
         let group = group.to_string();
         div()
-            .absolute()
-            .right(px(2.))
             .flex()
             .items_center()
             .gap_px()
+            .flex_none()
             .invisible()
             .group_hover(group, |s| s.visible())
-            .bg(colors.panel_background)
             .child(self.icon_button(
                 ("add-stream", id_hash(id.to_string())),
                 Icon::Plus,
                 colors.clone(),
-                cx.listener(move |this, _, _, cx| this.add_stream(id, cx)),
+                cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.add_stream(id, cx);
+                }),
             ))
             .child(self.icon_button(
                 ("workspace-close", id_hash(id.to_string())),
