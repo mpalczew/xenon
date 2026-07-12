@@ -2,26 +2,26 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "xero",
+      "label": "xenon",
       "type": "shell",
-      "command": "~/bin/xero",
-      "detail": "launch xero via the slot launcher"
+      "command": "~/bin/xenon",
+      "detail": "launch Xenon via the slot launcher (alias: ~/bin/xero)"
     },
     {
       "label": "build",
       "type": "shell",
-      "command": "cargo build --release",
+      "command": "cargo build --release -p xenon",
       "group": {
         "kind": "build",
         "isDefault": true
       },
-      "detail": "cargo build --release"
+      "detail": "cargo build --release -p xenon"
     },
     {
       "label": "bundle",
       "type": "shell",
       "command": "scripts/release/bundle",
-      "detail": "assemble target/release/xero.app (stable-signed)"
+      "detail": "assemble target/release/xenon.app (stable-signed)"
     },
     {
       "label": "fmt",
@@ -57,7 +57,7 @@
       "label": "install",
       "type": "shell",
       "command": "scripts/release/install",
-      "detail": "bundle and copy xero.app into ~/Applications"
+      "detail": "bundle and copy Xenon.app into ~/Applications"
     },
     {
       "label": "sign_setup",
@@ -74,8 +74,8 @@
     {
       "label": "run",
       "type": "shell",
-      "command": "cargo run --",
-      "detail": "cargo run (debug); pass a file path to open the editor"
+      "command": "cargo run -p xenon --",
+      "detail": "cargo run -p xenon (debug); pass a file path to open the editor"
     },
     {
       "label": "test",
