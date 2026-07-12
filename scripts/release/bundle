@@ -11,7 +11,7 @@ identity="$(xero_codesign_identity)"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$root/macos/Info.plist" "$app/Contents/Info.plist"
-cp "$root/macos/xero.icns" "$app/Contents/Resources/xero.icns"
+cp "$root/macos/xenon.icns" "$app/Contents/Resources/xenon.icns"
 cp "$root/target/release/xenon" "$app/Contents/MacOS/xenon"
 codesign --force --deep --sign "$identity" "$app" || {
     echo "codesign failed with identity: $identity" >&2

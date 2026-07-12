@@ -17,7 +17,7 @@
     <key>CFBundleExecutable</key>
     <string>xenon</string>
     <key>CFBundleIconFile</key>
-    <string>xero</string>
+    <string>xenon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>LSMinimumSystemVersion</key>
