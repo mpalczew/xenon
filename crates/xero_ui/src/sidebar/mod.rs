@@ -9,13 +9,14 @@ use theme::ActiveTheme;
 use xero_core::{StreamId, WorkspaceId};
 
 use crate::app::XeroApp;
-use crate::chrome::{self, list_selection};
 use crate::icons::icon;
 
-struct DragStream(StreamId);
+mod streams;
+
+pub(super) struct DragStream(StreamId);
 struct DragWorkspace(WorkspaceId);
 
-struct DragChip {
+pub(super) struct DragChip {
     label: String,
 }
 
@@ -50,15 +51,9 @@ struct WorkspaceHeader<'a> {
     dirt: Option<(String, String)>,
 }
 
-struct StreamRow<'a> {
-    id: StreamId,
-    name: &'a str,
-    is_active: bool,
-}
-
-const ROW_H: f32 = 24.;
-const ICON_SM: f32 = 12.;
-const ICON_MD: f32 = 13.;
+pub(super) const ROW_H: f32 = 24.;
+pub(super) const ICON_SM: f32 = 12.;
+pub(super) const ICON_MD: f32 = 13.;
 
 impl XeroApp {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -197,13 +192,16 @@ impl XeroApp {
         &self,
         header: WorkspaceHeader,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
+    ) -> gpui::AnyElement {
         let WorkspaceHeader {
             id,
             name,
             collapsed,
             dirt,
         } = header;
+        if let Some(field) = self.rename_workspace_field(id) {
+            return workspace_rename_row(id, collapsed, field, cx);
+        }
         let colors = cx.theme().colors().clone();
         let group = format!("ws-{id}");
         div()
@@ -227,51 +225,8 @@ impl XeroApp {
                     this.reorder_workspace(dragged.0, id, cx)
                 }),
             )
-            .child(
-                div()
-                    .id(("ws-toggle", id_hash(id.to_string())))
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .min_w_0()
-                    .flex_1()
-                    .cursor_pointer()
-                    .hover(|s| s.text_color(colors.text))
-                    .on_click(cx.listener(move |this, _, _, cx| this.toggle_workspace(id, cx)))
-                    .child(chevron_slot(collapsed))
-                    .child(
-                        div()
-                            .text_color(colors.text_muted)
-                            .child(icon(Icon::Folder, px(ICON_SM))),
-                    )
-                    .child(div().truncate().child(name.to_string())),
-            )
-            .child(
-                div()
-                    .absolute()
-                    .right(px(2.))
-                    .flex()
-                    .items_center()
-                    .gap_px()
-                    .invisible()
-                    .group_hover(group.clone(), |s| s.visible())
-                    .bg(colors.panel_background)
-                    .child(self.icon_button(
-                        ("add-stream", id_hash(id.to_string())),
-                        Icon::Plus,
-                        colors.clone(),
-                        cx.listener(move |this, _, _, cx| this.add_stream(id, cx)),
-                    ))
-                    .child(self.icon_button(
-                        ("workspace-close", id_hash(id.to_string())),
-                        Icon::X,
-                        colors.clone(),
-                        cx.listener(move |this, _, window, cx| {
-                            cx.stop_propagation();
-                            this.close_workspace(id, window, cx);
-                        }),
-                    )),
-            )
+            .child(self.workspace_title_hit(id, name, collapsed, cx))
+            .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .children(dirt.map(|(plus, minus)| {
                 div()
                     .group_hover(group, |s| s.invisible())
@@ -282,42 +237,74 @@ impl XeroApp {
                         colors.version_control_deleted,
                     ))
             }))
+            .into_any_element()
     }
 
-    /// Streams under a workspace, indented with a quiet vertical guide.
-    fn stream_group(
+    fn workspace_title_hit(
         &self,
-        streams: Vec<(StreamId, String, bool)>,
+        id: WorkspaceId,
+        name: &str,
+        collapsed: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let rows: Vec<_> = streams
-            .iter()
-            .map(|(id, name, is_active)| {
-                self.stream_row(
-                    StreamRow {
-                        id: *id,
-                        name,
-                        is_active: *is_active,
-                    },
-                    cx,
-                )
-                .into_any_element()
-            })
-            .collect();
         div()
+            .id(("ws-toggle", id_hash(id.to_string())))
             .flex()
-            .pl(px(18.))
-            .pr_1()
+            .items_center()
+            .gap_1()
+            .min_w_0()
+            .flex_1()
+            .cursor_pointer()
+            .hover(|s| s.text_color(colors.text))
+            .on_click(cx.listener(move |this, event: &gpui::ClickEvent, _, cx| {
+                if event.click_count() >= 2 {
+                    this.start_rename_workspace(id, cx);
+                } else {
+                    this.toggle_workspace(id, cx);
+                }
+            }))
+            .child(chevron_slot(collapsed))
             .child(
                 div()
-                    .w(px(1.))
-                    .flex_none()
-                    .my_1()
-                    .bg(colors.border)
-                    .rounded_full(),
+                    .text_color(colors.text_muted)
+                    .child(icon(Icon::Folder, px(ICON_SM))),
             )
-            .child(div().flex_1().min_w_0().children(rows))
+            .child(div().truncate().child(name.to_string()))
+    }
+
+    fn workspace_hover_actions(
+        &self,
+        id: WorkspaceId,
+        group: &str,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let group = group.to_string();
+        div()
+            .absolute()
+            .right(px(2.))
+            .flex()
+            .items_center()
+            .gap_px()
+            .invisible()
+            .group_hover(group, |s| s.visible())
+            .bg(colors.panel_background)
+            .child(self.icon_button(
+                ("add-stream", id_hash(id.to_string())),
+                Icon::Plus,
+                colors.clone(),
+                cx.listener(move |this, _, _, cx| this.add_stream(id, cx)),
+            ))
+            .child(self.icon_button(
+                ("workspace-close", id_hash(id.to_string())),
+                Icon::X,
+                colors.clone(),
+                cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.close_workspace(id, window, cx);
+                }),
+            ))
     }
 
     fn closed_workspace_row(
@@ -344,100 +331,7 @@ impl XeroApp {
             .child(div().truncate().child(name.to_string()))
     }
 
-    fn stream_row(&self, row: StreamRow, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let StreamRow {
-            id,
-            name,
-            is_active,
-        } = row;
-        let colors = cx.theme().colors().clone();
-        let paint = list_selection(&colors, is_active);
-        let group = format!("stream-{id}");
-        if let Some(field) = self.rename_field(id) {
-            return div()
-                .flex()
-                .items_center()
-                .h(px(ROW_H))
-                .px_1()
-                .rounded_sm()
-                .bg(paint.background)
-                .border_l_2()
-                .border_color(paint.accent)
-                .child(field)
-                .into_any_element();
-        }
-        let attention = self.needs_attention(id).then(|| {
-            div()
-                .w(px(6.))
-                .h(px(6.))
-                .rounded_full()
-                .bg(chrome::attention_color(cx))
-        });
-        div()
-            .id(("stream", id_hash(id.to_string())))
-            .group(group.clone())
-            .flex()
-            .items_center()
-            .justify_between()
-            .h(px(ROW_H))
-            .px_1()
-            .rounded_sm()
-            .text_sm()
-            .font_weight(if is_active {
-                gpui::FontWeight::MEDIUM
-            } else {
-                gpui::FontWeight::NORMAL
-            })
-            .text_color(paint.foreground)
-            .bg(paint.background)
-            .border_l_2()
-            .border_color(paint.accent)
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-            .on_click(
-                cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
-                    if event.click_count() >= 2 {
-                        this.start_rename(id, cx);
-                    } else {
-                        this.select_stream(id, window, cx);
-                    }
-                }),
-            )
-            .on_drag(DragStream(id), drag_chip(name))
-            .drag_over::<DragStream>(move |style, _, _, _| style.bg(colors.element_selected))
-            .on_drop(cx.listener(move |this, dragged: &DragStream, _window, cx| {
-                this.reorder_stream(dragged.0, id, cx)
-            }))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .pl_1()
-                    .child(name.to_string()),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .children(attention)
-                    .child(div().invisible().group_hover(group, |s| s.visible()).child(
-                        self.icon_button(
-                            ("stream-close", id_hash(id.to_string())),
-                            Icon::X,
-                            colors.clone(),
-                            cx.listener(move |this, _, window, cx| {
-                                cx.stop_propagation();
-                                this.close_stream(id, window, cx);
-                            }),
-                        ),
-                    )),
-            )
-            .into_any_element()
-    }
-
-    fn icon_button(
+    pub(super) fn icon_button(
         &self,
         id: impl Into<gpui::ElementId>,
         glyph: Icon,
@@ -460,7 +354,33 @@ impl XeroApp {
     }
 }
 
-fn chevron_slot(collapsed: bool) -> impl IntoElement {
+pub(super) fn workspace_rename_row(
+    id: WorkspaceId,
+    collapsed: bool,
+    field: gpui::Entity<crate::rename::RenameView>,
+    cx: &mut Context<XeroApp>,
+) -> gpui::AnyElement {
+    let colors = cx.theme().colors().clone();
+    div()
+        .id(("ws-row", id_hash(id.to_string())))
+        .flex()
+        .items_center()
+        .h(px(ROW_H))
+        .mx_1()
+        .pl_2()
+        .pr(px(2.))
+        .rounded_sm()
+        .child(chevron_slot(collapsed))
+        .child(
+            div()
+                .text_color(colors.text_muted)
+                .child(icon(Icon::Folder, px(ICON_SM))),
+        )
+        .child(div().flex_1().min_w_0().child(field))
+        .into_any_element()
+}
+
+pub(super) fn chevron_slot(collapsed: bool) -> impl IntoElement {
     let glyph = if collapsed {
         Icon::ChevronRight
     } else {
@@ -474,7 +394,7 @@ fn chevron_slot(collapsed: bool) -> impl IntoElement {
         .child(icon(glyph, px(ICON_SM)))
 }
 
-fn drag_chip<T: 'static>(
+pub(super) fn drag_chip<T: 'static>(
     label: &str,
 ) -> impl Fn(&T, gpui::Point<gpui::Pixels>, &mut Window, &mut gpui::App) -> gpui::Entity<DragChip> + use<T>
 {
@@ -486,7 +406,7 @@ fn drag_chip<T: 'static>(
     }
 }
 
-fn id_hash(id: String) -> u64 {
+pub(super) fn id_hash(id: String) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     id.hash(&mut hasher);

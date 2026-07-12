@@ -84,6 +84,13 @@ pub(crate) struct TabMove {
     pub to: StreamId,
 }
 
+/// What the sidebar inline rename field is editing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RenameTarget {
+    Stream(StreamId),
+    Workspace(WorkspaceId),
+}
+
 /// Which pane held keyboard focus before the finder opened, so Escape can
 /// return focus there instead of dropping it into the void.
 #[derive(Clone, Copy)]
@@ -131,8 +138,8 @@ pub struct XeroApp {
     file_browser: FileBrowser,
     /// Dedicated settings window (cmd-,). None when closed or not yet opened.
     settings_window: Option<WindowHandle<SettingsView>>,
-    // The stream currently being renamed inline, plus its editing field.
-    renaming: Option<(StreamId, Entity<RenameView>)>,
+    // Stream or workspace being renamed inline, plus its editing field.
+    renaming: Option<(RenameTarget, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
     /// Right-click menu on a terminal or editor tab (move to stream).
     pub(crate) tab_menu: Option<TabContextMenu>,

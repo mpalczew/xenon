@@ -262,31 +262,66 @@ impl XeroApp {
 
     /// Begin renaming a stream: open an inline field seeded with its name.
     pub(crate) fn start_rename(&mut self, id: StreamId, cx: &mut Context<Self>) {
-        let name = self.stream_name(id).to_string();
+        self.begin_rename(
+            RenameTarget::Stream(id),
+            self.stream_name(id).to_string(),
+            cx,
+        );
+    }
+
+    /// Begin renaming a workspace display name (root path stays put).
+    pub(crate) fn start_rename_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+        let name = self
+            .registry
+            .workspace(id)
+            .map(|w| w.name.clone())
+            .unwrap_or_default();
+        self.begin_rename(RenameTarget::Workspace(id), name, cx);
+    }
+
+    fn begin_rename(&mut self, target: RenameTarget, name: String, cx: &mut Context<Self>) {
         let field = cx.new(|cx| RenameView::new(name, cx));
         self._rename_sub = Some(
             cx.subscribe(&field, move |this, _field, event, cx| match event {
-                RenameEvent::Committed(name) => this.apply_rename(id, name.clone(), cx),
+                RenameEvent::Committed(name) => this.apply_rename(target, name.clone(), cx),
                 RenameEvent::Cancelled => this.cancel_rename(cx),
             }),
         );
-        self.renaming = Some((id, field));
+        self.renaming = Some((target, field));
         cx.notify();
     }
 
-    /// The inline rename field for `id`, if that stream is being renamed.
+    /// The inline rename field for stream `id`, if that stream is being renamed.
     pub(crate) fn rename_field(&self, id: StreamId) -> Option<Entity<RenameView>> {
         self.renaming
             .as_ref()
-            .filter(|(target, _)| *target == id)
+            .filter(|(target, _)| *target == RenameTarget::Stream(id))
             .map(|(_, field)| field.clone())
     }
 
-    fn apply_rename(&mut self, id: StreamId, name: String, cx: &mut Context<Self>) {
-        if let Some(stream) = self.streams.get_mut(&id) {
-            stream.name = name;
-            if let Some(workspace) = self.workspace_of(id).map(|w| w.id) {
-                save_session(workspace, &self.streams[&id], "apply_rename");
+    /// The inline rename field for workspace `id`, if that workspace is renaming.
+    pub(crate) fn rename_workspace_field(&self, id: WorkspaceId) -> Option<Entity<RenameView>> {
+        self.renaming
+            .as_ref()
+            .filter(|(target, _)| *target == RenameTarget::Workspace(id))
+            .map(|(_, field)| field.clone())
+    }
+
+    fn apply_rename(&mut self, target: RenameTarget, name: String, cx: &mut Context<Self>) {
+        match target {
+            RenameTarget::Stream(id) => {
+                if let Some(stream) = self.streams.get_mut(&id) {
+                    stream.name = name;
+                    if let Some(workspace) = self.workspace_of(id).map(|w| w.id) {
+                        save_session(workspace, &self.streams[&id], "apply_rename");
+                    }
+                }
+            }
+            RenameTarget::Workspace(id) => {
+                if let Some(workspace) = self.registry.workspace_mut(id) {
+                    workspace.name = name;
+                    save_registry(&self.registry, "rename_workspace");
+                }
             }
         }
         self.cancel_rename(cx);

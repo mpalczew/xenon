@@ -1,6 +1,6 @@
-//! `RenameView`: a one-line inline text field for renaming a stream. Emits
-//! `RenameEvent` back to `XeroApp`. Same `EntityInputHandler` + registrar-canvas
-//! pattern as the finder/editor/terminal.
+//! `RenameView`: a one-line inline text field for renaming a stream or
+//! workspace. Emits `RenameEvent` back to `XeroApp`. Same `EntityInputHandler`
+//! + registrar-canvas pattern as the finder/editor/terminal.
 
 use std::ops::Range;
 

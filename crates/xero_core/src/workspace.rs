@@ -17,7 +17,8 @@ pub struct WorkspaceRec {
 }
 
 impl WorkspaceRec {
-    /// Register `root`, taking the display name from its final path component.
+    /// Register `root`, taking the **default** display name from its final path
+    /// component. Callers may rename `name` later without changing `root`.
     pub fn new(root: PathBuf) -> Self {
         let name = root
             .file_name()
