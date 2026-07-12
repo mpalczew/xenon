@@ -1,6 +1,15 @@
-# Claude Code IDE protocol (captured live from VSCode, 2026-07-07)
+# Claude Code IDE protocol
 
-How Claude Code discovers and drives an IDE. xero implements the IDE side.
+How Claude Code discovers and drives an IDE. Xenon implements the IDE side.
+
+**Sources:** live capture from VS Code (2026-07-07); cross-checked with
+[coder/claudecode.nvim PROTOCOL.md](https://github.com/coder/claudecode.nvim/blob/main/PROTOCOL.md)
+(OSS reverse-engineer of the same extension). Official VS Code/JetBrains plugins
+are not cleanly OSS; Neovim + live capture are the inspectable references.
+
+**Product note:** this bridge is *Claude-specific garnish*. Xenon’s core bet is
+PTY harness interop (session continues on the real CLI). Zed-style ACP embeds
+the agent in the IDE and breaks that interop; we do not follow that path.
 
 ## Discovery
 - Lock file: `~/.claude/ide/<port>.lock` (dir 0700, file 0600). Filename stem IS
@@ -12,7 +21,8 @@ How Claude Code discovers and drives an IDE. xero implements the IDE side.
   ```
 - The IDE injects `CLAUDE_CODE_SSE_PORT=<port>` into its integrated terminal's
   environment. That (plus the matching lock file) is how the CLI finds the IDE.
-  `ENABLE_IDE_INTEGRATION` is NOT used in practice.
+- Neovim docs also set `ENABLE_IDE_INTEGRATION=true`; VS Code live capture did
+  not require it. Harmless to set; Xenon should inject both for compatibility.
 
 ## Transport
 - WebSocket at `ws://127.0.0.1:<port>`.

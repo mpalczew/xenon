@@ -101,11 +101,33 @@ central: when it works, it directly helps real daily work.
 1. **Multi-agent, multi-workspace, multi-harness (via PTY)** as the core model
    (streams), not a bolt-on chat panel. Closest analogue: Cursor agent view,
    but you can switch harnesses freely.
-2. **Everything feels instant.** Native Rust / GPUI. Typing and switching must
+2. **Session continuity with the real CLI.** Agents run in a real terminal.
+   Start Claude (or Grok, Kimi, …) in Xenon, continue the same session in
+   Terminal.app / another host / another machine that has the harness. The
+   agent is not trapped inside an IDE-private protocol.
+3. **Everything feels instant.** Native Rust / GPUI. Typing and switching must
    stay better than Electron-class tools (e.g. Studio feels like a downgrade).
    Protect latency; no decorative motion tax.
-3. **macOS-native daily driver** with a clean install path (**Homebrew** for
+4. **macOS-native daily driver** with a clean install path (**Homebrew** for
    public install; stable codesign so TCC grants survive reinstall).
+
+### Anti-pattern we refuse: IDE-owned agent sessions (Zed ACP lesson)
+
+Zed (and similar) often talk to agents over an **editor-owned protocol** (ACP,
+panel agent, etc.). That can feel polished **inside** the app, but there is
+**no interop**: a session started in the IDE cannot be continued on the
+command line as the same process/session. Skills, resumes, and harness
+ecosystems that live on the CLI are second-class or forked.
+
+Xenon inverts that:
+
+- **Harness is primary** (PTY + files on disk).
+- **IDE is optional garnish** for harnesses that speak Claude’s IDE bridge
+  (`~/.claude/ide/*.lock` WebSocket MCP): open file, workspace roots, etc.
+- Other harnesses still work without that bridge; Claude gets the bridge when
+  useful. Skills / CLAUDE.md / resume paths stay the harness’s own.
+
+Market this: **anti-IDE shell where the agent is free to leave.**
 
 ## Competitive frame
 
