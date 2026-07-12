@@ -51,6 +51,50 @@ fn selection_replace_and_undo() {
     assert_eq!(buffer.text(), "abcdef");
 }
 
+/// Vim insert session: many keystrokes, one `u` (group until Esc).
+#[test]
+fn undo_group_is_one_step() {
+    let file = file_with("hi");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_cursor_raw(2);
+    buffer.set_undo_group(true);
+    buffer.apply(EditCommand::Insert(" ".into()));
+    buffer.apply(EditCommand::Insert("there".into()));
+    buffer.set_undo_group(false);
+    assert_eq!(buffer.text(), "hi there");
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "hi");
+    assert!(!buffer.undo());
+}
+
+/// Change-like: delete then type, still one undo step.
+#[test]
+fn undo_group_delete_then_insert() {
+    let file = file_with("abc");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_undo_group(true);
+    buffer.set_selection(0, 3);
+    buffer.delete_selection();
+    buffer.apply(EditCommand::Insert("xyz".into()));
+    buffer.set_undo_group(false);
+    assert_eq!(buffer.text(), "xyz");
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "abc");
+}
+
+/// Ungrouped edits stay separate steps (non-vim / normal commands).
+#[test]
+fn ungrouped_edits_undo_separately() {
+    let file = file_with("");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.apply(EditCommand::Insert("a".into()));
+    buffer.apply(EditCommand::Insert("b".into()));
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "a");
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "");
+}
+
 #[test]
 fn shift_extend_moves() {
     let file = file_with("hello");

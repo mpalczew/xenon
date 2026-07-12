@@ -92,14 +92,16 @@ pub struct HandleResult {
 }
 
 impl VimState {
-    pub fn enter_normal(&mut self) {
-        self.finish_insert_record();
+    pub fn enter_normal(&mut self, buffer: &mut Buffer) {
+        self.finish_insert_record(buffer);
         self.mode = Mode::Normal;
         self.clear_pending();
     }
 
-    pub fn enter_insert(&mut self, buffer: &Buffer) {
+    pub fn enter_insert(&mut self, buffer: &mut Buffer) {
         self.mode = Mode::Insert;
+        // Group every keystroke until Esc into one undo step (classic vim / Zed).
+        buffer.set_undo_group(true);
         self.insert_start = Some(buffer.cursor());
         self.insert_text.clear();
         self.clear_pending();
@@ -115,7 +117,8 @@ impl VimState {
         let _ = self.registers.take_pending();
     }
 
-    fn finish_insert_record(&mut self) {
+    fn finish_insert_record(&mut self, buffer: &mut Buffer) {
+        buffer.set_undo_group(false);
         if !self.insert_text.is_empty() {
             self.last_change = Some(LastChange::Insert {
                 text: std::mem::take(&mut self.insert_text),
@@ -140,7 +143,7 @@ impl VimState {
                 if self.mode.is_visual() {
                     buffer.clear_selection();
                 }
-                self.enter_normal();
+                self.enter_normal(buffer);
                 return handled(false);
             }
             "backspace" if self.mode == Mode::Insert => {

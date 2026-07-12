@@ -75,7 +75,7 @@ impl Buffer {
     /// Write the buffer to disk. Refuses when the file changed under a dirty
     /// buffer; the caller resolves the conflict and retries.
     pub fn save(&mut self) -> std::result::Result<(), SaveError> {
-        if self.dirty && self.disk_moved() {
+        if self.dirty && mtime(&self.path) != self.disk_mtime {
             return Err(SaveError::ExternalChange);
         }
         let mut file = fs::File::create(&self.path)?;
@@ -121,8 +121,13 @@ impl Buffer {
         self.disk_mtime = mtime(&self.path);
     }
 
-    fn disk_moved(&self) -> bool {
-        mtime(&self.path) != self.disk_mtime
+    /// Open/close a multi-edit undo step (vim insert session, change+type, …).
+    pub(crate) fn set_undo_group(&mut self, open: bool) {
+        if open {
+            self.undo.begin_group();
+        } else {
+            self.undo.end_group();
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -249,19 +254,23 @@ impl Buffer {
     }
 
     pub(crate) fn undo(&mut self) -> bool {
-        let Some(edit) = self.undo.undo() else {
+        let Some(edits) = self.undo.undo() else {
             return false;
         };
-        self.apply_raw(&edit.new, &edit.old, edit.start);
+        for edit in edits {
+            self.apply_raw(&edit.new, &edit.old, edit.start);
+        }
         self.selection_anchor = None;
         true
     }
 
     pub(crate) fn redo(&mut self) -> bool {
-        let Some(edit) = self.undo.redo() else {
+        let Some(edits) = self.undo.redo() else {
             return false;
         };
-        self.apply_raw(&edit.old, &edit.new, edit.start);
+        for edit in edits {
+            self.apply_raw(&edit.old, &edit.new, edit.start);
+        }
         self.selection_anchor = None;
         true
     }

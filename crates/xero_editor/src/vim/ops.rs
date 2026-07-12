@@ -166,6 +166,10 @@ impl VimState {
                     system_clipboard = Some(text.clone());
                 }
                 self.registers.delete(&text);
+                // `c` delete + insert until Esc is one undo step (vim).
+                if op == Operator::Change {
+                    buffer.set_undo_group(true);
+                }
                 buffer.set_selection(range.start, range.end);
                 buffer.delete_selection();
                 self.clear_pending();

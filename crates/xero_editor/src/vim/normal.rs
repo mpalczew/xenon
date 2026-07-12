@@ -103,6 +103,8 @@ impl VimState {
                 handled(false)
             }
             'o' if !self.mode.is_visual() => {
+                // Newline + insert text = one undo step until Esc.
+                buffer.set_undo_group(true);
                 let end = motion::apply(buffer.rope(), buffer.cursor(), &Motion::LineEnd, 1);
                 buffer.set_cursor_raw(end);
                 buffer.replace_selection("\n");
@@ -110,6 +112,7 @@ impl VimState {
                 edited()
             }
             'O' if !self.mode.is_visual() => {
+                buffer.set_undo_group(true);
                 let start = motion::apply(buffer.rope(), buffer.cursor(), &Motion::LineStart, 1);
                 buffer.set_cursor_raw(start);
                 buffer.replace_selection("\n");
@@ -228,10 +231,18 @@ impl VimState {
                 handled(false)
             }
             'u' => {
-                let edited = buffer.undo();
+                // Each `u` is one change; count undoes that many (vim `3u`).
+                let mut any = false;
+                for _ in 0..count {
+                    if !buffer.undo() {
+                        break;
+                    }
+                    any = true;
+                }
+                self.count = 0;
                 HandleResult {
                     handled: true,
-                    edited,
+                    edited: any,
                     ..Default::default()
                 }
             }
