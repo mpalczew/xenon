@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use gpui::{
     App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ParentElement, PathPromptOptions, Pixels, Point, Render, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, TitlebarOptions, Window, WindowBounds,
-    WindowHandle, WindowOptions, div, px, size,
+    IntoElement, ParentElement, PathPromptOptions, Pixels, Point, PromptLevel, Render,
+    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, TitlebarOptions, Window,
+    WindowBounds, WindowHandle, WindowOptions, div, px, size,
 };
 use theme::ActiveTheme;
 use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};

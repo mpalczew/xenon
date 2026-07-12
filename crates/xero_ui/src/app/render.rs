@@ -49,7 +49,9 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
                 this.toggle_settings_window(cx);
             }))
-            .on_action(cx.listener(|this, _: &CloseEditor, _, cx| this.close_editor(cx)))
+            .on_action(
+                cx.listener(|this, _: &CloseEditor, window, cx| this.close_editor(window, cx)),
+            )
             .on_action(cx.listener(|this, _: &Save, _, cx| this.save_active_editor(cx)))
             .on_action(cx.listener(|this, _: &IncreaseFontSize, window, cx| {
                 this.nudge_font_size(1.0, window, cx);

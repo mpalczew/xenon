@@ -159,9 +159,9 @@ impl XeroApp {
                 ("tab-close", index),
                 &group,
                 &colors,
-                cx.listener(move |this, _, _, cx| {
+                cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
-                    this.close_tab(index, cx);
+                    this.close_tab(index, window, cx);
                 }),
             ))
             .child(tab_underline(paint))
