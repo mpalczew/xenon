@@ -9,6 +9,15 @@ framework). Left sidebar of workspaces each holding multiple "streams of work"
 (terminal + editors + layout sessions); main panel is an embedded terminal
 optionally split with tree-sitter-highlighted editors. License: GPL-3.0.
 
+**Product vision (source of truth: `PRODUCT.md`):** native macOS **agent shell**
+(**anti-IDE**) for many agents across workspaces, any terminal harness
+(PTY-agnostic). "IDE" means live-here-all-day (author replaced VS Code), not
+VS Code parity on day one. **Public name: Xenon**; CLI/binary **`xenon`**.
+Repo/data dirs may still say xero until rename haul. Speed must stay instant
+vs Electron-class tools. Install: Homebrew for public. OSS success:
+**substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
+Personas: AIPM `projects/xero/personas`.
+
 ## Build & run
 
 - Dev: `cargo build` / `cargo run` (workspace root). `cargo test` runs the unit
@@ -73,12 +82,20 @@ global `~/.claude/CLAUDE.md`, sourced from personalfiles
 `doc/ai_rules/core.md`). Those rules apply here; do not duplicate them in this
 file. Key points: minimize cognitive load, present options at real decision
 forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
+
+- **Solo product, agent-owned quality.** No other humans review the code. The
+  agent reviews, builds, and tests; surface risks and decision forks, then
+  implement. Prefer **large coherent hauls** over small PR-sized slices. Do not
+  ask the user to read diffs for quality control.
 - Run `project install` at the END of all work, once every change is complete —
-  this is how the user tests. It release-builds and installs
+  this is how the user dogfoods. It release-builds and installs
   `~/Applications/xero.app`; the user verifies there, not in the debug build. Do
   not install mid-way through a multi-step change; batch it as the final step.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request.
+- Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
+  chrome or UX work. Keep them aligned with settled decisions; do not invent a
+  competing vision in chat only.
 
 ## Never kill xero processes
 

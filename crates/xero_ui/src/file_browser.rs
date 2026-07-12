@@ -116,7 +116,11 @@ pub(crate) fn file_icon(row: &TreeRow) -> &'static str {
     {
         "md" | "markdown" | "mdx" => "▰",
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" | "tif" | "tiff" => "▣",
-        "rs" | "js" | "ts" | "tsx" | "py" | "toml" | "json" => "◆",
+        "rs" | "js" | "jsx" | "ts" | "tsx" | "mts" | "cts" | "py" | "toml" | "json" | "jsonc"
+        | "go" | "c" | "h" | "cc" | "cpp" | "rb" | "java" | "lua" | "html" | "htm" | "css"
+        | "yml" | "yaml" | "swift" | "scala" | "ex" | "exs" | "hs" | "php" | "zig" | "dart"
+        | "cs" | "sol" | "nix" | "proto" | "ml" | "mli" | "r" | "elm" | "svelte" | "xml"
+        | "ps1" | "scm" | "glsl" | "cmake" => "◆",
         "sh" | "bash" | "zsh" => "▸",
         "env" => "≡",
         _ if row.name == ".gitignore" => "⌁",

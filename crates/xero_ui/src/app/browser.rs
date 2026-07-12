@@ -131,11 +131,7 @@ impl XeroApp {
         let indent = px(8. + row.depth as f32 * 16.);
         let marker = dir_marker(row.is_dir, row.expanded);
         let icon = file_icon(&row);
-        let background = if row.is_open {
-            colors.element_selected
-        } else {
-            gpui::transparent_black()
-        };
+        let paint = crate::chrome::list_selection(&colors, row.is_open);
         let id = SharedString::from(row.path.to_string_lossy().into_owned());
         div()
             .id(id)
@@ -146,14 +142,15 @@ impl XeroApp {
             .pr_2()
             .py(px(2.))
             .text_sm()
-            .text_color(if row.is_open {
-                colors.text
+            .font_weight(if row.is_open {
+                gpui::FontWeight::MEDIUM
             } else {
-                colors.text_muted
+                gpui::FontWeight::NORMAL
             })
-            .bg(background)
+            .text_color(paint.foreground)
+            .bg(paint.background)
             .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover))
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
             .child(div().w(px(12.)).text_color(colors.text_muted).child(marker))
             .child(div().w(px(16.)).text_color(colors.text_muted).child(icon))
             .child(div().truncate().child(row.name.clone()))

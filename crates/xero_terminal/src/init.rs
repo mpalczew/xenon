@@ -22,6 +22,7 @@ const THEME_FILES: &[&[u8]] = &[
     include_bytes!("../assets/xcode.json"),
     // Defaults / a11y
     include_bytes!("../assets/high_contrast.json"),
+    include_bytes!("../assets/true_black.json"),
     // Brand pack
     include_bytes!("../assets/neon.json"),
     include_bytes!("../assets/abyss.json"),

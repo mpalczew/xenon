@@ -1,6 +1,5 @@
-//! The editor tab strip above the editor pane. One chip per open file, with a
-//! close affordance; clicking a chip focuses that tab. Right-click opens a
-//! move-to-stream menu (shared with terminal tabs).
+//! Editor and terminal tab strips. Multi-channel selection (fill + type +
+//! accent underline). Dirty markers on editor chips; dead markers on terminals.
 
 use gpui::{
     App, AppContext, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
@@ -11,6 +10,7 @@ use theme::ActiveTheme;
 
 use crate::{
     app::{TabContextMenu, TabMove, TabSurface, XeroApp},
+    chrome::{self, SelectionPaint},
     preview_icon,
 };
 
@@ -39,6 +39,7 @@ struct TabChip<'a> {
     index: usize,
     name: &'a str,
     is_active: bool,
+    is_dirty: bool,
 }
 
 struct TerminalChip<'a> {
@@ -51,27 +52,29 @@ struct TerminalChip<'a> {
 impl XeroApp {
     pub(crate) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        // Snapshot tab labels/active state so the borrow is released before the
-        // per-tab `cx.listener` closures.
-        let tabs: Vec<(usize, String, bool)> = self
+        let tabs: Vec<(usize, String, bool, bool)> = self
             .editor_stack()
             .map(|stack| {
                 stack
                     .tabs
                     .iter()
                     .enumerate()
-                    .map(|(i, tab)| (i, tab.name.clone(), i == stack.active))
+                    .map(|(i, tab)| {
+                        let dirty = tab.view.read(cx).is_dirty();
+                        (i, tab.name.clone(), i == stack.active, dirty)
+                    })
                     .collect()
             })
             .unwrap_or_default();
 
         let mut chips = Vec::with_capacity(tabs.len());
-        for (index, name, is_active) in tabs {
+        for (index, name, is_active, is_dirty) in tabs {
             chips.push(self.tab_chip(
                 TabChip {
                     index,
                     name: &name,
                     is_active,
+                    is_dirty,
                 },
                 cx,
             ));
@@ -104,7 +107,7 @@ impl XeroApp {
             .h(px(30.))
             .border_b_1()
             .border_color(colors.border)
-            .bg(colors.panel_background)
+            .bg(chrome::tab_bar_background(&colors))
             .children(chips)
             .children(preview)
     }
@@ -114,15 +117,15 @@ impl XeroApp {
             index,
             name,
             is_active,
+            is_dirty,
         } = chip;
         let colors = cx.theme().colors().clone();
-        let background = if is_active {
-            colors.editor_background
-        } else {
-            colors.panel_background
-        };
+        let paint = chrome::tab_selection(&colors, is_active);
+        let group = format!("editor-tab-{index}");
         div()
             .id(("tab", index))
+            .group(group.clone())
+            .relative()
             .flex()
             .items_center()
             .gap_2()
@@ -130,7 +133,8 @@ impl XeroApp {
             .h_full()
             .border_r_1()
             .border_color(colors.border)
-            .bg(background)
+            .bg(paint.background)
+            .text_color(paint.foreground)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .on_click(cx.listener(move |this, _, _, cx| this.activate_tab(index, cx)))
@@ -140,25 +144,32 @@ impl XeroApp {
                     this.open_tab_menu(TabSurface::Editor, index, event.position, cx);
                 }),
             )
-            .child(div().text_sm().child(name.to_string()))
             .child(
                 div()
-                    .id(("tab-close", index))
-                    .text_xs()
-                    .text_color(colors.text_muted)
-                    .hover(|s| s.text_color(colors.text))
-                    .child("✕")
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        cx.stop_propagation();
-                        this.close_tab(index, cx);
-                    })),
+                    .text_sm()
+                    .font_weight(if is_active {
+                        gpui::FontWeight::MEDIUM
+                    } else {
+                        gpui::FontWeight::NORMAL
+                    })
+                    .child(name.to_string()),
             )
+            .children(is_dirty.then(|| dirty_dot(paint.foreground)))
+            .child(tab_close(
+                ("tab-close", index),
+                &group,
+                &colors,
+                cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.close_tab(index, cx);
+                }),
+            ))
+            .child(tab_underline(paint))
     }
 }
 
 impl XeroApp {
-    /// The terminal tab strip; each tab is labeled with the terminal's title
-    /// (which programs like Claude Code set to show status). `+` adds a terminal.
+    /// Terminal tab strip; labels use program-set titles. `+` adds a terminal.
     pub(crate) fn render_terminal_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let tabs: Vec<(usize, String, bool, bool)> = self
@@ -195,15 +206,16 @@ impl XeroApp {
             .h(px(30.))
             .border_b_1()
             .border_color(colors.border)
-            .bg(colors.panel_background)
+            .bg(chrome::tab_bar_background(&colors))
             .children(chips)
             .child(
                 div()
                     .id("term-add")
                     .px_2()
                     .text_sm()
+                    .text_color(colors.text_muted)
                     .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover))
+                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
                     .child("+")
                     .on_click(cx.listener(|this, _, _, cx| this.add_terminal(cx))),
             )
@@ -221,20 +233,18 @@ impl XeroApp {
             is_exited,
         } = chip;
         let colors = cx.theme().colors().clone();
-        let background = if is_active {
-            colors.terminal_background
-        } else {
-            colors.panel_background
-        };
-        // Dead terminals get a dim ✗ and muted label.
+        let paint = chrome::tab_selection(&colors, is_active);
         let label_color = if is_exited {
             colors.text_muted
         } else {
-            colors.text
+            paint.foreground
         };
+        let group = format!("term-tab-{index}");
         let dead = is_exited.then(|| div().text_xs().text_color(colors.text_muted).child("✗"));
         div()
             .id(("term-tab", index))
+            .group(group.clone())
+            .relative()
             .flex()
             .items_center()
             .gap_2()
@@ -242,7 +252,7 @@ impl XeroApp {
             .h_full()
             .border_r_1()
             .border_color(colors.border)
-            .bg(background)
+            .bg(paint.background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .on_click(
@@ -266,23 +276,23 @@ impl XeroApp {
             .child(
                 div()
                     .text_sm()
+                    .font_weight(if is_active {
+                        gpui::FontWeight::MEDIUM
+                    } else {
+                        gpui::FontWeight::NORMAL
+                    })
                     .text_color(label_color)
                     .max_w(px(220.))
                     .truncate()
                     .child(title.to_string()),
             )
-            .child(
-                div()
-                    .id(("term-close", index))
-                    .text_xs()
-                    .text_color(colors.text_muted)
-                    .hover(|s| s.text_color(colors.text))
-                    .child("✕")
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        cx.stop_propagation();
-                        this.close_terminal_tab(index, window, cx);
-                    })),
-            )
+            .child(tab_close(("term-close", index), &group, &colors, {
+                cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.close_terminal_tab(index, window, cx);
+                })
+            }))
+            .child(tab_underline(paint))
     }
 }
 
@@ -390,6 +400,43 @@ impl XeroApp {
                 .child(deferred(anchored().position(position).child(menu_box)).with_priority(1)),
         )
     }
+}
+
+fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
+    div()
+        .absolute()
+        .bottom_0()
+        .left_0()
+        .right_0()
+        .h(px(2.))
+        .bg(paint.accent)
+}
+
+fn dirty_dot(color: gpui::Hsla) -> impl IntoElement {
+    div()
+        .w(px(6.))
+        .h(px(6.))
+        .rounded_full()
+        .bg(color)
+        .flex_none()
+}
+
+fn tab_close(
+    id: impl Into<gpui::ElementId>,
+    group: &str,
+    colors: &theme::ThemeColors,
+    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> impl IntoElement {
+    let group = group.to_string();
+    div()
+        .id(id)
+        .text_xs()
+        .text_color(colors.text_muted)
+        .invisible()
+        .group_hover(group, |s| s.visible())
+        .hover(|s| s.text_color(colors.text))
+        .child("✕")
+        .on_click(on_click)
 }
 
 fn menu_item(

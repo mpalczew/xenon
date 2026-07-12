@@ -1,51 +1,61 @@
 //! Tree-sitter syntax highlighting. Produces byte-range spans tagged with a
 //! capture name; the view maps each name to a theme color. Dispatches by file
-//! extension across the bundled grammars.
+//! extension (and a few special basenames) across bundled grammars.
+
+mod grammars;
+mod lang;
 
 use std::path::Path;
-use std::sync::LazyLock;
 
-use tree_sitter::Language;
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
-/// Capture names we color, chosen to overlap the grammars' highlight queries
-/// and the theme's syntax palette (`SyntaxTheme::style_for_name`).
+use grammars::{MARKDOWN, config, injection_config};
+use lang::{lang_for_basename, lang_for_ext, lang_for_name};
+
+/// Capture names we color. Unlisted captures are ignored by `configure`.
 pub const HIGHLIGHT_NAMES: &[&str] = &[
     "attribute",
+    "boolean",
     "comment",
     "constant",
     "constant.builtin",
     "constructor",
+    "embedded",
     "function",
+    "function.builtin",
     "function.method",
     "function.macro",
     "keyword",
+    "keyword.function",
+    "keyword.operator",
+    "keyword.return",
     "label",
+    "module",
     "number",
     "operator",
     "property",
+    "punctuation",
     "punctuation.bracket",
     "punctuation.delimiter",
+    "punctuation.special",
     "string",
+    "string.escape",
     "string.special",
+    "tag",
     "type",
     "type.builtin",
     "variable",
     "variable.builtin",
-    "tag",
-    // Markdown (tree-sitter-md capture names); mapped to theme keys by `theme_key`.
+    "variable.parameter",
+    // Markdown (tree-sitter-md); mapped by `theme_key`.
     "text.title",
     "text.emphasis",
     "text.strong",
     "text.literal",
     "text.reference",
     "text.uri",
-    "string.escape",
-    "punctuation.special",
 ];
 
-/// Map a grammar capture name to the theme's syntax key where they differ
-/// (markdown's `text.*` names vs. the One theme's `title`/`emphasis`/`link_*`).
 fn theme_key(name: &'static str) -> &'static str {
     match name {
         "text.title" => "title",
@@ -64,139 +74,24 @@ pub struct Span {
     pub name: &'static str,
 }
 
-#[derive(Clone, Copy)]
-enum Lang {
-    Rust,
-    Json,
-    Toml,
-    Python,
-    JavaScript,
-}
-
-fn lang_for_ext(ext: &str) -> Option<Lang> {
-    Some(match ext {
-        "rs" => Lang::Rust,
-        "json" => Lang::Json,
-        "toml" => Lang::Toml,
-        "py" | "pyi" => Lang::Python,
-        "js" | "jsx" | "mjs" | "cjs" => Lang::JavaScript,
-        _ => return None,
-    })
-}
-
-/// Language named by a markdown fenced-code-block info string (```rust).
-fn lang_for_name(name: &str) -> Option<Lang> {
-    Some(match name {
-        "rust" | "rs" => Lang::Rust,
-        "json" => Lang::Json,
-        "toml" => Lang::Toml,
-        "python" | "py" => Lang::Python,
-        "javascript" | "js" | "jsx" => Lang::JavaScript,
-        _ => return None,
-    })
-}
-
-fn build(language: tree_sitter::Language, query: &str) -> Option<HighlightConfiguration> {
-    build_injected(language, "source", query, "")
-}
-
-/// Build a config that may inject other grammars (used for markdown's inline and
-/// fenced-code-block injections).
-fn build_injected(
-    language: tree_sitter::Language,
-    name: &str,
-    highlights: &str,
-    injections: &str,
-) -> Option<HighlightConfiguration> {
-    let mut config =
-        HighlightConfiguration::new(language, name, highlights, injections, "").ok()?;
-    config.configure(HIGHLIGHT_NAMES);
-    Some(config)
-}
-
-static MARKDOWN: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
-    build_injected(
-        Language::new(tree_sitter_md::LANGUAGE),
-        "markdown",
-        tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
-        tree_sitter_md::INJECTION_QUERY_BLOCK,
-    )
-});
-static MARKDOWN_INLINE: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
-    build_injected(
-        Language::new(tree_sitter_md::INLINE_LANGUAGE),
-        "markdown_inline",
-        tree_sitter_md::HIGHLIGHT_QUERY_INLINE,
-        tree_sitter_md::INJECTION_QUERY_INLINE,
-    )
-});
-
-/// Resolve a markdown injection: the inline grammar, or a fenced-code language.
-fn injection_config(name: &str) -> Option<&'static HighlightConfiguration> {
-    match name {
-        "markdown_inline" => MARKDOWN_INLINE.as_ref(),
-        other => lang_for_name(other).and_then(config),
-    }
-}
-
-macro_rules! config {
-    ($name:ident, $lang:expr, $query:expr) => {
-        static $name: LazyLock<Option<HighlightConfiguration>> =
-            LazyLock::new(|| build(Language::new($lang), $query));
-    };
-}
-
-config!(
-    RUST,
-    tree_sitter_rust::LANGUAGE,
-    tree_sitter_rust::HIGHLIGHTS_QUERY
-);
-config!(
-    JSON,
-    tree_sitter_json::LANGUAGE,
-    tree_sitter_json::HIGHLIGHTS_QUERY
-);
-config!(
-    TOML,
-    tree_sitter_toml_ng::LANGUAGE,
-    tree_sitter_toml_ng::HIGHLIGHTS_QUERY
-);
-config!(
-    PYTHON,
-    tree_sitter_python::LANGUAGE,
-    tree_sitter_python::HIGHLIGHTS_QUERY
-);
-config!(
-    JAVASCRIPT,
-    tree_sitter_javascript::LANGUAGE,
-    tree_sitter_javascript::HIGHLIGHT_QUERY
-);
-
-fn config(lang: Lang) -> Option<&'static HighlightConfiguration> {
-    match lang {
-        Lang::Rust => RUST.as_ref(),
-        Lang::Json => JSON.as_ref(),
-        Lang::Toml => TOML.as_ref(),
-        Lang::Python => PYTHON.as_ref(),
-        Lang::JavaScript => JAVASCRIPT.as_ref(),
-    }
-}
-
-/// Highlight spans for a file's source, chosen by extension. Empty for
-/// unsupported languages or on any highlighter error.
+/// Highlight spans for a file's source, chosen by extension or basename.
 pub fn spans_for_path(path: &Path, source: &str) -> Vec<Span> {
     let ext = path.extension().and_then(|e| e.to_str());
     if matches!(ext, Some("md" | "markdown" | "mdx")) {
         return highlight_markdown(source);
     }
-    let Some(config) = ext.and_then(lang_for_ext).and_then(config) else {
+    let lang = ext.and_then(lang_for_ext).or_else(|| {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .and_then(lang_for_basename)
+    });
+    let Some(config) = lang.and_then(config) else {
         return Vec::new();
     };
     highlight(config, source)
 }
 
-/// Highlight spans for source in a named language (markdown code fences). Empty
-/// for unsupported languages.
+/// Highlight spans for a named language (markdown fences).
 pub fn spans_for_lang(name: &str, source: &str) -> Vec<Span> {
     let Some(config) = lang_for_name(name).and_then(config) else {
         return Vec::new();
@@ -204,9 +99,6 @@ pub fn spans_for_lang(name: &str, source: &str) -> Vec<Span> {
     highlight(config, source)
 }
 
-/// Drain a highlight event stream into spans. A macro (not a function) so the
-/// injection closure's lifetime infers at each call site — the stream borrows
-/// the local `Highlighter`, which can't be named across a function boundary.
 macro_rules! collect_spans {
     ($events:expr) => {{
         let mut spans = Vec::new();
@@ -241,7 +133,6 @@ fn highlight(config: &HighlightConfiguration, source: &str) -> Vec<Span> {
     collect_spans!(events)
 }
 
-/// Highlight markdown, injecting its inline grammar and fenced-code languages.
 fn highlight_markdown(source: &str) -> Vec<Span> {
     let Some(config) = MARKDOWN.as_ref() else {
         return Vec::new();
@@ -277,12 +168,68 @@ mod tests {
     }
 
     #[test]
+    fn highlights_typescript_and_tsx() {
+        let ts = "const n: number = 1;\nfunction f(x: string): void {}\n";
+        let spans = spans_for_path(Path::new("a.ts"), ts);
+        assert!(
+            spans
+                .iter()
+                .any(|s| s.name == "keyword" && &ts[s.start..s.end] == "const"),
+            "expected TypeScript keyword highlight"
+        );
+        let tsx = "const el = <div className=\"x\">hi</div>;\n";
+        assert!(!spans_for_path(Path::new("a.tsx"), tsx).is_empty());
+    }
+
+    #[test]
+    fn highlights_common_languages() {
+        let samples: &[(&str, &str)] = &[
+            ("a.go", "package main\nfunc main() {}\n"),
+            ("a.sh", "echo hello\n"),
+            ("a.html", "<div id=\"x\"></div>\n"),
+            ("a.css", "body { color: red; }\n"),
+            ("a.yml", "key: value\n"),
+            ("a.c", "int main(void) { return 0; }\n"),
+            ("a.rb", "def f; end\n"),
+            ("A.java", "class A { }\n"),
+            ("a.lua", "local x = 1\n"),
+            ("a.swift", "func f() {}\n"),
+            ("a.scala", "object A { }\n"),
+            ("a.ex", "defmodule A do\nend\n"),
+            ("a.hs", "main = putStrLn \"hi\"\n"),
+            ("a.php", "<?php echo 1;\n"),
+            ("a.zig", "pub fn main() void {}\n"),
+            ("a.diff", "--- a\n+++ b\n"),
+            ("a.xml", "<root/>\n"),
+            ("a.proto", "syntax = \"proto3\";\n"),
+            ("a.dart", "void main() {}\n"),
+            ("a.r", "x <- 1\n"),
+            ("a.nix", "{ x = 1; }\n"),
+            ("a.sol", "contract C {}\n"),
+            ("a.ml", "let x = 1\n"),
+            ("a.cs", "class A {}\n"),
+            ("a.cmake", "project(x)\n"),
+            ("a.glsl", "void main() {}\n"),
+            ("a.ini", "[section]\nk=v\n"),
+            ("a.scm", "(define x 1)\n"),
+            ("a.ps1", "Write-Host hi\n"),
+            ("a.elm", "module Main exposing (..)\n"),
+            ("a.svelte", "<script>let x = 1</script>\n"),
+        ];
+        for &(path, src) in samples {
+            assert!(
+                !spans_for_path(Path::new(path), src).is_empty(),
+                "no highlights for {path}"
+            );
+        }
+        assert!(!spans_for_path(Path::new("Makefile"), "all:\n\techo hi\n").is_empty());
+    }
+
+    #[test]
     fn highlights_markdown_title_and_fenced_code() {
         let source = "# Title\n\nsome **bold** text\n\n```rust\nfn f() {}\n```\n";
         let spans = spans_for_path(Path::new("readme.md"), source);
-        // The heading maps to the theme's `title` key...
         assert!(spans.iter().any(|s| s.name == "title"));
-        // ...and the fenced Rust block is highlighted via injection.
         assert!(
             spans
                 .iter()
@@ -293,7 +240,6 @@ mod tests {
     #[test]
     fn unknown_extension_has_no_spans() {
         assert!(spans_for_path(Path::new("a.txt"), "plain text").is_empty());
-        assert!(spans_for_path(Path::new("Makefile"), "all:\n").is_empty());
     }
 
     #[test]

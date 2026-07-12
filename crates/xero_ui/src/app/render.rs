@@ -193,11 +193,15 @@ impl XeroApp {
             (Some(term), None) => panel = panel.child(term),
             _ => {
                 let message = if self.active.is_some() {
-                    "Use the toolbar to show a panel"
+                    "Show Terminal or Editor from the toolbar"
                 } else {
-                    "Add a workspace to begin"
+                    "Add a workspace (⌘⇧O), then a stream for each agent"
                 };
-                panel = panel.items_center().justify_center().child(message);
+                panel = panel
+                    .items_center()
+                    .justify_center()
+                    .text_color(colors.text_muted)
+                    .child(message);
             }
         }
         panel
@@ -294,7 +298,7 @@ fn editor_body(view: Option<Entity<EditorView>>, colors: &theme::ThemeColors) ->
             .items_center()
             .justify_center()
             .text_color(colors.text_muted)
-            .child("Open a file from the tree or cmd-p")
+            .child("Open a file (⌘P) or from the tree (⌘E)")
             .into_any_element(),
     }
 }

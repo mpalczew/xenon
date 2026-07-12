@@ -2,13 +2,14 @@
 
 use gpui::{
     AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, div, px, transparent_black,
+    StatefulInteractiveElement, Styled, Window, div, px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xero_core::{StreamId, WorkspaceId};
 
 use crate::app::XeroApp;
+use crate::chrome::{self, list_selection};
 use crate::icons::icon;
 
 struct DragStream(StreamId);
@@ -58,7 +59,6 @@ struct StreamRow<'a> {
 const ROW_H: f32 = 24.;
 const ICON_SM: f32 = 12.;
 const ICON_MD: f32 = 13.;
-const ATTENTION: u32 = 0xd19a66;
 
 impl XeroApp {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -351,16 +351,7 @@ impl XeroApp {
             is_active,
         } = row;
         let colors = cx.theme().colors().clone();
-        let background = if is_active {
-            colors.element_selected
-        } else {
-            transparent_black()
-        };
-        let accent = if is_active {
-            colors.border_selected
-        } else {
-            transparent_black()
-        };
+        let paint = list_selection(&colors, is_active);
         let group = format!("stream-{id}");
         if let Some(field) = self.rename_field(id) {
             return div()
@@ -369,9 +360,9 @@ impl XeroApp {
                 .h(px(ROW_H))
                 .px_1()
                 .rounded_sm()
-                .bg(background)
+                .bg(paint.background)
                 .border_l_2()
-                .border_color(accent)
+                .border_color(paint.accent)
                 .child(field)
                 .into_any_element();
         }
@@ -380,7 +371,7 @@ impl XeroApp {
                 .w(px(6.))
                 .h(px(6.))
                 .rounded_full()
-                .bg(gpui::rgb(ATTENTION))
+                .bg(chrome::attention_color(cx))
         });
         div()
             .id(("stream", id_hash(id.to_string())))
@@ -392,12 +383,17 @@ impl XeroApp {
             .px_1()
             .rounded_sm()
             .text_sm()
-            .text_color(colors.text)
-            .bg(background)
+            .font_weight(if is_active {
+                gpui::FontWeight::MEDIUM
+            } else {
+                gpui::FontWeight::NORMAL
+            })
+            .text_color(paint.foreground)
+            .bg(paint.background)
             .border_l_2()
-            .border_color(accent)
+            .border_color(paint.accent)
             .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover))
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
             .on_click(
                 cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
                     if event.click_count() >= 2 {

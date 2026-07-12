@@ -219,22 +219,21 @@ impl TaskPickerView {
                 } else {
                     task.label.clone()
                 };
-                let mut row = div()
+                let paint = crate::chrome::list_selection(&colors, i == self.selected);
+                div()
                     .id(("task-row", i))
                     .px_3()
                     .py_1()
                     .text_sm()
+                    .text_color(paint.foreground)
+                    .bg(paint.background)
                     .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover))
+                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
                     .child(label)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.selected = i;
                         this.confirm(true, cx);
-                    }));
-                if i == self.selected {
-                    row = row.bg(colors.element_selected);
-                }
-                row
+                    }))
             })
             .collect();
         div().flex().flex_col().overflow_hidden().children(rows)

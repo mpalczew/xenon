@@ -8,6 +8,7 @@ use lucide_icons::Icon;
 use theme::ActiveTheme;
 
 use crate::app::XeroApp;
+use crate::chrome::list_selection;
 use crate::icons::icon;
 use crate::{
     FilePalette, RunTask, Save, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
@@ -165,15 +166,12 @@ fn tool_button(button: ToolButton, cx: &mut Context<XeroApp>) -> impl IntoElemen
         action: boxed,
     } = button;
     let colors = cx.theme().colors().clone();
+    let paint = list_selection(&colors, active);
+    // Inactive toggles sit on the toolbar, not on transparent (avoids hole).
     let background = if active {
-        colors.element_selected
+        paint.background
     } else {
         colors.panel_background
-    };
-    let foreground = if active {
-        colors.text
-    } else {
-        colors.text_muted
     };
     div()
         .id(id)
@@ -184,7 +182,7 @@ fn tool_button(button: ToolButton, cx: &mut Context<XeroApp>) -> impl IntoElemen
         .h(px(26.))
         .rounded_sm()
         .bg(background)
-        .text_color(foreground)
+        .text_color(paint.foreground)
         .cursor_pointer()
         .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
         .child(icon(glyph, px(ICON)))

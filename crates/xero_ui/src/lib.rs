@@ -2,6 +2,7 @@
 //! hosting a terminal and editor, with a cmd-p fuzzy finder.
 
 mod app;
+mod chrome;
 mod dropdown;
 mod file_browser;
 mod finder;
