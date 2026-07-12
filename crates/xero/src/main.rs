@@ -6,8 +6,8 @@ use gpui::{
 };
 use gpui_platform::application;
 use xero_ui::{
-    AddWorkspace, CloseEditor, Copy, Cut, FilePalette, OpenFile, Paste, Save, ToggleSettings,
-    XeroApp,
+    AddWorkspace, CloseEditor, Copy, Cut, FilePalette, OpenFile, Paste, RunTask, Save,
+    ToggleSettings, XeroApp,
 };
 
 actions!(xero, [Quit]);
@@ -73,6 +73,7 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("Open File…", OpenFile),
             MenuItem::action("Open Folder…", AddWorkspace),
             MenuItem::action("Go to File…", FilePalette),
+            MenuItem::action("Run Task…", RunTask),
             MenuItem::separator(),
             MenuItem::action("Save", Save),
             MenuItem::separator(),

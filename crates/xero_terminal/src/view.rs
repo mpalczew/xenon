@@ -79,6 +79,8 @@ pub struct TerminalView {
     root_name: String,
     /// The shell exited; the view stays but is marked dead.
     exited: bool,
+    /// Text to write once the PTY becomes Ready (task inject races spawn).
+    pending_inject: Option<String>,
     /// Position of the right-click Copy/Paste menu, when open (window coords).
     context_menu: Option<Point<Pixels>>,
     /// Existing file resolved under the right-click, if any; adds an "Open in
@@ -121,6 +123,7 @@ impl TerminalView {
             focused_once: false,
             root_name,
             exited: false,
+            pending_inject: None,
             context_menu: None,
             menu_path: None,
             hovered_link: None,
@@ -140,8 +143,16 @@ impl TerminalView {
                 self._subscriptions
                     .push(cx.subscribe(&terminal, Self::on_terminal_event));
                 self.state = State::Ready(terminal);
+                // Run Task often adds a tab then injects immediately; flush what
+                // was queued while the PTY was still spawning.
+                if let Some(text) = self.pending_inject.take() {
+                    self.send_text(&text, cx);
+                }
             }
-            Err(error) => self.state = State::Failed(error.to_string()),
+            Err(error) => {
+                self.pending_inject = None;
+                self.state = State::Failed(error.to_string());
+            }
         }
         cx.notify();
     }
@@ -262,9 +273,20 @@ impl TerminalView {
         self.note_interaction(cx);
     }
 
-    /// Inject text into the PTY (e.g. a resolved shell task line).
+    /// Inject text into the PTY (e.g. a resolved shell task line). Queues while
+    /// the PTY is still spawning so Run Task on a new tab does not drop the line.
     pub fn inject_text(&mut self, text: &str, cx: &mut Context<Self>) {
-        self.send_text(text, cx);
+        if text.is_empty() {
+            return;
+        }
+        match &self.state {
+            State::Ready(_) => self.send_text(text, cx),
+            State::Pending => match &mut self.pending_inject {
+                Some(pending) => pending.push_str(text),
+                None => self.pending_inject = Some(text.to_string()),
+            },
+            State::Failed(_) => {}
+        }
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {

@@ -164,7 +164,8 @@ impl Render for TaskPickerView {
                     .bg(colors.elevated_surface_background)
                     .child(input_registrar(cx.entity(), self.focus.clone()))
                     .child(self.query_row(cx))
-                    .child(self.results_list(cx)),
+                    .child(self.results_list(cx))
+                    .child(self.hint_row(cx)),
             )
     }
 }
@@ -177,7 +178,7 @@ impl TaskPickerView {
         } else if let Some(msg) = &self.empty_message {
             msg.clone()
         } else {
-            "Run task… (↵ new terminal · ⌘↵ current)".to_string()
+            "Run task…".to_string()
         };
         div()
             .px_3()
@@ -190,6 +191,18 @@ impl TaskPickerView {
                 colors.text
             })
             .child(shown)
+    }
+
+    fn hint_row(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        div()
+            .px_3()
+            .py_1()
+            .border_t_1()
+            .border_color(colors.border)
+            .text_xs()
+            .text_color(colors.text_muted)
+            .child("↵ new terminal  ·  ⌘↵ current  ·  esc dismiss  ·  open ⌘⇧R")
     }
 
     fn results_list(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {

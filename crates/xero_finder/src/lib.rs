@@ -1,7 +1,8 @@
-//! Fuzzy file finder for cmd-p: walk a directory (respecting .gitignore) into a
-//! shareable `FileIndex`, then rank its files against a query with nucleo. The
-//! walk (`FileIndex::build`) is separated from the matcher so the index can be
-//! built off the UI thread and shared (`Arc`) by cmd-p and cmd-click resolution.
+//! Fuzzy file finder for cmd-p: walk a directory (respecting .gitignore, including
+//! hidden/dot files but not `.git`) into a shareable `FileIndex`, then rank its
+//! files against a query with nucleo. The walk (`FileIndex::build`) is separated
+//! from the matcher so the index can be built off the UI thread and shared
+//! (`Arc`) by cmd-p and cmd-click resolution.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -40,9 +41,9 @@ pub struct FileIndex {
 }
 
 impl FileIndex {
-    /// Walk `root`, collecting files and directories. Respects .gitignore and
-    /// skips hidden entries (so `.git` and friends stay out of results). This is
-    /// the blocking step; run it on a background executor.
+    /// Walk `root`, collecting files and directories. Respects .gitignore, includes
+    /// hidden/dot files, and skips `.git` (object store is not useful in cmd-p).
+    /// This is the blocking step; run it on a background executor.
     pub fn build(root: &Path) -> FileIndex {
         FileIndex {
             entries: walk(root),
@@ -84,7 +85,11 @@ impl Finder {
 
 fn walk(root: &Path) -> Vec<Entry> {
     let mut entries = Vec::new();
-    for entry in WalkBuilder::new(root).build().flatten() {
+    let walker = WalkBuilder::new(root)
+        .hidden(false)
+        .filter_entry(|entry| entry.file_name() != std::ffi::OsStr::new(".git"))
+        .build();
+    for entry in walker.flatten() {
         let Some(file_type) = entry.file_type() else {
             continue;
         };

@@ -130,16 +130,13 @@ fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool)> {
     };
     let mut entries: Vec<_> = read
         .flatten()
-        .filter_map(|entry| {
+        .map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') {
-                return None;
-            }
             let is_dir = entry
                 .file_type()
                 .map(|entry| entry.is_dir())
                 .unwrap_or(false);
-            Some((entry.path(), name, is_dir))
+            (entry.path(), name, is_dir)
         })
         .collect();
     entries.sort_by(|a, b| {
