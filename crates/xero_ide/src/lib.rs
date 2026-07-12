@@ -55,7 +55,11 @@ impl IdeServer {
 
     /// Environment for the integrated terminal so Claude Code finds this server.
     pub fn env(&self) -> Vec<(String, String)> {
-        vec![("CLAUDE_CODE_SSE_PORT".to_string(), self.port.to_string())]
+        vec![
+            ("CLAUDE_CODE_SSE_PORT".to_string(), self.port.to_string()),
+            // Neovim reverse-engineer sets this; VS Code live path mainly used the port.
+            ("ENABLE_IDE_INTEGRATION".to_string(), "true".to_string()),
+        ]
     }
 
     /// Replace the advertised workspace folders without changing the server port.
