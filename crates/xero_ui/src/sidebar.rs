@@ -254,7 +254,7 @@ impl XeroApp {
                     .items_center()
                     .gap_px()
                     .invisible()
-                    .group_hover(group, |s| s.visible())
+                    .group_hover(group.clone(), |s| s.visible())
                     .bg(colors.panel_background)
                     .child(self.icon_button(
                         ("add-stream", id_hash(id.to_string())),
@@ -273,12 +273,14 @@ impl XeroApp {
                     )),
             )
             .children(dirt.map(|(plus, minus)| {
-                crate::git_dirt::badge(
-                    plus,
-                    minus,
-                    colors.version_control_added,
-                    colors.version_control_deleted,
-                )
+                div()
+                    .group_hover(group, |s| s.invisible())
+                    .child(crate::git_dirt::badge(
+                        plus,
+                        minus,
+                        colors.version_control_added,
+                        colors.version_control_deleted,
+                    ))
             }))
     }
 
