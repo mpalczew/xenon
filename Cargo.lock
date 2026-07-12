@@ -8731,6 +8731,7 @@ dependencies = [
  "gpui",
  "log",
  "lucide-icons",
+ "notify",
  "nucleo",
  "theme",
  "xero_core",

@@ -5,6 +5,7 @@ mod app;
 mod dropdown;
 mod file_browser;
 mod finder;
+mod git_dirt;
 mod icons;
 mod rename;
 mod resize;

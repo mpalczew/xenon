@@ -40,6 +40,7 @@ impl XeroApp {
         save_session(workspace_id, &stream, "register_workspace");
         save_registry(&self.registry, "register_workspace");
         self.update_ide_roots();
+        self.restart_git_dirt_watch(cx);
         self.activate_stream(stream_id, cx);
     }
 
@@ -92,6 +93,7 @@ impl XeroApp {
             self.attention.remove(stream);
         }
         self.collapsed_workspaces.remove(&id);
+        self.git_dirt.remove(&id);
         self.registry.closed_workspaces.push(record);
         if closed_active {
             self.active = None;
@@ -99,6 +101,7 @@ impl XeroApp {
         }
         save_registry(&self.registry, "close_workspace");
         self.update_ide_roots();
+        self.restart_git_dirt_watch(cx);
         if closed_active && let Some(next) = self.first_stream() {
             self.select_stream(next, window, cx);
         }
@@ -132,6 +135,7 @@ impl XeroApp {
         self.registry.workspaces.push(record);
         save_registry(&self.registry, "reopen_workspace");
         self.update_ide_roots();
+        self.restart_git_dirt_watch(cx);
         if let Some(stream) = first {
             self.activate_stream(stream, cx);
         } else {

@@ -31,6 +31,7 @@ use crate::{
 
 mod browser;
 mod editors;
+mod git_dirt;
 mod navigation;
 mod panels;
 mod render;
@@ -146,6 +147,9 @@ pub struct XeroApp {
     // injected into every terminal so Claude Code discovers it.
     ide: Option<IdeServer>,
     _ide_task: Option<Task<()>>,
+    // Live git dirt totals per workspace (dirty only); refreshed by FS events.
+    git_dirt: HashMap<WorkspaceId, crate::git_dirt::GitDirt>,
+    _git_dirt_task: Option<Task<()>>,
 }
 
 impl XeroApp {
@@ -188,9 +192,12 @@ impl XeroApp {
             _bell_subs: Vec::new(),
             ide: None,
             _ide_task: None,
+            git_dirt: HashMap::new(),
+            _git_dirt_task: None,
         };
         app.load_streams();
         app.start_ide_server(cx);
+        app.start_git_dirt_watch(cx);
         let active = app
             .registry
             .active

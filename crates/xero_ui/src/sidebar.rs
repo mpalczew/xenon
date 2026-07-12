@@ -45,6 +45,8 @@ struct WorkspaceHeader<'a> {
     id: WorkspaceId,
     name: &'a str,
     collapsed: bool,
+    /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
+    dirt: Option<(String, String)>,
 }
 
 struct StreamRow<'a> {
@@ -87,12 +89,14 @@ impl XeroApp {
 
         let mut rows = Vec::new();
         for workspace in workspaces {
+            let dirt = self.workspace_dirt(workspace.id).and_then(|d| d.labels());
             rows.push(
                 self.workspace_header(
                     WorkspaceHeader {
                         id: workspace.id,
                         name: &workspace.name,
                         collapsed: workspace.collapsed,
+                        dirt,
                     },
                     cx,
                 )
@@ -198,18 +202,20 @@ impl XeroApp {
             id,
             name,
             collapsed,
+            dirt,
         } = header;
         let colors = cx.theme().colors().clone();
         let group = format!("ws-{id}");
         div()
             .id(("ws-row", id_hash(id.to_string())))
             .group(group.clone())
+            .relative()
             .flex()
             .items_center()
-            .justify_between()
             .h(px(ROW_H))
             .mx_1()
-            .px_2()
+            .pl_2()
+            .pr(px(2.))
             .rounded_sm()
             .text_xs()
             .font_weight(gpui::FontWeight::MEDIUM)
@@ -242,11 +248,14 @@ impl XeroApp {
             )
             .child(
                 div()
+                    .absolute()
+                    .right(px(2.))
                     .flex()
                     .items_center()
                     .gap_px()
                     .invisible()
                     .group_hover(group, |s| s.visible())
+                    .bg(colors.panel_background)
                     .child(self.icon_button(
                         ("add-stream", id_hash(id.to_string())),
                         Icon::Plus,
@@ -263,6 +272,14 @@ impl XeroApp {
                         }),
                     )),
             )
+            .children(dirt.map(|(plus, minus)| {
+                crate::git_dirt::badge(
+                    plus,
+                    minus,
+                    colors.version_control_added,
+                    colors.version_control_deleted,
+                )
+            }))
     }
 
     /// Streams under a workspace, indented with a quiet vertical guide.

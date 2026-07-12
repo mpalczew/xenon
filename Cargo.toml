@@ -62,6 +62,8 @@ pulldown-cmark = { version = "0.12", default-features = false }
 lucide-icons = "1.23.0"
 nucleo = "0.5"
 ignore = "0.4"
+# Same pin as [patch.crates-io] (zed's fork); direct dep so xero_ui can watch FS.
+notify = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
 
 # Mirrored from zed v1.9.0 Cargo.toml: [patch.crates-io] does not propagate to
 # downstream consumers, and zed's crates need these forks (macOS-relevant subset).
