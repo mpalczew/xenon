@@ -66,9 +66,10 @@ struct HoverInfo {
 
 /// Output must be quiet this long before a terminal counts as settled.
 const IDLE_AFTER: Duration = Duration::from_millis(2500);
-/// A settled burst below this many output batches is a short command, not an
-/// agent working; only larger bursts flag attention.
+/// Named-harness title: settled burst this large counts as agent work.
 const BUSY_WAKEUPS: u32 = 15;
+/// No harness name in title: require a heavier burst (avoids `npm install` noise).
+const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
 
 pub struct TerminalView {
     state: State,
@@ -212,11 +213,12 @@ impl TerminalView {
         });
     }
 
-    /// Output settled after a burst. If that burst was substantial (an agent
-    /// working, not a one-line command) and this is a Claude terminal, flag it.
+    /// Output settled after a burst. If that burst was substantial (agent-like
+    /// thrash, not a one-line command), flag the stream for attention.
     fn on_idle(&mut self, cx: &mut Context<Self>) {
         let busy = std::mem::replace(&mut self.wakeups, 0);
-        if busy >= BUSY_WAKEUPS && self.title(cx).to_lowercase().contains("claude") {
+        let title = self.title(cx);
+        if agent_finish_signal(busy, &title) {
             cx.emit(TerminalEvent::Finished);
         }
     }
@@ -661,6 +663,31 @@ impl TerminalView {
     }
 }
 
+/// Quiet period after `busy` wakeups looks like an agent finishing.
+/// Named harness titles need fewer wakeups; anonymous titles need a heavier burst.
+fn agent_finish_signal(busy: u32, title: &str) -> bool {
+    if busy == 0 {
+        return false;
+    }
+    if agent_title(title) {
+        return busy >= BUSY_WAKEUPS;
+    }
+    busy >= ANONYMOUS_BUSY_WAKEUPS
+}
+
+/// Title (or process name fragment) suggests a coding agent, not a plain shell.
+fn agent_title(title: &str) -> bool {
+    let t = title.to_ascii_lowercase();
+    const NAMES: &[&str] = &[
+        "claude", "grok", "kimi", "codex", "aider", "gemini", "cursor", "opencode", "windsurf",
+        "goose", "crush", "amp ", " amp", "devin", "copilot",
+    ];
+    if NAMES.iter().any(|n| t.contains(n)) {
+        return true;
+    }
+    t.contains("agent") || t.contains("llm")
+}
+
 fn context_item(
     id: &'static str,
     label: &'static str,
@@ -874,7 +901,7 @@ impl EntityInputHandler for TerminalView {
 
 #[cfg(test)]
 mod tests {
-    use super::{strip_line_suffix, trim_token};
+    use super::{agent_finish_signal, agent_title, strip_line_suffix, trim_token};
 
     #[test]
     fn trim_token_drops_trailing_sentence_period() {
@@ -913,5 +940,16 @@ mod tests {
         assert_eq!(strip_line_suffix("foo.rs"), "foo.rs");
         // A non-numeric ":" tail is part of the path, not a line suffix.
         assert_eq!(strip_line_suffix("foo:bar"), "foo:bar");
+    }
+
+    #[test]
+    fn agent_finish_detects_named_and_anonymous_bursts() {
+        assert!(!agent_finish_signal(5, "claude"));
+        assert!(agent_finish_signal(15, "claude code"));
+        assert!(agent_finish_signal(20, "Grok session"));
+        assert!(!agent_finish_signal(20, "bash"));
+        assert!(agent_finish_signal(40, "bash"));
+        assert!(agent_title("kimi-cli"));
+        assert!(!agent_title("zsh"));
     }
 }

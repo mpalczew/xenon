@@ -16,7 +16,7 @@ mod vim;
 
 pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
 pub use edit::{EditCommand, Motion};
-pub use view::EditorView;
+pub use view::{DiskAlert, EditorEvent, EditorView};
 
 #[cfg(test)]
 mod tests;

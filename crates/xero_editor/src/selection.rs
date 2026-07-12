@@ -39,6 +39,21 @@ pub fn word_range_at(rope: &Rope, offset: usize) -> Range<usize> {
     start..end
 }
 
+/// 0-based (line, character) for a char offset (IDE / LSP style).
+pub fn offset_line_col(rope: &Rope, offset: usize) -> (u32, u32) {
+    let offset = offset.min(rope.len_chars());
+    if rope.len_chars() == 0 {
+        return (0, 0);
+    }
+    let line = if offset == rope.len_chars() {
+        rope.len_lines().saturating_sub(1)
+    } else {
+        rope.char_to_line(offset)
+    };
+    let line_start = rope.line_to_char(line);
+    (line as u32, (offset - line_start) as u32)
+}
+
 /// Line content range containing `offset`, excluding the trailing newline.
 pub fn line_range_at(rope: &Rope, offset: usize) -> Range<usize> {
     let len = rope.len_chars();

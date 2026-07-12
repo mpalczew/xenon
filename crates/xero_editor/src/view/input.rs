@@ -80,6 +80,9 @@ impl EditorView {
         }
         if edits {
             self.recompute_highlights();
+        } else {
+            // Move/Extend: push selection to Claude IDE bridge.
+            self.emit_selection(cx);
         }
         cx.stop_propagation();
         cx.notify();
@@ -263,6 +266,10 @@ impl EditorView {
         if xero_settings::vim_mode(cx) && self.vim.mode.is_visual() {
             self.vim.mode = Mode::Normal;
         }
+        // Double/triple click finish selection without a drag; emit now.
+        if click_count >= 2 {
+            self.emit_selection(cx);
+        }
         self.focus.focus(window, cx);
         cx.stop_propagation();
         cx.notify();
@@ -303,6 +310,7 @@ impl EditorView {
             {
                 buffer.clear_selection();
             }
+            self.emit_selection(cx);
             cx.notify();
         }
     }

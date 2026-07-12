@@ -33,6 +33,7 @@ impl XeroApp {
         } else {
             match EditorView::build(path.clone(), focus, cx) {
                 Ok(view) => {
+                    self.wire_editor_selection(&view, cx);
                     let name = file_name(&path);
                     let stack = self.editors.entry(id).or_default();
                     stack.tabs.push(EditorTab { path, name, view });
@@ -209,6 +210,32 @@ impl XeroApp {
         if let Some(view) = self.active_editor() {
             view.update(cx, |view, cx| view.toggle_preview(cx));
         }
+    }
+
+    /// Push editor selection changes to connected Claude IDE clients.
+    fn wire_editor_selection(&mut self, view: &Entity<EditorView>, cx: &mut Context<Self>) {
+        self._selection_subs
+            .push(cx.subscribe(view, |this, _view, event, _cx| {
+                let EditorEvent::SelectionChanged {
+                    path,
+                    text,
+                    start_line,
+                    start_character,
+                    end_line,
+                    end_character,
+                } = event;
+                let Some(ide) = this.ide.as_ref() else {
+                    return;
+                };
+                ide.notify_selection(&SelectionSnapshot {
+                    path: path.clone(),
+                    text: text.clone(),
+                    start_line: *start_line,
+                    start_character: *start_character,
+                    end_line: *end_line,
+                    end_character: *end_character,
+                });
+            }));
     }
 }
 

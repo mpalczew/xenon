@@ -1,17 +1,19 @@
-//! xero as a Claude Code "IDE": a localhost WebSocket MCP server that agents
-//! running in xero's terminal connect to, so Claude Code can open files (and
-//! more) in xero. See PROTOCOL.md.
+//! Xenon as a Claude Code "IDE": a localhost WebSocket MCP server that agents
+//! running in the terminal connect to. See PROTOCOL.md.
 
 mod lock;
 mod protocol;
 
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::mpsc::{self, Sender as MpscSender};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
+use std::time::Duration;
 
 use anyhow::Result;
 use async_channel::Sender;
+use serde_json::json;
 use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{Message, accept_hdr};
 use uuid::Uuid;
@@ -21,12 +23,25 @@ pub enum IdeCommand {
     OpenFile(PathBuf),
 }
 
+/// Snapshot of the active editor selection for Claude context.
+#[derive(Clone, Debug)]
+pub struct SelectionSnapshot {
+    pub path: PathBuf,
+    pub text: String,
+    pub start_line: u32,
+    pub start_character: u32,
+    pub end_line: u32,
+    pub end_character: u32,
+}
+
 /// A running IDE server. Dropping it removes the discovery lock file.
 pub struct IdeServer {
     port: u16,
     token: String,
     lock_path: PathBuf,
     roots: Arc<RwLock<Vec<PathBuf>>>,
+    /// Outbound notify queues for connected CLI clients (selection, etc.).
+    clients: Arc<Mutex<Vec<MpscSender<String>>>>,
 }
 
 impl IdeServer {
@@ -37,19 +52,30 @@ impl IdeServer {
         let token = Uuid::new_v4().to_string();
         let lock_path = lock::write(port, &token, &roots)?;
         let roots = Arc::new(RwLock::new(roots));
-        log::info!("xero IDE server on 127.0.0.1:{port}");
+        let clients: Arc<Mutex<Vec<MpscSender<String>>>> = Arc::new(Mutex::new(Vec::new()));
+        log::info!("xenon IDE server on 127.0.0.1:{port}");
 
         let server_roots = roots.clone();
         let server_token = token.clone();
+        let server_clients = clients.clone();
         thread::Builder::new()
-            .name("xero-ide".into())
-            .spawn(move || accept_loop(listener, server_token, server_roots, commands))?;
+            .name("xenon-ide".into())
+            .spawn(move || {
+                accept_loop(
+                    listener,
+                    server_token,
+                    server_roots,
+                    server_clients,
+                    commands,
+                )
+            })?;
 
         Ok(IdeServer {
             port,
             token,
             lock_path,
             roots,
+            clients,
         })
     }
 
@@ -57,7 +83,6 @@ impl IdeServer {
     pub fn env(&self) -> Vec<(String, String)> {
         vec![
             ("CLAUDE_CODE_SSE_PORT".to_string(), self.port.to_string()),
-            // Neovim reverse-engineer sets this; VS Code live path mainly used the port.
             ("ENABLE_IDE_INTEGRATION".to_string(), "true".to_string()),
         ]
     }
@@ -71,6 +96,28 @@ impl IdeServer {
         self.lock_path = lock::write(self.port, &self.token, &roots)?;
         Ok(())
     }
+
+    /// Push current editor selection to connected Claude CLI clients.
+    pub fn notify_selection(&self, snap: &SelectionSnapshot) {
+        let is_empty = snap.text.is_empty();
+        let msg = json!({
+            "jsonrpc": "2.0",
+            "method": "selection_changed",
+            "params": {
+                "text": snap.text,
+                "filePath": snap.path.to_string_lossy(),
+                "fileUrl": format!("file://{}", snap.path.display()),
+                "selection": {
+                    "start": { "line": snap.start_line, "character": snap.start_character },
+                    "end": { "line": snap.end_line, "character": snap.end_character },
+                    "isEmpty": is_empty,
+                }
+            }
+        })
+        .to_string();
+        let mut clients = self.clients.lock().expect("IDE clients lock poisoned");
+        clients.retain(|tx| tx.send(msg.clone()).is_ok());
+    }
 }
 
 impl Drop for IdeServer {
@@ -83,15 +130,17 @@ fn accept_loop(
     listener: TcpListener,
     token: String,
     roots: Arc<RwLock<Vec<PathBuf>>>,
+    clients: Arc<Mutex<Vec<MpscSender<String>>>>,
     commands: Sender<IdeCommand>,
 ) {
     for stream in listener.incoming().flatten() {
         let token = token.clone();
         let roots = roots.clone();
+        let clients = clients.clone();
         let commands = commands.clone();
         thread::spawn(move || {
-            if let Err(error) = serve_connection(stream, &token, &roots, &commands) {
-                log::debug!("xero IDE connection ended: {error}");
+            if let Err(error) = serve_connection(stream, &token, &roots, &clients, &commands) {
+                log::debug!("xenon IDE connection ended: {error}");
             }
         });
     }
@@ -101,6 +150,7 @@ fn serve_connection(
     stream: std::net::TcpStream,
     token: &str,
     roots: &Arc<RwLock<Vec<PathBuf>>>,
+    clients: &Arc<Mutex<Vec<MpscSender<String>>>>,
     commands: &Sender<IdeCommand>,
 ) -> Result<()> {
     let expected = token.to_string();
@@ -119,16 +169,37 @@ fn serve_connection(
         };
 
     let mut ws = accept_hdr(stream, auth)?;
+    let (tx, rx) = mpsc::channel::<String>();
+    {
+        let mut list = clients.lock().expect("IDE clients lock poisoned");
+        list.push(tx);
+    }
+    // Non-blocking so we can interleave outbound selection notifications.
+    ws.get_mut().set_nonblocking(true)?;
     loop {
-        match ws.read()? {
-            Message::Text(text) => {
+        match ws.read() {
+            Ok(Message::Text(text)) => {
                 let current_roots = roots.read().expect("IDE roots lock poisoned").clone();
                 if let Some(reply) = protocol::handle(&text, &current_roots, commands) {
+                    ws.get_mut().set_nonblocking(false)?;
                     ws.send(Message::Text(reply))?;
+                    ws.get_mut().set_nonblocking(true)?;
                 }
             }
-            Message::Close(_) => return Ok(()),
-            _ => {}
+            Ok(Message::Close(_)) => return Ok(()),
+            Ok(_) => {}
+            Err(tungstenite::Error::Io(ref e))
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                while let Ok(msg) = rx.try_recv() {
+                    ws.get_mut().set_nonblocking(false)?;
+                    ws.send(Message::Text(msg))?;
+                    ws.get_mut().set_nonblocking(true)?;
+                }
+                thread::sleep(Duration::from_millis(40));
+            }
+            Err(error) => return Err(error.into()),
         }
     }
 }

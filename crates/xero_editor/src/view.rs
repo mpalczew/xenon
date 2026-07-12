@@ -3,6 +3,7 @@
 //! saves. Mirrors the terminal view's input wiring.
 
 mod disk;
+mod image;
 mod input;
 mod layout;
 mod menu;
@@ -11,24 +12,23 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement, PinchEvent, Pixels, Point, Render,
-    ScrollWheelEvent, StatefulInteractiveElement, Styled, Task, Window, anchored, deferred, div,
-    point, px,
+    App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, MouseButton, ParentElement, Pixels, Point, Render, ScrollWheelEvent,
+    StatefulInteractiveElement, Styled, Task, Window, anchored, deferred, div, px,
 };
 use theme::ActiveTheme;
 
 use crate::buffer::{Buffer, OpenError};
 use crate::element;
 use crate::highlight;
-use crate::image_viewer::{ImageContentElement, ImageViewer, event_delta, zoom_factor_for_scroll};
+use crate::image_viewer::{ImageContentElement, ImageViewer};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use menu::{context_item, file_title, is_supported_image};
 use xero_settings::{Copy, Cut, Paste};
 
 pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
-const ZOOM_STEP: f32 = 1.2;
+pub(super) const ZOOM_STEP: f32 = 1.2;
 
 pub struct EditorView {
     pub(super) content: Content,
@@ -50,7 +50,25 @@ pub struct EditorView {
     vim: VimState,
     /// Poll disk mtime so agent/other-tool writes refresh a clean buffer.
     pub(super) _disk_poll: Task<()>,
+    /// Clean buffer is fine; conflict/deleted when disk moved under dirty edits.
+    pub(super) disk_alert: DiskAlert,
 }
+
+pub use disk::DiskAlert;
+
+/// Events the shell can subscribe to (IDE selection push, etc.).
+pub enum EditorEvent {
+    SelectionChanged {
+        path: PathBuf,
+        text: String,
+        start_line: u32,
+        start_character: u32,
+        end_line: u32,
+        end_character: u32,
+    },
+}
+
+impl EventEmitter<EditorEvent> for EditorView {}
 
 pub(super) enum Content {
     Text(Buffer),
@@ -98,9 +116,33 @@ impl EditorView {
             context_menu: None,
             vim: VimState::default(),
             _disk_poll: disk::idle_disk_poll(),
+            disk_alert: DiskAlert::None,
         };
         view.recompute_highlights();
         view
+    }
+
+    /// Emit current selection to listeners (Claude IDE bridge).
+    pub(super) fn emit_selection(&mut self, cx: &mut Context<Self>) {
+        let Content::Text(buffer) = &self.content else {
+            return;
+        };
+        let path = buffer.path().to_path_buf();
+        let text = buffer.selected_text();
+        let (start_off, end_off) = match buffer.selection_range() {
+            Some(range) => (range.start, range.end),
+            None => (buffer.cursor(), buffer.cursor()),
+        };
+        let start = crate::selection::offset_line_col(buffer.rope(), start_off);
+        let end = crate::selection::offset_line_col(buffer.rope(), end_off);
+        cx.emit(EditorEvent::SelectionChanged {
+            path,
+            text,
+            start_line: start.0,
+            start_character: start.1,
+            end_line: end.0,
+            end_character: end.1,
+        });
     }
 
     /// The file this editor is showing.
@@ -156,99 +198,6 @@ impl EditorView {
             Content::Image(_) | Content::Unsupported { .. } => Vec::new(),
         };
     }
-
-    fn zoom_image_in(&mut self, cx: &mut Context<Self>) {
-        if let Content::Image(viewer) = &mut self.content {
-            viewer.zoom_by(ZOOM_STEP);
-            cx.notify();
-        }
-    }
-
-    fn zoom_image_out(&mut self, cx: &mut Context<Self>) {
-        if let Content::Image(viewer) = &mut self.content {
-            viewer.zoom_by(1. / ZOOM_STEP);
-            cx.notify();
-        }
-    }
-
-    fn fit_image(&mut self, cx: &mut Context<Self>) {
-        if let Content::Image(viewer) = &mut self.content {
-            viewer.fit();
-            cx.notify();
-        }
-    }
-
-    fn actual_size_image(&mut self, cx: &mut Context<Self>) {
-        if let Content::Image(viewer) = &mut self.content {
-            viewer.actual_size();
-            cx.notify();
-        }
-    }
-
-    fn on_image_scroll(
-        &mut self,
-        event: &ScrollWheelEvent,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Content::Image(viewer) = &mut self.content else {
-            return;
-        };
-        if !event.modifiers.platform {
-            viewer.pan(event_delta(event));
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        let delta = event_delta(event).y;
-        let factor = zoom_factor_for_scroll(delta);
-        viewer.zoom_at(factor, event.position);
-        cx.stop_propagation();
-        cx.notify();
-    }
-
-    fn on_image_pinch(&mut self, event: &PinchEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        let Content::Image(viewer) = &mut self.content else {
-            return;
-        };
-        viewer.zoom_at(1. + event.delta, event.position);
-        cx.stop_propagation();
-        cx.notify();
-    }
-
-    fn on_image_mouse_down(
-        &mut self,
-        event: &MouseDownEvent,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Content::Image(viewer) = &mut self.content else {
-            return;
-        };
-        viewer.drag_last = Some(event.position);
-        self.focus.focus(_window, cx);
-    }
-
-    fn on_image_mouse_move(
-        &mut self,
-        event: &MouseMoveEvent,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Content::Image(viewer) = &mut self.content else {
-            return;
-        };
-        if event.pressed_button != Some(MouseButton::Left) {
-            viewer.drag_last = None;
-            return;
-        };
-        let Some(last) = viewer.drag_last.replace(event.position) else {
-            return;
-        };
-        viewer.pan(point(event.position.x - last.x, event.position.y - last.y));
-        cx.stop_propagation();
-        cx.notify();
-    }
 }
 
 impl Focusable for EditorView {
@@ -275,14 +224,23 @@ impl Render for EditorView {
             }
             Content::Text(_) => {}
         }
+        let alert = self.disk_alert_bar(cx);
         if self.preview {
             return div()
                 .track_focus(&self.focus)
                 .key_context("Editor")
                 .on_key_down(cx.listener(Self::on_key))
                 .size_full()
+                .flex()
+                .flex_col()
                 .bg(colors.editor_background)
-                .child(layout::markdown_preview(&self.text(), cx))
+                .children(alert)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .child(layout::markdown_preview(&self.text(), cx)),
+                )
                 .into_any_element();
         }
         let mode_bar = xero_settings::vim_mode(cx).then(|| {
@@ -330,6 +288,7 @@ impl Render for EditorView {
             .flex()
             .flex_col()
             .bg(colors.editor_background)
+            .children(alert)
             .child(
                 div()
                     .flex_1()

@@ -14,9 +14,9 @@ use gpui::{
 };
 use theme::ActiveTheme;
 use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
-use xero_editor::EditorView;
+use xero_editor::{EditorEvent, EditorView};
 use xero_finder::{FileIndex, Finder};
-use xero_ide::{IdeCommand, IdeServer};
+use xero_ide::{IdeCommand, IdeServer, SelectionSnapshot};
 use xero_terminal::{TerminalEvent, TerminalView};
 
 use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
@@ -150,6 +150,8 @@ pub struct XeroApp {
     // attention); shown as a dot in the sidebar, cleared when the stream opens.
     attention: HashSet<StreamId>,
     _bell_subs: Vec<Subscription>,
+    // Editor selection → Claude IDE `selection_changed` push.
+    _selection_subs: Vec<Subscription>,
     // IDE server: agents in the terminal connect here to drive xero. Its env is
     // injected into every terminal so Claude Code discovers it.
     ide: Option<IdeServer>,
@@ -197,6 +199,7 @@ impl XeroApp {
             _task_picker_sub: None,
             attention: HashSet::new(),
             _bell_subs: Vec::new(),
+            _selection_subs: Vec::new(),
             ide: None,
             _ide_task: None,
             git_dirt: HashMap::new(),

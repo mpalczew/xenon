@@ -56,7 +56,7 @@ impl Buffer {
     pub fn open(path: impl AsRef<Path>) -> std::result::Result<Buffer, OpenError> {
         let path = path.as_ref().to_path_buf();
         let bytes = fs::read(&path)?;
-        if is_binary(&bytes) {
+        if bytes.iter().take(BINARY_SNIFF_BYTES).any(|&b| b == 0) {
             return Err(OpenError::Binary(path));
         }
         let rope = Rope::from_reader(&bytes[..])?;
@@ -104,7 +104,8 @@ impl Buffer {
         Ok(ExternalState::Reloaded)
     }
 
-    fn reload(&mut self) -> Result<()> {
+    /// Reload from disk (clean or after user chose disk in a conflict).
+    pub(crate) fn reload(&mut self) -> Result<()> {
         let bytes = fs::read(&self.path)?;
         self.rope = Rope::from_reader(&bytes[..])?;
         self.cursor = self.cursor.min(self.rope.len_chars());
@@ -113,6 +114,11 @@ impl Buffer {
         self.dirty = false;
         self.undo.clear();
         Ok(())
+    }
+
+    /// Treat current disk mtime as known without reloading (keep local edits).
+    pub(crate) fn adopt_disk_mtime(&mut self) {
+        self.disk_mtime = mtime(&self.path);
     }
 
     fn disk_moved(&self) -> bool {
@@ -295,10 +301,6 @@ impl Buffer {
             len
         }
     }
-}
-
-fn is_binary(bytes: &[u8]) -> bool {
-    bytes.iter().take(BINARY_SNIFF_BYTES).any(|&b| b == 0)
 }
 
 fn mtime(path: &Path) -> Option<SystemTime> {
