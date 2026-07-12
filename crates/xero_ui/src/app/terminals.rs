@@ -18,6 +18,29 @@ impl XeroApp {
         cx.notify();
     }
 
+    /// Cmd-N / File → New Terminal: new tab and focus it.
+    pub(crate) fn new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_terminal(cx);
+        if let Some(terminal) = self.active_terminal() {
+            terminal.read(cx).focus_handle(cx).focus(window, cx);
+        }
+    }
+
+    /// Cmd-Shift-N / File → New Stream: parallel work unit in active workspace.
+    pub(crate) fn new_stream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let workspace = self
+            .active
+            .and_then(|id| self.workspace_of(id).map(|w| w.id))
+            .or_else(|| self.registry.workspaces.first().map(|w| w.id));
+        let Some(workspace) = workspace else {
+            return;
+        };
+        let Some(id) = self.create_stream(workspace) else {
+            return;
+        };
+        self.select_stream(id, window, cx);
+    }
+
     pub(crate) fn terminal_stack(&self) -> Option<&TerminalStack> {
         self.active.and_then(|id| self.terminals.get(&id))
     }

@@ -25,8 +25,9 @@ use crate::rename::{RenameEvent, RenameView};
 use crate::settings::SettingsView;
 use crate::task_picker::TaskPickerView;
 use crate::{
-    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, OpenFile,
-    ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
+    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewStream,
+    NewTerminal, OpenFile, ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings,
+    ToggleSidebar, ToggleTerminal,
 };
 
 mod browser;

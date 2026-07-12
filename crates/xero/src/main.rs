@@ -6,8 +6,9 @@ use gpui::{
 };
 use gpui_platform::application;
 use xero_ui::{
-    AddWorkspace, CloseEditor, Copy, Cut, FilePalette, OpenFile, Paste, RunTask, Save,
-    ToggleSettings, XeroApp,
+    AddWorkspace, CloseEditor, Copy, Cut, DecreaseFontSize, FilePalette, IncreaseFontSize,
+    NewStream, NewTerminal, OpenFile, Paste, ResetFontSize, RunTask, Save, ToggleBrowser,
+    ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, XeroApp,
 };
 
 actions!(xero, [Quit]);
@@ -70,6 +71,9 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("Quit", Quit),
         ]),
         Menu::new("File").items([
+            MenuItem::action("New Terminal", NewTerminal),
+            MenuItem::action("New Stream", NewStream),
+            MenuItem::separator(),
             MenuItem::action("Open File…", OpenFile),
             MenuItem::action("Open Folder…", AddWorkspace),
             MenuItem::action("Go to File…", FilePalette),
@@ -83,6 +87,17 @@ fn wire_menus(cx: &mut App) {
             MenuItem::os_action("Cut", Cut, OsAction::Cut),
             MenuItem::os_action("Copy", Copy, OsAction::Copy),
             MenuItem::os_action("Paste", Paste, OsAction::Paste),
+        ]),
+        // View (not Window): we are one window; this is show/hide chrome.
+        Menu::new("View").items([
+            MenuItem::action("Toggle Sidebar", ToggleSidebar),
+            MenuItem::action("Toggle File Browser", ToggleBrowser),
+            MenuItem::action("Toggle Terminal", ToggleTerminal),
+            MenuItem::action("Toggle Editor", ToggleEditor),
+            MenuItem::separator(),
+            MenuItem::action("Zoom In", IncreaseFontSize),
+            MenuItem::action("Zoom Out", DecreaseFontSize),
+            MenuItem::action("Reset Zoom", ResetFontSize),
         ]),
     ]);
     cx.on_window_closed(|cx, _| {

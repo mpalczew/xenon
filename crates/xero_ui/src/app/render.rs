@@ -31,6 +31,12 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
                 this.toggle_sidebar_panel(cx);
             }))
+            .on_action(cx.listener(|this, _: &NewTerminal, window, cx| {
+                this.new_terminal(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &NewStream, window, cx| {
+                this.new_stream(window, cx);
+            }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
             .on_action(

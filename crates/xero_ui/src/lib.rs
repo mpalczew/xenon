@@ -27,6 +27,8 @@ pub use xero_settings::{Copy, Cut, Paste};
 actions!(
     xero,
     [
+        NewTerminal,
+        NewStream,
         ToggleSidebar,
         ToggleTerminal,
         ToggleEditor,
@@ -47,7 +49,11 @@ actions!(
 /// Bind the shell's keyboard shortcuts. Call once at startup.
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
+        KeyBinding::new("cmd-n", NewTerminal, None),
+        KeyBinding::new("cmd-shift-n", NewStream, None),
         KeyBinding::new("cmd-b", ToggleSidebar, None),
+        KeyBinding::new("cmd-j", ToggleTerminal, None),
+        KeyBinding::new("cmd-shift-e", ToggleEditor, None),
         KeyBinding::new("cmd-e", ToggleBrowser, None),
         KeyBinding::new("cmd-o", OpenFile, None),
         KeyBinding::new("cmd-p", FilePalette, None),
