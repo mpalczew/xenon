@@ -81,60 +81,12 @@ impl XeroApp {
         }
     }
 
-    /// Close the tab at `index` in the active stream. Dirty buffers prompt first.
-    pub(crate) fn close_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(id) = self.active else {
-            return;
-        };
-        let Some(stack) = self.editors.get(&id) else {
-            return;
-        };
-        if index >= stack.tabs.len() {
-            return;
-        }
-        let tab = &stack.tabs[index];
-        if !tab.view.read(cx).is_dirty() {
-            self.drop_editor_tab(id, index, cx);
-            return;
-        }
-        let name = tab.name.clone();
-        let path = tab.path.clone();
-        let answer = window.prompt(
-            PromptLevel::Warning,
-            &format!("Do you want to save the changes you made to \"{name}\"?"),
-            Some("Your changes will be lost if you don't save them."),
-            &["Save", "Don't Save", "Cancel"],
-            cx,
-        );
-        cx.spawn(async move |this, cx| {
-            let Ok(choice) = answer.await else {
-                return;
-            };
-            this.update(cx, |this, cx| match choice {
-                0 => {
-                    // Save then close (path-keyed: index may have shifted).
-                    if let Some(tab) = this.editor_tab_by_path(id, &path) {
-                        tab.view.update(cx, |editor, cx| editor.save(cx));
-                    }
-                    this.drop_editor_tab_by_path(id, &path, cx);
-                }
-                1 => this.drop_editor_tab_by_path(id, &path, cx),
-                _ => {} // Cancel
-            })
-            .ok();
-        })
-        .detach();
-    }
-
-    fn editor_tab_by_path(&self, id: StreamId, path: &Path) -> Option<&EditorTab> {
-        self.editors
-            .get(&id)?
-            .tabs
-            .iter()
-            .find(|tab| tab.path == path)
-    }
-
-    fn drop_editor_tab_by_path(&mut self, id: StreamId, path: &Path, cx: &mut Context<Self>) {
+    pub(super) fn drop_editor_tab_by_path(
+        &mut self,
+        id: StreamId,
+        path: &Path,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(index) = self
             .editors
             .get(&id)
@@ -145,7 +97,7 @@ impl XeroApp {
     }
 
     /// Close the tab at `index` with no dirty check (after save/discard).
-    fn drop_editor_tab(&mut self, id: StreamId, index: usize, cx: &mut Context<Self>) {
+    pub(super) fn drop_editor_tab(&mut self, id: StreamId, index: usize, cx: &mut Context<Self>) {
         let Some(stack) = self.editors.get_mut(&id) else {
             return;
         };

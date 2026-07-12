@@ -226,12 +226,12 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// Close a stream: drop its terminals/editors, delete its session, and remove
-    /// it from its workspace. Refuses to remove a workspace's last stream.
-    pub(crate) fn close_stream(
+    /// Drop stream terminals/editors with no dirty check.
+    /// `window` is Some when closing from UI so focus can restore; None after a prompt.
+    pub(super) fn force_close_stream(
         &mut self,
         id: StreamId,
-        window: &mut Window,
+        window: Option<&mut Window>,
         cx: &mut Context<Self>,
     ) {
         let Some(workspace) = self.workspace_of(id).map(|w| w.id) else {
@@ -254,7 +254,10 @@ impl XeroApp {
         if self.active == Some(id) {
             self.active = None;
             if let Some(next) = fallback {
-                self.select_stream(next, window, cx);
+                match window {
+                    Some(window) => self.select_stream(next, window, cx),
+                    None => self.activate_stream(next, cx),
+                }
             }
         }
         cx.notify();

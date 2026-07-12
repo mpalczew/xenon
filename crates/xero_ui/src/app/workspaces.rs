@@ -68,10 +68,11 @@ impl XeroApp {
         cx.notify();
     }
 
-    pub(crate) fn close_workspace(
+    /// Drop workspace streams with no dirty check. `window` restores focus when present.
+    pub(super) fn force_close_workspace(
         &mut self,
         id: WorkspaceId,
-        window: &mut Window,
+        window: Option<&mut Window>,
         cx: &mut Context<Self>,
     ) {
         let Some(index) = self
@@ -103,7 +104,10 @@ impl XeroApp {
         self.update_ide_roots();
         self.restart_git_dirt_watch(cx);
         if closed_active && let Some(next) = self.first_stream() {
-            self.select_stream(next, window, cx);
+            match window {
+                Some(window) => self.select_stream(next, window, cx),
+                None => self.activate_stream(next, cx),
+            }
         }
         cx.notify();
     }

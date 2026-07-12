@@ -30,6 +30,7 @@ use crate::{
 };
 
 mod browser;
+mod dirty_close;
 mod editors;
 mod git_dirt;
 mod navigation;
