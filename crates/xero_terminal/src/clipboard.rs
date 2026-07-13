@@ -9,7 +9,7 @@ use image::ImageFormat as EncodedImageFormat;
 pub(crate) fn terminal_clipboard_text(item: ClipboardItem) -> Option<String> {
     for entry in &item.entries {
         if let ClipboardEntry::ExternalPaths(paths) = entry {
-            return Some(paths.0.iter().map(shell_path).collect::<Vec<_>>().join(" "));
+            return Some(terminal_paths_text(paths.0.iter()));
         }
     }
 
@@ -23,6 +23,15 @@ pub(crate) fn terminal_clipboard_text(item: ClipboardItem) -> Option<String> {
     }
 
     item.text()
+}
+
+/// Shell-quoted path list for paste or drag-drop into the PTY.
+pub(crate) fn terminal_paths_text(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> String {
+    paths
+        .into_iter()
+        .map(shell_path)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn save_clipboard_image(image: &Image) -> Result<PathBuf> {

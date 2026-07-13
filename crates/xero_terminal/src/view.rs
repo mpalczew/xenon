@@ -14,10 +14,10 @@ use std::time::Duration;
 use anyhow::Result;
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
-    EntityInputHandler, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels,
-    Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled, Subscription, Task,
-    UTF16Selection, Window, anchored, canvas, deferred, div, px,
+    EntityInputHandler, EventEmitter, ExternalPaths, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ParentElement, Pixels, Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled,
+    Subscription, Task, UTF16Selection, Window, anchored, canvas, deferred, div, px,
 };
 use settings::Settings;
 use task::Shell;
@@ -26,7 +26,7 @@ use terminal::{Terminal, TerminalBuilder};
 use theme::ActiveTheme;
 use util::paths::PathStyle;
 
-use crate::clipboard::terminal_clipboard_text;
+use crate::clipboard::{terminal_clipboard_text, terminal_paths_text};
 use crate::grid;
 use xero_settings::{Copy, Cut, Paste};
 
@@ -329,6 +329,21 @@ impl TerminalView {
         }
     }
 
+    /// Paste shell-quoted paths (Finder drag-drop of images/files).
+    pub fn paste_paths(&self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
+        if self.exited || paths.is_empty() {
+            return;
+        }
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let text = terminal_paths_text(paths);
+        if text.is_empty() {
+            return;
+        }
+        terminal.update(cx, |terminal, _| terminal.paste(&text));
+    }
+
     fn on_right_down(
         &mut self,
         event: &MouseDownEvent,
@@ -509,6 +524,21 @@ impl Render for TerminalView {
                 this.paste_clipboard(cx);
                 cx.notify();
             }))
+            // Finder / external file drag (images and other paths).
+            .drag_over::<ExternalPaths>(move |style, _, _, _| {
+                style.bg(colors.element_selected)
+            })
+            .on_drop(cx.listener(
+                |this, paths: &ExternalPaths, window, cx| {
+                    if this.exited {
+                        return;
+                    }
+                    this.focus.focus(window, cx);
+                    this.paste_paths(paths.paths(), cx);
+                    this.note_interaction(cx);
+                    cx.notify();
+                },
+            ))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
