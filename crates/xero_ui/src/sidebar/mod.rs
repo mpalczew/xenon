@@ -286,12 +286,9 @@ impl XeroApp {
             .flex_1()
             .cursor_pointer()
             .hover(|s| s.text_color(colors.text))
-            .on_click(cx.listener(move |this, event: &gpui::ClickEvent, _, cx| {
-                if event.click_count() >= 2 {
-                    this.start_rename_workspace(id, cx);
-                } else {
-                    this.toggle_workspace(id, cx);
-                }
+            // Single click only collapses; rename is the pencil in hover actions.
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.toggle_workspace(id, cx);
             }))
             .child(chevron_slot(collapsed))
             .child(
@@ -317,6 +314,15 @@ impl XeroApp {
             .flex_none()
             .invisible()
             .group_hover(group, |s| s.visible())
+            .child(self.icon_button(
+                ("ws-rename", id_hash(id.to_string())),
+                Icon::Pencil,
+                colors.clone(),
+                cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    this.start_rename_workspace(id, cx);
+                }),
+            ))
             .child(self.icon_button(
                 ("add-stream", id_hash(id.to_string())),
                 Icon::Plus,

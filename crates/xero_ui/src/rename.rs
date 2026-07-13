@@ -3,13 +3,16 @@
 //! + registrar-canvas pattern as the finder/editor/terminal.
 
 use std::ops::Range;
+use std::time::Duration;
 
 use gpui::{
     App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
-    Point, Render, Styled, Subscription, UTF16Selection, Window, canvas, div,
+    Point, Render, Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
 };
 use theme::ActiveTheme;
+
+const CARET_BLINK: Duration = Duration::from_millis(530);
 
 pub enum RenameEvent {
     Committed(String),
@@ -20,9 +23,11 @@ pub struct RenameView {
     text: String,
     focus: FocusHandle,
     focused_once: bool,
+    caret_on: bool,
     /// Prevent double-emit when blur fires after Escape/Enter already finished.
     finished: bool,
     _blur: Option<Subscription>,
+    _blink: Option<Task<()>>,
 }
 
 impl EventEmitter<RenameEvent> for RenameView {}
@@ -33,8 +38,10 @@ impl RenameView {
             text: initial,
             focus: cx.focus_handle(),
             focused_once: false,
+            caret_on: true,
             finished: false,
             _blur: None,
+            _blink: None,
         }
     }
 
@@ -43,6 +50,7 @@ impl RenameView {
             return;
         }
         self.finished = true;
+        self._blink = None;
         cx.emit(event);
     }
 
@@ -55,12 +63,36 @@ impl RenameView {
         }
     }
 
+    fn start_caret_blink(&mut self, cx: &mut Context<Self>) {
+        self.caret_on = true;
+        self._blink = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(CARET_BLINK).await;
+                let keep = this
+                    .update(cx, |this, cx| {
+                        if this.finished {
+                            this._blink = None;
+                            return false;
+                        }
+                        this.caret_on = !this.caret_on;
+                        cx.notify();
+                        true
+                    })
+                    .unwrap_or(false);
+                if !keep {
+                    break;
+                }
+            }
+        }));
+    }
+
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         match event.keystroke.key.as_str() {
             "escape" => self.finish(RenameEvent::Cancelled, cx),
             "enter" => self.commit_or_cancel(cx),
             "backspace" => {
                 self.text.pop();
+                self.caret_on = true;
                 cx.notify();
                 cx.stop_propagation();
                 return;
@@ -82,6 +114,7 @@ impl Render for RenameView {
         if !self.focused_once {
             self.focus.focus(window, cx);
             self.focused_once = true;
+            self.start_caret_blink(cx);
         }
         // Click-away (or focus move to terminal/editor) must leave edit mode.
         if self._blur.is_none() {
@@ -91,6 +124,9 @@ impl Render for RenameView {
             }));
         }
         let colors = cx.theme().colors().clone();
+        let caret = self
+            .caret_on
+            .then(|| div().w(px(1.)).h(px(14.)).flex_none().bg(colors.text));
         div()
             .track_focus(&self.focus)
             .key_context("Rename")
@@ -103,7 +139,14 @@ impl Render for RenameView {
             .bg(colors.editor_background)
             .border_1()
             .border_color(colors.border_focused)
-            .child(self.text.clone())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .min_h(px(18.))
+                    .child(div().truncate().child(self.text.clone()))
+                    .children(caret),
+            )
             .child(input_registrar(cx.entity(), self.focus.clone()))
     }
 }
@@ -130,6 +173,7 @@ impl EntityInputHandler for RenameView {
         cx: &mut Context<Self>,
     ) {
         self.text.push_str(text);
+        self.caret_on = true;
         cx.notify();
     }
 
@@ -142,6 +186,7 @@ impl EntityInputHandler for RenameView {
         cx: &mut Context<Self>,
     ) {
         self.text.push_str(new_text);
+        self.caret_on = true;
         cx.notify();
     }
 
@@ -151,8 +196,10 @@ impl EntityInputHandler for RenameView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
+        // Caret at end of text (UTF-16 offsets for the platform input system).
+        let n = self.text.encode_utf16().count();
         Some(UTF16Selection {
-            range: 0..0,
+            range: n..n,
             reversed: false,
         })
     }

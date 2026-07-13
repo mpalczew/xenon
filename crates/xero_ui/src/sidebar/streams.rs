@@ -25,7 +25,9 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let mut rows: Vec<_> = streams
+        // Stream rows only next to the rail; end-drop lives outside so it does
+        // not stretch the vertical separator past the titles.
+        let rows: Vec<_> = streams
             .iter()
             .map(|(id, name, is_active)| {
                 self.stream_row(
@@ -39,20 +41,26 @@ impl XeroApp {
                 .into_any_element()
             })
             .collect();
-        rows.push(self.stream_list_end_drop(cx).into_any_element());
         div()
             .flex()
+            .flex_col()
             .pl(px(18.))
             .pr_1()
             .child(
                 div()
-                    .w(px(1.))
-                    .flex_none()
-                    .my_1()
-                    .bg(colors.border)
-                    .rounded_full(),
+                    .flex()
+                    .items_stretch()
+                    .child(
+                        div()
+                            .w(px(1.))
+                            .flex_none()
+                            .my_1()
+                            .bg(colors.border)
+                            .rounded_full(),
+                    )
+                    .child(div().flex_1().min_w_0().children(rows)),
             )
-            .child(div().flex_1().min_w_0().children(rows))
+            .child(self.stream_list_end_drop(cx))
     }
 
     fn stream_list_end_drop(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
