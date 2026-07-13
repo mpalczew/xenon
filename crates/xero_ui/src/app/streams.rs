@@ -198,18 +198,22 @@ impl XeroApp {
         }
     }
 
-    /// Move `dragged` to `target`'s position within their shared workspace.
+    /// Move `dragged` to `target`'s position, or to the end when `target` is None.
     /// No-op across workspaces (drag reorders within one workspace only).
     pub(crate) fn reorder_stream(
         &mut self,
         dragged: StreamId,
-        target: StreamId,
+        target: Option<StreamId>,
         cx: &mut Context<Self>,
     ) {
-        if dragged == target {
+        if target == Some(dragged) {
             return;
         }
-        let Some(workspace) = self.workspace_of(target).map(|w| w.id) else {
+        let workspace = match target {
+            Some(t) => self.workspace_of(t).map(|w| w.id),
+            None => self.workspace_of(dragged).map(|w| w.id),
+        };
+        let Some(workspace) = workspace else {
             return;
         };
         let Some(record) = self.registry.workspace_mut(workspace) else {
@@ -219,11 +223,14 @@ impl XeroApp {
             return;
         };
         record.streams.remove(from);
-        let to = record
-            .streams
-            .iter()
-            .position(|&s| s == target)
-            .unwrap_or(record.streams.len());
+        let to = match target {
+            Some(t) => record
+                .streams
+                .iter()
+                .position(|&s| s == t)
+                .unwrap_or(record.streams.len()),
+            None => record.streams.len(),
+        };
         record.streams.insert(to, dragged);
         save_registry(&self.registry, "reorder_stream");
         cx.notify();

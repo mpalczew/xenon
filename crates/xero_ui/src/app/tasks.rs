@@ -54,7 +54,13 @@ impl XeroApp {
             self.add_terminal(cx);
         }
         self.terminal_collapsed = false;
-        let line = task.inject_line();
+        let mut line = task.inject_line();
+        // One-shot tab: exit the shell when the command finishes so terminal
+        // auto-close (same rules as shell exit) can apply.
+        if new_terminal {
+            let body = line.trim_end_matches('\n');
+            line = format!("{body}; exit\n");
+        }
         let Some(terminal) = self.active_terminal() else {
             return;
         };

@@ -25,7 +25,7 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let rows: Vec<_> = streams
+        let mut rows: Vec<_> = streams
             .iter()
             .map(|(id, name, is_active)| {
                 self.stream_row(
@@ -39,6 +39,7 @@ impl XeroApp {
                 .into_any_element()
             })
             .collect();
+        rows.push(self.stream_list_end_drop(cx).into_any_element());
         div()
             .flex()
             .pl(px(18.))
@@ -52,6 +53,21 @@ impl XeroApp {
                     .rounded_full(),
             )
             .child(div().flex_1().min_w_0().children(rows))
+    }
+
+    fn stream_list_end_drop(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let drop_line = colors.drop_target_border;
+        div()
+            .id("stream-drop-end")
+            .h(px(10.))
+            .border_t_2()
+            .border_color(gpui::transparent_black())
+            .can_drop(|drag, _, _| drag.downcast_ref::<DragStream>().is_some())
+            .drag_over::<DragStream>(move |style, _, _, _| style.border_color(drop_line))
+            .on_drop(cx.listener(|this, dragged: &DragStream, _window, cx| {
+                this.reorder_stream(dragged.0, None, cx);
+            }))
     }
 
     fn stream_row(&self, row: StreamRow, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -125,7 +141,7 @@ impl XeroApp {
                 style.border_color(colors.drop_target_border)
             })
             .on_drop(cx.listener(move |this, dragged: &DragStream, _window, cx| {
-                this.reorder_stream(dragged.0, id, cx)
+                this.reorder_stream(dragged.0, Some(id), cx)
             }))
             .child(
                 div()

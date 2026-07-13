@@ -68,6 +68,25 @@ impl XeroApp {
         cx.notify();
     }
 
+    /// Move workspace `dragged` to the end of the open list (bottom drop zone).
+    pub(crate) fn reorder_workspace_to_end(
+        &mut self,
+        dragged: WorkspaceId,
+        cx: &mut Context<Self>,
+    ) {
+        let list = &mut self.registry.workspaces;
+        let Some(from) = list.iter().position(|w| w.id == dragged) else {
+            return;
+        };
+        if from + 1 == list.len() {
+            return;
+        }
+        let record = list.remove(from);
+        list.push(record);
+        save_registry(&self.registry, "reorder_workspace");
+        cx.notify();
+    }
+
     /// Drop workspace streams with no dirty check. `window` restores focus when present.
     pub(super) fn force_close_workspace(
         &mut self,

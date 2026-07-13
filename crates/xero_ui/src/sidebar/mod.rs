@@ -101,6 +101,8 @@ impl XeroApp {
                 rows.push(self.stream_group(workspace.streams, cx).into_any_element());
             }
         }
+        // Hit target below the last workspace so drops can land at list end.
+        rows.push(self.workspace_list_end_drop(cx).into_any_element());
         if !closed.is_empty() {
             rows.push(self.closed_title(closed_collapsed, cx).into_any_element());
             if !closed_collapsed {
@@ -248,6 +250,23 @@ impl XeroApp {
             }))
             .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .into_any_element()
+    }
+
+    /// Empty strip under the last workspace: drop here to move to the bottom.
+    fn workspace_list_end_drop(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let drop_line = colors.drop_target_border;
+        div()
+            .id("ws-drop-end")
+            .h(px(14.))
+            .mx_1()
+            .border_t_2()
+            .border_color(gpui::transparent_black())
+            .can_drop(|drag, _, _| drag.downcast_ref::<DragWorkspace>().is_some())
+            .drag_over::<DragWorkspace>(move |style, _, _, _| style.border_color(drop_line))
+            .on_drop(cx.listener(|this, dragged: &DragWorkspace, _window, cx| {
+                this.reorder_workspace_to_end(dragged.0, cx);
+            }))
     }
 
     fn workspace_title_hit(
