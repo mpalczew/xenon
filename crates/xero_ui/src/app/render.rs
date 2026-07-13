@@ -158,9 +158,11 @@ impl XeroApp {
 
     fn render_main(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let terminal = (!self.terminal_collapsed)
+        let terminal = self
+            .terminal_visible()
             .then(|| self.active_terminal())
             .flatten();
+        let show_terminal = self.terminal_visible();
         let active_view = self.editor_visible().then(|| {
             self.editor_stack()
                 .and_then(|stack| stack.tabs.get(stack.active))
@@ -173,14 +175,14 @@ impl XeroApp {
         let editor_focused = active_view
             .as_ref()
             .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx));
-        let both = terminal.is_some() && self.editor_visible();
-        let terminal_pane = terminal.map(|t| {
+        let both = show_terminal && self.editor_visible();
+        let terminal_pane = show_terminal.then(|| {
             self.render_terminal_pane(
                 PaneFrame {
                     split: both,
                     ring: focus_ring(term_focused, &colors),
                 },
-                t,
+                terminal,
                 cx,
             )
         });
@@ -221,11 +223,39 @@ impl XeroApp {
     fn render_terminal_pane(
         &self,
         frame: PaneFrame,
-        terminal: Entity<TerminalView>,
+        terminal: Option<Entity<TerminalView>>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let tabs = self.render_terminal_tabs(cx);
+        let body = match terminal {
+            Some(term) => div()
+                .flex_1()
+                .min_h_0()
+                .min_w_0()
+                .child(term)
+                .into_any_element(),
+            None => div()
+                .flex_1()
+                .min_h_0()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .gap_1()
+                .bg(colors.background)
+                .text_color(colors.text_muted)
+                .text_sm()
+                .child("No terminal open")
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(colors.text_muted)
+                        .child("Press ⌘N for a new terminal"),
+                )
+                .into_any_element(),
+        };
         let mut pane = div()
             .relative()
             .flex()
@@ -234,7 +264,7 @@ impl XeroApp {
             .border_2()
             .border_color(frame.ring)
             .child(tabs)
-            .child(div().flex_1().min_h_0().min_w_0().child(terminal));
+            .child(body);
         if frame.split {
             pane = pane.w(px(self.terminal_width_px())).flex_none().child(
                 crate::resize::col_resize_handle(

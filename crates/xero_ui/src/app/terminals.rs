@@ -150,11 +150,8 @@ impl XeroApp {
         }
         stack.tabs.remove(index);
         if stack.tabs.is_empty() {
+            // Keep the terminal panel open; render shows an empty state (⌘N).
             self.terminals.remove(&id);
-            if self.active == Some(id) {
-                self.terminal_collapsed = true;
-                self.save_layout(id);
-            }
             return None;
         }
         fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
@@ -217,11 +214,6 @@ impl XeroApp {
         };
         if emptied {
             self.terminals.remove(&from);
-            // Leave the stream; panel collapse only if still viewing it.
-            if self.active == Some(from) {
-                self.terminal_collapsed = true;
-                self.save_layout(from);
-            }
         }
         Some(terminal)
     }

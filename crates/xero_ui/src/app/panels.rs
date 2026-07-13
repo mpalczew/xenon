@@ -8,7 +8,8 @@ impl XeroApp {
     }
 
     pub(crate) fn terminal_visible(&self) -> bool {
-        !self.terminal_collapsed && self.active_terminal().is_some()
+        // Panel open even with zero tabs (empty state: press ⌘N).
+        !self.terminal_collapsed
     }
 
     pub(crate) fn editor_visible(&self) -> bool {
