@@ -204,8 +204,11 @@ impl XeroApp {
         }
         let colors = cx.theme().colors().clone();
         let group = format!("ws-{id}");
+        let drop_line = colors.drop_target_border;
         // Title and hover actions share a flex row (not absolute overlay): an
         // absolute + over the title hit target also toggled collapse.
+        // Drag target: top insert line (not a full selected fill — that looked
+        // like another workspace was highlighted).
         div()
             .id(("ws-row", id_hash(id.to_string())))
             .group(group.clone())
@@ -219,8 +222,14 @@ impl XeroApp {
             .text_xs()
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.text_muted)
+            .border_t_2()
+            .border_color(gpui::transparent_black())
             .on_drag(DragWorkspace(id), drag_chip(name))
-            .drag_over::<DragWorkspace>(move |style, _, _, _| style.bg(colors.element_selected))
+            .can_drop(move |drag, _, _| {
+                drag.downcast_ref::<DragWorkspace>()
+                    .is_some_and(|d| d.0 != id)
+            })
+            .drag_over::<DragWorkspace>(move |style, _, _, _| style.border_color(drop_line))
             .on_drop(
                 cx.listener(move |this, dragged: &DragWorkspace, _window, cx| {
                     this.reorder_workspace(dragged.0, id, cx)

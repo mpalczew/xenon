@@ -114,7 +114,16 @@ impl XeroApp {
                 }),
             )
             .on_drag(DragStream(id), drag_chip(name))
-            .drag_over::<DragStream>(move |style, _, _, _| style.bg(colors.element_selected))
+            // Insert line, not a full selected fill (avoids “other stream selected”).
+            .border_t_2()
+            .border_color(gpui::transparent_black())
+            .can_drop(move |drag, _, _| {
+                drag.downcast_ref::<DragStream>()
+                    .is_some_and(|d| d.0 != id)
+            })
+            .drag_over::<DragStream>(move |style, _, _, _| {
+                style.border_color(colors.drop_target_border)
+            })
             .on_drop(cx.listener(move |this, dragged: &DragStream, _window, cx| {
                 this.reorder_stream(dragged.0, id, cx)
             }))
