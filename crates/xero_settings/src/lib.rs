@@ -8,7 +8,7 @@ use xero_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_L
 // Shared clipboard actions (app menu, keybindings, context menus).
 actions!(xero_clipboard, [Cut, Copy, Paste]);
 
-pub use xero_store::ThemeMode;
+pub use xero_store::{TerminalAutoClose, ThemeMode};
 
 pub const MIN_FONT_SIZE: f32 = 8.0;
 pub const MAX_FONT_SIZE: f32 = 32.0;
@@ -48,6 +48,10 @@ impl Global for ShowLineNumbers {}
 struct VimMode(pub bool);
 impl Global for VimMode {}
 
+#[derive(Copy, Clone)]
+struct TerminalAutoCloseSetting(pub TerminalAutoClose);
+impl Global for TerminalAutoCloseSetting {}
+
 #[derive(Clone)]
 struct ThemePreference {
     mode: ThemeMode,
@@ -68,6 +72,7 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
     }));
     set_show_line_numbers(cx, settings.show_line_numbers);
     set_vim_mode(cx, settings.vim_mode);
+    set_terminal_auto_close(cx, settings.terminal_auto_close);
     cx.set_global(ThemePreference {
         mode: settings.theme,
         light: settings.light_theme.clone(),
@@ -90,6 +95,7 @@ pub fn snapshot(cx: &App) -> AppSettings {
         theme: theme.mode,
         light_theme: theme.light,
         dark_theme: theme.dark,
+        terminal_auto_close: terminal_auto_close(cx),
     }
 }
 
@@ -175,4 +181,14 @@ fn set_vim_mode(cx: &mut App, enabled: bool) {
 
 pub fn toggle_vim_mode(cx: &mut App) {
     set_vim_mode(cx, !vim_mode(cx));
+}
+
+pub fn terminal_auto_close(cx: &App) -> TerminalAutoClose {
+    cx.try_global::<TerminalAutoCloseSetting>()
+        .map(|setting| setting.0)
+        .unwrap_or_default()
+}
+
+fn set_terminal_auto_close(cx: &mut App, mode: TerminalAutoClose) {
+    cx.set_global(TerminalAutoCloseSetting(mode));
 }

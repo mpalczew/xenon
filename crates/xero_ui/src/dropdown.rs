@@ -20,6 +20,7 @@ pub(crate) enum DropdownId {
     DarkTheme,
     EditorFamily,
     TerminalFamily,
+    TerminalAutoClose,
 }
 
 /// Which surface a size stepper adjusts.

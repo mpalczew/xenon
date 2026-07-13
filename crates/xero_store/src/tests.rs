@@ -98,6 +98,7 @@ fn settings_round_trip() {
             theme: crate::ThemeMode::Dark,
             light_theme: "Ayu Light".into(),
             dark_theme: "Ayu Dark".into(),
+            terminal_auto_close: crate::TerminalAutoClose::Immediate,
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);

@@ -1,5 +1,6 @@
 //! Editor and terminal tab strips. Multi-channel selection (fill + type +
-//! accent underline). Dirty markers on editor chips; dead markers on terminals.
+//! accent underline). Dirty markers on editor chips; exited terminals use
+//! theme status tint (no fake close ✗).
 
 use gpui::{
     App, AppContext, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
@@ -233,14 +234,29 @@ impl XeroApp {
             is_exited,
         } = chip;
         let colors = cx.theme().colors().clone();
+        let status = cx.theme().status().clone();
         let paint = chrome::tab_selection(&colors, is_active);
-        let label_color = if is_exited {
-            colors.text_muted
+        // Exited: theme ignored tint so the tab reads "done", not a second close control.
+        let (bg, label_color, underline) = if is_exited {
+            (
+                status.ignored_background,
+                status.ignored,
+                status.ignored_border,
+            )
         } else {
-            paint.foreground
+            (paint.background, paint.foreground, paint.accent)
+        };
+        let paint = chrome::SelectionPaint {
+            background: bg,
+            foreground: label_color,
+            accent: underline,
         };
         let group = format!("term-tab-{index}");
-        let dead = is_exited.then(|| div().text_xs().text_color(colors.text_muted).child("✗"));
+        let tip = if is_exited {
+            format!("{title} — process exited")
+        } else {
+            title.to_string()
+        };
         div()
             .id(("term-tab", index))
             .group(group.clone())
@@ -251,7 +267,11 @@ impl XeroApp {
             .px_3()
             .h_full()
             .border_r_1()
-            .border_color(colors.border)
+            .border_color(if is_exited {
+                status.ignored_border
+            } else {
+                colors.border
+            })
             .bg(paint.background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
@@ -267,12 +287,11 @@ impl XeroApp {
                 }),
             )
             .tooltip({
-                let full = SharedString::from(title.to_string());
+                let full = SharedString::from(tip);
                 move |_window: &mut Window, cx: &mut App| {
                     cx.new(|_| TabTooltip { text: full.clone() }).into()
                 }
             })
-            .children(dead)
             .child(
                 div()
                     .text_sm()
@@ -281,7 +300,7 @@ impl XeroApp {
                     } else {
                         gpui::FontWeight::NORMAL
                     })
-                    .text_color(label_color)
+                    .text_color(paint.foreground)
                     .max_w(px(220.))
                     .truncate()
                     .child(title.to_string()),

@@ -147,6 +147,38 @@ pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement
     group_card("Editor", body, cx)
 }
 
+pub(super) fn terminal_section(
+    settings: &xero_store::AppSettings,
+    state: OpenState<'_>,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    let opts: Vec<SharedString> = auto_close_options()
+        .iter()
+        .map(|m| SharedString::from(m.label()))
+        .collect();
+    let body = div().flex().flex_col().child(dropdown_row(
+        DropdownProps {
+            id: DropdownId::TerminalAutoClose,
+            title: "Close when process exits",
+            selected: settings.terminal_auto_close.label(),
+            options: &opts,
+            filterable: false,
+            open: state.open == Some(DropdownId::TerminalAutoClose),
+            filter: state.filter,
+            highlight: state.highlight,
+            caret_on: state.caret_on,
+            viewport_height: state.viewport_height,
+        },
+        cx,
+    ));
+    group_card("Terminal", body, cx)
+}
+
+fn auto_close_options() -> [xero_settings::TerminalAutoClose; 5] {
+    use xero_settings::TerminalAutoClose::*;
+    [Off, Immediate, After1s, After3s, After5s]
+}
+
 pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
     let mut settings = xero_settings::snapshot(cx);
     match id {
@@ -155,6 +187,9 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
         DropdownId::DarkTheme => settings.dark_theme = value,
         DropdownId::EditorFamily => settings.editor_font_family = value,
         DropdownId::TerminalFamily => settings.terminal_font_family = value,
+        DropdownId::TerminalAutoClose => {
+            settings.terminal_auto_close = parse_auto_close(&value);
+        }
     }
     xero_settings::apply(&settings, cx);
     xero_settings::save(cx);
@@ -289,4 +324,11 @@ fn parse_mode(label: &str) -> xero_settings::ThemeMode {
         "Dark" => xero_settings::ThemeMode::Dark,
         _ => xero_settings::ThemeMode::System,
     }
+}
+
+fn parse_auto_close(label: &str) -> xero_settings::TerminalAutoClose {
+    auto_close_options()
+        .into_iter()
+        .find(|m| m.label() == label)
+        .unwrap_or_default()
 }

@@ -11,6 +11,9 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use xero_core::{Registry, Stream, StreamId, WorkspaceId};
 
+mod terminal;
+pub use terminal::TerminalAutoClose;
+
 /// When to use the light vs dark theme: fixed, or track the OS appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -45,6 +48,9 @@ pub struct AppSettings {
     /// Theme name used for dark appearance (e.g. "One Dark").
     #[serde(default = "default_dark_theme")]
     pub dark_theme: String,
+    /// Close terminal tabs when the shell process exits.
+    #[serde(default)]
+    pub terminal_auto_close: TerminalAutoClose,
 }
 
 impl Default for AppSettings {
@@ -59,6 +65,7 @@ impl Default for AppSettings {
             theme: ThemeMode::System,
             light_theme: default_light_theme(),
             dark_theme: default_dark_theme(),
+            terminal_auto_close: TerminalAutoClose::default(),
         }
     }
 }

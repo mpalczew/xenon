@@ -17,7 +17,7 @@ use crate::dropdown::{DropdownId, SizeTarget, filter_options, mono_font_families
 use input::input_registrar;
 use sections::{
     OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
-    font_section,
+    font_section, terminal_section,
 };
 
 const CARET_BLINK: Duration = Duration::from_millis(530);
@@ -228,6 +228,7 @@ impl SettingsView {
                 cx,
             ))
             .child(editor_toggles(cx))
+            .child(terminal_section(&settings, state, cx))
             .into_any_element()
     }
 }
@@ -273,7 +274,7 @@ impl Render for SettingsView {
 }
 
 pub(super) fn is_filterable(id: DropdownId) -> bool {
-    !matches!(id, DropdownId::Mode)
+    !matches!(id, DropdownId::Mode | DropdownId::TerminalAutoClose)
 }
 
 fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
@@ -282,5 +283,15 @@ fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
         DropdownId::LightTheme => xero_terminal::theme_names(theme::Appearance::Light, cx),
         DropdownId::DarkTheme => xero_terminal::theme_names(theme::Appearance::Dark, cx),
         DropdownId::EditorFamily | DropdownId::TerminalFamily => mono_font_families(cx),
+        DropdownId::TerminalAutoClose => [
+            xero_settings::TerminalAutoClose::Off,
+            xero_settings::TerminalAutoClose::Immediate,
+            xero_settings::TerminalAutoClose::After1s,
+            xero_settings::TerminalAutoClose::After3s,
+            xero_settings::TerminalAutoClose::After5s,
+        ]
+        .into_iter()
+        .map(|m| SharedString::from(m.label()))
+        .collect(),
     }
 }

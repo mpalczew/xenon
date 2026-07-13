@@ -85,30 +85,80 @@ impl XeroApp {
         let Some(id) = self.active else {
             return;
         };
-        let survivor = {
-            let Some(stack) = self.terminals.get_mut(&id) else {
-                return;
-            };
-            if index >= stack.tabs.len() {
-                return;
-            }
-            stack.tabs.remove(index);
-            if stack.tabs.is_empty() {
-                None
-            } else {
-                fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
-                Some(stack.tabs[stack.active].clone())
-            }
+        let survivor = self.remove_terminal_at(id, index, cx);
+        if let Some(terminal) = survivor {
+            terminal.read(cx).focus_handle(cx).focus(window, cx);
+        }
+        cx.notify();
+    }
+
+    /// Shell process died: restyle tab, then maybe auto-close after the setting delay.
+    pub(super) fn on_terminal_exited(
+        &mut self,
+        view: Entity<TerminalView>,
+        cx: &mut Context<Self>,
+    ) {
+        cx.notify();
+        let Some(delay) = xero_settings::terminal_auto_close(cx).delay() else {
+            return;
         };
-        match survivor {
-            Some(terminal) => terminal.read(cx).focus_handle(cx).focus(window, cx),
-            None => {
-                self.terminals.remove(&id);
+        cx.spawn(async move |this, cx| {
+            if !delay.is_zero() {
+                cx.background_executor().timer(delay).await;
+            }
+            this.update(cx, |this, cx| {
+                this.close_terminal_entity(&view, cx);
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// Auto-close path: drop a terminal by entity (index may have shifted).
+    pub(super) fn close_terminal_entity(
+        &mut self,
+        view: &Entity<TerminalView>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((id, index)) = self.terminals.iter().find_map(|(id, stack)| {
+            stack
+                .tabs
+                .iter()
+                .position(|tab| tab == view)
+                .map(|index| (*id, index))
+        }) else {
+            return;
+        };
+        // Only auto-close if still exited (user may have replaced the tab).
+        if !view.read(cx).is_exited() {
+            return;
+        }
+        let _ = self.remove_terminal_at(id, index, cx);
+        cx.notify();
+    }
+
+    /// Remove tab at index; returns the survivor to focus, if any.
+    fn remove_terminal_at(
+        &mut self,
+        id: StreamId,
+        index: usize,
+        _cx: &mut Context<Self>,
+    ) -> Option<Entity<TerminalView>> {
+        let stack = self.terminals.get_mut(&id)?;
+        if index >= stack.tabs.len() {
+            return None;
+        }
+        stack.tabs.remove(index);
+        if stack.tabs.is_empty() {
+            self.terminals.remove(&id);
+            if self.active == Some(id) {
                 self.terminal_collapsed = true;
                 self.save_layout(id);
             }
+            return None;
         }
-        cx.notify();
+        fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
+        Some(stack.tabs[stack.active].clone())
     }
 
     /// Move a terminal tab to another stream in the same workspace, then switch
