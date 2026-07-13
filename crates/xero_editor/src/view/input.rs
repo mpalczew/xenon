@@ -50,6 +50,11 @@ impl EditorView {
             cx.notify();
             return;
         }
+        if keystroke.modifiers.platform && keystroke.key == "a" {
+            self.select_all(cx);
+            cx.stop_propagation();
+            return;
+        }
         if keystroke.modifiers.control && keystroke.key == "r" {
             if self.redo_edit() {
                 self.recompute_highlights();
@@ -71,7 +76,7 @@ impl EditorView {
             }
         }
         let extend = keystroke.modifiers.shift;
-        let Some(command) = command_for(&keystroke.key, extend) else {
+        let Some(command) = command_for(keystroke, extend) else {
             return;
         };
         let edits = command.edits();
@@ -316,7 +321,33 @@ impl EditorView {
     }
 }
 
-fn command_for(key: &str, extend: bool) -> Option<EditCommand> {
+fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand> {
+    // ⌘/⌥ navigation common on macOS (line / file / word).
+    let motion = if keystroke.modifiers.platform {
+        match keystroke.key.as_str() {
+            "left" => Some(Motion::LineStart),
+            "right" => Some(Motion::LineEnd),
+            "up" => Some(Motion::FileStart),
+            "down" => Some(Motion::FileEnd),
+            _ => None,
+        }
+    } else if keystroke.modifiers.alt {
+        match keystroke.key.as_str() {
+            "left" => Some(Motion::WordLeft),
+            "right" => Some(Motion::WordRight),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    if let Some(motion) = motion {
+        return Some(if extend {
+            EditCommand::Extend(motion)
+        } else {
+            EditCommand::Move(motion)
+        });
+    }
+    let key = keystroke.key.as_str();
     Some(match key {
         "backspace" => EditCommand::Backspace,
         "delete" => EditCommand::Delete,

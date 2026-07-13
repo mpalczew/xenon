@@ -2,6 +2,7 @@
 //! positions are character indices throughout.
 
 use crate::buffer::Buffer;
+use crate::selection;
 use crate::undo::Edit;
 
 pub enum EditCommand {
@@ -24,6 +25,10 @@ pub enum Motion {
     Down,
     LineStart,
     LineEnd,
+    FileStart,
+    FileEnd,
+    WordLeft,
+    WordRight,
 }
 
 impl EditCommand {
@@ -110,8 +115,16 @@ impl Buffer {
             // Collapse to the edge in the direction of movement when a selection exists.
             if let Some(range) = self.selection_range() {
                 let target = match motion {
-                    Motion::Left | Motion::Up | Motion::LineStart => range.start,
-                    Motion::Right | Motion::Down | Motion::LineEnd => range.end,
+                    Motion::Left
+                    | Motion::Up
+                    | Motion::LineStart
+                    | Motion::FileStart
+                    | Motion::WordLeft => range.start,
+                    Motion::Right
+                    | Motion::Down
+                    | Motion::LineEnd
+                    | Motion::FileEnd
+                    | Motion::WordRight => range.end,
                 };
                 self.clear_selection();
                 self.set_cursor_raw(target);
@@ -134,6 +147,10 @@ impl Buffer {
             Motion::LineEnd => self.line_end(cursor),
             Motion::Up => self.vertical(cursor, -1),
             Motion::Down => self.vertical(cursor, 1),
+            Motion::FileStart => 0,
+            Motion::FileEnd => self.rope().len_chars(),
+            Motion::WordLeft => word_left(self.rope(), cursor),
+            Motion::WordRight => word_right(self.rope(), cursor),
         };
         self.set_cursor_raw(target);
     }
@@ -171,4 +188,27 @@ fn line_len(buffer: &Buffer, row: usize) -> usize {
     } else {
         len
     }
+}
+
+fn word_left(rope: &ropey::Rope, cursor: usize) -> usize {
+    if cursor == 0 {
+        return 0;
+    }
+    // Skip one char left into the previous run, then to its start.
+    let at = cursor - 1;
+    selection::word_range_at(rope, at).start
+}
+
+fn word_right(rope: &ropey::Rope, cursor: usize) -> usize {
+    let len = rope.len_chars();
+    if cursor >= len {
+        return len;
+    }
+    let end = selection::word_range_at(rope, cursor).end;
+    // Skip spaces after the word so ⌥→ lands on the next token.
+    let mut i = end;
+    while i < len && rope.char(i).is_whitespace() && rope.char(i) != '\n' {
+        i += 1;
+    }
+    i
 }

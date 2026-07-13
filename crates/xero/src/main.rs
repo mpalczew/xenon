@@ -7,8 +7,8 @@ use gpui::{
 use gpui_platform::application;
 use xero_ui::{
     AddWorkspace, CloseEditor, Copy, Cut, DecreaseFontSize, FilePalette, IncreaseFontSize,
-    NewStream, NewTerminal, OpenFile, Paste, ResetFontSize, RunTask, Save, ToggleBrowser,
-    ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, XeroApp,
+    NewStream, NewTerminal, OpenFile, Paste, ResetFontSize, RunTask, Save, SelectAll,
+    ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, XeroApp,
 };
 
 actions!(xero, [Quit]);
@@ -87,6 +87,8 @@ fn wire_menus(cx: &mut App) {
             MenuItem::os_action("Cut", Cut, OsAction::Cut),
             MenuItem::os_action("Copy", Copy, OsAction::Copy),
             MenuItem::os_action("Paste", Paste, OsAction::Paste),
+            MenuItem::separator(),
+            MenuItem::os_action("Select All", SelectAll, OsAction::SelectAll),
         ]),
         // View (not Window): we are one window; this is show/hide chrome.
         Menu::new("View").items([

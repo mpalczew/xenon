@@ -22,8 +22,10 @@ pub(super) fn context_item(
     shortcut: &'static str,
     colors: &theme::ThemeColors,
 ) -> gpui::Stateful<gpui::Div> {
-    let hover = colors.element_hover;
+    // Prefer element_selected: element_hover often matches elevated_surface.
+    let hover = colors.element_selected;
     let muted = colors.text_muted;
+    let text = colors.text;
     div()
         .id(id)
         .flex()
@@ -33,6 +35,7 @@ pub(super) fn context_item(
         .px_3()
         .py_1()
         .text_sm()
+        .text_color(text)
         .cursor_pointer()
         .hover(move |s| s.bg(hover))
         .child(label)

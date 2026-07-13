@@ -25,7 +25,7 @@ use crate::image_viewer::{ImageContentElement, ImageViewer};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use menu::{context_item, file_title, is_supported_image};
-use xero_settings::{Copy, Cut, Paste};
+use xero_settings::{Copy, Cut, Paste, SelectAll};
 
 pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 pub(super) const ZOOM_STEP: f32 = 1.2;
@@ -143,6 +143,17 @@ impl EditorView {
             end_line: end.0,
             end_character: end.1,
         });
+    }
+
+    /// ⌘A — select entire buffer.
+    pub fn select_all(&mut self, cx: &mut Context<Self>) {
+        let Content::Text(buffer) = &mut self.content else {
+            return;
+        };
+        let len = buffer.rope().len_chars();
+        buffer.set_selection(0, len);
+        self.emit_selection(cx);
+        cx.notify();
     }
 
     /// The file this editor is showing.
@@ -278,6 +289,9 @@ impl Render for EditorView {
                 this.paste_clipboard(cx);
                 cx.notify();
             }))
+            .on_action(cx.listener(|this, _: &SelectAll, _, cx| {
+                this.select_all(cx);
+            }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
@@ -317,6 +331,10 @@ impl EditorView {
             .border_1()
             .border_color(colors.border)
             .bg(colors.elevated_surface_background)
+            .shadow_md()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
+            .on_mouse_move(|_, _, cx| cx.stop_propagation())
             .child(
                 context_item("editor-menu-cut", "Cut", "⌘X", colors).on_click(cx.listener(
                     |this, _, _, cx| {
@@ -340,6 +358,14 @@ impl EditorView {
                         this.dismiss_menu(cx);
                     },
                 )),
+            )
+            .child(
+                context_item("editor-menu-select-all", "Select All", "⌘A", colors).on_click(
+                    cx.listener(|this, _, _, cx| {
+                        this.select_all(cx);
+                        this.dismiss_menu(cx);
+                    }),
+                ),
             );
         div()
             .absolute()

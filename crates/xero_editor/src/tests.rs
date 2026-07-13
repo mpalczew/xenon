@@ -51,6 +51,15 @@ fn selection_replace_and_undo() {
     assert_eq!(buffer.text(), "abcdef");
 }
 
+#[test]
+fn select_all_covers_buffer() {
+    let file = file_with("hello\nworld");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    let len = buffer.rope().len_chars();
+    buffer.set_selection(0, len);
+    assert_eq!(buffer.selected_text(), "hello\nworld");
+}
+
 /// Vim insert session: many keystrokes, one `u` (group until Esc).
 #[test]
 fn undo_group_is_one_step() {

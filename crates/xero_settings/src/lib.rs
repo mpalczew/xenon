@@ -5,8 +5,8 @@
 use gpui::{App, Global, actions};
 use xero_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME};
 
-// Shared clipboard actions (app menu, keybindings, context menus).
-actions!(xero_clipboard, [Cut, Copy, Paste]);
+// Shared edit actions (app menu, keybindings, context menus).
+actions!(xero_clipboard, [Cut, Copy, Paste, SelectAll]);
 
 pub use xero_store::{TerminalAutoClose, ThemeMode};
 

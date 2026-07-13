@@ -639,7 +639,11 @@ impl TerminalView {
             .rounded_md()
             .border_1()
             .border_color(colors.border)
-            .bg(colors.elevated_surface_background);
+            .bg(colors.elevated_surface_background)
+            .shadow_md()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
+            .on_mouse_move(|_, _, cx| cx.stop_propagation());
         // "Open in Browser" only when the right-click landed on an existing file.
         if let Some(path) = self.menu_path.clone() {
             menu_box = menu_box.child(
@@ -724,8 +728,10 @@ fn context_item(
     shortcut: &'static str,
     colors: &theme::ThemeColors,
 ) -> gpui::Stateful<gpui::Div> {
-    let hover = colors.element_hover;
+    // Prefer element_selected: element_hover often matches elevated_surface.
+    let hover = colors.element_selected;
     let muted = colors.text_muted;
+    let text = colors.text;
     let row = div()
         .id(id)
         .flex()
@@ -735,6 +741,7 @@ fn context_item(
         .px_3()
         .py_1()
         .text_sm()
+        .text_color(text)
         .cursor_pointer()
         .hover(move |s| s.bg(hover))
         .child(label);

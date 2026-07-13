@@ -22,7 +22,7 @@ use gpui::{App, KeyBinding, actions};
 
 pub use app::XeroApp;
 pub(crate) use icons::preview_icon;
-pub use xero_settings::{Copy, Cut, Paste};
+pub use xero_settings::{Copy, Cut, Paste, SelectAll};
 
 actions!(
     xero,
@@ -69,6 +69,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-x", Cut, None),
         KeyBinding::new("cmd-c", Copy, None),
         KeyBinding::new("cmd-v", Paste, None),
+        // Editor context: select all (also handled in EditorView key handler).
+        KeyBinding::new("cmd-a", SelectAll, Some("Editor")),
     ]);
 }
 
