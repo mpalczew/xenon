@@ -51,6 +51,13 @@ impl Render for ResizeGhost {
 
 const HANDLE_W: f32 = 5.;
 
+/// Which side of a `.relative()` parent the hit target sits on.
+#[derive(Clone, Copy)]
+pub(crate) enum HandleSide {
+    Left,
+    Right,
+}
+
 /// Hit target on the right edge of a pane with a 1px rule. Parent must be
 /// `.relative()`.
 pub(crate) fn col_resize_handle(
@@ -58,11 +65,21 @@ pub(crate) fn col_resize_handle(
     edge: ResizeEdge,
     color: Hsla,
 ) -> impl IntoElement {
-    div()
+    col_resize_handle_at(id, edge, color, HandleSide::Right)
+}
+
+/// Like [`col_resize_handle`], but on either edge (left residual handles reopen
+/// a snap-closed pane).
+pub(crate) fn col_resize_handle_at(
+    id: &'static str,
+    edge: ResizeEdge,
+    color: Hsla,
+    side: HandleSide,
+) -> impl IntoElement {
+    let handle = div()
         .id(id)
         .absolute()
         .top_0()
-        .right(px(-(HANDLE_W / 2.)))
         .w(px(HANDLE_W))
         .h_full()
         .flex()
@@ -74,7 +91,11 @@ pub(crate) fn col_resize_handle(
             cx.stop_propagation();
             cx.new(|_| ResizeGhost)
         })
-        .child(div().w(px(1.)).h_full().bg(color))
+        .child(div().w(px(1.)).h_full().bg(color));
+    match side {
+        HandleSide::Right => handle.right(px(-(HANDLE_W / 2.))),
+        HandleSide::Left => handle.left(px(-(HANDLE_W / 2.))),
+    }
 }
 
 /// Map a drag position to a width or a snap-close.
@@ -144,5 +165,22 @@ mod tests {
             panic!("expected width");
         };
         assert!(w <= 800. - MIN_MAIN + 0.1);
+    }
+
+    #[test]
+    fn drag_back_from_snap_yields_width() {
+        // Past SNAP_PX again after a close: valid width so the pane can reopen.
+        assert!(matches!(
+            resolve_drag(ResizeEdge::Terminal, 300., 1000.),
+            DragResult::Width(_)
+        ));
+        assert!(matches!(
+            resolve_drag(ResizeEdge::Sidebar, 180., 1200.),
+            DragResult::Width(_)
+        ));
+        assert!(matches!(
+            resolve_drag(ResizeEdge::Tree, 160., 800.),
+            DragResult::Width(_)
+        ));
     }
 }

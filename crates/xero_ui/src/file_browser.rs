@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use lucide_icons::Icon;
+
 #[derive(Default)]
 pub(crate) struct FileBrowser {
     expanded_dirs: HashSet<PathBuf>,
@@ -96,35 +98,46 @@ impl FileBrowser {
     }
 }
 
-pub(crate) fn dir_marker(is_dir: bool, expanded: bool) -> &'static str {
+/// Expand/collapse chevron for directories; files keep an empty slot for alignment.
+pub(crate) fn dir_marker(is_dir: bool, expanded: bool) -> Option<Icon> {
     match (is_dir, expanded) {
-        (false, _) => "",
-        (true, true) => "▾",
-        (true, false) => "▸",
+        (false, _) => None,
+        (true, true) => Some(Icon::ChevronDown),
+        (true, false) => Some(Icon::ChevronRight),
     }
 }
 
-pub(crate) fn file_icon(row: &TreeRow) -> &'static str {
+/// Lucide glyph for a tree row (matches sidebar/toolbar icon language).
+pub(crate) fn file_icon(row: &TreeRow) -> Icon {
     if row.is_dir {
-        return "▭";
+        return if row.expanded {
+            Icon::FolderOpen
+        } else {
+            Icon::Folder
+        };
     }
-    match row
+    let ext = row
         .path
         .extension()
         .and_then(|ext| ext.to_str())
-        .unwrap_or("")
-    {
-        "md" | "markdown" | "mdx" => "▰",
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" | "tif" | "tiff" => "▣",
-        "rs" | "js" | "jsx" | "ts" | "tsx" | "mts" | "cts" | "py" | "toml" | "json" | "jsonc"
-        | "go" | "c" | "h" | "cc" | "cpp" | "rb" | "java" | "lua" | "html" | "htm" | "css"
-        | "yml" | "yaml" | "swift" | "scala" | "ex" | "exs" | "hs" | "php" | "zig" | "dart"
-        | "cs" | "sol" | "nix" | "proto" | "ml" | "mli" | "r" | "elm" | "svelte" | "xml"
-        | "ps1" | "scm" | "glsl" | "cmake" => "◆",
-        "sh" | "bash" | "zsh" => "▸",
-        "env" => "≡",
-        _ if row.name == ".gitignore" => "⌁",
-        _ => "·",
+        .unwrap_or("");
+    match ext {
+        "md" | "markdown" | "mdx" | "txt" | "rst" | "adoc" => Icon::FileText,
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" | "tif" | "tiff" => {
+            Icon::FileImage
+        }
+        "sh" | "bash" | "zsh" | "fish" | "ps1" => Icon::FileTerminal,
+        "rs" | "js" | "jsx" | "ts" | "tsx" | "mts" | "cts" | "py" | "go" | "c" | "h" | "cc"
+        | "cpp" | "rb" | "java" | "lua" | "html" | "htm" | "css" | "scss" | "swift" | "scala"
+        | "ex" | "exs" | "hs" | "php" | "zig" | "dart" | "cs" | "sol" | "nix" | "proto" | "ml"
+        | "mli" | "r" | "elm" | "svelte" | "vue" | "kt" | "kts" | "glsl" | "cmake" | "toml"
+        | "json" | "jsonc" | "yml" | "yaml" | "xml" | "scm" => Icon::FileCode,
+        "env" | "pem" | "key" => Icon::FileKey,
+        "lock" => Icon::FileLock,
+        "zip" | "tar" | "gz" | "tgz" | "bz2" | "7z" | "rar" => Icon::FileArchive,
+        "csv" | "tsv" | "xlsx" | "xls" => Icon::FileSpreadsheet,
+        _ if row.name == ".gitignore" || row.name == ".gitattributes" => Icon::GitBranch,
+        _ => Icon::File,
     }
 }
 

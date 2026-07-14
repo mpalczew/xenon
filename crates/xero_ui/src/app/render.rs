@@ -5,19 +5,12 @@ use crate::resize::ResizeEdge;
 use gpui::{AnyElement, DragMoveEvent, MouseButton, MouseUpEvent};
 use xero_settings::{Copy, Cut, Paste};
 
+use super::empty_hint::empty_editor_hint;
+
 impl Render for XeroApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_window_title(&self.window_title());
-        // Restore focus to the pane the finder stole it from (deferred here from
-        // the finder's Dismissed event, which has no Window).
-        if let Some(pane) = self.pending_focus.take() {
-            self.focus_pane(pane, window, cx);
-        }
-        // Open cmd-p prefilled from an ambiguous cmd-click (deferred from the
-        // windowless terminal-event subscription).
-        if let Some(query) = self.pending_palette_query.take() {
-            self.open_palette_with_query(query, window, cx);
-        }
+        self.drain_deferred_ui(window, cx);
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
@@ -25,8 +18,67 @@ impl Render for XeroApp {
         let finder = self.finder.clone();
         let task_picker = self.task_picker.clone();
         let tab_menu = self.render_tab_menu(cx);
+        let body = self.render_shell_body(sidebar, main, colors.clone(), cx);
+        self.bind_app_actions(div(), cx)
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_resize(cx)),
+            )
+            .relative()
+            .flex()
+            .flex_col()
+            .size_full()
+            .bg(colors.background)
+            .text_color(colors.text)
+            .child(toolbar)
+            .child(body)
+            .children(finder)
+            .children(task_picker)
+            .children(tab_menu)
+    }
+}
+
+impl XeroApp {
+    /// Deferred work that needs a Window (finder dismiss focus, cmd-click palette).
+    fn drain_deferred_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(pane) = self.pending_focus.take() {
+            self.focus_pane(pane, window, cx);
+        }
+        if let Some(query) = self.pending_palette_query.take() {
+            self.open_palette_with_query(query, window, cx);
+        }
+    }
+
+    fn render_shell_body(
+        &self,
+        sidebar: Option<impl IntoElement + 'static>,
+        main: impl IntoElement + 'static,
+        colors: theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let reopen_sidebar = !self.sidebar_visible();
         div()
-            .track_focus(&self.focus)
+            .relative()
+            .flex()
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .on_drag_move(cx.listener(Self::on_sidebar_drag))
+            .children(sidebar)
+            .child(main)
+            .children(reopen_sidebar.then(|| {
+                crate::resize::col_resize_handle_at(
+                    "sidebar-reopen",
+                    ResizeEdge::Sidebar,
+                    colors.border,
+                    crate::resize::HandleSide::Left,
+                )
+            }))
+            .into_any_element()
+    }
+
+    fn bind_app_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
+        root.track_focus(&self.focus)
             .key_context("XeroApp")
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
                 this.toggle_sidebar_panel(cx);
@@ -79,30 +131,6 @@ impl Render for XeroApp {
             .on_action(cx.listener(|this, _: &Paste, window, cx| {
                 this.clipboard_paste(window, cx);
             }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_resize(cx)),
-            )
-            .relative()
-            .flex()
-            .flex_col()
-            .size_full()
-            .bg(colors.background)
-            .text_color(colors.text)
-            .child(toolbar)
-            .child(
-                div()
-                    .flex()
-                    .flex_1()
-                    .min_h_0()
-                    .min_w_0()
-                    .on_drag_move(cx.listener(Self::on_sidebar_drag))
-                    .children(sidebar)
-                    .child(main),
-            )
-            .children(finder)
-            .children(task_picker)
-            .children(tab_menu)
     }
 }
 
@@ -204,6 +232,18 @@ impl XeroApp {
         match (terminal_pane, right_pane) {
             (Some(term), Some(right)) => panel = panel.child(term).child(right),
             (Some(term), None) => panel = panel.child(term),
+            (None, Some(right)) => {
+                // Terminal snap-closed: left residual handle drags it back on.
+                panel = panel
+                    .relative()
+                    .child(crate::resize::col_resize_handle_at(
+                        "terminal-reopen",
+                        ResizeEdge::Terminal,
+                        colors.border,
+                        crate::resize::HandleSide::Left,
+                    ))
+                    .child(right);
+            }
             _ => {
                 let message = if self.active.is_some() {
                     "Show Terminal or Editor from the toolbar"
@@ -274,7 +314,12 @@ impl XeroApp {
                 ),
             );
         } else {
-            pane = pane.flex_1();
+            // Editor snap-closed: right residual handle drags it back on.
+            pane = pane.flex_1().child(crate::resize::col_resize_handle(
+                "editor-reopen",
+                ResizeEdge::Terminal,
+                colors.border,
+            ));
         }
         pane
     }
@@ -288,6 +333,7 @@ impl XeroApp {
     ) -> impl IntoElement + use<> {
         let tabs = self.has_editor().then(|| self.render_tab_bar(cx));
         let tree = self.is_browsing().then(|| self.render_tree_sidebar(cx));
+        let reopen_tree = self.active.is_some() && !self.is_browsing();
         div()
             .flex_1()
             .flex()
@@ -298,13 +344,22 @@ impl XeroApp {
             .children(tabs)
             .child(
                 div()
+                    .relative()
                     .flex()
                     .flex_1()
                     .min_h_0()
                     .min_w_0()
                     .on_drag_move(cx.listener(Self::on_tree_drag))
                     .children(tree)
-                    .child(editor_body(active_view, colors)),
+                    .child(editor_body(active_view, colors))
+                    .children(reopen_tree.then(|| {
+                        crate::resize::col_resize_handle_at(
+                            "tree-reopen",
+                            ResizeEdge::Tree,
+                            colors.border,
+                            crate::resize::HandleSide::Left,
+                        )
+                    })),
             )
     }
 }
@@ -331,15 +386,6 @@ fn editor_body(view: Option<Entity<EditorView>>, colors: &theme::ThemeColors) ->
             .overflow_hidden()
             .child(view)
             .into_any_element(),
-        None => div()
-            .flex_1()
-            .min_h_0()
-            .min_w_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .text_color(colors.text_muted)
-            .child("Open a file (⌘P) or from the tree (⌘E)")
-            .into_any_element(),
+        None => empty_editor_hint(colors.text_muted),
     }
 }

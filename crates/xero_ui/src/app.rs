@@ -33,6 +33,7 @@ use crate::{
 mod browser;
 mod dirty_close;
 mod editors;
+mod empty_hint;
 mod git_dirt;
 mod navigation;
 mod panels;
@@ -160,6 +161,8 @@ pub struct XeroApp {
     _ide_task: Option<Task<()>>,
     // Live git dirt totals per workspace (dirty only); refreshed by FS events.
     git_dirt: HashMap<WorkspaceId, crate::git_dirt::GitDirt>,
+    /// Commands into the long-lived git-dirt task (root set changes).
+    git_dirt_tx: Option<async_channel::Sender<git_dirt::DirtMsg>>,
     _git_dirt_task: Option<Task<()>>,
 }
 
@@ -205,6 +208,7 @@ impl XeroApp {
             ide: None,
             _ide_task: None,
             git_dirt: HashMap::new(),
+            git_dirt_tx: None,
             _git_dirt_task: None,
         };
         app.load_streams();

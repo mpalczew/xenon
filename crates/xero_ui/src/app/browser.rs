@@ -130,9 +130,17 @@ impl XeroApp {
         let colors = cx.theme().colors().clone();
         let indent = px(8. + row.depth as f32 * 16.);
         let marker = dir_marker(row.is_dir, row.expanded);
-        let icon = file_icon(&row);
+        let glyph = file_icon(&row);
         let paint = crate::chrome::list_selection(&colors, row.is_open);
         let id = SharedString::from(row.path.to_string_lossy().into_owned());
+        const ICON: f32 = 12.;
+        let chevron = div()
+            .w(px(14.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_color(colors.text_muted)
+            .children(marker.map(|m| crate::icons::icon(m, px(ICON))));
         div()
             .id(id)
             .flex()
@@ -141,6 +149,7 @@ impl XeroApp {
             .pl(indent)
             .pr_2()
             .py(px(2.))
+            .min_w_0()
             .text_sm()
             .font_weight(if row.is_open {
                 gpui::FontWeight::MEDIUM
@@ -151,9 +160,17 @@ impl XeroApp {
             .bg(paint.background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-            .child(div().w(px(12.)).text_color(colors.text_muted).child(marker))
-            .child(div().w(px(16.)).text_color(colors.text_muted).child(icon))
-            .child(div().truncate().child(row.name.clone()))
+            .child(chevron)
+            .child(
+                div()
+                    .w(px(16.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(colors.text_muted)
+                    .child(crate::icons::icon(glyph, px(ICON))),
+            )
+            .child(div().flex_1().min_w_0().truncate().child(row.name.clone()))
             .on_click(cx.listener(move |this, _, _window, cx| {
                 if row.is_dir {
                     this.toggle_dir(row.path.clone(), cx);

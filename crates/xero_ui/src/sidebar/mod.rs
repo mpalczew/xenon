@@ -1,7 +1,7 @@
 //! The collapsible left column: workspaces with nested streams.
 
 use gpui::{
-    AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render,
+    Context, InteractiveElement, IntoElement, ParentElement, SharedString,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use lucide_icons::Icon;
@@ -12,33 +12,17 @@ use crate::app::XeroApp;
 use crate::icons::icon;
 
 mod streams;
+mod widgets;
 
-pub(super) struct DragStream(StreamId);
-struct DragWorkspace(WorkspaceId);
-
-pub(super) struct DragChip {
-    label: String,
-}
-
-impl Render for DragChip {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        div()
-            .px_2()
-            .py_1()
-            .text_sm()
-            .rounded_sm()
-            .bg(colors.elevated_surface_background)
-            .border_1()
-            .border_color(colors.border)
-            .text_color(colors.text)
-            .child(self.label.clone())
-    }
-}
+use widgets::{
+    DragWorkspace, ICON_MD, ICON_SM, ROW_H, chevron_slot, drag_chip, id_hash, path_tooltip,
+    workspace_dirt_gutter, workspace_rename_row,
+};
 
 struct WorkspaceRows {
     id: WorkspaceId,
     name: String,
+    path: String,
     collapsed: bool,
     streams: Vec<(StreamId, String, bool)>,
 }
@@ -46,14 +30,11 @@ struct WorkspaceRows {
 struct WorkspaceHeader<'a> {
     id: WorkspaceId,
     name: &'a str,
+    path: &'a str,
     collapsed: bool,
     /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
     dirt: Option<(String, String)>,
 }
-
-pub(super) const ROW_H: f32 = 24.;
-pub(super) const ICON_SM: f32 = 12.;
-pub(super) const ICON_MD: f32 = 13.;
 
 impl XeroApp {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -66,6 +47,7 @@ impl XeroApp {
             .map(|w| WorkspaceRows {
                 id: w.id,
                 name: w.name.clone(),
+                path: w.root.display().to_string(),
                 collapsed: self.is_workspace_collapsed(w.id),
                 streams: w
                     .streams
@@ -74,11 +56,11 @@ impl XeroApp {
                     .collect(),
             })
             .collect();
-        let closed: Vec<(WorkspaceId, String)> = self
+        let closed: Vec<(WorkspaceId, String, String)> = self
             .registry()
             .closed_workspaces
             .iter()
-            .map(|w| (w.id, w.name.clone()))
+            .map(|w| (w.id, w.name.clone(), w.root.display().to_string()))
             .collect();
         let closed_collapsed = self.closed_section_collapsed();
 
@@ -90,6 +72,7 @@ impl XeroApp {
                     WorkspaceHeader {
                         id: workspace.id,
                         name: &workspace.name,
+                        path: &workspace.path,
                         collapsed: workspace.collapsed,
                         dirt,
                     },
@@ -106,8 +89,11 @@ impl XeroApp {
         if !closed.is_empty() {
             rows.push(self.closed_title(closed_collapsed, cx).into_any_element());
             if !closed_collapsed {
-                for (id, name) in closed {
-                    rows.push(self.closed_workspace_row(id, &name, cx).into_any_element());
+                for (id, name, path) in closed {
+                    rows.push(
+                        self.closed_workspace_row(id, &name, &path, cx)
+                            .into_any_element(),
+                    );
                 }
             }
         }
@@ -198,6 +184,7 @@ impl XeroApp {
         let WorkspaceHeader {
             id,
             name,
+            path,
             collapsed,
             dirt,
         } = header;
@@ -207,13 +194,16 @@ impl XeroApp {
         let colors = cx.theme().colors().clone();
         let group = format!("ws-{id}");
         let drop_line = colors.drop_target_border;
-        // Title and hover actions share a flex row (not absolute overlay): an
-        // absolute + over the title hit target also toggled collapse.
+        let path_tip = SharedString::from(path.to_string());
         // Drag target: top insert line (not a full selected fill — that looked
         // like another workspace was highlighted).
+        // Right gutter: git +/- flush right (in-flow). Hover actions are absolute
+        // over that gutter only; the gutter reserves space so title never sits
+        // under the buttons (absolute-over-title also toggled collapse).
         div()
             .id(("ws-row", id_hash(id.to_string())))
             .group(group.clone())
+            .relative()
             .flex()
             .items_center()
             .h(px(ROW_H))
@@ -226,6 +216,7 @@ impl XeroApp {
             .text_color(colors.text_muted)
             .border_t_2()
             .border_color(gpui::transparent_black())
+            .tooltip(path_tooltip(path_tip))
             .on_drag(DragWorkspace(id), drag_chip(name))
             .can_drop(move |drag, _, _| {
                 drag.downcast_ref::<DragWorkspace>()
@@ -238,16 +229,7 @@ impl XeroApp {
                 }),
             )
             .child(self.workspace_title_hit(id, name, collapsed, cx))
-            .children(dirt.map(|(plus, minus)| {
-                div()
-                    .group_hover(group.clone(), |s| s.invisible())
-                    .child(crate::git_dirt::badge(
-                        plus,
-                        minus,
-                        colors.version_control_added,
-                        colors.version_control_deleted,
-                    ))
-            }))
+            .child(workspace_dirt_gutter(dirt, &group, &colors))
             .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .into_any_element()
     }
@@ -307,13 +289,19 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let group = group.to_string();
+        // Absolute on the row, right edge. Gutter sibling reserves width so this
+        // does not cover the title hit target.
         div()
+            .absolute()
+            .right(px(2.))
+            .top_0()
+            .bottom_0()
             .flex()
             .items_center()
             .gap_px()
-            .flex_none()
             .invisible()
             .group_hover(group, |s| s.visible())
+            .bg(colors.panel_background)
             .child(self.icon_button(
                 ("ws-rename", id_hash(id.to_string())),
                 Icon::Pencil,
@@ -347,24 +335,54 @@ impl XeroApp {
         &self,
         id: WorkspaceId,
         name: &str,
+        path: &str,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
+        let group = format!("closed-ws-{id}");
+        let path_tip = SharedString::from(path.to_string());
         div()
             .id(("closed-workspace", id_hash(id.to_string())))
+            .group(group.clone())
+            .relative()
             .flex()
             .items_center()
             .h(px(ROW_H))
             .ml(px(18.))
             .mr_1()
-            .px_2()
+            .pl_2()
+            .pr(px(2.))
             .rounded_sm()
             .text_sm()
             .text_color(colors.text_muted)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .tooltip(path_tooltip(path_tip))
             .on_click(cx.listener(move |this, _, _, cx| this.reopen_workspace(id, cx)))
-            .child(div().truncate().child(name.to_string()))
+            .child(div().min_w_0().flex_1().truncate().child(name.to_string()))
+            // Reserve room so absolute remove never covers the name.
+            .child(div().flex_none().w(px(22.)))
+            .child(
+                div()
+                    .absolute()
+                    .right(px(2.))
+                    .top_0()
+                    .bottom_0()
+                    .flex()
+                    .items_center()
+                    .invisible()
+                    .group_hover(group, |s| s.visible())
+                    .bg(colors.panel_background)
+                    .child(self.icon_button(
+                        ("closed-remove", id_hash(id.to_string())),
+                        Icon::X,
+                        colors.clone(),
+                        cx.listener(move |this, _, _, cx| {
+                            cx.stop_propagation();
+                            this.remove_closed_workspace(id, cx);
+                        }),
+                    )),
+            )
     }
 
     pub(super) fn icon_button(
@@ -388,63 +406,4 @@ impl XeroApp {
             .child(icon(glyph, px(ICON_MD)))
             .on_click(on_click)
     }
-}
-
-pub(super) fn workspace_rename_row(
-    id: WorkspaceId,
-    collapsed: bool,
-    field: gpui::Entity<crate::rename::RenameView>,
-    cx: &mut Context<XeroApp>,
-) -> gpui::AnyElement {
-    let colors = cx.theme().colors().clone();
-    div()
-        .id(("ws-row", id_hash(id.to_string())))
-        .flex()
-        .items_center()
-        .h(px(ROW_H))
-        .mx_1()
-        .pl_2()
-        .pr(px(2.))
-        .rounded_sm()
-        .child(chevron_slot(collapsed))
-        .child(
-            div()
-                .text_color(colors.text_muted)
-                .child(icon(Icon::Folder, px(ICON_SM))),
-        )
-        .child(div().flex_1().min_w_0().child(field))
-        .into_any_element()
-}
-
-pub(super) fn chevron_slot(collapsed: bool) -> impl IntoElement {
-    let glyph = if collapsed {
-        Icon::ChevronRight
-    } else {
-        Icon::ChevronDown
-    };
-    div()
-        .w(px(14.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(icon(glyph, px(ICON_SM)))
-}
-
-pub(super) fn drag_chip<T: 'static>(
-    label: &str,
-) -> impl Fn(&T, gpui::Point<gpui::Pixels>, &mut Window, &mut gpui::App) -> gpui::Entity<DragChip> + use<T>
-{
-    let label = label.to_string();
-    move |_, _, _, cx| {
-        cx.new(|_| DragChip {
-            label: label.clone(),
-        })
-    }
-}
-
-pub(super) fn id_hash(id: String) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    id.hash(&mut hasher);
-    hasher.finish()
 }

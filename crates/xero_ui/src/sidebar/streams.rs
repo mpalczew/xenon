@@ -8,7 +8,7 @@ use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xero_core::StreamId;
 
-use super::{DragStream, ROW_H, drag_chip, id_hash};
+use super::widgets::{DragStream, ROW_H, drag_chip, id_hash};
 use crate::app::XeroApp;
 use crate::chrome::{self, list_selection};
 

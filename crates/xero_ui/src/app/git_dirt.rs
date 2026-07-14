@@ -2,6 +2,10 @@
 //!
 //! Watches each open workspace root (recursive). Events are debounced, then
 //! only the affected workspaces are re-measured via `git_dirt::measure`.
+//!
+//! The watcher is long-lived: open/close/reopen only diffs roots (unwatch /
+//! watch) instead of tearing down FSEvents. Dropping a recursive watcher on
+//! the UI thread freezes the app on large trees.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -14,12 +18,23 @@ use crate::git_dirt::{self, GitDirt};
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
 
+/// Messages into the long-lived git-dirt task.
+pub(super) enum DirtMsg {
+    /// Filesystem path that changed (from notify).
+    Fs(PathBuf),
+    /// Replace the set of watched workspace roots.
+    SetRoots(Vec<(WorkspaceId, PathBuf)>),
+}
+
 impl XeroApp {
     pub(super) fn start_git_dirt_watch(&mut self, cx: &mut Context<Self>) {
         self.restart_git_dirt_watch(cx);
     }
 
-    /// Rebuild watches for the current open workspaces (add/close/reopen).
+    /// Sync watches with the current open workspaces (add/close/reopen).
+    ///
+    /// Prefer updating the existing task; only spawn once. Replacing the task
+    /// drops the recursive FSEvents watcher on the UI thread and freezes.
     pub(super) fn restart_git_dirt_watch(&mut self, cx: &mut Context<Self>) {
         let roots = self
             .registry
@@ -27,9 +42,15 @@ impl XeroApp {
             .iter()
             .map(|w| (w.id, w.root.clone()))
             .collect::<Vec<_>>();
-        // Dropping the previous task cancels it and tears down its watcher.
+        if let Some(tx) = &self.git_dirt_tx
+            && tx.try_send(DirtMsg::SetRoots(roots.clone())).is_ok()
+        {
+            return;
+        }
+        let (tx, rx) = async_channel::unbounded();
+        self.git_dirt_tx = Some(tx.clone());
         self._git_dirt_task = Some(cx.spawn(async move |app, cx| {
-            watch_git_dirt(app, cx, roots).await;
+            watch_git_dirt(app, cx, roots, tx, rx).await;
         }));
     }
 
@@ -41,26 +62,162 @@ impl XeroApp {
 async fn watch_git_dirt(
     app: gpui::WeakEntity<XeroApp>,
     cx: &mut gpui::AsyncApp,
-    roots: Vec<(WorkspaceId, PathBuf)>,
+    mut roots: Vec<(WorkspaceId, PathBuf)>,
+    tx: async_channel::Sender<DirtMsg>,
+    rx: async_channel::Receiver<DirtMsg>,
 ) {
-    let snapshot = measure_all(&roots);
+    // Measure and install the watcher off the UI thread: both are sync I/O.
+    let measured_roots = roots.clone();
+    let snapshot = cx
+        .background_executor()
+        .spawn(async move { measure_all(&measured_roots) })
+        .await;
     if apply_full(&app, cx, snapshot).is_err() {
         return;
     }
-    let Some(rx) = spawn_watcher(&roots) else {
+    let watch_roots = roots.clone();
+    let event_tx = tx;
+    let mut watcher = cx
+        .background_executor()
+        .spawn(async move { spawn_watcher(&watch_roots, event_tx) })
+        .await;
+    if watcher.is_none() {
         return;
-    };
-    event_loop(&app, cx, &roots, rx).await;
+    }
+
+    let mut pending_roots: Option<Vec<(WorkspaceId, PathBuf)>> = None;
+    loop {
+        // Apply a SetRoots deferred from an FS debounce, if any.
+        if let Some(new_roots) = pending_roots.take() {
+            if apply_set_roots(&app, cx, &mut watcher, &mut roots, new_roots)
+                .await
+                .is_err()
+            {
+                break;
+            }
+            continue;
+        }
+
+        let Ok(msg) = rx.recv().await else {
+            break;
+        };
+        match msg {
+            DirtMsg::SetRoots(new_roots) => {
+                if apply_set_roots(&app, cx, &mut watcher, &mut roots, new_roots)
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+            DirtMsg::Fs(path) => match handle_fs_burst(&app, cx, &roots, &rx, path).await {
+                Ok(deferred) => pending_roots = deferred,
+                Err(()) => break,
+            },
+        }
+    }
+}
+
+async fn apply_set_roots(
+    app: &gpui::WeakEntity<XeroApp>,
+    cx: &mut gpui::AsyncApp,
+    watcher: &mut Option<notify::RecommendedWatcher>,
+    roots: &mut Vec<(WorkspaceId, PathBuf)>,
+    new_roots: Vec<(WorkspaceId, PathBuf)>,
+) -> Result<(), ()> {
+    // Unwatch/watch is sync FSEvents work; never do it on the UI executor.
+    let old = std::mem::take(roots);
+    let old_ids: HashSet<WorkspaceId> = old.iter().map(|(id, _)| *id).collect();
+    let mut owned = watcher.take();
+    let (next_watcher, next_roots) = cx
+        .background_executor()
+        .spawn(async move {
+            if let Some(w) = owned.as_mut() {
+                sync_watches(w, &old, &new_roots);
+            }
+            (owned, new_roots)
+        })
+        .await;
+    *watcher = next_watcher;
+    *roots = next_roots;
+    let open: HashSet<WorkspaceId> = roots.iter().map(|(id, _)| *id).collect();
+    prune_closed(app, cx, &open)?;
+    // Close-only: prune is enough. Remeasure only newly opened roots.
+    let added: Vec<_> = roots
+        .iter()
+        .filter(|(id, _)| !old_ids.contains(id))
+        .cloned()
+        .collect();
+    if added.is_empty() {
+        return Ok(());
+    }
+    let measured: HashSet<WorkspaceId> = added.iter().map(|(id, _)| *id).collect();
+    let updates = cx
+        .background_executor()
+        .spawn(async move { measure_all(&added) })
+        .await;
+    apply_partial(app, cx, &measured, updates)
+}
+
+/// Debounce FS events after the first path, then remeasure hit workspaces.
+/// Returns a SetRoots that arrived mid-burst so the outer loop can apply it.
+async fn handle_fs_burst(
+    app: &gpui::WeakEntity<XeroApp>,
+    cx: &mut gpui::AsyncApp,
+    roots: &[(WorkspaceId, PathBuf)],
+    rx: &async_channel::Receiver<DirtMsg>,
+    first: PathBuf,
+) -> Result<Option<Vec<(WorkspaceId, PathBuf)>>, ()> {
+    let mut pending = HashSet::new();
+    let mut files = HashSet::new();
+    let mut deferred_roots = None;
+    mark_workspace(roots, &first, &mut pending);
+    if first.is_file() {
+        files.insert(first);
+    }
+    cx.background_executor().timer(DEBOUNCE).await;
+    while let Ok(msg) = rx.try_recv() {
+        match msg {
+            DirtMsg::Fs(path) => {
+                mark_workspace(roots, &path, &mut pending);
+                if path.is_file() {
+                    files.insert(path);
+                }
+            }
+            DirtMsg::SetRoots(new_roots) => {
+                // Last SetRoots wins if several land during the debounce.
+                deferred_roots = Some(new_roots);
+            }
+        }
+    }
+    if !files.is_empty() {
+        let paths: Vec<_> = files.into_iter().collect();
+        app.update(cx, |app, cx| app.sync_editors_for_paths(&paths, cx))
+            .map_err(|_| ())?;
+    }
+    if !pending.is_empty() {
+        let batch: Vec<_> = roots
+            .iter()
+            .filter(|(id, _)| pending.contains(id))
+            .cloned()
+            .collect();
+        let updates = cx
+            .background_executor()
+            .spawn(async move { measure_all(&batch) })
+            .await;
+        apply_partial(app, cx, &pending, updates)?;
+    }
+    Ok(deferred_roots)
 }
 
 fn spawn_watcher(
     roots: &[(WorkspaceId, PathBuf)],
-) -> Option<(async_channel::Receiver<PathBuf>, notify::RecommendedWatcher)> {
-    let (tx, rx) = async_channel::unbounded();
+    tx: async_channel::Sender<DirtMsg>,
+) -> Option<notify::RecommendedWatcher> {
     let mut watcher = match notify::recommended_watcher(move |res| {
         if let Ok(event) = res {
             for path in event_paths(event) {
-                let _ = tx.try_send(path);
+                let _ = tx.try_send(DirtMsg::Fs(path));
             }
         }
     }) {
@@ -75,56 +232,25 @@ fn spawn_watcher(
             log::warn!("git dirt: cannot watch {}: {error}", root.display());
         }
     }
-    Some((rx, watcher))
+    Some(watcher)
 }
 
-async fn event_loop(
-    app: &gpui::WeakEntity<XeroApp>,
-    cx: &mut gpui::AsyncApp,
-    roots: &[(WorkspaceId, PathBuf)],
-    rx: (async_channel::Receiver<PathBuf>, notify::RecommendedWatcher),
+/// Unwatch removed roots and watch newly added ones. Does not recreate the watcher.
+fn sync_watches(
+    watcher: &mut notify::RecommendedWatcher,
+    old: &[(WorkspaceId, PathBuf)],
+    new: &[(WorkspaceId, PathBuf)],
 ) {
-    let (rx, _watcher) = rx;
-    loop {
-        let Ok(first) = rx.recv().await else {
-            break;
-        };
-        let mut pending = HashSet::new();
-        let mut files = HashSet::new();
-        mark_workspace(roots, &first, &mut pending);
-        if first.is_file() {
-            files.insert(first);
+    let old_paths: HashSet<&Path> = old.iter().map(|(_, p)| p.as_path()).collect();
+    let new_paths: HashSet<&Path> = new.iter().map(|(_, p)| p.as_path()).collect();
+    for path in old_paths.difference(&new_paths) {
+        if let Err(error) = watcher.unwatch(path) {
+            log::warn!("git dirt: cannot unwatch {}: {error}", path.display());
         }
-        cx.background_executor().timer(DEBOUNCE).await;
-        while let Ok(path) = rx.try_recv() {
-            mark_workspace(roots, &path, &mut pending);
-            if path.is_file() {
-                files.insert(path);
-            }
-        }
-        if !files.is_empty() {
-            let paths: Vec<_> = files.into_iter().collect();
-            if app
-                .update(cx, |app, cx| app.sync_editors_for_paths(&paths, cx))
-                .is_err()
-            {
-                break;
-            }
-        }
-        if pending.is_empty() {
-            continue;
-        }
-        let batch: Vec<_> = roots
-            .iter()
-            .filter(|(id, _)| pending.contains(id))
-            .cloned()
-            .collect();
-        let updates = cx
-            .background_executor()
-            .spawn(async move { measure_all(&batch) })
-            .await;
-        if apply_partial(app, cx, &pending, updates).is_err() {
-            break;
+    }
+    for path in new_paths.difference(&old_paths) {
+        if let Err(error) = watcher.watch(path, RecursiveMode::Recursive) {
+            log::warn!("git dirt: cannot watch {}: {error}", path.display());
         }
     }
 }
@@ -200,6 +326,21 @@ fn apply_full(
     app.update(cx, |app, cx| {
         if app.git_dirt != snapshot {
             app.git_dirt = snapshot;
+            cx.notify();
+        }
+    })
+    .map_err(|_| ())
+}
+
+fn prune_closed(
+    app: &gpui::WeakEntity<XeroApp>,
+    cx: &mut gpui::AsyncApp,
+    open: &HashSet<WorkspaceId>,
+) -> Result<(), ()> {
+    app.update(cx, |app, cx| {
+        let before = app.git_dirt.len();
+        app.git_dirt.retain(|id, _| open.contains(id));
+        if app.git_dirt.len() != before {
             cx.notify();
         }
     })

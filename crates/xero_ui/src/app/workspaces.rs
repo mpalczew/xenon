@@ -106,12 +106,23 @@ impl XeroApp {
         let closed_active = self
             .active
             .is_some_and(|active| record.streams.contains(&active));
+        // Collect live views first; drop them after the UI updates so PTY/editor
+        // teardown does not block the close paint.
+        let mut dead_terminals = Vec::new();
+        let mut dead_editors = Vec::new();
         for stream in &record.streams {
             self.streams.remove(stream);
-            self.terminals.remove(stream);
-            self.editors.remove(stream);
+            if let Some(stack) = self.terminals.remove(stream) {
+                dead_terminals.push(stack);
+            }
+            if let Some(stack) = self.editors.remove(stream) {
+                dead_editors.push(stack);
+            }
             self.attention.remove(stream);
         }
+        // Drop the finder index for this root so it can be rebuilt if reopened.
+        self.file_indexes.remove(&record.root);
+        self.index_tasks.remove(&record.root);
         self.collapsed_workspaces.remove(&id);
         self.git_dirt.remove(&id);
         self.registry.closed_workspaces.push(record);
@@ -129,6 +140,15 @@ impl XeroApp {
             }
         }
         cx.notify();
+        // Yield once so the sidebar/main panel repaint, then drop PTYs/editors.
+        cx.spawn(async move |_app, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::ZERO)
+                .await;
+            drop(dead_terminals);
+            drop(dead_editors);
+        })
+        .detach();
     }
 
     pub(crate) fn reopen_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
@@ -164,6 +184,24 @@ impl XeroApp {
         } else {
             cx.notify();
         }
+    }
+
+    /// Drop a closed workspace from the archive and delete its session files.
+    pub(crate) fn remove_closed_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+        let Some(index) = self
+            .registry
+            .closed_workspaces
+            .iter()
+            .position(|workspace| workspace.id == id)
+        else {
+            return;
+        };
+        let record = self.registry.closed_workspaces.remove(index);
+        for stream in record.streams {
+            delete_session(record.id, stream, "remove_closed_workspace");
+        }
+        save_registry(&self.registry, "remove_closed_workspace");
+        cx.notify();
     }
 
     pub(crate) fn toggle_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {

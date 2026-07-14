@@ -119,18 +119,48 @@ impl XeroApp {
         let available = f32::from(event.bounds.size.width);
         match resolve_drag(edge, raw, available) {
             DragResult::Width(width) => {
+                // Dragging back past the snap threshold reopens a closed pane.
+                let reopened = self.reopen_for_edge(edge, cx);
                 let changed = match edge {
                     ResizeEdge::Sidebar => set_if_changed(&mut self.sidebar_width, width),
                     ResizeEdge::Tree => set_if_changed(&mut self.tree_width, width),
                     ResizeEdge::Terminal => set_if_changed(&mut self.terminal_width, width),
                 };
-                if changed {
+                if changed || reopened {
                     self.layout_dirty = true;
                     cx.notify();
                 }
             }
             DragResult::ClosePrimary => self.snap_close_primary(edge, cx),
             DragResult::CloseSecondary => self.snap_close_secondary(edge, cx),
+        }
+    }
+
+    /// Reopen a snap-closed pane when the drag returns to a valid width.
+    fn reopen_for_edge(&mut self, edge: ResizeEdge, cx: &mut Context<Self>) -> bool {
+        match edge {
+            ResizeEdge::Sidebar if self.sidebar_collapsed => {
+                self.sidebar_collapsed = false;
+                true
+            }
+            ResizeEdge::Tree if !self.file_browser.is_open() => {
+                self.file_browser.open();
+                true
+            }
+            ResizeEdge::Terminal => {
+                let mut changed = false;
+                if self.terminal_collapsed {
+                    self.terminal_collapsed = false;
+                    self.ensure_terminal(cx);
+                    changed = true;
+                }
+                if self.editor_collapsed {
+                    self.editor_collapsed = false;
+                    changed = true;
+                }
+                changed
+            }
+            _ => false,
         }
     }
 
