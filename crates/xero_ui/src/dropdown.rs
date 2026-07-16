@@ -203,7 +203,11 @@ fn trigger(
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
-    let label = selected.to_string();
+    let label = if is_mono_family_dropdown(id) {
+        mono_family_label(selected)
+    } else {
+        selected.to_string()
+    };
     let chevron = if open { "▴" } else { "▾" };
     div()
         .id(SharedString::from(format!("dd-trigger-{id:?}")))
@@ -336,6 +340,11 @@ fn option_row(
         colors.elevated_surface_background
     };
     let pick = option.clone();
+    let label = if is_mono_family_dropdown(id) {
+        mono_family_label(option.as_ref())
+    } else {
+        option.to_string()
+    };
     div()
         .id(SharedString::from(format!("dd-opt-{id:?}-{option}")))
         .px_2()
@@ -344,7 +353,7 @@ fn option_row(
         .bg(background)
         .cursor_pointer()
         .hover(|s| s.bg(colors.element_hover))
-        .child(option)
+        .child(label)
         .on_click(cx.listener(move |this, _, window, cx| {
             cx.stop_propagation();
             this.pick_dropdown(id, pick.to_string(), window, cx);
@@ -362,7 +371,12 @@ pub(crate) fn filter_options(
     let needle = filter.to_lowercase();
     options
         .iter()
-        .filter(|name| name.to_lowercase().contains(&needle))
+        .filter(|name| {
+            name.to_lowercase().contains(&needle)
+                || mono_family_label(name.as_ref())
+                    .to_lowercase()
+                    .contains(&needle)
+        })
         .cloned()
         .collect()
 }
@@ -377,29 +391,18 @@ pub(crate) fn mono_font_families(cx: &App) -> Vec<SharedString> {
     let list: Vec<SharedString> = FontFamilyCache::global(cx)
         .list_font_families(cx)
         .into_iter()
-        .filter(|name| is_monospace(name.as_ref(), cx))
+        .filter(|name| xero_settings::is_monospace_family(name.as_ref(), cx))
         .collect();
     *guard = Some(list.clone());
     list
 }
 
-fn is_monospace(family: &str, cx: &App) -> bool {
-    let font = gpui::font(family);
-    let font_id = cx.text_system().resolve_font(&font);
-    let size = px(14.);
-    let Ok(i) = cx.text_system().advance(font_id, size, 'i') else {
-        return false;
-    };
-    let Ok(w) = cx.text_system().advance(font_id, size, 'W') else {
-        return false;
-    };
-    let Ok(m) = cx.text_system().advance(font_id, size, 'm') else {
-        return false;
-    };
-    let wi = f32::from(i.width);
-    let ww = f32::from(w.width);
-    let wm = f32::from(m.width);
-    (wi - ww).abs() < 0.5 && (wi - wm).abs() < 0.5 && wi > 0.0
+fn is_mono_family_dropdown(id: DropdownId) -> bool {
+    matches!(id, DropdownId::EditorFamily | DropdownId::TerminalFamily)
+}
+
+fn mono_family_label(family: &str) -> String {
+    xero_settings::display_mono_family(family).to_string()
 }
 
 pub(crate) fn format_size(size: f32) -> String {

@@ -2,12 +2,18 @@
 //! Durable values live in `~/.xero/settings.json` (via `xero_store`).
 //! Also hosts clipboard actions so editor and terminal share one Cut/Copy/Paste.
 
+mod mono_font;
+
 use gpui::{App, Global, actions};
 use xero_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME};
 
 // Shared edit actions (app menu, keybindings, context menus).
 actions!(xero_clipboard, [Cut, Copy, Paste, SelectAll]);
 
+pub use mono_font::{
+    canonicalize as canonicalize_mono_family, display_name as display_mono_family,
+    ensure as ensure_mono_family, is_family as is_monospace_family,
+};
 pub use xero_store::{TerminalAutoClose, ThemeMode};
 
 pub const MIN_FONT_SIZE: f32 = 8.0;
@@ -61,14 +67,20 @@ struct ThemePreference {
 impl Global for ThemePreference {}
 
 /// Apply a loaded settings snapshot into gpui globals (call once at startup).
+/// Font families are canonicalized (aliases) and rejected if they do not resolve
+/// as monospaced — GPUI otherwise silently falls back to a proportional face.
 pub fn apply(settings: &AppSettings, cx: &mut App) {
+    let editor_family = ensure_mono_family(&settings.editor_font_family, cx);
+    let terminal_family = ensure_mono_family(&settings.terminal_font_family, cx);
+    let healed = editor_family != settings.editor_font_family
+        || terminal_family != settings.terminal_font_family;
     cx.set_global(EditorFont(FaceFont {
         size: clamp_size(settings.editor_font_size),
-        family: settings.editor_font_family.clone(),
+        family: editor_family,
     }));
     cx.set_global(TerminalFont(FaceFont {
         size: clamp_size(settings.terminal_font_size),
-        family: settings.terminal_font_family.clone(),
+        family: terminal_family,
     }));
     set_show_line_numbers(cx, settings.show_line_numbers);
     set_vim_mode(cx, settings.vim_mode);
@@ -78,6 +90,10 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
         light: settings.light_theme.clone(),
         dark: settings.dark_theme.clone(),
     });
+    if healed {
+        // Persist alias / fallback so settings.json stops shipping a bad name.
+        save(cx);
+    }
 }
 
 /// Snapshot current globals for persistence.

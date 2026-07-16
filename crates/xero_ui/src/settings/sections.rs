@@ -185,8 +185,12 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
         DropdownId::Mode => settings.theme = parse_mode(&value),
         DropdownId::LightTheme => settings.light_theme = value,
         DropdownId::DarkTheme => settings.dark_theme = value,
-        DropdownId::EditorFamily => settings.editor_font_family = value,
-        DropdownId::TerminalFamily => settings.terminal_font_family = value,
+        DropdownId::EditorFamily => {
+            settings.editor_font_family = xero_settings::ensure_mono_family(&value, cx);
+        }
+        DropdownId::TerminalFamily => {
+            settings.terminal_font_family = xero_settings::ensure_mono_family(&value, cx);
+        }
         DropdownId::TerminalAutoClose => {
             settings.terminal_auto_close = parse_auto_close(&value);
         }
