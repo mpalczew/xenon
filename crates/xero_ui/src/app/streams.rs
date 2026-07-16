@@ -57,6 +57,9 @@ impl XeroApp {
                         }
                     }
                     TerminalEvent::Exited => this.on_terminal_exited(view.clone(), cx),
+                    TerminalEvent::AutoCloseChanged => {
+                        this.on_terminal_auto_close_changed(view.clone(), cx)
+                    }
                     TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
                     TerminalEvent::ResolvePath(token) => this.resolve_clicked(token.clone(), cx),
                 }

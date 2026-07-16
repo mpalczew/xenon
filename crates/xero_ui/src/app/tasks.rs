@@ -11,6 +11,8 @@ impl XeroApp {
             return;
         };
         self.finder = None;
+        self.workspace_picker = None;
+        self.command_palette = None;
         self.restore_pane = self.focused_pane(window, cx);
         let (tasks, error) = match load_shell_tasks(&root) {
             Ok(tasks) if tasks.is_empty() => (

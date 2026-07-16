@@ -16,8 +16,9 @@ use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, ExternalPaths, FocusHandle, Focusable, InteractiveElement,
     IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ParentElement, Pixels, Point, Render, ScrollWheelEvent, StatefulInteractiveElement, Styled,
-    Subscription, Task, UTF16Selection, Window, anchored, canvas, deferred, div, px,
+    ParentElement, Pixels, Point, Render, ScrollWheelEvent, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window, anchored,
+    canvas, deferred, div, px,
 };
 use settings::Settings;
 use task::Shell;
@@ -28,10 +29,37 @@ use util::paths::PathStyle;
 
 use crate::clipboard::{terminal_clipboard_text, terminal_paths_text};
 use crate::grid;
-use xero_settings::{Copy, Cut, Paste};
+use xero_settings::{Copy, Cut, Paste, TerminalAutoClose};
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
 const SCROLL_MULTIPLIER: f32 = 3.;
+
+struct MouseChipTooltip {
+    text: SharedString,
+}
+
+impl Render for MouseChipTooltip {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        div()
+            .px_2()
+            .py_1()
+            .rounded_sm()
+            .bg(colors.elevated_surface_background)
+            .border_1()
+            .border_color(colors.border)
+            .text_color(colors.text)
+            .text_sm()
+            .child(self.text.clone())
+    }
+}
+
+/// Host-select mode while the TUI has mouse reporting: inject shift so zed
+/// skips mouse reports. Must NOT be used on mouse-down for a new selection —
+/// shift+simple is "extend only" and never starts a selection.
+fn inject_shift_for_host_drag(mouse_to_app: bool, reporting: bool, alt: bool) -> bool {
+    reporting && !mouse_to_app && !alt
+}
 
 enum State {
     Pending,
@@ -48,6 +76,8 @@ pub enum TerminalEvent {
     Finished,
     /// The shell process exited; the terminal is dead but stays open.
     Exited,
+    /// Per-tab "close when process exits" policy changed (may reschedule close).
+    AutoCloseChanged,
     /// A file path was cmd-clicked in the terminal; open it in the editor.
     OpenPath(PathBuf),
     /// A cmd-clicked path-like token that did not resolve to a file on disk; the
@@ -80,6 +110,10 @@ pub struct TerminalView {
     root_name: String,
     /// The shell exited; the view stays but is marked dead.
     exited: bool,
+    /// What to do when this tab's process exits (seeded from app settings).
+    auto_close: TerminalAutoClose,
+    /// Bumped when `auto_close` changes so pending delayed closes abort.
+    auto_close_token: u64,
     /// Text to write once the PTY becomes Ready (task inject races spawn).
     pending_inject: Option<String>,
     /// Position of the right-click Copy/Paste menu, when open (window coords).
@@ -90,6 +124,11 @@ pub struct TerminalView {
     /// The link under the cursor while Cmd is held (drives the pointer cursor and
     /// the "⌘-click to open" tooltip).
     hovered_link: Option<HoverInfo>,
+    /// When the TUI enables mouse reporting: true = pass mouse to the app
+    /// (default), false = host text selection. Toggled from hover chrome.
+    mouse_to_app: bool,
+    /// Top hover chrome is open (thin hit zone expands into the full bar).
+    chrome_hovered: bool,
     _spawn: Task<()>,
     /// Output batches in the current burst; reset when output settles.
     wakeups: u32,
@@ -124,15 +163,61 @@ impl TerminalView {
             focused_once: false,
             root_name,
             exited: false,
+            auto_close: xero_settings::terminal_auto_close(cx),
+            auto_close_token: 0,
             pending_inject: None,
             context_menu: None,
             menu_path: None,
             hovered_link: None,
+            mouse_to_app: true,
+            chrome_hovered: false,
             _spawn: spawn,
             wakeups: 0,
             _idle_check: Task::ready(()),
             _subscriptions: Vec::new(),
         }
+    }
+
+    pub fn auto_close(&self) -> TerminalAutoClose {
+        self.auto_close
+    }
+
+    pub fn auto_close_token(&self) -> u64 {
+        self.auto_close_token
+    }
+
+    /// Cycle On-exit policy for this tab only (does not change global settings).
+    pub fn cycle_auto_close(&mut self, cx: &mut Context<Self>) {
+        self.set_auto_close(self.auto_close.next(), cx);
+    }
+
+    pub fn set_auto_close(&mut self, mode: TerminalAutoClose, cx: &mut Context<Self>) {
+        if self.auto_close == mode {
+            return;
+        }
+        self.auto_close = mode;
+        self.auto_close_token = self.auto_close_token.wrapping_add(1);
+        cx.emit(TerminalEvent::AutoCloseChanged);
+        cx.notify();
+    }
+
+    /// True while the program has enabled terminal mouse reporting (TUI).
+    pub fn mouse_reporting(&self, cx: &App) -> bool {
+        match &self.state {
+            State::Ready(terminal) => terminal.read(cx).mouse_mode(false),
+            _ => false,
+        }
+    }
+
+    /// When reporting is on: true means plain drag goes to the TUI.
+    pub fn mouse_to_app(&self) -> bool {
+        self.mouse_to_app
+    }
+
+    /// Flip host-select vs app-mouse while a TUI has mouse reporting on.
+    pub fn toggle_mouse_to_app(&mut self, cx: &mut Context<Self>) {
+        self.mouse_to_app = !self.mouse_to_app;
+        cx.notify();
     }
 
     fn resolve(&mut self, result: Result<TerminalBuilder>, cx: &mut Context<Self>) {
@@ -398,6 +483,24 @@ impl TerminalView {
         };
         let terminal = terminal.clone();
         self.note_interaction(cx);
+        let reporting = terminal.read(cx).mouse_mode(false);
+        // Host-select + mouse reporting: cannot use normal mouse_down (reports to
+        // the TUI). Shift on simple-click only *extends* and never starts. So:
+        // 1–2 clicks → word selection (public API); 3+ → line selection via
+        // shift inject (Lines is not the "extend only" path).
+        if reporting && !self.mouse_to_app && event.button == MouseButton::Left {
+            terminal.update(cx, |terminal, cx| match event.click_count {
+                0 => {}
+                1 | 2 => terminal.select_word_at_event_position(event),
+                _ => {
+                    let mut e = event.clone();
+                    e.modifiers.shift = true;
+                    terminal.mouse_down(&e, cx);
+                }
+            });
+            cx.notify();
+            return;
+        }
         terminal.update(cx, |terminal, cx| terminal.mouse_down(event, cx));
         cx.notify();
     }
@@ -411,13 +514,18 @@ impl TerminalView {
         let State::Ready(terminal) = &self.state else {
             return;
         };
+        let reporting = terminal.read(cx).mouse_mode(false);
+        let mut event = event.clone();
+        if inject_shift_for_host_drag(self.mouse_to_app, reporting, event.modifiers.alt) {
+            event.modifiers.shift = true;
+        }
         if event.pressed_button == Some(MouseButton::Left) {
             let region = terminal.read(cx).last_content().terminal_bounds.bounds;
-            terminal.update(cx, |terminal, cx| terminal.mouse_drag(event, region, cx));
+            terminal.update(cx, |terminal, cx| terminal.mouse_drag(&event, region, cx));
         } else {
             // Hover: zed resolves the link under the cursor only while Cmd is held,
             // populating `last_hovered_word`; grid.rs underlines it from there.
-            terminal.update(cx, |terminal, cx| terminal.mouse_move(event, cx));
+            terminal.update(cx, |terminal, cx| terminal.mouse_move(&event, cx));
             self.refresh_hovered_link(event.position, cx);
         }
         cx.notify();
@@ -441,9 +549,171 @@ impl TerminalView {
 
     fn on_mouse_up(&mut self, event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
         if let State::Ready(terminal) = &self.state {
-            terminal.update(cx, |terminal, cx| terminal.mouse_up(event, cx));
+            let reporting = terminal.read(cx).mouse_mode(false);
+            let mut event = event.clone();
+            if inject_shift_for_host_drag(self.mouse_to_app, reporting, event.modifiers.alt) {
+                event.modifiers.shift = true;
+            }
+            terminal.update(cx, |terminal, cx| terminal.mouse_up(&event, cx));
             cx.notify();
         }
+    }
+
+    /// Hover-only top chrome. Thin hit zone by default; expands into one bar with
+    /// status, on-exit, and (when a TUI has mouse reporting) Click in app / Select text.
+    fn hover_chrome(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        const HIT_H: f32 = 6.;
+        const BAR_H: f32 = 28.;
+        let colors = cx.theme().colors().clone();
+        let open = self.chrome_hovered;
+        let zone = div()
+            .id("term-hover-chrome")
+            .absolute()
+            .top_0()
+            .left_0()
+            .right_0()
+            .h(px(if open { BAR_H } else { HIT_H }))
+            .on_hover(cx.listener(|this, hovering, _, cx| {
+                if this.chrome_hovered != *hovering {
+                    this.chrome_hovered = *hovering;
+                    cx.notify();
+                }
+            }));
+        if !open {
+            return zone.into_any_element();
+        }
+
+        let status = if self.exited {
+            "⊘ process exited"
+        } else {
+            "running"
+        };
+        let mode = self.auto_close;
+        let tip = SharedString::from(format!(
+            "When this terminal's process exits: {}. Click to cycle (this tab only; Settings is the default for new tabs).",
+            mode.label()
+        ));
+        let reporting = self.mouse_reporting(cx);
+        let to_app = self.mouse_to_app;
+        let mouse_modes = reporting.then(|| {
+            div()
+                .id("term-mouse-policy")
+                .flex()
+                .items_center()
+                .gap_1()
+                .px_1()
+                .py_0p5()
+                .rounded_sm()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.elevated_surface_background)
+                .child(self.mouse_policy_option(
+                    "Click in app",
+                    "Left-drag goes to the TUI (default when Grok/etc. want the mouse).",
+                    to_app,
+                    true,
+                    &colors,
+                    cx,
+                ))
+                .child(self.mouse_policy_option(
+                    "Select text",
+                    "Left-drag selects text to copy. Use this to copy from a TUI.",
+                    !to_app,
+                    false,
+                    &colors,
+                    cx,
+                ))
+        });
+
+        zone.px_2()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap_2()
+            .bg(colors.surface_background)
+            .border_b_1()
+            .border_color(colors.border)
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(if self.exited {
+                        cx.theme().status().ignored
+                    } else {
+                        colors.text_muted
+                    })
+                    .child(status),
+            )
+            .children(mouse_modes)
+            .child(
+                div()
+                    .id("term-auto-close")
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .px_1p5()
+                    .py_0p5()
+                    .rounded_sm()
+                    .text_xs()
+                    .text_color(colors.text)
+                    .bg(colors.element_hover)
+                    .cursor_pointer()
+                    .hover(|s| s.bg(colors.element_selected))
+                    .tooltip(move |_window: &mut Window, cx: &mut App| {
+                        cx.new(|_| MouseChipTooltip { text: tip.clone() }).into()
+                    })
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        cx.stop_propagation();
+                        this.cycle_auto_close(cx);
+                    }))
+                    .child(format!("On exit: {} ▾", mode.short_label())),
+            )
+            .into_any_element()
+    }
+
+    fn mouse_policy_option(
+        &self,
+        label: &'static str,
+        tip: &'static str,
+        active: bool,
+        set_mouse_to_app: bool,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let tip = SharedString::from(tip);
+        div()
+            .id(label)
+            .px_2()
+            .rounded_sm()
+            .text_xs()
+            .font_weight(if active {
+                gpui::FontWeight::MEDIUM
+            } else {
+                gpui::FontWeight::NORMAL
+            })
+            .bg(if active {
+                colors.element_selected
+            } else {
+                gpui::transparent_black()
+            })
+            .text_color(if active {
+                colors.text
+            } else {
+                colors.text_muted
+            })
+            .cursor_pointer()
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .tooltip(move |_window: &mut Window, cx: &mut App| {
+                cx.new(|_| MouseChipTooltip { text: tip.clone() }).into()
+            })
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.mouse_to_app = set_mouse_to_app;
+                cx.notify();
+            }))
+            .child(label)
     }
 
     fn on_scroll(
@@ -553,23 +823,7 @@ impl Render for TerminalView {
             base
         };
 
-        // A dim bar across the top once the shell has exited.
-        let exited = self.exited.then(|| {
-            div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .right_0()
-                .px_2()
-                .py_1()
-                .bg(colors.surface_background)
-                .border_b_1()
-                .border_color(colors.border)
-                .text_xs()
-                .text_color(colors.text_muted)
-                .child("⊘ session ended — process exited")
-        });
-
+        let chrome = self.hover_chrome(cx);
         let menu = self
             .context_menu
             .map(|position| self.render_context_menu(position, cx));
@@ -584,12 +838,13 @@ impl Render for TerminalView {
                     cx.entity(),
                     self.focus.clone(),
                 ))
-                .children(exited)
+                .child(chrome)
                 .children(tooltip)
                 .children(menu),
-            State::Pending => base.children(menu),
+            State::Pending => base.child(chrome).children(menu),
             State::Failed(error) => base
                 .text_color(cx.theme().colors().text)
+                .child(chrome)
                 .child(error.clone()),
         }
     }

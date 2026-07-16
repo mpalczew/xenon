@@ -91,7 +91,7 @@ impl XeroApp {
     }
 
     /// Ensure the active stream has a live terminal tab (no focus change).
-    fn ensure_terminal(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn ensure_terminal(&mut self, cx: &mut Context<Self>) {
         let id = self.active;
         if let Some(id) = id
             && !self.terminals.contains_key(&id)

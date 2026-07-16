@@ -7,6 +7,8 @@ use lucide_icons::Icon;
 pub(crate) struct FileBrowser {
     expanded_dirs: HashSet<PathBuf>,
     open: bool,
+    /// Keyboard cursor index into the flattened `rows()` list.
+    cursor: Option<usize>,
 }
 
 struct RowQuery<'a> {
@@ -53,6 +55,37 @@ impl FileBrowser {
             current = path.parent();
         }
         self.open = true;
+    }
+
+    pub(crate) fn cursor(&self) -> Option<usize> {
+        self.cursor
+    }
+
+    pub(crate) fn ensure_cursor(&mut self) {
+        if self.cursor.is_none() {
+            self.cursor = Some(0);
+        }
+    }
+
+    pub(crate) fn move_cursor(&mut self, delta: isize, len: usize) {
+        if len == 0 {
+            self.cursor = None;
+            return;
+        }
+        let cur = self.cursor.unwrap_or(0) as isize;
+        let next = (cur + delta).clamp(0, (len - 1) as isize) as usize;
+        self.cursor = Some(next);
+    }
+
+    pub(crate) fn is_expanded(&self, path: &Path) -> bool {
+        self.expanded_dirs.contains(path)
+    }
+
+    /// Point the keyboard cursor at `path` within `rows` (no-op if missing).
+    pub(crate) fn select_path_in(&mut self, rows: &[TreeRow], path: &Path) {
+        if let Some(i) = rows.iter().position(|r| r.path == path) {
+            self.cursor = Some(i);
+        }
     }
 
     pub fn rows(&self, root: &Path, open_file: Option<&Path>) -> Vec<TreeRow> {

@@ -166,10 +166,11 @@ impl XeroApp {
                     .gap_1()
                     .children(attention)
                     .child(div().invisible().group_hover(group, |s| s.visible()).child(
-                        self.icon_button(
+                        super::icon_button(
                             ("stream-close", id_hash(id.to_string())),
                             Icon::X,
                             colors.clone(),
+                            None,
                             cx.listener(move |this, _, window, cx| {
                                 cx.stop_propagation();
                                 this.close_stream(id, window, cx);

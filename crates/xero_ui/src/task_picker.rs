@@ -1,19 +1,19 @@
 //! Run Task palette: fuzzy-pick a VS Code shell task. Enter starts a new
 //! terminal tab and injects; cmd-enter injects into the current terminal.
 
-use std::ops::Range;
-
 use gpui::{
-    App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
-    FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
-    Point, Render, StatefulInteractiveElement, Styled, UTF16Selection, Window, canvas, div, px,
+    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
+    KeyDownEvent, ParentElement, Render, StatefulInteractiveElement, Window,
 };
-use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
 use xero_core::ShellTask;
 
-const VISIBLE: usize = 20;
+use crate::impl_palette_query_input;
+use crate::palette::{
+    PaletteLayout, clamp_selection, fuzzy_index_order, hint_row, input_registrar, panel, query_row,
+    scrim, scroll_results, simple_row,
+};
 
 pub enum TaskPickerEvent {
     /// Run in the current terminal.
@@ -53,24 +53,8 @@ impl TaskPickerView {
     }
 
     fn refilter(&mut self) {
-        if self.query.is_empty() {
-            self.results = (0..self.tasks.len()).collect();
-        } else {
-            let pattern = Pattern::parse(&self.query, CaseMatching::Smart, Normalization::Smart);
-            let labels: Vec<&str> = self.tasks.iter().map(|t| t.label.as_str()).collect();
-            let mut scored: Vec<(usize, u32)> = pattern
-                .match_list(labels.iter().copied(), &mut self.matcher)
-                .into_iter()
-                .filter_map(|(label, score)| {
-                    self.tasks
-                        .iter()
-                        .position(|t| t.label == label)
-                        .map(|i| (i, score))
-                })
-                .collect();
-            scored.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-            self.results = scored.into_iter().map(|(i, _)| i).collect();
-        }
+        let haystacks: Vec<String> = self.tasks.iter().map(|t| t.label.clone()).collect();
+        self.results = fuzzy_index_order(&haystacks, &self.query, &mut self.matcher);
         self.selected = 0;
     }
 
@@ -81,12 +65,7 @@ impl TaskPickerView {
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
-        if self.results.is_empty() {
-            return;
-        }
-        let last = self.results.len() - 1;
-        let next = (self.selected as isize + delta).clamp(0, last as isize);
-        self.selected = next as usize;
+        self.selected = clamp_selection(self.selected, self.results.len(), delta);
         cx.notify();
     }
 
@@ -108,7 +87,6 @@ impl TaskPickerView {
         match event.keystroke.key.as_str() {
             "escape" => cx.emit(TaskPickerEvent::Dismissed),
             "enter" => {
-                // Default: new terminal. ⌘Enter: current terminal.
                 let current = event.keystroke.modifiers.platform;
                 self.confirm(!current, cx);
             }
@@ -122,6 +100,24 @@ impl TaskPickerView {
             _ => return,
         }
         cx.stop_propagation();
+    }
+
+    fn placeholder(&self) -> String {
+        if let Some(msg) = &self.empty_message {
+            msg.clone()
+        } else {
+            "Run task…".into()
+        }
+    }
+
+    fn empty_message(&self) -> &'static str {
+        if self.empty_message.is_some() {
+            "No tasks loaded"
+        } else if self.query.is_empty() {
+            "No tasks in this workspace"
+        } else {
+            "No matching tasks"
+        }
     }
 }
 
@@ -138,79 +134,10 @@ impl Render for TaskPickerView {
             self.focused_once = true;
         }
         let colors = cx.theme().colors().clone();
-        div()
-            .id("task-picker-scrim")
-            .absolute()
-            .inset_0()
-            .flex()
-            .flex_col()
-            .items_center()
-            .pt(px(80.))
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(TaskPickerEvent::Dismissed)))
-            .child(
-                div()
-                    .occlude()
-                    .track_focus(&self.focus)
-                    .key_context("TaskPicker")
-                    .on_key_down(cx.listener(Self::on_key))
-                    .relative()
-                    .w(px(640.))
-                    .max_h(px(420.))
-                    .flex()
-                    .flex_col()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.elevated_surface_background)
-                    .child(input_registrar(cx.entity(), self.focus.clone()))
-                    .child(self.query_row(cx))
-                    .child(self.results_list(cx))
-                    .child(self.hint_row(cx)),
-            )
-    }
-}
-
-impl TaskPickerView {
-    fn query_row(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let shown = if !self.query.is_empty() {
-            self.query.clone()
-        } else if let Some(msg) = &self.empty_message {
-            msg.clone()
-        } else {
-            "Run task…".to_string()
-        };
-        div()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(colors.border)
-            .text_color(if self.query.is_empty() {
-                colors.text_muted
-            } else {
-                colors.text
-            })
-            .child(shown)
-    }
-
-    fn hint_row(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        div()
-            .px_3()
-            .py_1()
-            .border_t_1()
-            .border_color(colors.border)
-            .text_xs()
-            .text_color(colors.text_muted)
-            .child("↵ new terminal  ·  ⌘↵ current  ·  esc dismiss  ·  open ⌘⇧R")
-    }
-
-    fn results_list(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
+        let layout = PaletteLayout::default();
         let rows: Vec<_> = self
             .results
             .iter()
-            .take(VISIBLE)
             .enumerate()
             .map(|(i, &task_i)| {
                 let task = &self.tasks[task_i];
@@ -219,114 +146,39 @@ impl TaskPickerView {
                 } else {
                     task.label.clone()
                 };
-                let paint = crate::chrome::list_selection(&colors, i == self.selected);
-                div()
-                    .id(("task-row", i))
-                    .px_3()
-                    .py_1()
-                    .text_sm()
-                    .text_color(paint.foreground)
-                    .bg(paint.background)
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                    .child(label)
+                simple_row(("task-row", i), label, i == self.selected, &colors)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.selected = i;
                         this.confirm(true, cx);
                     }))
+                    .into_any_element()
             })
             .collect();
-        div().flex().flex_col().overflow_hidden().children(rows)
+
+        scrim("task-picker-scrim", layout)
+            .on_click(cx.listener(|_, _, _, cx| cx.emit(TaskPickerEvent::Dismissed)))
+            .child(
+                panel(layout, &colors)
+                    .track_focus(&self.focus)
+                    .key_context("TaskPicker")
+                    .on_key_down(cx.listener(Self::on_key))
+                    .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
+                    .child(query_row(&self.query, &self.placeholder(), &colors).into_any_element())
+                    .child(scroll_results(
+                        "task-picker-results",
+                        self.empty_message(),
+                        rows,
+                        &colors,
+                    ))
+                    .child(
+                        hint_row(
+                            "↵ new terminal  ·  ⌘↵ current  ·  esc dismiss  ·  open ⌘⇧R",
+                            &colors,
+                        )
+                        .into_any_element(),
+                    ),
+            )
     }
 }
 
-fn input_registrar(view: Entity<TaskPickerView>, focus: FocusHandle) -> impl IntoElement {
-    canvas(
-        move |_bounds, _window, _cx| {},
-        move |bounds, _prepaint, window, cx| {
-            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
-        },
-    )
-    .absolute()
-    .size_full()
-}
-
-impl EntityInputHandler for TaskPickerView {
-    fn replace_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        text: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !text.is_empty() {
-            let query = format!("{}{}", self.query, text);
-            self.set_query(query, cx);
-        }
-    }
-
-    fn replace_and_mark_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        new_text: &str,
-        _new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !new_text.is_empty() {
-            let query = format!("{}{}", self.query, new_text);
-            self.set_query(query, cx);
-        }
-    }
-
-    fn selected_text_range(
-        &mut self,
-        _ignore_disabled_input: bool,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<UTF16Selection> {
-        Some(UTF16Selection {
-            range: 0..0,
-            reversed: false,
-        })
-    }
-
-    fn marked_text_range(
-        &self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Range<usize>> {
-        None
-    }
-
-    fn text_for_range(
-        &mut self,
-        _range: Range<usize>,
-        _adjusted: &mut Option<Range<usize>>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<String> {
-        None
-    }
-
-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    fn bounds_for_range(
-        &mut self,
-        _range_utf16: Range<usize>,
-        _element_bounds: Bounds<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        None
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        _point: Point<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        None
-    }
-}
+impl_palette_query_input!(TaskPickerView);

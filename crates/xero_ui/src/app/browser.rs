@@ -16,7 +16,7 @@ impl XeroApp {
         self.show_browser(cx);
     }
 
-    fn show_browser(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn show_browser(&mut self, cx: &mut Context<Self>) {
         if !self.reveal_active_file(cx) {
             self.file_browser.open();
             self.editor_collapsed = false;
@@ -116,7 +116,11 @@ impl XeroApp {
                     .min_h_0()
                     .overflow_y_scroll()
                     .py_2()
-                    .children(rows.into_iter().map(|row| self.tree_row(row, cx))),
+                    .children(
+                        rows.into_iter()
+                            .enumerate()
+                            .map(|(i, row)| self.tree_row(i, row, cx)),
+                    ),
             )
             .child(crate::resize::col_resize_handle(
                 "tree-resize",
@@ -126,12 +130,13 @@ impl XeroApp {
             .into_any_element()
     }
 
-    fn tree_row(&self, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn tree_row(&self, index: usize, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
         let colors = cx.theme().colors().clone();
         let indent = px(8. + row.depth as f32 * 16.);
         let marker = dir_marker(row.is_dir, row.expanded);
         let glyph = file_icon(&row);
-        let paint = crate::chrome::list_selection(&colors, row.is_open);
+        let kb = self.browser_focused && self.file_browser.cursor() == Some(index);
+        let paint = crate::chrome::list_selection(&colors, row.is_open || kb);
         let id = SharedString::from(row.path.to_string_lossy().into_owned());
         const ICON: f32 = 12.;
         let chevron = div()
@@ -151,13 +156,15 @@ impl XeroApp {
             .py(px(2.))
             .min_w_0()
             .text_sm()
-            .font_weight(if row.is_open {
+            .font_weight(if row.is_open || kb {
                 gpui::FontWeight::MEDIUM
             } else {
                 gpui::FontWeight::NORMAL
             })
             .text_color(paint.foreground)
             .bg(paint.background)
+            .border_l_2()
+            .border_color(paint.accent)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
             .child(chevron)
@@ -172,6 +179,8 @@ impl XeroApp {
             )
             .child(div().flex_1().min_w_0().truncate().child(row.name.clone()))
             .on_click(cx.listener(move |this, _, _window, cx| {
+                this.browser_focused = false;
+                this.file_browser.ensure_cursor();
                 if row.is_dir {
                     this.toggle_dir(row.path.clone(), cx);
                 } else {
@@ -183,6 +192,8 @@ impl XeroApp {
 
     pub(super) fn open_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.task_picker = None;
+        self.workspace_picker = None;
+        self.command_palette = None;
         self.open_palette_with_query(String::new(), window, cx);
     }
 
@@ -199,6 +210,8 @@ impl XeroApp {
             return;
         };
         self.task_picker = None;
+        self.workspace_picker = None;
+        self.command_palette = None;
         self.restore_pane = self.focused_pane(window, cx);
         self.reindex(root.clone(), true, cx);
         let index = self.file_indexes.get(&root).cloned();

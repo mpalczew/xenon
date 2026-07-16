@@ -2,7 +2,12 @@ use super::*;
 use crate::RunTask;
 use crate::Save;
 use crate::resize::ResizeEdge;
-use gpui::{AnyElement, DragMoveEvent, MouseButton, MouseUpEvent};
+use crate::{
+    CloseStream, CloseWorkspace, CommandPalette, FocusBrowser, FocusEditor, FocusNextPane,
+    FocusTerminal, KeyboardHelp, MoveTabMenu, NextStream, NextTab, NextWorkspace, PrevStream,
+    PrevTab, PrevWorkspace, StreamPalette,
+};
+use gpui::{AnyElement, DragMoveEvent, KeyDownEvent, MouseButton, MouseUpEvent};
 use xero_settings::{Copy, Cut, Paste};
 
 use super::empty_hint::empty_editor_hint;
@@ -17,9 +22,17 @@ impl Render for XeroApp {
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
         let task_picker = self.task_picker.clone();
+        let workspace_picker = self.workspace_picker.clone();
+        let command_palette = self.command_palette.clone();
         let tab_menu = self.render_tab_menu(cx);
         let body = self.render_shell_body(sidebar, main, colors.clone(), cx);
         self.bind_app_actions(div(), cx)
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if this.on_tab_menu_key(event, window, cx) || this.on_browser_key(event, window, cx)
+                {
+                    cx.stop_propagation();
+                }
+            }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_resize(cx)),
@@ -34,6 +47,8 @@ impl Render for XeroApp {
             .child(body)
             .children(finder)
             .children(task_picker)
+            .children(workspace_picker)
+            .children(command_palette)
             .children(tab_menu)
     }
 }
@@ -46,6 +61,12 @@ impl XeroApp {
         }
         if let Some(query) = self.pending_palette_query.take() {
             self.open_palette_with_query(query, window, cx);
+        }
+        if let Some(id) = self.pending_stream.take() {
+            self.select_stream(id, window, cx);
+        }
+        if let Some(cmd) = self.pending_command.take() {
+            self.run_command(cmd, window, cx);
         }
     }
 
@@ -78,6 +99,11 @@ impl XeroApp {
     }
 
     fn bind_app_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
+        let root = self.bind_core_actions(root, cx);
+        self.bind_nav_actions(root, cx)
+    }
+
+    fn bind_core_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
         root.track_focus(&self.focus)
             .key_context("XeroApp")
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
@@ -90,14 +116,19 @@ impl XeroApp {
                 this.new_stream(window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
-            .on_action(cx.listener(|this, _: &AddWorkspace, _, cx| this.add_workspace(cx)))
+            .on_action(
+                cx.listener(|this, _: &AddWorkspace, window, cx| this.add_workspace(window, cx)),
+            )
             .on_action(
                 cx.listener(|this, _: &FilePalette, window, cx| this.open_palette(window, cx)),
             )
             .on_action(
                 cx.listener(|this, _: &RunTask, window, cx| this.open_task_picker(window, cx)),
             )
-            .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| this.toggle_browser(cx)))
+            .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| {
+                this.browser_focused = false;
+                this.toggle_browser(cx);
+            }))
             .on_action(cx.listener(|this, _: &ToggleTerminal, window, cx| {
                 this.toggle_terminal_panel(window, cx);
             }))
@@ -107,9 +138,9 @@ impl XeroApp {
             .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
                 this.toggle_settings_window(cx);
             }))
-            .on_action(
-                cx.listener(|this, _: &CloseEditor, window, cx| this.close_editor(window, cx)),
-            )
+            .on_action(cx.listener(|this, _: &CloseEditor, window, cx| {
+                this.close_focused_tab(window, cx);
+            }))
             .on_action(cx.listener(|this, _: &Save, _, cx| this.save_active_editor(cx)))
             .on_action(cx.listener(|this, _: &IncreaseFontSize, window, cx| {
                 this.nudge_font_size(1.0, window, cx);
@@ -131,6 +162,57 @@ impl XeroApp {
             .on_action(cx.listener(|this, _: &Paste, window, cx| {
                 this.clipboard_paste(window, cx);
             }))
+    }
+
+    fn bind_nav_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
+        root.on_action(cx.listener(|this, _: &FocusTerminal, window, cx| {
+            this.focus_terminal(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &FocusEditor, window, cx| {
+            this.focus_editor(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &FocusBrowser, window, cx| {
+            this.focus_browser(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &FocusNextPane, window, cx| {
+            this.focus_next_pane(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &NextStream, window, cx| {
+            this.next_stream(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &PrevStream, window, cx| {
+            this.prev_stream(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &NextWorkspace, window, cx| {
+            this.next_workspace(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &PrevWorkspace, window, cx| {
+            this.prev_workspace(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &StreamPalette, window, cx| {
+            this.open_stream_palette(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &CloseStream, window, cx| {
+            this.close_active_stream(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &CloseWorkspace, window, cx| {
+            this.close_active_workspace(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &NextTab, window, cx| {
+            this.next_tab(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &PrevTab, window, cx| {
+            this.prev_tab(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &CommandPalette, window, cx| {
+            this.open_command_palette(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &KeyboardHelp, window, cx| {
+            this.open_keyboard_help(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &MoveTabMenu, window, cx| {
+            this.open_move_tab_menu(window, cx);
+        }))
     }
 }
 

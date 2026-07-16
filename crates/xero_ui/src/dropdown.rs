@@ -381,27 +381,76 @@ pub(crate) fn filter_options(
         .collect()
 }
 
-/// Monospace families only. Cached after first measurement (advance checks are costly).
-pub(crate) fn mono_font_families(cx: &App) -> Vec<SharedString> {
-    static CACHE: Mutex<Option<Vec<SharedString>>> = Mutex::new(None);
-    let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(cached) = guard.as_ref() {
-        return cached.clone();
-    }
-    let list: Vec<SharedString> = FontFamilyCache::global(cx)
-        .list_font_families(cx)
-        .into_iter()
-        .filter(|name| xero_settings::is_monospace_family(name.as_ref(), cx))
-        .collect();
-    *guard = Some(list.clone());
-    list
-}
-
 fn is_mono_family_dropdown(id: DropdownId) -> bool {
     matches!(id, DropdownId::EditorFamily | DropdownId::TerminalFamily)
 }
 
-fn mono_family_label(family: &str) -> String {
+fn mono_cache() -> &'static Mutex<Option<Vec<SharedString>>> {
+    static CACHE: Mutex<Option<Vec<SharedString>>> = Mutex::new(None);
+    &CACHE
+}
+
+/// Known monospace faces to show before / without a full system scan.
+/// Names must be real Core Text families (not marketing labels like "SF Mono").
+fn seed_mono_families() -> Vec<SharedString> {
+    [
+        "Menlo",
+        "Monaco",
+        "Courier New",
+        "Courier",
+        "JetBrains Mono",
+        "Fira Code",
+        "Source Code Pro",
+        "Cascadia Code",
+        "IBM Plex Mono",
+        "Inconsolata",
+        "Hack",
+    ]
+    .into_iter()
+    .map(SharedString::from)
+    .collect()
+}
+
+/// Monospace families for Settings. Never runs a full system font scan on the
+/// call path: returns the warm cache, else a small seed list. Use
+/// [`warm_mono_font_families`] from a deferred task to fill the real cache.
+pub(crate) fn mono_font_families(_cx: &App) -> Vec<SharedString> {
+    let guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(cached) = guard.as_ref() {
+        return cached.clone();
+    }
+    seed_mono_families()
+}
+
+/// Probe installed monospaced families and fill the cache. Safe to call from a
+/// deferred task after Settings has opened (not from key handlers or paint).
+pub(crate) fn warm_mono_font_families(cx: &App) {
+    {
+        let guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
+        if guard.is_some() {
+            return;
+        }
+    }
+    let list = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        FontFamilyCache::global(cx)
+            .list_font_families(cx)
+            .into_iter()
+            .filter(|name| xero_settings::is_monospace_family(name.as_ref(), cx))
+            .collect::<Vec<SharedString>>()
+    }))
+    .unwrap_or_else(|_| seed_mono_families());
+    let mut guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
+    if guard.is_none() {
+        *guard = Some(if list.is_empty() {
+            seed_mono_families()
+        } else {
+            list
+        });
+    }
+}
+
+/// Friendly label for a stored mono family name (dropdown rows / trigger).
+pub(crate) fn mono_family_label(family: &str) -> String {
     xero_settings::display_mono_family(family).to_string()
 }
 

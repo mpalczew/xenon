@@ -11,9 +11,9 @@ use crate::{
 /// Point `data_dir()` at a temp directory for the duration of a closure.
 /// Serialized via a mutex since env vars are process-global.
 fn with_data_dir<R>(body: impl FnOnce() -> R) -> R {
-    use std::sync::Mutex;
-    static LOCK: Mutex<()> = Mutex::new(());
-    let _guard = LOCK.lock().unwrap();
+    let _guard = crate::DATA_DIR_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let dir = TempDir::new().unwrap();
     unsafe { std::env::set_var("XERO_DATA_DIR", dir.path()) };
     let result = body();

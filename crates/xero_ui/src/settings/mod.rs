@@ -29,13 +29,22 @@ pub struct SettingsView {
     highlight: usize,
     caret_on: bool,
     focused_once: bool,
+    /// Keyboard highlight among editor toggles (line numbers, vim).
+    toggle_focus: usize,
     _blink: Option<Task<()>>,
 }
 
 impl SettingsView {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        // Warm the mono-font cache so the first family dropdown is instant.
-        let _ = mono_font_families(cx);
+        // Full system mono scan is deferred and never runs on paint / key path.
+        cx.spawn(async move |this, cx| {
+            this.update(cx, |_this, cx| {
+                crate::dropdown::warm_mono_font_families(cx);
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
         Self {
             focus: cx.focus_handle(),
             open: None,
@@ -43,6 +52,7 @@ impl SettingsView {
             highlight: 0,
             caret_on: true,
             focused_once: false,
+            toggle_focus: 0,
             _blink: None,
         }
     }
@@ -134,9 +144,26 @@ impl SettingsView {
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let Some(id) = self.open else {
-            if event.keystroke.key.as_str() == "escape" {
-                window.remove_window();
-                cx.stop_propagation();
+            match event.keystroke.key.as_str() {
+                "escape" => {
+                    window.remove_window();
+                    cx.stop_propagation();
+                }
+                "up" => {
+                    self.toggle_focus = self.toggle_focus.saturating_sub(1);
+                    cx.notify();
+                    cx.stop_propagation();
+                }
+                "down" => {
+                    self.toggle_focus = (self.toggle_focus + 1).min(1);
+                    cx.notify();
+                    cx.stop_propagation();
+                }
+                "enter" | " " => {
+                    self.activate_focused_toggle(window, cx);
+                    cx.stop_propagation();
+                }
+                _ => {}
             }
             return;
         };
@@ -171,6 +198,16 @@ impl SettingsView {
         }
     }
 
+    fn activate_focused_toggle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.toggle_focus {
+            0 => xero_settings::toggle_line_numbers(cx),
+            _ => xero_settings::toggle_vim_mode(cx),
+        }
+        xero_settings::save(cx);
+        window.refresh();
+        cx.notify();
+    }
+
     fn move_highlight(&mut self, id: DropdownId, delta: isize, cx: &mut Context<Self>) {
         let len = self.filtered_options(id, cx).len();
         if len == 0 {
@@ -188,6 +225,7 @@ impl SettingsView {
 
     fn body(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let settings = xero_settings::snapshot(cx);
+        // Cache only / seed list — never full system scan during paint.
         let families = mono_font_families(cx);
         let state = OpenState {
             open: self.open,
@@ -227,7 +265,7 @@ impl SettingsView {
                 state,
                 cx,
             ))
-            .child(editor_toggles(cx))
+            .child(editor_toggles(self.toggle_focus, cx))
             .child(terminal_section(&settings, state, cx))
             .into_any_element()
     }

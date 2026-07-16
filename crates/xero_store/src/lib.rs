@@ -11,8 +11,17 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use xero_core::{Registry, Stream, StreamId, WorkspaceId};
 
+mod ipc;
 mod terminal;
+pub use ipc::{
+    IpcRequest, IpcResponse, bind_server, parse_cli_paths, send_request, serve_forever,
+    socket_path, try_handoff,
+};
 pub use terminal::TerminalAutoClose;
+
+/// Serializes tests that mutate process-global data-dir env vars.
+#[cfg(test)]
+pub(crate) static DATA_DIR_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// When to use the light vs dark theme: fixed, or track the OS appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

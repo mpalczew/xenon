@@ -3,11 +3,14 @@
 
 mod app;
 mod chrome;
+mod command_palette;
+mod commands;
 mod dropdown;
 mod file_browser;
 mod finder;
 mod git_dirt;
 mod icons;
+mod palette;
 mod rename;
 mod resize;
 mod settings;
@@ -15,6 +18,8 @@ mod sidebar;
 mod tabs;
 mod task_picker;
 mod toolbar;
+mod workspace_discover;
+mod workspace_picker;
 
 pub use settings::SettingsView;
 
@@ -43,34 +48,73 @@ actions!(
         DecreaseFontSize,
         ResetFontSize,
         ToggleSettings,
+        // Keyboard-first navigation
+        FocusTerminal,
+        FocusEditor,
+        FocusBrowser,
+        FocusNextPane,
+        NextStream,
+        PrevStream,
+        NextWorkspace,
+        PrevWorkspace,
+        StreamPalette,
+        CloseStream,
+        CloseWorkspace,
+        NextTab,
+        PrevTab,
+        CommandPalette,
+        KeyboardHelp,
+        MoveTabMenu,
     ]
 );
 
 /// Bind the shell's keyboard shortcuts. Call once at startup.
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
+        // Create
         KeyBinding::new("cmd-n", NewTerminal, None),
         KeyBinding::new("cmd-shift-n", NewStream, None),
+        // Open / jump
+        KeyBinding::new("cmd-o", OpenFile, None),
+        KeyBinding::new("cmd-p", FilePalette, None),
+        KeyBinding::new("cmd-shift-o", AddWorkspace, None),
+        KeyBinding::new("cmd-shift-r", RunTask, None),
+        KeyBinding::new("cmd-t", StreamPalette, None),
+        KeyBinding::new("cmd-shift-p", CommandPalette, None),
+        KeyBinding::new("cmd-shift-/", KeyboardHelp, None),
+        // Focus panes
+        KeyBinding::new("cmd-1", FocusTerminal, None),
+        KeyBinding::new("cmd-2", FocusEditor, None),
+        KeyBinding::new("cmd-3", FocusBrowser, None),
+        KeyBinding::new("ctrl-`", FocusNextPane, None),
+        // Streams / workspaces
+        KeyBinding::new("cmd-alt-down", NextStream, None),
+        KeyBinding::new("cmd-alt-up", PrevStream, None),
+        KeyBinding::new("cmd-alt-right", NextWorkspace, None),
+        KeyBinding::new("cmd-alt-left", PrevWorkspace, None),
+        KeyBinding::new("cmd-shift-w", CloseStream, None),
+        KeyBinding::new("cmd-alt-w", CloseWorkspace, None),
+        // Tabs
+        KeyBinding::new("cmd-shift-]", NextTab, None),
+        KeyBinding::new("cmd-shift-[", PrevTab, None),
+        KeyBinding::new("cmd-w", CloseEditor, None),
+        KeyBinding::new("cmd-shift-m", MoveTabMenu, None),
+        // Edit
+        KeyBinding::new("cmd-s", Save, None),
+        KeyBinding::new("cmd-x", Cut, None),
+        KeyBinding::new("cmd-c", Copy, None),
+        KeyBinding::new("cmd-v", Paste, None),
+        KeyBinding::new("cmd-a", SelectAll, Some("Editor")),
+        // View chrome
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-j", ToggleTerminal, None),
         KeyBinding::new("cmd-shift-e", ToggleEditor, None),
         KeyBinding::new("cmd-e", ToggleBrowser, None),
-        KeyBinding::new("cmd-o", OpenFile, None),
-        KeyBinding::new("cmd-p", FilePalette, None),
-        KeyBinding::new("cmd-shift-r", RunTask, None),
-        KeyBinding::new("cmd-w", CloseEditor, None),
-        KeyBinding::new("cmd-s", Save, None),
-        KeyBinding::new("cmd-shift-o", AddWorkspace, None),
+        KeyBinding::new("cmd-,", ToggleSettings, None),
         KeyBinding::new("cmd-=", IncreaseFontSize, None),
         KeyBinding::new("cmd-+", IncreaseFontSize, None),
         KeyBinding::new("cmd--", DecreaseFontSize, None),
         KeyBinding::new("cmd-0", ResetFontSize, None),
-        KeyBinding::new("cmd-,", ToggleSettings, None),
-        KeyBinding::new("cmd-x", Cut, None),
-        KeyBinding::new("cmd-c", Copy, None),
-        KeyBinding::new("cmd-v", Paste, None),
-        // Editor context: select all (also handled in EditorView key handler).
-        KeyBinding::new("cmd-a", SelectAll, Some("Editor")),
     ]);
 }
 

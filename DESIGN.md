@@ -36,6 +36,14 @@ Never background-only. Always ≥2 channels:
 
 Helpers: `chrome::tab_selection`, `chrome::list_selection`.
 
+## Elevated palettes (cmd-p family)
+
+One shell: `crates/xero_ui/src/palette/`. Surfaces that type-to-filter over a
+scrollable list **must** use it (finder, workspace open, run task, command /
+stream / help). Geometry: width 640, max-height 420 (480 tall), elevation-2
+panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
+`overflow_y_scroll`). Do not clone scrim/panel/input/list per feature.
+
 ## Attention
 
 `theme.status().warning` dot on streams that need the user. Not hard-coded hex.

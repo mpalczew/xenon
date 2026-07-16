@@ -39,6 +39,9 @@ impl XeroApp {
 
     /// Which pane currently holds keyboard focus (for finder focus restore).
     pub(super) fn focused_pane(&self, window: &Window, cx: &Context<Self>) -> Option<FocusPane> {
+        if self.browser_focused {
+            return Some(FocusPane::Browser);
+        }
         if self
             .active_terminal()
             .is_some_and(|t| t.read(cx).focus_handle(cx).contains_focused(window, cx))
@@ -55,25 +58,25 @@ impl XeroApp {
     }
 
     /// Return keyboard focus to `pane` (the terminal or editor of the active stream).
-    pub(super) fn focus_pane(&self, pane: FocusPane, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn focus_pane(
+        &mut self,
+        pane: FocusPane,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         match pane {
-            FocusPane::Terminal => {
-                if let Some(terminal) = self.active_terminal() {
-                    terminal.read(cx).focus_handle(cx).focus(window, cx);
-                }
-            }
-            FocusPane::Editor => {
-                if let Some(editor) = self.active_editor() {
-                    editor.read(cx).focus_handle(cx).focus(window, cx);
-                }
-            }
+            FocusPane::Terminal => self.focus_terminal(window, cx),
+            FocusPane::Editor => self.focus_editor(window, cx),
+            FocusPane::Browser => self.focus_browser(window, cx),
         }
     }
 
     /// cmd-+ / cmd--: nudge the focused pane's font size (both if neither focused).
     pub(super) fn nudge_font_size(&self, delta: f32, window: &mut Window, cx: &mut Context<Self>) {
         match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => xero_settings::nudge_editor_font_size(cx, delta),
+            Some(FocusPane::Editor) | Some(FocusPane::Browser) => {
+                xero_settings::nudge_editor_font_size(cx, delta)
+            }
             Some(FocusPane::Terminal) => xero_settings::nudge_terminal_font_size(cx, delta),
             None => {
                 xero_settings::nudge_editor_font_size(cx, delta);
@@ -95,7 +98,7 @@ impl XeroApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) | None => {
+            Some(FocusPane::Terminal) | Some(FocusPane::Browser) | None => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.cut_selection(cx);
@@ -116,7 +119,7 @@ impl XeroApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) | None => {
+            Some(FocusPane::Terminal) | Some(FocusPane::Browser) | None => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.copy_selection(cx);
@@ -137,7 +140,7 @@ impl XeroApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) | None => {
+            Some(FocusPane::Terminal) | Some(FocusPane::Browser) | None => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.paste_clipboard(cx);

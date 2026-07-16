@@ -100,6 +100,20 @@ forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   chrome or UX work. Keep them aligned with settled decisions; do not invent a
   competing vision in chat only.
 
+## Keyboard-first (mouseless)
+
+Every UX surface must be operable end-to-end from the keyboard. Mouse is additive,
+never required for a complete flow.
+
+- Design the keyboard path first: action, keybinding, focus target, Escape dismiss.
+- Click-only chrome is incomplete. Lists, pickers, sidebars, dialogs, and empty
+  states need arrows / Enter / Escape (and type-to-filter when lists are long).
+- Prefer in-app palettes (cmd-p pattern) for frequent power-user flows; keep native
+  macOS pickers as optional Browse… escape hatches, not the only path.
+- Do not ship a mouse-only control when a keyboard equivalent exists elsewhere
+  without wiring that equivalent (or adding one).
+- When reviewing UX work, ask: can a user do this with hands on the home row?
+
 ## Never kill xero processes
 
 Never run `pkill`, `killall`, or any command that could terminate running xero

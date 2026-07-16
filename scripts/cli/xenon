@@ -132,11 +132,31 @@ pid_looks_legacy_xero() {
         [[ "$cmd" == /Applications/Xenon.app/Contents/MacOS/xenon* ]]
 }
 
-# Drop process-identity files that must never travel with state copies.
+# Live-instance files: never transfer; ditto also fails on Unix sockets.
+RUNTIME_EXCLUDES=(
+    --exclude='xenon.pid'
+    --exclude='xero.pid'
+    --exclude='ipc.sock'
+    --exclude='xenon.log'
+    --exclude='xero.log'
+)
+
+# Drop any residual runtime files after a copy.
 strip_runtime_files() {
     local dir="$1"
     [[ -n "$dir" && -d "$dir" ]] || return 0
-    rm -f "$dir/xenon.pid" "$dir/xero.pid"
+    rm -f "$dir/xenon.pid" "$dir/xero.pid" "$dir/ipc.sock" \
+        "$dir/xenon.log" "$dir/xero.log"
+}
+
+# Copy durable slot state only. Skips sockets/pidfiles/logs (ditto cannot copy sockets).
+copy_state_dir() {
+    local src="$1"
+    local dst="$2"
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    rsync -a "${RUNTIME_EXCLUDES[@]}" "$src/" "$dst/"
+    strip_runtime_files "$dst"
 }
 
 # Print "slot pid" lines for every live instance, prefer pidfiles then pgrep.
@@ -242,28 +262,27 @@ copy_state() {
         echo "cannot copy: source state missing: $src" >&2
         exit 1
     fi
-    rm -rf "$dst"
-    ditto "$src" "$dst"
-    # Never inherit the source instance's identity.
-    strip_runtime_files "$dst"
+    copy_state_dir "$src" "$dst"
 }
 
 seed_legacy_state() {
     local slot="$1"
-    local dst
+    local dst src=""
     case "$slot" in
         a) dst="$HOME/.xenon-a" ;;
         b) dst="$HOME/.xenon-b" ;;
     esac
     if [[ ! -d "$dst" ]]; then
         if [[ -d "$HOME/.xenon" ]]; then
-            ditto "$HOME/.xenon" "$dst"
+            src="$HOME/.xenon"
         elif [[ -d "$HOME/.xero" ]]; then
-            ditto "$HOME/.xero" "$dst"
+            src="$HOME/.xero"
         elif [[ -d "$HOME/.xero-$slot" ]]; then
-            ditto "$HOME/.xero-$slot" "$dst"
+            src="$HOME/.xero-$slot"
         fi
-        strip_runtime_files "$dst"
+        if [[ -n "$src" ]]; then
+            copy_state_dir "$src" "$dst"
+        fi
     fi
 }
 
@@ -285,8 +304,7 @@ launch_slot() {
     dir="$(slot_data_dir "$slot")"
     # Migrate legacy slot if modern empty.
     if [[ ! -d "$dir" && -d "$HOME/.xero-$slot" ]]; then
-        ditto "$HOME/.xero-$slot" "$dir"
-        strip_runtime_files "$dir"
+        copy_state_dir "$HOME/.xero-$slot" "$dir"
     fi
     upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
     mkdir -p "$dir"

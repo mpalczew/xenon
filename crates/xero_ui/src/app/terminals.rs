@@ -92,32 +92,54 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// Shell process died: restyle tab, then maybe auto-close after the setting delay.
+    /// Shell process died: restyle tab, then maybe auto-close per this tab's policy.
     pub(super) fn on_terminal_exited(
         &mut self,
         view: Entity<TerminalView>,
         cx: &mut Context<Self>,
     ) {
         cx.notify();
-        let Some(delay) = xero_settings::terminal_auto_close(cx).delay() else {
-            return;
+        self.schedule_terminal_auto_close(view, cx);
+    }
+
+    /// Per-tab on-exit policy changed while already exited: reschedule or cancel.
+    pub(super) fn on_terminal_auto_close_changed(
+        &mut self,
+        view: Entity<TerminalView>,
+        cx: &mut Context<Self>,
+    ) {
+        self.schedule_terminal_auto_close(view, cx);
+    }
+
+    /// Close after this tab's `auto_close` delay, if any. Token cancels stale tasks.
+    fn schedule_terminal_auto_close(&mut self, view: Entity<TerminalView>, cx: &mut Context<Self>) {
+        let (delay, token) = {
+            let term = view.read(cx);
+            if !term.is_exited() {
+                return;
+            }
+            let Some(delay) = term.auto_close().delay() else {
+                return;
+            };
+            (delay, term.auto_close_token())
         };
         cx.spawn(async move |this, cx| {
             if !delay.is_zero() {
                 cx.background_executor().timer(delay).await;
             }
             this.update(cx, |this, cx| {
-                this.close_terminal_entity(&view, cx);
+                this.close_terminal_entity_if_still_due(&view, token, cx);
             })
             .ok();
         })
         .detach();
     }
 
-    /// Auto-close path: drop a terminal by entity (index may have shifted).
-    pub(super) fn close_terminal_entity(
+    /// Auto-close path: drop a terminal by entity only if still exited and policy token matches.
+    pub(super) fn close_terminal_entity_if_still_due(
         &mut self,
         view: &Entity<TerminalView>,
+        token: u64,
         cx: &mut Context<Self>,
     ) {
         let Some((id, index)) = self.terminals.iter().find_map(|(id, stack)| {
@@ -129,8 +151,11 @@ impl XeroApp {
         }) else {
             return;
         };
-        // Only auto-close if still exited (user may have replaced the tab).
-        if !view.read(cx).is_exited() {
+        let term = view.read(cx);
+        if !term.is_exited() || term.auto_close_token() != token {
+            return;
+        }
+        if term.auto_close().delay().is_none() {
             return;
         }
         let _ = self.remove_terminal_at(id, index, cx);

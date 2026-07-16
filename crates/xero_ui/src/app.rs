@@ -9,8 +9,8 @@ use std::sync::Arc;
 use gpui::{
     App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
     IntoElement, ParentElement, PathPromptOptions, Pixels, Point, PromptLevel, Render,
-    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, TitlebarOptions, Window,
-    WindowBounds, WindowHandle, WindowOptions, div, px, size,
+    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, Window, WindowHandle,
+    div, px,
 };
 use theme::ActiveTheme;
 use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
@@ -24,6 +24,7 @@ use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::settings::SettingsView;
 use crate::task_picker::TaskPickerView;
+use crate::workspace_picker::WorkspacePickerView;
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewStream,
     NewTerminal, OpenFile, ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings,
@@ -35,12 +36,16 @@ mod dirty_close;
 mod editors;
 mod empty_hint;
 mod git_dirt;
+mod keyboard;
 mod navigation;
+mod palette;
 mod panels;
 mod render;
+mod settings_window;
 mod streams;
 mod tasks;
 mod terminals;
+mod tree_keys;
 mod workspaces;
 
 /// The terminals open in one stream, as tabs, plus which is focused.
@@ -77,6 +82,8 @@ pub(crate) struct TabContextMenu {
     pub stream: StreamId,
     pub index: usize,
     pub position: Point<Pixels>,
+    /// Keyboard highlight into menu rows (0 = Move to New Stream).
+    pub selected: usize,
 }
 
 /// Source tab + destination stream for a move.
@@ -96,10 +103,11 @@ pub(crate) enum RenameTarget {
 
 /// Which pane held keyboard focus before the finder opened, so Escape can
 /// return focus there instead of dropping it into the void.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum FocusPane {
     Terminal,
     Editor,
+    Browser,
 }
 
 pub struct XeroApp {
@@ -113,6 +121,10 @@ pub struct XeroApp {
     active: Option<StreamId>,
     finder: Option<Entity<FinderView>>,
     task_picker: Option<Entity<TaskPickerView>>,
+    workspace_picker: Option<Entity<WorkspacePickerView>>,
+    command_palette: Option<Entity<crate::command_palette::CommandPaletteView>>,
+    /// File tree has keyboard focus (arrows/enter route here, not editor/terminal).
+    browser_focused: bool,
     // Per-root fuzzy index shared by cmd-p and cmd-click resolution, built off
     // the UI thread. `index_tasks` keeps in-flight builds alive, keyed by root so
     // a new build for the same root replaces (cancels) the previous one.
@@ -125,6 +137,9 @@ pub struct XeroApp {
     // A cmd-clicked name to open cmd-p with, deferred to render (which has a
     // Window) from the windowless terminal-event subscription.
     pending_palette_query: Option<String>,
+    /// Command / stream jump deferred until render has a Window.
+    pending_command: Option<crate::commands::CommandId>,
+    pending_stream: Option<StreamId>,
     sidebar_collapsed: bool,
     terminal_collapsed: bool,
     editor_collapsed: bool,
@@ -149,6 +164,8 @@ pub struct XeroApp {
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     _task_picker_sub: Option<Subscription>,
+    _workspace_picker_sub: Option<Subscription>,
+    _command_palette_sub: Option<Subscription>,
     // Streams whose terminal rang the bell while unfocused (agent wants
     // attention); shown as a dot in the sidebar, cleared when the stream opens.
     attention: HashSet<StreamId>,
@@ -180,11 +197,16 @@ impl XeroApp {
             active: None,
             finder: None,
             task_picker: None,
+            workspace_picker: None,
+            command_palette: None,
+            browser_focused: false,
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
             restore_pane: None,
             pending_focus: None,
             pending_palette_query: None,
+            pending_command: None,
+            pending_stream: None,
             sidebar_collapsed: false,
             terminal_collapsed: false,
             editor_collapsed: false,
@@ -202,6 +224,8 @@ impl XeroApp {
             focus: cx.focus_handle(),
             _finder_sub: None,
             _task_picker_sub: None,
+            _workspace_picker_sub: None,
+            _command_palette_sub: None,
             attention: HashSet::new(),
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),
@@ -352,42 +376,6 @@ impl XeroApp {
                 stream,
             });
             save_registry(&registry, "persist_active");
-        }
-    }
-
-    /// Open the settings window, or focus/close it if already open (cmd-,).
-    pub(crate) fn toggle_settings_window(&mut self, cx: &mut Context<Self>) {
-        if let Some(handle) = self.settings_window {
-            match handle.is_active(cx) {
-                Some(true) => {
-                    let _ = handle.update(cx, |_, window, _| window.remove_window());
-                    self.settings_window = None;
-                    return;
-                }
-                Some(false) => {
-                    let _ = handle.update(cx, |_, window, _| window.activate_window());
-                    return;
-                }
-                None => self.settings_window = None,
-            }
-        }
-        let bounds = Bounds::centered(None, size(px(480.), px(560.)), cx);
-        match cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions {
-                    title: Some("Settings".into()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            |window, cx| {
-                xero_terminal::observe_appearance(window, cx).detach();
-                cx.new(SettingsView::new)
-            },
-        ) {
-            Ok(handle) => self.settings_window = Some(handle),
-            Err(error) => log::error!("failed to open settings window: {error}"),
         }
     }
 }

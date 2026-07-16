@@ -200,12 +200,17 @@ product surface (trust defaults + personality pack); see AIPM
 6. **Empty states teach once.** Short power-user copy; no forced tours.
 7. **Harness-agnostic by default.** Prefer zero-config terminal integration
    over harness-specific lock-in.
+8. **Keyboard-first (mouseless).** Every complete flow is operable without a
+   mouse. Design actions + keybindings + focus + Escape first; mouse is additive.
+   Prefer in-app palettes for frequent power-user work; native pickers are Browse…
+   escape hatches, not the only path. Agent rule: `CLAUDE.md` § Keyboard-first.
 
 ## Accessibility
 
 - High-contrast theme remains available.
 - Selection and attention should not rely on color alone where practical.
 - Prefer theme tokens over hard-coded hex in chrome.
+- Keyboard operability is product, not a late a11y pass (see principle 8).
 
 ## Out of scope (for now)
 

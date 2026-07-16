@@ -113,7 +113,12 @@ pub(super) fn font_section(
     group_card(title, body, cx)
 }
 
-pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub(super) fn editor_toggles(
+    toggle_focus: usize,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    // Caller passes focus index — never read SettingsView during its own render
+    // (double-borrow → panic_cannot_unwind on the cmd-, key path).
     let body = div()
         .flex()
         .flex_col()
@@ -123,6 +128,7 @@ pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement
                 title: "Line numbers",
                 subtitle: "Show row numbers in text editors",
                 checked: xero_settings::show_line_numbers(cx),
+                focused: toggle_focus == 0,
             },
             cx,
             |cx| {
@@ -137,6 +143,7 @@ pub(super) fn editor_toggles(cx: &mut Context<SettingsView>) -> impl IntoElement
                 title: "Vim mode",
                 subtitle: "Modal editing in the text editor",
                 checked: xero_settings::vim_mode(cx),
+                focused: toggle_focus == 1,
             },
             cx,
             |cx| {
@@ -159,7 +166,7 @@ pub(super) fn terminal_section(
     let body = div().flex().flex_col().child(dropdown_row(
         DropdownProps {
             id: DropdownId::TerminalAutoClose,
-            title: "Close when process exits",
+            title: "Default close when process exits",
             selected: settings.terminal_auto_close.label(),
             options: &opts,
             filterable: false,
@@ -257,6 +264,7 @@ struct ToggleRow {
     title: &'static str,
     subtitle: &'static str,
     checked: bool,
+    focused: bool,
 }
 
 fn settings_toggle(
@@ -270,6 +278,11 @@ fn settings_toggle(
     } else {
         colors.elevated_surface_background
     };
+    let row_bg = if row.focused {
+        colors.element_hover
+    } else {
+        gpui::transparent_black()
+    };
     div()
         .id(row.id)
         .flex()
@@ -277,6 +290,7 @@ fn settings_toggle(
         .justify_between()
         .px_3()
         .py_2()
+        .bg(row_bg)
         .cursor_pointer()
         .hover(|s| s.bg(colors.element_hover))
         .on_click(cx.listener(move |_, _, window, cx| {

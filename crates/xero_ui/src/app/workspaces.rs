@@ -1,7 +1,164 @@
 use super::*;
+use crate::workspace_picker::{WorkspaceCandidate, WorkspacePickerEvent, WorkspacePickerView};
 
 impl XeroApp {
-    pub(super) fn add_workspace(&mut self, cx: &mut Context<Self>) {
+    /// CLI / IPC: open a directory as a workspace, or a file in the best workspace.
+    ///
+    /// File rules: longest matching open/closed workspace root wins; if none,
+    /// open in the current workspace (still opens even when outside the root).
+    pub fn open_cli_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let path = path.canonicalize().unwrap_or(path);
+        if path.is_dir() {
+            self.register_workspace(path, cx);
+            return;
+        }
+        if !path.is_file() {
+            log::warn!("open_cli_path: not a file or directory: {}", path.display());
+            return;
+        }
+        if let Some(workspace_id) = self.workspace_for_path(&path) {
+            self.focus_workspace(workspace_id, cx);
+        } else if self.active.is_none() {
+            // No current workspace: open the file's parent as a workspace root.
+            if let Some(parent) = path.parent() {
+                self.register_workspace(parent.to_path_buf(), cx);
+            }
+        }
+        // Else: keep current workspace even when the file is outside it.
+        self.open_editor(path, true, cx);
+    }
+
+    /// Longest registry root (open or closed) that is a prefix of `path`.
+    fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let mut best: Option<(usize, WorkspaceId)> = None;
+        for rec in self
+            .registry
+            .workspaces
+            .iter()
+            .chain(self.registry.closed_workspaces.iter())
+        {
+            let root = rec.root.canonicalize().unwrap_or_else(|_| rec.root.clone());
+            if path.starts_with(&root) {
+                let len = root.as_os_str().len();
+                if best.is_none_or(|(best_len, _)| len > best_len) {
+                    best = Some((len, rec.id));
+                }
+            }
+        }
+        best.map(|(_, id)| id)
+    }
+
+    fn focus_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+        if let Some(record) = self.registry.workspace(id) {
+            if let Some(&stream) = record.streams.first() {
+                self.activate_stream(stream, cx);
+            }
+            return;
+        }
+        if self.registry.closed_workspaces.iter().any(|w| w.id == id) {
+            self.reopen_workspace(id, cx);
+        }
+    }
+
+    /// Open Workspace palette (keyboard-first). Second invoke while open → Browse.
+    pub(super) fn add_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.workspace_picker.is_some() {
+            self.workspace_picker = None;
+            self.browse_for_workspace(cx);
+            return;
+        }
+        self.open_workspace_picker(window, cx);
+    }
+
+    fn open_workspace_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.finder = None;
+        self.task_picker = None;
+        self.command_palette = None;
+        self.restore_pane = self.focused_pane(window, cx);
+        let mut known = Vec::new();
+        for rec in &self.registry.closed_workspaces {
+            let missing = !crate::workspace_discover::path_is_dir(&rec.root);
+            known.push(WorkspaceCandidate::Closed {
+                id: rec.id,
+                name: rec.name.clone(),
+                root: rec.root.clone(),
+                missing,
+            });
+        }
+        for rec in &self.registry.workspaces {
+            known.push(WorkspaceCandidate::Open {
+                id: rec.id,
+                name: rec.name.clone(),
+                root: rec.root.clone(),
+            });
+        }
+        let picker = cx.new(|cx| WorkspacePickerView::new(known, cx));
+        self._workspace_picker_sub = Some(cx.subscribe(&picker, Self::on_workspace_picker_event));
+        self.workspace_picker = Some(picker);
+        cx.notify();
+    }
+
+    fn on_workspace_picker_event(
+        &mut self,
+        _picker: Entity<WorkspacePickerView>,
+        event: &WorkspacePickerEvent,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            WorkspacePickerEvent::Open(candidate) => {
+                self.workspace_picker = None;
+                self.restore_pane = None;
+                self.apply_workspace_pick(candidate, cx);
+            }
+            WorkspacePickerEvent::Browse => {
+                self.workspace_picker = None;
+                self.browse_for_workspace(cx);
+            }
+            WorkspacePickerEvent::Dismissed => {
+                self.workspace_picker = None;
+                self.pending_focus = self.restore_pane.take();
+                cx.notify();
+            }
+        }
+    }
+
+    fn apply_workspace_pick(&mut self, candidate: &WorkspaceCandidate, cx: &mut Context<Self>) {
+        match candidate {
+            WorkspaceCandidate::Open { id, root, .. } => {
+                if !crate::workspace_discover::path_is_dir(root) {
+                    return;
+                }
+                if let Some(stream) = self
+                    .registry
+                    .workspace(*id)
+                    .and_then(|w| w.streams.first().copied())
+                {
+                    self.activate_stream(stream, cx);
+                }
+            }
+            WorkspaceCandidate::Closed {
+                id, missing: true, ..
+            } => {
+                let _ = id; // never reopen missing
+            }
+            WorkspaceCandidate::Closed { id, root, .. } => {
+                if !crate::workspace_discover::path_is_dir(root) {
+                    return;
+                }
+                self.reopen_workspace(*id, cx);
+            }
+            WorkspaceCandidate::Path { root, .. } => {
+                if !crate::workspace_discover::path_is_dir(root) {
+                    return;
+                }
+                self.register_workspace(root.clone(), cx);
+            }
+        }
+    }
+
+    /// Native macOS folder picker (Browse… escape hatch).
+    pub(super) fn browse_for_workspace(&mut self, cx: &mut Context<Self>) {
         let rx = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -20,14 +177,38 @@ impl XeroApp {
     }
 
     fn register_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        let Some(root) = crate::workspace_discover::resolve_existing_dir(&root) else {
+            return;
+        };
+        if let Some(record) = self
+            .registry
+            .workspaces
+            .iter()
+            .find(|record| same_workspace_root(&record.root, &root))
+        {
+            if let Some(&stream) = record.streams.first() {
+                self.activate_stream(stream, cx);
+            }
+            return;
+        }
         if let Some(record) = self
             .registry
             .closed_workspaces
             .iter()
-            .find(|record| record.root == root)
+            .find(|record| same_workspace_root(&record.root, &root))
         {
             self.reopen_workspace(record.id, cx);
             return;
+        }
+        // Drop stale closed entries with same basename but missing path.
+        let basename = root.file_name().map(|n| n.to_os_string());
+        if let Some(base) = basename {
+            self.registry.closed_workspaces.retain(|rec| {
+                if crate::workspace_discover::path_is_dir(&rec.root) {
+                    return true;
+                }
+                rec.root.file_name().is_none_or(|n| n != base.as_os_str())
+            });
         }
         let mut record = WorkspaceRec::new(root);
         let mut stream = Stream::new("stream 1");
@@ -160,6 +341,10 @@ impl XeroApp {
         else {
             return;
         };
+        // Never reopen a root that no longer exists on disk.
+        if !crate::workspace_discover::path_is_dir(&self.registry.closed_workspaces[index].root) {
+            return;
+        }
         let mut record = self.registry.closed_workspaces.remove(index);
         if record.streams.is_empty() {
             let mut stream = Stream::new("main");
@@ -222,5 +407,12 @@ impl XeroApp {
     pub(crate) fn toggle_closed_section(&mut self, cx: &mut Context<Self>) {
         self.closed_section_collapsed = !self.closed_section_collapsed;
         cx.notify();
+    }
+}
+
+fn same_workspace_root(a: &std::path::Path, b: &std::path::Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(aa), Ok(bb)) => aa == bb,
+        _ => a == b,
     }
 }

@@ -5,17 +5,39 @@ use gpui::{
     actions, px, size,
 };
 use gpui_platform::application;
+use xero_store::{IpcRequest, bind_server, parse_cli_paths, serve_forever, try_handoff};
 use xero_ui::{
-    AddWorkspace, CloseEditor, Copy, Cut, DecreaseFontSize, FilePalette, IncreaseFontSize,
-    NewStream, NewTerminal, OpenFile, Paste, ResetFontSize, RunTask, Save, SelectAll,
-    ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, XeroApp,
+    AddWorkspace, CloseEditor, CloseStream, CloseWorkspace, CommandPalette, Copy, Cut,
+    DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal,
+    IncreaseFontSize, KeyboardHelp, MoveTabMenu, NewStream, NewTerminal, NextStream, NextTab,
+    NextWorkspace, OpenFile, Paste, PrevStream, PrevTab, PrevWorkspace, ResetFontSize, RunTask,
+    Save, SelectAll, StreamPalette, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
+    ToggleTerminal, XeroApp,
 };
 
 actions!(xero, [Quit]);
 
 fn main() {
     init_logging();
-    application().run(|cx: &mut App| {
+    let paths = parse_cli_paths(std::env::args().skip(1));
+    // Single-instance handoff: a live primary for this data dir takes the paths.
+    if try_handoff(&paths) {
+        return;
+    }
+    let listener = match bind_server() {
+        Ok(l) => Some(l),
+        Err(error) => {
+            // Race: another primary bound first — hand off and exit.
+            if try_handoff(&paths) {
+                return;
+            }
+            log::warn!("ipc bind failed ({error}); continuing without single-instance");
+            None
+        }
+    };
+
+    let boot_paths = paths;
+    application().run(move |cx: &mut App| {
         xero_terminal::init(cx);
         xero_ui::init(cx);
         wire_menus(cx);
@@ -26,9 +48,18 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |window, cx| {
+            move |window, cx| {
                 xero_terminal::observe_appearance(window, cx).detach();
-                cx.new(XeroApp::new)
+                cx.new(move |cx| {
+                    let mut app = XeroApp::new(cx);
+                    if let Some(listener) = listener {
+                        start_ipc(listener, cx);
+                    }
+                    for path in boot_paths {
+                        app.open_cli_path(path, cx);
+                    }
+                    app
+                })
             },
         )
         .unwrap();
@@ -36,13 +67,49 @@ fn main() {
     });
 }
 
-/// Log to `~/.xero/xero.log` (bundled apps have no terminal for stderr), at
-/// info for xero crates. `RUST_LOG` still overrides.
+fn start_ipc(listener: std::os::unix::net::UnixListener, cx: &mut gpui::Context<XeroApp>) {
+    let (tx, rx) = async_channel::unbounded::<IpcRequest>();
+    serve_forever(listener, move |req| {
+        let _ = tx.send_blocking(req);
+    });
+    cx.spawn(async move |app, cx| {
+        while let Ok(req) = rx.recv().await {
+            let result = app.update(cx, |app, cx| match req {
+                IpcRequest::Open { paths } => {
+                    for path in paths {
+                        app.open_cli_path(path, cx);
+                    }
+                }
+                IpcRequest::Activate => {}
+            });
+            if result.is_err() {
+                break;
+            }
+            // Bring the shell forward after an external open request.
+            cx.update(|cx| cx.activate(true));
+        }
+    })
+    .detach();
+}
+
+/// Log under the active data dir (slot-aware via XENON_DATA_DIR / XERO_DATA_DIR),
+/// with fallbacks for early boot. Bundled apps have no terminal for stderr.
+/// `RUST_LOG` still overrides filters.
 fn init_logging() {
-    let home = std::env::var_os("HOME")
+    let dir = std::env::var_os("XENON_DATA_DIR")
+        .or_else(|| std::env::var_os("XERO_DATA_DIR"))
         .map(PathBuf::from)
-        .unwrap_or_default();
-    let dir = home.join(".xero");
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| {
+                let home = PathBuf::from(home);
+                if home.join(".xenon").exists() {
+                    home.join(".xenon")
+                } else {
+                    home.join(".xero")
+                }
+            })
+        })
+        .unwrap_or_else(|| PathBuf::from("."));
     let _ = std::fs::create_dir_all(&dir);
     let mut builder = env_logger::Builder::new();
     builder.parse_filters(
@@ -53,7 +120,7 @@ fn init_logging() {
     if let Ok(file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(dir.join("xero.log"))
+        .open(dir.join("xenon.log"))
     {
         builder.target(env_logger::Target::Pipe(Box::new(file)));
     }
@@ -75,13 +142,17 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("New Stream", NewStream),
             MenuItem::separator(),
             MenuItem::action("Open File…", OpenFile),
-            MenuItem::action("Open Folder…", AddWorkspace),
+            MenuItem::action("Open Workspace…", AddWorkspace),
             MenuItem::action("Go to File…", FilePalette),
+            MenuItem::action("Go to Stream…", StreamPalette),
+            MenuItem::action("Command Palette…", CommandPalette),
             MenuItem::action("Run Task…", RunTask),
             MenuItem::separator(),
             MenuItem::action("Save", Save),
             MenuItem::separator(),
-            MenuItem::action("Close Editor", CloseEditor),
+            MenuItem::action("Close Tab", CloseEditor),
+            MenuItem::action("Close Stream", CloseStream),
+            MenuItem::action("Close Workspace", CloseWorkspace),
         ]),
         Menu::new("Edit").items([
             MenuItem::os_action("Cut", Cut, OsAction::Cut),
@@ -90,12 +161,26 @@ fn wire_menus(cx: &mut App) {
             MenuItem::separator(),
             MenuItem::os_action("Select All", SelectAll, OsAction::SelectAll),
         ]),
-        // View (not Window): we are one window; this is show/hide chrome.
         Menu::new("View").items([
             MenuItem::action("Toggle Sidebar", ToggleSidebar),
             MenuItem::action("Toggle File Browser", ToggleBrowser),
             MenuItem::action("Toggle Terminal", ToggleTerminal),
             MenuItem::action("Toggle Editor", ToggleEditor),
+            MenuItem::separator(),
+            MenuItem::action("Focus Terminal", FocusTerminal),
+            MenuItem::action("Focus Editor", FocusEditor),
+            MenuItem::action("Focus File Tree", FocusBrowser),
+            MenuItem::action("Focus Next Pane", FocusNextPane),
+            MenuItem::separator(),
+            MenuItem::action("Next Stream", NextStream),
+            MenuItem::action("Previous Stream", PrevStream),
+            MenuItem::action("Next Workspace", NextWorkspace),
+            MenuItem::action("Previous Workspace", PrevWorkspace),
+            MenuItem::action("Next Tab", NextTab),
+            MenuItem::action("Previous Tab", PrevTab),
+            MenuItem::action("Move Tab to Stream…", MoveTabMenu),
+            MenuItem::separator(),
+            MenuItem::action("Keyboard Shortcuts", KeyboardHelp),
             MenuItem::separator(),
             MenuItem::action("Zoom In", IncreaseFontSize),
             MenuItem::action("Zoom Out", DecreaseFontSize),

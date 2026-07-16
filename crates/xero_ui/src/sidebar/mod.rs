@@ -2,7 +2,7 @@
 
 use gpui::{
     Context, InteractiveElement, IntoElement, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, Window, div, px,
+    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
@@ -56,11 +56,18 @@ impl XeroApp {
                     .collect(),
             })
             .collect();
-        let closed: Vec<(WorkspaceId, String, String)> = self
+        let closed: Vec<(WorkspaceId, String, String, bool)> = self
             .registry()
             .closed_workspaces
             .iter()
-            .map(|w| (w.id, w.name.clone(), w.root.display().to_string()))
+            .map(|w| {
+                (
+                    w.id,
+                    w.name.clone(),
+                    w.root.display().to_string(),
+                    !crate::workspace_discover::path_is_dir(&w.root),
+                )
+            })
             .collect();
         let closed_collapsed = self.closed_section_collapsed();
 
@@ -89,10 +96,18 @@ impl XeroApp {
         if !closed.is_empty() {
             rows.push(self.closed_title(closed_collapsed, cx).into_any_element());
             if !closed_collapsed {
-                for (id, name, path) in closed {
+                for (id, name, path, missing) in closed {
                     rows.push(
-                        self.closed_workspace_row(id, &name, &path, cx)
-                            .into_any_element(),
+                        self.closed_workspace_row(
+                            ClosedWorkspaceRow {
+                                id,
+                                name: &name,
+                                path: &path,
+                                missing,
+                            },
+                            cx,
+                        )
+                        .into_any_element(),
                     );
                 }
             }
@@ -144,10 +159,11 @@ impl XeroApp {
                     .text_color(colors.text_muted)
                     .child("Workspaces"),
             )
-            .child(self.icon_button(
+            .child(icon_button(
                 "add-workspace",
                 Icon::Plus,
                 colors.clone(),
+                Some("Open Workspace  ⌘⇧O"),
                 cx.listener(|_, _, window, cx| {
                     window.dispatch_action(Box::new(crate::AddWorkspace), cx);
                 }),
@@ -156,21 +172,24 @@ impl XeroApp {
 
     fn closed_title(&self, collapsed: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
+        // Section header: top rule + label style matching "Workspaces", not a list row.
         div()
             .id("closed-section")
             .flex()
             .items_center()
             .gap_1()
-            .h(px(ROW_H))
-            .mt_2()
-            .mx_2()
-            .px_1()
-            .rounded_sm()
+            .h(px(28.))
+            .mt_1()
+            .pt_1()
+            .mx_0()
+            .px_3()
+            .border_t_1()
+            .border_color(colors.border)
             .text_xs()
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.text_muted)
             .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .hover(|s| s.text_color(colors.text))
             .on_click(cx.listener(|this, _, _, cx| this.toggle_closed_section(cx)))
             .child(chevron_slot(collapsed))
             .child("Closed")
@@ -234,13 +253,13 @@ impl XeroApp {
             .into_any_element()
     }
 
-    /// Empty strip under the last workspace: drop here to move to the bottom.
+    /// Thin drop strip under the last open workspace (keeps gap small).
     fn workspace_list_end_drop(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let drop_line = colors.drop_target_border;
         div()
             .id("ws-drop-end")
-            .h(px(14.))
+            .h(px(4.))
             .mx_1()
             .border_t_2()
             .border_color(gpui::transparent_black())
@@ -302,28 +321,31 @@ impl XeroApp {
             .invisible()
             .group_hover(group, |s| s.visible())
             .bg(colors.panel_background)
-            .child(self.icon_button(
+            .child(icon_button(
                 ("ws-rename", id_hash(id.to_string())),
                 Icon::Pencil,
                 colors.clone(),
+                None,
                 cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
                     this.start_rename_workspace(id, cx);
                 }),
             ))
-            .child(self.icon_button(
+            .child(icon_button(
                 ("add-stream", id_hash(id.to_string())),
                 Icon::Plus,
                 colors.clone(),
+                Some("New Stream  ⌘⇧N"),
                 cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
                     this.add_stream(id, cx);
                 }),
             ))
-            .child(self.icon_button(
+            .child(icon_button(
                 ("workspace-close", id_hash(id.to_string())),
                 Icon::X,
                 colors.clone(),
+                None,
                 cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     this.close_workspace(id, window, cx);
@@ -333,14 +355,27 @@ impl XeroApp {
 
     fn closed_workspace_row(
         &self,
-        id: WorkspaceId,
-        name: &str,
-        path: &str,
+        row: ClosedWorkspaceRow<'_>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
+        let ClosedWorkspaceRow {
+            id,
+            name,
+            path,
+            missing,
+        } = row;
         let colors = cx.theme().colors().clone();
         let group = format!("closed-ws-{id}");
-        let path_tip = SharedString::from(path.to_string());
+        let path_tip = SharedString::from(if missing {
+            format!("{path} (missing)")
+        } else {
+            path.to_string()
+        });
+        let label = if missing {
+            format!("{name}  · missing")
+        } else {
+            name.to_string()
+        };
         div()
             .id(("closed-workspace", id_hash(id.to_string())))
             .group(group.clone())
@@ -355,11 +390,14 @@ impl XeroApp {
             .rounded_sm()
             .text_sm()
             .text_color(colors.text_muted)
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .opacity(if missing { 0.45 } else { 1.0 })
+            .when(!missing, |d| {
+                d.cursor_pointer()
+                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+                    .on_click(cx.listener(move |this, _, _, cx| this.reopen_workspace(id, cx)))
+            })
             .tooltip(path_tooltip(path_tip))
-            .on_click(cx.listener(move |this, _, _, cx| this.reopen_workspace(id, cx)))
-            .child(div().min_w_0().flex_1().truncate().child(name.to_string()))
+            .child(div().min_w_0().flex_1().truncate().child(label))
             // Reserve room so absolute remove never covers the name.
             .child(div().flex_none().w(px(22.)))
             .child(
@@ -373,10 +411,11 @@ impl XeroApp {
                     .invisible()
                     .group_hover(group, |s| s.visible())
                     .bg(colors.panel_background)
-                    .child(self.icon_button(
+                    .child(icon_button(
                         ("closed-remove", id_hash(id.to_string())),
                         Icon::X,
                         colors.clone(),
+                        None,
                         cx.listener(move |this, _, _, cx| {
                             cx.stop_propagation();
                             this.remove_closed_workspace(id, cx);
@@ -384,26 +423,38 @@ impl XeroApp {
                     )),
             )
     }
+}
 
-    pub(super) fn icon_button(
-        &self,
-        id: impl Into<gpui::ElementId>,
-        glyph: Icon,
-        colors: theme::ThemeColors,
-        on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
-    ) -> impl IntoElement {
-        div()
-            .id(id)
-            .flex()
-            .items_center()
-            .justify_center()
-            .w(px(20.))
-            .h(px(20.))
-            .rounded_sm()
-            .text_color(colors.text_muted)
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-            .child(icon(glyph, px(ICON_MD)))
-            .on_click(on_click)
+struct ClosedWorkspaceRow<'a> {
+    id: WorkspaceId,
+    name: &'a str,
+    path: &'a str,
+    missing: bool,
+}
+
+pub(super) fn icon_button(
+    id: impl Into<gpui::ElementId>,
+    glyph: Icon,
+    colors: theme::ThemeColors,
+    tip: Option<&str>,
+    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> impl IntoElement {
+    let tip = tip.map(SharedString::from);
+    let btn = div()
+        .id(id)
+        .flex()
+        .items_center()
+        .justify_center()
+        .w(px(20.))
+        .h(px(20.))
+        .rounded_sm()
+        .text_color(colors.text_muted)
+        .cursor_pointer()
+        .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+        .child(icon(glyph, px(ICON_MD)))
+        .on_click(on_click);
+    match tip {
+        Some(text) => btn.tooltip(path_tooltip(text)).into_any_element(),
+        None => btn.into_any_element(),
     }
 }

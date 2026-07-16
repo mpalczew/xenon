@@ -2,18 +2,56 @@
 //! accent underline). Dirty markers on editor chips; exited terminals use
 //! theme status tint (no fake close ✗).
 
+mod menu;
+
 use gpui::{
     App, AppContext, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, Pixels, Point, Render, SharedString, StatefulInteractiveElement, Styled, Window,
-    anchored, deferred, div, px,
+    ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
 
 use crate::{
-    app::{TabContextMenu, TabMove, TabSurface, XeroApp},
+    app::{TabSurface, XeroApp},
     chrome::{self, SelectionPaint},
     preview_icon,
 };
+
+fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
+    div()
+        .absolute()
+        .bottom_0()
+        .left_0()
+        .right_0()
+        .h(px(2.))
+        .bg(paint.accent)
+}
+
+fn dirty_dot(color: gpui::Hsla) -> impl IntoElement {
+    div()
+        .w(px(6.))
+        .h(px(6.))
+        .rounded_full()
+        .bg(color)
+        .flex_none()
+}
+
+fn tab_close(
+    id: impl Into<gpui::ElementId>,
+    group: &str,
+    colors: &theme::ThemeColors,
+    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> impl IntoElement {
+    let group = group.to_string();
+    div()
+        .id(id)
+        .text_xs()
+        .text_color(colors.text_muted)
+        .invisible()
+        .group_hover(group, |s| s.visible())
+        .hover(|s| s.text_color(colors.text))
+        .child("✕")
+        .on_click(on_click)
+}
 
 /// A hover tooltip showing a terminal tab's full (untruncated) title.
 struct TabTooltip {
@@ -313,167 +351,4 @@ impl XeroApp {
             }))
             .child(tab_underline(paint))
     }
-}
-
-impl XeroApp {
-    pub(crate) fn open_tab_menu(
-        &mut self,
-        surface: TabSurface,
-        index: usize,
-        position: Point<Pixels>,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(stream) = self.active_stream() else {
-            return;
-        };
-        self.tab_menu = Some(TabContextMenu {
-            surface,
-            stream,
-            index,
-            position,
-        });
-        cx.stop_propagation();
-        cx.notify();
-    }
-
-    pub(crate) fn dismiss_tab_menu(&mut self, cx: &mut Context<Self>) {
-        if self.tab_menu.take().is_some() {
-            cx.notify();
-        }
-    }
-
-    /// Full-window overlay for the tab move menu, if open.
-    pub(crate) fn render_tab_menu(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> Option<impl IntoElement + use<>> {
-        let menu = self.tab_menu.as_ref()?;
-        let siblings = self.sibling_streams(menu.stream);
-        let colors = cx.theme().colors().clone();
-        let surface = menu.surface;
-        let stream = menu.stream;
-        let index = menu.index;
-        let position = menu.position;
-
-        let mut menu_box = div()
-            .occlude()
-            .flex()
-            .flex_col()
-            .min_w(px(200.))
-            .max_h(px(320.))
-            .rounded_md()
-            .border_1()
-            .border_color(colors.border)
-            .bg(colors.elevated_surface_background)
-            .child(menu_item(
-                "tab-move-new",
-                "Move to New Stream",
-                &colors,
-                cx.listener(move |this, _, window, cx| {
-                    this.dismiss_tab_menu(cx);
-                    match surface {
-                        TabSurface::Terminal => {
-                            this.move_terminal_tab_to_new_stream(stream, index, window, cx)
-                        }
-                        TabSurface::Editor => {
-                            this.move_editor_tab_to_new_stream(stream, index, window, cx)
-                        }
-                    }
-                }),
-            ));
-
-        for (target, name) in siblings {
-            let label = format!("Move to {name}");
-            let id = format!("tab-move-{target}");
-            menu_box = menu_box.child(menu_item(
-                id,
-                label,
-                &colors,
-                cx.listener(move |this, _, window, cx| {
-                    this.dismiss_tab_menu(cx);
-                    let tab = TabMove {
-                        from: stream,
-                        index,
-                        to: target,
-                    };
-                    match surface {
-                        TabSurface::Terminal => this.move_terminal_tab(tab, window, cx),
-                        TabSurface::Editor => this.move_editor_tab(tab, window, cx),
-                    }
-                }),
-            ));
-        }
-
-        Some(
-            div()
-                .absolute()
-                .inset_0()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _, _, cx| this.dismiss_tab_menu(cx)),
-                )
-                .on_mouse_down(
-                    MouseButton::Right,
-                    cx.listener(|this, _, _, cx| this.dismiss_tab_menu(cx)),
-                )
-                .child(deferred(anchored().position(position).child(menu_box)).with_priority(1)),
-        )
-    }
-}
-
-fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
-    div()
-        .absolute()
-        .bottom_0()
-        .left_0()
-        .right_0()
-        .h(px(2.))
-        .bg(paint.accent)
-}
-
-fn dirty_dot(color: gpui::Hsla) -> impl IntoElement {
-    div()
-        .w(px(6.))
-        .h(px(6.))
-        .rounded_full()
-        .bg(color)
-        .flex_none()
-}
-
-fn tab_close(
-    id: impl Into<gpui::ElementId>,
-    group: &str,
-    colors: &theme::ThemeColors,
-    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
-) -> impl IntoElement {
-    let group = group.to_string();
-    div()
-        .id(id)
-        .text_xs()
-        .text_color(colors.text_muted)
-        .invisible()
-        .group_hover(group, |s| s.visible())
-        .hover(|s| s.text_color(colors.text))
-        .child("✕")
-        .on_click(on_click)
-}
-
-fn menu_item(
-    id: impl Into<SharedString>,
-    label: impl Into<SharedString>,
-    colors: &theme::ThemeColors,
-    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
-) -> impl IntoElement {
-    let hover = colors.element_hover;
-    div()
-        .id(id.into())
-        .flex()
-        .items_center()
-        .px_3()
-        .py_1()
-        .text_sm()
-        .cursor_pointer()
-        .hover(move |s| s.bg(hover))
-        .child(label.into())
-        .on_click(on_click)
 }
