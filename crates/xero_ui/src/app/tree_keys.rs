@@ -50,7 +50,7 @@ impl XeroApp {
         let Some(id) = self.active else {
             return Vec::new();
         };
-        let Some(root) = self.stream_root(id) else {
+        let Some(root) = self.workspace_root(id) else {
             return Vec::new();
         };
         self.file_browser.rows(&root, None)
@@ -121,22 +121,17 @@ impl XeroApp {
     ) {
         match id {
             CommandId::NewTerminal => self.new_terminal(window, cx),
-            CommandId::NewStream => self.new_stream(window, cx),
             CommandId::OpenWorkspace => self.add_workspace(window, cx),
             CommandId::OpenFile => self.open_file_dialog(cx),
             CommandId::GoToFile => self.open_palette(window, cx),
             CommandId::RunTask => self.open_task_picker(window, cx),
             CommandId::Save => self.save_active_editor(cx),
             CommandId::CloseFocusedTab => self.close_focused_tab(window, cx),
-            CommandId::CloseStream => self.close_active_stream(window, cx),
             CommandId::CloseWorkspace => self.close_active_workspace(window, cx),
             CommandId::FocusTerminal => self.focus_terminal(window, cx),
             CommandId::FocusEditor => self.focus_editor(window, cx),
             CommandId::FocusBrowser => self.focus_browser(window, cx),
             CommandId::FocusNextPane => self.focus_next_pane(window, cx),
-            CommandId::NextStream => self.next_stream(window, cx),
-            CommandId::PrevStream => self.prev_stream(window, cx),
-            CommandId::StreamPalette => self.open_stream_palette(window, cx),
             CommandId::NextWorkspace => self.next_workspace(window, cx),
             CommandId::PrevWorkspace => self.prev_workspace(window, cx),
             CommandId::NextTab => self.next_tab(window, cx),
@@ -148,7 +143,6 @@ impl XeroApp {
             CommandId::ToggleSettings => self.toggle_settings_window(cx),
             CommandId::CommandPalette => self.open_command_palette(window, cx),
             CommandId::KeyboardHelp => self.open_keyboard_help(window, cx),
-            CommandId::MoveTabMenu => self.open_move_tab_menu(window, cx),
             CommandId::ZoomIn => self.nudge_font_size(1.0, window, cx),
             CommandId::ZoomOut => self.nudge_font_size(-1.0, window, cx),
             CommandId::ZoomReset => self.reset_font_size(window, cx),

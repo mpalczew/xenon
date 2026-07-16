@@ -1,4 +1,4 @@
-//! Keyboard-aware move-tab context menu.
+//! Keyboard-aware tab context menu (close only).
 
 use gpui::{
     Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point,
@@ -6,7 +6,7 @@ use gpui::{
 };
 use theme::ActiveTheme;
 
-use crate::app::{TabContextMenu, TabMove, TabSurface, XeroApp};
+use crate::app::{TabContextMenu, TabSurface, XeroApp};
 
 impl XeroApp {
     pub(crate) fn open_tab_menu(
@@ -16,49 +16,31 @@ impl XeroApp {
         position: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
-        let Some(stream) = self.active_stream() else {
+        if self.active_workspace().is_none() {
             return;
-        };
+        }
         self.tab_menu = Some(TabContextMenu {
             surface,
-            stream,
             index,
             position,
-            selected: 0,
         });
         cx.stop_propagation();
         cx.notify();
     }
 
-    /// Arrow/Enter/Esc for the move-tab menu when open from the keyboard.
+    /// Enter/Esc for the tab menu when open from the keyboard.
     pub(crate) fn on_tab_menu_key(
         &mut self,
         event: &gpui::KeyDownEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let Some(menu) = self.tab_menu.clone() else {
+        if self.tab_menu.is_none() {
             return false;
-        };
-        let siblings = self.sibling_streams(menu.stream);
-        let len = 1 + siblings.len(); // new stream + siblings
+        }
         match event.keystroke.key.as_str() {
             "escape" => {
                 self.dismiss_tab_menu(cx);
-                true
-            }
-            "up" => {
-                if let Some(m) = self.tab_menu.as_mut() {
-                    m.selected = m.selected.saturating_sub(1);
-                }
-                cx.notify();
-                true
-            }
-            "down" => {
-                if let Some(m) = self.tab_menu.as_mut() {
-                    m.selected = (m.selected + 1).min(len.saturating_sub(1));
-                }
-                cx.notify();
                 true
             }
             "enter" => {
@@ -73,29 +55,9 @@ impl XeroApp {
         let Some(menu) = self.tab_menu.take() else {
             return;
         };
-        let siblings = self.sibling_streams(menu.stream);
-        if menu.selected == 0 {
-            match menu.surface {
-                TabSurface::Terminal => {
-                    self.move_terminal_tab_to_new_stream(menu.stream, menu.index, window, cx)
-                }
-                TabSurface::Editor => {
-                    self.move_editor_tab_to_new_stream(menu.stream, menu.index, window, cx)
-                }
-            }
-            return;
-        }
-        let Some((target, _)) = siblings.get(menu.selected - 1) else {
-            return;
-        };
-        let tab = TabMove {
-            from: menu.stream,
-            index: menu.index,
-            to: *target,
-        };
         match menu.surface {
-            TabSurface::Terminal => self.move_terminal_tab(tab, window, cx),
-            TabSurface::Editor => self.move_editor_tab(tab, window, cx),
+            TabSurface::Terminal => self.close_terminal_tab(menu.index, window, cx),
+            TabSurface::Editor => self.close_tab(menu.index, window, cx),
         }
     }
 
@@ -105,71 +67,39 @@ impl XeroApp {
         }
     }
 
-    /// Full-window overlay for the tab move menu, if open.
+    /// Full-window overlay for the tab menu, if open.
     pub(crate) fn render_tab_menu(
         &self,
         cx: &mut Context<Self>,
     ) -> Option<impl IntoElement + use<>> {
         let menu = self.tab_menu.as_ref()?;
-        let siblings = self.sibling_streams(menu.stream);
         let colors = cx.theme().colors().clone();
         let surface = menu.surface;
-        let stream = menu.stream;
         let index = menu.index;
         let position = menu.position;
 
-        let selected = menu.selected;
-        let mut menu_box = div()
+        let menu_box = div()
             .occlude()
             .flex()
             .flex_col()
-            .min_w(px(200.))
-            .max_h(px(320.))
+            .min_w(px(160.))
             .rounded_md()
             .border_1()
             .border_color(colors.border)
             .bg(colors.elevated_surface_background)
             .child(menu_item(
-                "tab-move-new",
-                "Move to New Stream",
+                "tab-close",
+                "Close Tab",
                 &colors,
-                selected == 0,
+                true,
                 cx.listener(move |this, _, window, cx| {
                     this.dismiss_tab_menu(cx);
                     match surface {
-                        TabSurface::Terminal => {
-                            this.move_terminal_tab_to_new_stream(stream, index, window, cx)
-                        }
-                        TabSurface::Editor => {
-                            this.move_editor_tab_to_new_stream(stream, index, window, cx)
-                        }
+                        TabSurface::Terminal => this.close_terminal_tab(index, window, cx),
+                        TabSurface::Editor => this.close_tab(index, window, cx),
                     }
                 }),
             ));
-
-        for (i, (target, name)) in siblings.into_iter().enumerate() {
-            let label = format!("Move to {name}");
-            let id = format!("tab-move-{target}");
-            let row = i + 1;
-            menu_box = menu_box.child(menu_item(
-                id,
-                label,
-                &colors,
-                selected == row,
-                cx.listener(move |this, _, window, cx| {
-                    this.dismiss_tab_menu(cx);
-                    let tab = TabMove {
-                        from: stream,
-                        index,
-                        to: target,
-                    };
-                    match surface {
-                        TabSurface::Terminal => this.move_terminal_tab(tab, window, cx),
-                        TabSurface::Editor => this.move_editor_tab(tab, window, cx),
-                    }
-                }),
-            ));
-        }
 
         Some(
             div()

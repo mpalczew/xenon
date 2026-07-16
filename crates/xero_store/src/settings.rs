@@ -45,6 +45,12 @@ pub struct AppSettings {
     /// Close terminal tabs when the shell process exits.
     #[serde(default)]
     pub terminal_auto_close: TerminalAutoClose,
+    /// Left panel Workspaces section collapsed.
+    #[serde(default)]
+    pub workspaces_collapsed: bool,
+    /// Left panel Files section expanded.
+    #[serde(default = "default_true")]
+    pub files_open: bool,
 }
 
 impl Default for AppSettings {
@@ -62,6 +68,8 @@ impl Default for AppSettings {
             light_theme: default_light_theme(),
             dark_theme: default_dark_theme(),
             terminal_auto_close: TerminalAutoClose::default(),
+            workspaces_collapsed: false,
+            files_open: true,
         }
     }
 }

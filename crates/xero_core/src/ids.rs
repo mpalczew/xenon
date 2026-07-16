@@ -1,5 +1,4 @@
-//! Opaque identifiers for workspaces and streams (UUID v4, serialized as
-//! strings).
+//! Opaque identifiers for workspaces (UUID v4, serialized as strings).
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -36,4 +35,3 @@ macro_rules! id_type {
 }
 
 id_type!(WorkspaceId);
-id_type!(StreamId);

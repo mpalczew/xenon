@@ -1,12 +1,12 @@
 use super::*;
 
 impl XeroApp {
-    /// Add another terminal tab to the active stream.
+    /// Add another terminal tab to the active workspace.
     pub(crate) fn add_terminal(&mut self, cx: &mut Context<Self>) {
         let Some(id) = self.active else {
             return;
         };
-        let Some(root) = self.stream_root(id) else {
+        let Some(root) = self.workspace_root(id) else {
             return;
         };
         let terminal = self.spawn_terminal(root, id, cx);
@@ -24,21 +24,6 @@ impl XeroApp {
         if let Some(terminal) = self.active_terminal() {
             terminal.read(cx).focus_handle(cx).focus(window, cx);
         }
-    }
-
-    /// Cmd-Shift-N / File → New Stream: parallel work unit in active workspace.
-    pub(crate) fn new_stream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let workspace = self
-            .active
-            .and_then(|id| self.workspace_of(id).map(|w| w.id))
-            .or_else(|| self.registry.workspaces.first().map(|w| w.id));
-        let Some(workspace) = workspace else {
-            return;
-        };
-        let Some(id) = self.create_stream(workspace) else {
-            return;
-        };
-        self.select_stream(id, window, cx);
     }
 
     pub(crate) fn terminal_stack(&self) -> Option<&TerminalStack> {
@@ -75,7 +60,7 @@ impl XeroApp {
     }
 
     /// Close a terminal tab and move focus to the terminal that becomes
-    /// active. Closing the last tab collapses the terminal panel.
+    /// active. Closing the last tab leaves an empty panel (⌘N).
     pub(crate) fn close_terminal_tab(
         &mut self,
         index: usize,
@@ -165,7 +150,7 @@ impl XeroApp {
     /// Remove tab at index; returns the survivor to focus, if any.
     fn remove_terminal_at(
         &mut self,
-        id: StreamId,
+        id: WorkspaceId,
         index: usize,
         _cx: &mut Context<Self>,
     ) -> Option<Entity<TerminalView>> {
@@ -175,72 +160,11 @@ impl XeroApp {
         }
         stack.tabs.remove(index);
         if stack.tabs.is_empty() {
-            // Keep the terminal panel open; render shows an empty state (⌘N).
             self.terminals.remove(&id);
             return None;
         }
         fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
         Some(stack.tabs[stack.active].clone())
-    }
-
-    /// Move a terminal tab to another stream in the same workspace, then switch
-    /// to that stream and focus the moved tab.
-    pub(crate) fn move_terminal_tab(
-        &mut self,
-        tab: TabMove,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if tab.from == tab.to || !self.same_workspace(tab.from, tab.to) {
-            return;
-        }
-        let Some(terminal) = self.take_terminal_tab(tab.from, tab.index) else {
-            return;
-        };
-        let stack = self.terminals.entry(tab.to).or_default();
-        stack.tabs.push(terminal.clone());
-        stack.active = stack.tabs.len() - 1;
-        self.terminal_collapsed = false;
-        self.save_layout(tab.to);
-        self.activate_stream(tab.to, cx);
-        self.clear_attention(tab.to, cx);
-        terminal.read(cx).focus_handle(cx).focus(window, cx);
-        cx.notify();
-    }
-
-    pub(crate) fn move_terminal_tab_to_new_stream(
-        &mut self,
-        from: StreamId,
-        index: usize,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(workspace) = self.workspace_of(from).map(|w| w.id) else {
-            return;
-        };
-        let Some(to) = self.create_stream(workspace) else {
-            return;
-        };
-        self.move_terminal_tab(TabMove { from, index, to }, window, cx);
-    }
-
-    fn take_terminal_tab(&mut self, from: StreamId, index: usize) -> Option<Entity<TerminalView>> {
-        let (terminal, emptied) = {
-            let stack = self.terminals.get_mut(&from)?;
-            if index >= stack.tabs.len() {
-                return None;
-            }
-            let terminal = stack.tabs.remove(index);
-            let emptied = stack.tabs.is_empty();
-            if !emptied {
-                fix_active_after_remove(&mut stack.active, index, stack.tabs.len());
-            }
-            (terminal, emptied)
-        };
-        if emptied {
-            self.terminals.remove(&from);
-        }
-        Some(terminal)
     }
 }
 

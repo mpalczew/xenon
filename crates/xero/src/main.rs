@@ -7,12 +7,11 @@ use gpui::{
 use gpui_platform::application;
 use xero_store::{IpcRequest, bind_server, parse_cli_paths, serve_forever, try_handoff};
 use xero_ui::{
-    AddWorkspace, CloseEditor, CloseStream, CloseWorkspace, CommandPalette, Copy, Cut,
-    DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal,
-    IncreaseFontSize, KeyboardHelp, MoveTabMenu, NewStream, NewTerminal, NextStream, NextTab,
-    NextWorkspace, OpenFile, Paste, PrevStream, PrevTab, PrevWorkspace, ResetFontSize, RunTask,
-    Save, SelectAll, StreamPalette, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
-    ToggleTerminal, XeroApp,
+    AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, Cut, DecreaseFontSize,
+    FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, IncreaseFontSize,
+    KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile, Paste, PrevTab, PrevWorkspace,
+    ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser, ToggleEditor, ToggleSettings,
+    ToggleSidebar, ToggleTerminal, XeroApp,
 };
 
 actions!(xero, [Quit]);
@@ -139,19 +138,16 @@ fn wire_menus(cx: &mut App) {
         ]),
         Menu::new("File").items([
             MenuItem::action("New Terminal", NewTerminal),
-            MenuItem::action("New Stream", NewStream),
             MenuItem::separator(),
             MenuItem::action("Open File…", OpenFile),
             MenuItem::action("Open Workspace…", AddWorkspace),
             MenuItem::action("Go to File…", FilePalette),
-            MenuItem::action("Go to Stream…", StreamPalette),
             MenuItem::action("Command Palette…", CommandPalette),
             MenuItem::action("Run Task…", RunTask),
             MenuItem::separator(),
             MenuItem::action("Save", Save),
             MenuItem::separator(),
             MenuItem::action("Close Tab", CloseEditor),
-            MenuItem::action("Close Stream", CloseStream),
             MenuItem::action("Close Workspace", CloseWorkspace),
         ]),
         Menu::new("Edit").items([
@@ -172,13 +168,10 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("Focus File Tree", FocusBrowser),
             MenuItem::action("Focus Next Pane", FocusNextPane),
             MenuItem::separator(),
-            MenuItem::action("Next Stream", NextStream),
-            MenuItem::action("Previous Stream", PrevStream),
             MenuItem::action("Next Workspace", NextWorkspace),
             MenuItem::action("Previous Workspace", PrevWorkspace),
             MenuItem::action("Next Tab", NextTab),
             MenuItem::action("Previous Tab", PrevTab),
-            MenuItem::action("Move Tab to Stream…", MoveTabMenu),
             MenuItem::separator(),
             MenuItem::action("Keyboard Shortcuts", KeyboardHelp),
             MenuItem::separator(),

@@ -3,9 +3,8 @@ use crate::RunTask;
 use crate::Save;
 use crate::resize::ResizeEdge;
 use crate::{
-    CloseStream, CloseWorkspace, CommandPalette, FocusBrowser, FocusEditor, FocusNextPane,
-    FocusTerminal, KeyboardHelp, MoveTabMenu, NextStream, NextTab, NextWorkspace, PrevStream,
-    PrevTab, PrevWorkspace, StreamPalette,
+    CloseWorkspace, CommandPalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal,
+    KeyboardHelp, NextTab, NextWorkspace, PrevTab, PrevWorkspace,
 };
 use gpui::{AnyElement, DragMoveEvent, KeyDownEvent, MouseButton, MouseUpEvent};
 use xero_settings::{Copy, Cut, Paste};
@@ -66,8 +65,8 @@ impl XeroApp {
         if let Some(query) = self.pending_palette_query.take() {
             self.open_palette_with_query(query, window, cx);
         }
-        if let Some(id) = self.pending_stream.take() {
-            self.select_stream(id, window, cx);
+        if let Some(id) = self.pending_workspace.take() {
+            self.select_workspace(id, window, cx);
         }
         if let Some(cmd) = self.pending_command.take() {
             self.run_command(cmd, window, cx);
@@ -115,9 +114,6 @@ impl XeroApp {
             }))
             .on_action(cx.listener(|this, _: &NewTerminal, window, cx| {
                 this.new_terminal(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &NewStream, window, cx| {
-                this.new_stream(window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(
@@ -179,23 +175,11 @@ impl XeroApp {
         .on_action(cx.listener(|this, _: &FocusNextPane, window, cx| {
             this.focus_next_pane(window, cx);
         }))
-        .on_action(cx.listener(|this, _: &NextStream, window, cx| {
-            this.next_stream(window, cx);
-        }))
-        .on_action(cx.listener(|this, _: &PrevStream, window, cx| {
-            this.prev_stream(window, cx);
-        }))
         .on_action(cx.listener(|this, _: &NextWorkspace, window, cx| {
             this.next_workspace(window, cx);
         }))
         .on_action(cx.listener(|this, _: &PrevWorkspace, window, cx| {
             this.prev_workspace(window, cx);
-        }))
-        .on_action(cx.listener(|this, _: &StreamPalette, window, cx| {
-            this.open_stream_palette(window, cx);
-        }))
-        .on_action(cx.listener(|this, _: &CloseStream, window, cx| {
-            this.close_active_stream(window, cx);
         }))
         .on_action(cx.listener(|this, _: &CloseWorkspace, window, cx| {
             this.close_active_workspace(window, cx);
@@ -212,19 +196,14 @@ impl XeroApp {
         .on_action(cx.listener(|this, _: &KeyboardHelp, window, cx| {
             this.open_keyboard_help(window, cx);
         }))
-        .on_action(cx.listener(|this, _: &MoveTabMenu, window, cx| {
-            this.open_move_tab_menu(window, cx);
-        }))
     }
-}
 
-impl XeroApp {
     fn window_title(&self) -> String {
         let mut title = "Xenon".to_string();
-        if let Some(stream) = self.active
-            && let Some(workspace) = self.workspace_of(stream)
+        if let Some(id) = self.active
+            && let Some(workspace) = self.registry.workspace(id)
         {
-            title = format!("Xenon - {} / {}", workspace.name, self.stream_name(stream));
+            title = format!("Xenon - {}", workspace.name);
         }
         let slot = std::env::var("XENON_SLOT")
             .or_else(|_| std::env::var("XERO_SLOT"))
@@ -243,17 +222,6 @@ impl XeroApp {
     ) {
         if matches!(*event.drag(cx), ResizeEdge::Sidebar) {
             self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Sidebar, cx);
-        }
-    }
-
-    fn on_tree_drag(
-        &mut self,
-        event: &DragMoveEvent<ResizeEdge>,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if matches!(*event.drag(cx), ResizeEdge::Tree) {
-            self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Tree, cx);
         }
     }
 
@@ -332,7 +300,7 @@ impl XeroApp {
                 let message = if self.active.is_some() {
                     "Show Terminal or Editor from the toolbar"
                 } else {
-                    "Add a workspace (⌘⇧O), then a stream for each agent"
+                    "Open a workspace (⌘⇧O)"
                 };
                 panel = panel
                     .items_center()
@@ -416,8 +384,6 @@ impl XeroApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let tabs = self.has_editor().then(|| self.render_tab_bar(cx));
-        let tree = self.is_browsing().then(|| self.render_tree_sidebar(cx));
-        let reopen_tree = self.active.is_some() && !self.is_browsing();
         div()
             .flex_1()
             .flex()
@@ -428,22 +394,11 @@ impl XeroApp {
             .children(tabs)
             .child(
                 div()
-                    .relative()
                     .flex()
                     .flex_1()
                     .min_h_0()
                     .min_w_0()
-                    .on_drag_move(cx.listener(Self::on_tree_drag))
-                    .children(tree)
-                    .child(editor_body(active_view, colors))
-                    .children(reopen_tree.then(|| {
-                        crate::resize::col_resize_handle_at(
-                            "tree-reopen",
-                            ResizeEdge::Tree,
-                            colors.border,
-                            crate::resize::HandleSide::Left,
-                        )
-                    })),
+                    .child(editor_body(active_view, colors)),
             )
     }
 }

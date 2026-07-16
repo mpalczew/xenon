@@ -1,20 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::{Backing, Layout, Registry, SessionState, Stream, WorkspaceRec};
+use crate::{Layout, Registry, SessionState, WorkspaceRec};
 
 #[test]
 fn workspace_name_from_root() {
     let ws = WorkspaceRec::new(PathBuf::from("/Users/me/src/xero"));
     assert_eq!(ws.name, "xero");
-    assert!(ws.streams.is_empty());
-}
-
-#[test]
-fn stream_working_dir_is_checkout_root() {
-    let stream = Stream::new("main");
-    let root = Path::new("/Users/me/src/xero");
-    assert_eq!(stream.working_dir(root), root.to_path_buf());
-    assert_eq!(stream.backing, Backing::Checkout);
 }
 
 #[test]
@@ -69,9 +60,7 @@ fn old_layout_json_without_widths_uses_defaults() {
 #[test]
 fn registry_round_trips_through_json() {
     let mut registry = Registry::default();
-    let mut ws = WorkspaceRec::new(PathBuf::from("/tmp/proj"));
-    let stream = Stream::new("fix-ci");
-    ws.streams.push(stream.id);
+    let ws = WorkspaceRec::new(PathBuf::from("/tmp/proj"));
     registry.workspaces.push(ws);
 
     let json = serde_json::to_string_pretty(&registry).unwrap();
@@ -93,6 +82,27 @@ fn old_registry_json_defaults_closed_workspaces() {
 }
 
 #[test]
+fn registry_ignores_legacy_streams_field() {
+    let json = r#"{
+  "version": 1,
+  "workspaces": [{
+    "id": "00000000-0000-4000-8000-000000000001",
+    "name": "proj",
+    "root": "/tmp/proj",
+    "streams": ["00000000-0000-4000-8000-000000000002"]
+  }],
+  "active": {
+    "workspace": "00000000-0000-4000-8000-000000000001",
+    "stream": "00000000-0000-4000-8000-000000000002"
+  }
+}"#;
+    let parsed: Registry = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.workspaces.len(), 1);
+    assert_eq!(parsed.workspaces[0].name, "proj");
+    assert!(parsed.active.is_some());
+}
+
+#[test]
 fn registry_preserves_closed_workspaces() {
     let mut registry = Registry::default();
     registry
@@ -106,15 +116,9 @@ fn registry_preserves_closed_workspaces() {
 }
 
 #[test]
-fn stream_round_trips_through_json() {
-    let stream = Stream::new("main");
-    let json = serde_json::to_string(&stream).unwrap();
-    let parsed: Stream = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed, stream);
-}
-
-#[test]
-fn checkout_backing_serializes_with_kind_tag() {
-    let json = serde_json::to_string(&Backing::Checkout).unwrap();
-    assert_eq!(json, r#"{"kind":"checkout"}"#);
+fn session_round_trips_through_json() {
+    let session = SessionState::default();
+    let json = serde_json::to_string(&session).unwrap();
+    let parsed: SessionState = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed, session);
 }

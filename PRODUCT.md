@@ -20,8 +20,8 @@ onto an editor. Not a vendor-locked agent UI.
 Started from frustration with available options. Author stack shift: left
 Cursor+auto and VS Code+Claude extension for this shell plus mostly Grok, some
 Kimi, some Claude. Cursor-like agent layout is close in spirit, but locked to
-one harness and heavier. Terminal multiplexers have no stream/project model.
-This is the missing layer: multi-stream, any terminal harness, instant feel.
+one harness and heavier. Terminal multiplexers have no workspace/project model.
+This is the missing layer: multi-workspace, any terminal harness, instant feel.
 
 ## Category (how we talk about it)
 
@@ -81,15 +81,15 @@ Marketing that is true: **the anti-IDE for people who run agents.**
 > Run several agent-driven workstreams in parallel without losing track of
 > which agent is where, what it is waiting on, and what I still own.
 
-How that shows up in the UI: active stream, active terminal/editor, attention
-when an agent needs you, dirty buffers. **Today attention/status is incomplete
-and has real technical hurdles; it does not work well enough yet.** It is still
-central: when it works, it directly helps real daily work.
+How that shows up in the UI: active workspace, active terminal/editor tab,
+attention when an agent needs you, dirty buffers. **Today attention/status is
+incomplete and has real technical hurdles; it does not work well enough yet.**
+It is still central: when it works, it directly helps real daily work.
 
 ## Product model
 
-- **Workspace** = project / checkout root.
-- **Stream** = unit of work: terminal(s) + editor(s) + layout session.
+- **Workspace** = project / checkout root + saved session (layout, tabs).
+- **Tabs** = terminals and editors inside a workspace (the multi-surface).
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special
   config for a default Claude install. Not a deep multi-provider control plane
   (yet); the vision is the shell, not reimplementing every harness UI.
@@ -98,9 +98,10 @@ central: when it works, it directly helps real daily work.
 
 ## Differentiators
 
-1. **Multi-agent, multi-workspace, multi-harness (via PTY)** as the core model
-   (streams), not a bolt-on chat panel. Closest analogue: Cursor agent view,
-   but you can switch harnesses freely.
+1. **Multi-agent, multi-workspace, multi-harness (via PTY)** as the core model,
+   not a bolt-on chat panel. Parallel agents live as terminal tabs and/or
+   separate workspaces. Closest analogue: Cursor agent view, but you can switch
+   harnesses freely.
 2. **Session continuity with the real CLI.** Agents run in a real terminal.
    Start Claude (or Grok, Kimi, …) in Xenon, continue the same session in
    Terminal.app / another host / another machine that has the harness. The
@@ -133,7 +134,7 @@ Market this: **anti-IDE shell where the agent is free to leave.**
 
 | People use today | Gap xero fills |
 |------------------|----------------|
-| Many terminal tabs / tmux | No stream/workspace model; weak editor; no attention model |
+| Many terminal tabs / tmux | No workspace model; weak editor; no attention model |
 | Cursor / Studio / VS Code AI | Strong single-flow agent UX; often one harness; heavier feel |
 | Multiple IDE windows | Context soup; slow context switch |
 
@@ -172,7 +173,7 @@ product surface (trust defaults + personality pack); see AIPM
 
 - **Option 2 now:** selection language, elevation, shared chrome primitives,
   theme-aware attention, consistent icons.
-- **Option 3-lite:** agent-cockpit bias (stream attention, terminal status,
+- **Option 3-lite:** agent-cockpit bias (workspace attention, terminal status,
   cool density) without a full IA rewrite yet.
 - **Default dark:** real elevation (not pure void as the trust default).
 - **True Black:** opt-in pure black; selection must stay multi-channel.
@@ -189,12 +190,13 @@ product surface (trust defaults + personality pack); see AIPM
 
 ## Strategic design principles
 
-1. **Status is never optional.** Active stream, active tab, attention, dirty:
+1. **Status is never optional.** Active workspace, active tab, attention, dirty:
    multi-channel (fill + type and/or indicator). Invest until this is reliable.
 2. **Speed is product.** Instant feedback over choreography.
-3. **Streams are the unit of work.** Chrome reinforces that hierarchy.
+3. **Workspaces are the unit of work.** Chrome reinforces that hierarchy; tabs
+   are the multi-surface inside a workspace.
 4. **Shell first, IDE bones second.** Tabs / tree / cmd-p stay familiar; the
-   multi-stream agent cockpit is the new idea.
+   multi-workspace agent cockpit is the new idea.
 5. **Themes must not break structure.** Elevation and selection survive every
    bundled theme, including True Black.
 6. **Empty states teach once.** Short power-user copy; no forced tours.
@@ -216,5 +218,5 @@ product surface (trust defaults + personality pack); see AIPM
 
 - Full collaborative cloud IDE.
 - Replacing every agent harness's own UI.
-- Full Option 3 stream-rail redesign until Option 2 chrome system exists.
+- Full Option 3 agent-rail redesign until Option 2 chrome system exists.
 - Deep multi-provider control plane (shell stays primary).

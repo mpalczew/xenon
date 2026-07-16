@@ -1,4 +1,4 @@
-//! `RenameView`: a one-line inline text field for renaming a stream or
+//! `RenameView`: a one-line inline text field for renaming a workspace or
 //! workspace. Emits `RenameEvent` back to `XeroApp`. Same `EntityInputHandler`
 //! + registrar-canvas pattern as the finder/editor/terminal.
 

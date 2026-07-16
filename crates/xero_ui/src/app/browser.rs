@@ -1,8 +1,7 @@
 use super::*;
 
 impl XeroApp {
-    /// Whether the file-tree sidebar is open (a collapsible sidebar beside the
-    /// editor, toggled by the toolbar/tab-bar buttons and cmd-e).
+    /// Whether the file tree is shown in the workspace panel (⌘E).
     pub(crate) fn is_browsing(&self) -> bool {
         self.active.is_some() && self.file_browser.is_open()
     }
@@ -10,6 +9,8 @@ impl XeroApp {
     pub(crate) fn toggle_browser(&mut self, cx: &mut Context<Self>) {
         if self.file_browser.is_open() {
             self.file_browser.close();
+            self.browser_focused = false;
+            persist_section_prefs(self.workspaces_collapsed, false);
             cx.notify();
             return;
         }
@@ -17,9 +18,11 @@ impl XeroApp {
     }
 
     pub(super) fn show_browser(&mut self, cx: &mut Context<Self>) {
+        // Tree lives in the left workspace panel — ensure the panel is open.
+        self.sidebar_collapsed = false;
         if !self.reveal_active_file(cx) {
             self.file_browser.open();
-            self.editor_collapsed = false;
+            persist_section_prefs(self.workspaces_collapsed, true);
             if let Some(id) = self.active {
                 self.save_layout(id);
             }
@@ -32,7 +35,7 @@ impl XeroApp {
             return false;
         };
         let path = view.read(cx).path().to_path_buf();
-        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+        let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return false;
         };
         if let Some(parent) = path.parent() {
@@ -47,87 +50,90 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// The file-tree sidebar: a header naming the workspace, then a lazy,
-    /// expandable tree rooted at the active stream's working dir.
-    pub(super) fn render_tree_sidebar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let colors = cx.theme().colors().clone();
+    /// Files section in the workspace panel (header always; tree when expanded).
+    pub(crate) fn render_files_section(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        if !self.is_browsing() {
+            return self.files_section_header(true, cx).into_any_element();
+        }
         let Some(id) = self.active else {
             return div().into_any_element();
         };
-        let Some(root) = self.stream_root(id) else {
+        let Some(root) = self.workspace_root(id) else {
             return div().into_any_element();
         };
-        let workspace = self
-            .workspace_of(id)
-            .map(|w| w.name.clone())
-            .unwrap_or_default();
         let open_file = self
             .active_editor()
             .map(|view| view.read(cx).path().to_path_buf());
         let rows = self.file_browser.rows(&root, open_file.as_deref());
 
-        let header = div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(colors.border)
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(colors.text_muted)
-                    .truncate()
-                    .child(workspace.to_uppercase()),
-            )
-            .child(
-                div()
-                    .id("tree-collapse")
-                    .w(px(22.))
-                    .h(px(22.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded_sm()
-                    .text_color(colors.text_muted)
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                    .child("x")
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx))),
-            );
-
         div()
-            .relative()
-            .w(px(self.tree_width_px()))
-            .flex_none()
+            .id("workspace-tree")
+            .flex_1()
+            .min_h_0()
             .flex()
             .flex_col()
-            .min_h_0()
             .min_w_0()
-            .border_r_1()
-            .border_color(colors.border)
-            .bg(colors.panel_background)
-            .child(header)
+            .child(self.files_section_header(false, cx))
             .child(
                 div()
                     .id("browser")
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .py_2()
+                    .py_1()
                     .children(
                         rows.into_iter()
                             .enumerate()
                             .map(|(i, row)| self.tree_row(i, row, cx)),
                     ),
             )
-            .child(crate::resize::col_resize_handle(
-                "tree-resize",
-                crate::resize::ResizeEdge::Tree,
-                colors.border,
-            ))
             .into_any_element()
+    }
+
+    fn files_section_header(
+        &self,
+        collapsed: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let chevron = if collapsed {
+            lucide_icons::Icon::ChevronRight
+        } else {
+            lucide_icons::Icon::ChevronDown
+        };
+        let border = if self.browser_focused && !collapsed {
+            colors.border_focused
+        } else {
+            colors.border
+        };
+        div()
+            .id("files-section-header")
+            .flex()
+            .items_center()
+            .gap_1()
+            .h(px(28.))
+            .px_2()
+            .border_t_1()
+            .border_color(border)
+            .cursor_pointer()
+            .hover(|s| s.text_color(colors.text))
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx)))
+            .child(
+                div()
+                    .w(px(14.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(colors.text_muted)
+                    .child(crate::icons::icon(chevron, px(12.))),
+            )
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(colors.text_muted)
+                    .child("Files"),
+            )
     }
 
     fn tree_row(&self, index: usize, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -206,7 +212,7 @@ impl XeroApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+        let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return;
         };
         self.task_picker = None;
@@ -230,13 +236,13 @@ impl XeroApp {
         match event {
             FinderEvent::Selected(relative) => {
                 self.restore_pane = None; // open_editor focuses the editor itself
-                if let Some(root) = self.active.and_then(|id| self.stream_root(id)) {
+                if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
                     self.open_editor(root.join(relative), true, cx);
                 }
             }
             FinderEvent::RevealDir(relative) => {
                 self.restore_pane = None;
-                if let Some(root) = self.active.and_then(|id| self.stream_root(id)) {
+                if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
                     self.reveal_dir(&root, &root.join(relative), cx);
                 }
             }
@@ -257,8 +263,9 @@ impl XeroApp {
         dir: &std::path::Path,
         cx: &mut Context<Self>,
     ) {
+        self.sidebar_collapsed = false;
         self.file_browser.reveal_dir(root, dir);
-        self.editor_collapsed = false;
+        persist_section_prefs(self.workspaces_collapsed, self.file_browser.is_open());
         if let Some(id) = self.active {
             self.save_layout(id);
         }

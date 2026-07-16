@@ -7,10 +7,9 @@ use super::*;
 pub(super) enum DirtyClose {
     /// Drop one tab (path-keyed; index may have moved).
     Tab {
-        stream: StreamId,
+        workspace: WorkspaceId,
         path: PathBuf,
     },
-    Stream(StreamId),
     Workspace(WorkspaceId),
 }
 
@@ -42,25 +41,13 @@ impl XeroApp {
                 name: tab.name.clone(),
                 view: tab.view.clone(),
             }],
-            DirtyClose::Tab { stream: id, path },
+            DirtyClose::Tab {
+                workspace: id,
+                path,
+            },
             window,
             cx,
         );
-    }
-
-    /// Close stream after confirming any dirty editors in it. Refuses last stream.
-    pub(crate) fn close_stream(
-        &mut self,
-        id: StreamId,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let dirty = self.dirty_tabs_in_streams(std::slice::from_ref(&id), cx);
-        if dirty.is_empty() {
-            self.force_close_stream(id, Some(window), cx);
-            return;
-        }
-        self.prompt_unsaved(dirty, DirtyClose::Stream(id), window, cx);
     }
 
     /// Close workspace after confirming dirty editors (Save All / Don't Save / Cancel).
@@ -70,14 +57,7 @@ impl XeroApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let streams: Vec<StreamId> = self
-            .registry
-            .workspaces
-            .iter()
-            .find(|w| w.id == id)
-            .map(|w| w.streams.clone())
-            .unwrap_or_default();
-        let dirty = self.dirty_tabs_in_streams(&streams, cx);
+        let dirty = self.dirty_tabs_in_workspace(id, cx);
         if dirty.is_empty() {
             self.force_close_workspace(id, Some(window), cx);
             return;
@@ -85,19 +65,17 @@ impl XeroApp {
         self.prompt_unsaved(dirty, DirtyClose::Workspace(id), window, cx);
     }
 
-    fn dirty_tabs_in_streams(&self, streams: &[StreamId], cx: &App) -> Vec<DirtyTab> {
+    fn dirty_tabs_in_workspace(&self, id: WorkspaceId, cx: &App) -> Vec<DirtyTab> {
         let mut out = Vec::new();
-        for &id in streams {
-            let Some(stack) = self.editors.get(&id) else {
-                continue;
-            };
-            for tab in &stack.tabs {
-                if tab.view.read(cx).is_dirty() {
-                    out.push(DirtyTab {
-                        name: tab.name.clone(),
-                        view: tab.view.clone(),
-                    });
-                }
+        let Some(stack) = self.editors.get(&id) else {
+            return out;
+        };
+        for tab in &stack.tabs {
+            if tab.view.read(cx).is_dirty() {
+                out.push(DirtyTab {
+                    name: tab.name.clone(),
+                    view: tab.view.clone(),
+                });
             }
         }
         out
@@ -139,10 +117,9 @@ impl XeroApp {
 
     fn finish_dirty_close(&mut self, after: DirtyClose, cx: &mut Context<Self>) {
         match after {
-            DirtyClose::Tab { stream, path } => {
-                self.drop_editor_tab_by_path(stream, &path, cx);
+            DirtyClose::Tab { workspace, path } => {
+                self.drop_editor_tab_by_path(workspace, &path, cx);
             }
-            DirtyClose::Stream(id) => self.force_close_stream(id, None, cx),
             DirtyClose::Workspace(id) => self.force_close_workspace(id, None, cx),
         }
     }

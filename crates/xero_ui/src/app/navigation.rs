@@ -29,7 +29,7 @@ impl XeroApp {
     /// it the index so results appear without the user retyping.
     fn install_index(&mut self, root: PathBuf, index: Arc<FileIndex>, cx: &mut Context<Self>) {
         self.index_tasks.remove(&root);
-        if self.active.and_then(|id| self.stream_root(id)).as_ref() == Some(&root)
+        if self.active.and_then(|id| self.workspace_root(id)).as_ref() == Some(&root)
             && let Some(finder) = &self.finder
         {
             finder.update(cx, |finder, cx| finder.set_index(index.clone(), cx));
@@ -57,7 +57,7 @@ impl XeroApp {
         }
     }
 
-    /// Return keyboard focus to `pane` (the terminal or editor of the active stream).
+    /// Return keyboard focus to `pane` (the terminal or editor of the active workspace).
     pub(super) fn focus_pane(
         &mut self,
         pane: FocusPane,

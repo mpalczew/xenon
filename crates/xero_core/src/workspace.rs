@@ -4,16 +4,15 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{StreamId, WorkspaceId};
+use crate::ids::WorkspaceId;
 
-/// A registered project folder and the ids of its streams. Session details for
-/// each stream live in their own files (see `xero_store`).
+/// A registered project folder. Session details live in their own files
+/// (see `xero_store`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceRec {
     pub id: WorkspaceId,
     pub name: String,
     pub root: PathBuf,
-    pub streams: Vec<StreamId>,
 }
 
 impl WorkspaceRec {
@@ -28,12 +27,11 @@ impl WorkspaceRec {
             id: WorkspaceId::new(),
             name,
             root,
-            streams: Vec::new(),
         }
     }
 }
 
-/// The root persisted record (backs `~/.xero/workspaces.json`).
+/// The root persisted record (backs `~/.xenon/workspaces.json`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Registry {
     #[serde(default = "current_version")]
@@ -57,14 +55,13 @@ impl Default for Registry {
     }
 }
 
-/// Which workspace/stream was focused when the app last closed.
+/// Which workspace was focused when the app last closed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Active {
     pub workspace: WorkspaceId,
-    pub stream: StreamId,
 }
 
-pub const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 2;
 
 fn current_version() -> u32 {
     CURRENT_VERSION

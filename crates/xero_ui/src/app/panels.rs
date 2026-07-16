@@ -16,14 +16,13 @@ impl XeroApp {
         !self.editor_collapsed && self.active.is_some()
     }
 
-    /// Active workspace / stream label for the toolbar breadcrumb.
+    /// Active workspace label for the toolbar breadcrumb.
     pub(crate) fn breadcrumb_label(&self) -> Option<String> {
-        let stream = self.active?;
-        let workspace = self.workspace_of(stream)?;
-        Some(format!("{} / {}", workspace.name, self.stream_name(stream)))
+        let id = self.active?;
+        self.registry.workspace(id).map(|w| w.name.clone())
     }
 
-    /// Live visibility + widths as a `Layout` (template for new streams).
+    /// Live visibility + widths as a `Layout`.
     pub(super) fn current_layout(&self) -> Layout {
         Layout {
             terminal_visible: !self.terminal_collapsed,
@@ -36,17 +35,12 @@ impl XeroApp {
         .clamp_widths()
     }
 
-    /// Write live layout into the stream session and save.
-    pub(super) fn save_layout(&mut self, id: StreamId) {
+    /// Write live layout into the workspace session and save.
+    pub(super) fn save_layout(&mut self, id: WorkspaceId) {
         let layout = self.current_layout();
-        if let Some(stream) = self.streams.get_mut(&id) {
-            stream.session.layout = layout;
-        }
-        if self.streams.contains_key(&id)
-            && let Some(workspace) = self.workspace_of(id).map(|w| w.id)
-        {
-            save_session(workspace, &self.streams[&id], "save_layout");
-        }
+        let session = self.sessions.entry(id).or_default();
+        session.layout = layout;
+        save_session(id, session, "save_layout");
     }
 
     /// Apply a stored layout to the live chrome fields.
@@ -90,12 +84,12 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// Ensure the active stream has a live terminal tab (no focus change).
+    /// Ensure the active workspace has a live terminal tab (no focus change).
     pub(super) fn ensure_terminal(&mut self, cx: &mut Context<Self>) {
         let id = self.active;
         if let Some(id) = id
             && !self.terminals.contains_key(&id)
-            && let Some(root) = self.stream_root(id)
+            && let Some(root) = self.workspace_root(id)
         {
             let terminal = self.spawn_terminal(root, id, cx);
             self.terminals.insert(
@@ -123,7 +117,6 @@ impl XeroApp {
                 let reopened = self.reopen_for_edge(edge, cx);
                 let changed = match edge {
                     ResizeEdge::Sidebar => set_if_changed(&mut self.sidebar_width, width),
-                    ResizeEdge::Tree => set_if_changed(&mut self.tree_width, width),
                     ResizeEdge::Terminal => set_if_changed(&mut self.terminal_width, width),
                 };
                 if changed || reopened {
@@ -141,10 +134,6 @@ impl XeroApp {
         match edge {
             ResizeEdge::Sidebar if self.sidebar_collapsed => {
                 self.sidebar_collapsed = false;
-                true
-            }
-            ResizeEdge::Tree if !self.file_browser.is_open() => {
-                self.file_browser.open();
                 true
             }
             ResizeEdge::Terminal => {
@@ -169,10 +158,6 @@ impl XeroApp {
         let closed = match edge {
             ResizeEdge::Sidebar if !self.sidebar_collapsed => {
                 self.sidebar_collapsed = true;
-                true
-            }
-            ResizeEdge::Tree if self.file_browser.is_open() => {
-                self.file_browser.close();
                 true
             }
             ResizeEdge::Terminal if !self.terminal_collapsed => {
@@ -209,10 +194,6 @@ impl XeroApp {
 
     pub(crate) fn sidebar_width_px(&self) -> f32 {
         xero_core::clamp_sidebar(self.sidebar_width)
-    }
-
-    pub(crate) fn tree_width_px(&self) -> f32 {
-        xero_core::clamp_tree(self.tree_width)
     }
 
     pub(crate) fn terminal_width_px(&self) -> f32 {

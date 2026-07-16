@@ -11,8 +11,7 @@ use crate::app::XeroApp;
 use crate::chrome::list_selection;
 use crate::icons::icon;
 use crate::{
-    FilePalette, RunTask, Save, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
-    ToggleTerminal,
+    FilePalette, RunTask, Save, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
 };
 
 const ICON: f32 = 14.;
@@ -65,17 +64,6 @@ impl XeroApp {
                     label: "Editor Panel",
                     active: self.editor_visible(),
                     action: Box::new(ToggleEditor),
-                },
-                cx,
-            ))
-            .child(toolbar_sep(cx))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-tree",
-                    glyph: Icon::FolderTree,
-                    label: "File Tree · ⌘E",
-                    active: self.is_browsing(),
-                    action: Box::new(ToggleBrowser),
                 },
                 cx,
             ))
@@ -195,11 +183,6 @@ fn tool_button(button: ToolButton, cx: &mut Context<XeroApp>) -> impl IntoElemen
         .on_click(move |_, window: &mut Window, cx| {
             window.dispatch_action(boxed.boxed_clone(), cx);
         })
-}
-
-fn toolbar_sep(cx: &mut Context<XeroApp>) -> impl IntoElement + use<> {
-    let colors = cx.theme().colors().clone();
-    div().w(px(1.)).h(px(16.)).mx_1().bg(colors.border)
 }
 
 struct ToolbarTooltip {

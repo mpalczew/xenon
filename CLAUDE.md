@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 xero: a macOS IDE for driving coding agents, built in Rust on GPUI (zed's UI
-framework). Left sidebar of workspaces each holding multiple "streams of work"
-(terminal + editors + layout sessions); main panel is an embedded terminal
-optionally split with tree-sitter-highlighted editors. License: GPL-3.0.
+framework). Left sidebar of workspaces; main panel is an embedded terminal
+optionally split with tree-sitter-highlighted editors (tabs per workspace).
+License: GPL-3.0.
 
 **Product vision (source of truth: `PRODUCT.md`):** native macOS **agent shell**
 (**anti-IDE**) for many agents across workspaces, any terminal harness
@@ -48,11 +48,10 @@ Personas: AIPM `projects/xero/personas`.
 
 Crates under `crates/`:
 - `xero` — bin: gpui `Application`, window, quit/menu wiring.
-- `xero_ui` — the app shell: `XeroApp` root view (collapsible workspace sidebar,
-  terminal/editor main panel, cmd-p finder, Run Task palette), keybindings.
-- `xero_core` — pure data model (Workspace/Stream/SessionState). `Stream::
-  working_dir()` is the seam that keeps worktree-backed streams a future additive
-  change; `Backing` is a serde-tagged enum for the same reason.
+- `xero_ui` — the app shell: `XeroApp` root view (workspace sidebar, terminal/
+  editor main panel with tabs, cmd-p finder, Run Task palette), keybindings.
+- `xero_core` — pure data model (Workspace/SessionState). Session layout + open
+  editors are keyed by workspace; tabs (terminals + editors) are the multi-surface.
 - `xero_store` — JSON persistence under `~/.xero` (atomic writes, corrupt-file
   backup). `XERO_DATA_DIR` overrides the location (used by tests).
 - `xero_terminal` — zed terminal backend + adapted `TerminalElement`; `init()`
@@ -66,7 +65,7 @@ Crates under `crates/`:
   that lets agents open files in xero. Protocol captured in
   `crates/xero_ide/PROTOCOL.md`.
 - Project commands: shell tasks in `.vscode/tasks.json` (Run Task palette
-  cmd-shift-r injects into the stream terminal; `project <label>` from any shell).
+  cmd-shift-r injects into the workspace terminal; `project <label>` from any shell).
 
 Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
 an `EntityInputHandler` registered during paint (`window.handle_input`), NOT

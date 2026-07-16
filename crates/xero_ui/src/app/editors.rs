@@ -21,7 +21,7 @@ impl XeroApp {
 
     pub(crate) fn open_editor(&mut self, path: PathBuf, focus: bool, cx: &mut Context<Self>) {
         let Some(id) = self.active else {
-            log::warn!("open_editor: no active stream for {}", path.display());
+            log::warn!("open_editor: no active workspace for {}", path.display());
             return;
         };
         self.editor_collapsed = false;
@@ -49,7 +49,7 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// The open tabs and focused index for the active stream.
+    /// The open tabs and focused index for the active workspace.
     pub(crate) fn editor_stack(&self) -> Option<&EditorStack> {
         self.active.and_then(|id| self.editors.get(&id))
     }
@@ -83,7 +83,7 @@ impl XeroApp {
 
     pub(super) fn drop_editor_tab_by_path(
         &mut self,
-        id: StreamId,
+        id: WorkspaceId,
         path: &Path,
         cx: &mut Context<Self>,
     ) {
@@ -97,7 +97,12 @@ impl XeroApp {
     }
 
     /// Close the tab at `index` with no dirty check (after save/discard).
-    pub(super) fn drop_editor_tab(&mut self, id: StreamId, index: usize, cx: &mut Context<Self>) {
+    pub(super) fn drop_editor_tab(
+        &mut self,
+        id: WorkspaceId,
+        index: usize,
+        cx: &mut Context<Self>,
+    ) {
         let Some(stack) = self.editors.get_mut(&id) else {
             return;
         };
@@ -115,76 +120,6 @@ impl XeroApp {
             fix_editor_active_after_remove(&mut stack.active, index, stack.tabs.len());
         }
         cx.notify();
-    }
-
-    /// Move an editor tab to another stream in the same workspace. If the dest
-    /// already has that path open, focus the existing tab and drop the moved one.
-    pub(crate) fn move_editor_tab(
-        &mut self,
-        tab: TabMove,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if tab.from == tab.to || !self.same_workspace(tab.from, tab.to) {
-            return;
-        }
-        let Some(editor_tab) = self.take_editor_tab(tab.from, tab.index) else {
-            return;
-        };
-        let stack = self.editors.entry(tab.to).or_default();
-        if let Some(existing) = stack.tabs.iter().position(|t| t.path == editor_tab.path) {
-            stack.active = existing;
-            // `editor_tab` drops: duplicate path at dest keeps the open view.
-        } else {
-            stack.tabs.push(editor_tab);
-            stack.active = stack.tabs.len() - 1;
-        }
-        self.editor_collapsed = false;
-        self.save_layout(tab.to);
-        self.activate_stream(tab.to, cx);
-        if let Some(editor) = self.active_editor() {
-            editor.read(cx).focus_handle(cx).focus(window, cx);
-        }
-        cx.notify();
-    }
-
-    pub(crate) fn move_editor_tab_to_new_stream(
-        &mut self,
-        from: StreamId,
-        index: usize,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(workspace) = self.workspace_of(from).map(|w| w.id) else {
-            return;
-        };
-        let Some(to) = self.create_stream(workspace) else {
-            return;
-        };
-        self.move_editor_tab(TabMove { from, index, to }, window, cx);
-    }
-
-    fn take_editor_tab(&mut self, from: StreamId, index: usize) -> Option<EditorTab> {
-        let (tab, emptied) = {
-            let stack = self.editors.get_mut(&from)?;
-            if index >= stack.tabs.len() {
-                return None;
-            }
-            let tab = stack.tabs.remove(index);
-            let emptied = stack.tabs.is_empty();
-            if !emptied {
-                fix_editor_active_after_remove(&mut stack.active, index, stack.tabs.len());
-            }
-            (tab, emptied)
-        };
-        if emptied {
-            self.editors.remove(&from);
-            if self.active == Some(from) {
-                self.editor_collapsed = true;
-                self.save_layout(from);
-            }
-        }
-        Some(tab)
     }
 
     pub(crate) fn save_active_editor(&self, cx: &mut Context<Self>) {

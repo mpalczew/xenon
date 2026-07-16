@@ -1,4 +1,4 @@
-//! Keyboard-first navigation: pane focus, stream/workspace cycle, tabs, closes.
+//! Keyboard-first navigation: pane focus, workspace cycle, tabs, closes.
 
 use super::*;
 use xero_core::WorkspaceId;
@@ -33,9 +33,9 @@ impl XeroApp {
         cx.notify();
     }
 
-    /// Focus the file tree (opens browser; keys route while `browser_focused`).
+    /// Focus the file tree in the workspace panel (opens it if needed).
     pub(super) fn focus_browser(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.editor_collapsed = false;
+        self.sidebar_collapsed = false;
         if !self.file_browser.is_open() {
             self.show_browser(cx);
         }
@@ -90,37 +90,6 @@ impl XeroApp {
         }
     }
 
-    /// All streams in open workspaces (sidebar order).
-    pub(super) fn ordered_streams(&self) -> Vec<StreamId> {
-        self.registry
-            .workspaces
-            .iter()
-            .flat_map(|w| w.streams.iter().copied())
-            .collect()
-    }
-
-    pub(super) fn next_stream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.step_stream(1, window, cx);
-    }
-
-    pub(super) fn prev_stream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.step_stream(-1, window, cx);
-    }
-
-    fn step_stream(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
-        let streams = self.ordered_streams();
-        if streams.is_empty() {
-            return;
-        }
-        let cur = self
-            .active
-            .and_then(|id| streams.iter().position(|&s| s == id))
-            .unwrap_or(0);
-        let len = streams.len() as isize;
-        let next = (cur as isize + delta).rem_euclid(len) as usize;
-        self.select_stream(streams[next], window, cx);
-    }
-
     pub(super) fn next_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.step_workspace(1, window, cx);
     }
@@ -136,30 +105,15 @@ impl XeroApp {
         }
         let cur = self
             .active
-            .and_then(|s| self.workspace_of(s).map(|w| w.id))
             .and_then(|id| workspaces.iter().position(|&w| w == id))
             .unwrap_or(0);
         let len = workspaces.len() as isize;
         let next = (cur as isize + delta).rem_euclid(len) as usize;
-        let id = workspaces[next];
-        if let Some(stream) = self
-            .registry
-            .workspace(id)
-            .and_then(|w| w.streams.first().copied())
-        {
-            self.select_stream(stream, window, cx);
-        }
-    }
-
-    pub(super) fn close_active_stream(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(id) = self.active else {
-            return;
-        };
-        self.close_stream(id, window, cx);
+        self.select_workspace(workspaces[next], window, cx);
     }
 
     pub(super) fn close_active_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(id) = self.active.and_then(|s| self.workspace_of(s).map(|w| w.id)) else {
+        let Some(id) = self.active else {
             return;
         };
         self.close_workspace(id, window, cx);
@@ -214,29 +168,5 @@ impl XeroApp {
             return;
         }
         self.close_editor(window, cx);
-    }
-
-    /// Open move-tab menu for the focused surface's active tab (keyboard path).
-    pub(super) fn open_move_tab_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(stream) = self.active else {
-            return;
-        };
-        let (surface, index) = match self.focused_pane(window, cx) {
-            Some(FocusPane::Terminal) => {
-                let index = self.terminal_stack().map(|s| s.active).unwrap_or(0);
-                (TabSurface::Terminal, index)
-            }
-            _ => {
-                let index = self.editor_stack().map(|s| s.active).unwrap_or(0);
-                (TabSurface::Editor, index)
-            }
-        };
-        // Anchor near top-center of window when opened from keyboard.
-        let position = Point {
-            x: px(240.),
-            y: px(80.),
-        };
-        self.open_tab_menu(surface, index, position, cx);
-        let _ = stream;
     }
 }

@@ -82,7 +82,7 @@ pub fn workspace_for_tasks_json(tasks_json: &Path) -> Option<PathBuf> {
     tasks_json.parent()?.parent().map(|p| p.to_path_buf())
 }
 
-/// Load and resolve shell tasks for a working directory (stream root).
+/// Load and resolve shell tasks for a working directory (workspace root).
 pub fn load_shell_tasks(start: &Path) -> Result<Vec<ShellTask>, String> {
     let path = find_tasks_json(start)
         .ok_or_else(|| format!("no .vscode/tasks.json above {}", start.display()))?;

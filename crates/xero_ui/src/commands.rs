@@ -14,22 +14,17 @@ pub struct CommandEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandId {
     NewTerminal,
-    NewStream,
     OpenWorkspace,
     OpenFile,
     GoToFile,
     RunTask,
     Save,
     CloseFocusedTab,
-    CloseStream,
     CloseWorkspace,
     FocusTerminal,
     FocusEditor,
     FocusBrowser,
     FocusNextPane,
-    NextStream,
-    PrevStream,
-    StreamPalette,
     NextWorkspace,
     PrevWorkspace,
     NextTab,
@@ -41,7 +36,6 @@ pub enum CommandId {
     ToggleSettings,
     CommandPalette,
     KeyboardHelp,
-    MoveTabMenu,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -58,13 +52,10 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 32] {
+const fn all_commands() -> [CommandEntry; 26] {
     [
-        cmd!(StreamPalette, "Go to Stream…", "⌘T", "Navigate"),
-        cmd!(NextStream, "Next Stream", "⌘⌥↓", "Navigate"),
-        cmd!(PrevStream, "Previous Stream", "⌘⌥↑", "Navigate"),
-        cmd!(NextWorkspace, "Next Workspace", "⌘⌥→", "Navigate"),
-        cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥←", "Navigate"),
+        cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
+        cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
         cmd!(GoToFile, "Go to File…", "⌘P", "Navigate"),
         cmd!(OpenWorkspace, "Open Workspace…", "⌘⇧O", "Navigate"),
         cmd!(CommandPalette, "Command Palette…", "⌘⇧P", "Navigate"),
@@ -73,15 +64,12 @@ const fn all_commands() -> [CommandEntry; 32] {
         cmd!(FocusEditor, "Focus Editor", "⌘2", "Focus"),
         cmd!(FocusBrowser, "Focus File Tree", "⌘3", "Focus"),
         cmd!(FocusNextPane, "Focus Next Pane", "⌃`", "Focus"),
-        cmd!(NextTab, "Next Tab", "⌘⇧]", "Focus"),
-        cmd!(PrevTab, "Previous Tab", "⌘⇧[", "Focus"),
+        cmd!(NextTab, "Next Tab", "⌃⇥", "Focus"),
+        cmd!(PrevTab, "Previous Tab", "⌃⇧⇥", "Focus"),
         cmd!(Save, "Save", "⌘S", "Edit"),
         cmd!(CloseFocusedTab, "Close Tab", "⌘W", "Edit"),
-        cmd!(CloseStream, "Close Stream", "⌘⇧W", "Edit"),
         cmd!(CloseWorkspace, "Close Workspace", "⌘⌥W", "Edit"),
-        cmd!(MoveTabMenu, "Move Tab to Stream…", "⌘⇧M", "Edit"),
         cmd!(NewTerminal, "New Terminal", "⌘N", "Create"),
-        cmd!(NewStream, "New Stream", "⌘⇧N", "Create"),
         cmd!(OpenFile, "Open File…", "⌘O", "Create"),
         cmd!(RunTask, "Run Task…", "⌘⇧R", "Create"),
         cmd!(ToggleSidebar, "Toggle Sidebar", "⌘B", "View"),
@@ -97,6 +85,6 @@ const fn all_commands() -> [CommandEntry; 32] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 32] = all_commands();
+    static ENTRIES: [CommandEntry; 26] = all_commands();
     &ENTRIES
 }

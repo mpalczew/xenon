@@ -1,6 +1,6 @@
-//! Column-resize drag handles for the workspace sidebar, file tree, and
-//! terminal/editor split. Near either edge, a drag snaps the adjacent panel
-//! closed instead of letting a pane go off-screen.
+//! Column-resize drag handles for the workspace sidebar and terminal/editor
+//! split. Near either edge, a drag snaps the adjacent panel closed instead of
+//! letting a pane go off-screen.
 
 use gpui::{
     AppContext, Context, Empty, Hsla, InteractiveElement, IntoElement, MouseButton, ParentElement,
@@ -11,7 +11,6 @@ use gpui::{
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResizeEdge {
     Sidebar,
-    Tree,
     Terminal,
 }
 
@@ -30,15 +29,11 @@ pub(crate) enum DragResult {
 pub(crate) const SNAP_PX: f32 = 72.;
 /// Minimum width kept for the main area when the sidebar is open.
 const MIN_MAIN: f32 = 280.;
-/// Minimum width kept for the editor body beside the file tree.
-const MIN_EDITOR_BODY: f32 = 160.;
 /// Minimum width kept for the editor beside the terminal.
 const MIN_EDITOR: f32 = 200.;
 const MIN_SIDEBAR: f32 = 140.;
-const MIN_TREE: f32 = 120.;
 const MIN_TERMINAL: f32 = 200.;
 const MAX_SIDEBAR: f32 = 480.;
-const MAX_TREE: f32 = 480.;
 
 /// Invisible drag ghost required by GPUI's `on_drag` constructor.
 struct ResizeGhost;
@@ -108,10 +103,6 @@ pub(crate) fn resolve_drag(edge: ResizeEdge, raw: f32, available: f32) -> DragRe
             let max = (available - MIN_MAIN).clamp(MIN_SIDEBAR, MAX_SIDEBAR);
             DragResult::Width(raw.clamp(MIN_SIDEBAR, max))
         }
-        ResizeEdge::Tree => {
-            let max = (available - MIN_EDITOR_BODY).clamp(MIN_TREE, MAX_TREE);
-            DragResult::Width(raw.clamp(MIN_TREE, max))
-        }
         ResizeEdge::Terminal => {
             if raw > available - SNAP_PX {
                 return DragResult::CloseSecondary;
@@ -176,10 +167,6 @@ mod tests {
         ));
         assert!(matches!(
             resolve_drag(ResizeEdge::Sidebar, 180., 1200.),
-            DragResult::Width(_)
-        ));
-        assert!(matches!(
-            resolve_drag(ResizeEdge::Tree, 160., 800.),
             DragResult::Width(_)
         ));
     }

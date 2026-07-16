@@ -3,12 +3,27 @@ use std::path::{Path, PathBuf};
 
 use lucide_icons::Icon;
 
-#[derive(Default)]
 pub(crate) struct FileBrowser {
     expanded_dirs: HashSet<PathBuf>,
     open: bool,
     /// Keyboard cursor index into the flattened `rows()` list.
     cursor: Option<usize>,
+}
+
+impl Default for FileBrowser {
+    fn default() -> Self {
+        Self::with_open(true)
+    }
+}
+
+impl FileBrowser {
+    pub fn with_open(open: bool) -> Self {
+        Self {
+            expanded_dirs: HashSet::new(),
+            open,
+            cursor: None,
+        }
+    }
 }
 
 struct RowQuery<'a> {

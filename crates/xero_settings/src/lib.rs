@@ -75,11 +75,14 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
 }
 
 /// Snapshot current globals for persistence.
+/// Chrome-only section prefs live on disk (not gpui globals); merge them so a
+/// settings save does not reset Workspaces/Files collapse.
 pub fn snapshot(cx: &App) -> AppSettings {
     let editor = editor_font(cx);
     let terminal = terminal_font(cx);
     let ui = ui_font(cx);
     let theme = theme_preference(cx);
+    let disk = xero_store::load_settings().unwrap_or_default();
     AppSettings {
         editor_font_size: editor.size,
         editor_font_family: editor.family,
@@ -93,6 +96,8 @@ pub fn snapshot(cx: &App) -> AppSettings {
         light_theme: theme.light,
         dark_theme: theme.dark,
         terminal_auto_close: terminal_auto_close(cx),
+        workspaces_collapsed: disk.workspaces_collapsed,
+        files_open: disk.files_open,
     }
 }
 

@@ -20,7 +20,7 @@ usage: xenon [status | path...]
 With no args:
   - 0 running: launch the last active slot (default a)
   - 1 running: copy its state to the other slot and launch the other slot
-  - 2+ running: error
+  - 2+ running: focus the last-launched slot (no new process)
 
 With path args (dirs and/or files) — does NOT flip slots:
   - 0 running: launch last active slot and open paths
@@ -325,6 +325,100 @@ launch_slot() {
     fi
 }
 
+# Which of the running a/b slots was launched second (last written to ACTIVE_FILE).
+# Falls back to any running a/b slot if the marker is missing or stale.
+second_slot() {
+    local lines prefer line slot
+    lines="$(running_instances)"
+    prefer="$(last_slot)"
+    if printf '%s\n' "$lines" | sed '/^$/d' | awk '{print $1}' | grep -qx "$prefer"; then
+        printf '%s\n' "$prefer"
+        return
+    fi
+    # Marker not among live a/b — pick the first a/b instance.
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        slot="${line%% *}"
+        case "$slot" in
+            a | b)
+                printf '%s\n' "$slot"
+                return
+                ;;
+        esac
+    done <<<"$lines"
+    return 1
+}
+
+# PID of a live a/b slot instance, if any.
+pid_for_slot() {
+    local want="$1" line slot pid
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        slot="${line%% *}"
+        pid="${line##* }"
+        if [[ "$slot" == "$want" && "$pid" =~ ^[0-9]+$ ]]; then
+            printf '%s\n' "$pid"
+            return 0
+        fi
+    done <<<"$(running_instances)"
+    return 1
+}
+
+# Raise a process by unix pid (fallback when IPC handoff is unavailable).
+raise_pid() {
+    local pid="$1"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null
+}
+
+# Focus a live slot: mark it active and IPC-Activate via a short-lived app spawn.
+activate_slot() {
+    local slot="$1"
+    local dir upper log handoff live i
+    case "$slot" in
+        a | b) ;;
+        *)
+            echo "cannot activate unknown slot: $slot" >&2
+            return 1
+            ;;
+    esac
+    live="$(pid_for_slot "$slot" || true)"
+    dir="$(slot_data_dir "$slot")"
+    upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
+    mkdir -p "$dir"
+    log="$dir/xenon.log"
+    printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
+    # Empty argv → try_handoff(Activate) then exit. Bound wait so a failed handoff
+    # cannot leave a third long-lived primary in the foreground of this shell.
+    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" \
+        XERO_DATA_DIR="$dir" XERO_SLOT="$upper" \
+        "$APP" >>"$log" 2>&1 &
+    handoff=$!
+    i=0
+    while kill -0 "$handoff" 2>/dev/null && ((i < 25)); do
+        sleep 0.1
+        i=$((i + 1))
+    done
+    if kill -0 "$handoff" 2>/dev/null; then
+        # Still alive: treat as failed handoff, drop the extra process, raise live.
+        kill "$handoff" 2>/dev/null || true
+        wait "$handoff" 2>/dev/null || true
+        if [[ -n "$live" ]] && raise_pid "$live"; then
+            echo "focused Xenon slot $slot (pid $live)"
+            return 0
+        fi
+        echo "could not focus Xenon slot $slot" >&2
+        return 1
+    fi
+    wait "$handoff" 2>/dev/null || true
+    # Handoff process exited; also nudge via System Events if we know the pid.
+    if [[ -n "$live" ]]; then
+        raise_pid "$live" 2>/dev/null || true
+    fi
+    echo "focused Xenon slot $slot"
+}
+
 # Pick which slot should receive path opens (never flips).
 target_slot_for_paths() {
     local lines count line running
@@ -437,9 +531,14 @@ main() {
             esac
             ;;
         *)
-            echo "two or more Xenon instances are already running; refusing to launch" >&2
-            status >&2
-            exit 1
+            # Both slots already up: bring the last-launched (second) to front.
+            if slot="$(second_slot)"; then
+                activate_slot "$slot"
+            else
+                echo "two or more Xenon instances are running, but no a/b slot is known:" >&2
+                status >&2
+                exit 1
+            fi
             ;;
     esac
 }

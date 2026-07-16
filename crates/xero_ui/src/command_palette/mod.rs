@@ -1,4 +1,4 @@
-//! Command palette (⌘⇧P), stream jump (⌘T), and keyboard help (⌘⇧/).
+//! Command palette (⌘⇧P) and keyboard help (⌘⇧/).
 //! Shell chrome lives in `crate::palette`; this file owns catalog + routing.
 
 use gpui::{
@@ -7,7 +7,7 @@ use gpui::{
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
-use xero_core::{StreamId, WorkspaceId};
+use xero_core::WorkspaceId;
 
 use crate::commands::{CommandEntry, CommandId, catalog};
 use crate::impl_palette_query_input;
@@ -19,7 +19,6 @@ use crate::palette::{
 #[derive(Clone, Debug)]
 pub enum PaletteItem {
     Command(CommandEntry),
-    Stream { id: StreamId, label: String },
     Workspace { id: WorkspaceId, label: String },
 }
 
@@ -27,21 +26,20 @@ impl PaletteItem {
     fn haystack(&self) -> String {
         match self {
             Self::Command(e) => format!("{} {} {}", e.label, e.keys, e.group),
-            Self::Stream { label, .. } | Self::Workspace { label, .. } => label.clone(),
+            Self::Workspace { label, .. } => label.clone(),
         }
     }
 
     fn title(&self) -> String {
         match self {
             Self::Command(e) => e.label.to_string(),
-            Self::Stream { label, .. } | Self::Workspace { label, .. } => label.clone(),
+            Self::Workspace { label, .. } => label.clone(),
         }
     }
 
     fn detail(&self) -> String {
         match self {
             Self::Command(e) => e.keys.to_string(),
-            Self::Stream { .. } => "stream".into(),
             Self::Workspace { .. } => "workspace".into(),
         }
     }
@@ -50,13 +48,11 @@ impl PaletteItem {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PaletteMode {
     Commands,
-    Streams,
     Help,
 }
 
 pub enum CommandPaletteEvent {
     Run(CommandId),
-    ActivateStream(StreamId),
     ActivateWorkspace(WorkspaceId),
     Dismissed,
 }
@@ -77,25 +73,16 @@ impl EventEmitter<CommandPaletteEvent> for CommandPaletteView {}
 impl CommandPaletteView {
     pub fn new(
         mode: PaletteMode,
-        streams: Vec<(StreamId, String)>,
         workspaces: Vec<(WorkspaceId, String)>,
         cx: &mut Context<Self>,
     ) -> Self {
         let mut items = Vec::new();
         match mode {
-            PaletteMode::Streams => {
-                for (id, label) in streams {
-                    items.push(PaletteItem::Stream { id, label });
-                }
-            }
             PaletteMode::Commands | PaletteMode::Help => {
                 for entry in catalog() {
                     items.push(PaletteItem::Command(*entry));
                 }
                 if mode == PaletteMode::Commands {
-                    for (id, label) in streams {
-                        items.push(PaletteItem::Stream { id, label });
-                    }
                     for (id, label) in workspaces {
                         items.push(PaletteItem::Workspace { id, label });
                     }
@@ -119,7 +106,6 @@ impl CommandPaletteView {
     fn placeholder(&self) -> &'static str {
         match self.mode {
             PaletteMode::Commands => "Run command or jump…",
-            PaletteMode::Streams => "Go to stream…",
             PaletteMode::Help => "Filter shortcuts…",
         }
     }
@@ -127,7 +113,6 @@ impl CommandPaletteView {
     fn title(&self) -> &'static str {
         match self.mode {
             PaletteMode::Commands => "Commands",
-            PaletteMode::Streams => "Streams",
             PaletteMode::Help => "Keyboard Shortcuts",
         }
     }
@@ -158,7 +143,6 @@ impl CommandPaletteView {
         };
         match item {
             PaletteItem::Command(entry) => cx.emit(CommandPaletteEvent::Run(entry.id)),
-            PaletteItem::Stream { id, .. } => cx.emit(CommandPaletteEvent::ActivateStream(id)),
             PaletteItem::Workspace { id, .. } => {
                 cx.emit(CommandPaletteEvent::ActivateWorkspace(id))
             }

@@ -33,7 +33,6 @@ actions!(
     xero,
     [
         NewTerminal,
-        NewStream,
         ToggleSidebar,
         ToggleTerminal,
         ToggleEditor,
@@ -53,18 +52,13 @@ actions!(
         FocusEditor,
         FocusBrowser,
         FocusNextPane,
-        NextStream,
-        PrevStream,
         NextWorkspace,
         PrevWorkspace,
-        StreamPalette,
-        CloseStream,
         CloseWorkspace,
         NextTab,
         PrevTab,
         CommandPalette,
         KeyboardHelp,
-        MoveTabMenu,
     ]
 );
 
@@ -73,13 +67,11 @@ pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         // Create
         KeyBinding::new("cmd-n", NewTerminal, None),
-        KeyBinding::new("cmd-shift-n", NewStream, None),
         // Open / jump
         KeyBinding::new("cmd-o", OpenFile, None),
         KeyBinding::new("cmd-p", FilePalette, None),
         KeyBinding::new("cmd-shift-o", AddWorkspace, None),
         KeyBinding::new("cmd-shift-r", RunTask, None),
-        KeyBinding::new("cmd-t", StreamPalette, None),
         KeyBinding::new("cmd-shift-p", CommandPalette, None),
         KeyBinding::new("cmd-shift-/", KeyboardHelp, None),
         // Focus panes
@@ -87,18 +79,16 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-2", FocusEditor, None),
         KeyBinding::new("cmd-3", FocusBrowser, None),
         KeyBinding::new("ctrl-`", FocusNextPane, None),
-        // Streams / workspaces
-        KeyBinding::new("cmd-alt-down", NextStream, None),
-        KeyBinding::new("cmd-alt-up", PrevStream, None),
-        KeyBinding::new("cmd-alt-right", NextWorkspace, None),
-        KeyBinding::new("cmd-alt-left", PrevWorkspace, None),
-        KeyBinding::new("cmd-shift-w", CloseStream, None),
+        // Workspaces (vertical list)
+        KeyBinding::new("cmd-alt-down", NextWorkspace, None),
+        KeyBinding::new("cmd-alt-up", PrevWorkspace, None),
         KeyBinding::new("cmd-alt-w", CloseWorkspace, None),
-        // Tabs
+        // Tabs (ctrl-tab matches browser/IDE muscle memory)
+        KeyBinding::new("ctrl-tab", NextTab, None),
+        KeyBinding::new("ctrl-shift-tab", PrevTab, None),
         KeyBinding::new("cmd-shift-]", NextTab, None),
         KeyBinding::new("cmd-shift-[", PrevTab, None),
         KeyBinding::new("cmd-w", CloseEditor, None),
-        KeyBinding::new("cmd-shift-m", MoveTabMenu, None),
         // Edit
         KeyBinding::new("cmd-s", Save, None),
         KeyBinding::new("cmd-x", Cut, None),

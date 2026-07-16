@@ -1,5 +1,5 @@
 //! Run Task palette: load `.vscode/tasks.json` shell tasks and inject into a
-//! stream terminal (current tab or a newly opened one).
+//! workspace terminal (current tab or a newly opened one).
 
 use super::*;
 use crate::task_picker::{TaskPickerEvent, TaskPickerView};
@@ -7,7 +7,7 @@ use xero_core::{ShellTask, load_shell_tasks};
 
 impl XeroApp {
     pub(super) fn open_task_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(root) = self.active.and_then(|id| self.stream_root(id)) else {
+        let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return;
         };
         self.finder = None;

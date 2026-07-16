@@ -6,12 +6,11 @@ use gpui::{
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
-use xero_core::{StreamId, WorkspaceId};
+use xero_core::WorkspaceId;
 
 use crate::app::XeroApp;
 use crate::icons::icon;
 
-pub(super) struct DragStream(pub StreamId);
 pub(super) struct DragWorkspace(pub WorkspaceId);
 
 pub(super) struct DragChip {
@@ -58,10 +57,13 @@ impl Render for PathTooltip {
 pub(super) const ROW_H: f32 = 24.;
 pub(super) const ICON_SM: f32 = 12.;
 pub(super) const ICON_MD: f32 = 13.;
+/// Square hit target for pencil / close on workspace rows.
+pub(super) const ACTION_BTN: f32 = 20.;
+/// Two action buttons (no gap) — keeps dirt gutter and hover overlay aligned.
+pub(super) const ACTIONS_W: f32 = ACTION_BTN * 2.;
 
 pub(super) fn workspace_rename_row(
     id: WorkspaceId,
-    collapsed: bool,
     field: gpui::Entity<crate::rename::RenameView>,
     cx: &mut Context<XeroApp>,
 ) -> gpui::AnyElement {
@@ -75,7 +77,6 @@ pub(super) fn workspace_rename_row(
         .pl_2()
         .pr(px(2.))
         .rounded_sm()
-        .child(chevron_slot(collapsed))
         .child(
             div()
                 .text_color(colors.text_muted)
@@ -85,20 +86,6 @@ pub(super) fn workspace_rename_row(
         .into_any_element()
 }
 
-pub(super) fn chevron_slot(collapsed: bool) -> impl IntoElement {
-    let glyph = if collapsed {
-        Icon::ChevronRight
-    } else {
-        Icon::ChevronDown
-    };
-    div()
-        .w(px(14.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(icon(glyph, px(ICON_SM)))
-}
-
 /// Right-edge gutter for workspace rows: holds git +/- flush right.
 /// `min_w` matches hover-action width so absolute actions never cover the title.
 pub(super) fn workspace_dirt_gutter(
@@ -106,12 +93,10 @@ pub(super) fn workspace_dirt_gutter(
     group: &str,
     colors: &theme::ThemeColors,
 ) -> impl IntoElement + use<> {
-    // Three 20px icon buttons + gaps (pencil / + / x).
-    const ACTIONS_W: f32 = 64.;
     let group = group.to_string();
     div()
         .flex_none()
-        .min_w(px(ACTIONS_W))
+        .w(px(ACTIONS_W))
         .flex()
         .items_center()
         .justify_end()

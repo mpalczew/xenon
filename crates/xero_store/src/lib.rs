@@ -1,5 +1,5 @@
-//! Persistence for xero: the workspace registry and per-stream session files,
-//! stored as JSON under `data_dir()` (`~/.xero`). Writes are atomic (temp file
+//! Persistence for xero: the workspace registry and per-workspace session files,
+//! stored as JSON under `data_dir()` (`~/.xenon`). Writes are atomic (temp file
 //! plus rename); a corrupt file is backed up and defaults are returned so a bad
 //! file never blocks startup.
 
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use xero_core::{Registry, Stream, StreamId, WorkspaceId};
+use xero_core::{Registry, SessionState, WorkspaceId};
 
 mod ipc;
 mod settings;
@@ -121,11 +121,10 @@ pub fn save_settings(settings: &AppSettings) -> Result<(), StoreError> {
     write_atomic(&settings_path(), settings)
 }
 
-fn session_path(workspace: WorkspaceId, stream: StreamId) -> PathBuf {
+fn session_path(workspace: WorkspaceId) -> PathBuf {
     data_dir()
-        .join("streams")
-        .join(workspace.to_string())
-        .join(format!("{stream}.json"))
+        .join("sessions")
+        .join(format!("{workspace}.json"))
 }
 
 /// Load the registry, or a default if none exists. A corrupt file is preserved
@@ -138,23 +137,66 @@ pub fn save_registry(registry: &Registry) -> Result<(), StoreError> {
     write_atomic(&registry_path(), registry)
 }
 
-pub fn load_session(workspace: WorkspaceId, stream: StreamId) -> Result<Stream, StoreError> {
-    let path = session_path(workspace, stream);
-    read_json(&path)
+/// Load a workspace session. Falls back to the first legacy stream file under
+/// `streams/<workspace>/` when the modern path is missing (one-shot migration).
+pub fn load_session(workspace: WorkspaceId) -> Result<SessionState, StoreError> {
+    let path = session_path(workspace);
+    if path.exists() {
+        return read_json(&path);
+    }
+    if let Some(session) = load_legacy_stream_session(workspace) {
+        let _ = save_session(workspace, &session);
+        return Ok(session);
+    }
+    Err(StoreError::Io(io::Error::new(
+        io::ErrorKind::NotFound,
+        "session not found",
+    )))
 }
 
-pub fn save_session(workspace: WorkspaceId, stream: &Stream) -> Result<(), StoreError> {
-    write_atomic(&session_path(workspace, stream.id), stream)
+pub fn save_session(workspace: WorkspaceId, session: &SessionState) -> Result<(), StoreError> {
+    write_atomic(&session_path(workspace), session)
 }
 
-/// Remove a stream's session file. Missing file is not an error (already gone).
-pub fn delete_session(workspace: WorkspaceId, stream: StreamId) -> Result<(), StoreError> {
-    let path = session_path(workspace, stream);
+/// Remove a workspace session file. Missing file is not an error (already gone).
+pub fn delete_session(workspace: WorkspaceId) -> Result<(), StoreError> {
+    let path = session_path(workspace);
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),
     }
+}
+
+/// Read the first legacy `streams/<workspace>/*.json` file as a SessionState.
+fn load_legacy_stream_session(workspace: WorkspaceId) -> Option<SessionState> {
+    let dir = data_dir().join("streams").join(workspace.to_string());
+    let entries = fs::read_dir(&dir).ok()?;
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|ext| ext == "json"))
+        .collect();
+    paths.sort();
+    for path in paths {
+        let Ok(contents) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
+            continue;
+        };
+        // Legacy stream file: { id, name, backing, session: { ... } }
+        if let Some(session_val) = value.get("session")
+            && let Ok(session) = serde_json::from_value::<SessionState>(session_val.clone())
+        {
+            return Some(session);
+        }
+        // Already a bare SessionState (or migrated shape).
+        if let Ok(session) = serde_json::from_value::<SessionState>(value) {
+            return Some(session);
+        }
+    }
+    None
 }
 
 fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> Result<T, StoreError> {

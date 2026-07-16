@@ -1,6 +1,6 @@
-//! `XeroApp`: the window root. Owns the workspace registry and, per stream, a
-//! live terminal + editor. Streams are the unit of switching: each workspace
-//! holds one or more, and every stream keeps its own running PTY.
+//! `XeroApp`: the window root. Owns the workspace registry and, per workspace,
+//! a live terminal stack + editor stack. Workspaces are the unit of switching;
+//! each keeps its own running PTYs while open.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -13,7 +13,7 @@ use gpui::{
     div, px,
 };
 use theme::ActiveTheme;
-use xero_core::{Active, Layout, Registry, Stream, StreamId, WorkspaceId, WorkspaceRec};
+use xero_core::{Active, Layout, Registry, SessionState, WorkspaceId, WorkspaceRec};
 use xero_editor::{EditorEvent, EditorView};
 use xero_finder::{FileIndex, Finder};
 use xero_ide::{IdeCommand, IdeServer, SelectionSnapshot};
@@ -26,9 +26,9 @@ use crate::settings::SettingsView;
 use crate::task_picker::TaskPickerView;
 use crate::workspace_picker::WorkspacePickerView;
 use crate::{
-    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewStream,
-    NewTerminal, OpenFile, ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings,
-    ToggleSidebar, ToggleTerminal,
+    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewTerminal,
+    OpenFile, ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
+    ToggleTerminal,
 };
 
 mod browser;
@@ -41,21 +41,21 @@ mod navigation;
 mod palette;
 mod panels;
 mod render;
+mod sessions;
 mod settings_window;
-mod streams;
 mod tasks;
 mod terminals;
 mod tree_keys;
 mod workspaces;
 
-/// The terminals open in one stream, as tabs, plus which is focused.
+/// The terminals open in one workspace, as tabs, plus which is focused.
 #[derive(Default)]
 pub(crate) struct TerminalStack {
     pub tabs: Vec<Entity<TerminalView>>,
     pub active: usize,
 }
 
-/// The open editor tabs for one stream, plus which is focused.
+/// The open editor tabs for one workspace, plus which is focused.
 #[derive(Default)]
 pub(crate) struct EditorStack {
     pub tabs: Vec<EditorTab>,
@@ -75,29 +75,17 @@ pub(crate) enum TabSurface {
     Editor,
 }
 
-/// Open move-tab context menu (stream + index captured at open time).
+/// Open tab context menu (close only).
 #[derive(Clone, Debug)]
 pub(crate) struct TabContextMenu {
     pub surface: TabSurface,
-    pub stream: StreamId,
     pub index: usize,
     pub position: Point<Pixels>,
-    /// Keyboard highlight into menu rows (0 = Move to New Stream).
-    pub selected: usize,
-}
-
-/// Source tab + destination stream for a move.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct TabMove {
-    pub from: StreamId,
-    pub index: usize,
-    pub to: StreamId,
 }
 
 /// What the sidebar inline rename field is editing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RenameTarget {
-    Stream(StreamId),
     Workspace(WorkspaceId),
 }
 
@@ -119,13 +107,12 @@ enum FontPane {
 
 pub struct XeroApp {
     registry: Registry,
-    // Stream metadata (name/session) and, per stream, the live views. Keeping
-    // terminals here means switching streams never tears down a running PTY.
-    streams: HashMap<StreamId, Stream>,
-    // Per stream: a stack of terminal tabs and a stack of editor tabs.
-    terminals: HashMap<StreamId, TerminalStack>,
-    editors: HashMap<StreamId, EditorStack>,
-    active: Option<StreamId>,
+    /// Per-workspace session layout metadata (persisted).
+    sessions: HashMap<WorkspaceId, SessionState>,
+    /// Per workspace: a stack of terminal tabs and a stack of editor tabs.
+    terminals: HashMap<WorkspaceId, TerminalStack>,
+    editors: HashMap<WorkspaceId, EditorStack>,
+    active: Option<WorkspaceId>,
     finder: Option<Entity<FinderView>>,
     task_picker: Option<Entity<TaskPickerView>>,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
@@ -146,38 +133,36 @@ pub struct XeroApp {
     // A cmd-clicked name to open cmd-p with, deferred to render (which has a
     // Window) from the windowless terminal-event subscription.
     pending_palette_query: Option<String>,
-    /// Command / stream jump deferred until render has a Window.
+    /// Command / workspace jump deferred until render has a Window.
     pending_command: Option<crate::commands::CommandId>,
-    pending_stream: Option<StreamId>,
+    pending_workspace: Option<WorkspaceId>,
     sidebar_collapsed: bool,
     terminal_collapsed: bool,
     editor_collapsed: bool,
-    /// Live pane widths (px); persisted per-stream via `Layout`.
+    /// Live pane widths (px); persisted per-workspace via `Layout`.
     sidebar_width: f32,
     tree_width: f32,
     terminal_width: f32,
     /// True after a width drag until flushed to the session.
     layout_dirty: bool,
-    // Workspaces whose streams are hidden in the sidebar.
-    collapsed_workspaces: HashSet<WorkspaceId>,
-    // Closed-workspace list is collapsed by default (archive, not peer list).
-    closed_section_collapsed: bool,
+    /// Workspaces section collapsed in the left panel.
+    workspaces_collapsed: bool,
     file_browser: FileBrowser,
     /// Dedicated settings window (cmd-,). None when closed or not yet opened.
     settings_window: Option<WindowHandle<SettingsView>>,
-    // Stream or workspace being renamed inline, plus its editing field.
+    // Workspace being renamed inline, plus its editing field.
     renaming: Option<(RenameTarget, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
-    /// Right-click menu on a terminal or editor tab (move to stream).
+    /// Right-click menu on a terminal or editor tab.
     pub(crate) tab_menu: Option<TabContextMenu>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     _task_picker_sub: Option<Subscription>,
     _workspace_picker_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
-    // Streams whose terminal rang the bell while unfocused (agent wants
-    // attention); shown as a dot in the sidebar, cleared when the stream opens.
-    attention: HashSet<StreamId>,
+    // Workspaces whose terminal rang the bell while unfocused (agent wants
+    // attention); shown as a dot in the sidebar, cleared when the workspace opens.
+    attention: HashSet<WorkspaceId>,
     _bell_subs: Vec<Subscription>,
     // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
@@ -200,7 +185,7 @@ impl XeroApp {
         xero_terminal::apply_theme(cx);
         let mut app = Self {
             registry,
-            streams: HashMap::new(),
+            sessions: HashMap::new(),
             terminals: HashMap::new(),
             editors: HashMap::new(),
             active: None,
@@ -216,7 +201,7 @@ impl XeroApp {
             last_font_pane: FontPane::Terminal,
             pending_palette_query: None,
             pending_command: None,
-            pending_stream: None,
+            pending_workspace: None,
             sidebar_collapsed: false,
             terminal_collapsed: false,
             editor_collapsed: false,
@@ -224,9 +209,8 @@ impl XeroApp {
             tree_width: Layout::default().tree_width,
             terminal_width: Layout::default().terminal_width,
             layout_dirty: false,
-            collapsed_workspaces: HashSet::new(),
-            closed_section_collapsed: true,
-            file_browser: FileBrowser::default(),
+            workspaces_collapsed: settings.workspaces_collapsed,
+            file_browser: FileBrowser::with_open(settings.files_open),
             settings_window: None,
             renaming: None,
             _rename_sub: None,
@@ -245,42 +229,26 @@ impl XeroApp {
             git_dirt_tx: None,
             _git_dirt_task: None,
         };
-        app.load_streams();
+        app.load_sessions();
         app.start_ide_server(cx);
         app.start_git_dirt_watch(cx);
         let active = app
             .registry
             .active
-            .map(|a| a.stream)
-            .filter(|s| app.streams.contains_key(s))
-            .or_else(|| app.first_stream());
+            .map(|a| a.workspace)
+            .filter(|id| app.registry.workspace(*id).is_some())
+            .or_else(|| app.first_workspace());
         if let Some(id) = active {
-            app.activate_stream(id, cx);
+            app.activate_workspace(id, cx);
         }
         app
     }
 
-    /// Populate the stream metadata map from the store, synthesizing a default
-    /// stream for any workspace that has none.
-    fn load_streams(&mut self) {
-        let mut dirty = false;
-        for workspace in &mut self.registry.workspaces {
-            if workspace.streams.is_empty() {
-                let stream = Stream::new("main");
-                workspace.streams.push(stream.id);
-                save_session(workspace.id, &stream, "load_streams default stream");
-                self.streams.insert(stream.id, stream);
-                dirty = true;
-                continue;
-            }
-            for &id in &workspace.streams {
-                let stream = xero_store::load_session(workspace.id, id)
-                    .unwrap_or_else(|_| synthesize_stream(id));
-                self.streams.insert(id, stream);
-            }
-        }
-        if dirty {
-            save_registry(&self.registry, "load_streams default stream");
+    /// Load session metadata for every open workspace (defaults when missing).
+    fn load_sessions(&mut self) {
+        for workspace in &self.registry.workspaces {
+            let session = xero_store::load_session(workspace.id).unwrap_or_default();
+            self.sessions.insert(workspace.id, session);
         }
     }
 
@@ -345,46 +313,22 @@ impl XeroApp {
         &self.registry
     }
 
-    pub(crate) fn active_stream(&self) -> Option<StreamId> {
+    pub(crate) fn active_workspace(&self) -> Option<WorkspaceId> {
         self.active
     }
 
-    pub(crate) fn stream_name(&self, id: StreamId) -> &str {
-        self.streams
-            .get(&id)
-            .map(|s| s.name.as_str())
-            .unwrap_or("stream")
+    fn first_workspace(&self) -> Option<WorkspaceId> {
+        self.registry.workspaces.first().map(|w| w.id)
     }
 
-    fn first_stream(&self) -> Option<StreamId> {
-        self.registry
-            .workspaces
-            .iter()
-            .find_map(|w| w.streams.first().copied())
-    }
-
-    fn workspace_of(&self, stream: StreamId) -> Option<&WorkspaceRec> {
-        self.registry
-            .workspaces
-            .iter()
-            .find(|w| w.streams.contains(&stream))
-    }
-
-    fn stream_root(&self, stream: StreamId) -> Option<PathBuf> {
-        let workspace = self.workspace_of(stream)?;
-        let record = self.streams.get(&stream)?;
-        Some(record.working_dir(&workspace.root))
+    fn workspace_root(&self, id: WorkspaceId) -> Option<PathBuf> {
+        self.registry.workspace(id).map(|w| w.root.clone())
     }
 
     fn persist_active(&self) {
-        if let Some(stream) = self.active
-            && let Some(workspace) = self.workspace_of(stream)
-        {
+        if let Some(workspace) = self.active {
             let mut registry = self.registry.clone();
-            registry.active = Some(Active {
-                workspace: workspace.id,
-                stream,
-            });
+            registry.active = Some(Active { workspace });
             save_registry(&registry, "persist_active");
         }
     }
@@ -396,25 +340,22 @@ fn save_registry(registry: &Registry, context: &str) {
     }
 }
 
-fn save_session(workspace: WorkspaceId, stream: &Stream, context: &str) {
-    if let Err(error) = xero_store::save_session(workspace, stream) {
-        log::error!("{context}: failed to save session {}: {error}", stream.id);
+fn save_session(workspace: WorkspaceId, session: &SessionState, context: &str) {
+    if let Err(error) = xero_store::save_session(workspace, session) {
+        log::error!("{context}: failed to save session {workspace}: {error}");
     }
 }
 
-fn delete_session(workspace: WorkspaceId, stream: StreamId, context: &str) {
-    if let Err(error) = xero_store::delete_session(workspace, stream) {
-        log::error!("{context}: failed to delete session {stream}: {error}");
+/// Persist Workspaces/Files section collapse into settings.json.
+fn persist_section_prefs(workspaces_collapsed: bool, files_open: bool) {
+    let mut settings = xero_store::load_settings().unwrap_or_default();
+    if settings.workspaces_collapsed == workspaces_collapsed && settings.files_open == files_open {
+        return;
     }
-}
-
-/// A placeholder stream for an id whose session file is missing or corrupt.
-fn synthesize_stream(id: StreamId) -> Stream {
-    Stream {
-        id,
-        name: "main".into(),
-        backing: Default::default(),
-        session: Default::default(),
+    settings.workspaces_collapsed = workspaces_collapsed;
+    settings.files_open = files_open;
+    if let Err(error) = xero_store::save_settings(&settings) {
+        log::error!("persist section prefs failed: {error}");
     }
 }
 

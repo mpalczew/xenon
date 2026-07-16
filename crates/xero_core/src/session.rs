@@ -1,5 +1,5 @@
-//! Session state: what a stream shows — layout, open editors, terminal cwd.
-//! All paths are relative to the stream's working directory.
+//! Session state: what a workspace shows — layout, open editors, terminal cwd.
+//! All paths are relative to the workspace root.
 
 use std::path::PathBuf;
 
