@@ -1,0 +1,429 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Slot launcher for Xenon (legacy name: xero). Supports both app binaries during rename.
+APP_BIN="${XENON_APP:-${XERO_APP:-$HOME/Applications/Xenon.app}}/Contents/MacOS/xenon"
+if [[ ! -x "$APP_BIN" ]]; then
+    APP_BIN="${XERO_APP:-$HOME/Applications/xero.app}/Contents/MacOS/xero"
+fi
+APP="$APP_BIN"
+ACTIVE_FILE="$HOME/.xenon-active-slot"
+# Prefer modern active file; fall back to legacy.
+if [[ ! -f "$ACTIVE_FILE" && -f "$HOME/.xero-active-slot" ]]; then
+    ACTIVE_FILE="$HOME/.xero-active-slot"
+fi
+
+usage() {
+    cat >&2 <<'EOF'
+usage: xenon [status | path...]
+
+With no args:
+  - 0 running: launch the last active slot (default a)
+  - 1 running: copy its state to the other slot and launch the other slot
+  - 2+ running: error
+
+With path args (dirs and/or files) — does NOT flip slots:
+  - 0 running: launch last active slot and open paths
+  - 1 running: hand off to that instance (single-instance IPC)
+  - 2+ running: hand off to the last active slot's instance
+
+  xenon <dir>   open / focus workspace
+  xenon <file>  open file (switch workspace if the file belongs to one)
+EOF
+}
+
+slot_dir() {
+    case "$1" in
+        a)
+            if [[ -d "$HOME/.xenon-a" || ! -d "$HOME/.xero-a" ]]; then
+                printf '%s/.xenon-a\n' "$HOME"
+            else
+                printf '%s/.xero-a\n' "$HOME"
+            fi
+            ;;
+        b)
+            if [[ -d "$HOME/.xenon-b" || ! -d "$HOME/.xero-b" ]]; then
+                printf '%s/.xenon-b\n' "$HOME"
+            else
+                printf '%s/.xero-b\n' "$HOME"
+            fi
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+other_slot() {
+    case "$1" in
+        a) printf 'b\n' ;;
+        b) printf 'a\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+pid_is_live_app() {
+    local pid="$1"
+    kill -0 "$pid" 2>/dev/null || return 1
+    local comm
+    comm="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
+    comm="${comm##*/}"
+    [[ "$comm" == "xenon" || "$comm" == "xero" ]]
+}
+
+# macOS does not expose process env via `ps e`; read it with KERN_PROCARGS2.
+pid_slot() {
+    local pid="$1"
+    local slot
+    slot="$(
+        python3 - "$pid" <<'PY'
+import sys
+import ctypes
+import ctypes.util
+
+pid = int(sys.argv[1])
+libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+# CTL_KERN=1, KERN_PROCARGS2=49
+mib = (ctypes.c_int * 3)(1, 49, pid)
+buf = ctypes.create_string_buffer(256 * 1024)
+size = ctypes.c_size_t(len(buf))
+if libc.sysctl(mib, 3, buf, ctypes.byref(size), None, 0) != 0:
+    sys.exit(1)
+parts = bytes(buf[: size.value]).split(b"\0")
+env = {}
+for part in parts:
+    if b"=" not in part:
+        continue
+    key, _, val = part.partition(b"=")
+    try:
+        env[key.decode()] = val.decode()
+    except UnicodeDecodeError:
+        pass
+
+slot = env.get("XENON_SLOT", env.get("XERO_SLOT", "")).strip().lower()
+if slot in ("a", "b"):
+    print(slot)
+    sys.exit(0)
+
+data = env.get("XENON_DATA_DIR", env.get("XERO_DATA_DIR", "")).rstrip("/")
+for suffix, out in (
+    ("/.xenon-a", "a"),
+    (".xenon-a", "a"),
+    ("/.xero-a", "a"),
+    (".xero-a", "a"),
+    ("/.xenon-b", "b"),
+    (".xenon-b", "b"),
+    ("/.xero-b", "b"),
+    (".xero-b", "b"),
+):
+    if data.endswith(suffix):
+        print(out)
+        sys.exit(0)
+sys.exit(1)
+PY
+    )" || return 1
+    printf '%s\n' "$slot"
+}
+
+# Only the real system Applications path counts as legacy — not ~/Applications.
+pid_looks_legacy_xero() {
+    local pid="$1"
+    local cmd
+    cmd="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+    [[ "$cmd" == /Applications/xero.app/Contents/MacOS/xero* ]] ||
+        [[ "$cmd" == /Applications/Xenon.app/Contents/MacOS/xenon* ]]
+}
+
+# Drop process-identity files that must never travel with state copies.
+strip_runtime_files() {
+    local dir="$1"
+    [[ -n "$dir" && -d "$dir" ]] || return 0
+    rm -f "$dir/xenon.pid" "$dir/xero.pid"
+}
+
+# Print "slot pid" lines for every live instance, prefer pidfiles then pgrep.
+# Pidfiles are only trusted when the process's real slot (env) matches.
+running_instances() {
+    local slot pid seen="" pf claimed
+    for slot in a b; do
+        pf="$(slot_dir "$slot")/xenon.pid"
+        [[ -f "$pf" ]] || pf="$(slot_dir "$slot")/xero.pid"
+        [[ -f "$pf" ]] || continue
+        pid="$(tr -d '[:space:]' <"$pf" 2>/dev/null || true)"
+        if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+            rm -f "$pf"
+            continue
+        fi
+        if ! pid_is_live_app "$pid"; then
+            rm -f "$pf"
+            continue
+        fi
+        # Slot-aware: a copied/stale pidfile must not mint a second instance.
+        if claimed="$(pid_slot "$pid" 2>/dev/null)" && [[ "$claimed" == "$slot" ]]; then
+            printf '%s %s\n' "$slot" "$pid"
+            seen+=" $pid "
+            # Prefer modern pidfile name under the resolved slot dir.
+            if [[ "$pf" != "$(slot_dir "$slot")/xenon.pid" ]]; then
+                printf '%s\n' "$pid" >"$(slot_dir "$slot")/xenon.pid"
+                rm -f "$pf"
+            fi
+        else
+            rm -f "$pf"
+        fi
+    done
+
+    local pids
+    pids="$(pgrep -x xenon 2>/dev/null || true; pgrep -x xero 2>/dev/null || true)"
+    [[ -n "$pids" ]] || return 0
+    while IFS= read -r pid; do
+        [[ -z "$pid" ]] && continue
+        [[ "$seen" == *" $pid "* ]] && continue
+        pid_is_live_app "$pid" || continue
+        if slot="$(pid_slot "$pid" 2>/dev/null)"; then
+            printf '%s %s\n' "$slot" "$pid"
+            printf '%s\n' "$pid" >"$(slot_dir "$slot")/xenon.pid"
+            seen+=" $pid "
+        elif pid_looks_legacy_xero "$pid"; then
+            printf 'legacy %s\n' "$pid"
+            seen+=" $pid "
+        else
+            printf '? %s\n' "$pid"
+            seen+=" $pid "
+        fi
+    done <<<"$pids"
+}
+
+status() {
+    local lines line slot pid any=false
+    lines="$(running_instances)"
+    if [[ -z "$lines" ]]; then
+        echo "no Xenon instances running"
+        return
+    fi
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        any=true
+        slot="${line%% *}"
+        pid="${line##* }"
+        echo "pid $pid slot $slot"
+    done <<<"$lines"
+    "$any"
+}
+
+last_slot() {
+    local slot
+    if [[ -f "$ACTIVE_FILE" ]]; then
+        slot="$(tr -d '[:space:]' <"$ACTIVE_FILE")"
+        case "$slot" in
+            a|b) printf '%s\n' "$slot"; return ;;
+        esac
+    fi
+    printf 'a\n'
+}
+
+copy_state() {
+    local from="$1"
+    local to="$2"
+    local src dst
+    if [[ "$from" == "legacy" ]]; then
+        if [[ -d "$HOME/.xenon" ]]; then
+            src="$HOME/.xenon"
+        else
+            src="$HOME/.xero"
+        fi
+    else
+        src="$(slot_dir "$from")"
+    fi
+    dst="$(slot_dir "$to")"
+    # Prefer writing modern slot dirs.
+    case "$to" in
+        a) dst="$HOME/.xenon-a" ;;
+        b) dst="$HOME/.xenon-b" ;;
+    esac
+    if [[ ! -d "$src" ]]; then
+        echo "cannot copy: source state missing: $src" >&2
+        exit 1
+    fi
+    rm -rf "$dst"
+    ditto "$src" "$dst"
+    # Never inherit the source instance's identity.
+    strip_runtime_files "$dst"
+}
+
+seed_legacy_state() {
+    local slot="$1"
+    local dst
+    case "$slot" in
+        a) dst="$HOME/.xenon-a" ;;
+        b) dst="$HOME/.xenon-b" ;;
+    esac
+    if [[ ! -d "$dst" ]]; then
+        if [[ -d "$HOME/.xenon" ]]; then
+            ditto "$HOME/.xenon" "$dst"
+        elif [[ -d "$HOME/.xero" ]]; then
+            ditto "$HOME/.xero" "$dst"
+        elif [[ -d "$HOME/.xero-$slot" ]]; then
+            ditto "$HOME/.xero-$slot" "$dst"
+        fi
+        strip_runtime_files "$dst"
+    fi
+}
+
+slot_data_dir() {
+    local slot="$1"
+    case "$slot" in
+        a) printf '%s/.xenon-a\n' "$HOME" ;;
+        b) printf '%s/.xenon-b\n' "$HOME" ;;
+        *) return 1 ;;
+    esac
+}
+
+# Run the app for `slot` with optional path args. Backgrounds the GUI process.
+# Path handoff to a live instance exits quickly; cold start keeps running.
+launch_slot() {
+    local slot="$1"
+    shift
+    local dir upper log pid
+    dir="$(slot_data_dir "$slot")"
+    # Migrate legacy slot if modern empty.
+    if [[ ! -d "$dir" && -d "$HOME/.xero-$slot" ]]; then
+        ditto "$HOME/.xero-$slot" "$dir"
+        strip_runtime_files "$dir"
+    fi
+    upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
+    mkdir -p "$dir"
+    log="$dir/xenon.log"
+    printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
+    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" \
+        XERO_DATA_DIR="$dir" XERO_SLOT="$upper" \
+        "$APP" "$@" >>"$log" 2>&1 &
+    pid=$!
+    printf '%s\n' "$pid" >"$dir/xenon.pid"
+    # Drop legacy name so only one pidfile claims this slot.
+    rm -f "$dir/xero.pid"
+    disown "$pid" 2>/dev/null || true
+    if [[ $# -gt 0 ]]; then
+        echo "Xenon slot $slot ← $* (pid $pid)"
+    else
+        echo "launched Xenon slot $slot using $dir (pid $pid)"
+    fi
+}
+
+# Pick which slot should receive path opens (never flips).
+target_slot_for_paths() {
+    local lines count line running
+    lines="$(running_instances)"
+    count="$(printf '%s\n' "$lines" | sed '/^$/d' | wc -l | tr -d ' ')"
+    case "$count" in
+        0)
+            last_slot
+            ;;
+        1)
+            line="$(printf '%s\n' "$lines" | sed '/^$/d' | head -n1)"
+            running="${line%% *}"
+            case "$running" in
+                a | b) printf '%s\n' "$running" ;;
+                *) last_slot ;;
+            esac
+            ;;
+        *)
+            # Prefer last active if it is among the running set.
+            local prefer
+            prefer="$(last_slot)"
+            if printf '%s\n' "$lines" | sed '/^$/d' | awk '{print $1}' | grep -qx "$prefer"; then
+                printf '%s\n' "$prefer"
+            else
+                line="$(printf '%s\n' "$lines" | sed '/^$/d' | head -n1)"
+                printf '%s\n' "${line%% *}"
+            fi
+            ;;
+    esac
+}
+
+# Resolve relative path args against the caller's cwd (app also canonicalizes).
+resolve_path_args() {
+    local arg abs
+    for arg in "$@"; do
+        case "$arg" in
+            /*) printf '%s\n' "$arg" ;;
+            ~/*) printf '%s\n' "${arg/#\~/$HOME}" ;;
+            *) printf '%s\n' "$(pwd)/$arg" ;;
+        esac
+    done
+}
+
+open_paths() {
+    local slot abs_args=()
+    local line
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && abs_args+=("$line")
+    done < <(resolve_path_args "$@")
+    slot="$(target_slot_for_paths)"
+    case "$slot" in
+        a | b) ;;
+        *)
+            echo "cannot resolve slot for path open" >&2
+            status >&2
+            exit 1
+            ;;
+    esac
+    seed_legacy_state "$slot"
+    # Single-instance IPC lives in the app; this just targets the right data dir.
+    launch_slot "$slot" "${abs_args[@]}"
+}
+
+main() {
+    if [[ ! -x "$APP" ]]; then
+        echo "Xenon app binary not found: $APP" >&2
+        exit 1
+    fi
+    case "${1:-}" in
+        "") ;;
+        status) status; exit 0 ;;
+        -h | --help | help) usage; exit 0 ;;
+        *)
+            # Path / open mode — never flip A/B.
+            open_paths "$@"
+            exit 0
+            ;;
+    esac
+
+    local lines count running slot line
+    lines="$(running_instances)"
+    count="$(printf '%s\n' "$lines" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+    case "$count" in
+        0)
+            slot="$(last_slot)"
+            seed_legacy_state "$slot"
+            launch_slot "$slot"
+            ;;
+        1)
+            line="$(printf '%s\n' "$lines" | sed '/^$/d' | head -n1)"
+            running="${line%% *}"
+            case "$running" in
+                a | b)
+                    # Count is already slot-aware; no second pidfile probe.
+                    slot="$(other_slot "$running")"
+                    copy_state "$running" "$slot"
+                    launch_slot "$slot"
+                    ;;
+                legacy)
+                    slot="b"
+                    copy_state legacy "$slot"
+                    launch_slot "$slot"
+                    ;;
+                *)
+                    echo "one instance is running, but its slot is unknown:" >&2
+                    status >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
+        *)
+            echo "two or more Xenon instances are already running; refusing to launch" >&2
+            status >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
