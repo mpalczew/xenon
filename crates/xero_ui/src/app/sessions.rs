@@ -2,6 +2,24 @@
 
 use super::*;
 
+/// Why a workspace attention badge is lit. Last write wins; for debug tooltips.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AttentionReason {
+    /// Terminal BEL (`\a` / `Event::Bell`).
+    Bell,
+    /// Inferred: busy output then quiet for a few seconds (not a real agent event).
+    IdleSettled,
+}
+
+impl AttentionReason {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Bell => "Bell",
+            Self::IdleSettled => "Idle after busy output",
+        }
+    }
+}
+
 impl XeroApp {
     pub(crate) fn activate_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
         if self.registry.workspace(id).is_none() {
@@ -58,9 +76,14 @@ impl XeroApp {
             .push(cx.subscribe(&terminal, move |this, view, event, cx| {
                 let owner = this.workspace_of_terminal(&view);
                 match event {
-                    TerminalEvent::Bell | TerminalEvent::Finished => {
+                    TerminalEvent::Bell => {
                         if let Some(workspace) = owner {
-                            this.flag_attention(workspace, cx);
+                            this.flag_attention(workspace, AttentionReason::Bell, cx);
+                        }
+                    }
+                    TerminalEvent::Finished => {
+                        if let Some(workspace) = owner {
+                            this.flag_attention(workspace, AttentionReason::IdleSettled, cx);
                         }
                     }
                     TerminalEvent::Interacted => {
@@ -129,20 +152,21 @@ impl XeroApp {
         }
     }
 
-    fn flag_attention(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
-        if self.attention.insert(id) {
-            cx.notify();
+    fn flag_attention(&mut self, id: WorkspaceId, reason: AttentionReason, cx: &mut Context<Self>) {
+        match self.attention.insert(id, reason) {
+            Some(prev) if prev == reason => {}
+            _ => cx.notify(),
         }
     }
 
     pub(crate) fn clear_attention(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
-        if self.attention.remove(&id) {
+        if self.attention.remove(&id).is_some() {
             cx.notify();
         }
     }
 
-    pub(crate) fn needs_attention(&self, id: WorkspaceId) -> bool {
-        self.attention.contains(&id)
+    pub(crate) fn attention_reason(&self, id: WorkspaceId) -> Option<AttentionReason> {
+        self.attention.get(&id).copied()
     }
 
     /// Switch to a workspace and focus its terminal.

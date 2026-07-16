@@ -2,7 +2,7 @@
 //! a live terminal stack + editor stack. Workspaces are the unit of switching;
 //! each keeps its own running PTYs while open.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -47,6 +47,8 @@ mod tasks;
 mod terminals;
 mod tree_keys;
 mod workspaces;
+
+use sessions::AttentionReason;
 
 /// The terminals open in one workspace, as tabs, plus which is focused.
 #[derive(Default)]
@@ -160,9 +162,9 @@ pub struct XeroApp {
     _task_picker_sub: Option<Subscription>,
     _workspace_picker_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
-    // Workspaces whose terminal rang the bell while unfocused (agent wants
-    // attention); shown as a dot in the sidebar, cleared when the workspace opens.
-    attention: HashSet<WorkspaceId>,
+    // Workspaces flagged for attention (sidebar dot). Value is the last reason,
+    // shown on hover for debugging. Cleared when the workspace is selected.
+    attention: HashMap<WorkspaceId, AttentionReason>,
     _bell_subs: Vec<Subscription>,
     // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
@@ -220,7 +222,7 @@ impl XeroApp {
             _task_picker_sub: None,
             _workspace_picker_sub: None,
             _command_palette_sub: None,
-            attention: HashSet::new(),
+            attention: HashMap::new(),
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),
             ide: None,

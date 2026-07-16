@@ -23,7 +23,8 @@ struct WorkspaceRows {
     name: String,
     path: String,
     active: bool,
-    attention: bool,
+    /// Debug label for the attention badge tooltip (`None` = no badge).
+    attention: Option<&'static str>,
 }
 
 struct WorkspaceHeader<'a> {
@@ -31,7 +32,7 @@ struct WorkspaceHeader<'a> {
     name: &'a str,
     path: &'a str,
     active: bool,
-    attention: bool,
+    attention: Option<&'static str>,
     /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
     dirt: Option<(String, String)>,
 }
@@ -49,7 +50,7 @@ impl XeroApp {
                 name: w.name.clone(),
                 path: w.root.display().to_string(),
                 active: active == Some(w.id),
-                attention: self.needs_attention(w.id),
+                attention: self.attention_reason(w.id).map(|r| r.label()),
             })
             .collect();
 
@@ -251,16 +252,19 @@ impl XeroApp {
         &self,
         id: WorkspaceId,
         name: &str,
-        attention: bool,
+        attention: Option<&'static str>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let attention_dot = attention.then(|| {
+        let attention_dot = attention.map(|label| {
+            let tip = SharedString::from(label);
             div()
+                .id(("ws-attention", id_hash(id.to_string())))
                 .w(px(6.))
                 .h(px(6.))
                 .rounded_full()
                 .bg(crate::chrome::attention_color(cx))
+                .tooltip(path_tooltip(tip))
         });
         div()
             .id(("ws-select", id_hash(id.to_string())))
