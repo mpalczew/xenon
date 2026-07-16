@@ -151,11 +151,7 @@ impl XeroApp {
             CommandId::MoveTabMenu => self.open_move_tab_menu(window, cx),
             CommandId::ZoomIn => self.nudge_font_size(1.0, window, cx),
             CommandId::ZoomOut => self.nudge_font_size(-1.0, window, cx),
-            CommandId::ZoomReset => {
-                xero_settings::reset_font_sizes(cx);
-                xero_settings::save(cx);
-                window.refresh();
-            }
+            CommandId::ZoomReset => self.reset_font_size(window, cx),
         }
     }
 }

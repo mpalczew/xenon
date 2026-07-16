@@ -192,6 +192,9 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
         DropdownId::Mode => settings.theme = parse_mode(&value),
         DropdownId::LightTheme => settings.light_theme = value,
         DropdownId::DarkTheme => settings.dark_theme = value,
+        DropdownId::UiFamily => {
+            settings.ui_font_family = xero_settings::ensure_ui_family(&value, cx);
+        }
         DropdownId::EditorFamily => {
             settings.editor_font_family = xero_settings::ensure_mono_family(&value, cx);
         }
@@ -216,6 +219,7 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
 
 pub(super) fn apply_size_nudge(target: SizeTarget, delta: f32, cx: &mut App) {
     match target {
+        SizeTarget::Ui => xero_settings::nudge_ui_font_size(cx, delta),
         SizeTarget::Editor => xero_settings::nudge_editor_font_size(cx, delta),
         SizeTarget::Terminal => xero_settings::nudge_terminal_font_size(cx, delta),
     }

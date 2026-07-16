@@ -110,6 +110,13 @@ enum FocusPane {
     Browser,
 }
 
+/// Content surface for cmd-+ / cmd-- font zoom (editor and terminal only).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FontPane {
+    Terminal,
+    Editor,
+}
+
 pub struct XeroApp {
     registry: Registry,
     // Stream metadata (name/session) and, per stream, the live views. Keeping
@@ -134,6 +141,8 @@ pub struct XeroApp {
     // re-focus during the next render (render is where a `Window` is available).
     restore_pane: Option<FocusPane>,
     pending_focus: Option<FocusPane>,
+    /// Last editor/terminal focus for zoom when chrome (sidebar, tree) has focus.
+    last_font_pane: FontPane,
     // A cmd-clicked name to open cmd-p with, deferred to render (which has a
     // Window) from the windowless terminal-event subscription.
     pending_palette_query: Option<String>,
@@ -204,6 +213,7 @@ impl XeroApp {
             index_tasks: HashMap::new(),
             restore_pane: None,
             pending_focus: None,
+            last_font_pane: FontPane::Terminal,
             pending_palette_query: None,
             pending_command: None,
             pending_stream: None,

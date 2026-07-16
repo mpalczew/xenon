@@ -53,7 +53,7 @@ fn tab_close(
         .on_click(on_click)
 }
 
-/// A hover tooltip showing a terminal tab's full (untruncated) title.
+/// Hover tooltip for a tab (full path for editors, full title for terminals).
 struct TabTooltip {
     text: SharedString,
 }
@@ -77,6 +77,8 @@ impl Render for TabTooltip {
 struct TabChip<'a> {
     index: usize,
     name: &'a str,
+    /// Full path for the hover tooltip (tab label is basename only).
+    path: &'a str,
     is_active: bool,
     is_dirty: bool,
 }
@@ -91,7 +93,7 @@ struct TerminalChip<'a> {
 impl XeroApp {
     pub(crate) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let tabs: Vec<(usize, String, bool, bool)> = self
+        let tabs: Vec<(usize, String, String, bool, bool)> = self
             .editor_stack()
             .map(|stack| {
                 stack
@@ -100,18 +102,20 @@ impl XeroApp {
                     .enumerate()
                     .map(|(i, tab)| {
                         let dirty = tab.view.read(cx).is_dirty();
-                        (i, tab.name.clone(), i == stack.active, dirty)
+                        let path = tab.path.display().to_string();
+                        (i, tab.name.clone(), path, i == stack.active, dirty)
                     })
                     .collect()
             })
             .unwrap_or_default();
 
         let mut chips = Vec::with_capacity(tabs.len());
-        for (index, name, is_active, is_dirty) in tabs {
+        for (index, name, path, is_active, is_dirty) in tabs {
             chips.push(self.tab_chip(
                 TabChip {
                     index,
                     name: &name,
+                    path: &path,
                     is_active,
                     is_dirty,
                 },
@@ -155,12 +159,14 @@ impl XeroApp {
         let TabChip {
             index,
             name,
+            path,
             is_active,
             is_dirty,
         } = chip;
         let colors = cx.theme().colors().clone();
         let paint = chrome::tab_selection(&colors, is_active);
         let group = format!("editor-tab-{index}");
+        let tip = SharedString::from(path.to_string());
         div()
             .id(("tab", index))
             .group(group.clone())
@@ -183,6 +189,9 @@ impl XeroApp {
                     this.open_tab_menu(TabSurface::Editor, index, event.position, cx);
                 }),
             )
+            .tooltip(move |_window: &mut Window, cx: &mut App| {
+                cx.new(|_| TabTooltip { text: tip.clone() }).into()
+            })
             .child(
                 div()
                     .text_sm()

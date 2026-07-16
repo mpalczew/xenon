@@ -34,7 +34,7 @@ impl XeroApp {
         if self.settings_window.is_some() {
             return;
         }
-        let bounds = Bounds::centered(None, size(px(480.), px(560.)), cx);
+        let bounds = Bounds::centered(None, size(px(480.), px(640.)), cx);
         match cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),

@@ -16,6 +16,9 @@ impl Render for XeroApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_window_title(&self.window_title());
         self.drain_deferred_ui(window, cx);
+        let ui = xero_settings::ui_font(cx);
+        // rem drives text_sm/xs/lg across chrome; family cascades to children.
+        window.set_rem_size(px(ui.size));
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
@@ -43,6 +46,7 @@ impl Render for XeroApp {
             .size_full()
             .bg(colors.background)
             .text_color(colors.text)
+            .font_family(ui.family)
             .child(toolbar)
             .child(body)
             .children(finder)
@@ -148,10 +152,8 @@ impl XeroApp {
             .on_action(cx.listener(|this, _: &DecreaseFontSize, window, cx| {
                 this.nudge_font_size(-1.0, window, cx);
             }))
-            .on_action(cx.listener(|_, _: &ResetFontSize, window, cx| {
-                xero_settings::reset_font_sizes(cx);
-                xero_settings::save(cx);
-                window.refresh();
+            .on_action(cx.listener(|this, _: &ResetFontSize, window, cx| {
+                this.reset_font_size(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Cut, window, cx| {
                 this.clipboard_cut(window, cx);

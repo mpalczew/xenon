@@ -8,6 +8,7 @@ impl XeroApp {
     pub(super) fn focus_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.browser_focused = false;
         self.terminal_collapsed = false;
+        self.last_font_pane = FontPane::Terminal;
         self.ensure_terminal(cx);
         if let Some(id) = self.active {
             self.save_layout(id);
@@ -22,6 +23,7 @@ impl XeroApp {
     pub(super) fn focus_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.browser_focused = false;
         self.editor_collapsed = false;
+        self.last_font_pane = FontPane::Editor;
         if let Some(id) = self.active {
             self.save_layout(id);
         }

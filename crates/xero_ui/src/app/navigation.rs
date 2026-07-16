@@ -71,20 +71,41 @@ impl XeroApp {
         }
     }
 
-    /// cmd-+ / cmd--: nudge the focused pane's font size (both if neither focused).
-    pub(super) fn nudge_font_size(&self, delta: f32, window: &mut Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) | Some(FocusPane::Browser) => {
-                xero_settings::nudge_editor_font_size(cx, delta)
-            }
-            Some(FocusPane::Terminal) => xero_settings::nudge_terminal_font_size(cx, delta),
-            None => {
-                xero_settings::nudge_editor_font_size(cx, delta);
-                xero_settings::nudge_terminal_font_size(cx, delta);
-            }
+    /// cmd-+ / cmd--: nudge only the focused editor or terminal font size.
+    /// Sidebar / tree / no focus falls back to the last content pane.
+    pub(super) fn nudge_font_size(
+        &mut self,
+        delta: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match self.font_target(window, cx) {
+            FontPane::Editor => xero_settings::nudge_editor_font_size(cx, delta),
+            FontPane::Terminal => xero_settings::nudge_terminal_font_size(cx, delta),
         }
         xero_settings::save(cx);
         window.refresh();
+    }
+
+    /// cmd-0: reset font size for the focused editor or terminal only.
+    pub(super) fn reset_font_size(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.font_target(window, cx) {
+            FontPane::Editor => xero_settings::reset_editor_font_size(cx),
+            FontPane::Terminal => xero_settings::reset_terminal_font_size(cx),
+        }
+        xero_settings::save(cx);
+        window.refresh();
+    }
+
+    /// Which content surface zoom / reset should affect.
+    fn font_target(&mut self, window: &Window, cx: &Context<Self>) -> FontPane {
+        let target = match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => FontPane::Editor,
+            Some(FocusPane::Terminal) => FontPane::Terminal,
+            Some(FocusPane::Browser) | None => self.last_font_pane,
+        };
+        self.last_font_pane = target;
+        target
     }
 
     /// Route Cut to the focused editor or terminal (app menu / global binding).

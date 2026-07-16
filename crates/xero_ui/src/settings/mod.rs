@@ -13,7 +13,9 @@ use gpui::{
 use theme::ActiveTheme;
 
 use crate::ToggleSettings;
-use crate::dropdown::{DropdownId, SizeTarget, filter_options, mono_font_families};
+use crate::dropdown::{
+    DropdownId, SizeTarget, filter_options, mono_font_families, ui_font_families,
+};
 use input::input_registrar;
 use sections::{
     OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
@@ -36,10 +38,11 @@ pub struct SettingsView {
 
 impl SettingsView {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        // Full system mono scan is deferred and never runs on paint / key path.
+        // Full system font scans are deferred and never run on paint / key path.
         cx.spawn(async move |this, cx| {
             this.update(cx, |_this, cx| {
                 crate::dropdown::warm_mono_font_families(cx);
+                crate::dropdown::warm_ui_font_families(cx);
                 cx.notify();
             })
             .ok();
@@ -226,7 +229,8 @@ impl SettingsView {
     fn body(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let settings = xero_settings::snapshot(cx);
         // Cache only / seed list — never full system scan during paint.
-        let families = mono_font_families(cx);
+        let mono = mono_font_families(cx);
+        let ui = ui_font_families(cx);
         let state = OpenState {
             open: self.open,
             filter: self.filter.as_str(),
@@ -246,12 +250,22 @@ impl SettingsView {
             }))
             .child(appearance_section(&settings, state, cx))
             .child(font_section(
+                "UI Font",
+                DropdownId::UiFamily,
+                SizeTarget::Ui,
+                &settings.ui_font_family,
+                settings.ui_font_size,
+                &ui,
+                state,
+                cx,
+            ))
+            .child(font_section(
                 "Editor Font",
                 DropdownId::EditorFamily,
                 SizeTarget::Editor,
                 &settings.editor_font_family,
                 settings.editor_font_size,
-                &families,
+                &mono,
                 state,
                 cx,
             ))
@@ -261,7 +275,7 @@ impl SettingsView {
                 SizeTarget::Terminal,
                 &settings.terminal_font_family,
                 settings.terminal_font_size,
-                &families,
+                &mono,
                 state,
                 cx,
             ))
@@ -284,6 +298,8 @@ impl Render for SettingsView {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
+        let ui = xero_settings::ui_font(cx);
+        window.set_rem_size(gpui::px(ui.size));
         let colors = cx.theme().colors().clone();
         let body = self.body(window, cx);
         div()
@@ -298,6 +314,7 @@ impl Render for SettingsView {
             .size_full()
             .bg(colors.background)
             .text_color(colors.text)
+            .font_family(ui.family)
             .child(
                 div()
                     .px_4()
@@ -320,6 +337,7 @@ fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
         DropdownId::Mode => vec!["System".into(), "Light".into(), "Dark".into()],
         DropdownId::LightTheme => xero_terminal::theme_names(theme::Appearance::Light, cx),
         DropdownId::DarkTheme => xero_terminal::theme_names(theme::Appearance::Dark, cx),
+        DropdownId::UiFamily => ui_font_families(cx),
         DropdownId::EditorFamily | DropdownId::TerminalFamily => mono_font_families(cx),
         DropdownId::TerminalAutoClose => [
             xero_settings::TerminalAutoClose::Off,

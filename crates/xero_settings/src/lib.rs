@@ -2,14 +2,20 @@
 //! Durable values live in `~/.xero/settings.json` (via `xero_store`).
 //! Also hosts clipboard actions so editor and terminal share one Cut/Copy/Paste.
 
+mod faces;
 mod mono_font;
 
 use gpui::{App, Global, actions};
-use xero_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME};
+use xero_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
 // Shared edit actions (app menu, keybindings, context menus).
 actions!(xero_clipboard, [Cut, Copy, Paste, SelectAll]);
 
+pub use faces::{
+    FaceFont, display_ui_family, editor_font, ensure_ui_family, nudge_editor_font_size,
+    nudge_terminal_font_size, nudge_ui_font_size, reset_editor_font_size, reset_font_sizes,
+    reset_terminal_font_size, terminal_font, ui_font,
+};
 pub use mono_font::{
     canonicalize as canonicalize_mono_family, display_name as display_mono_family,
     ensure as ensure_mono_family, is_family as is_monospace_family,
@@ -21,30 +27,6 @@ pub const MAX_FONT_SIZE: f32 = 32.0;
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 pub const DEFAULT_SHOW_LINE_NUMBERS: bool = true;
 pub const DEFAULT_VIM_MODE: bool = false;
-
-/// Font size + family for one surface (editor or terminal).
-#[derive(Clone, Debug, PartialEq)]
-pub struct FaceFont {
-    pub size: f32,
-    pub family: String,
-}
-
-impl Default for FaceFont {
-    fn default() -> Self {
-        Self {
-            size: DEFAULT_FONT_SIZE,
-            family: DEFAULT_FONT_FAMILY.into(),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct EditorFont(FaceFont);
-impl Global for EditorFont {}
-
-#[derive(Clone)]
-struct TerminalFont(FaceFont);
-impl Global for TerminalFont {}
 
 #[derive(Copy, Clone)]
 struct ShowLineNumbers(pub bool);
@@ -67,21 +49,17 @@ struct ThemePreference {
 impl Global for ThemePreference {}
 
 /// Apply a loaded settings snapshot into gpui globals (call once at startup).
-/// Font families are canonicalized (aliases) and rejected if they do not resolve
-/// as monospaced — GPUI otherwise silently falls back to a proportional face.
+/// Editor/terminal families must resolve as monospaced; UI may be any face.
 pub fn apply(settings: &AppSettings, cx: &mut App) {
-    let editor_family = ensure_mono_family(&settings.editor_font_family, cx);
-    let terminal_family = ensure_mono_family(&settings.terminal_font_family, cx);
-    let healed = editor_family != settings.editor_font_family
-        || terminal_family != settings.terminal_font_family;
-    cx.set_global(EditorFont(FaceFont {
-        size: clamp_size(settings.editor_font_size),
-        family: editor_family,
-    }));
-    cx.set_global(TerminalFont(FaceFont {
-        size: clamp_size(settings.terminal_font_size),
-        family: terminal_family,
-    }));
+    let (editor, terminal, ui, healed) = faces::resolve_faces(
+        faces::RawFaces {
+            editor: (&settings.editor_font_family, settings.editor_font_size),
+            terminal: (&settings.terminal_font_family, settings.terminal_font_size),
+            ui: (&settings.ui_font_family, settings.ui_font_size),
+        },
+        cx,
+    );
+    faces::set_faces(editor, terminal, ui, cx);
     set_show_line_numbers(cx, settings.show_line_numbers);
     set_vim_mode(cx, settings.vim_mode);
     set_terminal_auto_close(cx, settings.terminal_auto_close);
@@ -100,12 +78,15 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
 pub fn snapshot(cx: &App) -> AppSettings {
     let editor = editor_font(cx);
     let terminal = terminal_font(cx);
+    let ui = ui_font(cx);
     let theme = theme_preference(cx);
     AppSettings {
         editor_font_size: editor.size,
         editor_font_family: editor.family,
         terminal_font_size: terminal.size,
         terminal_font_family: terminal.family,
+        ui_font_size: ui.size,
+        ui_font_family: ui.family,
         show_line_numbers: show_line_numbers(cx),
         vim_mode: vim_mode(cx),
         theme: theme.mode,
@@ -130,45 +111,6 @@ pub fn save(cx: &App) {
     if let Err(error) = xero_store::save_settings(&snapshot(cx)) {
         log::error!("save settings failed: {error}");
     }
-}
-
-pub fn editor_font(cx: &App) -> FaceFont {
-    cx.try_global::<EditorFont>()
-        .map(|f| f.0.clone())
-        .unwrap_or_default()
-}
-
-pub fn terminal_font(cx: &App) -> FaceFont {
-    cx.try_global::<TerminalFont>()
-        .map(|f| f.0.clone())
-        .unwrap_or_default()
-}
-
-/// Nudge editor font size by `delta` points (cmd-+ / cmd-- when editor focused).
-pub fn nudge_editor_font_size(cx: &mut App, delta: f32) {
-    let mut face = editor_font(cx);
-    face.size = clamp_size(face.size + delta);
-    cx.set_global(EditorFont(face));
-}
-
-/// Nudge terminal font size by `delta` points (cmd-+ / cmd-- when terminal focused).
-pub fn nudge_terminal_font_size(cx: &mut App, delta: f32) {
-    let mut face = terminal_font(cx);
-    face.size = clamp_size(face.size + delta);
-    cx.set_global(TerminalFont(face));
-}
-
-pub fn reset_font_sizes(cx: &mut App) {
-    let mut editor = editor_font(cx);
-    editor.size = DEFAULT_FONT_SIZE;
-    cx.set_global(EditorFont(editor));
-    let mut terminal = terminal_font(cx);
-    terminal.size = DEFAULT_FONT_SIZE;
-    cx.set_global(TerminalFont(terminal));
-}
-
-fn clamp_size(size: f32) -> f32 {
-    size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE)
 }
 
 pub fn show_line_numbers(cx: &App) -> bool {

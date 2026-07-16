@@ -1,14 +1,20 @@
 //! Filterable / plain dropdown + size stepper for the Settings window.
 //! Open lists are deferred window-anchored popovers under the trigger.
 
-use std::sync::Mutex;
+mod fonts;
+
+use fonts::{family_option_label, format_size};
+pub(crate) use fonts::{
+    mono_family_label, mono_font_families, ui_font_families, warm_mono_font_families,
+    warm_ui_font_families,
+};
 
 use gpui::{
-    Anchor, App, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString,
+    Anchor, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString,
     StatefulInteractiveElement, Styled, anchored, deferred, div, point, prelude::FluentBuilder, px,
     relative,
 };
-use theme::{ActiveTheme, FontFamilyCache};
+use theme::ActiveTheme;
 
 use crate::settings::SettingsView;
 
@@ -18,6 +24,7 @@ pub(crate) enum DropdownId {
     Mode,
     LightTheme,
     DarkTheme,
+    UiFamily,
     EditorFamily,
     TerminalFamily,
     TerminalAutoClose,
@@ -26,6 +33,7 @@ pub(crate) enum DropdownId {
 /// Which surface a size stepper adjusts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SizeTarget {
+    Ui,
     Editor,
     Terminal,
 }
@@ -203,11 +211,7 @@ fn trigger(
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
-    let label = if is_mono_family_dropdown(id) {
-        mono_family_label(selected)
-    } else {
-        selected.to_string()
-    };
+    let label = family_option_label(id, selected);
     let chevron = if open { "▴" } else { "▾" };
     div()
         .id(SharedString::from(format!("dd-trigger-{id:?}")))
@@ -340,11 +344,7 @@ fn option_row(
         colors.elevated_surface_background
     };
     let pick = option.clone();
-    let label = if is_mono_family_dropdown(id) {
-        mono_family_label(option.as_ref())
-    } else {
-        option.to_string()
-    };
+    let label = family_option_label(id, option.as_ref());
     div()
         .id(SharedString::from(format!("dd-opt-{id:?}-{option}")))
         .px_2()
@@ -376,88 +376,10 @@ pub(crate) fn filter_options(
                 || mono_family_label(name.as_ref())
                     .to_lowercase()
                     .contains(&needle)
+                || xero_settings::display_ui_family(name.as_ref())
+                    .to_lowercase()
+                    .contains(&needle)
         })
         .cloned()
         .collect()
-}
-
-fn is_mono_family_dropdown(id: DropdownId) -> bool {
-    matches!(id, DropdownId::EditorFamily | DropdownId::TerminalFamily)
-}
-
-fn mono_cache() -> &'static Mutex<Option<Vec<SharedString>>> {
-    static CACHE: Mutex<Option<Vec<SharedString>>> = Mutex::new(None);
-    &CACHE
-}
-
-/// Known monospace faces to show before / without a full system scan.
-/// Names must be real Core Text families (not marketing labels like "SF Mono").
-fn seed_mono_families() -> Vec<SharedString> {
-    [
-        "Menlo",
-        "Monaco",
-        "Courier New",
-        "Courier",
-        "JetBrains Mono",
-        "Fira Code",
-        "Source Code Pro",
-        "Cascadia Code",
-        "IBM Plex Mono",
-        "Inconsolata",
-        "Hack",
-    ]
-    .into_iter()
-    .map(SharedString::from)
-    .collect()
-}
-
-/// Monospace families for Settings. Never runs a full system font scan on the
-/// call path: returns the warm cache, else a small seed list. Use
-/// [`warm_mono_font_families`] from a deferred task to fill the real cache.
-pub(crate) fn mono_font_families(_cx: &App) -> Vec<SharedString> {
-    let guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(cached) = guard.as_ref() {
-        return cached.clone();
-    }
-    seed_mono_families()
-}
-
-/// Probe installed monospaced families and fill the cache. Safe to call from a
-/// deferred task after Settings has opened (not from key handlers or paint).
-pub(crate) fn warm_mono_font_families(cx: &App) {
-    {
-        let guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
-        if guard.is_some() {
-            return;
-        }
-    }
-    let list = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        FontFamilyCache::global(cx)
-            .list_font_families(cx)
-            .into_iter()
-            .filter(|name| xero_settings::is_monospace_family(name.as_ref(), cx))
-            .collect::<Vec<SharedString>>()
-    }))
-    .unwrap_or_else(|_| seed_mono_families());
-    let mut guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
-    if guard.is_none() {
-        *guard = Some(if list.is_empty() {
-            seed_mono_families()
-        } else {
-            list
-        });
-    }
-}
-
-/// Friendly label for a stored mono family name (dropdown rows / trigger).
-pub(crate) fn mono_family_label(family: &str) -> String {
-    xero_settings::display_mono_family(family).to_string()
-}
-
-pub(crate) fn format_size(size: f32) -> String {
-    if (size - size.round()).abs() < 0.01 {
-        format!("{}", size.round() as i32)
-    } else {
-        format!("{size:.1}")
-    }
 }

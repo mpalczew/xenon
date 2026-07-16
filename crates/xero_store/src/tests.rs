@@ -91,8 +91,10 @@ fn settings_round_trip() {
         let settings = AppSettings {
             editor_font_size: 18.0,
             terminal_font_size: 12.0,
+            ui_font_size: 15.0,
             editor_font_family: "SF Mono".into(),
             terminal_font_family: "Menlo".into(),
+            ui_font_family: ".SystemUIFont".into(),
             show_line_numbers: false,
             vim_mode: true,
             theme: crate::ThemeMode::Dark,
@@ -119,7 +121,9 @@ fn settings_missing_theme_defaults_to_system() {
         assert_eq!(settings.theme, crate::ThemeMode::System);
         assert_eq!(settings.editor_font_size, 16.0);
         assert_eq!(settings.terminal_font_size, 14.0);
+        assert_eq!(settings.ui_font_size, 14.0);
         assert_eq!(settings.editor_font_family, "Menlo");
+        assert_eq!(settings.ui_font_family, ".SystemUIFont");
     });
 }
 
