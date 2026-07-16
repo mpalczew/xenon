@@ -10,9 +10,6 @@ use ropey::Rope;
 
 const GUTTER_PAD_LEFT: f32 = 8.;
 const GUTTER_PAD_RIGHT: f32 = 8.;
-const SCROLLBAR_INSET: f32 = 2.;
-const SCROLLBAR_SIZE: f32 = 6.;
-const MIN_SCROLLBAR_THUMB: f32 = 24.;
 
 /// A colored byte range `[start, end)` over the whole buffer.
 pub struct ColoredSpan {
@@ -99,13 +96,17 @@ pub fn layout(
     let mut scroll_top = input.scroll_top;
     let mut scroll_left = input.scroll_left;
     if input.follow_cursor {
-        scroll_top = crate::scroll::keep_row_visible(
-            scroll_top,
-            row,
-            metrics.line_height,
+        // Overlay scrollbars sit on the canvas edge; follow into the clear area.
+        let (follow_w, follow_h) = crate::scroll::follow_viewport(
+            text_width,
             input.viewport_height,
+            content_width,
+            content_height,
+            crate::scroll::scrollbar_reserve(),
         );
-        scroll_left = crate::scroll::keep_col_visible(scroll_left, col, cell_w, text_width);
+        scroll_top =
+            crate::scroll::keep_row_visible(scroll_top, row, metrics.line_height, follow_h);
+        scroll_left = crate::scroll::keep_col_visible(scroll_left, col, cell_w, follow_w);
     }
     scroll_top = scroll_top
         .min((content_height - input.viewport_height).max(px(0.)))
@@ -117,7 +118,7 @@ pub fn layout(
     let gutter = input
         .show_line_numbers
         .then(|| Bounds::new(input.origin, size(gutter_width, input.viewport_height)));
-    let scrollbars = scrollbars(ScrollbarInput {
+    let scrollbars = crate::scroll::scrollbars(crate::scroll::ScrollbarInput {
         origin: input.origin,
         viewport_width: input.viewport_width,
         viewport_height: input.viewport_height,
@@ -324,66 +325,6 @@ fn line_len_chars(rope: &Rope, row: usize) -> usize {
     } else {
         len
     }
-}
-
-struct ScrollbarInput {
-    origin: GpuiPoint<Pixels>,
-    viewport_width: Pixels,
-    viewport_height: Pixels,
-    gutter_width: Pixels,
-    text_width: Pixels,
-    content_width: Pixels,
-    content_height: Pixels,
-    scroll_top: Pixels,
-    scroll_left: Pixels,
-}
-
-fn scrollbars(input: ScrollbarInput) -> Vec<Bounds<Pixels>> {
-    let mut bars = Vec::new();
-    if input.content_height > input.viewport_height {
-        bars.push(vertical_scrollbar(&input));
-    }
-    if input.content_width > input.text_width {
-        bars.push(horizontal_scrollbar(&input));
-    }
-    bars
-}
-
-fn vertical_scrollbar(input: &ScrollbarInput) -> Bounds<Pixels> {
-    let track = input.viewport_height - px(SCROLLBAR_INSET * 2.);
-    let thumb = ((input.viewport_height / input.content_height) * track)
-        .max(px(MIN_SCROLLBAR_THUMB))
-        .min(track);
-    let max_offset = (input.content_height - input.viewport_height).max(px(1.));
-    let travel = (track - thumb).max(px(0.));
-    let top = input.origin.y + px(SCROLLBAR_INSET) + travel * (input.scroll_top / max_offset);
-    Bounds::new(
-        point(
-            input.origin.x + input.viewport_width - px(SCROLLBAR_SIZE + SCROLLBAR_INSET),
-            top,
-        ),
-        size(px(SCROLLBAR_SIZE), thumb),
-    )
-}
-
-fn horizontal_scrollbar(input: &ScrollbarInput) -> Bounds<Pixels> {
-    let track = (input.text_width - px(SCROLLBAR_INSET * 2.)).max(px(0.));
-    let thumb = ((input.text_width / input.content_width) * track)
-        .max(px(MIN_SCROLLBAR_THUMB))
-        .min(track);
-    let max_offset = (input.content_width - input.text_width).max(px(1.));
-    let travel = (track - thumb).max(px(0.));
-    let left = input.origin.x
-        + input.gutter_width
-        + px(SCROLLBAR_INSET)
-        + travel * (input.scroll_left / max_offset);
-    Bounds::new(
-        point(
-            left,
-            input.origin.y + input.viewport_height - px(SCROLLBAR_SIZE + SCROLLBAR_INSET),
-        ),
-        size(thumb, px(SCROLLBAR_SIZE)),
-    )
 }
 
 fn trim_newline(mut text: String) -> String {
