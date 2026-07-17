@@ -33,4 +33,4 @@ After pass 1 (`b74c487`). Scope: leftovers + one WIP already in the tree.
 - [x] Shape baseline ratcheted.
 - [x] `start_git_dirt_watch` folded into `restart_git_dirt_watch`.
 - [x] `entity_input_noop_geometry!` for rename, settings, palette query.
-- [ ] Install + commit.
+- [x] Install + commit (`bd342e0`).
