@@ -1,21 +1,30 @@
 //! `FinderView`: the cmd-p fuzzy file palette. Emits `FinderEvent` back to
 //! `XeroApp` on selection or dismissal.
+//!
+//! Matching runs off the UI thread (debounced) so large indexes cannot stall
+//! typing. Prior results stay visible until the new match lands. Ranking lives
+//! in `xero_finder`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, StatefulInteractiveElement, Window,
+    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Task, Window,
 };
 use theme::ActiveTheme;
-use xero_finder::{FileIndex, FileMatch, Finder};
+use xero_finder::{FileIndex, FileMatch};
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, clamp_selection, input_registrar, panel, query_row, scrim, scroll_results,
-    simple_row,
+    PaletteLayout, ScrollResults, clamp_selection, input_registrar, panel, query_row, scrim,
+    scroll_results, simple_row,
 };
+
+/// Debounce before scoring a large index (keeps keystrokes snappy).
+const QUERY_DEBOUNCE: Duration = Duration::from_millis(40);
+const CARET_BLINK: Duration = Duration::from_millis(530);
 
 pub enum FinderEvent {
     Selected(PathBuf),
@@ -25,12 +34,20 @@ pub enum FinderEvent {
 
 pub struct FinderView {
     /// `None` until the workspace index for this root has finished building.
-    finder: Option<Finder>,
+    index: Option<Arc<FileIndex>>,
     query: String,
+    /// Query string that `results` was computed for (stale guard for Enter).
+    results_for: String,
     results: Vec<FileMatch>,
     selected: usize,
     focus: FocusHandle,
     focused_once: bool,
+    scroll: ScrollHandle,
+    query_gen: u64,
+    searching: bool,
+    caret_on: bool,
+    _query_task: Option<Task<()>>,
+    _blink: Option<Task<()>>,
 }
 
 impl EventEmitter<FinderEvent> for FinderView {}
@@ -41,38 +58,100 @@ impl FinderView {
         initial_query: String,
         cx: &mut Context<Self>,
     ) -> Self {
-        let mut finder = index.map(Finder::new);
-        let results = finder
-            .as_mut()
-            .map(|f| f.query(&initial_query))
-            .unwrap_or_default();
-        Self {
-            finder,
+        let mut view = Self {
+            index,
             query: initial_query,
-            results,
+            results_for: String::new(),
+            results: Vec::new(),
             selected: 0,
             focus: cx.focus_handle(),
             focused_once: false,
-        }
+            scroll: ScrollHandle::new(),
+            query_gen: 0,
+            searching: false,
+            caret_on: true,
+            _query_task: None,
+            _blink: None,
+        };
+        view.kick_query(cx);
+        view
     }
 
     pub fn set_index(&mut self, index: Arc<FileIndex>, cx: &mut Context<Self>) {
-        let mut finder = Finder::new(index);
-        self.results = finder.query(&self.query);
-        self.finder = Some(finder);
-        self.selected = 0;
+        self.index = Some(index);
+        self.kick_query(cx);
         cx.notify();
     }
 
     fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
         self.query = query;
-        self.results = self
-            .finder
-            .as_mut()
-            .map(|f| f.query(&self.query))
-            .unwrap_or_default();
         self.selected = 0;
+        self.caret_on = true;
+        self.kick_query(cx);
         cx.notify();
+    }
+
+    fn start_caret_blink(&mut self, cx: &mut Context<Self>) {
+        self.caret_on = true;
+        self._blink = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(CARET_BLINK).await;
+                let keep = this
+                    .update(cx, |this, cx| {
+                        this.caret_on = !this.caret_on;
+                        cx.notify();
+                        true
+                    })
+                    .unwrap_or(false);
+                if !keep {
+                    break;
+                }
+            }
+        }));
+    }
+
+    /// Debounce, then score on a background thread; apply only if still current.
+    fn kick_query(&mut self, cx: &mut Context<Self>) {
+        let Some(index) = self.index.clone() else {
+            self.results.clear();
+            self.results_for.clear();
+            self.searching = false;
+            self._query_task = None;
+            return;
+        };
+        self.query_gen = self.query_gen.wrapping_add(1);
+        let token = self.query_gen;
+        let query = self.query.clone();
+        self.searching = true;
+
+        self._query_task = Some(cx.spawn(async move |this, cx| {
+            // Empty query is cheap (slice); skip debounce so open feels instant.
+            if !query.is_empty() {
+                cx.background_executor().timer(QUERY_DEBOUNCE).await;
+            }
+            let still = this
+                .update(cx, |this, _| this.query_gen == token && this.query == query)
+                .unwrap_or(false);
+            if !still {
+                return;
+            }
+            let q = query.clone();
+            let results = cx
+                .background_executor()
+                .spawn(async move { index.query(&q) })
+                .await;
+            this.update(cx, |this, cx| {
+                if this.query_gen != token || this.query != query {
+                    return;
+                }
+                this.results = results;
+                this.results_for = query;
+                this.searching = false;
+                this.selected = 0;
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
@@ -80,7 +159,15 @@ impl FinderView {
         cx.notify();
     }
 
+    fn results_ready(&self) -> bool {
+        self.results_for == self.query
+    }
+
     fn confirm(&mut self, cx: &mut Context<Self>) {
+        // Ignore Enter while results belong to a previous query.
+        if !self.results_ready() {
+            return;
+        }
         if let Some(result) = self.results.get(self.selected) {
             if result.is_dir {
                 cx.emit(FinderEvent::RevealDir(result.path.clone()));
@@ -91,6 +178,9 @@ impl FinderView {
     }
 
     fn click_result(&mut self, index: usize, cx: &mut Context<Self>) {
+        if !self.results_ready() {
+            return;
+        }
         self.selected = index;
         self.confirm(cx);
     }
@@ -112,10 +202,25 @@ impl FinderView {
     }
 
     fn placeholder(&self) -> &'static str {
-        if self.finder.is_none() {
+        if self.index.is_none() {
             "Indexing…"
         } else {
             "Search files…"
+        }
+    }
+
+    fn empty_label(&self) -> &'static str {
+        if self.index.is_none() {
+            "Indexing workspace…"
+        } else if self.results.is_empty() && self.searching {
+            "Searching…"
+        } else if self.query.is_empty() && self.results.is_empty() {
+            "Type to search files"
+        } else if self.results.is_empty() {
+            "No matching files"
+        } else {
+            // Non-empty list; label unused by scroll_results when rows exist.
+            ""
         }
     }
 }
@@ -131,16 +236,13 @@ impl Render for FinderView {
         if !self.focused_once {
             self.focus.focus(window, cx);
             self.focused_once = true;
+            self.start_caret_blink(cx);
         }
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
-        let empty = if self.finder.is_none() {
-            "Indexing workspace…"
-        } else if self.query.is_empty() {
-            "Type to search files"
-        } else {
-            "No matching files"
-        };
+        let empty = self.empty_label();
+        // Keep prior rows visible while a newer query is in flight (large
+        // indexes take tens of ms; clearing looks like "list emptied").
         let rows: Vec<_> = self
             .results
             .iter()
@@ -165,8 +267,18 @@ impl Render for FinderView {
                     .key_context("Finder")
                     .on_key_down(cx.listener(Self::on_key))
                     .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(query_row(&self.query, self.placeholder(), &colors).into_any_element())
-                    .child(scroll_results("finder-results", empty, rows, &colors)),
+                    .child(
+                        query_row(&self.query, self.placeholder(), self.caret_on, &colors)
+                            .into_any_element(),
+                    )
+                    .child(scroll_results(ScrollResults {
+                        list_id: "finder-results",
+                        empty_message: empty,
+                        rows,
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    })),
             )
     }
 }

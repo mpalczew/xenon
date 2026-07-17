@@ -1,10 +1,7 @@
 //! Keyboard, mouse, and clipboard input for the text editor.
 
-use std::ops::Range;
-
 use gpui::{
-    Bounds, ClipboardItem, Context, EntityInputHandler, KeyDownEvent, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, UTF16Selection, Window,
+    ClipboardItem, Context, KeyDownEvent, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Window,
 };
 
 use super::{Content, EditorView};
@@ -16,10 +13,20 @@ impl EditorView {
     pub(super) fn on_key(
         &mut self,
         event: &KeyDownEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let keystroke = &event.keystroke;
+        // Find bar owns keys when its input is focused.
+        if self.find_bar_focused(window) {
+            return;
+        }
+        // Esc closes find when editor body is focused.
+        if keystroke.key == "escape" && self.find_is_open() {
+            self.close_find(window, cx);
+            cx.stop_propagation();
+            return;
+        }
         if matches!(self.content, Content::Image(_)) {
             if !keystroke.modifiers.platform {
                 return;
@@ -63,17 +70,8 @@ impl EditorView {
             cx.notify();
             return;
         }
-        let vim_on = xero_settings::vim_mode(cx);
-        if vim_on {
-            if self.handle_vim_key(&keystroke.key, cx) {
-                cx.stop_propagation();
-                cx.notify();
-                return;
-            }
-            // Insert-mode editing keys still use EditCommand.
-            if self.vim.mode != Mode::Insert && self.vim.search_draft.is_none() {
-                return;
-            }
+        if xero_settings::vim_mode(cx) && self.route_vim_keystroke(keystroke, cx) {
+            return;
         }
         let extend = keystroke.modifiers.shift;
         let Some(command) = command_for(keystroke, extend) else {
@@ -118,7 +116,43 @@ impl EditorView {
         result.handled
     }
 
-    fn handle_vim_char(&mut self, text: &str, cx: &mut Context<Self>) -> bool {
+    /// Returns true if the keystroke was fully consumed (caller should return).
+    fn route_vim_keystroke(&mut self, keystroke: &gpui::Keystroke, cx: &mut Context<Self>) -> bool {
+        // `/` search: take printable key_char here. Claiming "handled" on
+        // KeyDown without consuming key_char blocks IME insertText on macOS.
+        if self.vim.search_draft.is_some() {
+            let mods = &keystroke.modifiers;
+            if !mods.platform
+                && !mods.control
+                && !mods.function
+                && let Some(ch) = keystroke.key_char.as_deref()
+                && ch != "\n"
+                && ch != "\r"
+                && !ch.is_empty()
+                && self.handle_vim_char(ch, cx)
+            {
+                cx.stop_propagation();
+                cx.notify();
+                return true;
+            }
+            if self.handle_vim_key(&keystroke.key, cx) {
+                cx.stop_propagation();
+                cx.notify();
+                return true;
+            }
+            // Stay in search prompt; don't fall through to buffer edits.
+            return true;
+        }
+        if self.handle_vim_key(&keystroke.key, cx) {
+            cx.stop_propagation();
+            cx.notify();
+            return true;
+        }
+        // Insert-mode editing keys still use EditCommand.
+        self.vim.mode != Mode::Insert
+    }
+
+    pub(super) fn handle_vim_char(&mut self, text: &str, cx: &mut Context<Self>) -> bool {
         let Content::Text(buffer) = &mut self.content else {
             return false;
         };
@@ -367,108 +401,4 @@ fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand>
         "end" => EditCommand::Move(Motion::LineEnd),
         _ => return None,
     })
-}
-
-impl EntityInputHandler for EditorView {
-    fn replace_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        text: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if text.is_empty() {
-            return;
-        }
-        if xero_settings::vim_mode(cx) && self.handle_vim_char(text, cx) {
-            cx.notify();
-            return;
-        }
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        if xero_settings::vim_mode(cx) {
-            self.vim.note_insert_text(text);
-        }
-        buffer.apply(EditCommand::Insert(text.to_string()));
-        self.recompute_highlights();
-        cx.notify();
-    }
-
-    fn replace_and_mark_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        new_text: &str,
-        _new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if new_text.is_empty() {
-            return;
-        }
-        if xero_settings::vim_mode(cx) && self.handle_vim_char(new_text, cx) {
-            cx.notify();
-            return;
-        }
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        if xero_settings::vim_mode(cx) {
-            self.vim.note_insert_text(new_text);
-        }
-        buffer.apply(EditCommand::Insert(new_text.to_string()));
-        self.recompute_highlights();
-        cx.notify();
-    }
-
-    fn selected_text_range(
-        &mut self,
-        _ignore_disabled_input: bool,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<UTF16Selection> {
-        Some(UTF16Selection {
-            range: 0..0,
-            reversed: false,
-        })
-    }
-
-    fn marked_text_range(
-        &self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Range<usize>> {
-        None
-    }
-
-    fn text_for_range(
-        &mut self,
-        _range: Range<usize>,
-        _adjusted: &mut Option<Range<usize>>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<String> {
-        None
-    }
-
-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    fn bounds_for_range(
-        &mut self,
-        _range_utf16: Range<usize>,
-        _element_bounds: Bounds<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        None
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        _point: Point<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        None
-    }
 }

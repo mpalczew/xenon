@@ -73,6 +73,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-o", AddWorkspace, None),
         KeyBinding::new("cmd-shift-r", RunTask, None),
         KeyBinding::new("cmd-shift-p", CommandPalette, None),
+        // macOS delivers Shift+/ as `?` (same as Zed's `cmd-?` bindings).
+        KeyBinding::new("cmd-?", KeyboardHelp, None),
         KeyBinding::new("cmd-shift-/", KeyboardHelp, None),
         // Focus panes
         KeyBinding::new("cmd-1", FocusTerminal, None),
@@ -95,6 +97,13 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-c", Copy, None),
         KeyBinding::new("cmd-v", Paste, None),
         KeyBinding::new("cmd-a", SelectAll, Some("Editor")),
+        // In-buffer find (editor context; also works when find bar focused)
+        KeyBinding::new("cmd-f", xero_editor::Find, Some("Editor")),
+        KeyBinding::new("cmd-f", xero_editor::Find, Some("EditorFind")),
+        KeyBinding::new("cmd-g", xero_editor::FindNext, Some("Editor")),
+        KeyBinding::new("cmd-g", xero_editor::FindNext, Some("EditorFind")),
+        KeyBinding::new("cmd-shift-g", xero_editor::FindPrevious, Some("Editor")),
+        KeyBinding::new("cmd-shift-g", xero_editor::FindPrevious, Some("EditorFind")),
         // View chrome
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-j", ToggleTerminal, None),

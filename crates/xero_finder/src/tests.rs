@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tempfile::TempDir;
@@ -71,4 +71,108 @@ fn a_shared_index_drives_a_finder() {
         finder.query("main").first().unwrap().path,
         PathBuf::from("src/main.rs")
     );
+}
+
+#[test]
+fn exact_basename_beats_nested_fuzzy_match() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join(".claude/backups")).unwrap();
+    fs::write(root.join(".claude.json"), "").unwrap();
+    fs::write(root.join(".claude/backups/.claude.json.backup.123"), "").unwrap();
+    fs::write(root.join(".claude/settings.json"), "").unwrap();
+
+    let index = FileIndex::build(root);
+    let results = index.query(".claude.json");
+    assert_eq!(
+        results.first().map(|m| m.path.as_path()),
+        Some(Path::new(".claude.json")),
+        "top was {:?}, expected .claude.json",
+        results.first().map(|m| &m.path)
+    );
+}
+
+#[test]
+fn file_index_query_is_shareable() {
+    let dir = fixture();
+    let index = Arc::new(FileIndex::build(dir.path()));
+    let results = index.query("README");
+    assert_eq!(results.first().unwrap().path, PathBuf::from("README.md"));
+}
+
+#[test]
+fn walk_skips_heavy_dirs_keeps_dotfiles() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
+    fs::write(root.join("node_modules/pkg/index.js"), "").unwrap();
+    fs::create_dir_all(root.join("target/debug")).unwrap();
+    fs::write(root.join("target/debug/x"), "").unwrap();
+    fs::create_dir_all(root.join(".claude")).unwrap();
+    fs::write(root.join(".claude.json"), "").unwrap();
+    fs::write(root.join(".claude/settings.json"), "").unwrap();
+    fs::write(root.join("app.rs"), "").unwrap();
+
+    let index = FileIndex::build(root);
+    let paths: Vec<_> = index
+        .query("")
+        .into_iter()
+        .map(|m| m.path.to_string_lossy().into_owned())
+        .collect();
+    // empty query only returns MAX_RESULTS but fixture is tiny
+    let all = {
+        // re-query via full index len + known paths
+        assert!(index.len() >= 3);
+        index
+    };
+    let mut finder = Finder::new(Arc::new(all));
+    // blank listing is capped; use targeted queries instead
+    assert!(
+        finder
+            .query("app")
+            .iter()
+            .any(|m| m.path.ends_with("app.rs"))
+    );
+    assert!(
+        finder
+            .query(".claude.json")
+            .first()
+            .is_some_and(|m| m.path.as_path() == Path::new(".claude.json"))
+    );
+    assert!(
+        finder
+            .query("settings")
+            .iter()
+            .any(|m| m.path.ends_with(".claude/settings.json")
+                || m.path.as_path() == Path::new(".claude/settings.json"))
+    );
+    assert!(
+        !finder
+            .query("index")
+            .iter()
+            .any(|m| { m.path.to_string_lossy().contains("node_modules") })
+    );
+    assert!(!paths.iter().any(|p| p.contains("node_modules")));
+    assert!(
+        !finder
+            .query("x")
+            .iter()
+            .any(|m| { m.path.to_string_lossy().contains("target") })
+    );
+}
+
+#[test]
+fn progressive_build_emits_before_done() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    for i in 0..50 {
+        fs::write(root.join(format!("f{i}.txt")), "").unwrap();
+    }
+    let mut emits = 0usize;
+    let index = FileIndex::build_with_progress(root, |_| {
+        emits += 1;
+        true
+    });
+    assert!(emits >= 2, "expected partial + final, got {emits}");
+    assert_eq!(index.len(), 50);
 }

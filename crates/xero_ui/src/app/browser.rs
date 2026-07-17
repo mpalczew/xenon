@@ -219,7 +219,9 @@ impl XeroApp {
         self.workspace_picker = None;
         self.command_palette = None;
         self.restore_pane = self.focused_pane(window, cx);
-        self.reindex(root.clone(), true, cx);
+        // Use the cached index if present; only walk when missing. Force-rebuild
+        // on every open stalls large roots (e.g. $HOME) for seconds.
+        self.reindex(root.clone(), false, cx);
         let index = self.file_indexes.get(&root).cloned();
         let finder = cx.new(|cx| FinderView::new(index, query, cx));
         self._finder_sub = Some(cx.subscribe(&finder, Self::on_finder_event));
@@ -235,21 +237,36 @@ impl XeroApp {
     ) {
         match event {
             FinderEvent::Selected(relative) => {
-                self.restore_pane = None; // open_editor focuses the editor itself
+                // open_editor queues Editor focus via pending_focus.
+                self.restore_pane = None;
                 if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
                     self.open_editor(root.join(relative), true, cx);
+                } else {
+                    // No open: still leave the finder without a focus void.
+                    self.finder = None;
+                    self.pending_focus = Some(FocusPane::Terminal);
+                    cx.notify();
                 }
             }
             FinderEvent::RevealDir(relative) => {
+                // Was: clear restore, drop finder, never re-focus → void.
+                // Directory reveal owns the Files tree; focus it next frame.
                 self.restore_pane = None;
                 if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
                     self.reveal_dir(&root, &root.join(relative), cx);
+                } else {
+                    self.finder = None;
                 }
+                self.pending_focus = Some(FocusPane::Browser);
+                cx.notify();
             }
             FinderEvent::Dismissed => {
                 self.finder = None;
                 // Re-focus the pre-finder pane on the next render (which has a Window).
-                self.pending_focus = self.restore_pane.take();
+                self.pending_focus = self
+                    .restore_pane
+                    .take()
+                    .or_else(|| Some(self.fallback_content_pane()));
                 cx.notify();
             }
         }

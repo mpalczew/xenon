@@ -48,17 +48,29 @@ impl XeroApp {
         match event {
             CommandPaletteEvent::Run(id) => {
                 self.command_palette = None;
+                // Restore before the command runs (drain order: focus then command).
+                self.pending_focus = self
+                    .restore_pane
+                    .take()
+                    .or_else(|| Some(self.fallback_content_pane()));
                 self.pending_command = Some(*id);
                 cx.notify();
             }
             CommandPaletteEvent::ActivateWorkspace(id) => {
                 self.command_palette = None;
+                self.pending_focus = self
+                    .restore_pane
+                    .take()
+                    .or_else(|| Some(self.fallback_content_pane()));
                 self.pending_workspace = Some(*id);
                 cx.notify();
             }
             CommandPaletteEvent::Dismissed => {
                 self.command_palette = None;
-                self.pending_focus = self.restore_pane.take();
+                self.pending_focus = self
+                    .restore_pane
+                    .take()
+                    .or_else(|| Some(self.fallback_content_pane()));
                 cx.notify();
             }
         }

@@ -126,6 +126,21 @@ impl XeroApp {
             CommandId::GoToFile => self.open_palette(window, cx),
             CommandId::RunTask => self.open_task_picker(window, cx),
             CommandId::Save => self.save_active_editor(cx),
+            CommandId::FindInFile => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |e, cx| e.open_find(window, cx));
+                }
+            }
+            CommandId::FindNext => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |e, cx| e.find_next(cx));
+                }
+            }
+            CommandId::FindPrevious => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |e, cx| e.find_previous(cx));
+                }
+            }
             CommandId::CloseFocusedTab => self.close_focused_tab(window, cx),
             CommandId::CloseWorkspace => self.close_active_workspace(window, cx),
             CommandId::FocusTerminal => self.focus_terminal(window, cx),

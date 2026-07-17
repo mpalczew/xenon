@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, StatefulInteractiveElement, Styled, Task, Window, div,
+    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled, Task,
+    Window, div,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
@@ -16,8 +17,8 @@ use xero_core::WorkspaceId;
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, detail_row, hint_row_with_action, input_registrar, panel, query_row,
-    scrim, scroll_results,
+    DetailRow, PaletteLayout, ScrollResults, detail_row, hint_row_with_action, input_registrar,
+    panel, query_row, scrim, scroll_results,
 };
 use crate::workspace_discover::{
     DiscoverQuery, FoundRoot, MatchQuality, discover, expand_user_path, parse_discover_query,
@@ -115,6 +116,7 @@ pub struct WorkspacePickerView {
     focus: FocusHandle,
     focused_once: bool,
     matcher: Matcher,
+    scroll: ScrollHandle,
     discover_gen: u64,
     _discover_task: Option<Task<()>>,
 }
@@ -132,6 +134,7 @@ impl WorkspacePickerView {
             focus: cx.focus_handle(),
             focused_once: false,
             matcher: Matcher::new(Config::DEFAULT),
+            scroll: ScrollHandle::new(),
             discover_gen: 0,
             _discover_task: None,
         };
@@ -390,13 +393,17 @@ impl Render for WorkspacePickerView {
                     .key_context("WorkspacePicker")
                     .on_key_down(cx.listener(Self::on_key))
                     .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(query_row(&self.query, "Open workspace…", &colors).into_any_element())
-                    .child(scroll_results(
-                        "workspace-picker-results",
-                        empty,
+                    .child(
+                        query_row(&self.query, "Open workspace…", true, &colors).into_any_element(),
+                    )
+                    .child(scroll_results(ScrollResults {
+                        list_id: "workspace-picker-results",
+                        empty_message: empty,
                         rows,
-                        &colors,
-                    ))
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    }))
                     .child(
                         hint_row_with_action(
                             "↵ open  ·  ~/src name  ·  esc  ·  missing not selectable",

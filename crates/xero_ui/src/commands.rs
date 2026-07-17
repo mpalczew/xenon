@@ -19,6 +19,9 @@ pub enum CommandId {
     GoToFile,
     RunTask,
     Save,
+    FindInFile,
+    FindNext,
+    FindPrevious,
     CloseFocusedTab,
     CloseWorkspace,
     FocusTerminal,
@@ -52,7 +55,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 26] {
+const fn all_commands() -> [CommandEntry; 29] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -67,6 +70,9 @@ const fn all_commands() -> [CommandEntry; 26] {
         cmd!(NextTab, "Next Tab", "⌃⇥", "Focus"),
         cmd!(PrevTab, "Previous Tab", "⌃⇧⇥", "Focus"),
         cmd!(Save, "Save", "⌘S", "Edit"),
+        cmd!(FindInFile, "Find in File…", "⌘F", "Edit"),
+        cmd!(FindNext, "Find Next", "⌘G", "Edit"),
+        cmd!(FindPrevious, "Find Previous", "⌘⇧G", "Edit"),
         cmd!(CloseFocusedTab, "Close Tab", "⌘W", "Edit"),
         cmd!(CloseWorkspace, "Close Workspace", "⌘⌥W", "Edit"),
         cmd!(NewTerminal, "New Terminal", "⌘N", "Create"),
@@ -85,6 +91,6 @@ const fn all_commands() -> [CommandEntry; 26] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 26] = all_commands();
+    static ENTRIES: [CommandEntry; 29] = all_commands();
     &ENTRIES
 }

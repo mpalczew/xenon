@@ -3,6 +3,9 @@
 //! saves. Mirrors the terminal view's input wiring.
 
 mod disk;
+mod entity_input;
+mod find_bar;
+mod find_session;
 mod image;
 mod input;
 mod layout;
@@ -14,7 +17,7 @@ use anyhow::Result;
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     IntoElement, MouseButton, ParentElement, Pixels, Point, Render, ScrollWheelEvent,
-    StatefulInteractiveElement, Styled, Task, Window, anchored, deferred, div, px,
+    StatefulInteractiveElement, Styled, Task, Window, actions, anchored, deferred, div, px,
 };
 use theme::ActiveTheme;
 
@@ -24,8 +27,11 @@ use crate::highlight;
 use crate::image_viewer::{ImageContentElement, ImageViewer};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
+use find_session::FindSession;
 use menu::{context_item, file_title, is_supported_image};
 use xero_settings::{Copy, Cut, Paste, SelectAll};
+
+actions!(xero_editor, [Find, FindNext, FindPrevious]);
 
 pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 pub(super) const ZOOM_STEP: f32 = 1.2;
@@ -48,6 +54,8 @@ pub struct EditorView {
     /// Right-click Cut/Copy/Paste menu position (window coords), when open.
     context_menu: Option<Point<Pixels>>,
     vim: VimState,
+    /// cmd-f find bar (independent of vim `/`).
+    find: Option<FindSession>,
     /// Poll disk mtime so agent/other-tool writes refresh a clean buffer.
     pub(super) _disk_poll: Task<()>,
     /// Clean buffer is fine; conflict/deleted when disk moved under dirty edits.
@@ -115,6 +123,7 @@ impl EditorView {
             dragging: false,
             context_menu: None,
             vim: VimState::default(),
+            find: None,
             _disk_poll: disk::idle_disk_poll(),
             disk_alert: DiskAlert::None,
         };
@@ -208,6 +217,9 @@ impl EditorView {
             Content::Text(buffer) => highlight::spans_for_path(buffer.path(), &buffer.text()),
             Content::Image(_) | Content::Unsupported { .. } => Vec::new(),
         };
+        if self.find_is_open() {
+            self.rescan_find();
+        }
     }
 }
 
@@ -254,25 +266,11 @@ impl Render for EditorView {
                 )
                 .into_any_element();
         }
-        let mode_bar = xero_settings::vim_mode(cx).then(|| {
-            let label = if let Some(draft) = &self.vim.search_draft {
-                let prefix = if draft.forward { '/' } else { '?' };
-                format!("{prefix}{}", draft.pattern)
-            } else {
-                self.vim.mode.label().to_string()
-            };
-            div()
-                .px_2()
-                .py_1()
-                .text_xs()
-                .text_color(colors.text_muted)
-                .border_t_1()
-                .border_color(colors.border)
-                .child(label)
-        });
+        let mode_bar = self.vim_mode_bar(&colors, cx);
         let menu = self
             .context_menu
             .map(|position| self.render_context_menu(position, &colors, cx));
+        let find_bar = self.render_find_bar(&colors, cx);
         div()
             .track_focus(&self.focus)
             .key_context("Editor")
@@ -292,6 +290,15 @@ impl Render for EditorView {
             .on_action(cx.listener(|this, _: &SelectAll, _, cx| {
                 this.select_all(cx);
             }))
+            .on_action(cx.listener(|this, _: &Find, window, cx| {
+                this.open_find(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &FindNext, _, cx| {
+                this.find_next(cx);
+            }))
+            .on_action(cx.listener(|this, _: &FindPrevious, _, cx| {
+                this.find_previous(cx);
+            }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
@@ -303,6 +310,7 @@ impl Render for EditorView {
             .flex_col()
             .bg(colors.editor_background)
             .children(alert)
+            .children(find_bar)
             .child(
                 div()
                     .flex_1()
@@ -312,6 +320,37 @@ impl Render for EditorView {
             .children(mode_bar)
             .children(menu)
             .into_any_element()
+    }
+}
+
+impl EditorView {
+    fn vim_mode_bar(
+        &self,
+        colors: &theme::ThemeColors,
+        cx: &App,
+    ) -> Option<impl IntoElement + use<>> {
+        xero_settings::vim_mode(cx).then(|| {
+            let label = if let Some(draft) = &self.vim.search_draft {
+                let prefix = if draft.forward { '/' } else { '?' };
+                if draft.pattern.is_empty() {
+                    format!("{prefix}")
+                } else if draft.has_match {
+                    format!("{prefix}{}", draft.pattern)
+                } else {
+                    format!("{prefix}{}  [no match]", draft.pattern)
+                }
+            } else {
+                self.vim.mode.label().to_string()
+            };
+            div()
+                .px_2()
+                .py_1()
+                .text_xs()
+                .text_color(colors.text_muted)
+                .border_t_1()
+                .border_color(colors.border)
+                .child(label)
+        })
     }
 }
 

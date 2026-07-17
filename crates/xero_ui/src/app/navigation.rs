@@ -6,29 +6,72 @@ use super::*;
 
 impl XeroApp {
     /// Walk `root` into `file_indexes` on a background thread. Skips the walk when
-    /// an index already exists unless `force` (a refresh). Idempotent per root:
-    /// a second call for a root already building replaces the in-flight build.
+    /// an index already exists unless `force` (explicit refresh). Prefer
+    /// `force: false` on cmd-p open so large roots reuse the cache. Streams
+    /// partial snapshots so cmd-p can search before the walk finishes.
+    /// Idempotent per root: a second call replaces (cancels) the previous build.
     pub(super) fn reindex(&mut self, root: PathBuf, force: bool, cx: &mut Context<Self>) {
         if !force && self.file_indexes.contains_key(&root) {
             return;
         }
         let key = root.clone();
         let build_root = root.clone();
+        // Bounded(1): walk drops intermediate snapshots if the UI is behind.
+        let (tx, rx) = async_channel::bounded::<Arc<FileIndex>>(1);
+        let walk = cx.background_executor().spawn(async move {
+            FileIndex::build_with_progress(&build_root, |partial| {
+                let snap = Arc::new(partial.clone());
+                // Coalesce: keep at most one pending snapshot for the UI.
+                match tx.try_send(snap) {
+                    Ok(()) => true,
+                    Err(async_channel::TrySendError::Closed(_)) => false,
+                    Err(async_channel::TrySendError::Full(snap)) => {
+                        let _ = tx.force_send(snap);
+                        true
+                    }
+                }
+            })
+        });
         let task = cx.spawn(async move |app, cx| {
-            let index = cx
-                .background_executor()
-                .spawn(async move { FileIndex::build(&build_root) })
-                .await;
-            app.update(cx, |app, cx| app.install_index(root, Arc::new(index), cx))
-                .ok();
+            while let Ok(partial) = rx.recv().await {
+                let ok = app
+                    .update(cx, |app, cx| {
+                        app.install_index(root.clone(), partial, false, cx)
+                    })
+                    .is_ok();
+                if !ok {
+                    break;
+                }
+            }
+            // Ensure walk finishes (and any last force_send is drained above).
+            let final_index = walk.await;
+            app.update(cx, |app, cx| {
+                app.install_index(root, Arc::new(final_index), true, cx);
+            })
+            .ok();
         });
         self.index_tasks.insert(key, task);
     }
 
-    /// Store a freshly built index and, if the finder is open on this root, hand
-    /// it the index so results appear without the user retyping.
-    fn install_index(&mut self, root: PathBuf, index: Arc<FileIndex>, cx: &mut Context<Self>) {
-        self.index_tasks.remove(&root);
+    /// Store an index snapshot. `done` clears the in-flight task for this root.
+    /// If the finder is open on this root, hand it the index immediately.
+    fn install_index(
+        &mut self,
+        root: PathBuf,
+        index: Arc<FileIndex>,
+        done: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if done {
+            self.index_tasks.remove(&root);
+        }
+        // Prefer a larger partial over a smaller one if races reorder.
+        if let Some(existing) = self.file_indexes.get(&root)
+            && existing.len() > index.len()
+            && !done
+        {
+            return;
+        }
         if self.active.and_then(|id| self.workspace_root(id)).as_ref() == Some(&root)
             && let Some(finder) = &self.finder
         {
@@ -68,6 +111,18 @@ impl XeroApp {
             FocusPane::Terminal => self.focus_terminal(window, cx),
             FocusPane::Editor => self.focus_editor(window, cx),
             FocusPane::Browser => self.focus_browser(window, cx),
+        }
+    }
+
+    /// Last content pane that can take keyboard focus (never None).
+    /// Used when an overlay dies without a remembered restore target.
+    pub(super) fn fallback_content_pane(&self) -> FocusPane {
+        match self.last_font_pane {
+            FontPane::Editor if self.has_editor() => FocusPane::Editor,
+            FontPane::Terminal if self.terminal_visible() => FocusPane::Terminal,
+            _ if self.terminal_visible() => FocusPane::Terminal,
+            _ if self.has_editor() => FocusPane::Editor,
+            _ => FocusPane::Terminal,
         }
     }
 

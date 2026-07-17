@@ -78,6 +78,10 @@ pub(in crate::vim) enum FindKind {
 pub struct SearchDraft {
     pub pattern: String,
     pub forward: bool,
+    /// Cursor when `/` or `?` was pressed; Esc restores here.
+    pub origin: usize,
+    /// True when the current pattern has a match (for status + enter).
+    pub has_match: bool,
 }
 
 /// Result of handling a key; view applies side effects (clipboard, notify).
@@ -166,9 +170,8 @@ impl VimState {
 
     /// Handle printable input from EntityInputHandler.
     pub fn handle_char(&mut self, buffer: &mut Buffer, text: &str) -> HandleResult {
-        if let Some(draft) = &mut self.search_draft {
-            draft.pattern.push_str(text);
-            return handled(false);
+        if self.search_draft.is_some() {
+            return self.append_search_char(buffer, text);
         }
         if self.mode == Mode::Insert {
             return HandleResult::default(); // view inserts
@@ -184,31 +187,113 @@ impl VimState {
     fn handle_search_key(&mut self, buffer: &mut Buffer, key: &str) -> HandleResult {
         match key {
             "escape" => {
-                self.search_draft = None;
+                if let Some(draft) = self.search_draft.take() {
+                    buffer.clear_selection();
+                    buffer.set_cursor_raw(draft.origin);
+                }
                 handled(false)
             }
             "enter" => {
-                if let Some(draft) = self.search_draft.take() {
-                    self.search = Some(SearchState::new(draft.pattern.clone(), draft.forward));
-                    if let Some(pos) = search::find(
-                        buffer.rope(),
-                        &draft.pattern,
-                        buffer.cursor(),
-                        draft.forward,
-                    ) {
-                        buffer.clear_selection();
-                        buffer.set_cursor_raw(pos);
-                    }
-                }
+                self.commit_search(buffer);
                 handled(false)
             }
             "backspace" => {
                 if let Some(draft) = &mut self.search_draft {
                     draft.pattern.pop();
                 }
+                self.apply_incsearch(buffer);
                 handled(false)
             }
-            _ => handled(false),
+            // Printable keys must NOT claim handled here: on macOS that stops
+            // propagation and blocks EntityInputHandler / key_char delivery.
+            _ => HandleResult::default(),
+        }
+    }
+
+    /// Append text to the active `/`/`?` draft (from key_char or IME).
+    fn append_search_char(&mut self, buffer: &mut Buffer, text: &str) -> HandleResult {
+        if self.search_draft.is_none() {
+            return HandleResult::default();
+        }
+        let clean: String = text.chars().filter(|c| !c.is_control()).collect();
+        if clean.is_empty() {
+            return handled(false);
+        }
+        if let Some(draft) = &mut self.search_draft {
+            draft.pattern.push_str(&clean);
+        }
+        self.apply_incsearch(buffer);
+        handled(false)
+    }
+
+    /// Start `/` or `?` prompt; cursor origin is restored on Esc.
+    pub(in crate::vim) fn begin_search(&mut self, buffer: &Buffer, forward: bool) {
+        self.search_draft = Some(SearchDraft {
+            pattern: String::new(),
+            forward,
+            origin: buffer.cursor(),
+            has_match: false,
+        });
+        self.clear_pending();
+    }
+
+    /// Jump to first match of the draft pattern from origin (incsearch).
+    fn apply_incsearch(&mut self, buffer: &mut Buffer) {
+        let Some(draft) = &self.search_draft else {
+            return;
+        };
+        let pattern = draft.pattern.clone();
+        let forward = draft.forward;
+        let origin = draft.origin;
+        if pattern.is_empty() {
+            if let Some(d) = &mut self.search_draft {
+                d.has_match = false;
+            }
+            buffer.clear_selection();
+            buffer.set_cursor_raw(origin);
+            return;
+        }
+        if let Some(pos) = search::find_inclusive(buffer.rope(), &pattern, origin, forward) {
+            if let Some(d) = &mut self.search_draft {
+                d.has_match = true;
+            }
+            select_match(buffer, pos, pattern.chars().count());
+        } else {
+            if let Some(d) = &mut self.search_draft {
+                d.has_match = false;
+            }
+            buffer.clear_selection();
+            buffer.set_cursor_raw(origin);
+        }
+    }
+
+    fn commit_search(&mut self, buffer: &mut Buffer) {
+        let Some(draft) = self.search_draft.take() else {
+            return;
+        };
+        let mut pattern = draft.pattern;
+        // Empty `/` reuses the last pattern (classic vim).
+        if pattern.is_empty() {
+            if let Some(prev) = &self.search {
+                pattern = prev.pattern.clone();
+            } else {
+                buffer.clear_selection();
+                buffer.set_cursor_raw(draft.origin);
+                return;
+            }
+        }
+        self.search = Some(SearchState::new(pattern.clone(), draft.forward));
+        // Keep the incsearch landing spot when we already matched; otherwise jump.
+        if draft.has_match {
+            return;
+        }
+        if let Some(pos) =
+            search::find_inclusive(buffer.rope(), &pattern, draft.origin, draft.forward)
+        {
+            select_match(buffer, pos, pattern.chars().count());
+        } else {
+            buffer.clear_selection();
+            buffer.set_cursor_raw(draft.origin);
         }
     }
 
@@ -216,14 +301,30 @@ impl VimState {
         let Some(state) = &self.search else {
             return handled(false);
         };
+        let pattern = state.pattern.clone();
+        if pattern.is_empty() {
+            return handled(false);
+        }
         let forward = if same_dir {
             state.forward
         } else {
             !state.forward
         };
-        if let Some(pos) = search::find(buffer.rope(), &state.pattern, buffer.cursor(), forward) {
-            buffer.clear_selection();
-            buffer.set_cursor_raw(pos);
+        let count = self.count.max(1);
+        self.count = 0;
+        let mut pos = None;
+        for _ in 0..count {
+            let from = buffer.cursor();
+            pos = search::find(buffer.rope(), &pattern, from, forward);
+            if let Some(p) = pos {
+                // Advance cursor so the next count iteration can leave this match.
+                buffer.set_cursor_raw(p);
+            } else {
+                break;
+            }
+        }
+        if let Some(p) = pos {
+            select_match(buffer, p, pattern.chars().count());
         }
         handled(false)
     }
@@ -236,8 +337,7 @@ impl VimState {
         }
         self.search = Some(SearchState::new(pattern.clone(), true));
         if let Some(pos) = search::find(buffer.rope(), &pattern, buffer.cursor(), true) {
-            buffer.clear_selection();
-            buffer.set_cursor_raw(pos);
+            select_match(buffer, pos, pattern.chars().count());
         }
         handled(false)
     }
@@ -281,6 +381,13 @@ impl VimState {
             LastChange::Replace { ch } => self.replace_char(buffer, ch),
         }
     }
+}
+
+/// Highlight `[pos, pos+len)` and leave the cursor on the first match char.
+fn select_match(buffer: &mut Buffer, pos: usize, len: usize) {
+    let end = (pos + len).min(buffer.rope().len_chars());
+    // Anchor at end, cursor at start: selection paints, cursor stays on match.
+    buffer.set_selection(end, pos);
 }
 
 fn arrow_motion(key: &str) -> Option<Motion> {

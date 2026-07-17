@@ -150,7 +150,10 @@ impl XeroApp {
             }
             WorkspacePickerEvent::Dismissed => {
                 self.workspace_picker = None;
-                self.pending_focus = self.restore_pane.take();
+                self.pending_focus = self
+                    .restore_pane
+                    .take()
+                    .or_else(|| Some(self.fallback_content_pane()));
                 cx.notify();
             }
         }

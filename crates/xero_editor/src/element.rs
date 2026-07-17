@@ -31,6 +31,12 @@ pub struct EditorLayout {
     pub cursor: Bounds<Pixels>,
     pub selection: Vec<Bounds<Pixels>>,
     pub selection_color: Hsla,
+    /// Other search matches (not the current one).
+    pub search_matches: Vec<Bounds<Pixels>>,
+    pub search_match_color: Hsla,
+    /// Current search match highlight.
+    pub search_current: Vec<Bounds<Pixels>>,
+    pub search_current_color: Hsla,
     pub cell_width: Pixels,
     pub gutter: Option<Bounds<Pixels>>,
     pub gutter_color: Hsla,
@@ -44,6 +50,11 @@ pub struct LayoutInput<'a> {
     /// Half-open char selection, if any.
     pub selection: Option<std::ops::Range<usize>>,
     pub selection_color: Hsla,
+    /// All find matches (char ranges); current is painted stronger.
+    pub search_matches: &'a [std::ops::Range<usize>],
+    pub search_current: Option<std::ops::Range<usize>>,
+    pub search_match_color: Hsla,
+    pub search_current_color: Hsla,
     pub default_color: Hsla,
     pub line_number_color: Hsla,
     pub gutter_color: Hsla,
@@ -150,9 +161,8 @@ pub fn layout(
             height: metrics.line_height,
         },
     );
-    let selection = selection_rects(SelectionLayout {
+    let hits = HitLayout {
         rope: input.rope,
-        selection: input.selection.as_ref(),
         text_origin,
         origin_y: input.origin.y,
         cell_w,
@@ -160,7 +170,11 @@ pub fn layout(
         scroll_top,
         first_row: first,
         last_row: last,
-    });
+    };
+    let selection = hits.rects(input.selection.as_ref());
+    let search_current = hits.rects(input.search_current.as_ref());
+    let search_matches =
+        hits.other_search_rects(input.search_matches, input.search_current.as_ref());
     EditorLayout {
         lines,
         line_numbers,
@@ -176,6 +190,10 @@ pub fn layout(
         cursor,
         selection,
         selection_color: input.selection_color,
+        search_matches,
+        search_match_color: input.search_match_color,
+        search_current,
+        search_current_color: input.search_current_color,
         cell_width: cell_w,
         gutter,
         gutter_color: input.gutter_color,
@@ -234,9 +252,8 @@ fn shape_visible_lines(
     (lines, line_numbers)
 }
 
-struct SelectionLayout<'a> {
+struct HitLayout<'a> {
     rope: &'a Rope,
-    selection: Option<&'a std::ops::Range<usize>>,
     text_origin: GpuiPoint<Pixels>,
     origin_y: Pixels,
     cell_w: Pixels,
@@ -246,9 +263,33 @@ struct SelectionLayout<'a> {
     last_row: usize,
 }
 
+impl HitLayout<'_> {
+    fn rects(&self, range: Option<&std::ops::Range<usize>>) -> Vec<Bounds<Pixels>> {
+        selection_rects(self, range)
+    }
+
+    fn other_search_rects(
+        &self,
+        matches: &[std::ops::Range<usize>],
+        current: Option<&std::ops::Range<usize>>,
+    ) -> Vec<Bounds<Pixels>> {
+        let mut out = Vec::new();
+        for m in matches {
+            if current == Some(m) {
+                continue;
+            }
+            out.extend(self.rects(Some(m)));
+        }
+        out
+    }
+}
+
 /// One highlight rect per display row covered by the selection.
-fn selection_rects(input: SelectionLayout<'_>) -> Vec<Bounds<Pixels>> {
-    let Some(range) = input.selection else {
+fn selection_rects(
+    input: &HitLayout<'_>,
+    selection: Option<&std::ops::Range<usize>>,
+) -> Vec<Bounds<Pixels>> {
+    let Some(range) = selection else {
         return Vec::new();
     };
     if range.start >= range.end {
@@ -392,13 +433,19 @@ fn shape(text: String, runs: Vec<TextRun>, font_size: Pixels, window: &mut Windo
         .shape_line(SharedString::from(text), font_size, &runs, None)
 }
 
-/// Paint selection, cursor, then the visible shaped lines on top.
+/// Paint search highlights, selection, cursor, then the visible shaped lines.
 pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx: &mut gpui::App) {
     window.with_content_mask(
         Some(ContentMask {
             bounds: layout.viewport,
         }),
         |window| {
+            for rect in &layout.search_matches {
+                window.paint_quad(fill(*rect, layout.search_match_color));
+            }
+            for rect in &layout.search_current {
+                window.paint_quad(fill(*rect, layout.search_current_color));
+            }
             for rect in &layout.selection {
                 window.paint_quad(fill(*rect, layout.selection_color));
             }

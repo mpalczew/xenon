@@ -3,7 +3,7 @@
 
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, StatefulInteractiveElement, Window,
+    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Window,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
@@ -11,8 +11,8 @@ use xero_core::ShellTask;
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, clamp_selection, fuzzy_index_order, hint_row, input_registrar, panel, query_row,
-    scrim, scroll_results, simple_row,
+    PaletteLayout, ScrollResults, clamp_selection, fuzzy_index_order, hint_row, input_registrar,
+    panel, query_row, scrim, scroll_results, simple_row,
 };
 
 pub enum TaskPickerEvent {
@@ -32,6 +32,7 @@ pub struct TaskPickerView {
     focused_once: bool,
     matcher: Matcher,
     empty_message: Option<String>,
+    scroll: ScrollHandle,
 }
 
 impl EventEmitter<TaskPickerEvent> for TaskPickerView {}
@@ -47,6 +48,7 @@ impl TaskPickerView {
             focused_once: false,
             matcher: Matcher::new(Config::DEFAULT),
             empty_message: error,
+            scroll: ScrollHandle::new(),
         };
         view.refilter();
         view
@@ -163,13 +165,18 @@ impl Render for TaskPickerView {
                     .key_context("TaskPicker")
                     .on_key_down(cx.listener(Self::on_key))
                     .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(query_row(&self.query, &self.placeholder(), &colors).into_any_element())
-                    .child(scroll_results(
-                        "task-picker-results",
-                        self.empty_message(),
+                    .child(
+                        query_row(&self.query, &self.placeholder(), true, &colors)
+                            .into_any_element(),
+                    )
+                    .child(scroll_results(ScrollResults {
+                        list_id: "task-picker-results",
+                        empty_message: self.empty_message(),
                         rows,
-                        &colors,
-                    ))
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    }))
                     .child(
                         hint_row(
                             "↵ new terminal  ·  ⌘↵ current  ·  esc dismiss  ·  open ⌘⇧R",

@@ -4,6 +4,7 @@
 mod buffer;
 mod edit;
 mod element;
+mod find;
 mod highlight;
 mod image_viewer;
 mod markdown;
@@ -16,7 +17,8 @@ mod vim;
 
 pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
 pub use edit::{EditCommand, Motion};
-pub use view::{DiskAlert, EditorEvent, EditorView};
+pub use find::FindOptions;
+pub use view::{DiskAlert, EditorEvent, EditorView, Find, FindNext, FindPrevious};
 
 #[cfg(test)]
 mod tests;

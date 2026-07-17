@@ -2,7 +2,7 @@
 //! elevated palettes (DESIGN.md elevation 2).
 
 use gpui::{
-    AnyElement, Div, InteractiveElement, IntoElement, ParentElement, Stateful,
+    AnyElement, Div, InteractiveElement, IntoElement, ParentElement, ScrollHandle, Stateful,
     StatefulInteractiveElement, Styled, div, px,
 };
 use nucleo::Matcher;
@@ -66,25 +66,41 @@ pub(crate) fn panel(layout: PaletteLayout, colors: &ThemeColors) -> Div {
         .bg(colors.elevated_surface_background)
 }
 
-pub(crate) fn query_row(query: &str, placeholder: &str, colors: &ThemeColors) -> Div {
+/// Query field with a caret (`caret_on` toggles blink).
+/// Empty: caret at the start, then muted placeholder. Typed: text then caret.
+pub(crate) fn query_row(
+    query: &str,
+    placeholder: &str,
+    caret_on: bool,
+    colors: &ThemeColors,
+) -> Div {
     let empty = query.is_empty();
-    let shown = if empty {
-        placeholder.to_string()
+    let caret = div().w(px(1.)).h(px(14.)).flex_none().bg(if caret_on {
+        colors.text
     } else {
-        query.to_string()
-    };
-    div()
+        gpui::transparent_black()
+    });
+    let mut row = div()
         .flex_none()
         .px_3()
         .py_2()
         .border_b_1()
         .border_color(colors.border)
-        .text_color(if empty {
-            colors.text_muted
-        } else {
-            colors.text
-        })
-        .child(shown)
+        .flex()
+        .items_center();
+    if empty {
+        row = row.child(caret).child(
+            div()
+                .ml_0p5()
+                .text_color(colors.text_placeholder)
+                .child(placeholder.to_string()),
+        );
+    } else {
+        row = row
+            .child(div().text_color(colors.text).child(query.to_string()))
+            .child(caret);
+    }
+    row
 }
 
 pub(crate) fn optional_title(title: &str, colors: &ThemeColors) -> Div {
@@ -125,34 +141,42 @@ pub(crate) fn hint_row_with_action(text: &str, action: AnyElement, colors: &Them
         .child(action)
 }
 
+/// Scrollable result list inputs (keeps arg count under the clippy limit).
+pub(crate) struct ScrollResults<'a> {
+    pub list_id: &'static str,
+    pub empty_message: &'a str,
+    pub rows: Vec<AnyElement>,
+    /// Child index to keep visible under keyboard navigation.
+    pub selected: usize,
+    pub scroll: &'a ScrollHandle,
+    pub colors: &'a ThemeColors,
+}
+
 /// Scrollable result list (or empty message). Always flex_1 so the panel cap works.
-pub(crate) fn scroll_results(
-    list_id: &'static str,
-    empty_message: &str,
-    rows: Vec<AnyElement>,
-    colors: &ThemeColors,
-) -> AnyElement {
-    if rows.is_empty() {
+pub(crate) fn scroll_results(input: ScrollResults<'_>) -> AnyElement {
+    if input.rows.is_empty() {
         return div()
-            .id(list_id)
+            .id(input.list_id)
             .flex_1()
             .min_h_0()
             .px_3()
             .py_2()
             .text_sm()
-            .text_color(colors.text_muted)
-            .child(empty_message.to_string())
+            .text_color(input.colors.text_muted)
+            .child(input.empty_message.to_string())
             .into_any_element();
     }
+    input.scroll.scroll_to_item(input.selected);
     div()
-        .id(list_id)
+        .id(input.list_id)
         .flex_1()
         .min_h_0()
         .flex()
         .flex_col()
         .overflow_y_scroll()
+        .track_scroll(input.scroll)
         .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
-        .children(rows)
+        .children(input.rows)
         .into_any_element()
 }
 

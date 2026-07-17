@@ -97,12 +97,23 @@ fn layout(
         let Content::Text(buffer) = &view.content else {
             unreachable!("non-text editor content does not render the text canvas");
         };
+        let (search_matches, search_current) = match &view.find {
+            Some(find) if find.open && !find.matches.is_empty() => {
+                let current = find.current.and_then(|i| find.matches.get(i).cloned());
+                (find.matches.as_slice(), current)
+            }
+            _ => (&[][..], None),
+        };
         element::layout(
             element::LayoutInput {
                 rope: buffer.rope(),
                 cursor: buffer.cursor_position(),
                 selection: buffer.selection_range(),
                 selection_color: theme.colors().element_selected,
+                search_matches,
+                search_current,
+                search_match_color: theme.colors().search_match_background,
+                search_current_color: theme.colors().search_active_match_background,
                 default_color: text_color,
                 line_number_color: theme.colors().text_muted,
                 gutter_color: theme.colors().panel_background,

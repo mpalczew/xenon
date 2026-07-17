@@ -28,8 +28,10 @@ impl XeroApp {
         self.save_layout(id);
         let stack = self.editors.entry(id).or_default();
         // Focus an already-open tab rather than opening a duplicate.
+        let mut opened = false;
         if let Some(index) = stack.tabs.iter().position(|tab| tab.path == path) {
             stack.active = index;
+            opened = true;
         } else {
             match EditorView::build(path.clone(), focus, cx) {
                 Ok(view) => {
@@ -38,11 +40,18 @@ impl XeroApp {
                     let stack = self.editors.entry(id).or_default();
                     stack.tabs.push(EditorTab { path, name, view });
                     stack.active = stack.tabs.len() - 1;
+                    opened = true;
                 }
                 Err(error) => log::error!("open failed: {error}"),
             }
         }
         self.finder = None;
+        // New tabs autofocus on first paint; already-open tabs do not. Always
+        // queue editor focus when requested so dismissing the finder cannot
+        // leave the window with no focused handle (cmd-p / typing void).
+        if focus && opened {
+            self.pending_focus = Some(FocusPane::Editor);
+        }
         if self.file_browser.is_open() {
             self.reveal_active_file(cx);
         }

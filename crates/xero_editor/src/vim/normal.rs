@@ -1,9 +1,7 @@
 //! Normal/visual character dispatch for vim mode.
 
 use super::motion;
-use super::{
-    FindKind, HandleResult, Mode, Motion, Object, Operator, SearchDraft, VimState, edited, handled,
-};
+use super::{FindKind, HandleResult, Mode, Motion, Object, Operator, VimState, edited, handled};
 use crate::buffer::Buffer;
 use crate::selection;
 
@@ -248,19 +246,11 @@ impl VimState {
             }
             '.' => self.repeat_last(buffer),
             '/' => {
-                self.search_draft = Some(SearchDraft {
-                    pattern: String::new(),
-                    forward: true,
-                });
-                self.clear_pending();
+                self.begin_search(buffer, true);
                 handled(false)
             }
             '?' => {
-                self.search_draft = Some(SearchDraft {
-                    pattern: String::new(),
-                    forward: false,
-                });
-                self.clear_pending();
+                self.begin_search(buffer, false);
                 handled(false)
             }
             'n' => self.search_again(buffer, true),

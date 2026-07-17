@@ -14,12 +14,12 @@ impl SearchState {
     }
 }
 
-/// Find next match starting after `from` (or before if not forward).
+/// Find next match starting **after** `from` (or before if not forward).
 /// `from` is a **char** index (same as `Buffer::cursor`). Returns a char index.
 ///
 /// Wrapscan matches vim: after missing past the cursor, search the whole buffer
 /// from the start (or end when going backward), so a unique match under the
-/// cursor is still found.
+/// cursor is still found. Use [`find_inclusive`] for `/` incsearch from origin.
 pub fn find(rope: &Rope, pattern: &str, from: usize, forward: bool) -> Option<usize> {
     if pattern.is_empty() {
         return None;
@@ -40,6 +40,35 @@ pub fn find(rope: &Rope, pattern: &str, from: usize, forward: bool) -> Option<us
         }
         // Wrap: full buffer from the end.
         text.rfind(pattern).map(|byte| rope.byte_to_char(byte))
+    }
+}
+
+/// First match **at or after** `from` (or at/before if not forward). Used by
+/// incsearch so a match under the origin cursor is found while typing.
+pub fn find_inclusive(rope: &Rope, pattern: &str, from: usize, forward: bool) -> Option<usize> {
+    if pattern.is_empty() {
+        return None;
+    }
+    let text = rope.to_string();
+    let from = from.min(rope.len_chars());
+    let from_byte = rope.char_to_byte(from);
+    if forward {
+        if text
+            .get(from_byte..)
+            .is_some_and(|s| s.starts_with(pattern))
+        {
+            return Some(from);
+        }
+        find(rope, pattern, from, true)
+    } else {
+        // Match starting at `from` counts for inclusive backward too.
+        if text
+            .get(from_byte..)
+            .is_some_and(|s| s.starts_with(pattern))
+        {
+            return Some(from);
+        }
+        find(rope, pattern, from, false)
     }
 }
 
@@ -108,5 +137,132 @@ mod tests {
         let rope = Rope::from_str("ab x ab");
         // Cursor before first match; wrap to last.
         assert_eq!(find(&rope, "ab", 0, false), Some(5));
+    }
+
+    #[test]
+    fn inclusive_at_origin() {
+        let rope = Rope::from_str("aa bb aa");
+        assert_eq!(find_inclusive(&rope, "aa", 0, true), Some(0));
+        // Exclusive next leaves the match under the cursor.
+        assert_eq!(find(&rope, "aa", 0, true), Some(6));
+    }
+}
+
+#[cfg(test)]
+mod draft_flow {
+    use crate::buffer::Buffer;
+    use crate::vim::VimState;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    fn buffer(text: &str) -> Buffer {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(text.as_bytes()).unwrap();
+        file.flush().unwrap();
+        Buffer::open(file.path()).unwrap()
+    }
+
+    #[test]
+    fn slash_incsearch_and_enter() {
+        let mut buf = buffer("aa bb aa");
+        buf.set_cursor_raw(0);
+        let mut vim = VimState::default();
+        assert!(vim.handle_char(&mut buf, "/").handled);
+        assert!(vim.search_draft.is_some());
+        // Type pattern: should jump to first "aa" at 0 (visible selection).
+        assert!(vim.handle_char(&mut buf, "a").handled);
+        assert!(vim.handle_char(&mut buf, "a").handled);
+        assert_eq!(buf.cursor(), 0);
+        assert!(vim.search_draft.as_ref().unwrap().has_match);
+        assert!(buf.selection_range().is_some());
+        // Enter commits without advancing to the next match.
+        assert!(vim.handle_key(&mut buf, "enter").handled);
+        assert!(vim.search_draft.is_none());
+        assert_eq!(buf.cursor(), 0);
+        assert_eq!(vim.search.as_ref().unwrap().pattern, "aa");
+        // n → next "aa"
+        assert!(vim.handle_char(&mut buf, "n").handled);
+        assert_eq!(buf.cursor(), 6);
+    }
+
+    #[test]
+    fn slash_escape_restores_origin() {
+        let mut buf = buffer("hello world");
+        buf.set_cursor_raw(0);
+        let mut vim = VimState::default();
+        vim.handle_char(&mut buf, "/");
+        vim.handle_char(&mut buf, "w");
+        assert_eq!(buf.cursor(), 6); // "world"
+        vim.handle_key(&mut buf, "escape");
+        assert!(vim.search_draft.is_none());
+        assert_eq!(buf.cursor(), 0);
+        assert!(buf.selection_range().is_none());
+        // Esc does not commit the search.
+        assert!(vim.search.is_none());
+    }
+
+    #[test]
+    fn empty_slash_reuses_last() {
+        let mut buf = buffer("one two one");
+        buf.set_cursor_raw(0);
+        let mut vim = VimState::default();
+        vim.handle_char(&mut buf, "/");
+        vim.handle_char(&mut buf, "t");
+        vim.handle_char(&mut buf, "w");
+        vim.handle_char(&mut buf, "o");
+        vim.handle_key(&mut buf, "enter");
+        assert_eq!(buf.cursor(), 4);
+        // Move back, empty / reuses "two"
+        buf.set_cursor_raw(0);
+        buf.clear_selection();
+        vim.handle_char(&mut buf, "/");
+        vim.handle_key(&mut buf, "enter");
+        assert_eq!(buf.cursor(), 4);
+    }
+
+    #[test]
+    fn no_match_status() {
+        let mut buf = buffer("hello");
+        let mut vim = VimState::default();
+        vim.handle_char(&mut buf, "/");
+        vim.handle_char(&mut buf, "z");
+        assert!(!vim.search_draft.as_ref().unwrap().has_match);
+        assert_eq!(buf.cursor(), 0);
+    }
+
+    #[test]
+    fn control_chars_ignored_in_pattern() {
+        let mut buf = buffer("ab");
+        let mut vim = VimState::default();
+        vim.handle_char(&mut buf, "/");
+        vim.handle_char(&mut buf, "a");
+        vim.handle_char(&mut buf, "\n");
+        assert_eq!(vim.search_draft.as_ref().unwrap().pattern, "a");
+    }
+
+    #[test]
+    fn search_key_does_not_claim_printable() {
+        // Regression: claiming handled for "f" blocked macOS insertText / key_char.
+        let mut buf = buffer("foo");
+        let mut vim = VimState::default();
+        vim.handle_char(&mut buf, "/");
+        let r = vim.handle_key(&mut buf, "f");
+        assert!(
+            !r.handled,
+            "printable keys must not be handled by search key path"
+        );
+        // Char path still appends.
+        assert!(vim.handle_char(&mut buf, "f").handled);
+        assert_eq!(vim.search_draft.as_ref().unwrap().pattern, "f");
+    }
+
+    #[test]
+    fn multi_char_append_builds_pattern() {
+        let mut buf = buffer("hello");
+        let mut vim = VimState::default();
+        vim.handle_char(&mut buf, "/");
+        assert!(vim.handle_char(&mut buf, "el").handled);
+        assert_eq!(vim.search_draft.as_ref().unwrap().pattern, "el");
+        assert!(vim.search_draft.as_ref().unwrap().has_match);
     }
 }
