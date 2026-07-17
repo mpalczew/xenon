@@ -8985,13 +8985,13 @@ dependencies = [
  "gpui",
  "gpui_platform",
  "log",
- "xero_store",
- "xero_terminal",
- "xero_ui",
+ "xenon_store",
+ "xenon_terminal",
+ "xenon_ui",
 ]
 
 [[package]]
-name = "xero_core"
+name = "xenon_core"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -9000,7 +9000,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xero_editor"
+name = "xenon_editor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -9057,11 +9057,11 @@ dependencies = [
  "tree-sitter-xml",
  "tree-sitter-yaml",
  "tree-sitter-zig",
- "xero_settings",
+ "xenon_settings",
 ]
 
 [[package]]
-name = "xero_finder"
+name = "xenon_finder"
 version = "0.1.0"
 dependencies = [
  "ignore",
@@ -9070,7 +9070,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xero_ide"
+name = "xenon_ide"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -9083,16 +9083,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "xero_settings"
+name = "xenon_settings"
 version = "0.1.0"
 dependencies = [
  "gpui",
  "log",
- "xero_store",
+ "xenon_store",
 ]
 
 [[package]]
-name = "xero_store"
+name = "xenon_store"
 version = "0.1.0"
 dependencies = [
  "log",
@@ -9100,11 +9100,11 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",
- "xero_core",
+ "xenon_core",
 ]
 
 [[package]]
-name = "xero_terminal"
+name = "xenon_terminal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -9120,11 +9120,11 @@ dependencies = [
  "theme",
  "theme_settings",
  "util",
- "xero_settings",
+ "xenon_settings",
 ]
 
 [[package]]
-name = "xero_ui"
+name = "xenon_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -9136,13 +9136,13 @@ dependencies = [
  "nucleo",
  "tempfile",
  "theme",
- "xero_core",
- "xero_editor",
- "xero_finder",
- "xero_ide",
- "xero_settings",
- "xero_store",
- "xero_terminal",
+ "xenon_core",
+ "xenon_editor",
+ "xenon_finder",
+ "xenon_ide",
+ "xenon_settings",
+ "xenon_store",
+ "xenon_terminal",
 ]
 
 [[package]]

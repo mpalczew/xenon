@@ -18,14 +18,14 @@ too_many_arguments = "warn"
 unimplemented = "deny"
 
 [workspace.dependencies]
-xero_core = { path = "crates/xero_core" }
-xero_store = { path = "crates/xero_store" }
-xero_terminal = { path = "crates/xero_terminal" }
-xero_editor = { path = "crates/xero_editor" }
-xero_finder = { path = "crates/xero_finder" }
-xero_ui = { path = "crates/xero_ui" }
-xero_ide = { path = "crates/xero_ide" }
-xero_settings = { path = "crates/xero_settings" }
+xenon_core = { path = "crates/xenon_core" }
+xenon_store = { path = "crates/xenon_store" }
+xenon_terminal = { path = "crates/xenon_terminal" }
+xenon_editor = { path = "crates/xenon_editor" }
+xenon_finder = { path = "crates/xenon_finder" }
+xenon_ui = { path = "crates/xenon_ui" }
+xenon_ide = { path = "crates/xenon_ide" }
+xenon_settings = { path = "crates/xenon_settings" }
 
 # zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a
 # deliberate chore: bump every rev below together, then fix compile errors.
@@ -100,7 +100,7 @@ pulldown-cmark = { version = "0.12", default-features = false }
 lucide-icons = "1.23.0"
 nucleo = "0.5"
 ignore = "0.4"
-# Same pin as [patch.crates-io] (zed's fork); direct dep so xero_ui can watch FS.
+# Same pin as [patch.crates-io] (zed's fork); direct dep so xenon_ui can watch FS.
 notify = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
 
 # Mirrored from zed v1.9.0 Cargo.toml: [patch.crates-io] does not propagate to

@@ -4,13 +4,13 @@
 
 XERO_LOCAL_IDENTITY="${XERO_LOCAL_IDENTITY:-xero-dev}"
 
-_xero_codesign_list() {
+_xenon_codesign_list() {
     security find-identity -v -p codesigning 2>/dev/null \
         | sed -n 's/^[[:space:]]*[0-9]*)[[:space:]]*[A-F0-9]*[[:space:]]*"\(.*\)"$/\1/p'
 }
 
-_xero_ensure_local_identity() {
-    if _xero_codesign_list | grep -qx "$XERO_LOCAL_IDENTITY"; then
+_xenon_ensure_local_identity() {
+    if _xenon_codesign_list | grep -qx "$XERO_LOCAL_IDENTITY"; then
         return 0
     fi
     echo "creating local codesign identity \"$XERO_LOCAL_IDENTITY\"…" >&2
@@ -64,7 +64,7 @@ EOF
         "$HOME/Library/Keychains/login.keychain-db" \
         >/dev/null 2>&1 || true
 
-    if ! _xero_codesign_list | grep -qx "$XERO_LOCAL_IDENTITY"; then
+    if ! _xenon_codesign_list | grep -qx "$XERO_LOCAL_IDENTITY"; then
         echo "identity $XERO_LOCAL_IDENTITY not visible after import" >&2
         return 1
     fi
@@ -74,22 +74,22 @@ EOF
 # Resolve a stable codesign identity. Prefer Apple identities, then local
 # xero-dev. Never prefer bare ad-hoc (`-`) — that changes the CDHash every
 # install and drops Full Disk Access / App Management grants.
-xero_codesign_identity() {
+xenon_codesign_identity() {
     if [[ -n "${XERO_CODESIGN_IDENTITY:-}" ]]; then
         printf '%s\n' "$XERO_CODESIGN_IDENTITY"
         return 0
     fi
     local id
-    id="$(_xero_codesign_list | grep '^Developer ID Application:' | head -1 || true)"
+    id="$(_xenon_codesign_list | grep '^Developer ID Application:' | head -1 || true)"
     if [[ -n "$id" ]]; then
         printf '%s\n' "$id"
         return 0
     fi
-    id="$(_xero_codesign_list | grep '^Apple Development:' | head -1 || true)"
+    id="$(_xenon_codesign_list | grep '^Apple Development:' | head -1 || true)"
     if [[ -n "$id" ]]; then
         printf '%s\n' "$id"
         return 0
     fi
-    _xero_ensure_local_identity || return 1
+    _xenon_ensure_local_identity || return 1
     printf '%s\n' "$XERO_LOCAL_IDENTITY"
 }

@@ -1,0 +1,28 @@
+[package]
+name = "xenon_ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+xenon_core.workspace = true
+xenon_store.workspace = true
+xenon_finder.workspace = true
+xenon_terminal.workspace = true
+xenon_editor.workspace = true
+xenon_ide.workspace = true
+xenon_settings.workspace = true
+theme.workspace = true
+anyhow.workspace = true
+async-channel.workspace = true
+log = "0.4"
+lucide-icons.workspace = true
+nucleo.workspace = true
+notify.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

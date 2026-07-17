@@ -2,7 +2,7 @@
 
 Strategic product context for agents and design work. Visual system lives in
 `DESIGN.md` when present; chrome path is Option 2 + 3-lite (AIPM
-`projects/xero/design-direction`).
+`projects/xenon/design/design-direction`).
 
 ## Register
 
@@ -45,8 +45,8 @@ semantic is right even if the spelling must change (Xero accounting collision).
 brew + XenServer PATH collision). Metaphor: noble gas, present but inert,
 anti-IDE. App: `Xenon.app`. Data: `~/.xenon` (auto-migrate from `~/.xero`).
 Env: `XENON_DATA_DIR` / `XENON_SLOT` with legacy `XERO_*` aliases. Bundle id
-stays `dev.xero.xero` (TCC). Crate paths still `crates/xero_*`. GitHub repo
-rename still open. Checklist: AIPM `projects/xero/rename-xenon`.
+stays `dev.xero.xero` (TCC). Crate paths `crates/xenon_*`. GitHub repo
+rename still open. Checklist: AIPM `projects/xenon/product/rename-xenon`.
 
 Rejected or DQ: xero (accounting), xe CLI, mu (Mu Editor), nyx (Nix verbal +
 brew), vexo (vex), soft metaphors (weft/skiff). zeno/wu kept as also-rans only.
@@ -72,7 +72,7 @@ Marketing that is true: **the anti-IDE for people who run agents.**
 - **Secondary (bounce-prevention only):** migrants from Cursor / VS Code / Studio.
   Do not chase full IDE parity for them until primary users are ecstatic.
 - **Personas (living):** Alex, Jordan, Night driver; see AIPM
-  `projects/xero/personas`.
+  `projects/xenon/design/personas`.
 
 ## Job to be done (JTBD)
 
@@ -167,7 +167,7 @@ gate, not a soft backlog item. (New name TBD; do not bikeshed in every chat.)
 
 Cool, dense, calm cockpit. Power-user confident, not playful mascot. Themes are
 product surface (trust defaults + personality pack); see AIPM
-`projects/xero/themes`.
+`projects/xenon/design/themes`.
 
 ## Visual direction (chrome)
 

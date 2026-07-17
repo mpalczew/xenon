@@ -7,7 +7,7 @@ source "$root/scripts/release/codesign.sh"
 (cd "$root" && cargo build --release -p xenon)
 
 app="$root/target/release/xenon.app"
-identity="$(xero_codesign_identity)"
+identity="$(xenon_codesign_identity)"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$root/macos/Info.plist" "$app/Contents/Info.plist"

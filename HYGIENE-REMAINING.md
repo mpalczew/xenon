@@ -1,28 +1,42 @@
 # Hygiene remaining
 
-## Done (pass 3)
+## Done
 
 | Item | Result |
 |------|--------|
-| **Legacy `streams/` migrate** | One-shot on `load_registry`; `load_session` no longer reads streams. Dogfood open/closed workspaces migrated to `sessions/`. |
-| **`XeroApp` peel** | `app/deferred.rs`: `DeferredUi` + `FocusPane` / `FontPane` (overlay restore + pending command/workspace/palette). |
-| **Terminal `view` split** | `view/mod.rs` + Xenon-only `attention.rs` / `paths.rs`. ATTRIBUTION updated. |
-| **Settings dropdown selection** | Option rows use `chrome::list_selection` (shared multi-channel paint). Not a full elevated palette shell (settings stays a window). |
-| **Icon** | Already `xenon.icns` / Info.plist `xenon` — nothing to do. |
+| Streams migrate | One-shot on `load_registry` |
+| DeferredUi peel | Overlay focus queue |
+| Terminal modules | `attention` / `paths` |
+| Settings selection paint | Shared chrome, still a window |
+| **Crate rename** | `crates/xenon_*`, `XenonApp`, package names |
 
-## Still out of scope (not this haul)
+## Intentionally kept (legacy / TCC)
 
-| Item | Why |
-|------|-----|
-| **Crate rename `xero_*` → `xenon_*`** | Optional identity haul (AIPM rename-xenon). Mechanical + large; keep bundle id. |
-| **GitHub repo rename** | User action on GitHub Settings. |
-| **Homebrew formula** | Public ship later. |
-| **Find replace (⌘⌥F)** | Feature backlog. |
-| **Settings = full palette shell** | Wrong product shape; settings is a dedicated window. Selection language shared; list UX can iterate later. |
-| **Further `XeroApp` peels** | Layout / IDE / git-dirt as owned services when those areas next change. |
-| **More terminal extract** | Hover chrome still in `view/mod.rs`; peel when that area is next touched. |
+- Bundle id `dev.xero.xero`
+- Data dir migrate `~/.xero` → `~/.xenon`
+- Env aliases `XERO_*` → `XENON_*`
+- Local codesign identity name `xero-dev` (CDHash / TCC stickiness)
 
-## Verify
+## Still later (not crate hygiene)
 
-- [x] Unit tests on touched crates
-- [x] `project install`
+| Item | Notes |
+|------|--------|
+| **Find replace** | Feature never built: in-buffer find (⌘F) ships; **replace** (⌘⌥F / replace all) does not exist. Separate product work. |
+| **GitHub repo rename** | User: `mpalczew/xero` → `xenon` on GitHub |
+| **Homebrew** | Public ship |
+| **Deeper peels** | See below |
+
+## Deeper peels (what that means)
+
+`XenonApp` still owns almost everything as fields on one type. We only extracted
+`DeferredUi` (focus restore + pending palette/command/workspace).
+
+Still mixed on the root type (peel when next touching that area):
+
+1. **Layout** — sidebar/terminal widths, collapse flags, resize handlers
+2. **Session surfaces** — terminal stacks, editor stacks, tab menus
+3. **Indexes** — file_indexes + index_tasks
+4. **Services** — IDE server, git-dirt watcher, attention map
+5. **Terminal hover chrome** — still in `view/mod.rs` (On-exit strip, mouse policy)
+
+Not required for correctness; reduces cognitive load when editing those paths.

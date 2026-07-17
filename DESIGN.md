@@ -1,7 +1,7 @@
 # DESIGN.md
 
 Visual system for the Xenon (working tree: xero) agent shell. Complements
-`PRODUCT.md`. Implementation: `crates/xero_ui/src/chrome.rs` and consumers.
+`PRODUCT.md`. Implementation: `crates/xenon_ui/src/chrome.rs` and consumers.
 
 ## Register
 
@@ -38,7 +38,7 @@ Helpers: `chrome::tab_selection`, `chrome::list_selection`.
 
 ## Elevated palettes (cmd-p family)
 
-One shell: `crates/xero_ui/src/palette/`. Surfaces that type-to-filter over a
+One shell: `crates/xenon_ui/src/palette/`. Surfaces that type-to-filter over a
 scrollable list **must** use it (finder, workspace open, run task, command /
 stream / help). Geometry: width 640, max-height 420 (480 tall), elevation-2
 panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
@@ -59,7 +59,7 @@ None for selection. Instant paint. Speed is product.
 
 ## Themes
 
-Bundled families under `crates/xero_terminal/assets/`. Default dark: **One Dark**
+Bundled families under `crates/xenon_terminal/assets/`. Default dark: **One Dark**
 (with elevation). Opt-in void: **True Black**. Personality pack unchanged
 (Neon, Mithril, …).
 

@@ -1,0 +1,18 @@
+[package]
+name = "xenon_store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+xenon_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

@@ -50,9 +50,9 @@ cd "$root"
 # Files adapted from upstream (see ATTRIBUTION.md) are exempt: we sync them
 # from upstream rather than reshaping them to our limits.
 adapted=(
-    "crates/xero_terminal/src/color.rs"
-    "crates/xero_terminal/src/grid.rs"
-    "crates/xero_terminal/src/view/mod.rs"
+    "crates/xenon_terminal/src/color.rs"
+    "crates/xenon_terminal/src/grid.rs"
+    "crates/xenon_terminal/src/view/mod.rs"
 )
 
 is_adapted() {

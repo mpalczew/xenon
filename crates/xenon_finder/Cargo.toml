@@ -1,0 +1,15 @@
+[package]
+name = "xenon_finder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ignore.workspace = true
+nucleo.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

@@ -12,7 +12,7 @@ mkdir -p "$dest_dir"
 # Remove legacy install name if present.
 rm -rf "$dest_dir/xero.app" "$dest"
 cp -R "$root/target/release/xenon.app" "$dest"
-identity="$(xero_codesign_identity)"
+identity="$(xenon_codesign_identity)"
 codesign --force --deep --sign "$identity" "$dest" || {
     echo "codesign of installed app failed: $dest" >&2
     exit 1

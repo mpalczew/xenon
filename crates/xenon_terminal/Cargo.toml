@@ -1,0 +1,24 @@
+[package]
+name = "xenon_terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui.workspace = true
+terminal.workspace = true
+theme.workspace = true
+theme_settings.workspace = true
+settings.workspace = true
+release_channel.workspace = true
+util.workspace = true
+task.workspace = true
+collections.workspace = true
+semver.workspace = true
+anyhow.workspace = true
+image = "0.25.10"
+xenon_settings.workspace = true
+log = "0.4"

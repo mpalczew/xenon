@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-xero: a macOS IDE for driving coding agents, built in Rust on GPUI (zed's UI
-framework). Left sidebar of workspaces; main panel is an embedded terminal
-optionally split with tree-sitter-highlighted editors (tabs per workspace).
-License: GPL-3.0.
+Xenon: a macOS agent shell for driving coding agents, built in Rust on GPUI
+(zed's UI framework). Left sidebar of workspaces; main panel is an embedded
+terminal optionally split with tree-sitter-highlighted editors (tabs per
+workspace). License: GPL-3.0.
 
 **Product vision (source of truth: `PRODUCT.md`):** native macOS **agent shell**
 (**anti-IDE**) for many agents across workspaces, any terminal harness
 (PTY-agnostic). "IDE" means live-here-all-day (author replaced VS Code), not
 VS Code parity on day one. **Public name: Xenon**; CLI/binary **`xenon`**.
 Public name **Xenon**; binary/`Xenon.app`; data `~/.xenon` (migrates from
-`~/.xero`). Crate paths still `xero_*` until full rename. Install:
+`~/.xero`). Install:
 `project install` → `~/Applications/Xenon.app`. Homebrew later. OSS success:
 **substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
 Personas: AIPM `projects/xenon/design/personas`.
@@ -47,24 +47,24 @@ Personas: AIPM `projects/xenon/design/personas`.
 ## Architecture
 
 Crates under `crates/`:
-- `xero` — bin: gpui `Application`, window, quit/menu wiring.
-- `xero_ui` — the app shell: `XeroApp` root view (workspace sidebar, terminal/
+- `xenon` — bin: gpui `Application`, window, quit/menu wiring.
+- `xenon_ui` — the app shell: `XenonApp` root view (workspace sidebar, terminal/
   editor main panel with tabs, cmd-p finder, Run Task palette), keybindings.
-- `xero_core` — pure data model (Workspace/SessionState). Session layout + open
+- `xenon_core` — pure data model (Workspace/SessionState). Session layout + open
   editors are keyed by workspace; tabs (terminals + editors) are the multi-surface.
-- `xero_store` — JSON persistence under `~/.xenon` (atomic writes, corrupt-file
+- `xenon_store` — JSON persistence under `~/.xenon` (atomic writes, corrupt-file
   backup; migrates from `~/.xero`). `XENON_DATA_DIR` overrides the location
   (legacy `XERO_DATA_DIR` still works; used by tests).
-- `xero_terminal` — zed terminal backend + adapted `TerminalElement`; `init()`
+- `xenon_terminal` — zed terminal backend + adapted `TerminalElement`; `init()`
   installs the zed globals (settings/theme/release_channel) the terminal needs.
-- `xero_editor` — ropey `Buffer` (edit ops, save, mtime external-change) + gpui
+- `xenon_editor` — ropey `Buffer` (edit ops, save, mtime external-change) + gpui
   `EditorView` with tree-sitter highlighting.
-- `xero_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
-- `xero_settings` — app settings + font size actions.
-- `xero_ide` — Claude Code IDE integration: a localhost WebSocket MCP server
+- `xenon_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
+- `xenon_settings` — app settings + font size actions.
+- `xenon_ide` — Claude Code IDE integration: a localhost WebSocket MCP server
   (`~/.claude/ide/<port>.lock` + `CLAUDE_CODE_SSE_PORT` injected into terminals)
   that lets agents open files in Xenon. Protocol captured in
-  `crates/xero_ide/PROTOCOL.md`.
+  `crates/xenon_ide/PROTOCOL.md`.
 - Project commands: shell tasks in `.vscode/tasks.json` (Run Task palette
   cmd-shift-r injects into the workspace terminal; `project <label>` from any shell).
 
@@ -114,7 +114,7 @@ never required for a complete flow.
   without wiring that equivalent (or adding one).
 - When reviewing UX work, ask: can a user do this with hands on the home row?
 
-## Never kill xero processes
+## Never kill Xenon processes
 
 Never run `pkill`, `killall`, or any command that could terminate running Xenon
 instances or background agents without explicit user instruction. This includes:
