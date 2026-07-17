@@ -13,7 +13,7 @@ impl XeroApp {
         self.finder = None;
         self.workspace_picker = None;
         self.command_palette = None;
-        self.restore_pane = self.focused_pane(window, cx);
+        self.deferred.restore_pane = self.focused_pane(window, cx);
         let (tasks, error) = match load_shell_tasks(&root) {
             Ok(tasks) if tasks.is_empty() => (
                 Vec::new(),
@@ -45,7 +45,8 @@ impl XeroApp {
             }
             TaskPickerEvent::Dismissed => {
                 self.task_picker = None;
-                self.pending_focus = self
+                self.deferred.pending_focus = self
+                    .deferred
                     .restore_pane
                     .take()
                     .or_else(|| Some(self.fallback_content_pane()));
@@ -72,7 +73,7 @@ impl XeroApp {
         terminal.update(cx, |term, cx| {
             term.inject_text(&line, cx);
         });
-        self.pending_focus = Some(FocusPane::Terminal);
+        self.deferred.pending_focus = Some(FocusPane::Terminal);
         cx.notify();
     }
 }

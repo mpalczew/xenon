@@ -50,7 +50,7 @@ impl XeroApp {
         // queue editor focus when requested so dismissing the finder cannot
         // leave the window with no focused handle (cmd-p / typing void).
         if focus && opened {
-            self.pending_focus = Some(FocusPane::Editor);
+            self.deferred.pending_focus = Some(FocusPane::Editor);
         }
         if self.file_browser.is_open() {
             self.reveal_active_file(cx);

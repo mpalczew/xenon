@@ -7,7 +7,7 @@ use super::*;
 impl XeroApp {
     /// Walk `root` into `file_indexes` on a background thread. Skips the walk when
     /// an index already exists unless `force` (explicit refresh). Prefer
-    /// `force: false` on cmd-p open so large roots reuse the cache. Streams
+    /// `force: false` on cmd-p open so large roots reuse the cache. Emits
     /// partial snapshots so cmd-p can search before the walk finishes.
     /// Idempotent per root: a second call replaces (cancels) the previous build.
     pub(super) fn reindex(&mut self, root: PathBuf, force: bool, cx: &mut Context<Self>) {
@@ -117,7 +117,7 @@ impl XeroApp {
     /// Last content pane that can take keyboard focus (never None).
     /// Used when an overlay dies without a remembered restore target.
     pub(super) fn fallback_content_pane(&self) -> FocusPane {
-        match self.last_font_pane {
+        match self.deferred.last_font_pane {
             FontPane::Editor if self.has_editor() => FocusPane::Editor,
             FontPane::Terminal if self.terminal_visible() => FocusPane::Terminal,
             _ if self.terminal_visible() => FocusPane::Terminal,
@@ -157,9 +157,9 @@ impl XeroApp {
         let target = match self.focused_pane(window, cx) {
             Some(FocusPane::Editor) => FontPane::Editor,
             Some(FocusPane::Terminal) => FontPane::Terminal,
-            Some(FocusPane::Browser) | None => self.last_font_pane,
+            Some(FocusPane::Browser) | None => self.deferred.last_font_pane,
         };
-        self.last_font_pane = target;
+        self.deferred.last_font_pane = target;
         target
     }
 

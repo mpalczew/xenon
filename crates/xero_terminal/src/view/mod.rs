@@ -6,12 +6,18 @@
 //! plain typing and IME reach the PTY; control/navigation keys go through
 //! `try_keystroke` on key-down. Both mirror zed's terminal_view
 //! (GPL-3.0-or-later); see ATTRIBUTION.md.
+//!
+//! Xenon-only pieces live in submodules (`attention`, `paths`) so adapted zed
+//! patterns stay easier to re-sync.
+
+mod attention;
+mod paths;
 
 use std::ops::Range;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use anyhow::Result;
+use attention::{IDLE_AFTER, agent_finish_signal};
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, ExternalPaths, FocusHandle, Focusable, InteractiveElement,
@@ -20,6 +26,7 @@ use gpui::{
     StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window, anchored,
     canvas, deferred, div, px,
 };
+use paths::{resolve_clicked_path, strip_line_suffix, word_at};
 use settings::Settings;
 use task::Shell;
 use terminal::terminal_settings::{AlternateScroll, CursorShape, TerminalSettings};
@@ -93,13 +100,6 @@ struct HoverInfo {
     label: String,
     position: Point<Pixels>,
 }
-
-/// Output must be quiet this long before a terminal counts as settled.
-const IDLE_AFTER: Duration = Duration::from_millis(2500);
-/// Named-harness title: settled burst this large counts as agent work.
-const BUSY_WAKEUPS: u32 = 15;
-/// No harness name in title: require a heavier burst (avoids `npm install` noise).
-const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
 
 pub struct TerminalView {
     state: State,
@@ -952,31 +952,6 @@ impl TerminalView {
     }
 }
 
-/// Quiet period after `busy` wakeups looks like an agent finishing.
-/// Named harness titles need fewer wakeups; anonymous titles need a heavier burst.
-fn agent_finish_signal(busy: u32, title: &str) -> bool {
-    if busy == 0 {
-        return false;
-    }
-    if agent_title(title) {
-        return busy >= BUSY_WAKEUPS;
-    }
-    busy >= ANONYMOUS_BUSY_WAKEUPS
-}
-
-/// Title (or process name fragment) suggests a coding agent, not a plain shell.
-fn agent_title(title: &str) -> bool {
-    let t = title.to_ascii_lowercase();
-    const NAMES: &[&str] = &[
-        "claude", "grok", "kimi", "codex", "aider", "gemini", "cursor", "opencode", "windsurf",
-        "goose", "crush", "amp ", " amp", "devin", "copilot",
-    ];
-    if NAMES.iter().any(|n| t.contains(n)) {
-        return true;
-    }
-    t.contains("agent") || t.contains("llm")
-}
-
 fn context_item(
     id: &'static str,
     label: &'static str,
@@ -1005,80 +980,6 @@ fn context_item(
     } else {
         row.child(div().text_xs().text_color(muted).child(shortcut))
     }
-}
-
-/// Resolve a cmd-clicked path-like target to an existing file: strip any trailing
-/// `:line[:col]` and resolve relative paths against the terminal's directory.
-fn resolve_clicked_path(target: &terminal::PathLikeTarget) -> Option<PathBuf> {
-    for candidate in [
-        target.maybe_path.as_str(),
-        strip_line_suffix(&target.maybe_path),
-    ] {
-        let mut path = PathBuf::from(candidate);
-        if path.is_relative() {
-            match &target.terminal_dir {
-                Some(dir) => path = dir.join(path),
-                None => continue,
-            }
-        }
-        if path.is_file() {
-            return Some(path);
-        }
-    }
-    None
-}
-
-/// The whitespace-delimited token at grid cell `(line, col)`, trimmed of wrapping
-/// brackets/quotes and trailing sentence punctuation. Used to resolve a path under
-/// a right-click; `resolve_clicked_path` then handles `:line:col` and existence.
-fn word_at(content: &terminal::Content, line: i32, col: usize) -> Option<String> {
-    let num_cols = content.terminal_bounds.num_columns();
-    if col >= num_cols {
-        return None;
-    }
-    let mut row = vec![' '; num_cols];
-    for indexed in &content.cells {
-        if indexed.point.line == line && indexed.point.column < num_cols {
-            row[indexed.point.column] = indexed.cell.character();
-        }
-    }
-    if row[col].is_whitespace() {
-        return None;
-    }
-    let mut start = col;
-    while start > 0 && !row[start - 1].is_whitespace() {
-        start -= 1;
-    }
-    let mut end = col;
-    while end + 1 < num_cols && !row[end + 1].is_whitespace() {
-        end += 1;
-    }
-    let token: String = row[start..=end].iter().collect();
-    trim_token(&token)
-}
-
-/// Strip wrapping brackets/quotes and trailing sentence punctuation from a token,
-/// keeping leading `./` and `/`, mirroring zed's default path-hyperlink boundaries
-/// (e.g. `Added foo.html.` yields `foo.html`; `./rel` stays `./rel`).
-fn trim_token(token: &str) -> Option<String> {
-    let trimmed = token
-        .trim_start_matches(|c: char| "([{<\"'`".contains(c))
-        .trim_end_matches(|c: char| ")]}>\"'`.,;:".contains(c));
-    (!trimmed.is_empty()).then(|| trimmed.to_string())
-}
-
-/// Drop up to two trailing `:<digits>` segments (line and column) from a path.
-fn strip_line_suffix(text: &str) -> &str {
-    let mut text = text;
-    for _ in 0..2 {
-        match text.rsplit_once(':') {
-            Some((head, tail)) if !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit()) => {
-                text = head;
-            }
-            _ => break,
-        }
-    }
-    text
 }
 
 fn grid_canvas(
@@ -1188,60 +1089,5 @@ impl EntityInputHandler for TerminalView {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{agent_finish_signal, agent_title, strip_line_suffix, trim_token};
-
-    #[test]
-    fn trim_token_drops_trailing_sentence_period() {
-        // "Added favicon to amazon-summary-2026.html." -> the bare filename.
-        assert_eq!(
-            trim_token("amazon-summary-2026.html.").as_deref(),
-            Some("amazon-summary-2026.html")
-        );
-    }
-
-    #[test]
-    fn trim_token_keeps_relative_and_absolute_prefixes() {
-        assert_eq!(
-            trim_token("./rel/path.rs").as_deref(),
-            Some("./rel/path.rs")
-        );
-        assert_eq!(trim_token("/abs/path.md").as_deref(), Some("/abs/path.md"));
-    }
-
-    #[test]
-    fn trim_token_strips_wrapping_delimiters_but_keeps_line_col() {
-        assert_eq!(trim_token("(foo.rs:12)").as_deref(), Some("foo.rs:12"));
-        assert_eq!(trim_token("\"quoted\"").as_deref(), Some("quoted"));
-    }
-
-    #[test]
-    fn trim_token_all_punctuation_is_none() {
-        assert_eq!(trim_token("..."), None);
-        assert_eq!(trim_token(""), None);
-    }
-
-    #[test]
-    fn strip_line_suffix_removes_line_and_column() {
-        assert_eq!(strip_line_suffix("foo.rs:12:3"), "foo.rs");
-        assert_eq!(strip_line_suffix("foo.rs:12"), "foo.rs");
-        assert_eq!(strip_line_suffix("foo.rs"), "foo.rs");
-        // A non-numeric ":" tail is part of the path, not a line suffix.
-        assert_eq!(strip_line_suffix("foo:bar"), "foo:bar");
-    }
-
-    #[test]
-    fn agent_finish_detects_named_and_anonymous_bursts() {
-        assert!(!agent_finish_signal(5, "claude"));
-        assert!(agent_finish_signal(15, "claude code"));
-        assert!(agent_finish_signal(20, "Grok session"));
-        assert!(!agent_finish_signal(20, "bash"));
-        assert!(agent_finish_signal(40, "bash"));
-        assert!(agent_title("kimi-cli"));
-        assert!(!agent_title("zsh"));
     }
 }

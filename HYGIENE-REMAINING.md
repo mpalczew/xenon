@@ -1,36 +1,28 @@
-# Hygiene remaining (pass 2)
+# Hygiene remaining
 
-After pass 1 (`b74c487`). Scope: leftovers + one WIP already in the tree.
+## Done (pass 3)
 
-## Land this pass
+| Item | Result |
+|------|--------|
+| **Legacy `streams/` migrate** | One-shot on `load_registry`; `load_session` no longer reads streams. Dogfood open/closed workspaces migrated to `sessions/`. |
+| **`XeroApp` peel** | `app/deferred.rs`: `DeferredUi` + `FocusPane` / `FontPane` (overlay restore + pending command/workspace/palette). |
+| **Terminal `view` split** | `view/mod.rs` + Xenon-only `attention.rs` / `paths.rs`. ATTRIBUTION updated. |
+| **Settings dropdown selection** | Option rows use `chrome::list_selection` (shared multi-channel paint). Not a full elevated palette shell (settings stays a window). |
+| **Icon** | Already `xenon.icns` / Info.plist `xenon` — nothing to do. |
 
-| Item | Move |
-|------|------|
-| **Palette keyboard scroll** | WIP already unstaged: `reveal_selected` / `step_selection` on finder, command, task, workspace pickers. Open product gap. Finish + ship. |
-| **Shape baseline ratchet** | Drop rows/files under default caps; lower grandfathered numbers to current. |
-| **`start_git_dirt_watch` alias** | Fold into `restart_git_dirt_watch` (one entrypoint). |
-| **Input handler stubs** | Shared macro/helpers for noop geometry methods on rename + settings (registrar already shared). |
-
-## Keep / later (not this pass)
+## Still out of scope (not this haul)
 
 | Item | Why |
 |------|-----|
-| **Legacy `streams/` session migrate** | Live data still under `~/.xenon-{a,b}/streams` (+ `~/.xero*`). Delete only after those dirs are empty or one-shot migrated. |
-| **`XeroApp` peel** | Real seam design (overlay/focus vs layout vs services). Separate haul. |
-| **Terminal `view.rs` split** | Adapted zed surface; extract only Xenon chips when next terminal feature lands. |
-| **Crate rename `xero_*`** | AIPM `product/rename-xenon` checklist; not hygiene. |
-| **Settings dropdown → palette shell** | Product, not rot. |
-| **Find replace, etc.** | Feature backlog. |
+| **Crate rename `xero_*` → `xenon_*`** | Optional identity haul (AIPM rename-xenon). Mechanical + large; keep bundle id. |
+| **GitHub repo rename** | User action on GitHub Settings. |
+| **Homebrew formula** | Public ship later. |
+| **Find replace (⌘⌥F)** | Feature backlog. |
+| **Settings = full palette shell** | Wrong product shape; settings is a dedicated window. Selection language shared; list UX can iterate later. |
+| **Further `XeroApp` peels** | Layout / IDE / git-dirt as owned services when those areas next change. |
+| **More terminal extract** | Hover chrome still in `view/mod.rs`; peel when that area is next touched. |
 
-## Done when
+## Verify
 
-- Palette arrows keep selection in view; baseline tighter; one git-dirt entrypoint; input stubs not triplicated.
-- Tests + `project install`.
-
-## Status (pass 2)
-
-- [x] Palette `reveal_selected` / `step_selection` landed.
-- [x] Shape baseline ratcheted.
-- [x] `start_git_dirt_watch` folded into `restart_git_dirt_watch`.
-- [x] `entity_input_noop_geometry!` for rename, settings, palette query.
-- [x] Install + commit (`bd342e0`).
+- [x] Unit tests on touched crates
+- [x] `project install`

@@ -129,29 +129,47 @@ fn session_path(workspace: WorkspaceId) -> PathBuf {
 
 /// Load the registry, or a default if none exists. A corrupt file is preserved
 /// as `*.corrupt` and a default is returned alongside the error's backup path.
+///
+/// One-shot: any open/closed workspace still only on legacy `streams/<id>/` is
+/// written to `sessions/<id>.json` so later loads never read streams.
 pub fn load_registry() -> Result<Registry, StoreError> {
-    load_or_default(&registry_path())
+    let registry = load_or_default(&registry_path())?;
+    migrate_legacy_streams(&registry);
+    Ok(registry)
 }
 
 pub fn save_registry(registry: &Registry) -> Result<(), StoreError> {
     write_atomic(&registry_path(), registry)
 }
 
-/// Load a workspace session. Falls back to the first legacy stream file under
-/// `streams/<workspace>/` when the modern path is missing (one-shot migration).
+/// Load a workspace session from `sessions/<id>.json`.
 pub fn load_session(workspace: WorkspaceId) -> Result<SessionState, StoreError> {
     let path = session_path(workspace);
     if path.exists() {
         return read_json(&path);
     }
-    if let Some(session) = load_legacy_stream_session(workspace) {
-        let _ = save_session(workspace, &session);
-        return Ok(session);
-    }
     Err(StoreError::Io(io::Error::new(
         io::ErrorKind::NotFound,
         "session not found",
     )))
+}
+
+/// Copy first legacy stream session into modern path when the session file is
+/// missing. Leaves `streams/` on disk (no delete).
+fn migrate_legacy_streams(registry: &Registry) {
+    for workspace in registry
+        .workspaces
+        .iter()
+        .chain(registry.closed_workspaces.iter())
+    {
+        let path = session_path(workspace.id);
+        if path.exists() {
+            continue;
+        }
+        if let Some(session) = read_legacy_stream_session(workspace.id) {
+            let _ = save_session(workspace.id, &session);
+        }
+    }
 }
 
 pub fn save_session(workspace: WorkspaceId, session: &SessionState) -> Result<(), StoreError> {
@@ -169,7 +187,7 @@ pub fn delete_session(workspace: WorkspaceId) -> Result<(), StoreError> {
 }
 
 /// Read the first legacy `streams/<workspace>/*.json` file as a SessionState.
-fn load_legacy_stream_session(workspace: WorkspaceId) -> Option<SessionState> {
+fn read_legacy_stream_session(workspace: WorkspaceId) -> Option<SessionState> {
     let dir = data_dir().join("streams").join(workspace.to_string());
     let entries = fs::read_dir(&dir).ok()?;
     let mut paths: Vec<PathBuf> = entries

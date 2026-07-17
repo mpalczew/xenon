@@ -90,7 +90,7 @@ impl XeroApp {
         self.finder = None;
         self.task_picker = None;
         self.command_palette = None;
-        self.restore_pane = self.focused_pane(window, cx);
+        self.deferred.restore_pane = self.focused_pane(window, cx);
         let current = self.active;
         let mut known = Vec::new();
         for rec in &self.registry.closed_workspaces {
@@ -141,7 +141,7 @@ impl XeroApp {
         match event {
             WorkspacePickerEvent::Open(candidate) => {
                 self.workspace_picker = None;
-                self.restore_pane = None;
+                self.deferred.restore_pane = None;
                 self.apply_workspace_pick(candidate, cx);
             }
             WorkspacePickerEvent::Browse => {
@@ -150,7 +150,8 @@ impl XeroApp {
             }
             WorkspacePickerEvent::Dismissed => {
                 self.workspace_picker = None;
-                self.pending_focus = self
+                self.deferred.pending_focus = self
+                    .deferred
                     .restore_pane
                     .take()
                     .or_else(|| Some(self.fallback_content_pane()));

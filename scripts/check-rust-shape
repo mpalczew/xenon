@@ -52,7 +52,7 @@ cd "$root"
 adapted=(
     "crates/xero_terminal/src/color.rs"
     "crates/xero_terminal/src/grid.rs"
-    "crates/xero_terminal/src/view.rs"
+    "crates/xero_terminal/src/view/mod.rs"
 )
 
 is_adapted() {

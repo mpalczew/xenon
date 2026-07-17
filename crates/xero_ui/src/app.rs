@@ -32,6 +32,7 @@ use crate::{
 };
 
 mod browser;
+mod deferred;
 mod dirty_close;
 mod editors;
 mod empty_hint;
@@ -48,6 +49,7 @@ mod terminals;
 mod tree_keys;
 mod workspaces;
 
+use deferred::{DeferredUi, FocusPane, FontPane};
 use sessions::AttentionReason;
 
 /// The terminals open in one workspace, as tabs, plus which is focused.
@@ -91,22 +93,6 @@ pub(crate) enum RenameTarget {
     Workspace(WorkspaceId),
 }
 
-/// Which pane held keyboard focus before the finder opened, so Escape can
-/// return focus there instead of dropping it into the void.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum FocusPane {
-    Terminal,
-    Editor,
-    Browser,
-}
-
-/// Content surface for cmd-+ / cmd-- font zoom (editor and terminal only).
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum FontPane {
-    Terminal,
-    Editor,
-}
-
 pub struct XeroApp {
     registry: Registry,
     /// Per-workspace session layout metadata (persisted).
@@ -126,18 +112,8 @@ pub struct XeroApp {
     // a new build for the same root replaces (cancels) the previous one.
     file_indexes: HashMap<PathBuf, Arc<FileIndex>>,
     index_tasks: HashMap<PathBuf, Task<()>>,
-    // The pane focused when the finder opened, and (on dismiss) the pane to
-    // re-focus during the next render (render is where a `Window` is available).
-    restore_pane: Option<FocusPane>,
-    pending_focus: Option<FocusPane>,
-    /// Last editor/terminal focus for zoom when chrome (sidebar, tree) has focus.
-    last_font_pane: FontPane,
-    // A cmd-clicked name to open cmd-p with, deferred to render (which has a
-    // Window) from the windowless terminal-event subscription.
-    pending_palette_query: Option<String>,
-    /// Command / workspace jump deferred until render has a Window.
-    pending_command: Option<crate::commands::CommandId>,
-    pending_workspace: Option<WorkspaceId>,
+    /// Overlay focus restore + window-deferred palette/command work.
+    deferred: DeferredUi,
     sidebar_collapsed: bool,
     terminal_collapsed: bool,
     editor_collapsed: bool,
@@ -197,12 +173,7 @@ impl XeroApp {
             browser_focused: false,
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
-            restore_pane: None,
-            pending_focus: None,
-            last_font_pane: FontPane::Terminal,
-            pending_palette_query: None,
-            pending_command: None,
-            pending_workspace: None,
+            deferred: DeferredUi::default(),
             sidebar_collapsed: false,
             terminal_collapsed: false,
             editor_collapsed: false,

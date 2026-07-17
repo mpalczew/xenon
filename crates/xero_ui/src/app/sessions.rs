@@ -122,7 +122,7 @@ impl XeroApp {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| token.clone());
         let Some(index) = self.file_indexes.get(&root).cloned() else {
-            self.pending_palette_query = Some(basename);
+            self.deferred.pending_palette_query = Some(basename);
             cx.notify();
             return;
         };
@@ -147,7 +147,7 @@ impl XeroApp {
         {
             self.open_editor(root.join(rel), true, cx);
         } else {
-            self.pending_palette_query = Some(basename);
+            self.deferred.pending_palette_query = Some(basename);
             cx.notify();
         }
     }

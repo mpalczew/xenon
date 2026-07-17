@@ -336,12 +336,19 @@ fn option_row(
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
+    // Same multi-channel selection language as elevated palettes / sidebar.
+    let paint = crate::chrome::list_selection(&colors, highlighted);
     let background = if highlighted {
-        colors.element_selected
+        paint.background
     } else if selected {
         colors.element_hover
     } else {
         colors.elevated_surface_background
+    };
+    let foreground = if highlighted {
+        paint.foreground
+    } else {
+        colors.text
     };
     let pick = option.clone();
     let label = family_option_label(id, option.as_ref());
@@ -351,6 +358,7 @@ fn option_row(
         .py_1()
         .text_xs()
         .bg(background)
+        .text_color(foreground)
         .cursor_pointer()
         .hover(|s| s.bg(colors.element_hover))
         .child(label)

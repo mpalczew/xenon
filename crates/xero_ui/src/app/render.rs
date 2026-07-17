@@ -59,16 +59,16 @@ impl Render for XeroApp {
 impl XeroApp {
     /// Deferred work that needs a Window (finder dismiss focus, cmd-click palette).
     fn drain_deferred_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(pane) = self.pending_focus.take() {
+        if let Some(pane) = self.deferred.pending_focus.take() {
             self.focus_pane(pane, window, cx);
         }
-        if let Some(query) = self.pending_palette_query.take() {
+        if let Some(query) = self.deferred.pending_palette_query.take() {
             self.open_palette_with_query(query, window, cx);
         }
-        if let Some(id) = self.pending_workspace.take() {
+        if let Some(id) = self.deferred.pending_workspace.take() {
             self.select_workspace(id, window, cx);
         }
-        if let Some(cmd) = self.pending_command.take() {
+        if let Some(cmd) = self.deferred.pending_command.take() {
             self.run_command(cmd, window, cx);
         }
     }

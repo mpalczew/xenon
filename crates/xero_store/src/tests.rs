@@ -191,9 +191,13 @@ fn corrupt_session_returns_error() {
 }
 
 #[test]
-fn migrates_legacy_stream_session() {
+fn load_registry_migrates_legacy_stream_session() {
     with_data_dir(|| {
         let ws = WorkspaceRec::new("/tmp/proj".into());
+        let mut registry = Registry::default();
+        registry.workspaces.push(ws.clone());
+        save_registry(&registry).unwrap();
+
         let dir = crate::data_dir().join("streams").join(ws.id.to_string());
         fs::create_dir_all(&dir).unwrap();
         fs::write(
@@ -218,14 +222,9 @@ fn migrates_legacy_stream_session() {
         )
         .unwrap();
 
+        let _ = load_registry().unwrap();
         let session = load_session(ws.id).unwrap();
         assert!(!session.layout.terminal_visible);
         assert_eq!(session.layout.sidebar_width, 200.0);
-        assert!(
-            crate::data_dir()
-                .join("sessions")
-                .join(format!("{}.json", ws.id))
-                .exists()
-        );
     });
 }

@@ -23,7 +23,7 @@ impl XeroApp {
         self.task_picker = None;
         self.workspace_picker = None;
         self.browser_focused = false;
-        self.restore_pane = self.focused_pane(window, cx);
+        self.deferred.restore_pane = self.focused_pane(window, cx);
         let workspaces = self.workspace_palette_rows();
         let picker = cx.new(|cx| CommandPaletteView::new(mode, workspaces, cx));
         self._command_palette_sub = Some(cx.subscribe(&picker, Self::on_command_palette_event));
@@ -49,25 +49,28 @@ impl XeroApp {
             CommandPaletteEvent::Run(id) => {
                 self.command_palette = None;
                 // Restore before the command runs (drain order: focus then command).
-                self.pending_focus = self
+                self.deferred.pending_focus = self
+                    .deferred
                     .restore_pane
                     .take()
                     .or_else(|| Some(self.fallback_content_pane()));
-                self.pending_command = Some(*id);
+                self.deferred.pending_command = Some(*id);
                 cx.notify();
             }
             CommandPaletteEvent::ActivateWorkspace(id) => {
                 self.command_palette = None;
-                self.pending_focus = self
+                self.deferred.pending_focus = self
+                    .deferred
                     .restore_pane
                     .take()
                     .or_else(|| Some(self.fallback_content_pane()));
-                self.pending_workspace = Some(*id);
+                self.deferred.pending_workspace = Some(*id);
                 cx.notify();
             }
             CommandPaletteEvent::Dismissed => {
                 self.command_palette = None;
-                self.pending_focus = self
+                self.deferred.pending_focus = self
+                    .deferred
                     .restore_pane
                     .take()
                     .or_else(|| Some(self.fallback_content_pane()));
