@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use gpui::{MouseButton, MouseDownEvent, Pixels, Point, px};
+use gpui::{MouseButton, MouseDownEvent, Pixels, Point};
 
 const MULTI_CLICK: Duration = Duration::from_millis(500);
 
@@ -63,12 +63,6 @@ impl ClickTracker {
 
 pub fn is_left_drag(event: &gpui::MouseMoveEvent) -> bool {
     event.pressed_button == Some(MouseButton::Left)
-}
-
-/// Pixel distance used only for API symmetry with drag start; currently unused.
-#[allow(dead_code)]
-pub fn near(a: Point<Pixels>, b: Point<Pixels>) -> bool {
-    (a.x - b.x).abs() < px(4.) && (a.y - b.y).abs() < px(4.)
 }
 
 pub fn is_primary_down(event: &MouseDownEvent) -> bool {

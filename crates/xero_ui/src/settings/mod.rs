@@ -16,7 +16,7 @@ use crate::ToggleSettings;
 use crate::dropdown::{
     DropdownId, SizeTarget, filter_options, mono_font_families, ui_font_families,
 };
-use input::input_registrar;
+use crate::palette::input_registrar;
 use sections::{
     OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
     font_section, terminal_section,

@@ -14,7 +14,6 @@ fn layout_default_is_all_visible() {
     let d = Layout::default();
     assert!(d.terminal_visible && d.editor_visible && d.sidebar_visible);
     assert_eq!(d.sidebar_width, crate::session::DEFAULT_SIDEBAR_WIDTH);
-    assert_eq!(d.tree_width, crate::session::DEFAULT_TREE_WIDTH);
     assert_eq!(d.terminal_width, crate::session::DEFAULT_TERMINAL_WIDTH);
 }
 
@@ -25,7 +24,6 @@ fn layout_round_trips_through_json() {
         editor_visible: true,
         sidebar_visible: false,
         sidebar_width: 200.,
-        tree_width: 180.,
         terminal_width: 640.,
     };
     let json = serde_json::to_string_pretty(&layout).unwrap();
@@ -50,11 +48,25 @@ fn old_layout_json_without_widths_uses_defaults() {
     let parsed: Layout = serde_json::from_str(json).unwrap();
     assert!(!parsed.terminal_visible);
     assert_eq!(parsed.sidebar_width, crate::session::DEFAULT_SIDEBAR_WIDTH);
-    assert_eq!(parsed.tree_width, crate::session::DEFAULT_TREE_WIDTH);
     assert_eq!(
         parsed.terminal_width,
         crate::session::DEFAULT_TERMINAL_WIDTH
     );
+}
+
+#[test]
+fn old_layout_json_with_tree_width_is_ignored() {
+    let json = r#"{
+        "terminal_visible": true,
+        "editor_visible": true,
+        "sidebar_visible": true,
+        "sidebar_width": 220.0,
+        "tree_width": 180.0,
+        "terminal_width": 500.0
+    }"#;
+    let parsed: Layout = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.sidebar_width, 220.0);
+    assert_eq!(parsed.terminal_width, 500.0);
 }
 
 #[test]

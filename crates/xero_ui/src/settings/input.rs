@@ -2,23 +2,9 @@
 
 use std::ops::Range;
 
-use gpui::{
-    Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle, IntoElement,
-    Pixels, Point, Styled, UTF16Selection, Window, canvas,
-};
+use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, Window};
 
 use super::{SettingsView, is_filterable};
-
-pub(super) fn input_registrar(view: Entity<SettingsView>, focus: FocusHandle) -> impl IntoElement {
-    canvas(
-        move |_bounds, _window, _cx| {},
-        move |bounds, _prepaint, window, cx| {
-            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
-        },
-    )
-    .absolute()
-    .size_full()
-}
 
 impl EntityInputHandler for SettingsView {
     fn replace_text_in_range(

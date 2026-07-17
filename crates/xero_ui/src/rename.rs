@@ -6,11 +6,13 @@ use std::ops::Range;
 use std::time::Duration;
 
 use gpui::{
-    App, Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
-    FocusHandle, Focusable, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
-    Point, Render, Styled, Subscription, Task, UTF16Selection, Window, canvas, div, px,
+    App, Bounds, Context, EntityInputHandler, EventEmitter, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled,
+    Subscription, Task, UTF16Selection, Window, div, px,
 };
 use theme::ActiveTheme;
+
+use crate::palette::input_registrar;
 
 const CARET_BLINK: Duration = Duration::from_millis(530);
 
@@ -149,19 +151,6 @@ impl Render for RenameView {
             )
             .child(input_registrar(cx.entity(), self.focus.clone()))
     }
-}
-
-/// A transparent full-size canvas that registers the text input handler during
-/// paint (required to receive typed characters on macOS).
-fn input_registrar(view: Entity<RenameView>, focus: FocusHandle) -> impl IntoElement {
-    canvas(
-        move |_bounds, _window, _cx| {},
-        move |bounds, _prepaint, window, cx| {
-            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
-        },
-    )
-    .absolute()
-    .size_full()
 }
 
 impl EntityInputHandler for RenameView {

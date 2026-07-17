@@ -8,8 +8,8 @@ mod workspace;
 
 pub use ids::WorkspaceId;
 pub use session::{
-    DEFAULT_SIDEBAR_WIDTH, DEFAULT_TERMINAL_WIDTH, DEFAULT_TREE_WIDTH, Layout, OpenEditor, Point,
-    SessionState, TerminalState, clamp_sidebar, clamp_terminal, clamp_tree,
+    DEFAULT_SIDEBAR_WIDTH, DEFAULT_TERMINAL_WIDTH, Layout, OpenEditor, Point, SessionState,
+    TerminalState, clamp_sidebar, clamp_terminal,
 };
 pub use tasks::{
     ShellTask, find_tasks_json, load_shell_tasks, parse_shell_tasks, workspace_for_tasks_json,

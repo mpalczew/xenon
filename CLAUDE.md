@@ -17,7 +17,7 @@ Public name **Xenon**; binary/`Xenon.app`; data `~/.xenon` (migrates from
 `~/.xero`). Crate paths still `xero_*` until full rename. Install:
 `project install` → `~/Applications/Xenon.app`. Homebrew later. OSS success:
 **substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
-Personas: AIPM `projects/xero/personas`.
+Personas: AIPM `projects/xenon/design/personas`.
 
 ## Build & run
 
@@ -52,17 +52,18 @@ Crates under `crates/`:
   editor main panel with tabs, cmd-p finder, Run Task palette), keybindings.
 - `xero_core` — pure data model (Workspace/SessionState). Session layout + open
   editors are keyed by workspace; tabs (terminals + editors) are the multi-surface.
-- `xero_store` — JSON persistence under `~/.xero` (atomic writes, corrupt-file
-  backup). `XERO_DATA_DIR` overrides the location (used by tests).
+- `xero_store` — JSON persistence under `~/.xenon` (atomic writes, corrupt-file
+  backup; migrates from `~/.xero`). `XENON_DATA_DIR` overrides the location
+  (legacy `XERO_DATA_DIR` still works; used by tests).
 - `xero_terminal` — zed terminal backend + adapted `TerminalElement`; `init()`
   installs the zed globals (settings/theme/release_channel) the terminal needs.
 - `xero_editor` — ropey `Buffer` (edit ops, save, mtime external-change) + gpui
-  `EditorView`. Tree-sitter highlighting is still TODO.
+  `EditorView` with tree-sitter highlighting.
 - `xero_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
 - `xero_settings` — app settings + font size actions.
 - `xero_ide` — Claude Code IDE integration: a localhost WebSocket MCP server
   (`~/.claude/ide/<port>.lock` + `CLAUDE_CODE_SSE_PORT` injected into terminals)
-  that lets agents open files in xero. Protocol captured in
+  that lets agents open files in Xenon. Protocol captured in
   `crates/xero_ide/PROTOCOL.md`.
 - Project commands: shell tasks in `.vscode/tasks.json` (Run Task palette
   cmd-shift-r injects into the workspace terminal; `project <label>` from any shell).
@@ -115,13 +116,13 @@ never required for a complete flow.
 
 ## Never kill xero processes
 
-Never run `pkill`, `killall`, or any command that could terminate running xero
+Never run `pkill`, `killall`, or any command that could terminate running Xenon
 instances or background agents without explicit user instruction. This includes:
-- Never bypass `/Users/mpalczew/bin/xero` (the slot launcher) to directly
-  interact with xero.app
+- Never bypass `~/bin/xenon` (or `~/bin/xero` symlink; the slot launcher) to
+  directly interact with `Xenon.app`
 - Never run diagnostics on running processes without understanding side effects
 - Always ask first if unsure whether a command could kill something
 
-Context: I killed a running xero instance and all background agents by running
+Context: I killed a running instance and all background agents by running
 diagnostics without understanding the implications. This destroyed work in
-progress. Use the slot launcher for all xero operations.
+progress. Use the slot launcher for all Xenon operations.

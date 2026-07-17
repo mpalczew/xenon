@@ -143,7 +143,6 @@ pub struct XeroApp {
     editor_collapsed: bool,
     /// Live pane widths (px); persisted per-workspace via `Layout`.
     sidebar_width: f32,
-    tree_width: f32,
     terminal_width: f32,
     /// True after a width drag until flushed to the session.
     layout_dirty: bool,
@@ -208,7 +207,6 @@ impl XeroApp {
             terminal_collapsed: false,
             editor_collapsed: false,
             sidebar_width: Layout::default().sidebar_width,
-            tree_width: Layout::default().tree_width,
             terminal_width: Layout::default().terminal_width,
             layout_dirty: false,
             workspaces_collapsed: settings.workspaces_collapsed,

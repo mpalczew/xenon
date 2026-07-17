@@ -46,7 +46,7 @@ panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
 
 ## Attention
 
-`theme.status().warning` dot on streams that need the user. Not hard-coded hex.
+`theme.status().warning` dot on workspaces that need the user. Not hard-coded hex.
 
 ## Typography
 

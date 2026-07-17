@@ -1,5 +1,5 @@
 //! App-wide UI settings shared across crates via gpui globals.
-//! Durable values live in `~/.xero/settings.json` (via `xero_store`).
+//! Durable values live in `~/.xenon/settings.json` (via `xero_store`).
 //! Also hosts clipboard actions so editor and terminal share one Cut/Copy/Paste.
 
 mod faces;

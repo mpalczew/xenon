@@ -67,7 +67,7 @@ enum State {
     Failed(String),
 }
 
-/// Events a `TerminalView` emits upward; the shell subscribes to mark streams
+/// Events a `TerminalView` emits upward; the shell subscribes to mark workspaces
 /// that need attention (`Bell`) and clear the mark on use (`Interacted`).
 pub enum TerminalEvent {
     Bell,

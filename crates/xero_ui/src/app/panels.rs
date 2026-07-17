@@ -29,7 +29,6 @@ impl XeroApp {
             editor_visible: !self.editor_collapsed,
             sidebar_visible: !self.sidebar_collapsed,
             sidebar_width: self.sidebar_width,
-            tree_width: self.tree_width,
             terminal_width: self.terminal_width,
         }
         .clamp_widths()
@@ -50,7 +49,6 @@ impl XeroApp {
         self.editor_collapsed = !layout.editor_visible;
         self.sidebar_collapsed = !layout.sidebar_visible;
         self.sidebar_width = layout.sidebar_width;
-        self.tree_width = layout.tree_width;
         self.terminal_width = layout.terminal_width;
     }
 

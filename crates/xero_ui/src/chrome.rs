@@ -13,7 +13,7 @@ pub(crate) struct SelectionPaint {
     pub accent: Hsla,
 }
 
-/// List / nav row (streams, finder, tree, toolbar toggles).
+/// List / nav row (workspaces, finder, tree, toolbar toggles).
 pub(crate) fn list_selection(colors: &ThemeColors, active: bool) -> SelectionPaint {
     if active {
         SelectionPaint {

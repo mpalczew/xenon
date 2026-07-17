@@ -208,7 +208,6 @@ fn migrates_legacy_stream_session() {
       "editor_visible": true,
       "sidebar_visible": true,
       "sidebar_width": 200.0,
-      "tree_width": 180.0,
       "terminal_width": 640.0
     },
     "editors": [],
