@@ -6,12 +6,13 @@ use std::ops::Range;
 use std::time::Duration;
 
 use gpui::{
-    App, Bounds, Context, EntityInputHandler, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled,
-    Subscription, Task, UTF16Selection, Window, div, px,
+    App, Context, EntityInputHandler, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, ParentElement, Render, Styled, Subscription, Task, UTF16Selection,
+    Window, div, px,
 };
 use theme::ActiveTheme;
 
+use crate::entity_input_noop_geometry;
 use crate::palette::input_registrar;
 
 const CARET_BLINK: Duration = Duration::from_millis(530);
@@ -193,14 +194,6 @@ impl EntityInputHandler for RenameView {
         })
     }
 
-    fn marked_text_range(
-        &self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Range<usize>> {
-        None
-    }
-
     fn text_for_range(
         &mut self,
         _range: Range<usize>,
@@ -211,24 +204,5 @@ impl EntityInputHandler for RenameView {
         None
     }
 
-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    fn bounds_for_range(
-        &mut self,
-        _range_utf16: Range<usize>,
-        _element_bounds: Bounds<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        None
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        _point: Point<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        None
-    }
+    entity_input_noop_geometry!();
 }

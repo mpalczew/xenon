@@ -12,8 +12,9 @@ use xero_core::WorkspaceId;
 use crate::commands::{CommandEntry, CommandId, catalog};
 use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, clamp_selection, detail_row, fuzzy_index_order,
-    hint_row, input_registrar, optional_title, panel, query_row, scrim, scroll_results,
+    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
+    input_registrar, optional_title, panel, query_row, reveal_selected, scrim, scroll_results,
+    step_selection,
 };
 
 #[derive(Clone, Debug)]
@@ -123,6 +124,7 @@ impl CommandPaletteView {
         let haystacks: Vec<String> = self.items.iter().map(|i| i.haystack()).collect();
         self.results = fuzzy_index_order(&haystacks, &self.query, &mut self.matcher);
         self.selected = 0;
+        reveal_selected(&self.scroll, 0);
     }
 
     fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
@@ -132,7 +134,7 @@ impl CommandPaletteView {
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
-        self.selected = clamp_selection(self.selected, self.results.len(), delta);
+        step_selection(&mut self.selected, self.results.len(), delta, &self.scroll);
         cx.notify();
     }
 

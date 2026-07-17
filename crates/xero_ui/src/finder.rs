@@ -18,8 +18,8 @@ use xero_finder::{FileIndex, FileMatch};
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, ScrollResults, clamp_selection, input_registrar, panel, query_row, scrim,
-    scroll_results, simple_row,
+    PaletteLayout, ScrollResults, input_registrar, panel, query_row, reveal_selected, scrim,
+    scroll_results, simple_row, step_selection,
 };
 
 /// Debounce before scoring a large index (keeps keystrokes snappy).
@@ -148,6 +148,7 @@ impl FinderView {
                 this.results_for = query;
                 this.searching = false;
                 this.selected = 0;
+                reveal_selected(&this.scroll, 0);
                 cx.notify();
             })
             .ok();
@@ -155,7 +156,7 @@ impl FinderView {
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
-        self.selected = clamp_selection(self.selected, self.results.len(), delta);
+        step_selection(&mut self.selected, self.results.len(), delta, &self.scroll);
         cx.notify();
     }
 

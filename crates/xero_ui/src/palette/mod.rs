@@ -10,7 +10,7 @@ mod rows;
 
 pub(crate) use input::input_registrar;
 pub(crate) use layout::{
-    PaletteLayout, ScrollResults, clamp_selection, fuzzy_index_order, hint_row,
-    hint_row_with_action, optional_title, panel, query_row, scrim, scroll_results,
+    PaletteLayout, ScrollResults, fuzzy_index_order, hint_row, hint_row_with_action,
+    optional_title, panel, query_row, reveal_selected, scrim, scroll_results, step_selection,
 };
 pub(crate) use rows::{DetailRow, detail_row, simple_row};

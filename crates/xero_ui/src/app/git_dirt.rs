@@ -27,10 +27,6 @@ pub(super) enum DirtMsg {
 }
 
 impl XeroApp {
-    pub(super) fn start_git_dirt_watch(&mut self, cx: &mut Context<Self>) {
-        self.restart_git_dirt_watch(cx);
-    }
-
     /// Sync watches with the current open workspaces (add/close/reopen).
     ///
     /// Prefer updating the existing task; only spawn once. Replacing the task

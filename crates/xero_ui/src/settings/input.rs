@@ -2,7 +2,9 @@
 
 use std::ops::Range;
 
-use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, Window};
+use gpui::{Context, EntityInputHandler, UTF16Selection, Window};
+
+use crate::entity_input_noop_geometry;
 
 use super::{SettingsView, is_filterable};
 
@@ -58,32 +60,5 @@ impl EntityInputHandler for SettingsView {
         })
     }
 
-    fn marked_text_range(
-        &self,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Range<usize>> {
-        None
-    }
-
-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    fn bounds_for_range(
-        &mut self,
-        _range: Range<usize>,
-        _element_bounds: Bounds<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<Bounds<Pixels>> {
-        None
-    }
-
-    fn character_index_for_point(
-        &mut self,
-        _point: Point<Pixels>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<usize> {
-        None
-    }
+    entity_input_noop_geometry!();
 }

@@ -19,6 +19,41 @@ where
     .size_full()
 }
 
+/// Noop IME/geometry methods for simple append-style `EntityInputHandler`s.
+#[macro_export]
+macro_rules! entity_input_noop_geometry {
+    () => {
+        fn marked_text_range(
+            &self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> Option<std::ops::Range<usize>> {
+            None
+        }
+
+        fn unmark_text(&mut self, _window: &mut gpui::Window, _cx: &mut gpui::Context<Self>) {}
+
+        fn bounds_for_range(
+            &mut self,
+            _range_utf16: std::ops::Range<usize>,
+            _element_bounds: gpui::Bounds<gpui::Pixels>,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> Option<gpui::Bounds<gpui::Pixels>> {
+            None
+        }
+
+        fn character_index_for_point(
+            &mut self,
+            _point: gpui::Point<gpui::Pixels>,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<Self>,
+        ) -> Option<usize> {
+            None
+        }
+    };
+}
+
 /// Implement `EntityInputHandler` for a palette that owns `query: String` and
 /// `fn set_query(&mut self, String, &mut Context<Self>)`.
 #[macro_export]
@@ -64,14 +99,6 @@ macro_rules! impl_palette_query_input {
                 })
             }
 
-            fn marked_text_range(
-                &self,
-                _window: &mut gpui::Window,
-                _cx: &mut gpui::Context<Self>,
-            ) -> Option<std::ops::Range<usize>> {
-                None
-            }
-
             fn text_for_range(
                 &mut self,
                 _range: std::ops::Range<usize>,
@@ -82,26 +109,7 @@ macro_rules! impl_palette_query_input {
                 None
             }
 
-            fn unmark_text(&mut self, _window: &mut gpui::Window, _cx: &mut gpui::Context<Self>) {}
-
-            fn bounds_for_range(
-                &mut self,
-                _range_utf16: std::ops::Range<usize>,
-                _element_bounds: gpui::Bounds<gpui::Pixels>,
-                _window: &mut gpui::Window,
-                _cx: &mut gpui::Context<Self>,
-            ) -> Option<gpui::Bounds<gpui::Pixels>> {
-                None
-            }
-
-            fn character_index_for_point(
-                &mut self,
-                _point: gpui::Point<gpui::Pixels>,
-                _window: &mut gpui::Window,
-                _cx: &mut gpui::Context<Self>,
-            ) -> Option<usize> {
-                None
-            }
+            $crate::entity_input_noop_geometry!();
         }
     };
 }

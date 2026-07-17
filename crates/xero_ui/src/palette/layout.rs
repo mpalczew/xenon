@@ -1,13 +1,20 @@
 //! Scrim, panel, query, hint, and scrollable results — one geometry for all
 //! elevated palettes (DESIGN.md elevation 2).
+//!
+//! Keyboard selection scroll lives here only (`reveal_selected` /
+//! `step_selection`). Do not reimplement per palette.
 
 use gpui::{
-    AnyElement, Div, InteractiveElement, IntoElement, ParentElement, ScrollHandle, Stateful,
-    StatefulInteractiveElement, Styled, div, px,
+    AnyElement, Div, InteractiveElement, IntoElement, ParentElement, Pixels, ScrollHandle,
+    Stateful, StatefulInteractiveElement, Styled, div, px,
 };
 use nucleo::Matcher;
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use theme::ThemeColors;
+
+/// Height of [`crate::palette::simple_row`] (py_1 + text_sm). Used only when
+/// GPUI has not yet measured children for this scroll handle.
+pub(crate) const PALETTE_ROW_H: f32 = 32.;
 
 /// Default palette panel geometry.
 #[derive(Clone, Copy)]
@@ -166,7 +173,9 @@ pub(crate) fn scroll_results(input: ScrollResults<'_>) -> AnyElement {
             .child(input.empty_message.to_string())
             .into_any_element();
     }
-    input.scroll.scroll_to_item(input.selected);
+    // Ensure selected row is visible: GPUI's scroll_to_item alone is not enough
+    // (prepaint can run before overflow/bounds are set and drop the request).
+    reveal_selected(input.scroll, input.selected);
     div()
         .id(input.list_id)
         .flex_1()
@@ -187,6 +196,77 @@ pub(crate) fn clamp_selection(selected: usize, len: usize, delta: isize) -> usiz
     }
     let last = (len - 1) as isize;
     (selected as isize + delta).clamp(0, last) as usize
+}
+
+/// Move keyboard selection and scroll it into view. Use this from every palette
+/// instead of bare `clamp_selection` + notify.
+pub(crate) fn step_selection(
+    selected: &mut usize,
+    len: usize,
+    delta: isize,
+    scroll: &ScrollHandle,
+) {
+    *selected = clamp_selection(*selected, len, delta);
+    reveal_selected(scroll, *selected);
+}
+
+/// Keep child `selected` visible inside a `track_scroll` + `overflow_y_scroll` list.
+///
+/// Why not only `ScrollHandle::scroll_to_item`?
+/// GPUI applies that in prepaint *before* overflow/bounds are refreshed, so the
+/// first paint after a key can no-op and clear the request. We still arm
+/// `scroll_to_item` for the deferred path, then eagerly adjust with last-frame
+/// geometry (or a fixed row-height estimate) via `set_offset`.
+pub(crate) fn reveal_selected(scroll: &ScrollHandle, selected: usize) {
+    scroll.scroll_to_item(selected);
+
+    let viewport = scroll.bounds();
+    let max_y = scroll.max_offset().y.max(px(0.));
+    let mut offset = scroll.offset();
+
+    if let Some(item) = scroll.bounds_for_item(selected)
+        && viewport.size.height > px(0.)
+    {
+        offset.y = offset_to_show(item, viewport, offset.y);
+        offset.y = offset.y.clamp(-max_y, px(0.));
+        scroll.set_offset(offset);
+        return;
+    }
+
+    // No child metrics yet (first open / empty handle): estimate from simple_row.
+    let row = px(PALETTE_ROW_H);
+    let view_h = if viewport.size.height > px(0.) {
+        viewport.size.height
+    } else {
+        px(360.)
+    };
+    let item_top = row * selected as f32;
+    let item_bottom = item_top + row;
+    let view_top = -offset.y;
+    let view_bottom = view_top + view_h;
+    if item_top < view_top {
+        offset.y = -item_top;
+    } else if item_bottom > view_bottom {
+        offset.y = -(item_bottom - view_h).max(px(0.));
+    }
+    if max_y > px(0.) {
+        offset.y = offset.y.clamp(-max_y, px(0.));
+    }
+    scroll.set_offset(offset);
+}
+
+fn offset_to_show(
+    item: gpui::Bounds<Pixels>,
+    viewport: gpui::Bounds<Pixels>,
+    offset_y: Pixels,
+) -> Pixels {
+    if item.top() + offset_y < viewport.top() {
+        viewport.top() - item.top()
+    } else if item.bottom() + offset_y > viewport.bottom() {
+        viewport.bottom() - item.bottom()
+    } else {
+        offset_y
+    }
 }
 
 /// Fuzzy-rank indices of `haystacks` for `query` (empty → identity order).
@@ -212,4 +292,32 @@ pub(crate) fn fuzzy_index_order(
         .collect();
     scored.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     scored.into_iter().map(|(i, _)| i).collect()
+}
+
+#[cfg(test)]
+mod reveal_tests {
+    use super::*;
+    use gpui::point;
+
+    #[test]
+    fn offset_scrolls_up_when_item_above() {
+        let viewport = gpui::Bounds::new(point(px(0.), px(100.)), gpui::size(px(200.), px(100.)));
+        let item = gpui::Bounds::new(point(px(0.), px(50.)), gpui::size(px(200.), px(30.)));
+        // Matches GPUI: offset.y = viewport.top() - item.top().
+        assert_eq!(offset_to_show(item, viewport, px(0.)), px(50.));
+    }
+
+    #[test]
+    fn offset_scrolls_down_when_item_below() {
+        let viewport = gpui::Bounds::new(point(px(0.), px(100.)), gpui::size(px(200.), px(100.)));
+        let item = gpui::Bounds::new(point(px(0.), px(220.)), gpui::size(px(200.), px(30.)));
+        assert_eq!(offset_to_show(item, viewport, px(0.)), px(-50.));
+    }
+
+    #[test]
+    fn offset_unchanged_when_visible() {
+        let viewport = gpui::Bounds::new(point(px(0.), px(100.)), gpui::size(px(200.), px(100.)));
+        let item = gpui::Bounds::new(point(px(0.), px(120.)), gpui::size(px(200.), px(30.)));
+        assert_eq!(offset_to_show(item, viewport, px(0.)), px(0.));
+    }
 }

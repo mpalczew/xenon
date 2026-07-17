@@ -231,7 +231,7 @@ impl XeroApp {
         };
         app.load_sessions();
         app.start_ide_server(cx);
-        app.start_git_dirt_watch(cx);
+        app.restart_git_dirt_watch(cx);
         let active = app
             .registry
             .active

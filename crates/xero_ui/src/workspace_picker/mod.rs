@@ -18,7 +18,7 @@ use xero_core::WorkspaceId;
 use crate::impl_palette_query_input;
 use crate::palette::{
     DetailRow, PaletteLayout, ScrollResults, detail_row, hint_row_with_action, input_registrar,
-    panel, query_row, scrim, scroll_results,
+    panel, query_row, reveal_selected, scrim, scroll_results,
 };
 use crate::workspace_discover::{
     DiscoverQuery, FoundRoot, MatchQuality, discover, expand_user_path, parse_discover_query,
@@ -279,6 +279,7 @@ impl WorkspacePickerView {
             .unwrap_or(0);
         let next = (cur as isize + delta).clamp(0, (selectable.len() - 1) as isize) as usize;
         self.selected = selectable[next];
+        reveal_selected(&self.scroll, self.selected);
         cx.notify();
     }
 
