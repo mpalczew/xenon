@@ -42,17 +42,25 @@ impl XenonApp {
         cx.notify();
     }
 
-    /// ⌘J: focus a terminal in the focused leaf, or create one.
+    /// ⌘J / pending Terminal focus: focus a terminal in the focused leaf, or create one.
+    /// Prefer the leaf's active tab when it is already a terminal (so Run Task on a
+    /// newly opened tab does not jump back to the first terminal).
     pub(super) fn focus_or_new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.browser_focused = false;
         self.deferred.last_font_pane = FontPane::Terminal;
         if let Some(content) = self.active_content()
             && let Some(leaf) = content.focused_leaf()
-            && let Some(idx) = leaf.tabs.iter().position(|t| t.is_terminal())
         {
-            let pane = leaf.id;
-            self.activate_tab_in_pane(pane, idx, window, cx);
-            return;
+            let idx = if leaf.active_tab().is_some_and(|t| t.is_terminal()) {
+                Some(leaf.active)
+            } else {
+                leaf.tabs.iter().position(|t| t.is_terminal())
+            };
+            if let Some(idx) = idx {
+                let pane = leaf.id;
+                self.activate_tab_in_pane(pane, idx, window, cx);
+                return;
+            }
         }
         self.new_terminal(window, cx);
     }
