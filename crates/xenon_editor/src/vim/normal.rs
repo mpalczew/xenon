@@ -153,6 +153,7 @@ impl VimState {
             '0' => self.do_motion(buffer, Motion::LineStart, 1),
             '^' => self.do_motion(buffer, Motion::FirstNonBlank, 1),
             '$' => self.do_motion(buffer, Motion::LineEnd, 1),
+            '%' => self.do_percent(buffer),
             // Second `g` after a pending `g` → file start (`gg`).
             'g' if self.count == usize::MAX => {
                 self.count = 0;
@@ -272,6 +273,18 @@ impl VimState {
                 }
                 handled(false)
             }
+        }
+    }
+
+    /// Bare `%` → match bracket; `N%` → N percent of the file.
+    fn do_percent(&mut self, buffer: &mut Buffer) -> HandleResult {
+        if self.count > 0 && self.count != usize::MAX {
+            let pct = self.count.min(100);
+            self.count = 0;
+            self.do_motion(buffer, Motion::Percent { pct }, 1)
+        } else {
+            self.count = 0;
+            self.do_motion(buffer, Motion::MatchPair, 1)
         }
     }
 }

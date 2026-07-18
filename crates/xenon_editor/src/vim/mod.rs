@@ -4,6 +4,7 @@ mod motion;
 mod normal;
 mod object;
 mod ops;
+mod pair;
 mod register;
 mod repeat;
 mod search;

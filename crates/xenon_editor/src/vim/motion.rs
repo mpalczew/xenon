@@ -2,6 +2,7 @@
 
 use ropey::Rope;
 
+use super::pair;
 use crate::selection;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,6 +26,12 @@ pub enum Motion {
         before: bool,
         forward: bool,
     },
+    /// Jump to matching `()`/`[]`/`{}` (bare `%`).
+    MatchPair,
+    /// Go to `pct` percent of the file (`50%`). Linewise.
+    Percent {
+        pct: usize,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,10 +54,12 @@ impl Motion {
             | Motion::WORDForward
             | Motion::WORDBackward
             | Motion::FileStart
-            | Motion::FileEnd => MotionKind::Exclusive,
-            Motion::LineEnd | Motion::WordEnd | Motion::Find { before: false, .. } => {
-                MotionKind::Inclusive
-            }
+            | Motion::FileEnd
+            | Motion::Percent { .. } => MotionKind::Exclusive,
+            Motion::LineEnd
+            | Motion::WordEnd
+            | Motion::MatchPair
+            | Motion::Find { before: false, .. } => MotionKind::Inclusive,
             Motion::Find { before: true, .. } => MotionKind::Exclusive,
         }
     }
@@ -58,7 +67,11 @@ impl Motion {
     pub fn is_linewise(&self) -> bool {
         matches!(
             self,
-            Motion::Up | Motion::Down | Motion::FileStart | Motion::FileEnd
+            Motion::Up
+                | Motion::Down
+                | Motion::FileStart
+                | Motion::FileEnd
+                | Motion::Percent { .. }
         )
     }
 }
@@ -76,8 +89,26 @@ pub fn apply(rope: &Rope, cursor: usize, motion: &Motion, count: usize) -> usize
 fn step(rope: &Rope, cursor: usize, motion: &Motion) -> usize {
     let len = rope.len_chars();
     match motion {
-        Motion::Left => cursor.saturating_sub(1),
-        Motion::Right => (cursor + 1).min(len),
+        // Classic vim: h/l do not wrap across lines (no whichwrap).
+        Motion::Left => {
+            if len == 0 {
+                0
+            } else {
+                let start = line_start(rope, cursor);
+                if cursor > start { cursor - 1 } else { cursor }
+            }
+        }
+        Motion::Right => {
+            if len == 0 {
+                0
+            } else {
+                let start = line_start(rope, cursor);
+                let end = line_end(rope, cursor);
+                let max = if end > start { end - 1 } else { start };
+                // Already at/past last content (e.g. on the newline from `$`): stay.
+                if cursor >= max { cursor } else { cursor + 1 }
+            }
+        }
         Motion::Up => vertical(rope, cursor, -1),
         Motion::Down => vertical(rope, cursor, 1),
         Motion::LineStart => line_start(rope, cursor),
@@ -101,6 +132,8 @@ fn step(rope: &Rope, cursor: usize, motion: &Motion) -> usize {
             before,
             forward,
         } => find_char(rope, cursor, *ch, *before, *forward),
+        Motion::MatchPair => pair::match_pair(rope, cursor),
+        Motion::Percent { pct } => pair::percent_of_file(rope, *pct),
     }
 }
 
@@ -127,6 +160,7 @@ fn line_start(rope: &Rope, cursor: usize) -> usize {
     rope.line_to_char(row)
 }
 
+/// Index of the newline after this line's content, or `len` if none (exclusive end).
 fn line_end(rope: &Rope, cursor: usize) -> usize {
     let start = line_start(rope, cursor);
     let row = rope.char_to_line(cursor.min(rope.len_chars().max(1).saturating_sub(1)));
@@ -308,6 +342,29 @@ mod tests {
     fn word_forward_skips_spaces() {
         let rope = Rope::from_str("foo bar");
         assert_eq!(apply(&rope, 0, &Motion::WordForward, 1), 4);
+    }
+
+    #[test]
+    fn right_stops_at_line_end() {
+        let rope = Rope::from_str("ab\ncd");
+        // On 'b' (1); further l stays put, never lands on next line.
+        assert_eq!(apply(&rope, 1, &Motion::Right, 1), 1);
+        assert_eq!(apply(&rope, 1, &Motion::Right, 5), 1);
+    }
+
+    #[test]
+    fn left_stops_at_line_start() {
+        let rope = Rope::from_str("ab\ncd");
+        // On 'c' (3); h does not wrap to previous line.
+        assert_eq!(apply(&rope, 3, &Motion::Left, 1), 3);
+        assert_eq!(apply(&rope, 3, &Motion::Left, 5), 3);
+    }
+
+    #[test]
+    fn right_moves_within_line() {
+        let rope = Rope::from_str("abcd\n");
+        assert_eq!(apply(&rope, 0, &Motion::Right, 2), 2);
+        assert_eq!(apply(&rope, 0, &Motion::Right, 10), 3);
     }
 
     #[test]
