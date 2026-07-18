@@ -244,8 +244,9 @@ impl XenonApp {
         let record = WorkspaceRec::new(root);
         let workspace_id = record.id;
         let session = SessionState {
-            layout: self.current_layout(),
-            ..Default::default()
+            sidebar_visible: !self.sidebar_collapsed,
+            sidebar_width: xenon_core::clamp_sidebar(self.sidebar_width),
+            content: Default::default(),
         };
         self.registry.workspaces.push(record);
         self.sessions.insert(workspace_id, session.clone());
@@ -316,8 +317,7 @@ impl XenonApp {
         };
         let record = self.registry.workspaces.remove(index);
         let closed_active = self.active == Some(id);
-        let dead_terminals = self.terminals.remove(&id);
-        let dead_editors = self.editors.remove(&id);
+        let dead_content = self.contents.remove(&id);
         self.sessions.remove(&id);
         self.attention.remove(&id);
         // Drop the finder index for this root so it can be rebuilt if reopened.
@@ -344,8 +344,7 @@ impl XenonApp {
             cx.background_executor()
                 .timer(std::time::Duration::ZERO)
                 .await;
-            drop(dead_terminals);
-            drop(dead_editors);
+            drop(dead_content);
         })
         .detach();
     }
@@ -365,8 +364,9 @@ impl XenonApp {
         }
         let record = self.registry.closed_workspaces.remove(index);
         let session = xenon_store::load_session(record.id).unwrap_or_else(|_| SessionState {
-            layout: self.current_layout(),
-            ..Default::default()
+            sidebar_visible: !self.sidebar_collapsed,
+            sidebar_width: xenon_core::clamp_sidebar(self.sidebar_width),
+            content: Default::default(),
         });
         self.sessions.insert(record.id, session);
         self.registry.workspaces.push(record);

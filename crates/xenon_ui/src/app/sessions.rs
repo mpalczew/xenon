@@ -1,13 +1,12 @@
 //! Workspace activation, terminals, attention, and rename.
 
 use super::*;
+use xenon_core::{PaneId, TabId, TabState};
 
 /// Why a workspace attention badge is lit. Last write wins; for debug tooltips.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum AttentionReason {
-    /// Terminal BEL (`\a` / `Event::Bell`).
     Bell,
-    /// Inferred: busy output then quiet for a few seconds (not a real agent event).
     IdleSettled,
 }
 
@@ -28,7 +27,6 @@ impl XenonApp {
         let Some(root) = self.workspace_root(id) else {
             return;
         };
-        // Flush live widths/visibility before switching so a drag is not lost.
         if let Some(prev) = self.active
             && prev != id
         {
@@ -36,34 +34,144 @@ impl XenonApp {
         }
         self.active = Some(id);
         self.finder = None;
-        self.reindex(root.clone(), false, cx);
-        if let Some(session) = self.sessions.get(&id) {
-            self.apply_layout(session.layout);
-        } else {
+
+        let session = self.sessions.get(&id).cloned().unwrap_or_else(|| {
             let session = SessionState {
-                layout: self.current_layout(),
-                ..Default::default()
+                sidebar_visible: !self.sidebar_collapsed,
+                sidebar_width: xenon_core::clamp_sidebar(self.sidebar_width),
+                content: Default::default(),
             };
-            self.apply_layout(session.layout);
-            self.sessions.insert(id, session);
-            save_session(id, &self.sessions[&id], "activate_workspace default");
+            self.sessions.insert(id, session.clone());
+            save_session(id, &session, "activate_workspace default");
+            session
+        });
+        self.apply_sidebar(&session);
+
+        // Rebuild live content if missing (first activate this process).
+        if !self.contents.contains_key(&id) {
+            let live = self.build_live_from_session(&session, &root, id, cx);
+            self.contents.insert(id, live);
         }
-        if !self.terminals.contains_key(&id) {
-            let terminal = self.spawn_terminal(root, id, cx);
-            self.terminals.insert(
+        if self.contents.get(&id).is_some_and(|c| c.is_empty()) {
+            let terminal = self.spawn_terminal(root.clone(), id, cx);
+            let pane = PaneId(1);
+            let tab = LiveTab::Terminal {
+                id: TabId(1),
+                view: terminal,
+            };
+            self.contents.insert(
                 id,
-                TerminalStack {
-                    tabs: vec![terminal],
-                    active: 0,
+                LiveContent {
+                    root: Some(LiveNode::Leaf(LiveLeaf {
+                        id: pane,
+                        tabs: vec![tab],
+                        active: 0,
+                    })),
+                    focused: Some(pane),
                 },
             );
+            self.save_layout(id);
         }
+
+        self.reindex(root, false, cx);
         self.persist_active();
         cx.notify();
     }
 
-    /// Create a terminal for `workspace` at `root` and wire its bell/interaction
-    /// events. Attention is resolved by which workspace owns the terminal view.
+    fn build_live_from_session(
+        &mut self,
+        session: &SessionState,
+        root: &Path,
+        workspace: WorkspaceId,
+        cx: &mut Context<Self>,
+    ) -> LiveContent {
+        let Some(layout_root) = session.content.root.as_ref() else {
+            return LiveContent::default();
+        };
+        let live_root = self.materialize_node(layout_root, root, workspace, cx);
+        let mut content = LiveContent {
+            root: Some(live_root),
+            focused: session.content.focused,
+        };
+        // Repair focus
+        let leaves = content.leaf_ids();
+        if content.focused.is_none_or(|f| !leaves.contains(&f)) {
+            content.focused = leaves.first().copied();
+        }
+        content
+    }
+
+    fn materialize_node(
+        &mut self,
+        node: &xenon_core::PaneNode,
+        root: &Path,
+        workspace: WorkspaceId,
+        cx: &mut Context<Self>,
+    ) -> LiveNode {
+        match node {
+            xenon_core::PaneNode::Leaf(leaf) => {
+                let mut tabs = Vec::new();
+                for tab in &leaf.tabs {
+                    match tab {
+                        TabState::Terminal { id, cwd: _ } => {
+                            let view = self.spawn_terminal(root.to_path_buf(), workspace, cx);
+                            tabs.push(LiveTab::Terminal { id: *id, view });
+                        }
+                        TabState::Editor {
+                            id,
+                            path,
+                            cursor: _,
+                            scroll_top: _,
+                        } => {
+                            let abs = if path.is_absolute() {
+                                path.clone()
+                            } else {
+                                root.join(path)
+                            };
+                            match EditorView::build(abs.clone(), false, cx) {
+                                Ok(view) => {
+                                    self.wire_editor_selection(&view, cx);
+                                    tabs.push(LiveTab::Editor {
+                                        id: *id,
+                                        path: abs.clone(),
+                                        name: file_name(&abs),
+                                        view,
+                                    });
+                                }
+                                Err(e) => log::warn!("restore editor {}: {e}", abs.display()),
+                            }
+                        }
+                    }
+                }
+                if tabs.is_empty() {
+                    // Keep leaf valid with a terminal.
+                    let view = self.spawn_terminal(root.to_path_buf(), workspace, cx);
+                    tabs.push(LiveTab::Terminal {
+                        id: TabId(leaf.id.0.saturating_mul(1000) + 1),
+                        view,
+                    });
+                }
+                let active = leaf.active.min(tabs.len().saturating_sub(1));
+                LiveNode::Leaf(LiveLeaf {
+                    id: leaf.id,
+                    tabs,
+                    active,
+                })
+            }
+            xenon_core::PaneNode::Split {
+                axis,
+                ratio,
+                first,
+                second,
+            } => LiveNode::Split {
+                axis: *axis,
+                ratio: *ratio,
+                first: Box::new(self.materialize_node(first, root, workspace, cx)),
+                second: Box::new(self.materialize_node(second, root, workspace, cx)),
+            },
+        }
+    }
+
     pub(super) fn spawn_terminal(
         &mut self,
         root: PathBuf,
@@ -102,16 +210,10 @@ impl XenonApp {
         terminal
     }
 
-    /// Which workspace currently holds this terminal tab (if any).
     fn workspace_of_terminal(&self, view: &Entity<TerminalView>) -> Option<WorkspaceId> {
-        self.terminals
-            .iter()
-            .find_map(|(id, stack)| stack.tabs.iter().any(|tab| tab == view).then_some(*id))
+        self.locate_terminal(view).map(|(id, _, _)| id)
     }
 
-    /// A cmd-clicked token in the terminal did not resolve to a file on disk.
-    /// Fuzzy-match it against the workspace index: open the one clear match, else
-    /// open cmd-p prefilled with the name to disambiguate.
     fn resolve_clicked(&mut self, token: String, cx: &mut Context<Self>) {
         let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return;
@@ -169,7 +271,6 @@ impl XenonApp {
         self.attention.get(&id).copied()
     }
 
-    /// Switch to a workspace and focus its terminal.
     pub(crate) fn select_workspace(
         &mut self,
         id: WorkspaceId,
@@ -183,7 +284,6 @@ impl XenonApp {
         }
     }
 
-    /// Begin renaming a workspace display name (root path stays put).
     pub(crate) fn start_rename_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
         let name = self
             .registry
@@ -205,7 +305,6 @@ impl XenonApp {
         cx.notify();
     }
 
-    /// The inline rename field for workspace `id`, if that workspace is renaming.
     pub(crate) fn rename_workspace_field(&self, id: WorkspaceId) -> Option<Entity<RenameView>> {
         self.renaming
             .as_ref()

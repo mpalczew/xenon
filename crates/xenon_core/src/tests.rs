@@ -10,7 +10,6 @@ fn workspace_name_from_root() {
 
 #[test]
 fn layout_default_is_all_visible() {
-    assert_eq!(Layout::default(), Layout::default());
     let d = Layout::default();
     assert!(d.terminal_visible && d.editor_visible && d.sidebar_visible);
     assert_eq!(d.sidebar_width, crate::session::DEFAULT_SIDEBAR_WIDTH);
@@ -32,41 +31,40 @@ fn layout_round_trips_through_json() {
 }
 
 #[test]
-fn old_layout_json_defaults_all_visible() {
+fn old_session_json_migrates_to_content() {
     let json = r#"{"editors": [], "active_editor": null, "terminal": {"cwd": "."}}"#;
     let parsed: SessionState = serde_json::from_str(json).unwrap();
-    assert_eq!(parsed.layout, Layout::default());
+    assert!(parsed.sidebar_visible);
+    // Empty editors + default layout → single terminal leaf
+    assert!(!parsed.content.is_empty());
+    assert_eq!(parsed.content.leaf_ids().len(), 1);
 }
 
 #[test]
-fn old_layout_json_without_widths_uses_defaults() {
+fn old_session_with_editors_and_split() {
     let json = r#"{
-        "terminal_visible": false,
-        "editor_visible": true,
-        "sidebar_visible": true
+        "layout": {
+            "terminal_visible": true,
+            "editor_visible": true,
+            "sidebar_visible": true,
+            "sidebar_width": 220.0,
+            "terminal_width": 500.0
+        },
+        "editors": [{"path": "src/main.rs", "cursor": {"row": 1, "col": 2}, "scroll_top": 0}],
+        "active_editor": 0,
+        "terminal": {"cwd": "."}
     }"#;
-    let parsed: Layout = serde_json::from_str(json).unwrap();
-    assert!(!parsed.terminal_visible);
-    assert_eq!(parsed.sidebar_width, crate::session::DEFAULT_SIDEBAR_WIDTH);
-    assert_eq!(
-        parsed.terminal_width,
-        crate::session::DEFAULT_TERMINAL_WIDTH
-    );
-}
-
-#[test]
-fn old_layout_json_with_tree_width_is_ignored() {
-    let json = r#"{
-        "terminal_visible": true,
-        "editor_visible": true,
-        "sidebar_visible": true,
-        "sidebar_width": 220.0,
-        "tree_width": 180.0,
-        "terminal_width": 500.0
-    }"#;
-    let parsed: Layout = serde_json::from_str(json).unwrap();
+    let parsed: SessionState = serde_json::from_str(json).unwrap();
     assert_eq!(parsed.sidebar_width, 220.0);
-    assert_eq!(parsed.terminal_width, 500.0);
+    assert_eq!(parsed.content.leaf_ids().len(), 2);
+}
+
+#[test]
+fn new_session_round_trips() {
+    let session = SessionState::default();
+    let json = serde_json::to_string(&session).unwrap();
+    let parsed: SessionState = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed, session);
 }
 
 #[test]
@@ -89,7 +87,6 @@ fn old_registry_json_defaults_closed_workspaces() {
   "active": null
 }"#;
     let parsed: Registry = serde_json::from_str(json).unwrap();
-
     assert!(parsed.closed_workspaces.is_empty());
 }
 
@@ -123,14 +120,5 @@ fn registry_preserves_closed_workspaces() {
 
     let json = serde_json::to_string_pretty(&registry).unwrap();
     let parsed: Registry = serde_json::from_str(&json).unwrap();
-
     assert_eq!(parsed.closed_workspaces, registry.closed_workspaces);
-}
-
-#[test]
-fn session_round_trips_through_json() {
-    let session = SessionState::default();
-    let json = serde_json::to_string(&session).unwrap();
-    let parsed: SessionState = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed, session);
 }

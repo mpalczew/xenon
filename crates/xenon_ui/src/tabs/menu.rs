@@ -5,30 +5,26 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, Window, anchored, deferred, div, px,
 };
 use theme::ActiveTheme;
+use xenon_core::{PaneId, TabId};
 
-use crate::app::{TabContextMenu, TabSurface, XenonApp};
+use crate::app::{TabContextMenu, XenonApp};
 
 impl XenonApp {
     pub(crate) fn open_tab_menu(
         &mut self,
-        surface: TabSurface,
-        index: usize,
+        _pane: PaneId,
+        tab: TabId,
         position: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
         if self.active_workspace().is_none() {
             return;
         }
-        self.tab_menu = Some(TabContextMenu {
-            surface,
-            index,
-            position,
-        });
+        self.tab_menu = Some(TabContextMenu { tab, position });
         cx.stop_propagation();
         cx.notify();
     }
 
-    /// Enter/Esc for the tab menu when open from the keyboard.
     pub(crate) fn on_tab_menu_key(
         &mut self,
         event: &gpui::KeyDownEvent,
@@ -55,10 +51,7 @@ impl XenonApp {
         let Some(menu) = self.tab_menu.take() else {
             return;
         };
-        match menu.surface {
-            TabSurface::Terminal => self.close_terminal_tab(menu.index, window, cx),
-            TabSurface::Editor => self.close_tab(menu.index, window, cx),
-        }
+        self.close_tab_id(menu.tab, window, cx);
     }
 
     pub(crate) fn dismiss_tab_menu(&mut self, cx: &mut Context<Self>) {
@@ -67,15 +60,13 @@ impl XenonApp {
         }
     }
 
-    /// Full-window overlay for the tab menu, if open.
     pub(crate) fn render_tab_menu(
         &self,
         cx: &mut Context<Self>,
     ) -> Option<impl IntoElement + use<>> {
         let menu = self.tab_menu.as_ref()?;
         let colors = cx.theme().colors().clone();
-        let surface = menu.surface;
-        let index = menu.index;
+        let tab = menu.tab;
         let position = menu.position;
 
         let menu_box = div()
@@ -94,10 +85,7 @@ impl XenonApp {
                 true,
                 cx.listener(move |this, _, window, cx| {
                     this.dismiss_tab_menu(cx);
-                    match surface {
-                        TabSurface::Terminal => this.close_terminal_tab(index, window, cx),
-                        TabSurface::Editor => this.close_tab(index, window, cx),
-                    }
+                    this.close_tab_id(tab, window, cx);
                 }),
             ));
 

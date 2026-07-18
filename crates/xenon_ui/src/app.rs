@@ -1,6 +1,6 @@
 //! `XenonApp`: the window root. Owns the workspace registry and, per workspace,
-//! a live terminal stack + editor stack. Workspaces are the unit of switching;
-//! each keeps its own running PTYs while open.
+//! a live content pane tree (mixed terminal/editor tabs). Workspaces are the
+//! unit of switching; each keeps its own running PTYs while open.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,9 @@ use gpui::{
     div, px,
 };
 use theme::ActiveTheme;
-use xenon_core::{Active, Layout, Registry, SessionState, WorkspaceId, WorkspaceRec};
+use xenon_core::{
+    Active, DEFAULT_SIDEBAR_WIDTH, Registry, SessionState, TabId, WorkspaceId, WorkspaceRec,
+};
 use xenon_editor::{EditorEvent, EditorView};
 use xenon_finder::{FileIndex, Finder};
 use xenon_ide::{IdeCommand, IdeServer, SelectionSnapshot};
@@ -27,63 +29,39 @@ use crate::task_picker::TaskPickerView;
 use crate::workspace_picker::WorkspacePickerView;
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewTerminal,
-    OpenFile, ResetFontSize, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar,
-    ToggleTerminal,
+    OpenFile, ResetFontSize, RunTask, Save, ToggleBrowser, ToggleSettings, ToggleSidebar,
 };
 
 mod browser;
+mod content_ops;
 mod deferred;
-mod dirty_close;
+pub(crate) mod dirty_close;
 mod editors;
 mod empty_hint;
 mod git_dirt;
 mod keyboard;
+mod live;
 mod navigation;
 mod palette;
 mod panels;
 mod render;
 mod sessions;
 mod settings_window;
+mod split_ops;
+mod tab_drop;
 mod tasks;
 mod terminals;
 mod tree_keys;
 mod workspaces;
 
 use deferred::{DeferredUi, FocusPane, FontPane};
+pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use sessions::AttentionReason;
-
-/// The terminals open in one workspace, as tabs, plus which is focused.
-#[derive(Default)]
-pub(crate) struct TerminalStack {
-    pub tabs: Vec<Entity<TerminalView>>,
-    pub active: usize,
-}
-
-/// The open editor tabs for one workspace, plus which is focused.
-#[derive(Default)]
-pub(crate) struct EditorStack {
-    pub tabs: Vec<EditorTab>,
-    pub active: usize,
-}
-
-pub(crate) struct EditorTab {
-    pub path: PathBuf,
-    pub name: String,
-    pub view: Entity<EditorView>,
-}
-
-/// Right-click target on a terminal or editor tab chip.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum TabSurface {
-    Terminal,
-    Editor,
-}
 
 /// Open tab context menu (close only).
 #[derive(Clone, Debug)]
 pub(crate) struct TabContextMenu {
-    pub surface: TabSurface,
-    pub index: usize,
+    pub tab: TabId,
     pub position: Point<Pixels>,
 }
 
@@ -97,10 +75,9 @@ pub struct XenonApp {
     registry: Registry,
     /// Per-workspace session layout metadata (persisted).
     sessions: HashMap<WorkspaceId, SessionState>,
-    /// Per workspace: a stack of terminal tabs and a stack of editor tabs.
-    terminals: HashMap<WorkspaceId, TerminalStack>,
-    editors: HashMap<WorkspaceId, EditorStack>,
-    active: Option<WorkspaceId>,
+    /// Per workspace: live content pane tree.
+    pub(crate) contents: HashMap<WorkspaceId, LiveContent>,
+    pub(crate) active: Option<WorkspaceId>,
     finder: Option<Entity<FinderView>>,
     task_picker: Option<Entity<TaskPickerView>>,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
@@ -115,11 +92,8 @@ pub struct XenonApp {
     /// Overlay focus restore + window-deferred palette/command work.
     deferred: DeferredUi,
     sidebar_collapsed: bool,
-    terminal_collapsed: bool,
-    editor_collapsed: bool,
-    /// Live pane widths (px); persisted per-workspace via `Layout`.
+    /// Live sidebar width (px); persisted per-workspace.
     sidebar_width: f32,
-    terminal_width: f32,
     /// True after a width drag until flushed to the session.
     layout_dirty: bool,
     /// Workspaces section collapsed in the left panel.
@@ -163,8 +137,7 @@ impl XenonApp {
         let mut app = Self {
             registry,
             sessions: HashMap::new(),
-            terminals: HashMap::new(),
-            editors: HashMap::new(),
+            contents: HashMap::new(),
             active: None,
             finder: None,
             task_picker: None,
@@ -175,10 +148,7 @@ impl XenonApp {
             index_tasks: HashMap::new(),
             deferred: DeferredUi::default(),
             sidebar_collapsed: false,
-            terminal_collapsed: false,
-            editor_collapsed: false,
-            sidebar_width: Layout::default().sidebar_width,
-            terminal_width: Layout::default().terminal_width,
+            sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             layout_dirty: false,
             workspaces_collapsed: settings.workspaces_collapsed,
             file_browser: FileBrowser::with_open(settings.files_open),

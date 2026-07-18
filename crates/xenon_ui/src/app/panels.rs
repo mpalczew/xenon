@@ -1,77 +1,37 @@
 use super::*;
 use crate::resize::{DragResult, ResizeEdge, resolve_drag};
 use gpui::DragMoveEvent;
+use xenon_core::SplitAxis;
 
 impl XenonApp {
     pub(crate) fn sidebar_visible(&self) -> bool {
         !self.sidebar_collapsed
     }
 
-    pub(crate) fn terminal_visible(&self) -> bool {
-        // Panel open even with zero tabs (empty state: press ⌘N).
-        !self.terminal_collapsed
-    }
-
-    pub(crate) fn editor_visible(&self) -> bool {
-        !self.editor_collapsed && self.active.is_some()
-    }
-
-    /// Active workspace label for the toolbar breadcrumb.
     pub(crate) fn breadcrumb_label(&self) -> Option<String> {
         let id = self.active?;
         self.registry.workspace(id).map(|w| w.name.clone())
     }
 
-    /// Live visibility + widths as a `Layout`.
-    pub(super) fn current_layout(&self) -> Layout {
-        Layout {
-            terminal_visible: !self.terminal_collapsed,
-            editor_visible: !self.editor_collapsed,
-            sidebar_visible: !self.sidebar_collapsed,
-            sidebar_width: self.sidebar_width,
-            terminal_width: self.terminal_width,
-        }
-        .clamp_widths()
-    }
-
-    /// Write live layout into the workspace session and save.
+    /// Snapshot live tree + sidebar into session and save.
     pub(super) fn save_layout(&mut self, id: WorkspaceId) {
-        let layout = self.current_layout();
-        let session = self.sessions.entry(id).or_default();
-        session.layout = layout;
-        save_session(id, session, "save_layout");
+        let content = self
+            .contents
+            .get(&id)
+            .map(|c| c.snapshot())
+            .unwrap_or_default();
+        let session = SessionState {
+            sidebar_visible: !self.sidebar_collapsed,
+            sidebar_width: xenon_core::clamp_sidebar(self.sidebar_width),
+            content,
+        };
+        self.sessions.insert(id, session.clone());
+        save_session(id, &session, "save_layout");
     }
 
-    /// Apply a stored layout to the live chrome fields.
-    pub(super) fn apply_layout(&mut self, layout: Layout) {
-        let layout = layout.clamp_widths();
-        self.terminal_collapsed = !layout.terminal_visible;
-        self.editor_collapsed = !layout.editor_visible;
-        self.sidebar_collapsed = !layout.sidebar_visible;
-        self.sidebar_width = layout.sidebar_width;
-        self.terminal_width = layout.terminal_width;
-    }
-
-    pub(super) fn toggle_terminal_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.terminal_collapsed = !self.terminal_collapsed;
-        if !self.terminal_collapsed {
-            self.ensure_terminal(cx);
-            if let Some(terminal) = self.active_terminal() {
-                terminal.read(cx).focus_handle(cx).focus(window, cx);
-            }
-        }
-        if let Some(id) = self.active {
-            self.save_layout(id);
-        }
-        cx.notify();
-    }
-
-    pub(super) fn toggle_editor_panel(&mut self, cx: &mut Context<Self>) {
-        self.editor_collapsed = !self.editor_collapsed;
-        if let Some(id) = self.active {
-            self.save_layout(id);
-        }
-        cx.notify();
+    pub(super) fn apply_sidebar(&mut self, session: &SessionState) {
+        self.sidebar_collapsed = !session.sidebar_visible;
+        self.sidebar_width = xenon_core::clamp_sidebar(session.sidebar_width);
     }
 
     pub(super) fn toggle_sidebar_panel(&mut self, cx: &mut Context<Self>) {
@@ -82,102 +42,88 @@ impl XenonApp {
         cx.notify();
     }
 
-    /// Ensure the active workspace has a live terminal tab (no focus change).
-    pub(super) fn ensure_terminal(&mut self, cx: &mut Context<Self>) {
-        let id = self.active;
-        if let Some(id) = id
-            && !self.terminals.contains_key(&id)
-            && let Some(root) = self.workspace_root(id)
+    /// ⌘J: focus a terminal in the focused leaf, or create one.
+    pub(super) fn focus_or_new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.browser_focused = false;
+        self.deferred.last_font_pane = FontPane::Terminal;
+        if let Some(content) = self.active_content()
+            && let Some(leaf) = content.focused_leaf()
+            && let Some(idx) = leaf.tabs.iter().position(|t| t.is_terminal())
         {
-            let terminal = self.spawn_terminal(root, id, cx);
-            self.terminals.insert(
-                id,
-                TerminalStack {
-                    tabs: vec![terminal],
-                    active: 0,
-                },
-            );
+            let pane = leaf.id;
+            self.activate_tab_in_pane(pane, idx, window, cx);
+            return;
+        }
+        self.new_terminal(window, cx);
+    }
+
+    /// ⌘⇧E: focus last editor if any.
+    pub(super) fn focus_or_reveal_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.browser_focused = false;
+        self.deferred.last_font_pane = FontPane::Editor;
+        if let Some(editor) = self.active_editor() {
+            editor.read(cx).focus_handle(cx).focus(window, cx);
+            cx.notify();
         }
     }
 
     pub(super) fn on_resize_drag(
         &mut self,
         event: &DragMoveEvent<ResizeEdge>,
-        origin_x: gpui::Pixels,
+        _origin_x: gpui::Pixels,
         edge: ResizeEdge,
         cx: &mut Context<Self>,
     ) {
-        let raw = f32::from(event.event.position.x - origin_x);
-        let available = f32::from(event.bounds.size.width);
-        match resolve_drag(edge, raw, available) {
-            DragResult::Width(width) => {
-                // Dragging back past the snap threshold reopens a closed pane.
-                let reopened = self.reopen_for_edge(edge, cx);
-                let changed = match edge {
-                    ResizeEdge::Sidebar => set_if_changed(&mut self.sidebar_width, width),
-                    ResizeEdge::Terminal => set_if_changed(&mut self.terminal_width, width),
+        match edge {
+            ResizeEdge::Sidebar => {
+                let raw = f32::from(event.event.position.x - event.bounds.origin.x);
+                let available = f32::from(event.bounds.size.width);
+                match resolve_drag(ResizeEdge::Sidebar, raw, available) {
+                    DragResult::Width(width) => {
+                        if self.sidebar_collapsed {
+                            self.sidebar_collapsed = false;
+                        }
+                        if set_if_changed(&mut self.sidebar_width, width) {
+                            self.layout_dirty = true;
+                            cx.notify();
+                        }
+                    }
+                    DragResult::ClosePrimary => {
+                        if !self.sidebar_collapsed {
+                            self.sidebar_collapsed = true;
+                            self.layout_dirty = true;
+                            cx.notify();
+                        }
+                    }
+                }
+            }
+            ResizeEdge::Content { axis, first_leaf } => {
+                let pos = match axis {
+                    SplitAxis::Horizontal => {
+                        f32::from(event.event.position.x - event.bounds.origin.x)
+                    }
+                    SplitAxis::Vertical => {
+                        f32::from(event.event.position.y - event.bounds.origin.y)
+                    }
                 };
-                if changed || reopened {
+                let avail = match axis {
+                    SplitAxis::Horizontal => f32::from(event.bounds.size.width),
+                    SplitAxis::Vertical => f32::from(event.bounds.size.height),
+                };
+                if avail < 1.0 {
+                    return;
+                }
+                let ratio = (pos / avail).clamp(0.15, 0.85);
+                if let Some(id) = self.active
+                    && let Some(content) = self.contents.get_mut(&id)
+                    && let Some(root) = content.root.as_mut()
+                    && root.set_ratio_for_split(first_leaf, ratio)
+                {
                     self.layout_dirty = true;
                     cx.notify();
                 }
             }
-            DragResult::ClosePrimary => self.snap_close_primary(edge, cx),
-            DragResult::CloseSecondary => self.snap_close_secondary(edge, cx),
         }
-    }
-
-    /// Reopen a snap-closed pane when the drag returns to a valid width.
-    fn reopen_for_edge(&mut self, edge: ResizeEdge, cx: &mut Context<Self>) -> bool {
-        match edge {
-            ResizeEdge::Sidebar if self.sidebar_collapsed => {
-                self.sidebar_collapsed = false;
-                true
-            }
-            ResizeEdge::Terminal => {
-                let mut changed = false;
-                if self.terminal_collapsed {
-                    self.terminal_collapsed = false;
-                    self.ensure_terminal(cx);
-                    changed = true;
-                }
-                if self.editor_collapsed {
-                    self.editor_collapsed = false;
-                    changed = true;
-                }
-                changed
-            }
-            _ => false,
-        }
-    }
-
-    /// Snap-close the pane owned by this resize edge; keep last good width.
-    fn snap_close_primary(&mut self, edge: ResizeEdge, cx: &mut Context<Self>) {
-        let closed = match edge {
-            ResizeEdge::Sidebar if !self.sidebar_collapsed => {
-                self.sidebar_collapsed = true;
-                true
-            }
-            ResizeEdge::Terminal if !self.terminal_collapsed => {
-                self.terminal_collapsed = true;
-                true
-            }
-            _ => false,
-        };
-        if closed {
-            self.layout_dirty = true;
-            cx.notify();
-        }
-    }
-
-    /// Snap-close the pane to the right of the drag edge (editor).
-    fn snap_close_secondary(&mut self, edge: ResizeEdge, cx: &mut Context<Self>) {
-        if !matches!(edge, ResizeEdge::Terminal) || self.editor_collapsed {
-            return;
-        }
-        self.editor_collapsed = true;
-        self.layout_dirty = true;
-        cx.notify();
     }
 
     pub(super) fn finish_resize(&mut self, _cx: &mut Context<Self>) {
@@ -192,10 +138,6 @@ impl XenonApp {
 
     pub(crate) fn sidebar_width_px(&self) -> f32 {
         xenon_core::clamp_sidebar(self.sidebar_width)
-    }
-
-    pub(crate) fn terminal_width_px(&self) -> f32 {
-        xenon_core::clamp_terminal(self.terminal_width)
     }
 }
 

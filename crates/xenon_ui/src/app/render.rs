@@ -1,12 +1,13 @@
 use super::*;
-use crate::RunTask;
-use crate::Save;
 use crate::resize::ResizeEdge;
 use crate::{
     CloseWorkspace, CommandPalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal,
-    KeyboardHelp, NextTab, NextWorkspace, PrevTab, PrevWorkspace,
+    KeyboardHelp, NextTab, NextWorkspace, PrevTab, PrevWorkspace, SplitDown, SplitRight,
 };
-use gpui::{AnyElement, DragMoveEvent, KeyDownEvent, MouseButton, MouseUpEvent};
+use gpui::{
+    AnyElement, DragMoveEvent, Focusable, KeyDownEvent, MouseButton, MouseUpEvent, relative,
+};
+use xenon_core::{PaneId, SplitAxis};
 use xenon_settings::{Copy, Cut, Paste};
 
 use super::empty_hint::empty_editor_hint;
@@ -16,7 +17,6 @@ impl Render for XenonApp {
         window.set_window_title(&self.window_title());
         self.drain_deferred_ui(window, cx);
         let ui = xenon_settings::ui_font(cx);
-        // rem drives text_sm/xs/lg across chrome; family cascades to children.
         window.set_rem_size(px(ui.size));
         let colors = cx.theme().colors().clone();
         let toolbar = self.render_toolbar(cx);
@@ -57,7 +57,6 @@ impl Render for XenonApp {
 }
 
 impl XenonApp {
-    /// Deferred work that needs a Window (finder dismiss focus, cmd-click palette).
     fn drain_deferred_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(pane) = self.deferred.pending_focus.take() {
             self.focus_pane(pane, window, cx);
@@ -129,11 +128,17 @@ impl XenonApp {
                 this.browser_focused = false;
                 this.toggle_browser(cx);
             }))
-            .on_action(cx.listener(|this, _: &ToggleTerminal, window, cx| {
-                this.toggle_terminal_panel(window, cx);
+            .on_action(cx.listener(|this, _: &crate::ToggleTerminal, window, cx| {
+                this.focus_or_new_terminal(window, cx);
             }))
-            .on_action(cx.listener(|this, _: &ToggleEditor, _, cx| {
-                this.toggle_editor_panel(cx);
+            .on_action(cx.listener(|this, _: &crate::ToggleEditor, window, cx| {
+                this.focus_or_reveal_editor(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SplitRight, window, cx| {
+                this.split_right(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SplitDown, window, cx| {
+                this.split_down(window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
                 this.toggle_settings_window(cx);
@@ -225,80 +230,41 @@ impl XenonApp {
         }
     }
 
-    fn on_terminal_drag(
+    fn on_content_drag(
         &mut self,
         event: &DragMoveEvent<ResizeEdge>,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if matches!(*event.drag(cx), ResizeEdge::Terminal) {
-            self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Terminal, cx);
+        if matches!(*event.drag(cx), ResizeEdge::Content { .. }) {
+            let edge = *event.drag(cx);
+            self.on_resize_drag(event, event.bounds.origin.x, edge, cx);
         }
     }
 
     fn render_main(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let terminal = self
-            .terminal_visible()
-            .then(|| self.active_terminal())
-            .flatten();
-        let show_terminal = self.terminal_visible();
-        let active_view = self.editor_visible().then(|| {
-            self.editor_stack()
-                .and_then(|stack| stack.tabs.get(stack.active))
-                .map(|tab| tab.view.clone())
-        });
-        let active_view = active_view.flatten();
-        let term_focused = terminal
-            .as_ref()
-            .is_some_and(|t| t.read(cx).focus_handle(cx).contains_focused(window, cx));
-        let editor_focused = active_view
-            .as_ref()
-            .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx));
-        let both = show_terminal && self.editor_visible();
-        let terminal_pane = show_terminal.then(|| {
-            self.render_terminal_pane(
-                PaneFrame {
-                    split: both,
-                    ring: focus_ring(term_focused, &colors),
-                },
-                terminal,
-                cx,
-            )
-        });
-        let right_pane = self.editor_visible().then(|| {
-            self.render_editor_pane(
-                focus_ring(editor_focused, &colors),
-                active_view,
-                &colors,
-                cx,
-            )
-        });
-
+        let content = self.active_content();
         let mut panel = div()
             .flex()
             .flex_1()
             .size_full()
             .min_w_0()
-            .on_drag_move(cx.listener(Self::on_terminal_drag));
-        match (terminal_pane, right_pane) {
-            (Some(term), Some(right)) => panel = panel.child(term).child(right),
-            (Some(term), None) => panel = panel.child(term),
-            (None, Some(right)) => {
-                // Terminal snap-closed: left residual handle drags it back on.
-                panel = panel
-                    .relative()
-                    .child(crate::resize::col_resize_handle_at(
-                        "terminal-reopen",
-                        ResizeEdge::Terminal,
-                        colors.border,
-                        crate::resize::HandleSide::Left,
-                    ))
-                    .child(right);
+            .min_h_0()
+            .on_drag_move(cx.listener(Self::on_content_drag))
+            // Keep drop overlays painted for the whole tab drag.
+            .on_drag_move(cx.listener(|_, _: &DragMoveEvent<DragTab>, _, cx| {
+                cx.notify();
+            }));
+
+        match content.and_then(|c| c.root.as_ref()) {
+            Some(root) => {
+                let focused = content.and_then(|c| c.focused);
+                panel = panel.child(self.render_live_node(root, focused, window, cx));
             }
-            _ => {
+            None => {
                 let message = if self.active.is_some() {
-                    "Show Terminal or Editor from the toolbar"
+                    "No open surfaces · ⌘N terminal · open a file"
                 } else {
                     "Open a workspace (⌘⇧O)"
                 };
@@ -312,119 +278,151 @@ impl XenonApp {
         panel
     }
 
-    fn render_terminal_pane(
+    fn render_live_node(
         &self,
-        frame: PaneFrame,
-        terminal: Option<Entity<TerminalView>>,
+        node: &LiveNode,
+        focused: Option<PaneId>,
+        window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
+    ) -> AnyElement {
         let colors = cx.theme().colors().clone();
-        let tabs = self.render_terminal_tabs(cx);
-        let body = match terminal {
-            Some(term) => div()
-                .flex_1()
-                .min_h_0()
-                .min_w_0()
-                .child(term)
-                .into_any_element(),
-            None => div()
-                .flex_1()
-                .min_h_0()
-                .min_w_0()
-                .flex()
-                .flex_col()
-                .items_center()
-                .justify_center()
-                .gap_1()
-                .bg(colors.background)
-                .text_color(colors.text_muted)
-                .text_sm()
-                .child("No terminal open")
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(colors.text_muted)
-                        .child("Press ⌘N for a new terminal"),
-                )
-                .into_any_element(),
+        match node {
+            LiveNode::Leaf(leaf) => self.render_leaf(leaf, focused == Some(leaf.id), window, cx),
+            LiveNode::Split {
+                axis,
+                ratio,
+                first,
+                second,
+            } => {
+                let first_leaf = first.leaf_ids().first().copied().unwrap_or(PaneId(0));
+                let edge = ResizeEdge::Content {
+                    axis: *axis,
+                    first_leaf,
+                };
+                let first_el = self.render_live_node(first, focused, window, cx);
+                let second_el = self.render_live_node(second, focused, window, cx);
+                match axis {
+                    SplitAxis::Horizontal => div()
+                        .flex()
+                        .flex_row()
+                        .flex_1()
+                        .size_full()
+                        .min_w_0()
+                        .min_h_0()
+                        .child(
+                            div()
+                                .relative()
+                                .flex()
+                                .flex_col()
+                                .min_w_0()
+                                .min_h_0()
+                                .w(relative(*ratio))
+                                .child(first_el)
+                                .child(crate::resize::col_resize_handle(
+                                    format!("split-h-{}", first_leaf.0),
+                                    edge,
+                                    colors.border,
+                                )),
+                        )
+                        .child(div().flex().flex_1().min_w_0().min_h_0().child(second_el))
+                        .into_any_element(),
+                    SplitAxis::Vertical => div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .size_full()
+                        .min_w_0()
+                        .min_h_0()
+                        .child(
+                            div()
+                                .relative()
+                                .flex()
+                                .flex_col()
+                                .min_w_0()
+                                .min_h_0()
+                                .h(relative(*ratio))
+                                .child(first_el)
+                                .child(crate::resize::row_resize_handle(
+                                    format!("split-v-{}", first_leaf.0),
+                                    edge,
+                                    colors.border,
+                                )),
+                        )
+                        .child(div().flex().flex_1().min_w_0().min_h_0().child(second_el))
+                        .into_any_element(),
+                }
+            }
+        }
+    }
+
+    fn render_leaf(
+        &self,
+        leaf: &LiveLeaf,
+        is_focused: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let ring = if is_focused {
+            // Check actual keyboard focus on active surface
+            let surface_focused = leaf.active_tab().is_some_and(|tab| match tab {
+                LiveTab::Terminal { view, .. } => {
+                    view.read(cx).focus_handle(cx).contains_focused(window, cx)
+                }
+                LiveTab::Editor { view, .. } => {
+                    view.read(cx).focus_handle(cx).contains_focused(window, cx)
+                }
+            });
+            if surface_focused {
+                colors.border_focused
+            } else {
+                gpui::transparent_black()
+            }
+        } else {
+            gpui::transparent_black()
         };
-        let mut pane = div()
+
+        let tabs = self.render_mixed_tabs(leaf, cx);
+        let body = match leaf.active_tab() {
+            Some(LiveTab::Terminal { view, .. }) => div()
+                .flex_1()
+                .min_h_0()
+                .min_w_0()
+                .child(view.clone())
+                .into_any_element(),
+            Some(LiveTab::Editor { view, .. }) => div()
+                .flex_1()
+                .min_h_0()
+                .min_w_0()
+                .overflow_hidden()
+                .child(view.clone())
+                .into_any_element(),
+            None => empty_editor_hint(colors.text_muted),
+        };
+
+        let pane_id = leaf.id;
+        let ws = self.active;
+        let dragging = cx.has_active_drag();
+        let drop_line = colors.drop_target_border;
+
+        // While a tab is dragged, overlay hit-targets so terminal/editor content
+        // does not swallow the drop. Center = move; edges = split.
+        let drop_overlay = dragging.then(|| self.tab_drop_overlay(pane_id, ws, drop_line, cx));
+
+        div()
+            .id(("leaf", leaf.id.0))
             .relative()
             .flex()
             .flex_col()
-            .min_w_0()
-            .border_2()
-            .border_color(frame.ring)
-            .child(tabs)
-            .child(body);
-        if frame.split {
-            pane = pane.w(px(self.terminal_width_px())).flex_none().child(
-                crate::resize::col_resize_handle(
-                    "terminal-resize",
-                    ResizeEdge::Terminal,
-                    colors.border,
-                ),
-            );
-        } else {
-            // Editor snap-closed: right residual handle drags it back on.
-            pane = pane.flex_1().child(crate::resize::col_resize_handle(
-                "editor-reopen",
-                ResizeEdge::Terminal,
-                colors.border,
-            ));
-        }
-        pane
-    }
-
-    fn render_editor_pane(
-        &self,
-        ring: gpui::Hsla,
-        active_view: Option<Entity<EditorView>>,
-        colors: &theme::ThemeColors,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let tabs = self.has_editor().then(|| self.render_tab_bar(cx));
-        div()
             .flex_1()
-            .flex()
-            .flex_col()
+            .size_full()
             .min_w_0()
+            .min_h_0()
             .border_2()
             .border_color(ring)
-            .children(tabs)
-            .child(
-                div()
-                    .flex()
-                    .flex_1()
-                    .min_h_0()
-                    .min_w_0()
-                    .child(editor_body(active_view, colors)),
-            )
-    }
-}
-
-struct PaneFrame {
-    split: bool,
-    ring: gpui::Hsla,
-}
-
-fn focus_ring(focused: bool, colors: &theme::ThemeColors) -> gpui::Hsla {
-    if focused {
-        colors.border_focused
-    } else {
-        gpui::transparent_black()
-    }
-}
-
-fn editor_body(view: Option<Entity<EditorView>>, colors: &theme::ThemeColors) -> AnyElement {
-    match view {
-        Some(view) => div()
-            .flex_1()
-            .min_h_0()
-            .min_w_0()
-            .overflow_hidden()
-            .child(view)
-            .into_any_element(),
-        None => empty_editor_hint(colors.text_muted),
+            .child(tabs)
+            .child(body)
+            .children(drop_overlay)
+            .into_any_element()
     }
 }

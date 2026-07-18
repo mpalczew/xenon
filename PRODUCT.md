@@ -89,7 +89,15 @@ It is still central: when it works, it directly helps real daily work.
 ## Product model
 
 - **Workspace** = project / checkout root + saved session (layout, tabs).
-- **Tabs** = terminals and editors inside a workspace (the multi-surface).
+- **Content layout (target):** a **pane tree** of tab stacks. Terminals and
+  editors are the same kind of surface. Open file → tab in the focused pane
+  (not an automatic split). Split horizontal/vertical on demand via toolbar,
+  tab drag-and-drop (edge = split, center = move tab), or keyboard. Closing the
+  last tab in a split pane **unsplits**; when the content area is fully empty,
+  show an empty state (keep the area; teach ⌘N / open). Sidebar (workspaces +
+  files) is optional chrome, not a third content column. Replaces the older
+  fixed terminal|editor main split as product truth (code may still implement
+  that until the layout haul). Detail: AIPM `projects/xenon/product/layout-model`.
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special
   config for a default Claude install. Not a deep multi-provider control plane
   (yet); the vision is the shell, not reimplementing every harness UI.

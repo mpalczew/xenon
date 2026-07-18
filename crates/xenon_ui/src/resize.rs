@@ -1,41 +1,34 @@
-//! Column-resize drag handles for the workspace sidebar and terminal/editor
-//! split. Near either edge, a drag snaps the adjacent panel closed instead of
-//! letting a pane go off-screen.
+//! Resize drag handles for the workspace sidebar and content pane splits.
 
 use gpui::{
     AppContext, Context, Empty, Hsla, InteractiveElement, IntoElement, MouseButton, ParentElement,
     Render, StatefulInteractiveElement, Styled, Window, div, px,
 };
+use xenon_core::{PaneId, SplitAxis};
 
-/// Which vertical edge is being dragged.
+/// Which edge is being dragged.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResizeEdge {
     Sidebar,
-    Terminal,
+    /// Content split: axis + first child's leaf id (for ratio updates).
+    Content {
+        axis: SplitAxis,
+        first_leaf: PaneId,
+    },
 }
 
-/// Result of a resize drag against available width.
+/// Result of a sidebar resize drag against available width.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum DragResult {
-    /// Keep the panel open at this width.
     Width(f32),
-    /// Close the pane whose right edge is being dragged.
     ClosePrimary,
-    /// Close the pane to the right (editor, when the terminal grows too far).
-    CloseSecondary,
 }
 
-/// Distance from an edge at which a drag snaps closed (px).
 pub(crate) const SNAP_PX: f32 = 72.;
-/// Minimum width kept for the main area when the sidebar is open.
 const MIN_MAIN: f32 = 280.;
-/// Minimum width kept for the editor beside the terminal.
-const MIN_EDITOR: f32 = 200.;
 const MIN_SIDEBAR: f32 = 140.;
-const MIN_TERMINAL: f32 = 200.;
 const MAX_SIDEBAR: f32 = 480.;
 
-/// Invisible drag ghost required by GPUI's `on_drag` constructor.
 struct ResizeGhost;
 
 impl Render for ResizeGhost {
@@ -46,27 +39,22 @@ impl Render for ResizeGhost {
 
 const HANDLE_W: f32 = 5.;
 
-/// Which side of a `.relative()` parent the hit target sits on.
 #[derive(Clone, Copy)]
 pub(crate) enum HandleSide {
     Left,
     Right,
 }
 
-/// Hit target on the right edge of a pane with a 1px rule. Parent must be
-/// `.relative()`.
 pub(crate) fn col_resize_handle(
-    id: &'static str,
+    id: impl Into<gpui::ElementId>,
     edge: ResizeEdge,
     color: Hsla,
 ) -> impl IntoElement {
     col_resize_handle_at(id, edge, color, HandleSide::Right)
 }
 
-/// Like [`col_resize_handle`], but on either edge (left residual handles reopen
-/// a snap-closed pane).
 pub(crate) fn col_resize_handle_at(
-    id: &'static str,
+    id: impl Into<gpui::ElementId>,
     edge: ResizeEdge,
     color: Hsla,
     side: HandleSide,
@@ -93,7 +81,30 @@ pub(crate) fn col_resize_handle_at(
     }
 }
 
-/// Map a drag position to a width or a snap-close.
+pub(crate) fn row_resize_handle(
+    id: impl Into<gpui::ElementId>,
+    edge: ResizeEdge,
+    color: Hsla,
+) -> impl IntoElement {
+    div()
+        .id(id)
+        .absolute()
+        .left_0()
+        .bottom(px(-(HANDLE_W / 2.)))
+        .h(px(HANDLE_W))
+        .w_full()
+        .flex()
+        .items_center()
+        .cursor_row_resize()
+        .occlude()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_drag(edge, |_edge, _, _, cx| {
+            cx.stop_propagation();
+            cx.new(|_| ResizeGhost)
+        })
+        .child(div().h(px(1.)).w_full().bg(color))
+}
+
 pub(crate) fn resolve_drag(edge: ResizeEdge, raw: f32, available: f32) -> DragResult {
     if raw < SNAP_PX {
         return DragResult::ClosePrimary;
@@ -103,44 +114,13 @@ pub(crate) fn resolve_drag(edge: ResizeEdge, raw: f32, available: f32) -> DragRe
             let max = (available - MIN_MAIN).clamp(MIN_SIDEBAR, MAX_SIDEBAR);
             DragResult::Width(raw.clamp(MIN_SIDEBAR, max))
         }
-        ResizeEdge::Terminal => {
-            if raw > available - SNAP_PX {
-                return DragResult::CloseSecondary;
-            }
-            let max = (available - MIN_EDITOR).max(MIN_TERMINAL);
-            DragResult::Width(raw.clamp(MIN_TERMINAL, max))
-        }
+        ResizeEdge::Content { .. } => DragResult::Width(raw),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn terminal_snaps_closed_near_left_edge() {
-        assert_eq!(
-            resolve_drag(ResizeEdge::Terminal, 40., 1000.),
-            DragResult::ClosePrimary
-        );
-    }
-
-    #[test]
-    fn terminal_snaps_editor_closed_near_right_edge() {
-        assert_eq!(
-            resolve_drag(ResizeEdge::Terminal, 960., 1000.),
-            DragResult::CloseSecondary
-        );
-    }
-
-    #[test]
-    fn terminal_stays_within_available() {
-        let DragResult::Width(w) = resolve_drag(ResizeEdge::Terminal, 900., 1000.) else {
-            panic!("expected width");
-        };
-        assert!(w <= 800.);
-        assert!(w >= MIN_TERMINAL);
-    }
 
     #[test]
     fn sidebar_snaps_closed_when_narrow() {
@@ -156,18 +136,5 @@ mod tests {
             panic!("expected width");
         };
         assert!(w <= 800. - MIN_MAIN + 0.1);
-    }
-
-    #[test]
-    fn drag_back_from_snap_yields_width() {
-        // Past SNAP_PX again after a close: valid width so the pane can reopen.
-        assert!(matches!(
-            resolve_drag(ResizeEdge::Terminal, 300., 1000.),
-            DragResult::Width(_)
-        ));
-        assert!(matches!(
-            resolve_drag(ResizeEdge::Sidebar, 180., 1200.),
-            DragResult::Width(_)
-        ));
     }
 }

@@ -5,23 +5,16 @@
 use super::*;
 
 impl XenonApp {
-    /// Walk `root` into `file_indexes` on a background thread. Skips the walk when
-    /// an index already exists unless `force` (explicit refresh). Prefer
-    /// `force: false` on cmd-p open so large roots reuse the cache. Emits
-    /// partial snapshots so cmd-p can search before the walk finishes.
-    /// Idempotent per root: a second call replaces (cancels) the previous build.
     pub(super) fn reindex(&mut self, root: PathBuf, force: bool, cx: &mut Context<Self>) {
         if !force && self.file_indexes.contains_key(&root) {
             return;
         }
         let key = root.clone();
         let build_root = root.clone();
-        // Bounded(1): walk drops intermediate snapshots if the UI is behind.
         let (tx, rx) = async_channel::bounded::<Arc<FileIndex>>(1);
         let walk = cx.background_executor().spawn(async move {
             FileIndex::build_with_progress(&build_root, |partial| {
                 let snap = Arc::new(partial.clone());
-                // Coalesce: keep at most one pending snapshot for the UI.
                 match tx.try_send(snap) {
                     Ok(()) => true,
                     Err(async_channel::TrySendError::Closed(_)) => false,
@@ -43,7 +36,6 @@ impl XenonApp {
                     break;
                 }
             }
-            // Ensure walk finishes (and any last force_send is drained above).
             let final_index = walk.await;
             app.update(cx, |app, cx| {
                 app.install_index(root, Arc::new(final_index), true, cx);
@@ -53,8 +45,6 @@ impl XenonApp {
         self.index_tasks.insert(key, task);
     }
 
-    /// Store an index snapshot. `done` clears the in-flight task for this root.
-    /// If the finder is open on this root, hand it the index immediately.
     fn install_index(
         &mut self,
         root: PathBuf,
@@ -65,7 +55,6 @@ impl XenonApp {
         if done {
             self.index_tasks.remove(&root);
         }
-        // Prefer a larger partial over a smaller one if races reorder.
         if let Some(existing) = self.file_indexes.get(&root)
             && existing.len() > index.len()
             && !done
@@ -80,27 +69,35 @@ impl XenonApp {
         self.file_indexes.insert(root, index);
     }
 
-    /// Which pane currently holds keyboard focus (for finder focus restore).
     pub(super) fn focused_pane(&self, window: &Window, cx: &Context<Self>) -> Option<FocusPane> {
         if self.browser_focused {
             return Some(FocusPane::Browser);
         }
-        if self
-            .active_terminal()
-            .is_some_and(|t| t.read(cx).focus_handle(cx).contains_focused(window, cx))
-        {
-            Some(FocusPane::Terminal)
-        } else if self
-            .active_editor()
-            .is_some_and(|e| e.read(cx).focus_handle(cx).contains_focused(window, cx))
-        {
-            Some(FocusPane::Editor)
-        } else {
-            None
+        match self.active_content().and_then(|c| c.active_tab()) {
+            Some(LiveTab::Terminal { view, .. })
+                if view.read(cx).focus_handle(cx).contains_focused(window, cx) =>
+            {
+                Some(FocusPane::Terminal)
+            }
+            Some(LiveTab::Editor { view, .. })
+                if view.read(cx).focus_handle(cx).contains_focused(window, cx) =>
+            {
+                Some(FocusPane::Editor)
+            }
+            Some(LiveTab::Terminal { .. }) => Some(FocusPane::Terminal),
+            Some(LiveTab::Editor { .. }) => Some(FocusPane::Editor),
+            None => {
+                if self.active_terminal().is_some() {
+                    Some(FocusPane::Terminal)
+                } else if self.active_editor().is_some() {
+                    Some(FocusPane::Editor)
+                } else {
+                    None
+                }
+            }
         }
     }
 
-    /// Return keyboard focus to `pane` (the terminal or editor of the active workspace).
     pub(super) fn focus_pane(
         &mut self,
         pane: FocusPane,
@@ -114,20 +111,18 @@ impl XenonApp {
         }
     }
 
-    /// Last content pane that can take keyboard focus (never None).
-    /// Used when an overlay dies without a remembered restore target.
     pub(super) fn fallback_content_pane(&self) -> FocusPane {
         match self.deferred.last_font_pane {
             FontPane::Editor if self.has_editor() => FocusPane::Editor,
-            FontPane::Terminal if self.terminal_visible() => FocusPane::Terminal,
-            _ if self.terminal_visible() => FocusPane::Terminal,
+            FontPane::Terminal if self.active_content().is_some_and(|c| c.has_terminal()) => {
+                FocusPane::Terminal
+            }
+            _ if self.active_content().is_some_and(|c| c.has_terminal()) => FocusPane::Terminal,
             _ if self.has_editor() => FocusPane::Editor,
             _ => FocusPane::Terminal,
         }
     }
 
-    /// cmd-+ / cmd--: nudge only the focused editor or terminal font size.
-    /// Sidebar / tree / no focus falls back to the last content pane.
     pub(super) fn nudge_font_size(
         &mut self,
         delta: f32,
@@ -142,7 +137,6 @@ impl XenonApp {
         window.refresh();
     }
 
-    /// cmd-0: reset font size for the focused editor or terminal only.
     pub(super) fn reset_font_size(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.font_target(window, cx) {
             FontPane::Editor => xenon_settings::reset_editor_font_size(cx),
@@ -152,7 +146,6 @@ impl XenonApp {
         window.refresh();
     }
 
-    /// Which content surface zoom / reset should affect.
     fn font_target(&mut self, window: &Window, cx: &Context<Self>) -> FontPane {
         let target = match self.focused_pane(window, cx) {
             Some(FocusPane::Editor) => FontPane::Editor,
@@ -163,7 +156,6 @@ impl XenonApp {
         target
     }
 
-    /// Route Cut to the focused editor or terminal (app menu / global binding).
     pub(super) fn clipboard_cut(&self, window: &Window, cx: &mut Context<Self>) {
         match self.focused_pane(window, cx) {
             Some(FocusPane::Editor) => {

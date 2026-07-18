@@ -4,8 +4,7 @@ use super::*;
 
 /// What to run after the user saves or discards unsaved buffers.
 #[derive(Clone)]
-pub(super) enum DirtyClose {
-    /// Drop one tab (path-keyed; index may have moved).
+pub(crate) enum DirtyClose {
     Tab {
         workspace: WorkspaceId,
         path: PathBuf,
@@ -13,44 +12,12 @@ pub(super) enum DirtyClose {
     Workspace(WorkspaceId),
 }
 
-struct DirtyTab {
-    name: String,
-    view: Entity<EditorView>,
+pub(crate) struct DirtyTab {
+    pub name: String,
+    pub view: Entity<EditorView>,
 }
 
 impl XenonApp {
-    /// Close tab: prompt when dirty, else drop immediately.
-    pub(crate) fn close_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(id) = self.active else {
-            return;
-        };
-        let Some(stack) = self.editors.get(&id) else {
-            return;
-        };
-        if index >= stack.tabs.len() {
-            return;
-        }
-        let tab = &stack.tabs[index];
-        if !tab.view.read(cx).is_dirty() {
-            self.drop_editor_tab(id, index, cx);
-            return;
-        }
-        let path = tab.path.clone();
-        self.prompt_unsaved(
-            vec![DirtyTab {
-                name: tab.name.clone(),
-                view: tab.view.clone(),
-            }],
-            DirtyClose::Tab {
-                workspace: id,
-                path,
-            },
-            window,
-            cx,
-        );
-    }
-
-    /// Close workspace after confirming dirty editors (Save All / Don't Save / Cancel).
     pub(crate) fn close_workspace(
         &mut self,
         id: WorkspaceId,
@@ -67,21 +34,23 @@ impl XenonApp {
 
     fn dirty_tabs_in_workspace(&self, id: WorkspaceId, cx: &App) -> Vec<DirtyTab> {
         let mut out = Vec::new();
-        let Some(stack) = self.editors.get(&id) else {
+        let Some(content) = self.contents.get(&id) else {
             return out;
         };
-        for tab in &stack.tabs {
-            if tab.view.read(cx).is_dirty() {
-                out.push(DirtyTab {
-                    name: tab.name.clone(),
-                    view: tab.view.clone(),
-                });
-            }
+        if let Some(root) = &content.root {
+            root.for_each_editor(&mut |view, path| {
+                if view.read(cx).is_dirty() {
+                    out.push(DirtyTab {
+                        name: file_name(path),
+                        view: view.clone(),
+                    });
+                }
+            });
         }
         out
     }
 
-    fn prompt_unsaved(
+    pub(crate) fn prompt_unsaved(
         &mut self,
         dirty: Vec<DirtyTab>,
         after: DirtyClose,

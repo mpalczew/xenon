@@ -224,7 +224,9 @@ fn load_registry_migrates_legacy_stream_session() {
 
         let _ = load_registry().unwrap();
         let session = load_session(ws.id).unwrap();
-        assert!(!session.layout.terminal_visible);
-        assert_eq!(session.layout.sidebar_width, 200.0);
+        assert!(session.sidebar_visible);
+        assert_eq!(session.sidebar_width, 200.0);
+        // terminal_visible false + no editors → content may be empty or term-only after migrate
+        assert!(session.content.is_empty() || session.content.leaf_ids().len() <= 1);
     });
 }

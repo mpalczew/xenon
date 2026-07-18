@@ -1,39 +1,17 @@
 //! Keyboard-first navigation: pane focus, workspace cycle, tabs, closes.
 
 use super::*;
-use xenon_core::WorkspaceId;
+use xenon_core::{SplitAxis, WorkspaceId};
 
 impl XenonApp {
-    /// Focus the terminal panel (opens it if needed).
     pub(super) fn focus_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.browser_focused = false;
-        self.terminal_collapsed = false;
-        self.deferred.last_font_pane = FontPane::Terminal;
-        self.ensure_terminal(cx);
-        if let Some(id) = self.active {
-            self.save_layout(id);
-        }
-        if let Some(terminal) = self.active_terminal() {
-            terminal.read(cx).focus_handle(cx).focus(window, cx);
-        }
-        cx.notify();
+        self.focus_or_new_terminal(window, cx);
     }
 
-    /// Focus the editor panel (opens it if needed).
     pub(super) fn focus_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.browser_focused = false;
-        self.editor_collapsed = false;
-        self.deferred.last_font_pane = FontPane::Editor;
-        if let Some(id) = self.active {
-            self.save_layout(id);
-        }
-        if let Some(editor) = self.active_editor() {
-            editor.read(cx).focus_handle(cx).focus(window, cx);
-        }
-        cx.notify();
+        self.focus_or_reveal_editor(window, cx);
     }
 
-    /// Focus the file tree in the workspace panel (opens it if needed).
     pub(super) fn focus_browser(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.sidebar_collapsed = false;
         if !self.file_browser.is_open() {
@@ -41,53 +19,60 @@ impl XenonApp {
         }
         self.browser_focused = true;
         self.file_browser.ensure_cursor();
-        // Keep app focus so tree keys hit XenonApp, not a dead editor handle.
         self.focus.focus(window, cx);
         cx.notify();
     }
 
-    /// Cycle focus: terminal → editor → file tree (when open) → terminal.
+    /// Cycle focus: each leaf in tree order, then browser if open.
     pub(super) fn focus_next_pane(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let order = self.pane_cycle_order();
+        let leaves = self
+            .active_content()
+            .map(|c| c.leaf_ids())
+            .unwrap_or_default();
+        let mut order: Vec<FocusTarget> = leaves.into_iter().map(FocusTarget::Leaf).collect();
+        if self.is_browsing() {
+            order.push(FocusTarget::Browser);
+        }
         if order.is_empty() {
             return;
         }
-        let current = self.current_focus_slot(window, cx);
+        let current = self.current_focus_target(window, cx);
         let idx = order
             .iter()
             .position(|p| Some(*p) == current)
             .map(|i| (i + 1) % order.len())
             .unwrap_or(0);
-        self.focus_pane_slot(order[idx], window, cx);
+        match order[idx] {
+            FocusTarget::Leaf(pane) => self.focus_leaf_active(pane, window, cx),
+            FocusTarget::Browser => self.focus_browser(window, cx),
+        }
     }
 
-    fn pane_cycle_order(&self) -> Vec<FocusPane> {
-        let mut order = Vec::new();
-        if self.terminal_visible() {
-            order.push(FocusPane::Terminal);
-        }
-        if self.editor_visible() {
-            order.push(FocusPane::Editor);
-        }
-        if self.is_browsing() {
-            order.push(FocusPane::Browser);
-        }
-        order
-    }
-
-    fn current_focus_slot(&self, window: &Window, cx: &Context<Self>) -> Option<FocusPane> {
+    fn current_focus_target(&self, window: &Window, cx: &Context<Self>) -> Option<FocusTarget> {
         if self.browser_focused {
-            return Some(FocusPane::Browser);
+            return Some(FocusTarget::Browser);
         }
-        self.focused_pane(window, cx)
-    }
-
-    fn focus_pane_slot(&mut self, pane: FocusPane, window: &mut Window, cx: &mut Context<Self>) {
-        match pane {
-            FocusPane::Terminal => self.focus_terminal(window, cx),
-            FocusPane::Editor => self.focus_editor(window, cx),
-            FocusPane::Browser => self.focus_browser(window, cx),
+        // Which leaf has focused surface?
+        let content = self.active_content()?;
+        let root = content.root.as_ref()?;
+        for pane in root.leaf_ids() {
+            if let Some(leaf) = root.find_leaf(pane)
+                && let Some(tab) = leaf.active_tab()
+            {
+                let focused = match tab {
+                    LiveTab::Terminal { view, .. } => {
+                        view.read(cx).focus_handle(cx).contains_focused(window, cx)
+                    }
+                    LiveTab::Editor { view, .. } => {
+                        view.read(cx).focus_handle(cx).contains_focused(window, cx)
+                    }
+                };
+                if focused {
+                    return Some(FocusTarget::Leaf(pane));
+                }
+            }
         }
+        content.focused.map(FocusTarget::Leaf)
     }
 
     pub(super) fn next_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -119,7 +104,6 @@ impl XenonApp {
         self.close_workspace(id, window, cx);
     }
 
-    /// Next tab in the focused surface (terminal or editor).
     pub(super) fn next_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.step_tab(1, window, cx);
     }
@@ -129,44 +113,46 @@ impl XenonApp {
     }
 
     fn step_tab(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Terminal) | None if self.terminal_visible() => {
-                let Some(stack) = self.terminal_stack() else {
-                    return;
-                };
-                if stack.tabs.is_empty() {
-                    return;
-                }
-                let len = stack.tabs.len() as isize;
-                let next = (stack.active as isize + delta).rem_euclid(len) as usize;
-                self.activate_terminal_tab(next, window, cx);
-            }
-            _ => {
-                let Some(stack) = self.editor_stack() else {
-                    return;
-                };
-                if stack.tabs.is_empty() {
-                    return;
-                }
-                let len = stack.tabs.len() as isize;
-                let next = (stack.active as isize + delta).rem_euclid(len) as usize;
-                self.activate_tab(next, cx);
-                if let Some(editor) = self.active_editor() {
-                    editor.read(cx).focus_handle(cx).focus(window, cx);
-                }
-            }
-        }
-    }
-
-    /// ⌘W: close terminal tab if terminal focused, else editor tab.
-    pub(super) fn close_focused_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if matches!(self.focused_pane(window, cx), Some(FocusPane::Terminal))
-            && let Some(stack) = self.terminal_stack()
-        {
-            let index = stack.active;
-            self.close_terminal_tab(index, window, cx);
+        let Some(content) = self.active_content() else {
+            return;
+        };
+        let Some(leaf) = content.focused_leaf() else {
+            return;
+        };
+        if leaf.tabs.is_empty() {
             return;
         }
-        self.close_editor(window, cx);
+        let pane = leaf.id;
+        let len = leaf.tabs.len() as isize;
+        let next = (leaf.active as isize + delta).rem_euclid(len) as usize;
+        self.activate_tab_in_pane(pane, next, window, cx);
     }
+
+    pub(super) fn close_focused_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(content) = self.active_content() else {
+            return;
+        };
+        let Some(leaf) = content.focused_leaf() else {
+            return;
+        };
+        let Some(tab) = leaf.active_tab() else {
+            return;
+        };
+        let tab_id = tab.id();
+        self.close_tab_id(tab_id, window, cx);
+    }
+
+    pub(super) fn split_right(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.do_split(SplitAxis::Horizontal, window, cx);
+    }
+
+    pub(super) fn split_down(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.do_split(SplitAxis::Vertical, window, cx);
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FocusTarget {
+    Leaf(xenon_core::PaneId),
+    Browser,
 }

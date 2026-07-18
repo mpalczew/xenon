@@ -3,3 +3,9 @@ crates/xenon_editor/src/buffer.rs	0	31	10
 crates/xenon_editor/src/image_viewer.rs	0	25	0
 crates/xenon_store/src/lib.rs	0	0	8
 crates/xenon_settings/src/lib.rs	0	0	8
+crates/xenon_core/src/content.rs	1082	55	7
+crates/xenon_ui/src/app/live.rs	500	34	7
+crates/xenon_ui/src/app/render.rs	500	21	7
+crates/xenon_ui/src/app/content_ops.rs	500	21	7
+crates/xenon_ui/src/app/split_ops.rs	500	21	7
+crates/xenon_ui/src/app/tab_drop.rs	500	21	7

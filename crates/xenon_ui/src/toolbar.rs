@@ -1,4 +1,4 @@
-//! The top toolbar: panel toggles, context breadcrumb, and quick actions.
+//! The top toolbar: sidebar toggle, split actions, breadcrumb, quick actions.
 
 use gpui::{
     Action, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
@@ -10,9 +10,7 @@ use theme::ActiveTheme;
 use crate::app::XenonApp;
 use crate::chrome::list_selection;
 use crate::icons::icon;
-use crate::{
-    FilePalette, RunTask, Save, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal,
-};
+use crate::{FilePalette, RunTask, Save, SplitDown, SplitRight, ToggleSettings, ToggleSidebar};
 
 const ICON: f32 = 14.;
 
@@ -49,21 +47,23 @@ impl XenonApp {
             ))
             .child(tool_button(
                 ToolButton {
-                    id: "tb-terminal",
-                    glyph: Icon::Terminal,
-                    label: "Terminal Panel",
-                    active: self.terminal_visible(),
-                    action: Box::new(ToggleTerminal),
+                    id: "tb-split-right",
+                    // Reversed vs earlier assign: Horizontal glyph = left|right panes.
+                    glyph: Icon::SplitSquareHorizontal,
+                    label: "Split Right · ⌘\\",
+                    active: false,
+                    action: Box::new(SplitRight),
                 },
                 cx,
             ))
             .child(tool_button(
                 ToolButton {
-                    id: "tb-editor",
-                    glyph: Icon::FileCode,
-                    label: "Editor Panel",
-                    active: self.editor_visible(),
-                    action: Box::new(ToggleEditor),
+                    id: "tb-split-down",
+                    // Vertical glyph = top/bottom panes.
+                    glyph: Icon::SplitSquareVertical,
+                    label: "Split Down · ⌘⇧\\",
+                    active: false,
+                    action: Box::new(SplitDown),
                 },
                 cx,
             ))
@@ -155,7 +155,6 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     } = button;
     let colors = cx.theme().colors().clone();
     let paint = list_selection(&colors, active);
-    // Inactive toggles sit on the toolbar, not on transparent (avoids hole).
     let background = if active {
         paint.background
     } else {

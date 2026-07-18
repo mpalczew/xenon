@@ -36,6 +36,8 @@ pub enum CommandId {
     ToggleBrowser,
     ToggleTerminal,
     ToggleEditor,
+    SplitRight,
+    SplitDown,
     ToggleSettings,
     CommandPalette,
     KeyboardHelp,
@@ -55,7 +57,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 29] {
+const fn all_commands() -> [CommandEntry; 31] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -80,8 +82,10 @@ const fn all_commands() -> [CommandEntry; 29] {
         cmd!(RunTask, "Run Task…", "⌘⇧R", "Create"),
         cmd!(ToggleSidebar, "Toggle Sidebar", "⌘B", "View"),
         cmd!(ToggleBrowser, "Toggle File Tree", "⌘E", "View"),
-        cmd!(ToggleTerminal, "Toggle Terminal", "⌘J", "View"),
-        cmd!(ToggleEditor, "Toggle Editor", "⌘⇧E", "View"),
+        cmd!(ToggleTerminal, "Focus/New Terminal", "⌘J", "View"),
+        cmd!(ToggleEditor, "Focus Editor", "⌘⇧E", "View"),
+        cmd!(SplitRight, "Split Right", "⌘\\", "View"),
+        cmd!(SplitDown, "Split Down", "⌘⇧\\", "View"),
         cmd!(ToggleSettings, "Settings", "⌘,", "View"),
         cmd!(ZoomIn, "Zoom In", "⌘=", "View"),
         cmd!(ZoomOut, "Zoom Out", "⌘-", "View"),
@@ -91,6 +95,6 @@ const fn all_commands() -> [CommandEntry; 29] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 29] = all_commands();
+    static ENTRIES: [CommandEntry; 31] = all_commands();
     &ENTRIES
 }

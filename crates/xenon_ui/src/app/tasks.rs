@@ -59,7 +59,6 @@ impl XenonApp {
         if new_terminal || self.active_terminal().is_none() {
             self.add_terminal(cx);
         }
-        self.terminal_collapsed = false;
         let mut line = task.inject_line();
         // One-shot tab: exit the shell when the command finishes so terminal
         // auto-close (same rules as shell exit) can apply.
