@@ -50,6 +50,7 @@ impl XenonApp {
         // Rebuild live content if missing (first activate this process).
         if !self.contents.contains_key(&id) {
             let live = self.build_live_from_session(&session, &root, id, cx);
+            self.seed_recent_from_content(id, &live);
             self.contents.insert(id, live);
         }
         if self.contents.get(&id).is_some_and(|c| c.is_empty()) {
@@ -76,6 +77,36 @@ impl XenonApp {
         self.reindex(root, false, cx);
         self.persist_active();
         cx.notify();
+    }
+
+    /// Seed MRU from restored tabs so cmd-p ranks open files before cold ones.
+    /// Active editor is touched last so it ranks most-recent.
+    fn seed_recent_from_content(&mut self, workspace: WorkspaceId, content: &LiveContent) {
+        let mut paths = Vec::new();
+        let mut active_path = None;
+        if let Some(root) = &content.root {
+            for pane in root.leaf_ids() {
+                let Some(leaf) = root.find_leaf(pane) else {
+                    continue;
+                };
+                for (i, tab) in leaf.tabs.iter().enumerate() {
+                    let Some(path) = tab.editor_path() else {
+                        continue;
+                    };
+                    if content.focused == Some(pane) && i == leaf.active {
+                        active_path = Some(path.to_path_buf());
+                    } else {
+                        paths.push(path.to_path_buf());
+                    }
+                }
+            }
+        }
+        for path in paths {
+            self.touch_recent_file(workspace, &path);
+        }
+        if let Some(path) = active_path {
+            self.touch_recent_file(workspace, &path);
+        }
     }
 
     fn build_live_from_session(
@@ -228,7 +259,11 @@ impl XenonApp {
             cx.notify();
             return;
         };
-        let results = Finder::new(index).query(&basename);
+        let recents = self
+            .active
+            .map(|id| self.recent_files_for(id))
+            .unwrap_or_default();
+        let results = Finder::new(index).query(&basename, &recents);
         let files = || results.iter().filter(|m| !m.is_dir);
         let exact: Vec<&std::path::PathBuf> = files()
             .filter(|m| {

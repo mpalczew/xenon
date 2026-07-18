@@ -127,6 +127,7 @@ impl XenonApp {
                 }
                 c.focused = Some(pane);
             }
+            self.touch_recent_file(id, &path);
             self.finder = None;
             if focus {
                 self.deferred.pending_focus = Some(FocusPane::Editor);
@@ -146,7 +147,7 @@ impl XenonApp {
                 let tab_id = content.next_tab_id();
                 let tab = LiveTab::Editor {
                     id: tab_id,
-                    path,
+                    path: path.clone(),
                     name,
                     view,
                 };
@@ -168,6 +169,7 @@ impl XenonApp {
                         leaf.active = leaf.tabs.len() - 1;
                     }
                 }
+                self.touch_recent_file(id, &path);
                 self.save_layout(id);
                 self.finder = None;
                 if focus {
@@ -210,7 +212,8 @@ impl XenonApp {
                 self.deferred.last_font_pane = FontPane::Terminal;
                 view.read(cx).focus_handle(cx).focus(window, cx);
             }
-            LiveTab::Editor { view, .. } => {
+            LiveTab::Editor { path, view, .. } => {
+                self.touch_recent_file(id, &path);
                 self.deferred.last_font_pane = FontPane::Editor;
                 view.update(cx, |view, cx| view.sync_from_disk(cx));
                 view.read(cx).focus_handle(cx).focus(window, cx);

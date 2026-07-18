@@ -4,7 +4,36 @@
 
 use super::*;
 
+/// Cap on per-workspace recently opened paths used for cmd-p ranking.
+const MAX_RECENT_FILES: usize = 64;
+
 impl XenonApp {
+    /// Record `path` as most-recently opened for its workspace (relative paths).
+    pub(super) fn touch_recent_file(&mut self, workspace: WorkspaceId, path: &Path) {
+        let Some(root) = self.workspace_root(workspace) else {
+            return;
+        };
+        let relative = path
+            .strip_prefix(&root)
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|_| path.to_path_buf());
+        if relative.as_os_str().is_empty() {
+            return;
+        }
+        let list = self.recent_files.entry(workspace).or_default();
+        list.retain(|p| p != &relative);
+        list.insert(0, relative);
+        list.truncate(MAX_RECENT_FILES);
+    }
+
+    /// Snapshot of MRU relative paths for ranking (most-recent first).
+    pub(super) fn recent_files_for(&self, workspace: WorkspaceId) -> Vec<PathBuf> {
+        self.recent_files
+            .get(&workspace)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     pub(super) fn reindex(&mut self, root: PathBuf, force: bool, cx: &mut Context<Self>) {
         if !force && self.file_indexes.contains_key(&root) {
             return;

@@ -89,6 +89,8 @@ pub struct XenonApp {
     // a new build for the same root replaces (cancels) the previous one.
     file_indexes: HashMap<PathBuf, Arc<FileIndex>>,
     index_tasks: HashMap<PathBuf, Task<()>>,
+    /// Per-workspace recently opened editor paths (workspace-relative, MRU first).
+    recent_files: HashMap<WorkspaceId, Vec<PathBuf>>,
     /// Overlay focus restore + window-deferred palette/command work.
     deferred: DeferredUi,
     sidebar_collapsed: bool,
@@ -146,6 +148,7 @@ impl XenonApp {
             browser_focused: false,
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
+            recent_files: HashMap::new(),
             deferred: DeferredUi::default(),
             sidebar_collapsed: false,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,

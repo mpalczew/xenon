@@ -223,7 +223,11 @@ impl XenonApp {
         // on every open stalls large roots (e.g. $HOME) for seconds.
         self.reindex(root.clone(), false, cx);
         let index = self.file_indexes.get(&root).cloned();
-        let finder = cx.new(|cx| FinderView::new(index, query, cx));
+        let recents = self
+            .active
+            .map(|id| self.recent_files_for(id))
+            .unwrap_or_default();
+        let finder = cx.new(|cx| FinderView::new(index, query, recents, cx));
         self._finder_sub = Some(cx.subscribe(&finder, Self::on_finder_event));
         self.finder = Some(finder);
         cx.notify();

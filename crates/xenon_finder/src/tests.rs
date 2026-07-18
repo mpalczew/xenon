@@ -30,13 +30,17 @@ fn walk_respects_gitignore() {
     let dir = fixture();
     // main.rs, lib.rs, README.md, .gitignore, .env + the src/ dir;
     // not ignored.txt and not anything under .git.
-    assert_eq!(finder(&dir).query("").len(), 6);
+    assert_eq!(finder(&dir).query("", &[]).len(), 6);
 }
 
 #[test]
 fn walk_includes_hidden_files() {
     let dir = fixture();
-    let paths: Vec<_> = finder(&dir).query("").into_iter().map(|m| m.path).collect();
+    let paths: Vec<_> = finder(&dir)
+        .query("", &[])
+        .into_iter()
+        .map(|m| m.path)
+        .collect();
     assert!(paths.contains(&PathBuf::from(".gitignore")));
     assert!(paths.contains(&PathBuf::from(".env")));
     assert!(!paths.iter().any(|p| p.starts_with(".git")));
@@ -45,20 +49,20 @@ fn walk_includes_hidden_files() {
 #[test]
 fn query_ranks_matches_first() {
     let dir = fixture();
-    let results = finder(&dir).query("main");
+    let results = finder(&dir).query("main", &[]);
     assert_eq!(results.first().unwrap().path, PathBuf::from("src/main.rs"));
 }
 
 #[test]
 fn empty_query_lists_all_files() {
     let dir = fixture();
-    assert_eq!(finder(&dir).query("").len(), 6);
+    assert_eq!(finder(&dir).query("", &[]).len(), 6);
 }
 
 #[test]
 fn nonmatching_query_returns_nothing() {
     let dir = fixture();
-    assert!(finder(&dir).query("zzzznope").is_empty());
+    assert!(finder(&dir).query("zzzznope", &[]).is_empty());
 }
 
 #[test]
@@ -68,7 +72,7 @@ fn a_shared_index_drives_a_finder() {
     let index = Arc::new(FileIndex::build(dir.path()));
     let mut finder = Finder::new(index);
     assert_eq!(
-        finder.query("main").first().unwrap().path,
+        finder.query("main", &[]).first().unwrap().path,
         PathBuf::from("src/main.rs")
     );
 }
@@ -83,7 +87,7 @@ fn exact_basename_beats_nested_fuzzy_match() {
     fs::write(root.join(".claude/settings.json"), "").unwrap();
 
     let index = FileIndex::build(root);
-    let results = index.query(".claude.json");
+    let results = index.query(".claude.json", &[]);
     assert_eq!(
         results.first().map(|m| m.path.as_path()),
         Some(Path::new(".claude.json")),
@@ -96,7 +100,7 @@ fn exact_basename_beats_nested_fuzzy_match() {
 fn file_index_query_is_shareable() {
     let dir = fixture();
     let index = Arc::new(FileIndex::build(dir.path()));
-    let results = index.query("README");
+    let results = index.query("README", &[]);
     assert_eq!(results.first().unwrap().path, PathBuf::from("README.md"));
 }
 
@@ -115,7 +119,7 @@ fn walk_skips_heavy_dirs_keeps_dotfiles() {
 
     let index = FileIndex::build(root);
     let paths: Vec<_> = index
-        .query("")
+        .query("", &[])
         .into_iter()
         .map(|m| m.path.to_string_lossy().into_owned())
         .collect();
@@ -129,33 +133,33 @@ fn walk_skips_heavy_dirs_keeps_dotfiles() {
     // blank listing is capped; use targeted queries instead
     assert!(
         finder
-            .query("app")
+            .query("app", &[])
             .iter()
             .any(|m| m.path.ends_with("app.rs"))
     );
     assert!(
         finder
-            .query(".claude.json")
+            .query(".claude.json", &[])
             .first()
             .is_some_and(|m| m.path.as_path() == Path::new(".claude.json"))
     );
     assert!(
         finder
-            .query("settings")
+            .query("settings", &[])
             .iter()
             .any(|m| m.path.ends_with(".claude/settings.json")
                 || m.path.as_path() == Path::new(".claude/settings.json"))
     );
     assert!(
         !finder
-            .query("index")
+            .query("index", &[])
             .iter()
             .any(|m| { m.path.to_string_lossy().contains("node_modules") })
     );
     assert!(!paths.iter().any(|p| p.contains("node_modules")));
     assert!(
         !finder
-            .query("x")
+            .query("x", &[])
             .iter()
             .any(|m| { m.path.to_string_lossy().contains("target") })
     );
@@ -175,4 +179,65 @@ fn progressive_build_emits_before_done() {
     });
     assert!(emits >= 2, "expected partial + final, got {emits}");
     assert_eq!(index.len(), 50);
+}
+
+#[test]
+fn recents_break_ties_among_equal_basename_matches() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("a")).unwrap();
+    fs::create_dir_all(root.join("b")).unwrap();
+    fs::write(root.join("a/util.rs"), "").unwrap();
+    fs::write(root.join("b/util.rs"), "").unwrap();
+
+    let index = FileIndex::build(root);
+    // Without recents, order is path heuristics (a before b).
+    let plain = index.query("util.rs", &[]);
+    assert!(
+        plain.iter().any(|m| m.path == *"a/util.rs")
+            && plain.iter().any(|m| m.path == *"b/util.rs")
+    );
+
+    let recents = [PathBuf::from("b/util.rs")];
+    let ranked = index.query("util.rs", &recents);
+    assert_eq!(
+        ranked.first().map(|m| m.path.as_path()),
+        Some(Path::new("b/util.rs")),
+        "recently opened equal basename should win, got {:?}",
+        ranked.first().map(|m| &m.path)
+    );
+}
+
+#[test]
+fn empty_query_lists_recents_first() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    fs::write(root.join("alpha.txt"), "").unwrap();
+    fs::write(root.join("beta.txt"), "").unwrap();
+    fs::write(root.join("gamma.txt"), "").unwrap();
+
+    let index = FileIndex::build(root);
+    let recents = [PathBuf::from("gamma.txt"), PathBuf::from("alpha.txt")];
+    let results = index.query("", &recents);
+    assert!(results.len() >= 3);
+    assert_eq!(results[0].path, PathBuf::from("gamma.txt"));
+    assert_eq!(results[1].path, PathBuf::from("alpha.txt"));
+}
+
+#[test]
+fn exact_basename_still_beats_recent_weaker_match() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("nested")).unwrap();
+    fs::write(root.join("main.rs"), "").unwrap();
+    fs::write(root.join("nested/main_helper.rs"), "").unwrap();
+
+    let index = FileIndex::build(root);
+    let recents = [PathBuf::from("nested/main_helper.rs")];
+    let results = index.query("main.rs", &recents);
+    assert_eq!(
+        results.first().map(|m| m.path.as_path()),
+        Some(Path::new("main.rs")),
+        "exact basename must still beat a recent weaker match"
+    );
 }

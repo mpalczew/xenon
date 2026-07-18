@@ -6,6 +6,7 @@
 //! during the walk so results appear before the tree is fully scanned.
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -80,19 +81,13 @@ impl FileIndex {
     }
 
     /// Rank entries against `query`. Safe to call from a background thread.
-    /// An empty query lists paths unranked (path order), capped at `MAX_RESULTS`.
-    pub fn query(&self, query: &str) -> Vec<FileMatch> {
+    /// Empty query lists paths (recents first, then walk order), capped at
+    /// `MAX_RESULTS`. `recents` is most-recent first; among equal match quality
+    /// it wins. Pass `&[]` when no MRU is available.
+    pub fn query(&self, query: &str, recents: &[PathBuf]) -> Vec<FileMatch> {
+        let recent_rank = recent_ranks(recents);
         if query.is_empty() {
-            return self
-                .entries
-                .iter()
-                .take(MAX_RESULTS)
-                .map(|entry| FileMatch {
-                    path: PathBuf::from(&entry.path),
-                    is_dir: entry.is_dir,
-                    score: 0,
-                })
-                .collect();
+            return self.list_empty(&recent_rank);
         }
 
         let mut matcher = Matcher::new(Config::DEFAULT);
@@ -106,9 +101,51 @@ impl FileIndex {
                 score,
             })
             .collect();
-        matches.sort_by(|a, b| compare_matches(a, b, query));
+        matches.sort_by(|a, b| compare_matches(a, b, query, &recent_rank));
         matches.truncate(MAX_RESULTS);
         matches
+    }
+
+    fn list_empty(&self, recent_rank: &HashMap<PathBuf, u32>) -> Vec<FileMatch> {
+        let mut out = Vec::with_capacity(MAX_RESULTS.min(self.entries.len()));
+        let mut used: HashMap<&str, ()> = HashMap::new();
+
+        // Recents first (most-recent → oldest), only if still in the index.
+        let mut ordered: Vec<(&PathBuf, u32)> = recent_rank.iter().map(|(p, r)| (p, *r)).collect();
+        ordered.sort_by_key(|(_, r)| *r);
+        for (path, _) in ordered {
+            if out.len() >= MAX_RESULTS {
+                break;
+            }
+            let Some(entry) = self
+                .entries
+                .iter()
+                .find(|e| Path::new(&e.path) == path.as_path())
+            else {
+                continue;
+            };
+            used.insert(entry.path.as_str(), ());
+            out.push(FileMatch {
+                path: PathBuf::from(&entry.path),
+                is_dir: entry.is_dir,
+                score: 0,
+            });
+        }
+
+        for entry in &self.entries {
+            if out.len() >= MAX_RESULTS {
+                break;
+            }
+            if used.contains_key(entry.path.as_str()) {
+                continue;
+            }
+            out.push(FileMatch {
+                path: PathBuf::from(&entry.path),
+                is_dir: entry.is_dir,
+                score: 0,
+            });
+        }
+        out
     }
 }
 
@@ -122,9 +159,9 @@ impl Finder {
         Finder { index }
     }
 
-    /// Rank entries against `query`. An empty query lists them unranked.
-    pub fn query(&mut self, query: &str) -> Vec<FileMatch> {
-        self.index.query(query)
+    /// Rank entries against `query`. See [`FileIndex::query`].
+    pub fn query(&mut self, query: &str, recents: &[PathBuf]) -> Vec<FileMatch> {
+        self.index.query(query, recents)
     }
 }
 
@@ -156,12 +193,33 @@ impl BasenameRank {
     }
 }
 
-fn compare_matches(a: &FileMatch, b: &FileMatch, query: &str) -> Ordering {
+/// Map relative path → rank (0 = most recent). Missing paths rank last.
+fn recent_ranks(recents: &[PathBuf]) -> HashMap<PathBuf, u32> {
+    let mut ranks = HashMap::with_capacity(recents.len());
+    for (i, path) in recents.iter().enumerate() {
+        // First occurrence wins (list is most-recent first).
+        ranks.entry(path.clone()).or_insert(i as u32);
+    }
+    ranks
+}
+
+fn recent_of(path: &Path, ranks: &HashMap<PathBuf, u32>) -> u32 {
+    ranks.get(path).copied().unwrap_or(u32::MAX)
+}
+
+fn compare_matches(
+    a: &FileMatch,
+    b: &FileMatch,
+    query: &str,
+    recent: &HashMap<PathBuf, u32>,
+) -> Ordering {
     let a_path_exact = path_eq_query(&a.path, query);
     let b_path_exact = path_eq_query(&b.path, query);
     b_path_exact
         .cmp(&a_path_exact)
         .then_with(|| BasenameRank::of(&a.path, query).cmp(&BasenameRank::of(&b.path, query)))
+        // Among equally good matches, prefer recently opened.
+        .then_with(|| recent_of(&a.path, recent).cmp(&recent_of(&b.path, recent)))
         .then_with(|| b.score.cmp(&a.score))
         .then_with(|| path_components(&a.path).cmp(&path_components(&b.path)))
         .then_with(|| a.path.as_os_str().len().cmp(&b.path.as_os_str().len()))

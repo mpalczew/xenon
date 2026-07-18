@@ -35,6 +35,8 @@ pub enum FinderEvent {
 pub struct FinderView {
     /// `None` until the workspace index for this root has finished building.
     index: Option<Arc<FileIndex>>,
+    /// Workspace-relative paths, most-recently opened first.
+    recents: Vec<PathBuf>,
     query: String,
     /// Query string that `results` was computed for (stale guard for Enter).
     results_for: String,
@@ -56,10 +58,12 @@ impl FinderView {
     pub fn new(
         index: Option<Arc<FileIndex>>,
         initial_query: String,
+        recents: Vec<PathBuf>,
         cx: &mut Context<Self>,
     ) -> Self {
         let mut view = Self {
             index,
+            recents,
             query: initial_query,
             results_for: String::new(),
             results: Vec::new(),
@@ -122,6 +126,7 @@ impl FinderView {
         self.query_gen = self.query_gen.wrapping_add(1);
         let token = self.query_gen;
         let query = self.query.clone();
+        let recents = self.recents.clone();
         self.searching = true;
 
         self._query_task = Some(cx.spawn(async move |this, cx| {
@@ -138,7 +143,7 @@ impl FinderView {
             let q = query.clone();
             let results = cx
                 .background_executor()
-                .spawn(async move { index.query(&q) })
+                .spawn(async move { index.query(&q, &recents) })
                 .await;
             this.update(cx, |this, cx| {
                 if this.query_gen != token || this.query != query {
