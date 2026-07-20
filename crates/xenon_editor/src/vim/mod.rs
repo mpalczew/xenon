@@ -9,6 +9,9 @@ mod register;
 mod repeat;
 mod search;
 
+#[cfg(test)]
+mod tests;
+
 pub use motion::Motion;
 pub use object::Object;
 pub use register::Registers;
@@ -364,6 +367,11 @@ impl VimState {
                 let range = motion::operator_range(buffer.rope(), buffer.cursor(), &motion, count);
                 self.apply_range(buffer, op, range, motion.is_linewise())
             }
+            LastChange::Lines {
+                op,
+                count,
+                register,
+            } => self.repeat_lines(buffer, op, count, register),
             LastChange::Object {
                 op,
                 object,
@@ -380,6 +388,7 @@ impl VimState {
             }
             LastChange::DeleteChar { count } => self.delete_chars(buffer, count, false),
             LastChange::Replace { ch } => self.replace_char(buffer, ch),
+            LastChange::Paste { before } => self.paste(buffer, before),
         }
     }
 }

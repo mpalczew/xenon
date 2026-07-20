@@ -102,10 +102,8 @@ fn step(rope: &Rope, cursor: usize, motion: &Motion) -> usize {
             if len == 0 {
                 0
             } else {
-                let start = line_start(rope, cursor);
-                let end = line_end(rope, cursor);
-                let max = if end > start { end - 1 } else { start };
-                // Already at/past last content (e.g. on the newline from `$`): stay.
+                // Last content char (never the newline); `l` does not wrap.
+                let max = line_end(rope, cursor);
                 if cursor >= max { cursor } else { cursor + 1 }
             }
         }
@@ -160,16 +158,32 @@ fn line_start(rope: &Rope, cursor: usize) -> usize {
     rope.line_to_char(row)
 }
 
-/// Index of the newline after this line's content, or `len` if none (exclusive end).
+/// Index of the last content character on the line (`$` / normal-mode EOL).
+/// Empty line → line start (often the newline char itself). Never past content.
 fn line_end(rope: &Rope, cursor: usize) -> usize {
     let start = line_start(rope, cursor);
-    let row = rope.char_to_line(cursor.min(rope.len_chars().max(1).saturating_sub(1)));
+    let exclusive = line_end_exclusive(rope, cursor);
+    if exclusive > start {
+        exclusive - 1
+    } else {
+        start
+    }
+}
+
+/// Index just after the line's content (newline, or `len` if no trailing newline).
+/// Used for insert-at-EOL (`A`, `o`) and as the exclusive end for `d$`.
+pub(in crate::vim) fn line_end_exclusive(rope: &Rope, cursor: usize) -> usize {
+    let start = line_start(rope, cursor);
+    if rope.len_chars() == 0 {
+        return 0;
+    }
+    let row = rope.char_to_line(cursor.min(rope.len_chars().saturating_sub(1)));
     start + line_content_len(rope, row)
 }
 
 fn first_non_blank(rope: &Rope, cursor: usize) -> usize {
     let start = line_start(rope, cursor);
-    let end = line_end(rope, cursor);
+    let end = line_end_exclusive(rope, cursor);
     let mut i = start;
     while i < end {
         let ch = rope.char(i);
@@ -307,6 +321,12 @@ pub fn operator_range(
     motion: &Motion,
     count: usize,
 ) -> std::ops::Range<usize> {
+    // `$` / `D`: through last content char only — never the newline (no line join).
+    if matches!(motion, Motion::LineEnd) {
+        let end = line_end_exclusive(rope, cursor);
+        let start = cursor.min(end);
+        return start..end;
+    }
     let target = apply(rope, cursor, motion, count);
     if motion.is_linewise() {
         let a = selection::line_range_at(rope, cursor);
@@ -326,62 +346,13 @@ pub fn operator_range(
         (target, cursor)
     };
     if matches!(motion.kind(), MotionKind::Inclusive) && end < rope.len_chars() {
-        end = (end + 1).min(rope.len_chars());
+        // Inclusive endpoint is a character index; include it, but never a newline.
+        if rope.char(end) != '\n' {
+            end = (end + 1).min(rope.len_chars());
+        }
     }
-    if start == end && end < rope.len_chars() {
+    if start == end && end < rope.len_chars() && rope.char(end) != '\n' {
         end += 1;
     }
     start..end
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn word_forward_skips_spaces() {
-        let rope = Rope::from_str("foo bar");
-        assert_eq!(apply(&rope, 0, &Motion::WordForward, 1), 4);
-    }
-
-    #[test]
-    fn right_stops_at_line_end() {
-        let rope = Rope::from_str("ab\ncd");
-        // On 'b' (1); further l stays put, never lands on next line.
-        assert_eq!(apply(&rope, 1, &Motion::Right, 1), 1);
-        assert_eq!(apply(&rope, 1, &Motion::Right, 5), 1);
-    }
-
-    #[test]
-    fn left_stops_at_line_start() {
-        let rope = Rope::from_str("ab\ncd");
-        // On 'c' (3); h does not wrap to previous line.
-        assert_eq!(apply(&rope, 3, &Motion::Left, 1), 3);
-        assert_eq!(apply(&rope, 3, &Motion::Left, 5), 3);
-    }
-
-    #[test]
-    fn right_moves_within_line() {
-        let rope = Rope::from_str("abcd\n");
-        assert_eq!(apply(&rope, 0, &Motion::Right, 2), 2);
-        assert_eq!(apply(&rope, 0, &Motion::Right, 10), 3);
-    }
-
-    #[test]
-    fn find_forward() {
-        let rope = Rope::from_str("abxcd");
-        assert_eq!(
-            apply(
-                &rope,
-                0,
-                &Motion::Find {
-                    ch: 'x',
-                    before: false,
-                    forward: true
-                },
-                1
-            ),
-            2
-        );
-    }
 }

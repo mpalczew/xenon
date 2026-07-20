@@ -23,18 +23,17 @@ impl VimState {
             // dd / cc / yy
             self.operator = None;
             let lines = count.max(1);
-            let mut range = selection::line_range_at(buffer.rope(), buffer.cursor());
-            for _ in 1..lines {
-                if range.end >= buffer.rope().len_chars() {
-                    break;
-                }
-                let next = selection::line_range_at(buffer.rope(), range.end);
-                range.end = next.end;
-            }
-            if range.end < buffer.rope().len_chars() && buffer.rope().char(range.end) == '\n' {
-                range.end += 1;
+            let reg = self.registers.pending();
+            // Yank is not a "change" for `.`; delete/change are.
+            if op != Operator::Yank {
+                self.last_change = Some(LastChange::Lines {
+                    op,
+                    count: lines,
+                    register: reg,
+                });
             }
             self.count = 0;
+            let range = linewise_range(buffer, lines);
             return self.apply_range(buffer, op, range, true);
         }
         let _ = same;
@@ -142,7 +141,7 @@ impl VimState {
         buffer: &mut Buffer,
         op: Operator,
         range: std::ops::Range<usize>,
-        _linewise: bool,
+        linewise: bool,
     ) -> HandleResult {
         if range.start >= range.end {
             self.clear_pending();
@@ -155,7 +154,7 @@ impl VimState {
                 if matches!(self.registers.pending(), Some('+' | '*')) {
                     system_clipboard = Some(text.clone());
                 }
-                self.registers.yank(&text);
+                self.registers.yank(&text, linewise);
                 buffer.set_cursor_raw(range.start);
                 buffer.clear_selection();
                 self.clear_pending();
@@ -165,7 +164,7 @@ impl VimState {
                 if matches!(self.registers.pending(), Some('+' | '*')) {
                     system_clipboard = Some(text.clone());
                 }
-                self.registers.delete(&text);
+                self.registers.delete(&text, linewise);
                 // `c` delete + insert until Esc is one undo step (vim).
                 if op == Operator::Change {
                     buffer.set_undo_group(true);
@@ -207,7 +206,7 @@ impl VimState {
             return handled(false);
         }
         let text = buffer.rope().slice(start..end).to_string();
-        self.registers.delete(&text);
+        self.registers.delete(&text, false);
         buffer.set_selection(start, end);
         buffer.delete_selection();
         self.count = 0;
@@ -238,24 +237,104 @@ impl VimState {
                 ..Default::default()
             };
         }
-        let text = self.registers.paste_text();
-        if text.is_empty() {
+        let content = self.registers.paste();
+        if content.text.is_empty() {
             return handled(false);
         }
-        if !before && buffer.cursor() < buffer.rope().len_chars() {
-            buffer.set_cursor_raw(buffer.cursor() + 1);
+        self.last_change = Some(LastChange::Paste { before });
+        if content.linewise {
+            return paste_linewise(buffer, &content.text, before);
         }
-        buffer.replace_selection(&text);
-        edited()
+        paste_charwise(buffer, &content.text, before)
     }
 
-    /// Paste system clipboard text (view resolved `"+`).
+    /// Paste system clipboard text (view resolved `"+`). Characterwise.
     pub fn paste_system(&mut self, buffer: &mut Buffer, text: &str, before: bool) -> HandleResult {
         self.registers.set_unnamed(text);
-        if !before && buffer.cursor() < buffer.rope().len_chars() {
-            buffer.set_cursor_raw(buffer.cursor() + 1);
-        }
-        buffer.replace_selection(text);
-        edited()
+        self.last_change = Some(LastChange::Paste { before });
+        paste_charwise(buffer, text, before)
     }
+
+    /// Re-apply a linewise `dd` / `cc` (used by `.`).
+    pub(in crate::vim) fn repeat_lines(
+        &mut self,
+        buffer: &mut Buffer,
+        op: Operator,
+        count: usize,
+        register: Option<char>,
+    ) -> HandleResult {
+        if let Some(r) = register {
+            self.registers.set_pending(r);
+        }
+        let range = linewise_range(buffer, count.max(1));
+        self.apply_range(buffer, op, range, true)
+    }
+}
+
+/// Char range for `count` lines starting at the cursor (includes trailing newlines).
+fn linewise_range(buffer: &Buffer, count: usize) -> std::ops::Range<usize> {
+    let mut range = selection::line_range_at(buffer.rope(), buffer.cursor());
+    for _ in 1..count {
+        if range.end >= buffer.rope().len_chars() {
+            break;
+        }
+        let next = selection::line_range_at(buffer.rope(), range.end);
+        range.end = next.end;
+    }
+    if range.end < buffer.rope().len_chars() && buffer.rope().char(range.end) == '\n' {
+        range.end += 1;
+    }
+    range
+}
+
+fn paste_charwise(buffer: &mut Buffer, text: &str, before: bool) -> HandleResult {
+    if !before && buffer.cursor() < buffer.rope().len_chars() {
+        buffer.set_cursor_raw(buffer.cursor() + 1);
+    }
+    buffer.replace_selection(text);
+    edited()
+}
+
+/// Linewise `p` / `P`: whole lines below / above the current line.
+fn paste_linewise(buffer: &mut Buffer, text: &str, before: bool) -> HandleResult {
+    let mut text = text.to_string();
+    if !text.ends_with('\n') {
+        text.push('\n');
+    }
+    let cursor = buffer.cursor();
+    let line = selection::line_range_at(buffer.rope(), cursor);
+    let len = buffer.rope().len_chars();
+    let (insert_at, body_start) = if before {
+        (line.start, line.start)
+    } else if line.end < len && buffer.rope().char(line.end) == '\n' {
+        let at = line.end + 1;
+        (at, at)
+    } else {
+        // Last line has no trailing newline: open a new line below first.
+        text.insert(0, '\n');
+        (line.end, line.end + 1)
+    };
+    buffer.clear_selection();
+    buffer.set_cursor_raw(insert_at);
+    buffer.replace_selection(&text);
+    let body_end = insert_at + text.chars().count();
+    buffer.set_cursor_raw(first_non_blank(buffer.rope(), body_start, body_end));
+    edited()
+}
+
+/// First non-blank char in `[start, end)`, or `start` if the span is blank.
+fn first_non_blank(rope: &ropey::Rope, start: usize, end: usize) -> usize {
+    let end = end.min(rope.len_chars());
+    let mut pos = start.min(end);
+    while pos < end {
+        let c = rope.char(pos);
+        if c == '\n' {
+            break;
+        }
+        if c != ' ' && c != '\t' {
+            return pos;
+        }
+        pos += 1;
+    }
+    start.min(end)
 }

@@ -81,8 +81,10 @@ impl VimState {
                 handled(false)
             }
             'a' if !self.mode.is_visual() && self.operator.is_none() => {
+                // After current char, but never past EOL onto the next line.
                 let c = buffer.cursor();
-                if c < buffer.rope().len_chars() {
+                let rope = buffer.rope();
+                if c < rope.len_chars() && rope.char(c) != '\n' {
                     buffer.set_cursor_raw(c + 1);
                 }
                 self.enter_insert(buffer);
@@ -95,7 +97,8 @@ impl VimState {
                 handled(false)
             }
             'A' if !self.mode.is_visual() => {
-                let pos = motion::apply(buffer.rope(), buffer.cursor(), &Motion::LineEnd, 1);
+                // Insert at exclusive EOL (before the newline, if any).
+                let pos = motion::line_end_exclusive(buffer.rope(), buffer.cursor());
                 buffer.set_cursor_raw(pos);
                 self.enter_insert(buffer);
                 handled(false)
@@ -103,7 +106,7 @@ impl VimState {
             'o' if !self.mode.is_visual() => {
                 // Newline + insert text = one undo step until Esc.
                 buffer.set_undo_group(true);
-                let end = motion::apply(buffer.rope(), buffer.cursor(), &Motion::LineEnd, 1);
+                let end = motion::line_end_exclusive(buffer.rope(), buffer.cursor());
                 buffer.set_cursor_raw(end);
                 buffer.replace_selection("\n");
                 self.enter_insert(buffer);

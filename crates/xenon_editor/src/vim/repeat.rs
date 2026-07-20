@@ -14,6 +14,12 @@ pub enum LastChange {
         count: usize,
         register: Option<char>,
     },
+    /// Linewise double-op: `dd` / `cc` (and count: `3dd`).
+    Lines {
+        op: super::Operator,
+        count: usize,
+        register: Option<char>,
+    },
     /// Operator applied to a text object.
     Object {
         op: super::Operator,
@@ -24,4 +30,6 @@ pub enum LastChange {
     DeleteChar { count: usize },
     /// Replace char under cursor.
     Replace { ch: char },
+    /// Paste from register (`p` / `P`).
+    Paste { before: bool },
 }
