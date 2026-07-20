@@ -204,8 +204,9 @@ impl XenonApp {
     }
 
     /// Open cmd-p prefilled with `query` (used when a cmd-clicked name is
-    /// ambiguous). Serves the cached index instantly and refreshes it in the
-    /// background so newly created files show up next time.
+    /// ambiguous). Serves the cached index instantly, then force-refreshes in
+    /// the background so files created since the last walk show up (via
+    /// progressive `install_index` → `FinderView::set_index`).
     pub(super) fn open_palette_with_query(
         &mut self,
         query: String,
@@ -219,9 +220,9 @@ impl XenonApp {
         self.workspace_picker = None;
         self.command_palette = None;
         self.deferred.restore_pane = self.focused_pane(window, cx);
-        // Use the cached index if present; only walk when missing. Force-rebuild
-        // on every open stalls large roots (e.g. $HOME) for seconds.
-        self.reindex(root.clone(), false, cx);
+        // Cache first (instant open); force=true re-walks in the background.
+        // A synchronous rebuild on every open would stall large roots ($HOME).
+        self.reindex(root.clone(), true, cx);
         let index = self.file_indexes.get(&root).cloned();
         let recents = self
             .active

@@ -34,7 +34,19 @@ impl XenonApp {
             .unwrap_or_default()
     }
 
+    /// Build or refresh the file index for `root` on a background thread.
+    ///
+    /// - `force == false`: skip when a finished cache already exists (used for
+    ///   session switch / cmd-click warm path).
+    /// - `force == true`: re-walk even when cached so new files appear. Does not
+    ///   clear the cache first; the open finder keeps serving it until partials
+    ///   / final land via [`install_index`].
+    /// - Either way: if a walk is already in flight for this root, leave it
+    ///   alone (it already streams into the cache/finder).
     pub(super) fn reindex(&mut self, root: PathBuf, force: bool, cx: &mut Context<Self>) {
+        if self.index_tasks.contains_key(&root) {
+            return;
+        }
         if !force && self.file_indexes.contains_key(&root) {
             return;
         }
