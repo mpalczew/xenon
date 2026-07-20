@@ -41,6 +41,8 @@ mod empty_hint;
 mod git_dirt;
 mod keyboard;
 mod live;
+mod nav_history;
+mod nav_ops;
 mod navigation;
 mod palette;
 mod panels;
@@ -56,6 +58,7 @@ mod workspaces;
 
 use deferred::{DeferredUi, FocusPane, FontPane};
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
+use nav_history::NavHistory;
 use sessions::AttentionReason;
 
 /// Open tab context menu (close only).
@@ -91,6 +94,10 @@ pub struct XenonApp {
     index_tasks: HashMap<PathBuf, Task<()>>,
     /// Per-workspace recently opened editor paths (workspace-relative, MRU first).
     recent_files: HashMap<WorkspaceId, Vec<PathBuf>>,
+    /// Per-workspace tab back/forward (⌘[ / ⌘]); in-memory only.
+    nav_history: HashMap<WorkspaceId, NavHistory>,
+    /// True while applying a history step so activate does not re-record.
+    nav_suppress: bool,
     /// Overlay focus restore + window-deferred palette/command work.
     deferred: DeferredUi,
     sidebar_collapsed: bool,
@@ -149,6 +156,8 @@ impl XenonApp {
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
             recent_files: HashMap::new(),
+            nav_history: HashMap::new(),
+            nav_suppress: false,
             deferred: DeferredUi::default(),
             sidebar_collapsed: false,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,

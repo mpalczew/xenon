@@ -8,10 +8,10 @@ use gpui_platform::application;
 use xenon_store::{IpcRequest, bind_server, parse_cli_paths, serve_forever, try_handoff};
 use xenon_ui::{
     AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, Cut, DecreaseFontSize,
-    FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, IncreaseFontSize,
-    KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile, Paste, PrevTab, PrevWorkspace,
-    ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser, ToggleEditor, ToggleSettings,
-    ToggleSidebar, ToggleTerminal, XenonApp,
+    FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack, GoForward,
+    IncreaseFontSize, KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile, Paste, PrevTab,
+    PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser, ToggleEditor,
+    ToggleSettings, ToggleSidebar, ToggleTerminal, XenonApp,
 };
 
 actions!(xenon, [Quit]);
@@ -170,6 +170,8 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("Previous Workspace", PrevWorkspace),
             MenuItem::action("Next Tab", NextTab),
             MenuItem::action("Previous Tab", PrevTab),
+            MenuItem::action("Go Back", GoBack),
+            MenuItem::action("Go Forward", GoForward),
             MenuItem::separator(),
             MenuItem::action("Keyboard Shortcuts", KeyboardHelp),
             MenuItem::separator(),

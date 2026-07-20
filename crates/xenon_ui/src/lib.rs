@@ -59,6 +59,8 @@ actions!(
         CloseWorkspace,
         NextTab,
         PrevTab,
+        GoBack,
+        GoForward,
         CommandPalette,
         KeyboardHelp,
     ]
@@ -92,6 +94,9 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-shift-tab", PrevTab, None),
         KeyBinding::new("cmd-shift-]", NextTab, None),
         KeyBinding::new("cmd-shift-[", PrevTab, None),
+        // Surface history (browser-style; not sequential tab cycle)
+        KeyBinding::new("cmd-[", GoBack, None),
+        KeyBinding::new("cmd-]", GoForward, None),
         KeyBinding::new("cmd-w", CloseEditor, None),
         // Edit
         KeyBinding::new("cmd-s", Save, None),

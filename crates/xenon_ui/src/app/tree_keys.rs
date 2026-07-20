@@ -151,6 +151,8 @@ impl XenonApp {
             CommandId::PrevWorkspace => self.prev_workspace(window, cx),
             CommandId::NextTab => self.next_tab(window, cx),
             CommandId::PrevTab => self.prev_tab(window, cx),
+            CommandId::GoBack => self.go_back(window, cx),
+            CommandId::GoForward => self.go_forward(window, cx),
             CommandId::ToggleSidebar => self.toggle_sidebar_panel(cx),
             CommandId::ToggleBrowser => self.toggle_browser(cx),
             CommandId::ToggleTerminal => self.focus_or_new_terminal(window, cx),
