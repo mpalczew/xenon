@@ -76,7 +76,7 @@ const fn all_commands() -> [CommandEntry; 33] {
         cmd!(NextTab, "Next Tab", "⌃⇥", "Focus"),
         cmd!(PrevTab, "Previous Tab", "⌃⇧⇥", "Focus"),
         cmd!(Save, "Save", "⌘S", "Edit"),
-        cmd!(FindInFile, "Find in File…", "⌘F", "Edit"),
+        cmd!(FindInFile, "Find…", "⌘F", "Edit"),
         cmd!(FindNext, "Find Next", "⌘G", "Edit"),
         cmd!(FindPrevious, "Find Previous", "⌘⇧G", "Edit"),
         cmd!(CloseFocusedTab, "Close Tab", "⌘W", "Edit"),

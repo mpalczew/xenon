@@ -2,6 +2,7 @@
 //! spawn a PTY, and render its grid in a focusable GPUI view.
 
 mod clipboard;
+mod find;
 mod init;
 
 // color/grid/view are adapted from zed (see ATTRIBUTION.md). They are exempt
@@ -32,4 +33,4 @@ mod view;
 
 pub use init::{apply_theme, init, observe_appearance, refresh_windows, theme_names};
 pub use terminal;
-pub use view::{TerminalEvent, TerminalView};
+pub use view::{Find, FindNext, FindPrevious, TerminalEvent, TerminalView};

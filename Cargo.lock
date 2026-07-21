@@ -9112,6 +9112,7 @@ dependencies = [
  "gpui",
  "image",
  "log",
+ "regex",
  "release_channel",
  "semver",
  "settings",

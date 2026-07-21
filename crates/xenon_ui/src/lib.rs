@@ -115,6 +115,21 @@ pub fn bind_keys(cx: &mut App) {
             xenon_editor::FindPrevious,
             Some("EditorFind"),
         ),
+        // Terminal scrollback find (mirrors editor strip)
+        KeyBinding::new("cmd-f", xenon_terminal::Find, Some("Terminal")),
+        KeyBinding::new("cmd-f", xenon_terminal::Find, Some("TerminalFind")),
+        KeyBinding::new("cmd-g", xenon_terminal::FindNext, Some("Terminal")),
+        KeyBinding::new("cmd-g", xenon_terminal::FindNext, Some("TerminalFind")),
+        KeyBinding::new(
+            "cmd-shift-g",
+            xenon_terminal::FindPrevious,
+            Some("Terminal"),
+        ),
+        KeyBinding::new(
+            "cmd-shift-g",
+            xenon_terminal::FindPrevious,
+            Some("TerminalFind"),
+        ),
         // View chrome
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-j", ToggleTerminal, None),

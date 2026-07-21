@@ -18,11 +18,13 @@ pub struct GridLine {
     pub backgrounds: Vec<(Bounds<Pixels>, Hsla)>,
 }
 
-/// The shaped grid plus the cursor, selection, and hovered-link overlays.
+/// The shaped grid plus the cursor, selection, search, and hovered-link overlays.
 pub struct GridLayout {
     pub lines: Vec<GridLine>,
     pub cursor: Option<Bounds<Pixels>>,
     pub selection: Vec<Bounds<Pixels>>,
+    /// Scrollback find matches (all hits; current match is also a selection).
+    pub search_matches: Vec<Bounds<Pixels>>,
     /// Thin underline quads for the Cmd-hovered link (empty when nothing hovered).
     pub underline: Vec<Bounds<Pixels>>,
 }
@@ -74,7 +76,9 @@ pub fn layout(
     });
 
     let theme = cx.theme().clone();
-    let content = terminal.read(cx).last_content().clone();
+    let term = terminal.read(cx);
+    let content = term.last_content().clone();
+    let search_ranges = term.matches.clone();
     // Scrollback rows carry negative alacritty line numbers; the display row is
     // `point.line + display_offset` (matches zed's terminal_element). Without
     // this, scrolling renders history off the top and the viewport empties out.
@@ -82,6 +86,14 @@ pub fn layout(
     let rows = content.terminal_bounds.num_lines() as i32;
     let cursor = cursor_bounds(&content, bounds.origin, cell_w, line_height, offset, rows);
     let selection = selection_rects(&content, bounds.origin, cell_w, line_height, offset);
+    let search_matches = match_rects(
+        &search_ranges,
+        content.terminal_bounds.num_columns(),
+        bounds.origin,
+        cell_w,
+        line_height,
+        offset,
+    );
     let underline = underline_rects(&content, bounds.origin, cell_w, line_height, offset);
     let lines = shape_rows(
         &content,
@@ -99,6 +111,7 @@ pub fn layout(
         lines,
         cursor,
         selection,
+        search_matches,
         underline,
     }
 }
@@ -114,9 +127,49 @@ fn selection_rects(
     let Some(selection) = content.selection else {
         return Vec::new();
     };
-    let range = selection.point_range();
+    range_rects(
+        selection.point_range(),
+        content.terminal_bounds.num_columns(),
+        origin,
+        cell_w,
+        line_height,
+        offset,
+    )
+}
+
+/// Highlight rectangles for every find match in the viewport.
+fn match_rects(
+    matches: &[terminal::Range],
+    num_cols: usize,
+    origin: GpuiPoint<Pixels>,
+    cell_w: Pixels,
+    line_height: Pixels,
+    offset: i32,
+) -> Vec<Bounds<Pixels>> {
+    let mut rects = Vec::new();
+    for range in matches {
+        rects.extend(range_rects(
+            *range,
+            num_cols,
+            origin,
+            cell_w,
+            line_height,
+            offset,
+        ));
+    }
+    rects
+}
+
+/// Cell-grid rects covering `range`, one per display row (selection + search).
+fn range_rects(
+    range: terminal::Range,
+    num_cols: usize,
+    origin: GpuiPoint<Pixels>,
+    cell_w: Pixels,
+    line_height: Pixels,
+    offset: i32,
+) -> Vec<Bounds<Pixels>> {
     let (start, end) = (range.start(), range.end());
-    let num_cols = content.terminal_bounds.num_columns();
     let mut rects = Vec::new();
     for line in start.line..=end.line {
         let y = origin.y + line_height * ((line + offset) as f32);
@@ -325,14 +378,18 @@ impl Row {
     }
 }
 
-/// Paint cell backgrounds, the selection, the cursor, then the glyphs on top.
+/// Paint cell backgrounds, search matches, selection, cursor, then glyphs.
 pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: &mut gpui::App) {
     let players = cx.theme().players().local();
     let (cursor_color, selection_color) = (players.cursor, players.selection);
+    let match_color = cx.theme().colors().search_match_background;
     for grid_line in &layout.lines {
         for (bounds, color) in &grid_line.backgrounds {
             window.paint_quad(fill(*bounds, *color));
         }
+    }
+    for rect in &layout.search_matches {
+        window.paint_quad(fill(*rect, match_color));
     }
     for rect in &layout.selection {
         window.paint_quad(fill(*rect, selection_color));

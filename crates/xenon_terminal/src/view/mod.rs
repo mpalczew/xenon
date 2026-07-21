@@ -7,10 +7,12 @@
 //! `try_keystroke` on key-down. Both mirror zed's terminal_view
 //! (GPL-3.0-or-later); see ATTRIBUTION.md.
 //!
-//! Xenon-only pieces live in submodules (`attention`, `paths`) so adapted zed
-//! patterns stay easier to re-sync.
+//! Xenon-only pieces live in submodules (`attention`, `paths`, find) so adapted
+//! zed patterns stay easier to re-sync.
 
 mod attention;
+mod find_bar;
+mod find_session;
 mod paths;
 
 use std::ops::Range;
@@ -18,13 +20,14 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use attention::{IDLE_AFTER, agent_finish_signal};
+use find_session::FindSession;
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, ExternalPaths, FocusHandle, Focusable, InteractiveElement,
     IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     ParentElement, Pixels, Point, Render, ScrollWheelEvent, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window, anchored,
-    canvas, deferred, div, px,
+    StatefulInteractiveElement, Styled, Subscription, Task, UTF16Selection, Window, actions,
+    anchored, canvas, deferred, div, px,
 };
 use paths::{resolve_clicked_path, strip_line_suffix, word_at};
 use settings::Settings;
@@ -37,6 +40,8 @@ use util::paths::PathStyle;
 use crate::clipboard::{terminal_clipboard_text, terminal_paths_text};
 use crate::grid;
 use xenon_settings::{Copy, Cut, Paste, TerminalAutoClose};
+
+actions!(xenon_terminal, [Find, FindNext, FindPrevious]);
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
 const SCROLL_MULTIPLIER: f32 = 3.;
@@ -129,6 +134,10 @@ pub struct TerminalView {
     mouse_to_app: bool,
     /// Top hover chrome is open (thin hit zone expands into the full bar).
     chrome_hovered: bool,
+    /// cmd-f find bar (scrollback search via alacritty RegexSearch).
+    find: Option<FindSession>,
+    /// In-flight find_matches task (dropped on next rescan / close).
+    _find_task: Task<()>,
     _spawn: Task<()>,
     /// Output batches in the current burst; reset when output settles.
     wakeups: u32,
@@ -171,6 +180,8 @@ impl TerminalView {
             hovered_link: None,
             mouse_to_app: true,
             chrome_hovered: false,
+            find: None,
+            _find_task: Task::ready(()),
             _spawn: spawn,
             wakeups: 0,
             _idle_check: Task::ready(()),
@@ -258,6 +269,10 @@ impl TerminalView {
             Event::Wakeup => {
                 self.wakeups = self.wakeups.saturating_add(1);
                 self.arm_idle_check(cx);
+                // Scrollback moved; refresh match ranges without jumping.
+                if self.find_is_open() {
+                    self.rescan_find(false, cx);
+                }
                 cx.notify();
             }
             Event::CloseTerminal => {
@@ -376,7 +391,17 @@ impl TerminalView {
         }
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        // Find bar owns keys when its input is focused.
+        if self.find_bar_focused(window) {
+            return;
+        }
+        // Esc closes find when the terminal body is focused.
+        if event.keystroke.key == "escape" && self.find_is_open() {
+            self.close_find(window, cx);
+            cx.stop_propagation();
+            return;
+        }
         let State::Ready(terminal) = &self.state else {
             return;
         };
@@ -777,10 +802,13 @@ impl Render for TerminalView {
             self.focused_once = true;
         }
         let colors = cx.theme().colors().clone();
+        let find_bar = self.render_find_bar(&colors, cx);
         let base = div()
             .track_focus(&self.focus)
             .key_context("Terminal")
             .relative()
+            .flex()
+            .flex_col()
             .on_key_down(cx.listener(Self::on_key))
             .on_action(cx.listener(|this, _: &Cut, _, cx| {
                 this.cut_selection(cx);
@@ -793,6 +821,15 @@ impl Render for TerminalView {
             .on_action(cx.listener(|this, _: &Paste, _, cx| {
                 this.paste_clipboard(cx);
                 cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &Find, window, cx| {
+                this.open_find(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &FindNext, _, cx| {
+                this.find_next(cx);
+            }))
+            .on_action(cx.listener(|this, _: &FindPrevious, _, cx| {
+                this.find_previous(cx);
             }))
             // Finder / external file drag (images and other paths).
             .drag_over::<ExternalPaths>(move |style, _, _, _| {
@@ -833,17 +870,25 @@ impl Render for TerminalView {
             .map(|info| self.render_link_tooltip(info, cx));
         match &self.state {
             State::Ready(terminal) => base
-                .child(grid_canvas(
-                    terminal.clone(),
-                    cx.entity(),
-                    self.focus.clone(),
-                ))
-                .child(chrome)
-                .children(tooltip)
+                .children(find_bar)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .relative()
+                        .child(grid_canvas(
+                            terminal.clone(),
+                            cx.entity(),
+                            self.focus.clone(),
+                        ))
+                        .child(chrome)
+                        .children(tooltip),
+                )
                 .children(menu),
-            State::Pending => base.child(chrome).children(menu),
+            State::Pending => base.children(find_bar).child(chrome).children(menu),
             State::Failed(error) => base
                 .text_color(cx.theme().colors().text)
+                .children(find_bar)
                 .child(chrome)
                 .child(error.clone()),
         }
@@ -1023,9 +1068,13 @@ impl EntityInputHandler for TerminalView {
         &mut self,
         _range: Option<Range<usize>>,
         text: &str,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.find_bar_focused(window) {
+            self.append_find_query(text, cx);
+            return;
+        }
         self.send_text(text, cx);
     }
 
@@ -1034,9 +1083,13 @@ impl EntityInputHandler for TerminalView {
         _range: Option<Range<usize>>,
         new_text: &str,
         _new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.find_bar_focused(window) {
+            self.append_find_query(new_text, cx);
+            return;
+        }
         self.send_text(new_text, cx);
     }
 

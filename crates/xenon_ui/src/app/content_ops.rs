@@ -10,6 +10,13 @@ enum DropTabOutcome {
     Empty,
 }
 
+/// Which content surface should receive find commands (palette path).
+pub(super) enum FindSurface {
+    Terminal(Entity<TerminalView>),
+    Editor(Entity<EditorView>),
+    None,
+}
+
 impl XenonApp {
     pub(crate) fn active_content(&self) -> Option<&LiveContent> {
         self.active.and_then(|id| self.contents.get(&id))
@@ -53,6 +60,23 @@ impl XenonApp {
             });
         }
         found
+    }
+
+    /// Surface that owns ⌘F for the command palette (active tab preferred).
+    pub(super) fn active_find_surface(&self) -> FindSurface {
+        match self.active_content().and_then(|c| c.active_tab()) {
+            Some(LiveTab::Terminal { view, .. }) => FindSurface::Terminal(view.clone()),
+            Some(LiveTab::Editor { view, .. }) => FindSurface::Editor(view.clone()),
+            None => {
+                if let Some(editor) = self.active_editor() {
+                    FindSurface::Editor(editor)
+                } else if let Some(terminal) = self.active_terminal() {
+                    FindSurface::Terminal(terminal)
+                } else {
+                    FindSurface::None
+                }
+            }
+        }
     }
 
     pub(crate) fn has_editor(&self) -> bool {
