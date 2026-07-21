@@ -90,8 +90,11 @@ pub enum TerminalEvent {
     Exited,
     /// Per-tab "close when process exits" policy changed (may reschedule close).
     AutoCloseChanged,
-    /// A file path was cmd-clicked in the terminal; open it in the editor.
+    /// A file path was cmd-clicked in the terminal; app picks editor vs system
+    /// default (e.g. `.html` → browser) from the path type.
     OpenPath(PathBuf),
+    /// Right-click "Open in Editor": always open as a Xenon editor tab.
+    OpenInEditor(PathBuf),
     /// A cmd-clicked path-like token that did not resolve to a file on disk; the
     /// app fuzzy-matches it against the workspace index (carries the raw token,
     /// `:line:col` already stripped).
@@ -467,7 +470,7 @@ impl TerminalView {
     }
 
     /// Resolve an existing file at the grid cell under `position` (window coords),
-    /// for the right-click "Open in Browser" item. zed's own path detector is
+    /// for the right-click open-target menu items. zed's own path detector is
     /// private and Cmd-gated, so extract the token ourselves from `last_content`.
     fn path_under_cursor(&self, position: Point<Pixels>, cx: &App) -> Option<PathBuf> {
         let State::Ready(terminal) = &self.state else {
@@ -944,16 +947,26 @@ impl TerminalView {
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
             .on_mouse_move(|_, _, cx| cx.stop_propagation());
-        // "Open in Browser" only when the right-click landed on an existing file.
+        // Path under the click: offer both targets so the user can choose.
         if let Some(path) = self.menu_path.clone() {
-            menu_box = menu_box.child(
-                context_item("menu-open-browser", "Open in Browser", "", &colors).on_click(
-                    cx.listener(move |this, _, _, cx| {
-                        cx.open_url(&format!("file://{}", path.display()));
-                        this.dismiss_menu(cx);
-                    }),
-                ),
-            );
+            let editor_path = path.clone();
+            menu_box = menu_box
+                .child(
+                    context_item("menu-open-editor", "Open in Editor", "", &colors).on_click(
+                        cx.listener(move |this, _, _, cx| {
+                            cx.emit(TerminalEvent::OpenInEditor(editor_path.clone()));
+                            this.dismiss_menu(cx);
+                        }),
+                    ),
+                )
+                .child(
+                    context_item("menu-open-default", "Open in Default App", "", &colors).on_click(
+                        cx.listener(move |this, _, _, cx| {
+                            cx.open_with_system(&path);
+                            this.dismiss_menu(cx);
+                        }),
+                    ),
+                );
         }
         let menu_box = menu_box
             .child(

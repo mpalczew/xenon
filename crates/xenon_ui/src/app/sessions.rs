@@ -10,6 +10,18 @@ pub(crate) enum AttentionReason {
     IdleSettled,
 }
 
+/// Terminal path clicks that are view-first (not edit-first) should hand off
+/// to the OS default app instead of opening a Xenon editor tab.
+fn prefer_system_open(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .as_deref(),
+        Some("html" | "htm" | "pdf")
+    )
+}
+
 impl AttentionReason {
     pub(crate) fn label(self) -> &'static str {
         match self {
@@ -235,7 +247,8 @@ impl XenonApp {
                     TerminalEvent::AutoCloseChanged => {
                         this.on_terminal_auto_close_changed(view.clone(), cx)
                     }
-                    TerminalEvent::OpenPath(path) => this.open_editor(path.clone(), true, cx),
+                    TerminalEvent::OpenPath(path) => this.open_terminal_path(path.clone(), cx),
+                    TerminalEvent::OpenInEditor(path) => this.open_editor(path.clone(), true, cx),
                     TerminalEvent::ResolvePath(token) => this.resolve_clicked(token.clone(), cx),
                 }
             }));
@@ -244,6 +257,16 @@ impl XenonApp {
 
     fn workspace_of_terminal(&self, view: &Entity<TerminalView>) -> Option<WorkspaceId> {
         self.locate_terminal(view).map(|(id, _, _)| id)
+    }
+
+    /// Terminal cmd-click on a path: browser-native types go to the system
+    /// default app; everything else opens as an editor tab.
+    fn open_terminal_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if prefer_system_open(&path) {
+            cx.open_with_system(&path);
+            return;
+        }
+        self.open_editor(path, true, cx);
     }
 
     fn resolve_clicked(&mut self, token: String, cx: &mut Context<Self>) {
@@ -279,11 +302,11 @@ impl XenonApp {
                 .map(|m| &m.path)
         };
         if let Some(rel) = exact.first().copied().filter(|_| exact.len() == 1) {
-            self.open_editor(root.join(rel), true, cx);
+            self.open_terminal_path(root.join(rel), cx);
         } else if exact.is_empty()
             && let Some(rel) = unique_file()
         {
-            self.open_editor(root.join(rel), true, cx);
+            self.open_terminal_path(root.join(rel), cx);
         } else {
             self.deferred.pending_palette_query = Some(basename);
             cx.notify();
@@ -364,5 +387,26 @@ impl XenonApp {
         self.renaming = None;
         self._rename_sub = None;
         cx.notify();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prefer_system_open;
+    use std::path::Path;
+
+    #[test]
+    fn prefer_system_open_html_and_pdf() {
+        assert!(prefer_system_open(Path::new("tmp/bakeoff.html")));
+        assert!(prefer_system_open(Path::new("report.HTM")));
+        assert!(prefer_system_open(Path::new("/abs/doc.PDF")));
+    }
+
+    #[test]
+    fn prefer_system_open_source_stays_in_editor() {
+        assert!(!prefer_system_open(Path::new("src/main.rs")));
+        assert!(!prefer_system_open(Path::new("index.md")));
+        assert!(!prefer_system_open(Path::new("styles.css")));
+        assert!(!prefer_system_open(Path::new("noext")));
     }
 }
