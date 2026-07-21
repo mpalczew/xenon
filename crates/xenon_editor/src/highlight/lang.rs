@@ -83,7 +83,8 @@ pub(super) fn lang_for_ext(ext: &str) -> Option<Lang> {
         "cs" => Lang::CSharp,
         "cmake" => Lang::Cmake,
         "glsl" | "vert" | "frag" | "comp" => Lang::Glsl,
-        "ini" | "cfg" | "conf" | "editorconfig" | "gitconfig" | "properties" => Lang::Ini,
+        // .env / secrets.env use the same KEY=value shape as ini (no dedicated dotenv grammar).
+        "ini" | "cfg" | "conf" | "editorconfig" | "gitconfig" | "properties" | "env" => Lang::Ini,
         "scm" | "ss" => Lang::Scheme,
         "ps1" | "psm1" | "psd1" => Lang::Powershell,
         "elm" => Lang::Elm,
@@ -133,7 +134,7 @@ pub(super) fn lang_for_name(name: &str) -> Option<Lang> {
         "glsl" => Lang::Glsl,
         "regex" | "regexp" => Lang::Regex,
         "jsdoc" => Lang::Jsdoc,
-        "ini" => Lang::Ini,
+        "ini" | "env" | "dotenv" => Lang::Ini,
         "scheme" | "scm" => Lang::Scheme,
         "powershell" | "ps1" => Lang::Powershell,
         "elm" => Lang::Elm,
@@ -149,6 +150,8 @@ pub(super) fn lang_for_basename(name: &str) -> Option<Lang> {
         "CMakeLists.txt" => Some(Lang::Cmake),
         "Cargo.toml" | "rust-toolchain.toml" => Some(Lang::Toml),
         ".gitignore" | ".dockerignore" | ".editorconfig" => Some(Lang::Ini),
+        // `.env` has no extension; `.env.local` / `.env.example` use a non-env suffix.
+        n if n == ".env" || n.starts_with(".env.") => Some(Lang::Ini),
         _ => None,
     }
 }

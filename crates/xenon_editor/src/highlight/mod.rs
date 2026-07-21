@@ -238,6 +238,34 @@ mod tests {
     }
 
     #[test]
+    fn highlights_env_files() {
+        // ini grammar: keys as property, `=` as operator (values uncolored).
+        let source = "API_KEY=abc123\nDEBUG=true\n";
+        for path in [
+            "secrets.env",
+            ".env",
+            ".env.local",
+            ".env.example",
+            "homelab/secrets.env",
+        ] {
+            let spans = spans_for_path(Path::new(path), source);
+            assert!(!spans.is_empty(), "no highlights for {path}");
+            assert!(
+                spans
+                    .iter()
+                    .any(|s| s.name == "property" && &source[s.start..s.end] == "API_KEY"),
+                "expected property highlight for key in {path}"
+            );
+            assert!(
+                spans
+                    .iter()
+                    .any(|s| s.name == "operator" && &source[s.start..s.end] == "="),
+                "expected operator highlight in {path}"
+            );
+        }
+    }
+
+    #[test]
     fn unknown_extension_has_no_spans() {
         assert!(spans_for_path(Path::new("a.txt"), "plain text").is_empty());
     }
