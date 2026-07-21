@@ -96,31 +96,14 @@ impl EditorView {
             return false;
         };
         let result = self.vim.handle_key(buffer, key);
-        if result.request_system_paste {
-            if let Some(item) = cx.read_from_clipboard()
-                && let Some(text) = item.text()
-            {
-                let r = self.vim.paste_system(buffer, &text, false);
-                if r.edited {
-                    self.recompute_highlights();
-                }
-            }
-            return true;
-        }
-        if let Some(text) = result.system_clipboard {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        }
-        if result.edited {
-            self.recompute_highlights();
-        }
-        result.handled
+        self.apply_vim_result(result, cx)
     }
 
     /// Returns true if the keystroke was fully consumed (caller should return).
     fn route_vim_keystroke(&mut self, keystroke: &gpui::Keystroke, cx: &mut Context<Self>) -> bool {
-        // `/` search: take printable key_char here. Claiming "handled" on
+        // `/` and `:` drafts: take printable key_char here. Claiming "handled" on
         // KeyDown without consuming key_char blocks IME insertText on macOS.
-        if self.vim.search_draft.is_some() {
+        if self.vim.search_draft.is_some() || self.vim.ex_draft.is_some() {
             let mods = &keystroke.modifiers;
             if !mods.platform
                 && !mods.control
@@ -140,7 +123,7 @@ impl EditorView {
                 cx.notify();
                 return true;
             }
-            // Stay in search prompt; don't fall through to buffer edits.
+            // Stay in draft prompt; don't fall through to buffer edits.
             return true;
         }
         if self.handle_vim_key(&keystroke.key, cx) {
@@ -157,9 +140,18 @@ impl EditorView {
             return false;
         };
         let result = self.vim.handle_char(buffer, text);
+        self.apply_vim_result(result, cx)
+    }
+
+    fn apply_vim_result(
+        &mut self,
+        result: crate::vim::HandleResult,
+        cx: &mut Context<Self>,
+    ) -> bool {
         if result.request_system_paste {
             if let Some(item) = cx.read_from_clipboard()
                 && let Some(text) = item.text()
+                && let Content::Text(buffer) = &mut self.content
             {
                 let r = self.vim.paste_system(buffer, &text, false);
                 if r.edited {
@@ -171,74 +163,15 @@ impl EditorView {
         if let Some(clip) = result.system_clipboard {
             cx.write_to_clipboard(ClipboardItem::new_string(clip));
         }
+        if let Some(ex) = result.ex {
+            self.apply_ex_effect(ex, cx);
+        }
         if result.edited {
             self.recompute_highlights();
         }
         // If vim consumed the key as a command (e.g. `i` entering insert), do not
         // also insert that character. Only plain typing in insert returns false.
         result.handled
-    }
-
-    fn undo_edit(&mut self) -> bool {
-        let Content::Text(buffer) = &mut self.content else {
-            return false;
-        };
-        buffer.undo()
-    }
-
-    fn redo_edit(&mut self) -> bool {
-        let Content::Text(buffer) = &mut self.content else {
-            return false;
-        };
-        buffer.redo()
-    }
-
-    pub fn copy_selection(&self, cx: &mut Context<Self>) {
-        let Content::Text(buffer) = &self.content else {
-            return;
-        };
-        let text = buffer.selected_text();
-        if !text.is_empty() {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        }
-    }
-
-    pub fn cut_selection(&mut self, cx: &mut Context<Self>) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        let text = buffer.selected_text();
-        if text.is_empty() {
-            return;
-        }
-        cx.write_to_clipboard(ClipboardItem::new_string(text));
-        buffer.delete_selection();
-        self.recompute_highlights();
-    }
-
-    pub fn paste_clipboard(&mut self, cx: &mut Context<Self>) {
-        let Some(item) = cx.read_from_clipboard() else {
-            return;
-        };
-        let Some(text) = item.text() else {
-            return;
-        };
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        buffer.replace_selection(&text);
-        self.recompute_highlights();
-    }
-
-    /// Write the buffer to disk (no-op for image/unsupported content).
-    pub fn save(&mut self, cx: &mut Context<Self>) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        if let Err(error) = buffer.save() {
-            log::error!("save failed: {error}");
-        }
-        cx.notify();
     }
 
     pub(super) fn on_right_down(

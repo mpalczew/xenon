@@ -16,6 +16,7 @@ mod view;
 mod vim;
 
 pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
+// Buffer::create_new / empty / save_force used by shell (New File, Save As).
 pub use edit::{EditCommand, Motion};
 pub use find::FindOptions;
 pub use view::{DiskAlert, EditorEvent, EditorView, Find, FindNext, FindPrevious};

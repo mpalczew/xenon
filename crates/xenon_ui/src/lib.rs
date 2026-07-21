@@ -40,11 +40,13 @@ actions!(
         SplitRight,
         SplitDown,
         OpenFile,
+        NewFile,
         AddWorkspace,
         FilePalette,
         RunTask,
         CloseEditor,
         Save,
+        SaveAs,
         IncreaseFontSize,
         DecreaseFontSize,
         ResetFontSize,
@@ -71,6 +73,7 @@ pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         // Create
         KeyBinding::new("cmd-n", NewTerminal, None),
+        KeyBinding::new("cmd-shift-n", NewFile, None),
         // Open / jump
         KeyBinding::new("cmd-o", OpenFile, None),
         KeyBinding::new("cmd-p", FilePalette, None),
@@ -100,6 +103,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-w", CloseEditor, None),
         // Edit
         KeyBinding::new("cmd-s", Save, None),
+        KeyBinding::new("cmd-shift-s", SaveAs, None),
         KeyBinding::new("cmd-x", Cut, None),
         KeyBinding::new("cmd-c", Copy, None),
         KeyBinding::new("cmd-v", Paste, None),

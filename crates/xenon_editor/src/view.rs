@@ -4,6 +4,7 @@
 
 mod disk;
 mod entity_input;
+mod ex_io;
 mod find_bar;
 mod find_session;
 mod image;
@@ -16,19 +17,19 @@ use std::path::PathBuf;
 use anyhow::Result;
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, MouseButton, ParentElement, Pixels, Point, Render, ScrollWheelEvent,
-    StatefulInteractiveElement, Styled, Task, Window, actions, anchored, deferred, div, px,
+    IntoElement, MouseButton, ParentElement, Pixels, Point, Render, ScrollWheelEvent, Styled, Task,
+    Window, actions, div, px,
 };
 use theme::ActiveTheme;
 
 use crate::buffer::{Buffer, OpenError};
 use crate::element;
 use crate::highlight;
-use crate::image_viewer::{ImageContentElement, ImageViewer};
+use crate::image_viewer::ImageViewer;
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use find_session::FindSession;
-use menu::{context_item, file_title, is_supported_image};
+use menu::is_supported_image;
 use xenon_settings::{Copy, Cut, Paste, SelectAll};
 
 actions!(xenon_editor, [Find, FindNext, FindPrevious]);
@@ -64,7 +65,7 @@ pub struct EditorView {
 
 pub use disk::DiskAlert;
 
-/// Events the shell can subscribe to (IDE selection push, etc.).
+/// Events the shell can subscribe to (IDE selection push, ex quit, etc.).
 pub enum EditorEvent {
     SelectionChanged {
         path: PathBuf,
@@ -74,6 +75,10 @@ pub enum EditorEvent {
         end_line: u32,
         end_character: u32,
     },
+    /// Vim `:q` / `:wq` — close this editor tab.
+    RequestClose { force: bool },
+    /// Buffer path rebinding (Save As / `:w path`).
+    PathChanged { path: PathBuf },
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -321,225 +326,4 @@ impl Render for EditorView {
             .children(menu)
             .into_any_element()
     }
-}
-
-impl EditorView {
-    fn vim_mode_bar(
-        &self,
-        colors: &theme::ThemeColors,
-        cx: &App,
-    ) -> Option<impl IntoElement + use<>> {
-        xenon_settings::vim_mode(cx).then(|| {
-            let label = if let Some(draft) = &self.vim.search_draft {
-                let prefix = if draft.forward { '/' } else { '?' };
-                if draft.pattern.is_empty() {
-                    format!("{prefix}")
-                } else if draft.has_match {
-                    format!("{prefix}{}", draft.pattern)
-                } else {
-                    format!("{prefix}{}  [no match]", draft.pattern)
-                }
-            } else {
-                self.vim.mode.label().to_string()
-            };
-            div()
-                .px_2()
-                .py_1()
-                .text_xs()
-                .text_color(colors.text_muted)
-                .border_t_1()
-                .border_color(colors.border)
-                .child(label)
-        })
-    }
-}
-
-impl EditorView {
-    fn render_context_menu(
-        &self,
-        position: Point<Pixels>,
-        colors: &theme::ThemeColors,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let menu_box = div()
-            .occlude()
-            .flex()
-            .flex_col()
-            .min_w(px(180.))
-            .rounded_md()
-            .border_1()
-            .border_color(colors.border)
-            .bg(colors.elevated_surface_background)
-            .shadow_md()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
-            .on_mouse_move(|_, _, cx| cx.stop_propagation())
-            .child(
-                context_item("editor-menu-cut", "Cut", "⌘X", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.cut_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
-            )
-            .child(
-                context_item("editor-menu-copy", "Copy", "⌘C", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.copy_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
-            )
-            .child(
-                context_item("editor-menu-paste", "Paste", "⌘V", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.paste_clipboard(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
-            )
-            .child(
-                context_item("editor-menu-select-all", "Select All", "⌘A", colors).on_click(
-                    cx.listener(|this, _, _, cx| {
-                        this.select_all(cx);
-                        this.dismiss_menu(cx);
-                    }),
-                ),
-            );
-        div()
-            .absolute()
-            .inset_0()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
-            )
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
-            )
-            .child(deferred(anchored().position(position).child(menu_box)).with_priority(1))
-    }
-
-    fn render_image(&mut self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let Content::Image(_) = &mut self.content else {
-            unreachable!("render_image is only called for image content");
-        };
-        div()
-            .track_focus(&self.focus)
-            .key_context("Editor")
-            .on_key_down(cx.listener(Self::on_key))
-            .size_full()
-            .flex()
-            .flex_col()
-            .bg(colors.editor_background)
-            .child(
-                div()
-                    .id("image-viewer")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_hidden()
-                    .on_scroll_wheel(cx.listener(Self::on_image_scroll))
-                    .on_pinch(cx.listener(Self::on_image_pinch))
-                    .on_mouse_down(MouseButton::Left, cx.listener(Self::on_image_mouse_down))
-                    .on_mouse_move(cx.listener(Self::on_image_mouse_move))
-                    .child(ImageContentElement::new(cx.entity())),
-            )
-    }
-
-    fn render_unsupported(
-        &self,
-        path: PathBuf,
-        reason: String,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let title = file_title(&path);
-        div()
-            .track_focus(&self.focus)
-            .key_context("Editor")
-            .size_full()
-            .flex()
-            .flex_col()
-            .bg(colors.editor_background)
-            .child(file_header(path.clone(), title, cx))
-            .child(
-                div()
-                    .flex_1()
-                    .min_h_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .items_center()
-                            .gap_2()
-                            .text_color(colors.text_muted)
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .text_color(colors.text)
-                                    .child(file_title(&path)),
-                            )
-                            .child(reason),
-                    ),
-            )
-    }
-
-    fn text(&self) -> String {
-        match &self.content {
-            Content::Text(buffer) => buffer.text(),
-            Content::Image(_) | Content::Unsupported { .. } => String::new(),
-        }
-    }
-}
-
-fn file_header(path: PathBuf, title: String, cx: &mut Context<EditorView>) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .border_b_1()
-        .border_color(colors.border)
-        .px_3()
-        .py_2()
-        .child(
-            div()
-                .text_sm()
-                .text_color(colors.text)
-                .truncate()
-                .child(title),
-        )
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap_2()
-                .child(native_button(path.clone()))
-                .child(reveal_button(path, cx)),
-        )
-}
-
-fn native_button(path: PathBuf) -> impl IntoElement {
-    small_button("native-open", "Open in Default App")
-        .on_click(move |_, _, cx| cx.open_with_system(&path))
-}
-
-fn reveal_button(path: PathBuf, _cx: &mut Context<EditorView>) -> impl IntoElement {
-    small_button("native-reveal", "Reveal").on_click(move |_, _, cx| cx.reveal_path(&path))
-}
-
-fn small_button(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .px_2()
-        .py_1()
-        .text_xs()
-        .rounded_sm()
-        .border_1()
-        .cursor_pointer()
-        .child(label)
 }

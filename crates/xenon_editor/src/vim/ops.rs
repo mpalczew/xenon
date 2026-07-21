@@ -78,17 +78,41 @@ impl VimState {
             });
             return self.apply_range(buffer, op, range, motion.is_linewise());
         }
-        let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, count);
         if self.mode.is_visual() {
-            let anchor = buffer.selection_anchor().unwrap_or(buffer.cursor());
-            if self.mode == Mode::VisualLine {
-                let a = selection::line_range_at(buffer.rope(), anchor);
-                let b = selection::line_range_at(buffer.rope(), target);
-                buffer.set_selection(a.start.min(b.start), a.end.max(b.end));
+            // Motions run from the inclusive head (cursor is exclusive end in char visual).
+            let from = if self.mode == Mode::Visual {
+                visual_head_pos(buffer)
             } else {
-                buffer.set_selection(anchor, target);
+                buffer.cursor()
+            };
+            let target = motion::apply(buffer.rope(), from, &motion, count);
+            let anchor = buffer.selection_anchor().unwrap_or(from);
+            if self.mode == Mode::VisualLine {
+                let a = selection::line_range_at(buffer.rope(), anchor.min(from));
+                let b = selection::line_range_at(buffer.rope(), target);
+                let start = a.start.min(b.start);
+                let mut end = a.end.max(b.end);
+                let len = buffer.rope().len_chars();
+                if end < len && buffer.rope().char(end) == '\n' {
+                    end += 1;
+                }
+                buffer.set_selection(start, end);
+            } else {
+                // Half-open range; fixed inclusive start is prior.start (or current head).
+                let prior = buffer.selection_range();
+                let fixed = prior.as_ref().map(|r| r.start).unwrap_or(from);
+                let excl = visual_excl_end(buffer, target);
+                if excl <= fixed {
+                    // Moving left of fixed: select target..=fixed.
+                    let fixed_excl = visual_excl_end(buffer, fixed);
+                    buffer.set_selection(target, fixed_excl);
+                } else {
+                    buffer.set_selection(fixed, excl);
+                }
+                let _ = anchor;
             }
         } else {
+            let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, count);
             buffer.clear_selection();
             buffer.set_cursor_raw(target);
         }
@@ -214,6 +238,28 @@ impl VimState {
     }
 
     pub(in crate::vim) fn replace_char(&mut self, buffer: &mut Buffer, ch: char) -> HandleResult {
+        if self.mode.is_visual() {
+            let Some(range) = buffer.selection_range() else {
+                self.mode = Mode::Normal;
+                return handled(false);
+            };
+            let len = range.end.saturating_sub(range.start);
+            if len == 0 {
+                return handled(false);
+            }
+            let new: String = std::iter::repeat_n(ch, len).collect();
+            let old = buffer.rope().slice(range.clone()).to_string();
+            buffer.apply_edit(Edit {
+                start: range.start,
+                old,
+                new,
+            });
+            buffer.set_cursor_raw(range.start);
+            buffer.clear_selection();
+            self.mode = Mode::Normal;
+            self.last_change = Some(LastChange::Replace { ch });
+            return edited();
+        }
         let cursor = buffer.cursor();
         if cursor >= buffer.rope().len_chars() {
             return handled(false);
@@ -227,6 +273,33 @@ impl VimState {
         buffer.set_cursor_raw(cursor);
         self.last_change = Some(LastChange::Replace { ch });
         edited()
+    }
+
+    /// Swap visual anchor and head (`o` in visual).
+    pub(in crate::vim) fn visual_swap_ends(&mut self, buffer: &mut Buffer) -> HandleResult {
+        if let (Some(anchor), cursor) = (buffer.selection_anchor(), buffer.cursor()) {
+            buffer.set_selection(cursor, anchor);
+        }
+        handled(false)
+    }
+
+    /// Visual `p`/`P`: replace selection with register contents.
+    pub(in crate::vim) fn visual_paste(
+        &mut self,
+        buffer: &mut Buffer,
+        before: bool,
+    ) -> HandleResult {
+        let Some(range) = buffer.selection_range() else {
+            self.mode = Mode::Normal;
+            return handled(false);
+        };
+        let deleted = buffer.rope().slice(range.clone()).to_string();
+        self.registers
+            .delete(&deleted, self.mode == Mode::VisualLine);
+        buffer.set_selection(range.start, range.end);
+        buffer.delete_selection();
+        self.mode = Mode::Normal;
+        self.paste(buffer, before)
     }
 
     pub(in crate::vim) fn paste(&mut self, buffer: &mut Buffer, before: bool) -> HandleResult {
@@ -269,6 +342,22 @@ impl VimState {
         let range = linewise_range(buffer, count.max(1));
         self.apply_range(buffer, op, range, true)
     }
+}
+
+/// Exclusive end past char at `pos` (vim visual includes that char).
+pub(in crate::vim) fn visual_excl_end(buffer: &Buffer, pos: usize) -> usize {
+    let len = buffer.rope().len_chars();
+    if pos < len && buffer.rope().char(pos) != '\n' {
+        pos + 1
+    } else {
+        pos
+    }
+}
+
+/// Inclusive head character for a half-open visual selection.
+fn visual_head_pos(buffer: &Buffer) -> usize {
+    let c = buffer.cursor();
+    if c > 0 { c - 1 } else { c }
 }
 
 /// Char range for `count` lines starting at the cursor (includes trailing newlines).

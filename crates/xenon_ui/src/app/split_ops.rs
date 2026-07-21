@@ -307,29 +307,121 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         self._selection_subs
-            .push(cx.subscribe(view, |this, _view, event, _cx| {
-                let EditorEvent::SelectionChanged {
+            .push(cx.subscribe(view, |this, view, event, cx| match event {
+                EditorEvent::SelectionChanged {
                     path,
                     text,
                     start_line,
                     start_character,
                     end_line,
                     end_character,
-                } = event;
-                let Some(ide) = this.ide.as_ref() else {
-                    return;
-                };
-                ide.notify_selection(&SelectionSnapshot {
-                    path: path.clone(),
-                    text: text.clone(),
-                    start_line: *start_line,
-                    start_character: *start_character,
-                    end_line: *end_line,
-                    end_character: *end_character,
-                });
+                } => {
+                    let Some(ide) = this.ide.as_ref() else {
+                        return;
+                    };
+                    ide.notify_selection(&SelectionSnapshot {
+                        path: path.clone(),
+                        text: text.clone(),
+                        start_line: *start_line,
+                        start_character: *start_character,
+                        end_line: *end_line,
+                        end_character: *end_character,
+                    });
+                }
+                EditorEvent::RequestClose { force } => {
+                    this.handle_editor_request_close(&view, *force, cx);
+                }
+                EditorEvent::PathChanged { path } => {
+                    this.rebind_editor_tab_path(&view, path.clone(), cx);
+                }
             }));
     }
 
+    fn handle_editor_request_close(
+        &mut self,
+        view: &Entity<EditorView>,
+        _force: bool,
+        cx: &mut Context<Self>,
+    ) {
+        // Dirty checks happen in the editor (`:q` vs `:q!`); shell just drops the tab.
+        let Some(id) = self.active else {
+            return;
+        };
+        let Some(tab_id) = self.tab_id_for_editor(id, view) else {
+            return;
+        };
+        self.drop_tab(id, tab_id, None, cx);
+    }
+
+    fn rebind_editor_tab_path(
+        &mut self,
+        view: &Entity<EditorView>,
+        new_path: PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = self.active else {
+            return;
+        };
+        let Some(content) = self.contents.get_mut(&id) else {
+            return;
+        };
+        let Some(root) = content.root.as_mut() else {
+            return;
+        };
+        if let Some(leaf) = root.find_leaf_mut_with_editor(view)
+            && let Some(LiveTab::Editor { path, name, .. }) = leaf
+                .tabs
+                .iter_mut()
+                .find(|t| t.as_editor().is_some_and(|v| v == view))
+        {
+            *path = new_path.clone();
+            *name = file_name(&new_path);
+        }
+        self.touch_recent_file(id, &new_path);
+        self.save_layout(id);
+        cx.notify();
+    }
+
+    fn tab_id_for_editor(
+        &self,
+        workspace: WorkspaceId,
+        view: &Entity<EditorView>,
+    ) -> Option<xenon_core::TabId> {
+        let root = self.contents.get(&workspace)?.root.as_ref()?;
+        for pane in root.leaf_ids() {
+            if let Some(leaf) = root.find_leaf(pane) {
+                for t in &leaf.tabs {
+                    if t.as_editor().is_some_and(|v| v == view) {
+                        return Some(t.id());
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+impl LiveNode {
+    fn find_leaf_mut_with_editor(&mut self, view: &Entity<EditorView>) -> Option<&mut LiveLeaf> {
+        match self {
+            Self::Leaf(l) => {
+                if l.tabs
+                    .iter()
+                    .any(|t| t.as_editor().is_some_and(|v| v == view))
+                {
+                    Some(l)
+                } else {
+                    None
+                }
+            }
+            Self::Split { first, second, .. } => first
+                .find_leaf_mut_with_editor(view)
+                .or_else(|| second.find_leaf_mut_with_editor(view)),
+        }
+    }
+}
+
+impl XenonApp {
     pub(crate) fn sync_editors_for_paths(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
         if paths.is_empty() {
             return;

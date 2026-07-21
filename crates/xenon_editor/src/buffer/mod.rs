@@ -1,15 +1,15 @@
 //! `Buffer`: a rope-backed text buffer with save and external-change tracking.
 //! Pure logic (no gpui) so it can be unit tested directly.
 
-use std::fs;
+mod io;
+mod sel;
+
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use anyhow::Result;
 use ropey::Rope;
 
-use crate::selection;
 use crate::undo::{Edit, UndoStack};
 
 /// How many leading bytes to scan for a NUL when detecting binary files.
@@ -52,75 +52,6 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    /// Read `path` into a buffer, rejecting binary files.
-    pub fn open(path: impl AsRef<Path>) -> std::result::Result<Buffer, OpenError> {
-        let path = path.as_ref().to_path_buf();
-        let bytes = fs::read(&path)?;
-        if bytes.iter().take(BINARY_SNIFF_BYTES).any(|&b| b == 0) {
-            return Err(OpenError::Binary(path));
-        }
-        let rope = Rope::from_reader(&bytes[..])?;
-        let disk_mtime = mtime(&path);
-        Ok(Buffer {
-            rope,
-            path,
-            cursor: 0,
-            selection_anchor: None,
-            dirty: false,
-            disk_mtime,
-            undo: UndoStack::default(),
-        })
-    }
-
-    /// Write the buffer to disk. Refuses when the file changed under a dirty
-    /// buffer; the caller resolves the conflict and retries.
-    pub fn save(&mut self) -> std::result::Result<(), SaveError> {
-        if self.dirty && mtime(&self.path) != self.disk_mtime {
-            return Err(SaveError::ExternalChange);
-        }
-        let mut file = fs::File::create(&self.path)?;
-        self.rope.write_to(&mut file)?;
-        self.disk_mtime = mtime(&self.path);
-        self.dirty = false;
-        Ok(())
-    }
-
-    /// Compare the buffer against the file on disk (called on editor focus).
-    /// A clean buffer silently reloads; a dirty one reports a conflict.
-    pub fn check_external(&mut self) -> Result<ExternalState> {
-        let current = mtime(&self.path);
-        if current.is_none() {
-            self.disk_mtime = None;
-            self.dirty = true;
-            return Ok(ExternalState::Deleted);
-        }
-        if current == self.disk_mtime {
-            return Ok(ExternalState::Unchanged);
-        }
-        if self.dirty {
-            return Ok(ExternalState::Conflicted);
-        }
-        self.reload()?;
-        Ok(ExternalState::Reloaded)
-    }
-
-    /// Reload from disk (clean or after user chose disk in a conflict).
-    pub(crate) fn reload(&mut self) -> Result<()> {
-        let bytes = fs::read(&self.path)?;
-        self.rope = Rope::from_reader(&bytes[..])?;
-        self.cursor = self.cursor.min(self.rope.len_chars());
-        self.selection_anchor = None;
-        self.disk_mtime = mtime(&self.path);
-        self.dirty = false;
-        self.undo.clear();
-        Ok(())
-    }
-
-    /// Treat current disk mtime as known without reloading (keep local edits).
-    pub(crate) fn adopt_disk_mtime(&mut self) {
-        self.disk_mtime = mtime(&self.path);
-    }
-
     /// Open/close a multi-edit undo step (vim insert session, change+type, …).
     pub(crate) fn set_undo_group(&mut self, open: bool) {
         if open {
@@ -138,11 +69,11 @@ impl Buffer {
         self.dirty
     }
 
-    pub fn rope(&self) -> &Rope {
+    pub(crate) fn rope(&self) -> &Rope {
         &self.rope
     }
 
-    pub fn cursor(&self) -> usize {
+    pub(crate) fn cursor(&self) -> usize {
         self.cursor
     }
 
@@ -174,48 +105,6 @@ impl Buffer {
         self.cursor = cursor;
     }
 
-    pub(crate) fn selection_anchor(&self) -> Option<usize> {
-        self.selection_anchor
-    }
-
-    /// Active selection as a half-open char range, if non-empty.
-    pub(crate) fn selection_range(&self) -> Option<Range<usize>> {
-        selection::range(self.selection_anchor, self.cursor)
-    }
-
-    /// Selected text, or empty string if none.
-    pub(crate) fn selected_text(&self) -> String {
-        match self.selection_range() {
-            Some(range) => self.rope.slice(range).to_string(),
-            None => String::new(),
-        }
-    }
-
-    /// Set selection explicitly (anchor + head/cursor).
-    pub(crate) fn set_selection(&mut self, anchor: usize, cursor: usize) {
-        let len = self.rope.len_chars();
-        self.selection_anchor = Some(anchor.min(len));
-        self.cursor = cursor.min(len);
-    }
-
-    pub(crate) fn clear_selection(&mut self) {
-        self.selection_anchor = None;
-    }
-
-    /// Select the word under the cursor (or at `offset` if provided).
-    pub(crate) fn select_word_at(&mut self, offset: usize) {
-        let range = selection::word_range_at(&self.rope, offset);
-        self.selection_anchor = Some(range.start);
-        self.cursor = range.end;
-    }
-
-    /// Select the line under the cursor (content only, no newline).
-    pub(crate) fn select_line_at(&mut self, offset: usize) {
-        let range = selection::line_range_at(&self.rope, offset);
-        self.selection_anchor = Some(range.start);
-        self.cursor = range.end;
-    }
-
     /// Whole-buffer text (used by tests and highlighting).
     pub fn text(&self) -> String {
         self.rope.to_string()
@@ -229,6 +118,24 @@ impl Buffer {
                 (range.start, old)
             }
             None => (self.cursor, String::new()),
+        };
+        self.apply_edit(Edit {
+            start,
+            old,
+            new: text.to_string(),
+        });
+        self.selection_anchor = None;
+    }
+
+    /// Replace a char range with `text` (one undo step unless grouped).
+    pub(crate) fn replace_range(&mut self, range: Range<usize>, text: &str) {
+        let len = self.rope.len_chars();
+        let start = range.start.min(len);
+        let end = range.end.min(len).max(start);
+        let old = if start < end {
+            self.rope.slice(start..end).to_string()
+        } else {
+            String::new()
         };
         self.apply_edit(Edit {
             start,
@@ -310,8 +217,4 @@ impl Buffer {
             len
         }
     }
-}
-
-fn mtime(path: &Path) -> Option<SystemTime> {
-    fs::metadata(path).and_then(|m| m.modified()).ok()
 }

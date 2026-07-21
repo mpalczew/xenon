@@ -116,6 +116,7 @@ impl XenonApp {
                 this.new_terminal(window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
+            .on_action(cx.listener(|this, _: &NewFile, _, cx| this.new_file_dialog(cx)))
             .on_action(
                 cx.listener(|this, _: &AddWorkspace, window, cx| this.add_workspace(window, cx)),
             )
@@ -148,6 +149,7 @@ impl XenonApp {
                 this.close_focused_tab(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Save, _, cx| this.save_active_editor(cx)))
+            .on_action(cx.listener(|this, _: &SaveAs, _, cx| this.save_as_dialog(cx)))
             .on_action(cx.listener(|this, _: &IncreaseFontSize, window, cx| {
                 this.nudge_font_size(1.0, window, cx);
             }))

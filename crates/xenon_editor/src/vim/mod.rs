@@ -1,5 +1,6 @@
 //! Modal editing layer. Pure buffer mutations; the view routes keys here.
 
+mod ex;
 mod motion;
 mod normal;
 mod object;
@@ -8,10 +9,13 @@ mod pair;
 mod register;
 mod repeat;
 mod search;
+mod substitute;
 
 #[cfg(test)]
 mod tests;
 
+pub use ex::{ExDraft, ExEffect};
+// handle_ex_key / append_ex_char live on VimState in ex.rs
 pub use motion::Motion;
 pub use object::Object;
 pub use register::Registers;
@@ -66,6 +70,12 @@ pub struct VimState {
     pub search: Option<SearchState>,
     /// When set, the next typed chars go into the search prompt.
     pub search_draft: Option<SearchDraft>,
+    /// Active `:` command line.
+    pub ex_draft: Option<ExDraft>,
+    /// Last `:s` replacement template (for `~`).
+    last_sub_replacement: String,
+    /// Brief status after ex (`3 substitutions…` / errors).
+    pub ex_status: Option<String>,
     pub last_change: Option<LastChange>,
     insert_start: Option<usize>,
     insert_text: String,
@@ -97,6 +107,8 @@ pub struct HandleResult {
     pub system_clipboard: Option<String>,
     /// Request paste from system clipboard into pending register flow.
     pub request_system_paste: bool,
+    /// Ex command that needs the view/shell (write, quit, reload…).
+    pub ex: Option<ExEffect>,
 }
 
 impl VimState {
@@ -143,6 +155,9 @@ impl VimState {
 
     /// Handle a special key from `on_key_down` (escape, arrows, …).
     pub fn handle_key(&mut self, buffer: &mut Buffer, key: &str) -> HandleResult {
+        if self.ex_draft.is_some() {
+            return self.handle_ex_key(buffer, key);
+        }
         if self.search_draft.is_some() {
             return self.handle_search_key(buffer, key);
         }
@@ -151,6 +166,7 @@ impl VimState {
                 if self.mode.is_visual() {
                     buffer.clear_selection();
                 }
+                self.ex_status = None;
                 self.enter_normal(buffer);
                 return handled(false);
             }
@@ -174,6 +190,9 @@ impl VimState {
 
     /// Handle printable input from EntityInputHandler.
     pub fn handle_char(&mut self, buffer: &mut Buffer, text: &str) -> HandleResult {
+        if self.ex_draft.is_some() {
+            return self.append_ex_char(text);
+        }
         if self.search_draft.is_some() {
             return self.append_search_char(buffer, text);
         }

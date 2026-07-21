@@ -1,6 +1,11 @@
-//! Shared editor chrome bits (context menu rows).
+//! Shared editor chrome bits (context menu rows, vim mode bar).
 
-use gpui::{InteractiveElement, ParentElement, Styled, div};
+use gpui::{
+    App, Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point,
+    StatefulInteractiveElement, Styled, anchored, deferred, div, px,
+};
+
+use super::EditorView;
 
 pub(super) fn is_supported_image(path: &std::path::Path) -> bool {
     path.extension()
@@ -40,4 +45,104 @@ pub(super) fn context_item(
         .hover(move |s| s.bg(hover))
         .child(label)
         .child(div().text_xs().text_color(muted).child(shortcut))
+}
+
+impl EditorView {
+    pub(super) fn vim_mode_bar(
+        &self,
+        colors: &theme::ThemeColors,
+        cx: &App,
+    ) -> Option<impl IntoElement + use<>> {
+        xenon_settings::vim_mode(cx).then(|| {
+            let label = if let Some(draft) = &self.vim.ex_draft {
+                format!(":{}", draft.line)
+            } else if let Some(draft) = &self.vim.search_draft {
+                let prefix = if draft.forward { '/' } else { '?' };
+                if draft.pattern.is_empty() {
+                    format!("{prefix}")
+                } else if draft.has_match {
+                    format!("{prefix}{}", draft.pattern)
+                } else {
+                    format!("{prefix}{}  [no match]", draft.pattern)
+                }
+            } else if let Some(status) = &self.vim.ex_status {
+                format!("{}  |  {status}", self.vim.mode.label())
+            } else {
+                self.vim.mode.label().to_string()
+            };
+            div()
+                .px_2()
+                .py_1()
+                .text_xs()
+                .text_color(colors.text_muted)
+                .border_t_1()
+                .border_color(colors.border)
+                .child(label)
+        })
+    }
+
+    pub(super) fn render_context_menu(
+        &self,
+        position: Point<Pixels>,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let menu_box = div()
+            .occlude()
+            .flex()
+            .flex_col()
+            .min_w(px(180.))
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .shadow_md()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
+            .on_mouse_move(|_, _, cx| cx.stop_propagation())
+            .child(
+                context_item("editor-menu-cut", "Cut", "⌘X", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.cut_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("editor-menu-copy", "Copy", "⌘C", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.copy_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("editor-menu-paste", "Paste", "⌘V", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.paste_clipboard(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("editor-menu-select-all", "Select All", "⌘A", colors).on_click(
+                    cx.listener(|this, _, _, cx| {
+                        this.select_all(cx);
+                        this.dismiss_menu(cx);
+                    }),
+                ),
+            );
+        div()
+            .absolute()
+            .inset_0()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|this, _, _, cx| this.dismiss_menu(cx)),
+            )
+            .child(deferred(anchored().position(position).child(menu_box)).with_priority(1))
+    }
 }

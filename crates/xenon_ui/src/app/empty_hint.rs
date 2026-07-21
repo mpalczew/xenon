@@ -26,7 +26,7 @@ pub(super) fn empty_editor_hint(color: Hsla) -> AnyElement {
 }
 
 fn fit_hint(bounds: Bounds<Pixels>, color: Hsla, window: &mut Window) -> FittedHint {
-    const LABEL: &str = "Open a file (⌘P) or from the tree (⌘E)";
+    const LABEL: &str = "Open (⌘P) · New file (⌘⇧N) · Tree (⌘E)";
     const SIZES: [f32; 6] = [16., 14., 12., 11., 10., 9.];
     let avail = bounds.size.width;
     if avail <= px(0.) {

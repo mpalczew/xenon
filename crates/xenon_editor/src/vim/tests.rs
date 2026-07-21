@@ -161,3 +161,48 @@ fn dot_repeats_dd() {
     vim.handle_char(&mut buffer, ".");
     assert_eq!(buffer.text(), "ccc\n");
 }
+
+#[test]
+fn visual_x_deletes_selection() {
+    let mut buffer = buffer_with("abcdef\n");
+    let mut vim = VimState::default();
+    vim.handle_char(&mut buffer, "v");
+    vim.handle_char(&mut buffer, "l");
+    vim.handle_char(&mut buffer, "l");
+    assert_eq!(vim.mode, Mode::Visual);
+    assert!(vim.handle_char(&mut buffer, "x").edited);
+    assert_eq!(buffer.text(), "def\n");
+    assert_eq!(vim.mode, Mode::Normal);
+}
+
+#[test]
+fn visual_line_d_deletes_lines() {
+    let mut buffer = buffer_with("aaa\nbbb\nccc\n");
+    let mut vim = VimState::default();
+    vim.handle_char(&mut buffer, "V");
+    vim.handle_char(&mut buffer, "j");
+    assert!(vim.handle_char(&mut buffer, "d").edited);
+    assert_eq!(buffer.text(), "ccc\n");
+}
+
+#[test]
+fn colon_opens_ex_draft() {
+    let mut buffer = buffer_with("hi\n");
+    let mut vim = VimState::default();
+    vim.handle_char(&mut buffer, ":");
+    assert!(vim.ex_draft.is_some());
+    vim.handle_char(&mut buffer, "w");
+    assert_eq!(vim.ex_draft.as_ref().unwrap().line, "w");
+}
+
+#[test]
+fn visual_colon_prefills_range() {
+    let mut buffer = buffer_with("a\nb\nc\n");
+    let mut vim = VimState::default();
+    vim.handle_char(&mut buffer, "V");
+    vim.handle_char(&mut buffer, "j");
+    vim.handle_char(&mut buffer, ":");
+    let draft = vim.ex_draft.as_ref().unwrap();
+    assert_eq!(draft.line, "'<,'>");
+    assert_eq!(draft.visual_lines, Some((0, 1)));
+}

@@ -124,9 +124,11 @@ impl XenonApp {
             CommandId::NewTerminal => self.new_terminal(window, cx),
             CommandId::OpenWorkspace => self.add_workspace(window, cx),
             CommandId::OpenFile => self.open_file_dialog(cx),
+            CommandId::NewFile => self.new_file_dialog(cx),
             CommandId::GoToFile => self.open_palette(window, cx),
             CommandId::RunTask => self.open_task_picker(window, cx),
             CommandId::Save => self.save_active_editor(cx),
+            CommandId::SaveAs => self.save_as_dialog(cx),
             CommandId::FindInFile => match self.active_find_surface() {
                 FindSurface::Terminal(view) => view.update(cx, |t, cx| t.open_find(window, cx)),
                 FindSurface::Editor(view) => view.update(cx, |e, cx| e.open_find(window, cx)),

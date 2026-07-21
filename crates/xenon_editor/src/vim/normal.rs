@@ -1,13 +1,16 @@
 //! Normal/visual character dispatch for vim mode.
 
 use super::motion;
-use super::{FindKind, HandleResult, Mode, Motion, Object, Operator, VimState, edited, handled};
+use super::ops::visual_excl_end;
+use super::{
+    FindKind, HandleResult, LastChange, Mode, Motion, Object, Operator, VimState, edited, handled,
+};
 use crate::buffer::Buffer;
 use crate::selection;
 
 impl VimState {
     // Key dispatch table: one match over the normal-mode alphabet.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
     pub(in crate::vim) fn handle_normal_char(
         &mut self,
         buffer: &mut Buffer,
@@ -127,7 +130,10 @@ impl VimState {
                     self.mode = Mode::Normal;
                 } else {
                     self.mode = Mode::Visual;
-                    buffer.set_selection(buffer.cursor(), buffer.cursor());
+                    // Half-open range: include the character under the cursor.
+                    let c = buffer.cursor();
+                    let end = visual_excl_end(buffer, c);
+                    buffer.set_selection(c, end);
                 }
                 self.clear_pending();
                 handled(false)
@@ -224,12 +230,26 @@ impl VimState {
             'd' => self.op_or_line(buffer, Operator::Delete, count, 'd'),
             'c' => self.op_or_line(buffer, Operator::Change, count, 'c'),
             'y' => self.op_or_line(buffer, Operator::Yank, count, 'y'),
+            'x' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Delete),
+            'X' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Delete),
             'x' => self.delete_chars(buffer, count, false),
             'X' => self.delete_chars(buffer, count, true),
+            'p' if self.mode.is_visual() => self.visual_paste(buffer, false),
+            'P' if self.mode.is_visual() => self.visual_paste(buffer, true),
             'p' => self.paste(buffer, false),
             'P' => self.paste(buffer, true),
+            'o' if self.mode.is_visual() => self.visual_swap_ends(buffer),
+            'r' if self.mode.is_visual() => {
+                // Visual `rX` replaces selection with char — treat as await then expand.
+                self.awaiting_replace = true;
+                handled(false)
+            }
             'r' => {
                 self.awaiting_replace = true;
+                handled(false)
+            }
+            ':' => {
+                self.begin_ex(buffer);
                 handled(false)
             }
             'u' => {
@@ -261,6 +281,23 @@ impl VimState {
             'N' => self.search_again(buffer, false),
             '*' => self.search_word(buffer),
             's' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Change),
+            // Normal `s` = change one char (like `cl`).
+            's' if !self.mode.is_visual() && self.operator.is_none() => {
+                let n = count.max(1);
+                self.count = 0;
+                self.last_change = Some(LastChange::DeleteChar { count: n });
+                let cursor = buffer.cursor();
+                let end = (cursor + n).min(buffer.rope().len_chars());
+                if cursor < end {
+                    let text = buffer.rope().slice(cursor..end).to_string();
+                    self.registers.delete(&text, false);
+                    buffer.set_selection(cursor, end);
+                    buffer.set_undo_group(true);
+                    buffer.delete_selection();
+                }
+                self.enter_insert(buffer);
+                edited()
+            }
             // i/a as object prefix after operator
             'i' if self.operator.is_some() => {
                 self.awaiting_object = Some(false);

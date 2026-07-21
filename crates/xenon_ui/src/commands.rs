@@ -16,9 +16,11 @@ pub enum CommandId {
     NewTerminal,
     OpenWorkspace,
     OpenFile,
+    NewFile,
     GoToFile,
     RunTask,
     Save,
+    SaveAs,
     FindInFile,
     FindNext,
     FindPrevious,
@@ -59,7 +61,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 33] {
+const fn all_commands() -> [CommandEntry; 35] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -76,12 +78,14 @@ const fn all_commands() -> [CommandEntry; 33] {
         cmd!(NextTab, "Next Tab", "⌃⇥", "Focus"),
         cmd!(PrevTab, "Previous Tab", "⌃⇧⇥", "Focus"),
         cmd!(Save, "Save", "⌘S", "Edit"),
+        cmd!(SaveAs, "Save As…", "⌘⇧S", "Edit"),
         cmd!(FindInFile, "Find…", "⌘F", "Edit"),
         cmd!(FindNext, "Find Next", "⌘G", "Edit"),
         cmd!(FindPrevious, "Find Previous", "⌘⇧G", "Edit"),
         cmd!(CloseFocusedTab, "Close Tab", "⌘W", "Edit"),
         cmd!(CloseWorkspace, "Close Workspace", "⌘⌥W", "Edit"),
         cmd!(NewTerminal, "New Terminal", "⌘N", "Create"),
+        cmd!(NewFile, "New File…", "⌘⇧N", "Create"),
         cmd!(OpenFile, "Open File…", "⌘O", "Create"),
         cmd!(RunTask, "Run Task…", "⌘⇧R", "Create"),
         cmd!(ToggleSidebar, "Toggle Sidebar", "⌘B", "View"),
@@ -99,6 +103,6 @@ const fn all_commands() -> [CommandEntry; 33] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 33] = all_commands();
+    static ENTRIES: [CommandEntry; 35] = all_commands();
     &ENTRIES
 }

@@ -28,8 +28,9 @@ use crate::settings::SettingsView;
 use crate::task_picker::TaskPickerView;
 use crate::workspace_picker::WorkspacePickerView;
 use crate::{
-    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewTerminal,
-    OpenFile, ResetFontSize, RunTask, Save, ToggleBrowser, ToggleSettings, ToggleSidebar,
+    AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewFile,
+    NewTerminal, OpenFile, ResetFontSize, RunTask, Save, SaveAs, ToggleBrowser, ToggleSettings,
+    ToggleSidebar,
 };
 
 mod browser;
