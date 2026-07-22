@@ -279,11 +279,13 @@ impl XenonApp {
         self.registry.workspace(id).map(|w| w.root.clone())
     }
 
-    fn persist_active(&self) {
+    fn persist_active(&mut self) {
         if let Some(workspace) = self.active {
-            let mut registry = self.registry.clone();
-            registry.active = Some(Active { workspace });
-            save_registry(&registry, "persist_active");
+            if let Some(rec) = self.registry.workspace_mut(workspace) {
+                rec.touch_opened();
+            }
+            self.registry.active = Some(Active { workspace });
+            save_registry(&self.registry, "persist_active");
         }
     }
 }

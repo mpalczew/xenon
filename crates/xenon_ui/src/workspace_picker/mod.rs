@@ -2,8 +2,16 @@
 //!
 //! Directory discovery runs on a background thread so large `~/src` trees cannot
 //! beach-ball the UI on each keystroke. Chrome: `crate::palette`.
+//!
+//! Ranking: exact typed path → known workspaces (basename quality, then MRU) →
+//! discovered dirs → missing. Known always beats discovery so a used workspace
+//! like `personalfiles` wins over a random dir named `personal`.
 
-use std::path::{Path, PathBuf};
+mod candidate;
+mod rank;
+
+pub use candidate::{WorkspaceCandidate, WorkspacePickerEvent};
+
 use std::time::Duration;
 
 use gpui::{
@@ -13,7 +21,6 @@ use gpui::{
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
-use xenon_core::WorkspaceId;
 
 use crate::impl_palette_query_input;
 use crate::palette::{
@@ -21,90 +28,13 @@ use crate::palette::{
     panel, query_row, reveal_selected, scrim, scroll_results,
 };
 use crate::workspace_discover::{
-    DiscoverQuery, FoundRoot, MatchQuality, discover, expand_user_path, parse_discover_query,
-    path_is_dir, ranking_needle, resolve_existing_dir, same_root,
+    DiscoverQuery, FoundRoot, discover, expand_user_path, parse_discover_query, ranking_needle,
+    resolve_existing_dir, same_root,
 };
 
+use rank::sort_candidates;
+
 const DISCOVER_DEBOUNCE: Duration = Duration::from_millis(60);
-
-/// One row the user can confirm (or see as missing).
-#[derive(Clone, Debug)]
-pub enum WorkspaceCandidate {
-    Open {
-        id: WorkspaceId,
-        name: String,
-        root: PathBuf,
-    },
-    Closed {
-        id: WorkspaceId,
-        name: String,
-        root: PathBuf,
-        missing: bool,
-    },
-    /// Typed or discovered existing directory.
-    Path { root: PathBuf, found: bool },
-}
-
-impl WorkspaceCandidate {
-    pub fn name(&self) -> String {
-        match self {
-            Self::Open { name, .. } | Self::Closed { name, .. } => name.clone(),
-            Self::Path { root, .. } => root
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| root.to_string_lossy().into_owned()),
-        }
-    }
-
-    pub fn root(&self) -> &Path {
-        match self {
-            Self::Open { root, .. } | Self::Closed { root, .. } | Self::Path { root, .. } => root,
-        }
-    }
-
-    pub fn selectable(&self) -> bool {
-        match self {
-            Self::Closed { missing: true, .. } => false,
-            Self::Open { root, .. }
-            | Self::Closed {
-                root,
-                missing: false,
-                ..
-            } => path_is_dir(root),
-            Self::Path { root, .. } => path_is_dir(root),
-        }
-    }
-
-    fn haystack(&self) -> String {
-        format!("{} {}", self.name(), self.root().display())
-    }
-
-    fn badge(&self) -> &'static str {
-        match self {
-            Self::Open { .. } => "open",
-            Self::Closed { missing: true, .. } => "missing",
-            Self::Closed { .. } => "closed",
-            Self::Path { found: true, .. } => "found",
-            Self::Path { .. } => "path",
-        }
-    }
-
-    fn rank_tier(&self) -> u8 {
-        match self {
-            Self::Path { found: false, .. } => 0,
-            Self::Open { .. } => 1,
-            Self::Path { found: true, .. } => 2,
-            Self::Closed { missing: false, .. } => 3,
-            Self::Closed { missing: true, .. } => 4,
-        }
-    }
-}
-
-pub enum WorkspacePickerEvent {
-    Open(WorkspaceCandidate),
-    Browse,
-    Dismissed,
-}
 
 pub struct WorkspacePickerView {
     known: Vec<WorkspaceCandidate>,
@@ -147,21 +77,12 @@ impl WorkspacePickerView {
         self.merge_discovered(&mut results);
         self.add_exact_path(&mut results);
         let needle = ranking_needle(&self.query);
-        results.sort_by(|a, b| {
-            a.rank_tier()
-                .cmp(&b.rank_tier())
-                .then_with(|| {
-                    basename_rank(a, needle.as_deref()).cmp(&basename_rank(b, needle.as_deref()))
-                })
-                .then_with(|| path_component_count(a.root()).cmp(&path_component_count(b.root())))
-                .then_with(|| a.root().as_os_str().len().cmp(&b.root().as_os_str().len()))
-                .then_with(|| a.name().cmp(&b.name()))
-        });
+        sort_candidates(&mut results, needle.as_deref());
         self.results = results;
         self.selected = self
             .results
             .iter()
-            .position(|c| c.selectable())
+            .position(|c| c.selectable() || c.is_closed())
             .unwrap_or(0);
     }
 
@@ -263,22 +184,23 @@ impl WorkspacePickerView {
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
-        let selectable: Vec<usize> = self
+        // Include missing closed rows so ⌘⌫ can target them.
+        let navigable: Vec<usize> = self
             .results
             .iter()
             .enumerate()
-            .filter(|(_, c)| c.selectable())
+            .filter(|(_, c)| c.selectable() || c.is_closed())
             .map(|(i, _)| i)
             .collect();
-        if selectable.is_empty() {
+        if navigable.is_empty() {
             return;
         }
-        let cur = selectable
+        let cur = navigable
             .iter()
             .position(|&i| i == self.selected)
             .unwrap_or(0);
-        let next = (cur as isize + delta).clamp(0, (selectable.len() - 1) as isize) as usize;
-        self.selected = selectable[next];
+        let next = (cur as isize + delta).clamp(0, (navigable.len() - 1) as isize) as usize;
+        self.selected = navigable[next];
         reveal_selected(&self.scroll, self.selected);
         cx.notify();
     }
@@ -290,14 +212,28 @@ impl WorkspacePickerView {
             }
             if let Some(root) = resolve_existing_dir(candidate.root()) {
                 let candidate = match candidate {
-                    WorkspaceCandidate::Open { id, name, .. } => {
-                        WorkspaceCandidate::Open { id, name, root }
-                    }
-                    WorkspaceCandidate::Closed { id, name, .. } => WorkspaceCandidate::Closed {
+                    WorkspaceCandidate::Open {
+                        id,
+                        name,
+                        last_opened,
+                        ..
+                    } => WorkspaceCandidate::Open {
+                        id,
+                        name,
+                        root,
+                        last_opened,
+                    },
+                    WorkspaceCandidate::Closed {
+                        id,
+                        name,
+                        last_opened,
+                        ..
+                    } => WorkspaceCandidate::Closed {
                         id,
                         name,
                         root,
                         missing: false,
+                        last_opened,
                     },
                     WorkspaceCandidate::Path { found, .. } => {
                         WorkspaceCandidate::Path { root, found }
@@ -315,12 +251,35 @@ impl WorkspacePickerView {
         }
     }
 
+    /// Remove selected closed workspace from history (⌘⌫ / delete).
+    fn forget_selected(&mut self, cx: &mut Context<Self>) {
+        let Some(candidate) = self.results.get(self.selected) else {
+            return;
+        };
+        if !candidate.is_closed() {
+            return;
+        }
+        let Some(id) = candidate.workspace_id() else {
+            return;
+        };
+        self.known.retain(|c| c.workspace_id() != Some(id));
+        self.refilter();
+        // Keep selection in range after drop.
+        if self.selected >= self.results.len() && !self.results.is_empty() {
+            self.selected = self.results.len() - 1;
+        }
+        cx.emit(WorkspacePickerEvent::Forget(id));
+        cx.notify();
+    }
+
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         match event.keystroke.key.as_str() {
             "escape" => cx.emit(WorkspacePickerEvent::Dismissed),
             "enter" => self.confirm(cx),
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
+            "delete" => self.forget_selected(cx),
+            "backspace" if event.keystroke.modifiers.platform => self.forget_selected(cx),
             "backspace" => {
                 let mut query = self.query.clone();
                 query.pop();
@@ -358,13 +317,16 @@ impl Render for WorkspacePickerView {
             .map(|(i, cand)| {
                 let selectable = cand.selectable();
                 let selected = i == self.selected && selectable;
+                // Missing rows are not selectable for open, but can still be
+                // focused for ⌘⌫ forget — highlight when selected index matches.
+                let selected = selected || (i == self.selected && cand.is_closed());
                 let mut row = detail_row(
                     ("workspace-row", i),
                     DetailRow {
                         title: cand.name(),
                         detail: cand.badge().to_string(),
                         selected,
-                        selectable,
+                        selectable: selectable || cand.is_closed(),
                         subtitle: Some(cand.root().display().to_string()),
                     },
                     &colors,
@@ -373,6 +335,11 @@ impl Render for WorkspacePickerView {
                     row = row.on_click(cx.listener(move |this, _, _, cx| {
                         this.selected = i;
                         this.confirm(cx);
+                    }));
+                } else if cand.is_closed() {
+                    row = row.on_click(cx.listener(move |this, _, _, cx| {
+                        this.selected = i;
+                        cx.notify();
                     }));
                 }
                 row.into_any_element()
@@ -407,7 +374,7 @@ impl Render for WorkspacePickerView {
                     }))
                     .child(
                         hint_row_with_action(
-                            "↵ open  ·  ~/src name  ·  esc  ·  missing not selectable",
+                            "↵ open  ·  ⌘⌫ forget closed  ·  ~/src name  ·  esc",
                             browse,
                             &colors,
                         )
@@ -418,20 +385,3 @@ impl Render for WorkspacePickerView {
 }
 
 impl_palette_query_input!(WorkspacePickerView);
-
-/// Lower is better. Exact basename match to the discovery needle ranks first.
-fn basename_rank(c: &WorkspaceCandidate, needle: Option<&str>) -> u8 {
-    let Some(n) = needle else {
-        return 1;
-    };
-    match MatchQuality::of_basename(&c.name(), n) {
-        Some(MatchQuality::Exact) => 0,
-        Some(MatchQuality::Prefix) => 1,
-        Some(MatchQuality::Contains) => 2,
-        None => 3,
-    }
-}
-
-fn path_component_count(path: &Path) -> usize {
-    path.components().count()
-}

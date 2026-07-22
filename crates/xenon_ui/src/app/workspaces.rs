@@ -100,6 +100,7 @@ impl XenonApp {
                 name: rec.name.clone(),
                 root: rec.root.clone(),
                 missing,
+                last_opened: rec.last_opened.unwrap_or(0),
             });
         }
         // Keyboard: jump among open workspaces, excluding the current one.
@@ -113,6 +114,7 @@ impl XenonApp {
                     id: rec.id,
                     name: rec.name.clone(),
                     root: rec.root.clone(),
+                    last_opened: rec.last_opened.unwrap_or(0),
                 });
             }
         }
@@ -144,6 +146,9 @@ impl XenonApp {
                 self.deferred.restore_pane = None;
                 self.apply_workspace_pick(candidate, cx);
             }
+            WorkspacePickerEvent::Forget(id) => {
+                self.forget_closed_workspace(*id);
+            }
             WorkspacePickerEvent::Browse => {
                 self.workspace_picker = None;
                 self.browse_for_workspace(cx);
@@ -158,6 +163,19 @@ impl XenonApp {
                 cx.notify();
             }
         }
+    }
+
+    /// Drop a closed workspace from archive (palette ⌘⌫). Deletes session file.
+    fn forget_closed_workspace(&mut self, id: WorkspaceId) {
+        let before = self.registry.closed_workspaces.len();
+        self.registry.closed_workspaces.retain(|w| w.id != id);
+        if self.registry.closed_workspaces.len() == before {
+            return;
+        }
+        if let Err(error) = xenon_store::delete_session(id) {
+            log::error!("forget_closed_workspace: delete session {id}: {error}");
+        }
+        save_registry(&self.registry, "forget_closed_workspace");
     }
 
     fn apply_workspace_pick(&mut self, candidate: &WorkspaceCandidate, cx: &mut Context<Self>) {

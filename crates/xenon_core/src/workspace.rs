@@ -1,6 +1,7 @@
 //! Workspaces and the persisted registry that indexes them.
 
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +14,10 @@ pub struct WorkspaceRec {
     pub id: WorkspaceId,
     pub name: String,
     pub root: PathBuf,
+    /// Unix seconds when this workspace was last activated (MRU for ⌘⇧O).
+    /// Absent on pre-field registry JSON → treated as never opened for sort.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_opened: Option<u64>,
 }
 
 impl WorkspaceRec {
@@ -27,8 +32,21 @@ impl WorkspaceRec {
             id: WorkspaceId::new(),
             name,
             root,
+            last_opened: Some(now_unix()),
         }
     }
+
+    /// Mark as most-recently opened (activate / reopen).
+    pub fn touch_opened(&mut self) {
+        self.last_opened = Some(now_unix());
+    }
+}
+
+fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// The root persisted record (backs `~/.xenon/workspaces.json`).

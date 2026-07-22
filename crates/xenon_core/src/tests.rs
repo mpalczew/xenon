@@ -122,3 +122,21 @@ fn registry_preserves_closed_workspaces() {
     let parsed: Registry = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.closed_workspaces, registry.closed_workspaces);
 }
+
+#[test]
+fn old_workspace_json_defaults_last_opened() {
+    let json = r#"{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "name": "proj",
+  "root": "/tmp/proj"
+}"#;
+    let parsed: WorkspaceRec = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.name, "proj");
+    assert_eq!(parsed.last_opened, None);
+}
+
+#[test]
+fn workspace_new_sets_last_opened() {
+    let ws = WorkspaceRec::new(PathBuf::from("/tmp/proj"));
+    assert!(ws.last_opened.is_some());
+}
