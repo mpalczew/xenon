@@ -17,6 +17,7 @@ Every copied/adapted file also carries a header comment naming its entry here.
 | `crates/xenon_terminal/assets/gruvbox.json` | zed-industries/zed | ced90fc (v1.9.0) | Apache-2.0 (via zed themes) | Gruvbox family (`assets/themes/gruvbox/gruvbox.json`); Dark/Light Soft/Hard variants. |
 | `crates/xenon_terminal/assets/solarized.json` | ethanschoonover/solarized | (palette) | MIT | Official Solarized palette mapped to zed theme schema; not copied from zed assets. |
 | `crates/xenon_terminal/assets/nord.json` | arcticicestudio/nord | (palette) | MIT | Official Nord palette mapped to zed theme schema. |
+| `crates/xenon_editor/queries/markdown/*.scm` | tree-sitter-grammars/tree-sitter-markdown (via crates.io `tree-sitter-md`) | 0.5.x stock queries | MIT | Block/inline highlights adapted from crate-shipped queries; injections add `include-children` for inline re-parse. |
 
 Original Xenon theme families (no third-party source file): `neon`, `ember`, `aurora`,
 `abyss`, `tokyo`, `runner`, `ink`, `high_contrast`, `imperial`, `mithril`, `synthwave`,

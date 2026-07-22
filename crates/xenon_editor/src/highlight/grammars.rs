@@ -12,6 +12,8 @@ fn build(language: tree_sitter::Language, query: &str) -> Option<HighlightConfig
     build_injected(language, "source", query, "")
 }
 
+/// Build a highlight config. If `injections` fails to parse, fall back to
+/// highlights-only so a bad injection query never blanks an entire language.
 fn build_injected(
     language: tree_sitter::Language,
     name: &str,
@@ -19,7 +21,13 @@ fn build_injected(
     injections: &str,
 ) -> Option<HighlightConfiguration> {
     let mut config =
-        HighlightConfiguration::new(language, name, highlights, injections, "").ok()?;
+        match HighlightConfiguration::new(language.clone(), name, highlights, injections, "") {
+            Ok(c) => c,
+            Err(_) if !injections.is_empty() => {
+                HighlightConfiguration::new(language, name, highlights, "", "").ok()?
+            }
+            Err(_) => return None,
+        };
     config.configure(HIGHLIGHT_NAMES);
     Some(config)
 }
@@ -28,15 +36,16 @@ pub(super) static MARKDOWN: LazyLock<Option<HighlightConfiguration>> = LazyLock:
     build_injected(
         Language::new(tree_sitter_md::LANGUAGE),
         "markdown",
-        tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
-        tree_sitter_md::INJECTION_QUERY_BLOCK,
+        include_str!("../../queries/markdown/highlights.scm"),
+        include_str!("../../queries/markdown/injections.scm"),
     )
 });
 static MARKDOWN_INLINE: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     build_injected(
         Language::new(tree_sitter_md::INLINE_LANGUAGE),
         "markdown_inline",
-        tree_sitter_md::HIGHLIGHT_QUERY_INLINE,
+        include_str!("../../queries/markdown/highlights_inline.scm"),
+        // Inline HTML / latex injections from upstream if present; empty is fine.
         tree_sitter_md::INJECTION_QUERY_INLINE,
     )
 });
@@ -53,12 +62,17 @@ macro_rules! config {
         static $name: LazyLock<Option<HighlightConfiguration>> =
             LazyLock::new(|| build(Language::new($lang), $query));
     };
+    ($name:ident, $lang:expr, $query:expr, $injections:expr) => {
+        static $name: LazyLock<Option<HighlightConfiguration>> =
+            LazyLock::new(|| build_injected(Language::new($lang), "source", $query, $injections));
+    };
 }
 
 config!(
     RUST,
     tree_sitter_rust::LANGUAGE,
-    tree_sitter_rust::HIGHLIGHTS_QUERY
+    tree_sitter_rust::HIGHLIGHTS_QUERY,
+    tree_sitter_rust::INJECTIONS_QUERY
 );
 config!(
     JSON,
@@ -78,18 +92,22 @@ config!(
 config!(
     JAVASCRIPT,
     tree_sitter_javascript::LANGUAGE,
-    tree_sitter_javascript::HIGHLIGHT_QUERY
+    tree_sitter_javascript::HIGHLIGHT_QUERY,
+    tree_sitter_javascript::INJECTIONS_QUERY
 );
 // TS/TSX: JS query + TS-specific deltas (upstream TS query is type-only).
+// Share JS injections (regex, jsdoc).
 static TYPESCRIPT: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
     let query = format!(
         "{}\n{}",
         tree_sitter_javascript::HIGHLIGHT_QUERY,
         tree_sitter_typescript::HIGHLIGHTS_QUERY
     );
-    build(
+    build_injected(
         Language::new(tree_sitter_typescript::LANGUAGE_TYPESCRIPT),
+        "source",
         &query,
+        tree_sitter_javascript::INJECTIONS_QUERY,
     )
 });
 static TSX: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
@@ -98,7 +116,12 @@ static TSX: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
         tree_sitter_javascript::HIGHLIGHT_QUERY,
         tree_sitter_typescript::HIGHLIGHTS_QUERY
     );
-    build(Language::new(tree_sitter_typescript::LANGUAGE_TSX), &query)
+    build_injected(
+        Language::new(tree_sitter_typescript::LANGUAGE_TSX),
+        "source",
+        &query,
+        tree_sitter_javascript::INJECTIONS_QUERY,
+    )
 });
 config!(
     GO,
@@ -113,7 +136,8 @@ config!(
 config!(
     HTML,
     tree_sitter_html::LANGUAGE,
-    tree_sitter_html::HIGHLIGHTS_QUERY
+    tree_sitter_html::HIGHLIGHTS_QUERY,
+    tree_sitter_html::INJECTIONS_QUERY
 );
 config!(
     CSS,
@@ -144,12 +168,14 @@ config!(
 config!(
     LUA,
     tree_sitter_lua::LANGUAGE,
-    tree_sitter_lua::HIGHLIGHTS_QUERY
+    tree_sitter_lua::HIGHLIGHTS_QUERY,
+    tree_sitter_lua::INJECTIONS_QUERY
 );
 config!(
     SWIFT,
     tree_sitter_swift::LANGUAGE,
-    tree_sitter_swift::HIGHLIGHTS_QUERY
+    tree_sitter_swift::HIGHLIGHTS_QUERY,
+    tree_sitter_swift::INJECTIONS_QUERY
 );
 config!(
     SCALA,
@@ -159,22 +185,26 @@ config!(
 config!(
     ELIXIR,
     tree_sitter_elixir::LANGUAGE,
-    tree_sitter_elixir::HIGHLIGHTS_QUERY
+    tree_sitter_elixir::HIGHLIGHTS_QUERY,
+    tree_sitter_elixir::INJECTIONS_QUERY
 );
 config!(
     HASKELL,
     tree_sitter_haskell::LANGUAGE,
-    tree_sitter_haskell::HIGHLIGHTS_QUERY
+    tree_sitter_haskell::HIGHLIGHTS_QUERY,
+    tree_sitter_haskell::INJECTIONS_QUERY
 );
 config!(
     PHP,
     tree_sitter_php::LANGUAGE_PHP,
-    tree_sitter_php::HIGHLIGHTS_QUERY
+    tree_sitter_php::HIGHLIGHTS_QUERY,
+    tree_sitter_php::INJECTIONS_QUERY
 );
 config!(
     ZIG,
     tree_sitter_zig::LANGUAGE,
-    tree_sitter_zig::HIGHLIGHTS_QUERY
+    tree_sitter_zig::HIGHLIGHTS_QUERY,
+    tree_sitter_zig::INJECTIONS_QUERY
 );
 config!(
     MAKE,
@@ -206,7 +236,8 @@ config!(R, tree_sitter_r::LANGUAGE, tree_sitter_r::HIGHLIGHTS_QUERY);
 config!(
     NIX,
     tree_sitter_nix::LANGUAGE,
-    tree_sitter_nix::HIGHLIGHTS_QUERY
+    tree_sitter_nix::HIGHLIGHTS_QUERY,
+    tree_sitter_nix::INJECTIONS_QUERY
 );
 config!(
     SOLIDITY,
@@ -226,7 +257,8 @@ config!(
 config!(
     CMAKE,
     tree_sitter_cmake::LANGUAGE,
-    tree_sitter_cmake::HIGHLIGHTS_QUERY
+    tree_sitter_cmake::HIGHLIGHTS_QUERY,
+    tree_sitter_cmake::INJECTIONS_QUERY
 );
 config!(
     GLSL,
@@ -261,7 +293,8 @@ config!(
 config!(
     ELM,
     tree_sitter_elm::LANGUAGE,
-    tree_sitter_elm::HIGHLIGHTS_QUERY
+    tree_sitter_elm::HIGHLIGHTS_QUERY,
+    tree_sitter_elm::INJECTIONS_QUERY
 );
 // Svelte queries use `; inherits: html` which tree-sitter-highlight does not
 // expand; prepend HTML highlights explicitly.
@@ -272,7 +305,18 @@ static SVELTE: LazyLock<Option<HighlightConfiguration>> = LazyLock::new(|| {
         .collect::<Vec<_>>()
         .join("\n");
     let query = format!("{}\n{svelte_q}", tree_sitter_html::HIGHLIGHTS_QUERY);
-    build(Language::new(tree_sitter_svelte_ng::LANGUAGE), &query)
+    let inj = tree_sitter_svelte_ng::INJECTIONS_QUERY
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("; inherits"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let injections = format!("{}\n{inj}", tree_sitter_html::INJECTIONS_QUERY);
+    build_injected(
+        Language::new(tree_sitter_svelte_ng::LANGUAGE),
+        "source",
+        &query,
+        &injections,
+    )
 });
 
 pub(super) fn config(lang: Lang) -> Option<&'static HighlightConfiguration> {

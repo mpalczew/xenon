@@ -226,7 +226,7 @@
           },
           "emphasis": {
             "color": "#00b7ffff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
@@ -640,7 +640,7 @@
           },
           "emphasis": {
             "color": "#0050c8ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {

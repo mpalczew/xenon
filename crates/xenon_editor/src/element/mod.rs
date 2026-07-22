@@ -1,21 +1,26 @@
 //! Editor rendering: shape each line of the buffer with syntax colors and place
-//! the cursor. Highlight spans arrive pre-resolved to colors (byte ranges over
-//! the whole rope); gaps fall back to the default text color.
+//! the cursor. Highlight spans arrive pre-resolved to colors (and optional font
+//! weight/style) over the whole rope; gaps fall back to the default text color.
 
 use gpui::{
-    Bounds, ContentMask, Font, FontFeatures, Hsla, Pixels, Point as GpuiPoint, ShapedLine,
-    SharedString, Size, TextAlign, TextRun, Window, fill, point, px, size,
+    Bounds, Font, FontFeatures, FontStyle, FontWeight, Hsla, Pixels, Point as GpuiPoint,
+    ShapedLine, SharedString, Size, TextRun, Window, point, px, size,
 };
 use ropey::Rope;
 
-const GUTTER_PAD_LEFT: f32 = 8.;
+mod paint;
+pub use paint::{line_height, paint};
+
+pub(super) const GUTTER_PAD_LEFT: f32 = 8.;
 const GUTTER_PAD_RIGHT: f32 = 8.;
 
-/// A colored byte range `[start, end)` over the whole buffer.
+/// A styled byte range `[start, end)` over the whole buffer.
 pub struct ColoredSpan {
     pub start: usize,
     pub end: usize,
     pub color: Hsla,
+    pub font_weight: Option<FontWeight>,
+    pub font_style: Option<FontStyle>,
 }
 
 /// The shaped visible lines (each with its absolute row) plus the cursor.
@@ -242,6 +247,8 @@ fn shape_visible_lines(
                         number.chars().count(),
                         input.line_number_color,
                         metrics.font,
+                        None,
+                        None,
                     )],
                     metrics.font_size,
                     window,
@@ -378,7 +385,7 @@ fn trim_newline(mut text: String) -> String {
     text
 }
 
-/// Split one line into text runs: span colors where they cover the line,
+/// Split one line into text runs: span styles where they cover the line,
 /// `default_color` in the gaps. Spans are sorted, non-overlapping (source order).
 /// A line's text together with its byte offset in the rope.
 struct LineSlice<'a> {
@@ -403,25 +410,44 @@ fn line_runs(
         let start = span.start.max(line_start);
         let end = span.end.min(line_end);
         if start > pos {
-            runs.push(run(start - pos, default_color, font));
+            runs.push(run(start - pos, default_color, font, None, None));
         }
         if end > start {
-            runs.push(run(end - start, span.color, font));
+            runs.push(run(
+                end - start,
+                span.color,
+                font,
+                span.font_weight,
+                span.font_style,
+            ));
             pos = end;
         }
     }
     if pos < line_end {
-        runs.push(run(line_end - pos, default_color, font));
+        runs.push(run(line_end - pos, default_color, font, None, None));
     }
     runs
 }
 
-fn run(len: usize, color: Hsla, font: &Font) -> TextRun {
+fn run(
+    len: usize,
+    color: Hsla,
+    font: &Font,
+    weight: Option<FontWeight>,
+    style: Option<FontStyle>,
+) -> TextRun {
+    let mut font = font.clone();
+    if let Some(w) = weight {
+        font.weight = w;
+    }
+    if let Some(s) = style {
+        font.style = s;
+    }
     TextRun {
         len,
         color,
         background_color: None,
-        font: font.clone(),
+        font,
         underline: None,
         strikethrough: None,
     }
@@ -433,56 +459,23 @@ fn shape(text: String, runs: Vec<TextRun>, font_size: Pixels, window: &mut Windo
         .shape_line(SharedString::from(text), font_size, &runs, None)
 }
 
-/// Paint search highlights, selection, cursor, then the visible shaped lines.
-pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx: &mut gpui::App) {
-    window.with_content_mask(
-        Some(ContentMask {
-            bounds: layout.viewport,
-        }),
-        |window| {
-            for rect in &layout.search_matches {
-                window.paint_quad(fill(*rect, layout.search_match_color));
-            }
-            for rect in &layout.search_current {
-                window.paint_quad(fill(*rect, layout.search_current_color));
-            }
-            for rect in &layout.selection {
-                window.paint_quad(fill(*rect, layout.selection_color));
-            }
-            window.paint_quad(fill(layout.cursor, cursor_color));
-            for (row, line) in &layout.lines {
-                let y = layout.origin.y + layout.line_height * (*row as f32) - layout.scroll_top;
-                let _ = line.paint(
-                    point(layout.text_origin.x, y),
-                    layout.line_height,
-                    TextAlign::Left,
-                    None,
-                    window,
-                    cx,
-                );
-            }
-            if let Some(gutter) = layout.gutter {
-                window.paint_quad(fill(gutter, layout.gutter_color));
-            }
-            for (row, line) in &layout.line_numbers {
-                let y = layout.origin.y + layout.line_height * (*row as f32) - layout.scroll_top;
-                let _ = line.paint(
-                    point(layout.origin.x + px(GUTTER_PAD_LEFT), y),
-                    layout.line_height,
-                    TextAlign::Left,
-                    None,
-                    window,
-                    cx,
-                );
-            }
-            for scrollbar in &layout.scrollbars {
-                window.paint_quad(fill(*scrollbar, layout.scrollbar_color));
-            }
-        },
-    );
-}
+#[cfg(test)]
+mod style_tests {
+    use super::*;
+    use gpui::hsla;
 
-/// Line height in pixels for a font size and multiplier.
-pub fn line_height(font_size: Pixels, multiplier: f32) -> Pixels {
-    px(f32::from(font_size) * multiplier)
+    #[test]
+    fn run_applies_font_weight_and_style() {
+        let base = editor_font("Menlo");
+        let bold = run(
+            4,
+            hsla(0., 0., 1., 1.),
+            &base,
+            Some(FontWeight::BOLD),
+            Some(FontStyle::Italic),
+        );
+        assert_eq!(bold.font.weight, FontWeight::BOLD);
+        assert_eq!(bold.font.style, FontStyle::Italic);
+        assert_eq!(bold.font.family, base.family);
+    }
 }

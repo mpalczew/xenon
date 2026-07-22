@@ -83,14 +83,14 @@ fn layout(
             .highlights
             .iter()
             .map(|span| {
-                let color = syntax
-                    .style_for_name(span.name)
-                    .and_then(|style| style.color)
-                    .unwrap_or(text_color);
+                let style = syntax.style_for_name(span.name);
+                let color = style.and_then(|s| s.color).unwrap_or(text_color);
                 ColoredSpan {
                     start: span.start,
                     end: span.end,
                     color,
+                    font_weight: style.and_then(|s| s.font_weight),
+                    font_style: style.and_then(|s| s.font_style),
                 }
             })
             .collect();

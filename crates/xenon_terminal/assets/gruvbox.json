@@ -224,7 +224,7 @@
           },
           "emphasis": {
             "color": "#83a598ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
@@ -641,7 +641,7 @@
           },
           "emphasis": {
             "color": "#83a598ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
@@ -1058,7 +1058,7 @@
           },
           "emphasis": {
             "color": "#83a598ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
@@ -1475,7 +1475,7 @@
           },
           "emphasis": {
             "color": "#0b6678ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
@@ -1892,7 +1892,7 @@
           },
           "emphasis": {
             "color": "#0b6678ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
@@ -2309,7 +2309,7 @@
           },
           "emphasis": {
             "color": "#0b6678ff",
-            "font_style": null,
+            "font_style": "italic",
             "font_weight": null
           },
           "emphasis.strong": {
