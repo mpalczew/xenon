@@ -49,6 +49,7 @@ fn tab_close(
         .invisible()
         .group_hover(group, |s| s.visible())
         .hover(|s| s.text_color(colors.text))
+        .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")))
         .child("✕")
         .on_click(on_click)
 }
@@ -73,6 +74,10 @@ impl Render for TabTooltip {
     }
 }
 
+fn tip_tooltip(tip: SharedString) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView {
+    move |_window: &mut Window, cx: &mut App| cx.new(|_| TabTooltip { text: tip.clone() }).into()
+}
+
 impl XenonApp {
     pub(crate) fn render_mixed_tabs(
         &self,
@@ -81,9 +86,24 @@ impl XenonApp {
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let pane = leaf.id;
+        let chips = self.mixed_tab_chips(leaf, cx);
+        let preview = self.md_preview_btn(leaf, pane, &colors, cx);
+        div()
+            .flex()
+            .items_center()
+            .h(px(30.))
+            .border_b_1()
+            .border_color(colors.border)
+            .bg(chrome::tab_bar_background(&colors))
+            .children(chips)
+            .child(self.term_add_btn(pane, &colors, cx))
+            .children(preview)
+    }
+
+    fn mixed_tab_chips(&self, leaf: &LiveLeaf, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
+        let pane = leaf.id;
         let active = leaf.active;
         let ws = self.active;
-
         let mut chips = Vec::new();
         for (index, tab) in leaf.tabs.iter().enumerate() {
             let is_active = index == active;
@@ -117,62 +137,77 @@ impl XenonApp {
                 }
             }
         }
+        chips
+    }
 
-        let preview = leaf
+    fn md_preview_btn(
+        &self,
+        leaf: &LiveLeaf,
+        pane: PaneId,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> Option<impl IntoElement + use<>> {
+        let show = leaf
             .active_tab()
             .and_then(|t| t.as_editor())
-            .is_some_and(|v| v.read(cx).is_markdown())
-            .then(|| {
-                let previewing = self.active_editor_is_previewing(cx);
-                div()
-                    .id(("md-preview", pane.0))
-                    .ml_auto()
-                    .w(px(30.))
-                    .h_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .text_color(if previewing {
-                        colors.text
-                    } else {
-                        colors.text_muted
-                    })
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                    .child(preview_icon(previewing))
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_preview(cx)))
-            });
+            .is_some_and(|v| v.read(cx).is_markdown());
+        if !show {
+            return None;
+        }
+        let previewing = self.active_editor_is_previewing(cx);
+        let tip = SharedString::from(if previewing {
+            "Show Source"
+        } else {
+            "Markdown Preview"
+        });
+        let colors = colors.clone();
+        Some(
+            div()
+                .id(("md-preview", pane.0))
+                .ml_auto()
+                .w(px(30.))
+                .h_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(if previewing {
+                    colors.text
+                } else {
+                    colors.text_muted
+                })
+                .cursor_pointer()
+                .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+                .tooltip(tip_tooltip(tip))
+                .child(preview_icon(previewing))
+                .on_click(cx.listener(|this, _, _, cx| this.toggle_preview(cx))),
+        )
+    }
 
+    fn term_add_btn(
+        &self,
+        pane: PaneId,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let colors = colors.clone();
         div()
-            .flex()
-            .items_center()
-            .h(px(30.))
-            .border_b_1()
-            .border_color(colors.border)
-            .bg(chrome::tab_bar_background(&colors))
-            .children(chips)
-            .child(
-                div()
-                    .id(("term-add", pane.0))
-                    .px_2()
-                    .text_sm()
-                    .text_color(colors.text_muted)
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                    .child("+")
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        // Focus this pane then add terminal
-                        if let Some(content) = this.active.and_then(|id| this.contents.get_mut(&id))
-                        {
-                            content.focused = Some(pane);
-                        }
-                        this.add_terminal(cx);
-                        if let Some(t) = this.active_terminal() {
-                            t.read(cx).focus_handle(cx).focus(window, cx);
-                        }
-                    })),
-            )
-            .children(preview)
+            .id(("term-add", pane.0))
+            .px_2()
+            .text_sm()
+            .text_color(colors.text_muted)
+            .cursor_pointer()
+            .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+            .tooltip(tip_tooltip(SharedString::from("New Terminal · ⌘N")))
+            .child("+")
+            .on_click(cx.listener(move |this, _, window, cx| {
+                if let Some(content) = this.active.and_then(|id| this.contents.get_mut(&id)) {
+                    content.focused = Some(pane);
+                }
+                this.add_terminal(cx);
+                if let Some(t) = this.active_terminal() {
+                    t.read(cx).focus_handle(cx).focus(window, cx);
+                }
+            }))
     }
 
     #[allow(clippy::too_many_arguments)]

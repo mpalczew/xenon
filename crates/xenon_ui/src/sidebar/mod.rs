@@ -165,7 +165,7 @@ impl XenonApp {
                 "add-workspace",
                 Icon::Plus,
                 colors.clone(),
-                Some("Open Workspace"),
+                Some("Open Workspace · ⌘⇧O"),
                 cx.listener(|this, _, window, cx| {
                     cx.stop_propagation();
                     this.add_workspace_from_plus(window, cx);
@@ -312,7 +312,7 @@ impl XenonApp {
                 ("ws-rename", id_hash(id.to_string())),
                 Icon::Pencil,
                 colors.clone(),
-                None,
+                Some("Rename Workspace"),
                 cx.listener(move |this, _, _, cx| {
                     cx.stop_propagation();
                     this.start_rename_workspace(id, cx);
@@ -322,7 +322,7 @@ impl XenonApp {
                 ("workspace-close", id_hash(id.to_string())),
                 Icon::X,
                 colors.clone(),
-                None,
+                Some("Close Workspace · ⌘⌥W"),
                 cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     this.close_workspace(id, window, cx);

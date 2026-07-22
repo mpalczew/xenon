@@ -10,7 +10,10 @@ use theme::ActiveTheme;
 use crate::app::XenonApp;
 use crate::chrome::list_selection;
 use crate::icons::icon;
-use crate::{FilePalette, RunTask, Save, SplitDown, SplitRight, ToggleSettings, ToggleSidebar};
+use crate::{
+    FilePalette, GoBack, GoForward, NextWorkspace, PrevWorkspace, RunTask, Save, SplitDown,
+    SplitRight, ToggleSettings, ToggleSidebar,
+};
 
 const ICON: f32 = 14.;
 
@@ -42,6 +45,46 @@ impl XenonApp {
                     label: "Workspace Sidebar · ⌘B",
                     active: self.sidebar_visible(),
                     action: Box::new(ToggleSidebar),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-prev-workspace",
+                    glyph: Icon::ChevronUp,
+                    label: "Previous Workspace · ⌘⌥↑",
+                    active: false,
+                    action: Box::new(PrevWorkspace),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-next-workspace",
+                    glyph: Icon::ChevronDown,
+                    label: "Next Workspace · ⌘⌥↓",
+                    active: false,
+                    action: Box::new(NextWorkspace),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-go-back",
+                    glyph: Icon::ChevronLeft,
+                    label: "Go Back · ⌘[",
+                    active: false,
+                    action: Box::new(GoBack),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-go-forward",
+                    glyph: Icon::ChevronRight,
+                    label: "Go Forward · ⌘]",
+                    active: false,
+                    action: Box::new(GoForward),
                 },
                 cx,
             ))
