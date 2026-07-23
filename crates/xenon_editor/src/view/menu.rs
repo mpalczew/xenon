@@ -132,6 +132,54 @@ impl EditorView {
                     }),
                 ),
             );
+        self.context_menu_shell(position, menu_box, cx)
+    }
+
+    /// Preview is read-only: Copy + Select All only.
+    pub(super) fn render_preview_context_menu(
+        &self,
+        position: Point<Pixels>,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let menu_box = div()
+            .occlude()
+            .flex()
+            .flex_col()
+            .min_w(px(180.))
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .shadow_md()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
+            .on_mouse_move(|_, _, cx| cx.stop_propagation())
+            .child(
+                context_item("preview-menu-copy", "Copy", "⌘C", colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.copy_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("preview-menu-select-all", "Select All", "⌘A", colors).on_click(
+                    cx.listener(|this, _, _, cx| {
+                        this.select_all(cx);
+                        this.dismiss_menu(cx);
+                    }),
+                ),
+            );
+        self.context_menu_shell(position, menu_box, cx)
+    }
+
+    fn context_menu_shell(
+        &self,
+        position: Point<Pixels>,
+        menu_box: gpui::Div,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
         div()
             .absolute()
             .inset_0()

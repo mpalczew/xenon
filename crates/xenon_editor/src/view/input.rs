@@ -62,6 +62,14 @@ impl EditorView {
             cx.stop_propagation();
             return;
         }
+        if self.preview {
+            // Preview is read-only: only select-all (above), copy (action), and Esc/menu.
+            if keystroke.modifiers.platform && keystroke.key == "c" {
+                self.copy_selection(cx);
+                cx.stop_propagation();
+            }
+            return;
+        }
         if keystroke.modifiers.control && keystroke.key == "r" {
             if self.redo_edit() {
                 self.recompute_highlights();

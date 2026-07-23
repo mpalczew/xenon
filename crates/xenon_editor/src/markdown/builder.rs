@@ -4,13 +4,15 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use gpui::{
-    AnyElement, FontStyle, FontWeight, HighlightStyle, Hsla, IntoElement, ParentElement, Pixels,
-    SharedString, StrikethroughStyle, Styled, StyledText, div, px,
+    AnyElement, Entity, FontStyle, FontWeight, HighlightStyle, Hsla, IntoElement, ParentElement,
+    Pixels, SharedString, StrikethroughStyle, Styled, div, px,
 };
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use theme::Theme;
 
-use super::table::{Table, TableCell, render_table};
+use super::selectable::SelectableBlock;
+use super::state::PreviewState;
+use super::table::{Table, TablePaint, render_table};
 use super::yaml::split_simple_yaml_pairs;
 use super::{code_block_width, heading_size, wide_block};
 use crate::highlight;
@@ -21,9 +23,14 @@ pub(super) struct Builder {
     muted: Hsla,
     code_bg: Hsla,
     rule: Hsla,
+    selection_color: Hsla,
     base: Pixels,
     mono: String,
+    host: Entity<PreviewState>,
     blocks: Vec<AnyElement>,
+    plain: Vec<SharedString>,
+    /// Parallel to `plain`: byte range in the original markdown source.
+    source_ranges: Vec<Range<usize>>,
     inline: String,
     highlights: Vec<(Range<usize>, HighlightStyle)>,
     bold: u32,
@@ -34,6 +41,9 @@ pub(super) struct Builder {
     metadata: Option<String>,
     table: Option<Table>,
     def_title: Option<String>,
+    def_title_source: Option<Range<usize>>,
+    /// Source range for the in-progress table cell (from Start/End TableCell).
+    cell_source: Option<Range<usize>>,
 }
 
 pub(super) struct BuilderColors {
@@ -41,6 +51,7 @@ pub(super) struct BuilderColors {
     pub muted: Hsla,
     pub code_bg: Hsla,
     pub rule: Hsla,
+    pub selection: Hsla,
 }
 
 impl Builder {
@@ -49,6 +60,7 @@ impl Builder {
         colors: BuilderColors,
         base: Pixels,
         mono_family: &str,
+        host: Entity<PreviewState>,
     ) -> Self {
         Self {
             theme,
@@ -56,9 +68,13 @@ impl Builder {
             muted: colors.muted,
             code_bg: colors.code_bg,
             rule: colors.rule,
+            selection_color: colors.selection,
             base,
             mono: mono_family.to_string(),
+            host,
             blocks: Vec::new(),
+            plain: Vec::new(),
+            source_ranges: Vec::new(),
             inline: String::new(),
             highlights: Vec::new(),
             bold: 0,
@@ -69,23 +85,42 @@ impl Builder {
             metadata: None,
             table: None,
             def_title: None,
+            def_title_source: None,
+            cell_source: None,
         }
     }
 
-    pub(super) fn into_blocks(self) -> Vec<AnyElement> {
-        self.blocks
+    pub(super) fn finish(self) -> (Vec<AnyElement>, Vec<SharedString>, Vec<Range<usize>>) {
+        (self.blocks, self.plain, self.source_ranges)
     }
-
+    fn push_selectable(
+        &mut self,
+        text: SharedString,
+        highlights: Vec<(Range<usize>, HighlightStyle)>,
+        source_range: Range<usize>,
+    ) -> AnyElement {
+        let ix = self.plain.len();
+        self.plain.push(text.clone());
+        self.source_ranges.push(source_range);
+        SelectableBlock::new(
+            ix,
+            text,
+            highlights,
+            self.host.clone(),
+            self.selection_color,
+        )
+        .into_any_element()
+    }
     fn push_meta_nl(&mut self) {
         if let Some(buffer) = &mut self.metadata {
             buffer.push('\n');
         }
     }
 
-    pub(super) fn event(&mut self, event: Event) {
+    pub(super) fn event(&mut self, event: Event, range: Range<usize>) {
         match event {
-            Event::Start(tag) => self.start(tag),
-            Event::End(tag) => self.end(tag),
+            Event::Start(tag) => self.start(tag, range),
+            Event::End(tag) => self.end(tag, range),
             Event::Text(text) => {
                 if let Some(buffer) = &mut self.metadata {
                     buffer.push_str(&text);
@@ -124,8 +159,7 @@ impl Builder {
             _ => {}
         }
     }
-
-    fn start(&mut self, tag: Tag) {
+    fn start(&mut self, tag: Tag, range: Range<usize>) {
         match tag {
             Tag::Heading { .. } => {}
             Tag::CodeBlock(kind) => {
@@ -172,35 +206,44 @@ impl Builder {
                 if let Some(table) = &mut self.table {
                     table.in_cell = true;
                 }
+                self.cell_source = Some(range);
                 self.inline.clear();
                 self.highlights.clear();
             }
             _ => {}
         }
     }
-
-    fn end(&mut self, tag: TagEnd) {
+    fn end(&mut self, tag: TagEnd, range: Range<usize>) {
         match tag {
-            TagEnd::Paragraph if !self.in_table_cell() => self.flush_block(self.base, false, None),
+            TagEnd::Paragraph if !self.in_table_cell() => {
+                self.flush_block(self.base, false, None, range)
+            }
             TagEnd::Paragraph => {}
-            TagEnd::Heading(level) => self.flush_block(heading_size(self.base, level), true, None),
-            TagEnd::Item => self.flush_block(self.base, false, Some(px(16.))),
-            TagEnd::CodeBlock => self.flush_code(),
-            TagEnd::MetadataBlock(_) => self.flush_metadata(),
+            TagEnd::Heading(level) => {
+                self.flush_block(heading_size(self.base, level), true, None, range)
+            }
+            TagEnd::Item => self.flush_block(self.base, false, Some(px(16.)), range),
+            TagEnd::CodeBlock => self.flush_code(range),
+            TagEnd::MetadataBlock(_) => self.flush_metadata(range),
             TagEnd::Emphasis => self.italic = self.italic.saturating_sub(1),
             TagEnd::Strong => self.bold = self.bold.saturating_sub(1),
             TagEnd::Strikethrough => self.strike = self.strike.saturating_sub(1),
             TagEnd::Link => self.link = self.link.saturating_sub(1),
             TagEnd::FootnoteDefinition => {
-                self.flush_block(px(f32::from(self.base) * 0.9), false, None)
+                self.flush_block(px(f32::from(self.base) * 0.9), false, None, range)
             }
             TagEnd::DefinitionListTitle => {
                 self.def_title = Some(std::mem::take(&mut self.inline).trim().to_string());
+                self.def_title_source = Some(range);
                 self.highlights.clear();
             }
-            TagEnd::DefinitionListDefinition => self.flush_definition(),
-            TagEnd::TableCell => self.finish_table_cell(),
-            TagEnd::TableRow => self.finish_table_row(),
+            TagEnd::DefinitionListDefinition => self.flush_definition(range),
+            TagEnd::TableCell => self.finish_table_cell(range),
+            TagEnd::TableRow => {
+                if let Some(table) = &mut self.table {
+                    table.finish_row();
+                }
+            }
             TagEnd::TableHead => {
                 if let Some(table) = &mut self.table {
                     table.in_head = false;
@@ -210,7 +253,6 @@ impl Builder {
             _ => {}
         }
     }
-
     fn inline_style(&self) -> Option<HighlightStyle> {
         if self.bold == 0 && self.italic == 0 && self.strike == 0 && self.link == 0 {
             return None;
@@ -226,7 +268,6 @@ impl Builder {
             ..Default::default()
         })
     }
-
     fn push(&mut self, text: &str, style: Option<HighlightStyle>) {
         let start = self.inline.len();
         self.inline.push_str(text);
@@ -234,8 +275,13 @@ impl Builder {
             self.highlights.push((start..self.inline.len(), style));
         }
     }
-
-    fn flush_block(&mut self, size: Pixels, bold: bool, pad_left: Option<Pixels>) {
+    fn flush_block(
+        &mut self,
+        size: Pixels,
+        bold: bool,
+        pad_left: Option<Pixels>,
+        source_range: Range<usize>,
+    ) {
         if self.inline.trim().is_empty() {
             self.inline.clear();
             self.highlights.clear();
@@ -243,6 +289,7 @@ impl Builder {
         }
         let text = SharedString::from(std::mem::take(&mut self.inline));
         let highlights = std::mem::take(&mut self.highlights);
+        let child = self.push_selectable(text, highlights, source_range);
         let mut block = div()
             .my_1()
             .w_full()
@@ -255,14 +302,9 @@ impl Builder {
         if let Some(pad) = pad_left {
             block = block.pl(pad);
         }
-        self.blocks.push(
-            block
-                .child(StyledText::new(text).with_highlights(highlights))
-                .into_any_element(),
-        );
+        self.blocks.push(block.child(child).into_any_element());
     }
-
-    fn flush_code(&mut self) {
+    fn flush_code(&mut self, source_range: Range<usize>) {
         let Some((lang, mut code)) = self.code.take() else {
             return;
         };
@@ -280,6 +322,7 @@ impl Builder {
                 (span.start..span.end, style)
             })
             .collect();
+        let child = self.push_selectable(SharedString::from(code), highlights, source_range);
         self.blocks.push(
             wide_block(width)
                 .my_2()
@@ -288,12 +331,11 @@ impl Builder {
                 .bg(self.code_bg)
                 .font_family(self.mono.clone())
                 .text_size(self.base)
-                .child(StyledText::new(SharedString::from(code)).with_highlights(highlights))
+                .child(child)
                 .into_any_element(),
         );
     }
-
-    fn flush_metadata(&mut self) {
+    fn flush_metadata(&mut self, source_range: Range<usize>) {
         let Some(body) = self.metadata.take() else {
             return;
         };
@@ -301,13 +343,18 @@ impl Builder {
         if body.is_empty() {
             return;
         }
-        let panel = split_simple_yaml_pairs(body)
-            .map(|pairs| self.metadata_pairs_panel(pairs))
-            .unwrap_or_else(|| self.metadata_raw_panel(body));
+        let panel = if let Some(pairs) = split_simple_yaml_pairs(body) {
+            self.metadata_pairs_panel(pairs, source_range)
+        } else {
+            self.metadata_raw_panel(body, source_range)
+        };
         self.blocks.push(panel);
     }
-
-    fn metadata_pairs_panel(&self, pairs: Vec<(String, String)>) -> AnyElement {
+    fn metadata_pairs_panel(
+        &mut self,
+        pairs: Vec<(String, String)>,
+        source_range: Range<usize>,
+    ) -> AnyElement {
         let mut panel = div()
             .my_3()
             .w_full()
@@ -321,6 +368,11 @@ impl Builder {
             .flex_col()
             .gap_2();
         for (key, value) in pairs {
+            // Keys/values share the frontmatter source range (block-granular copy).
+            let key_el =
+                self.push_selectable(SharedString::from(key), Vec::new(), source_range.clone());
+            let value_el =
+                self.push_selectable(SharedString::from(value), Vec::new(), source_range.clone());
             panel = panel.child(
                 div()
                     .w_full()
@@ -333,7 +385,7 @@ impl Builder {
                             .text_size(px(f32::from(self.base) * 0.85))
                             .font_weight(FontWeight::BOLD)
                             .text_color(self.muted)
-                            .child(key),
+                            .child(key_el),
                     )
                     .child(
                         div()
@@ -341,14 +393,19 @@ impl Builder {
                             .min_w_0()
                             .whitespace_normal()
                             .text_size(self.base)
-                            .child(value),
+                            .child(value_el),
                     ),
             );
         }
         panel.into_any_element()
     }
 
-    fn metadata_raw_panel(&self, body: &str) -> AnyElement {
+    fn metadata_raw_panel(&mut self, body: &str, source_range: Range<usize>) -> AnyElement {
+        let child = self.push_selectable(
+            SharedString::from(body.to_string()),
+            Vec::new(),
+            source_range,
+        );
         div()
             .my_3()
             .w_full()
@@ -361,12 +418,13 @@ impl Builder {
             .font_family(self.mono.clone())
             .text_size(px(f32::from(self.base) * 0.9))
             .whitespace_normal()
-            .child(body.to_string())
+            .child(child)
             .into_any_element()
     }
 
-    fn flush_definition(&mut self) {
+    fn flush_definition(&mut self, body_source: Range<usize>) {
         let title = self.def_title.take().unwrap_or_default().trim().to_string();
+        let title_source = self.def_title_source.take();
         let body = std::mem::take(&mut self.inline);
         let highlights = std::mem::take(&mut self.highlights);
         let body_trim = body.trim();
@@ -375,14 +433,17 @@ impl Builder {
         }
         let mut block = div().my_1().w_full().min_w_0().flex().flex_col().gap_1();
         if !title.is_empty() {
+            let src = title_source.unwrap_or_else(|| body_source.clone());
+            let title_el = self.push_selectable(SharedString::from(title), Vec::new(), src);
             block = block.child(
                 div()
                     .font_weight(FontWeight::BOLD)
                     .text_size(self.base)
-                    .child(title),
+                    .child(title_el),
             );
         }
         if !body_trim.is_empty() {
+            let body_el = self.push_selectable(SharedString::from(body), highlights, body_source);
             block = block.child(
                 div()
                     .w_full()
@@ -390,7 +451,7 @@ impl Builder {
                     .pl_4()
                     .whitespace_normal()
                     .text_size(self.base)
-                    .child(StyledText::new(SharedString::from(body)).with_highlights(highlights)),
+                    .child(body_el),
             );
         }
         self.blocks.push(block.into_any_element());
@@ -400,29 +461,31 @@ impl Builder {
         self.table.as_ref().is_some_and(|t| t.in_cell)
     }
 
-    fn finish_table_cell(&mut self) {
+    fn finish_table_cell(&mut self, range: Range<usize>) {
         let Some(table) = &mut self.table else {
             return;
         };
-        table.in_cell = false;
-        table.current.cells.push(TableCell {
-            text: SharedString::from(std::mem::take(&mut self.inline)),
-            highlights: std::mem::take(&mut self.highlights),
-            header: table.in_head,
-        });
-    }
-
-    fn finish_table_row(&mut self) {
-        if let Some(table) = &mut self.table {
-            let row = std::mem::take(&mut table.current);
-            table.rows.push(row);
-        }
+        let source_range = self.cell_source.take().unwrap_or(range);
+        table.finish_cell(
+            std::mem::take(&mut self.inline),
+            std::mem::take(&mut self.highlights),
+            source_range,
+        );
     }
 
     fn flush_table(&mut self) {
         if let Some(table) = self.table.take() {
-            self.blocks
-                .push(render_table(table, self.rule, self.code_bg, self.base));
+            let paint = TablePaint {
+                rule: self.rule,
+                code_bg: self.code_bg,
+                base: self.base,
+                host: self.host.clone(),
+                selection: self.selection_color,
+            };
+            let (element, plains, ranges) = render_table(table, &paint, self.plain.len());
+            self.plain.extend(plains);
+            self.source_ranges.extend(ranges);
+            self.blocks.push(element);
         }
     }
 

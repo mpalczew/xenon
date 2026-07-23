@@ -5,23 +5,44 @@
 //!
 //! YAML frontmatter (`---` … `---`) is parsed as a metadata block (not a
 //! setext heading) and shown as a compact key/value panel.
+//!
+//! Preview text is selectable (drag / double-click / ⌘A) via [`PreviewState`].
 
 mod builder;
+mod select;
+mod selectable;
+mod state;
 mod table;
 mod yaml;
 
+pub use state::{PreviewEvent, PreviewState};
+
 use gpui::{
-    AnyElement, App, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels,
-    StatefulInteractiveElement, Styled, div, px,
+    AnyElement, App, Entity, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels,
+    SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 use pulldown_cmark::{HeadingLevel, Options, Parser};
 use theme::ActiveTheme;
 
 use self::builder::Builder;
 
-/// Render markdown `source` into a scrollable column of block elements sized
-/// relative to `base`, using `mono_family` for code spans and fences.
-pub fn render(source: &str, base: Pixels, mono_family: &str, cx: &App) -> AnyElement {
+/// Parsed preview: UI tree + plain texts + source ranges for selection/copy.
+pub struct PreviewRender {
+    pub element: AnyElement,
+    pub plain_blocks: Vec<SharedString>,
+    /// Byte ranges in the original markdown, parallel to `plain_blocks`.
+    pub source_ranges: Vec<std::ops::Range<usize>>,
+    pub source: SharedString,
+}
+
+/// Render markdown `source` into a scrollable column of selectable blocks.
+pub fn render(
+    source: &str,
+    base: Pixels,
+    mono_family: &str,
+    host: Entity<PreviewState>,
+    cx: &App,
+) -> PreviewRender {
     let theme = cx.theme().clone();
     let colors = theme.colors().clone();
     let mut builder = Builder::new(
@@ -31,19 +52,22 @@ pub fn render(source: &str, base: Pixels, mono_family: &str, cx: &App) -> AnyEle
             muted: colors.text_muted,
             code_bg: colors.surface_background,
             rule: colors.border,
+            selection: colors.element_selected,
         },
         base,
         mono_family,
+        host,
     );
-    for event in Parser::new_ext(source, markdown_options()) {
-        builder.event(event);
+    for (event, range) in Parser::new_ext(source, markdown_options()).into_offset_iter() {
+        builder.event(event, range);
     }
-    preview_surface(
-        builder.into_blocks(),
-        base,
-        colors.text,
-        colors.editor_background,
-    )
+    let (blocks, plain_blocks, source_ranges) = builder.finish();
+    PreviewRender {
+        element: preview_surface(blocks, base, colors.text, colors.editor_background),
+        plain_blocks,
+        source_ranges,
+        source: SharedString::from(source.to_string()),
+    }
 }
 
 pub(super) fn markdown_options() -> Options {

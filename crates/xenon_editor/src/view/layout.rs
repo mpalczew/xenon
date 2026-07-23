@@ -1,9 +1,15 @@
 //! Editor canvas layout: theme spans, scroll follow, click hit-test cache.
 
+use crate::markdown::{PreviewRender, PreviewState};
+
 /// Markdown preview using the current editor font settings.
-pub(crate) fn markdown_preview(source: &str, cx: &gpui::App) -> gpui::AnyElement {
+pub(crate) fn markdown_preview(
+    source: &str,
+    host: gpui::Entity<PreviewState>,
+    cx: &gpui::App,
+) -> PreviewRender {
     let face = xenon_settings::editor_font(cx);
-    crate::markdown::render(source, gpui::px(face.size), &face.family, cx)
+    crate::markdown::render(source, gpui::px(face.size), &face.family, host, cx)
 }
 
 impl super::EditorView {

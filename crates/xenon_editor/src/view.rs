@@ -16,9 +16,9 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, MouseButton, ParentElement, Pixels, Point, Render, ScrollWheelEvent, Styled, Task,
-    Window, actions, div, px,
+    AnyElement, App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point, Render,
+    ScrollWheelEvent, Styled, Subscription, Task, Window, actions, div, px,
 };
 use theme::ActiveTheme;
 
@@ -26,6 +26,7 @@ use crate::buffer::{Buffer, OpenError};
 use crate::element;
 use crate::highlight;
 use crate::image_viewer::ImageViewer;
+use crate::markdown::{PreviewEvent, PreviewState};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use find_session::FindSession;
@@ -49,6 +50,9 @@ pub struct EditorView {
     focused_once: bool,
     /// Render the markdown preview instead of the source (markdown files only).
     preview: bool,
+    /// Selection host for markdown preview (plain blocks + carets).
+    preview_state: Entity<PreviewState>,
+    _preview_sel_sub: Subscription,
     pub(super) click_layout: Option<ClickLayout>,
     click_tracker: ClickTracker,
     dragging: bool,
@@ -113,6 +117,9 @@ impl EditorView {
     }
 
     fn from_content(content: Content, autofocus: bool, cx: &mut Context<Self>) -> Self {
+        let preview_state = cx.new(|_| PreviewState::default());
+        let _preview_sel_sub =
+            cx.subscribe(&preview_state, |_, _, _: &PreviewEvent, cx| cx.notify());
         let mut view = Self {
             content,
             highlights: Vec::new(),
@@ -123,6 +130,8 @@ impl EditorView {
             autofocus,
             focused_once: false,
             preview: false,
+            preview_state,
+            _preview_sel_sub,
             click_layout: None,
             click_tracker: ClickTracker::default(),
             dragging: false,
@@ -159,8 +168,14 @@ impl EditorView {
         });
     }
 
-    /// ⌘A — select entire buffer.
+    /// ⌘A — select entire buffer (or all rendered preview text when previewing).
     pub fn select_all(&mut self, cx: &mut Context<Self>) {
+        if self.preview {
+            self.preview_state
+                .update(cx, |state, cx| state.select_all(cx));
+            cx.notify();
+            return;
+        }
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
@@ -191,6 +206,9 @@ impl EditorView {
     pub fn toggle_preview(&mut self, cx: &mut Context<Self>) {
         if self.is_markdown() {
             self.preview = !self.preview;
+            self.preview_state
+                .update(cx, |state, cx| state.clear_selection(cx));
+            self.context_menu = None;
             cx.notify();
         }
     }
@@ -234,6 +252,48 @@ impl Focusable for EditorView {
     }
 }
 
+impl EditorView {
+    fn render_preview(
+        &mut self,
+        alert: Option<impl IntoElement + 'static>,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let menu = self
+            .context_menu
+            .map(|position| self.render_preview_context_menu(position, colors, cx));
+        let rendered = layout::markdown_preview(&self.text(), self.preview_state.clone(), cx);
+        self.preview_state.update(cx, |state, cx| {
+            state.sync_doc(
+                rendered.source,
+                rendered.plain_blocks,
+                rendered.source_ranges,
+                cx,
+            );
+        });
+        div()
+            .track_focus(&self.focus)
+            .key_context("Editor")
+            .on_key_down(cx.listener(Self::on_key))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| {
+                this.copy_selection(cx);
+            }))
+            .on_action(cx.listener(|this, _: &SelectAll, _, cx| {
+                this.select_all(cx);
+            }))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
+            .relative()
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(colors.editor_background)
+            .children(alert)
+            .child(div().flex_1().min_h_0().child(rendered.element))
+            .children(menu)
+            .into_any_element()
+    }
+}
+
 impl Render for EditorView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.autofocus && !self.focused_once {
@@ -254,22 +314,7 @@ impl Render for EditorView {
         }
         let alert = self.disk_alert_bar(cx);
         if self.preview {
-            return div()
-                .track_focus(&self.focus)
-                .key_context("Editor")
-                .on_key_down(cx.listener(Self::on_key))
-                .size_full()
-                .flex()
-                .flex_col()
-                .bg(colors.editor_background)
-                .children(alert)
-                .child(
-                    div()
-                        .flex_1()
-                        .min_h_0()
-                        .child(layout::markdown_preview(&self.text(), cx)),
-                )
-                .into_any_element();
+            return self.render_preview(alert, &colors, cx);
         }
         let mode_bar = self.vim_mode_bar(&colors, cx);
         let menu = self
