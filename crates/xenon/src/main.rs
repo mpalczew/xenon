@@ -2,10 +2,12 @@ use std::path::PathBuf;
 
 use gpui::{
     App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, WindowBounds, WindowOptions,
-    actions, px, size,
+    actions, point, px, size,
 };
 use gpui_platform::application;
-use xenon_store::{IpcRequest, bind_server, parse_cli_paths, serve_forever, try_handoff};
+use xenon_store::{
+    IpcRequest, WindowState, bind_server, parse_cli_paths, serve_forever, try_handoff,
+};
 use xenon_ui::{
     AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, Cut, DecreaseFontSize,
     FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack, GoForward,
@@ -41,16 +43,17 @@ fn main() {
         xenon_ui::init(cx);
         wire_menus(cx);
 
-        let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
+        let window_bounds = initial_window_bounds(cx);
         cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                window_bounds: Some(window_bounds),
                 ..Default::default()
             },
             move |window, cx| {
                 xenon_terminal::observe_appearance(window, cx).detach();
                 cx.new(move |cx| {
                     let mut app = XenonApp::new(cx);
+                    app.track_window_bounds(window, cx);
                     if let Some(listener) = listener {
                         start_ipc(listener, cx);
                     }
@@ -64,6 +67,34 @@ fn main() {
         .unwrap();
         cx.activate(true);
     });
+}
+
+/// Restore last main-window geometry, or a centered 1280×800 default.
+/// Off-screen rects (display unplugged) keep size and re-center.
+fn initial_window_bounds(cx: &App) -> WindowBounds {
+    const DEFAULT_W: f32 = 1280.;
+    const DEFAULT_H: f32 = 800.;
+    let default_size = size(px(DEFAULT_W), px(DEFAULT_H));
+    let settings = xenon_store::load_settings().unwrap_or_default();
+    let Some(geo) = settings.window.filter(|g| g.is_sane()) else {
+        return WindowBounds::Windowed(Bounds::centered(None, default_size, cx));
+    };
+    let bounds = Bounds {
+        origin: point(px(geo.x), px(geo.y)),
+        size: size(px(geo.width), px(geo.height)),
+    };
+    let on_screen = cx
+        .displays()
+        .iter()
+        .any(|display| display.bounds().intersects(&bounds));
+    if !on_screen {
+        return WindowBounds::Windowed(Bounds::centered(None, bounds.size, cx));
+    }
+    match geo.state {
+        WindowState::Windowed => WindowBounds::Windowed(bounds),
+        WindowState::Maximized => WindowBounds::Maximized(bounds),
+        WindowState::Fullscreen => WindowBounds::Fullscreen(bounds),
+    }
 }
 
 fn start_ipc(listener: std::os::unix::net::UnixListener, cx: &mut gpui::Context<XenonApp>) {

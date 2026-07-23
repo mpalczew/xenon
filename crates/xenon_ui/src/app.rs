@@ -5,12 +5,13 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use gpui::{
     App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
     IntoElement, ParentElement, PathPromptOptions, Pixels, Point, PromptLevel, Render,
-    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, Window, WindowHandle,
-    div, px,
+    SharedString, StatefulInteractiveElement, Styled, Subscription, Task, Window, WindowBounds,
+    WindowHandle, div, px,
 };
 use theme::ActiveTheme;
 use xenon_core::{
@@ -136,6 +137,11 @@ pub struct XenonApp {
     /// Commands into the long-lived git-dirt task (root set changes).
     git_dirt_tx: Option<async_channel::Sender<git_dirt::DirtMsg>>,
     _git_dirt_task: Option<Task<()>>,
+    /// Debounced write of main-window geometry to settings.json.
+    bounds_save_task: Option<Task<()>>,
+    /// Generation token so only the latest trailing debounce writes.
+    bounds_save_gen: u64,
+    _window_bounds_sub: Option<Subscription>,
 }
 
 impl XenonApp {
@@ -182,6 +188,9 @@ impl XenonApp {
             git_dirt: HashMap::new(),
             git_dirt_tx: None,
             _git_dirt_task: None,
+            bounds_save_task: None,
+            bounds_save_gen: 0,
+            _window_bounds_sub: None,
         };
         app.load_sessions();
         app.start_ide_server(cx);
@@ -196,6 +205,32 @@ impl XenonApp {
             app.activate_workspace(id, cx);
         }
         app
+    }
+
+    /// Persist position/size (and maximized/fullscreen) after move/resize settles.
+    pub fn track_window_bounds(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self._window_bounds_sub = Some(cx.observe_window_bounds(window, |this, window, cx| {
+            this.queue_save_window_bounds(window, cx);
+        }));
+    }
+
+    fn queue_save_window_bounds(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Trailing debounce: each move/resize restarts the timer; only the last wins.
+        self.bounds_save_gen = self.bounds_save_gen.wrapping_add(1);
+        let token = self.bounds_save_gen;
+        self.bounds_save_task = Some(cx.spawn_in(window, async move |this, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(150))
+                .await;
+            this.update_in(cx, |this, window, _cx| {
+                if this.bounds_save_gen != token {
+                    return;
+                }
+                this.bounds_save_task.take();
+                persist_window_geometry(window);
+            })
+            .ok();
+        }));
     }
 
     /// Load session metadata for every open workspace (defaults when missing).
@@ -313,6 +348,38 @@ fn persist_section_prefs(workspaces_collapsed: bool, files_open: bool) {
     if let Err(error) = xenon_store::save_settings(&settings) {
         log::error!("persist section prefs failed: {error}");
     }
+}
+
+/// Write current main-window bounds into settings.json (no-op if unchanged).
+fn persist_window_geometry(window: &Window) {
+    let Some(geo) = geometry_from_window(window) else {
+        return;
+    };
+    let mut settings = xenon_store::load_settings().unwrap_or_default();
+    if settings.window == Some(geo) {
+        return;
+    }
+    settings.window = Some(geo);
+    if let Err(error) = xenon_store::save_settings(&settings) {
+        log::error!("persist window geometry failed: {error}");
+    }
+}
+
+fn geometry_from_window(window: &Window) -> Option<xenon_store::WindowGeometry> {
+    use xenon_store::{WindowGeometry, WindowState};
+    let (bounds, state) = match window.window_bounds() {
+        WindowBounds::Windowed(bounds) => (bounds, WindowState::Windowed),
+        WindowBounds::Maximized(bounds) => (bounds, WindowState::Maximized),
+        WindowBounds::Fullscreen(bounds) => (bounds, WindowState::Fullscreen),
+    };
+    let geo = WindowGeometry::new(
+        f32::from(bounds.origin.x),
+        f32::from(bounds.origin.y),
+        f32::from(bounds.size.width),
+        f32::from(bounds.size.height),
+        state,
+    );
+    geo.is_sane().then_some(geo)
 }
 
 /// The display name for an editor tab (file name, or the path if none).

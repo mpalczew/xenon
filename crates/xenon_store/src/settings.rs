@@ -14,6 +14,59 @@ pub enum ThemeMode {
     Dark,
 }
 
+/// Windowed / maximized / fullscreen (restore size is always the rect).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowState {
+    #[default]
+    Windowed,
+    Maximized,
+    Fullscreen,
+}
+
+/// Last main-window geometry (pixels, global coords).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WindowGeometry {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    #[serde(default)]
+    pub state: WindowState,
+}
+
+impl WindowGeometry {
+    /// Minimum restored size so a tiny/corrupt rect never traps the UI.
+    pub const MIN_WIDTH: f32 = 400.0;
+    pub const MIN_HEIGHT: f32 = 300.0;
+    /// Reject absurd values (corrupt file / multi-monitor coordinate blowup).
+    pub const MAX_EXTENT: f32 = 20_000.0;
+
+    pub fn new(x: f32, y: f32, width: f32, height: f32, state: WindowState) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+            state,
+        }
+    }
+
+    /// True when size and origin look usable after a restart.
+    pub fn is_sane(&self) -> bool {
+        self.width.is_finite()
+            && self.height.is_finite()
+            && self.x.is_finite()
+            && self.y.is_finite()
+            && self.width >= Self::MIN_WIDTH
+            && self.height >= Self::MIN_HEIGHT
+            && self.width <= Self::MAX_EXTENT
+            && self.height <= Self::MAX_EXTENT
+            && self.x.abs() <= Self::MAX_EXTENT
+            && self.y.abs() <= Self::MAX_EXTENT
+    }
+}
+
 /// Durable UI settings under `settings.json`. All fields default for forward-compat.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -51,6 +104,9 @@ pub struct AppSettings {
     /// Left panel Files section expanded.
     #[serde(default = "default_true")]
     pub files_open: bool,
+    /// Last main window position/size (None until the user has moved/resized once).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<WindowGeometry>,
 }
 
 impl Default for AppSettings {
@@ -70,6 +126,7 @@ impl Default for AppSettings {
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
+            window: None,
         }
     }
 }

@@ -98,6 +98,8 @@ pub fn snapshot(cx: &App) -> AppSettings {
         terminal_auto_close: terminal_auto_close(cx),
         workspaces_collapsed: disk.workspaces_collapsed,
         files_open: disk.files_open,
+        // Window geometry is chrome-only (not a gpui global); preserve on font/theme saves.
+        window: disk.window,
     }
 }
 

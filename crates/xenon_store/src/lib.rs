@@ -20,7 +20,7 @@ pub use ipc::{
 };
 pub use settings::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME,
-    DEFAULT_UI_FONT_FAMILY, ThemeMode,
+    DEFAULT_UI_FONT_FAMILY, ThemeMode, WindowGeometry, WindowState,
 };
 pub use terminal::TerminalAutoClose;
 

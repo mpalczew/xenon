@@ -4,8 +4,8 @@ use tempfile::TempDir;
 use xenon_core::{Registry, SessionState, WorkspaceRec};
 
 use crate::{
-    AppSettings, StoreError, load_registry, load_session, load_settings, save_registry,
-    save_session, save_settings,
+    AppSettings, StoreError, WindowGeometry, WindowState, load_registry, load_session,
+    load_settings, save_registry, save_session, save_settings,
 };
 
 /// Point `data_dir()` at a temp directory for the duration of a closure.
@@ -118,10 +118,39 @@ fn settings_round_trip() {
             terminal_auto_close: crate::TerminalAutoClose::Immediate,
             workspaces_collapsed: true,
             files_open: false,
+            window: Some(WindowGeometry::new(
+                120.0,
+                80.0,
+                1400.0,
+                900.0,
+                WindowState::Maximized,
+            )),
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);
     });
+}
+
+#[test]
+fn settings_missing_window_defaults_to_none() {
+    with_data_dir(|| {
+        let path = crate::data_dir().join("settings.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"editor_font_size":16.0,"show_line_numbers":true,"vim_mode":false}"#,
+        )
+        .unwrap();
+        let settings = load_settings().unwrap();
+        assert!(settings.window.is_none());
+    });
+}
+
+#[test]
+fn window_geometry_sane_rejects_tiny_or_non_finite() {
+    assert!(WindowGeometry::new(0., 0., 800., 600., WindowState::Windowed).is_sane());
+    assert!(!WindowGeometry::new(0., 0., 100., 600., WindowState::Windowed).is_sane());
+    assert!(!WindowGeometry::new(0., 0., 800., f32::NAN, WindowState::Windowed).is_sane());
 }
 
 #[test]
