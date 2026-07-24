@@ -24,7 +24,8 @@ impl Buffer {
             path,
             cursor: 0,
             selection_anchor: None,
-            dirty: false,
+            version: 0,
+            saved_version: 0,
             disk_mtime,
             undo: UndoStack::default(),
         })
@@ -33,7 +34,7 @@ impl Buffer {
     /// Write the buffer to disk. Refuses when the file changed under a dirty
     /// buffer; the caller resolves the conflict and retries.
     pub fn save(&mut self) -> std::result::Result<(), SaveError> {
-        if self.dirty && mtime(&self.path) != self.disk_mtime {
+        if self.is_dirty() && mtime(&self.path) != self.disk_mtime {
             return Err(SaveError::ExternalChange);
         }
         self.write_to_disk()
@@ -53,7 +54,7 @@ impl Buffer {
         let mut file = fs::File::create(&self.path)?;
         self.rope.write_to(&mut file)?;
         self.disk_mtime = mtime(&self.path);
-        self.dirty = false;
+        self.mark_clean();
         Ok(())
     }
 
@@ -61,7 +62,7 @@ impl Buffer {
     pub fn set_path(&mut self, path: impl AsRef<Path>) {
         self.path = path.as_ref().to_path_buf();
         self.disk_mtime = None;
-        self.dirty = true;
+        self.mark_dirty();
     }
 
     /// Compare the buffer against the file on disk (called on editor focus).
@@ -70,13 +71,13 @@ impl Buffer {
         let current = mtime(&self.path);
         if current.is_none() {
             self.disk_mtime = None;
-            self.dirty = true;
+            self.mark_dirty();
             return Ok(ExternalState::Deleted);
         }
         if current == self.disk_mtime {
             return Ok(ExternalState::Unchanged);
         }
-        if self.dirty {
+        if self.is_dirty() {
             return Ok(ExternalState::Conflicted);
         }
         self.reload()?;
@@ -90,7 +91,8 @@ impl Buffer {
         self.cursor = self.cursor.min(self.rope.len_chars());
         self.selection_anchor = None;
         self.disk_mtime = mtime(&self.path);
-        self.dirty = false;
+        self.version = 0;
+        self.saved_version = 0;
         self.undo.clear();
         Ok(())
     }

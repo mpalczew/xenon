@@ -47,8 +47,44 @@ fn selection_replace_and_undo() {
     assert_eq!(buffer.selected_text(), "bcd");
     buffer.replace_selection("X");
     assert_eq!(buffer.text(), "aXef");
+    assert!(buffer.is_dirty());
     assert!(buffer.undo());
     assert_eq!(buffer.text(), "abcdef");
+    assert!(!buffer.is_dirty());
+}
+
+/// Accidental edit then undo should clear the modified indicator.
+#[test]
+fn undo_to_saved_state_clears_dirty() {
+    let file = file_with("hello");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_cursor_raw(5);
+    buffer.apply(EditCommand::Insert("!".into()));
+    assert!(buffer.is_dirty());
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "hello");
+    assert!(!buffer.is_dirty());
+    // Redo dirties again; second undo cleans again.
+    assert!(buffer.redo());
+    assert_eq!(buffer.text(), "hello!");
+    assert!(buffer.is_dirty());
+    assert!(buffer.undo());
+    assert!(!buffer.is_dirty());
+}
+
+#[test]
+fn undo_after_save_stays_dirty_only_past_checkpoint() {
+    let file = file_with("x");
+    let mut buffer = Buffer::open(file.path()).unwrap();
+    buffer.set_cursor_raw(1);
+    buffer.apply(EditCommand::Insert("y".into()));
+    buffer.save().unwrap();
+    assert!(!buffer.is_dirty());
+    buffer.apply(EditCommand::Insert("z".into()));
+    assert!(buffer.is_dirty());
+    assert!(buffer.undo());
+    assert_eq!(buffer.text(), "xy");
+    assert!(!buffer.is_dirty());
 }
 
 #[test]
@@ -71,8 +107,10 @@ fn undo_group_is_one_step() {
     buffer.apply(EditCommand::Insert("there".into()));
     buffer.set_undo_group(false);
     assert_eq!(buffer.text(), "hi there");
+    assert!(buffer.is_dirty());
     assert!(buffer.undo());
     assert_eq!(buffer.text(), "hi");
+    assert!(!buffer.is_dirty());
     assert!(!buffer.undo());
 }
 

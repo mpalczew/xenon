@@ -46,7 +46,10 @@ pub struct Buffer {
     cursor: usize,
     /// Selection anchor; head is always `cursor`. `None` means empty selection.
     selection_anchor: Option<usize>,
-    dirty: bool,
+    /// Content generation; bumps once per undoable transaction (or forced dirty).
+    version: u64,
+    /// `version` at last open/save/reload. Dirty when these differ.
+    saved_version: u64,
     disk_mtime: Option<SystemTime>,
     undo: UndoStack,
 }
@@ -66,7 +69,7 @@ impl Buffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.dirty
+        self.version != self.saved_version
     }
 
     pub(crate) fn rope(&self) -> &Rope {
@@ -161,30 +164,44 @@ impl Buffer {
     }
 
     pub(crate) fn undo(&mut self) -> bool {
-        let Some(edits) = self.undo.undo() else {
+        let Some((edits, version_before)) = self.undo.undo() else {
             return false;
         };
         for edit in edits {
             self.apply_raw(&edit.new, &edit.old, edit.start);
         }
+        self.version = version_before;
         self.selection_anchor = None;
         true
     }
 
     pub(crate) fn redo(&mut self) -> bool {
-        let Some(edits) = self.undo.redo() else {
+        let Some((edits, version_after)) = self.undo.redo() else {
             return false;
         };
         for edit in edits {
             self.apply_raw(&edit.old, &edit.new, edit.start);
         }
+        self.version = version_after;
         self.selection_anchor = None;
         true
     }
 
     pub(crate) fn apply_edit(&mut self, edit: Edit) {
+        if edit.old.is_empty() && edit.new.is_empty() {
+            return;
+        }
+        // One version bump per undo step: first edit in an open group, or each
+        // ungrouped edit. Later keystrokes in the same insert session share it.
+        let version_before = if self.undo.group_has_edits() {
+            self.version.saturating_sub(1)
+        } else {
+            let before = self.version;
+            self.version = self.version.saturating_add(1);
+            before
+        };
         self.apply_raw(&edit.old, &edit.new, edit.start);
-        self.undo.push(edit);
+        self.undo.push(edit, version_before);
     }
 
     fn apply_raw(&mut self, old: &str, new: &str, start: usize) {
@@ -197,7 +214,17 @@ impl Buffer {
             self.rope.insert(start, new);
         }
         self.cursor = start + new.chars().count();
-        self.dirty = true;
+    }
+
+    /// Mark dirty without a content change (new path, deleted file on disk).
+    fn mark_dirty(&mut self) {
+        if self.version == self.saved_version {
+            self.version = self.version.saturating_add(1);
+        }
+    }
+
+    fn mark_clean(&mut self) {
+        self.saved_version = self.version;
     }
 
     pub(crate) fn set_cursor_raw(&mut self, cursor: usize) {
