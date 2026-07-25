@@ -1,6 +1,9 @@
 //! Settings as a dedicated window. Appearance + decoupled editor/terminal fonts.
 
 mod input;
+mod line_edit;
+mod remote_edit;
+mod remote_section;
 mod sections;
 
 use std::time::Duration;
@@ -17,12 +20,15 @@ use crate::dropdown::{
     DropdownId, SizeTarget, filter_options, mono_font_families, ui_font_families,
 };
 use crate::palette::input_registrar;
+use remote_section::remote_section;
 use sections::{
     OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
     font_section, terminal_section,
 };
 
 const CARET_BLINK: Duration = Duration::from_millis(530);
+
+use remote_edit::RemoteFieldEdit;
 
 pub struct SettingsView {
     focus: FocusHandle,
@@ -31,8 +37,10 @@ pub struct SettingsView {
     highlight: usize,
     caret_on: bool,
     focused_once: bool,
-    /// Keyboard highlight among editor toggles (line numbers, vim).
+    /// Keyboard highlight among toggles: 0 line numbers, 1 vim, 2 mobile remote.
     toggle_focus: usize,
+    /// Inline edit for remote password/hostname (None = not editing).
+    remote_edit: Option<RemoteFieldEdit>,
     _blink: Option<Task<()>>,
 }
 
@@ -56,6 +64,7 @@ impl SettingsView {
             caret_on: true,
             focused_once: false,
             toggle_focus: 0,
+            remote_edit: None,
             _blink: None,
         }
     }
@@ -146,6 +155,9 @@ impl SettingsView {
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.handle_remote_edit_key(event, window, cx) {
+            return;
+        }
         let Some(id) = self.open else {
             match event.keystroke.key.as_str() {
                 "escape" => {
@@ -158,7 +170,7 @@ impl SettingsView {
                     cx.stop_propagation();
                 }
                 "down" => {
-                    self.toggle_focus = (self.toggle_focus + 1).min(1);
+                    self.toggle_focus = (self.toggle_focus + 1).min(2);
                     cx.notify();
                     cx.stop_propagation();
                 }
@@ -203,10 +215,16 @@ impl SettingsView {
 
     fn activate_focused_toggle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.toggle_focus {
-            0 => xenon_settings::toggle_line_numbers(cx),
-            _ => xenon_settings::toggle_vim_mode(cx),
+            0 => {
+                xenon_settings::toggle_line_numbers(cx);
+                xenon_settings::save(cx);
+            }
+            1 => {
+                xenon_settings::toggle_vim_mode(cx);
+                xenon_settings::save(cx);
+            }
+            _ => remote_section::activate_mobile_remote(window, cx),
         }
-        xenon_settings::save(cx);
         window.refresh();
         cx.notify();
     }
@@ -281,6 +299,19 @@ impl SettingsView {
             ))
             .child(editor_toggles(self.toggle_focus, cx))
             .child(terminal_section(&settings, state, cx))
+            .child(remote_section(
+                &crate::app::remote::mobile_remote_info(cx),
+                self.toggle_focus == 2,
+                self.remote_edit.as_ref().map(|re| {
+                    (
+                        re.field,
+                        re.edit.split_for_paint(),
+                        re.edit.text().is_empty(),
+                    )
+                }),
+                self.caret_on,
+                cx,
+            ))
             .into_any_element()
     }
 }

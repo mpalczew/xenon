@@ -9,3 +9,4 @@ crates/xenon_ui/src/app/render.rs	500	21	7
 crates/xenon_ui/src/app/content_ops.rs	500	21	7
 crates/xenon_ui/src/app/split_ops.rs	500	21	7
 crates/xenon_ui/src/app/tab_drop.rs	500	21	7
+crates/xenon_ui/src/settings/line_edit.rs	300	24	0

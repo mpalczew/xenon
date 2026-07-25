@@ -51,6 +51,8 @@ actions!(
         DecreaseFontSize,
         ResetFontSize,
         ToggleSettings,
+        ToggleMobileRemote,
+        TogglePreview,
         // Keyboard-first navigation
         FocusTerminal,
         FocusEditor,
@@ -142,6 +144,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-\\", SplitDown, None),
         KeyBinding::new("cmd-e", ToggleBrowser, None),
         KeyBinding::new("cmd-,", ToggleSettings, None),
+        KeyBinding::new("cmd-shift-v", TogglePreview, None),
         KeyBinding::new("cmd-=", IncreaseFontSize, None),
         KeyBinding::new("cmd-+", IncreaseFontSize, None),
         KeyBinding::new("cmd--", DecreaseFontSize, None),

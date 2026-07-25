@@ -163,6 +163,8 @@ impl XenonApp {
             CommandId::SplitRight => self.split_right(window, cx),
             CommandId::SplitDown => self.split_down(window, cx),
             CommandId::ToggleSettings => self.toggle_settings_window(cx),
+            CommandId::ToggleMobileRemote => self.toggle_mobile_remote(window, cx),
+            CommandId::TogglePreview => self.toggle_preview(cx),
             CommandId::CommandPalette => self.open_command_palette(window, cx),
             CommandId::KeyboardHelp => self.open_keyboard_help(window, cx),
             CommandId::ZoomIn => self.nudge_font_size(1.0, window, cx),

@@ -43,6 +43,8 @@ pub enum CommandId {
     SplitRight,
     SplitDown,
     ToggleSettings,
+    ToggleMobileRemote,
+    TogglePreview,
     CommandPalette,
     KeyboardHelp,
     ZoomIn,
@@ -61,7 +63,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 35] {
+const fn all_commands() -> [CommandEntry; 37] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -95,6 +97,8 @@ const fn all_commands() -> [CommandEntry; 35] {
         cmd!(SplitRight, "Split Right", "⌘\\", "View"),
         cmd!(SplitDown, "Split Down", "⌘⇧\\", "View"),
         cmd!(ToggleSettings, "Settings", "⌘,", "View"),
+        cmd!(ToggleMobileRemote, "Toggle Mobile Remote", "", "View"),
+        cmd!(TogglePreview, "Toggle Markdown Preview", "⌘⇧V", "View"),
         cmd!(ZoomIn, "Zoom In", "⌘=", "View"),
         cmd!(ZoomOut, "Zoom Out", "⌘-", "View"),
         cmd!(ZoomReset, "Reset Zoom", "⌘0", "View"),
@@ -103,6 +107,6 @@ const fn all_commands() -> [CommandEntry; 35] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 35] = all_commands();
+    static ENTRIES: [CommandEntry; 37] = all_commands();
     &ENTRIES
 }

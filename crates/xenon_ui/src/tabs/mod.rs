@@ -88,6 +88,8 @@ impl XenonApp {
         let pane = leaf.id;
         let chips = self.mixed_tab_chips(leaf, cx);
         let preview = self.md_preview_btn(leaf, pane, &colors, cx);
+        // Pin trailing chrome (+, md preview). Chips absorb width pressure so
+        // those controls stay visible when many tabs are open.
         div()
             .flex()
             .items_center()
@@ -95,9 +97,25 @@ impl XenonApp {
             .border_b_1()
             .border_color(colors.border)
             .bg(chrome::tab_bar_background(&colors))
-            .children(chips)
-            .child(self.term_add_btn(pane, &colors, cx))
-            .children(preview)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .overflow_hidden()
+                    .children(chips),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .flex_none()
+                    .h_full()
+                    .child(self.term_add_btn(pane, &colors, cx))
+                    .children(preview),
+            )
     }
 
     fn mixed_tab_chips(&self, leaf: &LiveLeaf, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
@@ -156,20 +174,20 @@ impl XenonApp {
         }
         let previewing = self.active_editor_is_previewing(cx);
         let tip = SharedString::from(if previewing {
-            "Show Source"
+            "Show Source · ⌘⇧V"
         } else {
-            "Markdown Preview"
+            "Markdown Preview · ⌘⇧V"
         });
         let colors = colors.clone();
         Some(
             div()
                 .id(("md-preview", pane.0))
-                .ml_auto()
                 .w(px(30.))
                 .h_full()
                 .flex()
                 .items_center()
                 .justify_center()
+                .flex_none()
                 .text_color(if previewing {
                     colors.text
                 } else {
@@ -193,6 +211,10 @@ impl XenonApp {
         div()
             .id(("term-add", pane.0))
             .px_2()
+            .h_full()
+            .flex()
+            .items_center()
+            .flex_none()
             .text_sm()
             .text_color(colors.text_muted)
             .cursor_pointer()
@@ -255,6 +277,8 @@ impl XenonApp {
             .gap_2()
             .px_3()
             .h_full()
+            .flex_none()
+            .min_w_0()
             .border_r_1()
             .border_color(if is_exited {
                 status.ignored_border
@@ -302,7 +326,8 @@ impl XenonApp {
                         gpui::FontWeight::NORMAL
                     })
                     .text_color(paint.foreground)
-                    .max_w(px(220.))
+                    .max_w(px(160.))
+                    .min_w_0()
                     .truncate()
                     .child(title_owned),
             )
@@ -347,6 +372,8 @@ impl XenonApp {
             .gap_2()
             .px_3()
             .h_full()
+            .flex_none()
+            .min_w_0()
             .border_r_1()
             .border_color(colors.border)
             .bg(paint.background)
@@ -387,6 +414,9 @@ impl XenonApp {
                     } else {
                         gpui::FontWeight::NORMAL
                     })
+                    .max_w(px(160.))
+                    .min_w_0()
+                    .truncate()
                     .child(name_owned),
             )
             .children(is_dirty.then(|| dirty_dot(paint.foreground)))

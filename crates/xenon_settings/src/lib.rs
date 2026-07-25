@@ -100,6 +100,10 @@ pub fn snapshot(cx: &App) -> AppSettings {
         files_open: disk.files_open,
         // Window geometry is chrome-only (not a gpui global); preserve on font/theme saves.
         window: disk.window,
+        // Remote password/port/hostname are chrome-only; preserve on font/theme saves.
+        remote_password: disk.remote_password,
+        remote_port: disk.remote_port,
+        remote_hostname: disk.remote_hostname,
     }
 }
 

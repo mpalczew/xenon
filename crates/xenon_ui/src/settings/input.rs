@@ -1,4 +1,4 @@
-//! Text input handler for filterable settings dropdowns.
+//! Text input handler for filterable settings dropdowns + remote line fields.
 
 use std::ops::Range;
 
@@ -11,11 +11,17 @@ use super::{SettingsView, is_filterable};
 impl EntityInputHandler for SettingsView {
     fn replace_text_in_range(
         &mut self,
-        _range: Option<Range<usize>>,
+        range: Option<Range<usize>>,
         text: &str,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let Some(re) = self.remote_edit.as_mut() {
+            re.edit.replace_utf16_range(range, text);
+            self.caret_on = true;
+            cx.notify();
+            return;
+        }
         if let Some(id) = self.open
             && is_filterable(id)
         {
@@ -28,13 +34,13 @@ impl EntityInputHandler for SettingsView {
 
     fn replace_and_mark_text_in_range(
         &mut self,
-        _range: Option<Range<usize>>,
+        range: Option<Range<usize>>,
         new_text: &str,
         _new_selected_range: Option<Range<usize>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.replace_text_in_range(None, new_text, window, cx);
+        self.replace_text_in_range(range, new_text, window, cx);
     }
 
     fn text_for_range(
@@ -44,6 +50,9 @@ impl EntityInputHandler for SettingsView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<String> {
+        if let Some(re) = &self.remote_edit {
+            return Some(re.edit.text().to_string());
+        }
         Some(self.filter.clone())
     }
 
@@ -53,6 +62,14 @@ impl EntityInputHandler for SettingsView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
+        if let Some(re) = &self.remote_edit {
+            let range = re.edit.utf16_selection();
+            return Some(UTF16Selection {
+                range,
+                reversed: re.edit.caret() < re.edit.selection().start
+                    || (re.edit.has_selection() && re.edit.caret() == re.edit.selection().start),
+            });
+        }
         let len = self.filter.encode_utf16().count();
         Some(UTF16Selection {
             range: len..len,

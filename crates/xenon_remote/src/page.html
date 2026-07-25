@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"/>
+<title>Xenon Remote</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0b0c; --fg:#e8e8ea; --muted:#8a8a90; --border:#2a2a2e; --accent:#6c9eff; --err:#f66; --ok:#6c6; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; max-width:100%; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background:var(--bg); color:var(--fg);
+    min-height:100dvh; height:100dvh;
+    display:flex; flex-direction:column; width:100%;
+    overflow:hidden;
+  }
+  #app {
+    flex:1; min-height:0; width:100%;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  #app[hidden], #auth[hidden], #status[hidden], #input-bar[hidden], #back[hidden] {
+    display:none !important;
+  }
+  header {
+    flex:0 0 auto;
+    padding:10px 12px; border-bottom:1px solid var(--border);
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;
+  }
+  header button { background:transparent; border:1px solid var(--border); color:var(--fg); border-radius:8px; padding:6px 10px; font-size:14px; }
+  #crumb { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  main {
+    flex:1 1 auto; min-height:0; width:100%; max-width:100%;
+    overflow-x:hidden; overflow-y:auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  main.session {
+    padding:0;
+    display:block;
+    background:#000;
+  }
+  main.list-pad { padding:12px; }
+  .list button { display:block; width:100%; text-align:left; margin:0 0 8px; padding:12px; border-radius:10px; border:1px solid var(--border); background:#141416; color:var(--fg); font-size:15px; }
+  .list button small { display:block; color:var(--muted); margin-top:4px; font-size:12px; word-break:break-all; }
+  /* Full PNG visible: scale to width, scroll vertically if taller than viewport */
+  #term-img {
+    display:block;
+    width:100%;
+    max-width:100%;
+    height:auto;
+    object-fit:contain;
+    object-position:top left;
+    background:#000;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  #status {
+    flex:0 0 auto;
+    font-size:12px; padding:4px 12px; min-height:1.2em; width:100%;
+  }
+  #input-bar {
+    flex:0 0 auto;
+    display:flex; gap:8px; padding:10px 12px;
+    border-top:1px solid var(--border); width:100%; max-width:100%;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  #input-bar form { display:flex; gap:8px; flex:1; margin:0; width:100%; min-width:0; }
+  #input-bar input { flex:1; min-width:0; font-size:16px; padding:10px; border-radius:8px; border:1px solid var(--border); background:#141416; color:var(--fg); }
+  #input-bar button { padding:10px 14px; border-radius:8px; border:0; background:var(--accent); color:#000; font-weight:600; flex-shrink:0; }
+  .muted { color:var(--muted); }
+  .err { color:var(--err); }
+  .ok { color:var(--ok); }
+  #auth { max-width:360px; margin:40px auto; padding:16px; width:100%; flex:0 0 auto; }
+  #auth input { width:100%; font-size:16px; padding:10px; margin:8px 0 12px; border-radius:8px; border:1px solid var(--border); background:#141416; color:var(--fg); }
+  #auth button { width:100%; padding:12px; border:0; border-radius:8px; background:var(--accent); color:#000; font-weight:600; font-size:16px; }
+</style>
+</head>
+<body>
+<div id="auth">
+  <h1 style="font-size:1.2rem;margin:0 0 8px">Xenon remote</h1>
+  <p class="muted">Password from Mac (or open a URL that includes it). Terminals only · no PTY resize.</p>
+  <label for="token">Password</label>
+  <input id="token" type="password" autocomplete="off" autocapitalize="off"/>
+  <button id="auth-btn" type="button">Connect</button>
+  <p id="auth-err" class="err" hidden></p>
+</div>
+<div id="app" hidden>
+  <header>
+    <button type="button" id="back" hidden>Back</button>
+    <span id="crumb" class="muted"></span>
+  </header>
+  <main id="main" class="list-pad"></main>
+  <p id="status" class="muted" hidden></p>
+  <div id="input-bar" hidden>
+    <form id="input-form" action="#" method="get">
+      <input id="stdin" type="text" enterkeyhint="send" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type to PTY…"/>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var ticket = sessionStorage.getItem("xenon_remote_ticket") || "";
+  var state = { view: "workspaces", workspaceId: null, workspaceName: "", tabId: null, tabLabel: "" };
+  var seq = 0;
+  var pollTimer = null;
+  var sending = false;
+  var frameUrl = null;
+
+  function $(id) { return document.getElementById(id); }
+  function showErr(el, msg) { el.hidden = !msg; el.textContent = msg || ""; }
+
+  function setStatus(msg, kind) {
+    var el = $("status");
+    if (!msg) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.className = kind === "err" ? "err" : (kind === "ok" ? "ok" : "muted");
+    el.textContent = msg;
+  }
+
+  function authHeaders() {
+    return { "Authorization": "Bearer " + ticket, "Content-Type": "application/json" };
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    var r = await fetch(path, {
+      method: opts.method || "GET",
+      headers: authHeaders(),
+      body: opts.body || undefined
+    });
+    if (r.status === 401) throw new Error("unauthorized");
+    var text = await r.text();
+    var data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
+    if (!r.ok) {
+      var msg = (data && data.error) ? data.error : (text || r.statusText);
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function doAuth() {
+    var token = $("token").value.trim();
+    showErr($("auth-err"), "");
+    try {
+      var r = await fetch("/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token })
+      });
+      if (!r.ok) throw new Error("bad password");
+      var j = await r.json();
+      ticket = j.ticket;
+      sessionStorage.setItem("xenon_remote_ticket", ticket);
+      $("auth").hidden = true;
+      $("app").hidden = false;
+      showWorkspaces();
+    } catch (e) {
+      showErr($("auth-err"), e.message || String(e));
+    }
+  }
+
+  function setCrumb(t) { $("crumb").textContent = t; }
+  function showBack(on) { $("back").hidden = !on; }
+  function showInput(on) { $("input-bar").hidden = !on; if (!on) setStatus(""); }
+
+  function stopPoll() {
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    if (frameUrl) { try { URL.revokeObjectURL(frameUrl); } catch (_) {} frameUrl = null; }
+  }
+
+  async function showWorkspaces() {
+    state.view = "workspaces";
+    state.workspaceId = null;
+    state.tabId = null;
+    showBack(false);
+    showInput(false);
+    stopPoll();
+    setCrumb("Workspaces");
+    var main = $("main");
+    main.className = "list-pad";
+    main.innerHTML = "<p class='muted'>Loading…</p>";
+    try {
+      var list = await api("/api/workspaces");
+      if (!list.length) {
+        main.innerHTML = "<p class='muted'>No workspaces. Open one in Xenon first.</p>";
+        return;
+      }
+      var html = "<div class='list'>";
+      list.forEach(function (w) {
+        var badge = w.open ? "open" : "recent · tap to open";
+        html += "<button type='button' data-id='" + esc(w.id) + "' data-name='" + esc(w.name) + "'>" +
+          esc(w.name) + " <span class='muted'>(" + badge + ")</span>" +
+          "<small>" + esc(w.root || w.id) + "</small></button>";
+      });
+      html += "</div>";
+      main.innerHTML = html;
+      main.querySelectorAll("button[data-id]").forEach(function (b) {
+        b.onclick = function () {
+          state.workspaceId = b.getAttribute("data-id");
+          state.workspaceName = b.getAttribute("data-name") || "";
+          showTerminals();
+        };
+      });
+    } catch (e) {
+      if (String(e.message) === "unauthorized") { resetAuth(); return; }
+      main.innerHTML = "<p class='err'>" + esc(e.message) + "</p>";
+    }
+  }
+
+  async function showTerminals() {
+    state.view = "terminals";
+    state.tabId = null;
+    showBack(true);
+    showInput(false);
+    stopPoll();
+    setCrumb(state.workspaceName || state.workspaceId);
+    var main = $("main");
+    main.className = "list-pad";
+    main.innerHTML = "<p class='muted'>Opening workspace…</p>";
+    try {
+      var list = await api("/api/workspaces/" + encodeURIComponent(state.workspaceId) + "/terminals");
+      if (!list.length) {
+        main.innerHTML = "<p class='muted'>No terminal tabs in this workspace.</p>";
+        return;
+      }
+      var html = "<div class='list'>";
+      list.forEach(function (t) {
+        var label = t.title || ("tab " + t.tabId);
+        html += "<button type='button' data-tab='" + t.tabId + "' data-label='" + esc(label) + "'>" +
+          esc(label) + (t.active ? " · active" : "") +
+          "<small>" + esc(t.cwd || "") + "</small></button>";
+      });
+      html += "</div>";
+      main.innerHTML = html;
+      main.querySelectorAll("button[data-tab]").forEach(function (b) {
+        b.onclick = function () {
+          state.tabId = Number(b.getAttribute("data-tab"));
+          state.tabLabel = b.getAttribute("data-label") || "";
+          showSession();
+        };
+      });
+    } catch (e) {
+      if (String(e.message) === "unauthorized") { resetAuth(); return; }
+      main.innerHTML = "<p class='err'>" + esc(e.message) + "</p>";
+    }
+  }
+
+  function showSession() {
+    state.view = "session";
+    showBack(true);
+    showInput(true);
+    setCrumb((state.workspaceName || "") + " · " + (state.tabLabel || state.tabId));
+    seq = 0;
+    setStatus("Loading…");
+    var main = $("main");
+    main.className = "session";
+    main.innerHTML = "<img id='term-img' alt='terminal viewport' width='100%'/>";
+    stopPoll();
+    pollFrame();
+    setTimeout(function () { try { $("stdin").focus(); } catch (_) {} }, 100);
+  }
+
+  function schedulePoll(ms) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(pollFrame, ms);
+  }
+
+  async function pollFrame() {
+    if (state.view !== "session" || !state.workspaceId || state.tabId == null) return;
+    var url = "/api/frame?workspaceId=" + encodeURIComponent(state.workspaceId) +
+      "&tabId=" + encodeURIComponent(String(state.tabId)) +
+      "&since=" + encodeURIComponent(String(seq));
+    try {
+      var r = await fetch(url, { headers: { "Authorization": "Bearer " + ticket } });
+      if (r.status === 401) { resetAuth(); return; }
+      if (r.status === 204) {
+        setStatus("Live");
+        schedulePoll(250);
+        return;
+      }
+      if (!r.ok) {
+        var t = await r.text();
+        var msg = t;
+        try { msg = JSON.parse(t).error || t; } catch (_) {}
+        setStatus(msg || r.statusText, "err");
+        schedulePoll(1000);
+        return;
+      }
+      var newSeq = parseInt(r.headers.get("X-Xenon-Seq") || "0", 10) || 0;
+      if (newSeq) seq = newSeq;
+      var blob = await r.blob();
+      var obj = URL.createObjectURL(blob);
+      var img = $("term-img");
+      if (img) {
+        if (frameUrl) try { URL.revokeObjectURL(frameUrl); } catch (_) {}
+        frameUrl = obj;
+        img.src = obj;
+      } else {
+        URL.revokeObjectURL(obj);
+      }
+      setStatus("Live · " + (r.headers.get("X-Xenon-Cols") || "?") + "×" + (r.headers.get("X-Xenon-Rows") || "?"));
+      schedulePoll(200);
+    } catch (e) {
+      setStatus(e.message || String(e), "err");
+      schedulePoll(1000);
+    }
+  }
+
+  async function sendInput(ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    if (sending) return false;
+    var inp = $("stdin");
+    var text = inp.value;
+    if (!text) {
+      setStatus("Type something first", "err");
+      return false;
+    }
+    // PTY Enter is CR (0x0D). LF alone is a character for many TUIs.
+    // inject_text also normalizes \n → \r as a belt-and-suspenders.
+    if (text.slice(-1) !== "\r") text = text.replace(/\r?\n$/, "") + "\r";
+    if (!state.workspaceId || state.tabId == null || isNaN(state.tabId)) {
+      setStatus("No terminal selected", "err");
+      return false;
+    }
+    sending = true;
+    setStatus("Sending…");
+    try {
+      await api("/api/inject", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: state.workspaceId,
+          tabId: state.tabId,
+          text: text
+        })
+      });
+      inp.value = "";
+      setStatus("Sent", "ok");
+      // Refresh frame soon after inject
+      schedulePoll(50);
+    } catch (e) {
+      setStatus(e.message || String(e), "err");
+    }
+    sending = false;
+    try { inp.focus(); } catch (_) {}
+    return false;
+  }
+
+  function resetAuth() {
+    ticket = "";
+    sessionStorage.removeItem("xenon_remote_ticket");
+    stopPoll();
+    $("app").hidden = true;
+    $("auth").hidden = false;
+    showErr($("auth-err"), "Session expired — re-enter password");
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  $("auth-btn").onclick = doAuth;
+  $("token").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doAuth();
+  });
+  $("back").onclick = function () {
+    if (state.view === "session") showTerminals();
+    else showWorkspaces();
+  };
+  $("input-form").addEventListener("submit", sendInput);
+
+  if (ticket) {
+    $("auth").hidden = true;
+    $("app").hidden = false;
+    showWorkspaces();
+  }
+  var q = new URLSearchParams(location.search).get("token");
+  if (q && !ticket) {
+    $("token").value = q;
+    doAuth();
+  }
+})();
+</script>
+</body>
+</html>

@@ -107,6 +107,15 @@ pub struct AppSettings {
     /// Last main window position/size (None until the user has moved/resized once).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowGeometry>,
+    /// Mobile remote shared password (phone auth token). Empty until first enable or set.
+    #[serde(default)]
+    pub remote_password: String,
+    /// Mobile remote bind port (stable across restarts).
+    #[serde(default = "default_remote_port")]
+    pub remote_port: u16,
+    /// Optional host for copyable phone URLs (MagicDNS name, LAN hostname, etc.).
+    #[serde(default)]
+    pub remote_hostname: String,
 }
 
 impl Default for AppSettings {
@@ -127,6 +136,9 @@ impl Default for AppSettings {
             workspaces_collapsed: false,
             files_open: true,
             window: None,
+            remote_password: String::new(),
+            remote_port: default_remote_port(),
+            remote_hostname: String::new(),
         }
     }
 }
@@ -162,4 +174,11 @@ fn default_light_theme() -> String {
 
 fn default_dark_theme() -> String {
     DEFAULT_DARK_THEME.into()
+}
+
+/// Default mobile remote listen port (not ephemeral; survives restart).
+pub const DEFAULT_REMOTE_PORT: u16 = 17890;
+
+fn default_remote_port() -> u16 {
+    DEFAULT_REMOTE_PORT
 }

@@ -149,6 +149,14 @@ impl XenonApp {
             .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
                 this.toggle_settings_window(cx);
             }))
+            .on_action(
+                cx.listener(|this, _: &crate::ToggleMobileRemote, window, cx| {
+                    this.toggle_mobile_remote(window, cx);
+                }),
+            )
+            .on_action(cx.listener(|this, _: &crate::TogglePreview, _, cx| {
+                this.toggle_preview(cx);
+            }))
             .on_action(cx.listener(|this, _: &CloseEditor, window, cx| {
                 this.close_focused_tab(window, cx);
             }))

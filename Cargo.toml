@@ -25,6 +25,7 @@ xenon_editor = { path = "crates/xenon_editor" }
 xenon_finder = { path = "crates/xenon_finder" }
 xenon_ui = { path = "crates/xenon_ui" }
 xenon_ide = { path = "crates/xenon_ide" }
+xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
 
 # zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a

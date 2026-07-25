@@ -20,6 +20,7 @@ use xenon_core::{
 use xenon_editor::{EditorEvent, EditorView};
 use xenon_finder::{FileIndex, Finder};
 use xenon_ide::{IdeCommand, IdeServer, SelectionSnapshot};
+use xenon_remote::RemoteServer;
 use xenon_terminal::{TerminalEvent, TerminalView};
 
 use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
@@ -49,6 +50,7 @@ mod nav_ops;
 mod navigation;
 mod palette;
 mod panels;
+pub(crate) mod remote;
 mod render;
 mod sessions;
 mod settings_window;
@@ -147,6 +149,11 @@ pub struct XenonApp {
     // injected into every terminal so Claude Code discovers it.
     ide: Option<IdeServer>,
     _ide_task: Option<Task<()>>,
+    /// Mobile PTY remote (viewport + keys); off by default.
+    remote: Option<RemoteServer>,
+    _remote_task: Option<Task<()>>,
+    /// Per (workspace, tab) frame sequence for remote viewport stream.
+    remote_frame_seq: std::sync::Arc<std::sync::Mutex<HashMap<(WorkspaceId, u64), u64>>>,
     // Live git dirt totals per workspace (dirty only); refreshed by FS events.
     git_dirt: HashMap<WorkspaceId, crate::git_dirt::GitDirt>,
     /// Commands into the long-lived git-dirt task (root set changes).
@@ -201,6 +208,9 @@ impl XenonApp {
             _selection_subs: Vec::new(),
             ide: None,
             _ide_task: None,
+            remote: None,
+            _remote_task: None,
+            remote_frame_seq: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
             git_dirt: HashMap::new(),
             git_dirt_tx: None,
             _git_dirt_task: None,
@@ -211,6 +221,7 @@ impl XenonApp {
         app.load_sessions();
         app.start_ide_server(cx);
         app.restart_git_dirt_watch(cx);
+        Self::register_main_handle(cx);
         let active = app
             .registry
             .active

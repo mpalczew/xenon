@@ -19,7 +19,7 @@ pub use ipc::{
     socket_path, try_handoff,
 };
 pub use settings::{
-    AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME,
+    AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME, DEFAULT_REMOTE_PORT,
     DEFAULT_UI_FONT_FAMILY, ThemeMode, WindowGeometry, WindowState,
 };
 pub use terminal::TerminalAutoClose;

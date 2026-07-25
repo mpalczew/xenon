@@ -9083,6 +9083,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon_remote"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel 2.5.0",
+ "image",
+ "log",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "xenon_settings"
 version = "0.1.0"
 dependencies = [
@@ -9135,12 +9148,14 @@ dependencies = [
  "lucide-icons",
  "notify",
  "nucleo",
+ "serde_json",
  "tempfile",
  "theme",
  "xenon_core",
  "xenon_editor",
  "xenon_finder",
  "xenon_ide",
+ "xenon_remote",
  "xenon_settings",
  "xenon_store",
  "xenon_terminal",

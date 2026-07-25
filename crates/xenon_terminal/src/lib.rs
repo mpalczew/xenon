@@ -4,6 +4,7 @@
 mod clipboard;
 mod find;
 mod init;
+mod viewport;
 
 // color/grid/view are adapted from zed (see ATTRIBUTION.md). They are exempt
 // from our complexity lint gate so that upstream re-syncs stay a deliberate
@@ -34,3 +35,4 @@ mod view;
 pub use init::{apply_theme, init, observe_appearance, refresh_windows, theme_names};
 pub use terminal;
 pub use view::{Find, FindNext, FindPrevious, TerminalEvent, TerminalView};
+pub use viewport::viewport_lines;

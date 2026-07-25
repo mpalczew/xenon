@@ -276,6 +276,8 @@ impl TerminalView {
                 if self.find_is_open() {
                     self.rescan_find(false, cx);
                 }
+                // Always notify so inactive tabs still schedule work; remote
+                // frame capture also reads the live grid on Wakeup without paint.
                 cx.notify();
             }
             Event::CloseTerminal => {
@@ -364,6 +366,10 @@ impl TerminalView {
     }
 
     /// Write UTF-8 text straight to the PTY (used by the input handler).
+    ///
+    /// Newlines are normalized to CR (`\r`): that is what a real Enter key
+    /// sends on a PTY. Raw LF (`\n`) is treated as a character by many TUIs
+    /// (and is wrong for shells / agents). Matches zed terminal paste.
     fn send_text(&mut self, text: &str, cx: &mut Context<Self>) {
         if text.is_empty() {
             return;
@@ -371,11 +377,104 @@ impl TerminalView {
         let State::Ready(terminal) = &self.state else {
             return;
         };
+        let bytes = pty_input_bytes(text);
+        if bytes.is_empty() {
+            return;
+        }
+        let terminal = terminal.clone();
+        terminal.update(cx, |terminal, _| terminal.input(bytes));
+        self.note_interaction(cx);
+    }
+
+    /// Current PTY grid size from last layout/`set_size` (None if not Ready).
+    pub fn grid_size(&self, cx: &App) -> Option<(u16, u16)> {
+        let State::Ready(terminal) = &self.state else {
+            return None;
+        };
+        let snap = terminal.read(cx).last_content();
+        let cols = snap.terminal_bounds.num_columns() as u16;
+        let rows = snap.terminal_bounds.num_lines() as u16;
+        Some((cols, rows))
+    }
+
+    /// True while the PTY is still on the tiny pre-layout default (~6 rows).
+    /// Fresh spawns stay here until the view paints (or `ensure_grid_size` runs).
+    pub fn needs_layout_size(&self, cx: &App) -> bool {
+        match self.grid_size(cx) {
+            Some((cols, rows)) => cols < 40 || rows < 12,
+            None => false,
+        }
+    }
+
+    /// Force a grid size without a paint pass. Used when a workspace is
+    /// reopened for remote and the terminal has never laid out on screen.
+    ///
+    /// Preserves cell metrics when they look real; otherwise uses 8×16 px cells.
+    pub fn ensure_grid_size(&mut self, cols: u16, rows: u16, cx: &mut Context<Self>) {
+        let cols = cols.max(20);
+        let rows = rows.max(8);
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        if !self.needs_layout_size(cx) {
+            return;
+        }
         let terminal = terminal.clone();
         terminal.update(cx, |terminal, _| {
-            terminal.input(text.to_string().into_bytes())
+            let snap = terminal.last_content();
+            let mut cell_w = snap.terminal_bounds.cell_width();
+            let mut line_h = snap.terminal_bounds.line_height();
+            // Default DEBUG metrics are 5×5 — replace with readable cells.
+            if cell_w < px(6.) {
+                cell_w = px(8.);
+            }
+            if line_h < px(10.) {
+                line_h = px(16.);
+            }
+            let bounds = Bounds {
+                origin: gpui::point(px(0.), px(0.)),
+                size: gpui::size(cell_w * cols as f32, line_h * rows as f32),
+            };
+            terminal.set_size(terminal::TerminalBounds::new(line_h, cell_w, bounds));
         });
-        self.note_interaction(cx);
+        cx.notify();
+    }
+
+    /// Visible PTY cells only (viewport; no scrollback history).
+    /// Each cell is `(display_row, col, char)` with row `0` at the top of the
+    /// viewport. `cols`/`rows` are desktop sizes — callers must not use them to
+    /// resize the PTY.
+    ///
+    /// Reads the **live** alacritty grid (not only `last_content`). Snapshots
+    /// update on paint/`sync`; without this, remote capture stays stale until
+    /// the tab is focused and painted.
+    pub fn viewport_cells(&self, cx: &App) -> Option<(u16, u16, Vec<(i32, usize, char)>)> {
+        let State::Ready(terminal) = &self.state else {
+            return None;
+        };
+        let terminal = terminal.read(cx);
+        // Bounds come from last layout (set_size); cell glyphs from live term.
+        let snap = terminal.last_content();
+        let cols = snap.terminal_bounds.num_columns() as u16;
+        let rows = snap.terminal_bounds.num_lines() as u16;
+        let offset = snap.display_offset as i32;
+        let cells = terminal.with_renderable_cells(|iter| {
+            iter.map(|indexed| {
+                let row = indexed.point.line + offset;
+                let col = indexed.point.column;
+                (row, col, indexed.cell.character())
+            })
+            .collect()
+        });
+        Some((cols, rows, cells))
+    }
+
+    /// Visible PTY grid as monospaced lines (viewport only; no scrollback).
+    /// Prefer `viewport_cells` + `xenon_remote::viewport_lines` for remote frames
+    /// so assembly stays one shared pure function.
+    pub fn viewport_text(&self, cx: &App) -> Option<(u16, u16, Vec<String>)> {
+        let (cols, rows, cells) = self.viewport_cells(cx)?;
+        Some((cols, rows, crate::viewport_lines(cells, cols, rows)))
     }
 
     /// Inject text into the PTY (e.g. a resolved shell task line). Queues while
@@ -1040,6 +1139,12 @@ fn context_item(
     }
 }
 
+/// Bytes to write to the PTY for typed/injected text.
+/// Enter key = CR; convert LF / CRLF so inject matches a real Enter press.
+pub(crate) fn pty_input_bytes(text: &str) -> Vec<u8> {
+    text.replace("\r\n", "\r").replace('\n', "\r").into_bytes()
+}
+
 fn grid_canvas(
     terminal: Entity<Terminal>,
     view: Entity<TerminalView>,
@@ -1155,5 +1260,18 @@ impl EntityInputHandler for TerminalView {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         None
+    }
+}
+
+#[cfg(test)]
+mod pty_input_tests {
+    use super::pty_input_bytes;
+
+    #[test]
+    fn enter_is_cr_not_lf() {
+        assert_eq!(pty_input_bytes("test\n"), b"test\r");
+        assert_eq!(pty_input_bytes("test\r\n"), b"test\r");
+        assert_eq!(pty_input_bytes("a\nb\n"), b"a\rb\r");
+        assert_eq!(pty_input_bytes("plain"), b"plain");
     }
 }

@@ -181,6 +181,7 @@ pub(super) fn terminal_section(
     group_card("Terminal", body, cx)
 }
 
+/// Mobile PTY remote: enable toggle + live URL/token (not persisted).
 fn auto_close_options() -> [xenon_settings::TerminalAutoClose; 5] {
     use xenon_settings::TerminalAutoClose::*;
     [Off, Immediate, After1s, After3s, After5s]
@@ -227,7 +228,7 @@ pub(super) fn apply_size_nudge(target: SizeTarget, delta: f32, cx: &mut App) {
     xenon_terminal::refresh_windows(cx);
 }
 
-fn group_card(
+pub(super) fn group_card(
     title: &'static str,
     body: impl IntoElement,
     cx: &mut Context<SettingsView>,
@@ -258,7 +259,7 @@ fn group_card(
         )
 }
 
-fn row_divider(cx: &mut Context<SettingsView>) -> impl IntoElement {
+pub(super) fn row_divider(cx: &mut Context<SettingsView>) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
     div().h(px(1.)).bg(colors.border)
 }
