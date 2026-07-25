@@ -28,10 +28,13 @@ impl Render for XenonApp {
         let workspace_picker = self.workspace_picker.clone();
         let command_palette = self.command_palette.clone();
         let tab_menu = self.render_tab_menu(cx);
+        let browser_menu = self.render_browser_menu(cx);
         let body = self.render_shell_body(sidebar, main, colors.clone(), cx);
         self.bind_app_actions(div(), cx)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if this.on_tab_menu_key(event, window, cx) || this.on_browser_key(event, window, cx)
+                if this.on_tab_menu_key(event, window, cx)
+                    || this.on_browser_menu_key(event, window, cx)
+                    || this.on_browser_key(event, window, cx)
                 {
                     cx.stop_propagation();
                 }
@@ -54,6 +57,7 @@ impl Render for XenonApp {
             .children(workspace_picker)
             .children(command_palette)
             .children(tab_menu)
+            .children(browser_menu)
     }
 }
 

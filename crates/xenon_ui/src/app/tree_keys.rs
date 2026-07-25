@@ -47,7 +47,7 @@ impl XenonApp {
         }
     }
 
-    fn tree_rows(&self) -> Vec<crate::file_browser::TreeRow> {
+    pub(super) fn tree_rows(&self) -> Vec<crate::file_browser::TreeRow> {
         let Some(id) = self.active else {
             return Vec::new();
         };

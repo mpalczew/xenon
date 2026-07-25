@@ -9,6 +9,11 @@ pub(crate) enum DirtyClose {
         workspace: WorkspaceId,
         path: PathBuf,
     },
+    /// Close a list of tabs (e.g. Close Other Tabs).
+    Tabs {
+        workspace: WorkspaceId,
+        tabs: Vec<TabId>,
+    },
     Workspace(WorkspaceId),
 }
 
@@ -88,6 +93,9 @@ impl XenonApp {
         match after {
             DirtyClose::Tab { workspace, path } => {
                 self.drop_editor_tab_by_path(workspace, &path, cx);
+            }
+            DirtyClose::Tabs { workspace, tabs } => {
+                self.drop_tabs(workspace, &tabs, None, cx);
             }
             DirtyClose::Workspace(id) => self.force_close_workspace(id, None, cx),
         }

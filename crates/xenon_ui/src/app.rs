@@ -35,6 +35,7 @@ use crate::{
 };
 
 mod browser;
+mod browser_menu;
 mod content_ops;
 mod deferred;
 pub(crate) mod dirty_close;
@@ -52,6 +53,7 @@ mod render;
 mod sessions;
 mod settings_window;
 mod split_ops;
+mod tab_context;
 mod tab_drop;
 mod tasks;
 mod terminals;
@@ -63,11 +65,22 @@ pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use nav_history::NavHistory;
 use sessions::AttentionReason;
 
-/// Open tab context menu (close only).
+/// Open tab context menu (right-click on a tab chip).
 #[derive(Clone, Debug)]
 pub(crate) struct TabContextMenu {
     pub tab: TabId,
     pub position: Point<Pixels>,
+    pub selected: usize,
+}
+
+/// Right-click menu on a Files tree row (or empty tree area / header).
+#[derive(Clone, Debug)]
+pub(crate) struct BrowserContextMenu {
+    /// Target path (file or dir). When `None`, actions target the workspace root.
+    pub path: Option<PathBuf>,
+    pub is_dir: bool,
+    pub position: Point<Pixels>,
+    pub selected: usize,
 }
 
 /// What the sidebar inline rename field is editing.
@@ -117,6 +130,8 @@ pub struct XenonApp {
     _rename_sub: Option<Subscription>,
     /// Right-click menu on a terminal or editor tab.
     pub(crate) tab_menu: Option<TabContextMenu>,
+    /// Right-click menu on the Files tree.
+    pub(crate) browser_menu: Option<BrowserContextMenu>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     _task_picker_sub: Option<Subscription>,
@@ -175,6 +190,7 @@ impl XenonApp {
             renaming: None,
             _rename_sub: None,
             tab_menu: None,
+            browser_menu: None,
             focus: cx.focus_handle(),
             _finder_sub: None,
             _task_picker_sub: None,

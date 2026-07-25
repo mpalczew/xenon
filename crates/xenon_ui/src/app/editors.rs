@@ -27,7 +27,12 @@ impl XenonApp {
         let Some(root) = self.workspace_root(id) else {
             return;
         };
-        let rx = cx.prompt_for_new_path(&root, Some("untitled.txt"));
+        self.new_file_in_dir(root, cx);
+    }
+
+    /// Create a new empty file with the save dialog starting in `dir`.
+    pub(crate) fn new_file_in_dir(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
+        let rx = cx.prompt_for_new_path(&dir, Some("untitled.txt"));
         cx.spawn(async move |this, cx| {
             if let Ok(Ok(Some(path))) = rx.await {
                 this.update(cx, |this, cx| {
@@ -44,7 +49,39 @@ impl XenonApp {
                         log::error!("new file create failed: {error}");
                         return;
                     }
+                    // Expand parent in the tree so the new file is visible.
+                    if let Some(parent) = path.parent()
+                        && let Some(id) = this.active
+                        && let Some(root) = this.workspace_root(id)
+                    {
+                        this.file_browser.reveal_dir(&root, parent);
+                        this.reindex(root, true, cx);
+                    }
                     this.open_editor(path, true, cx);
+                })
+                .ok();
+            }
+        })
+        .detach();
+    }
+
+    /// Create a new empty directory (path prompt under `dir`).
+    pub(crate) fn new_folder_in_dir(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
+        let rx = cx.prompt_for_new_path(&dir, Some("untitled"));
+        cx.spawn(async move |this, cx| {
+            if let Ok(Ok(Some(path))) = rx.await {
+                this.update(cx, |this, cx| {
+                    if let Err(error) = std::fs::create_dir_all(&path) {
+                        log::error!("new folder failed: {error}");
+                        return;
+                    }
+                    if let Some(id) = this.active
+                        && let Some(root) = this.workspace_root(id)
+                    {
+                        this.file_browser.reveal_dir(&root, &path);
+                        this.reindex(root, true, cx);
+                    }
+                    cx.notify();
                 })
                 .ok();
             }

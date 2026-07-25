@@ -118,6 +118,12 @@ impl XenonApp {
             .cursor_pointer()
             .hover(|s| s.text_color(colors.text))
             .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx)))
+            .on_mouse_down(
+                gpui::MouseButton::Right,
+                cx.listener(|this, event: &gpui::MouseDownEvent, _, cx| {
+                    this.open_browser_menu(None, true, event.position, cx);
+                }),
+            )
             .child(
                 div()
                     .w(px(14.))
@@ -152,6 +158,8 @@ impl XenonApp {
             .justify_center()
             .text_color(colors.text_muted)
             .children(marker.map(|m| crate::icons::icon(m, px(ICON))));
+        let path_for_menu = row.path.clone();
+        let is_dir = row.is_dir;
         div()
             .id(id)
             .flex()
@@ -193,6 +201,14 @@ impl XenonApp {
                     this.open_editor(row.path.clone(), true, cx);
                 }
             }))
+            .on_mouse_down(
+                gpui::MouseButton::Right,
+                cx.listener(move |this, event: &gpui::MouseDownEvent, _, cx| {
+                    let rows = this.tree_rows();
+                    this.file_browser.select_path_in(&rows, &path_for_menu);
+                    this.open_browser_menu(Some(path_for_menu.clone()), is_dir, event.position, cx);
+                }),
+            )
             .into_any_element()
     }
 

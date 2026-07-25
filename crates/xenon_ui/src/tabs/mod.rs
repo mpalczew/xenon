@@ -1,6 +1,6 @@
 //! Mixed terminal/editor tab strips per leaf pane.
 
-mod menu;
+pub(crate) mod menu;
 
 use gpui::{
     App, AppContext, Context, Focusable, InteractiveElement, IntoElement, MouseButton,
