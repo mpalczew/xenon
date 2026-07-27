@@ -54,7 +54,14 @@ the agent in the IDE and breaks that interop; we do not follow that path.
 - `close_tab` (tab_name) / `closeAllDiffTabs` ().
 - `executeCode` (code) - Jupyter only; xero returns unsupported.
 
-## xero MVP scope
-- Implement discovery + handshake + tools/list.
-- Wire `openFile` -> open in xero's editor. `getWorkspaceFolders` -> roots.
-- Stub the rest with valid (often empty) responses so the CLI stays happy.
+## Xenon scope
+
+Implemented: discovery, authenticated WebSocket transport, handshake,
+`tools/list`, `openFile`, and `getWorkspaceFolders`. Unsupported tools return
+valid stub responses so the CLI remains usable.
+
+The next useful protocol work is selection push, environment compatibility,
+and deeper `openFile` behavior. `openDiff` is deliberately lower priority.
+Do not turn this bridge into the primary session model: the PTY owns the
+session, and skills, resume state, and harness configuration stay native to the
+harness.

@@ -1,8 +1,7 @@
 # PRODUCT.md
 
 Strategic product context for agents and design work. Visual system lives in
-`DESIGN.md` when present; chrome path is Option 2 + 3-lite (AIPM
-`projects/xenon/design/design-direction`).
+`DESIGN.md`; chrome path is Option 2 + 3-lite.
 
 ## Register
 
@@ -46,7 +45,7 @@ brew + XenServer PATH collision). Metaphor: noble gas, present but inert,
 anti-IDE. App: `Xenon.app`. Data: `~/.xenon` (auto-migrate from `~/.xero`).
 Env: `XENON_DATA_DIR` / `XENON_SLOT` with legacy `XERO_*` aliases. Bundle id
 stays `dev.xero.xero` (TCC). Crate paths `crates/xenon_*`. GitHub repo
-rename still open. Checklist: AIPM `projects/xenon/product/rename-xenon`.
+rename still open. Checklist: `docs/release.md`.
 
 Rejected or DQ: xero (accounting), xe CLI, mu (Mu Editor), nyx (Nix verbal +
 brew), vexo (vex), soft metaphors (weft/skiff). zeno/wu kept as also-rans only.
@@ -71,8 +70,18 @@ Marketing that is true: **the anti-IDE for people who run agents.**
 - **Primary:** super power users juggling multiple agent sessions and workspaces.
 - **Secondary (bounce-prevention only):** migrants from Cursor / VS Code / Studio.
   Do not chase full IDE parity for them until primary users are ecstatic.
-- **Personas (living):** Alex, Jordan, Night driver; see AIPM
-  `projects/xenon/design/personas`.
+- **Alex (primary):** runs multiple agents across workspaces and harnesses.
+  Needs instant recognition of the active workspace, tab, dirty buffer, and
+  attention state. Ambiguous selection or typing latency is a deal-breaker.
+- **Night driver (primary):** works in a dim room and needs status to be
+  legible without reading every label. Prefers cool dark chrome.
+- **Jordan (bounce prevention):** migrates from Cursor, VS Code, or Studio and
+  expects familiar tab and selection behavior. Do not chase full IDE parity.
+- **HN target:** already juggles several agent sessions in terminals or IDE
+  windows and wants a native, harness-neutral shell. Success means weekly use
+  and substantive engagement, not a one-time star.
+- **Anti-persona:** casual single-file editing and collaborative cloud IDE use
+  are not the v1 wedge.
 
 ## Job to be done (JTBD)
 
@@ -89,15 +98,14 @@ It is still central: when it works, it directly helps real daily work.
 ## Product model
 
 - **Workspace** = project / checkout root + saved session (layout, tabs).
-- **Content layout (target):** a **pane tree** of tab stacks. Terminals and
+- **Content layout:** a **pane tree** of tab stacks. Terminals and
   editors are the same kind of surface. Open file → tab in the focused pane
   (not an automatic split). Split horizontal/vertical on demand via toolbar,
   tab drag-and-drop (edge = split, center = move tab), or keyboard. Closing the
   last tab in a split pane **unsplits**; when the content area is fully empty,
   show an empty state (keep the area; teach ⌘N / open). Sidebar (workspaces +
-  files) is optional chrome, not a third content column. Replaces the older
-  fixed terminal|editor main split as product truth (code may still implement
-  that until the layout haul). Detail: AIPM `projects/xenon/product/layout-model`.
+  files) is optional chrome, not a third content column. This replaced the
+  older fixed terminal|editor split. Detail: `docs/designs/pane-tree-layout.md`.
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special
   config for a default Claude install. Not a deep multi-provider control plane
   (yet); the vision is the shell, not reimplementing every harness UI.
@@ -166,16 +174,14 @@ Visions are directional. Goals are concrete.
 
 ## Name (release gate)
 
-**Rename ASAP if the collision is material.** Known collisions: Xero accounting
-software (large, well-known) and Xero shoes / other consumer marks. Public
-launch, search, and HN should not fight that brand. Treat rename as a release
-gate, not a soft backlog item. (New name TBD; do not bikeshed in every chat.)
+The public rename to Xenon is complete in the app, binary, data directory, and
+crate paths. The remaining identity work is the GitHub repository rename and
+public packaging. See `docs/release.md`.
 
 ## Brand personality
 
 Cool, dense, calm cockpit. Power-user confident, not playful mascot. Themes are
-product surface (trust defaults + personality pack); see AIPM
-`projects/xenon/design/themes`.
+product surface: trust defaults, screenshot identity, and personality.
 
 ## Visual direction (chrome)
 

@@ -1,6 +1,6 @@
 # DESIGN.md
 
-Visual system for the Xenon (working tree: xero) agent shell. Complements
+Visual system for the Xenon agent shell. Complements
 `PRODUCT.md`. Implementation: `crates/xenon_ui/src/chrome.rs` and consumers.
 
 ## Register
@@ -60,8 +60,20 @@ None for selection. Instant paint. Speed is product.
 ## Themes
 
 Bundled families under `crates/xenon_terminal/assets/`. Default dark: **One Dark**
-(with elevation). Opt-in void: **True Black**. Personality pack unchanged
-(Neon, Mithril, …).
+(with elevation). Opt-in void: **True Black**.
+
+| Job | Families |
+|-----|----------|
+| Trust / defaults | One, Nord, Solarized, VS Code, IntelliJ, Xcode, High Contrast |
+| Brand / screenshots | Neon, Abyss, Tokyo, Runner |
+| Warm breadth | Ember, Gruvbox, Ayu |
+| Personality | Imperial, Mithril, Synthwave, Radioactive, Hot Dog Stand |
+
+Neon Noir is the hero theme; Abyss/Nord are the restrained professional
+alternatives; Runner/Tokyo Night are cinematic. Hot Dog Stand intentionally
+stays light-only and doubles as a detector for hard-coded, unthemed chrome.
+Daily dogfood favors cool blues/cyans/violets; Neon Noir, Mithril, and Imperial
+are proven dark daily-driver choices.
 
 ## Anti-patterns
 

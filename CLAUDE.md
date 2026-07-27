@@ -17,7 +17,7 @@ Public name **Xenon**; binary/`Xenon.app`; data `~/.xenon` (migrates from
 `~/.xero`). Install:
 `project install` → `~/Applications/Xenon.app`. Homebrew later. OSS success:
 **substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
-Personas: AIPM `projects/xenon/design/personas`.
+Personas and product priorities live in `PRODUCT.md`.
 
 ## Build & run
 
@@ -65,6 +65,10 @@ Crates under `crates/`:
   (`~/.claude/ide/<port>.lock` + `CLAUDE_CODE_SSE_PORT` injected into terminals)
   that lets agents open files in Xenon. Protocol captured in
   `crates/xenon_ide/PROTOCOL.md`.
+- `xenon_lsp` — runtime-neutral stdio JSON-RPC client/host for Rust and
+  TypeScript navigation, highlights, and diagnostics.
+- `xenon_remote` — optional local HTTP service for phone-sized terminal
+  viewport and input over LAN/Tailscale.
 - Project commands: shell tasks in `.vscode/tasks.json` (Run Task palette
   cmd-shift-r injects into the workspace terminal; `project <label>` from any shell).
 
@@ -98,12 +102,16 @@ forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   push without the user's explicit request.
 - Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
   chrome or UX work. Keep them aligned with settled decisions; do not invent a
-  competing vision in chat only.
+  competing vision in chat only. Cross-cutting current decisions live in
+  `docs/project-state.md`; release work lives in `docs/release.md`.
 
 ## Keyboard-first (mouseless)
 
 Every UX surface must be operable end-to-end from the keyboard. Mouse is additive,
 never required for a complete flow.
+
+Current bindings and the GPUI focus-ownership model live in
+`docs/keyboard-first.md`.
 
 - Design the keyboard path first: action, keybinding, focus target, Escape dismiss.
 - Click-only chrome is incomplete. Lists, pickers, sidebars, dialogs, and empty

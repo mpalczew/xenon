@@ -1,7 +1,7 @@
 # Tech design: pane-tree content layout
 
 **Status:** draft for implementation  
-**Product source:** `PRODUCT.md` (product model), AIPM `projects/xenon/product/layout-model`  
+**Product source:** `PRODUCT.md` (product model)
 **Repo:** xenon  
 **Date:** 2026-07-18
 
@@ -650,6 +650,5 @@ Default surface is a splittable tab grid of terminals; editors are tabs (or pane
 
 ## Appendix: references
 
-- AIPM: `projects/xenon/product/layout-model`
 - `PRODUCT.md` — product model
 - Exploration: dual stacks in `xenon_ui/src/app.rs`; layout in `xenon_core/src/session.rs`
