@@ -334,6 +334,18 @@ impl XenonApp {
                 EditorEvent::PathChanged { path } => {
                     this.rebind_editor_tab_path(&view, path.clone(), cx);
                 }
+                EditorEvent::BufferChanged { path, text } => {
+                    this.lsp_buffer_changed(path, text.clone(), cx);
+                }
+                EditorEvent::Saved { path } => {
+                    this.lsp_saved(path);
+                }
+                EditorEvent::CursorMoved { path, row, col } => {
+                    this.lsp_cursor_moved(path.clone(), *row, *col, cx);
+                }
+                EditorEvent::GoToDefinition { path, row, col } => {
+                    this.request_definition(path.clone(), *row, *col, cx);
+                }
             }));
     }
 

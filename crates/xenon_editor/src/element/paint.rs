@@ -17,6 +17,9 @@ pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx:
             for rect in &layout.search_current {
                 window.paint_quad(fill(*rect, layout.search_current_color));
             }
+            for rect in &layout.occurrences {
+                window.paint_quad(fill(*rect, layout.occurrence_color));
+            }
             for rect in &layout.selection {
                 window.paint_quad(fill(*rect, layout.selection_color));
             }
@@ -32,6 +35,9 @@ pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx:
                     cx,
                 );
             }
+            for (rect, color) in &layout.diagnostic_underlines {
+                window.paint_quad(fill(*rect, *color));
+            }
             if let Some(gutter) = layout.gutter {
                 window.paint_quad(fill(gutter, layout.gutter_color));
             }
@@ -45,6 +51,9 @@ pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx:
                     window,
                     cx,
                 );
+            }
+            for (rect, color) in &layout.diagnostic_marks {
+                window.paint_quad(fill(*rect, *color));
             }
             for scrollbar in &layout.scrollbars {
                 window.paint_quad(fill(*scrollbar, layout.scrollbar_color));

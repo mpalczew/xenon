@@ -52,6 +52,7 @@ impl EditorView {
             Ok(ExternalState::Reloaded) => {
                 self.disk_alert = DiskAlert::None;
                 self.recompute_highlights();
+                self.emit_buffer_changed(cx);
                 cx.notify();
             }
             Ok(ExternalState::Conflicted) => {
@@ -92,6 +93,7 @@ impl EditorView {
         }
         self.disk_alert = DiskAlert::None;
         self.recompute_highlights();
+        self.emit_buffer_changed(cx);
         cx.notify();
     }
 

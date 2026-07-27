@@ -168,6 +168,9 @@ impl EditorView {
         match buffer.save() {
             Ok(()) => {
                 self.disk_alert = super::DiskAlert::None;
+                cx.emit(EditorEvent::Saved {
+                    path: buffer.path().to_path_buf(),
+                });
             }
             Err(SaveError::ExternalChange) => {
                 self.disk_alert = super::DiskAlert::Conflict;
@@ -187,6 +190,9 @@ impl EditorView {
             log::error!("force save failed: {error}");
         } else {
             self.disk_alert = super::DiskAlert::None;
+            cx.emit(EditorEvent::Saved {
+                path: buffer.path().to_path_buf(),
+            });
         }
         cx.notify();
     }

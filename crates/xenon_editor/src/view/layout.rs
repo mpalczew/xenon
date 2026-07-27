@@ -27,7 +27,7 @@ use gpui::{
 use theme::ActiveTheme;
 
 use super::{Content, EditorView, LINE_HEIGHT_MULTIPLIER};
-use crate::element::{self, ColoredSpan};
+use crate::element::{self, ColoredSpan, DiagnosticRange};
 use crate::mouse::ClickLayout;
 
 pub(super) fn editor_canvas(
@@ -63,21 +63,7 @@ fn layout(
     };
     let content_height = line_height * (lines as f32);
     let max_scroll = (content_height - bounds.size.height).max(px(0.));
-    let follow_cursor = view.update(cx, |view, _| {
-        let follow = match &view.content {
-            Content::Text(buffer) => {
-                let cursor = buffer.cursor_position();
-                let moved = view.last_cursor != Some(cursor);
-                if moved {
-                    view.last_cursor = Some(cursor);
-                }
-                moved
-            }
-            Content::Image(_) | Content::Unsupported { .. } => false,
-        };
-        view.scroll_top = view.scroll_top.min(max_scroll);
-        follow
-    });
+    let follow_cursor = follow_cursor(view, max_scroll, cx);
 
     let show_line_numbers = xenon_settings::show_line_numbers(cx);
     let editor_layout = {
@@ -110,6 +96,7 @@ fn layout(
             }
             _ => (&[][..], None),
         };
+        let diagnostics = diagnostic_ranges(view, theme);
         element::layout(
             element::LayoutInput {
                 rope: buffer.rope(),
@@ -120,6 +107,9 @@ fn layout(
                 search_current,
                 search_match_color: theme.colors().search_match_background,
                 search_current_color: theme.colors().search_active_match_background,
+                occurrences: &view.occurrence_ranges,
+                occurrence_color: theme.colors().element_hover,
+                diagnostics: &diagnostics,
                 default_color: text_color,
                 line_number_color: theme.colors().text_muted,
                 gutter_color: theme.colors().panel_background,
@@ -152,4 +142,36 @@ fn layout(
         });
     });
     editor_layout
+}
+
+fn follow_cursor(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) -> bool {
+    view.update(cx, |view, _| {
+        let follow = match &view.content {
+            Content::Text(buffer) => {
+                let cursor = buffer.cursor_position();
+                let moved = view.last_cursor != Some(cursor);
+                if moved {
+                    view.last_cursor = Some(cursor);
+                }
+                moved
+            }
+            Content::Image(_) | Content::Unsupported { .. } => false,
+        };
+        view.scroll_top = view.scroll_top.min(max_scroll);
+        follow
+    })
+}
+
+fn diagnostic_ranges(view: &EditorView, theme: &theme::Theme) -> Vec<DiagnosticRange> {
+    let status = theme.status();
+    view.diagnostics
+        .iter()
+        .map(|diagnostic| DiagnosticRange {
+            range: diagnostic.range.clone(),
+            color: match diagnostic.severity {
+                super::EditorDiagnosticSeverity::Error => status.error,
+                super::EditorDiagnosticSeverity::Warning => status.warning,
+            },
+        })
+        .collect()
 }

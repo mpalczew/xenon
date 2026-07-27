@@ -109,6 +109,7 @@ pub struct HandleResult {
     pub request_system_paste: bool,
     /// Ex command that needs the view/shell (write, quit, reload…).
     pub ex: Option<ExEffect>,
+    pub request_definition: bool,
 }
 
 impl VimState {

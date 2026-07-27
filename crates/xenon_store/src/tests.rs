@@ -128,6 +128,7 @@ fn settings_round_trip() {
             remote_password: "s3cret".into(),
             remote_port: 17890,
             remote_hostname: "macbook.tailnet.ts.net".into(),
+            lsp: crate::LspSettings::default(),
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);

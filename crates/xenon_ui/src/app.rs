@@ -20,6 +20,7 @@ use xenon_core::{
 use xenon_editor::{EditorEvent, EditorView};
 use xenon_finder::{FileIndex, Finder};
 use xenon_ide::{IdeCommand, IdeServer, SelectionSnapshot};
+use xenon_lsp::{Diagnostic, LspHost};
 use xenon_remote::RemoteServer;
 use xenon_terminal::{TerminalEvent, TerminalView};
 
@@ -45,6 +46,7 @@ mod empty_hint;
 mod git_dirt;
 mod keyboard;
 mod live;
+mod lsp;
 mod nav_history;
 mod nav_ops;
 mod navigation;
@@ -145,6 +147,14 @@ pub struct XenonApp {
     _bell_subs: Vec<Subscription>,
     // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
+    lsp: LspHost,
+    lsp_settings: xenon_store::LspSettings,
+    lsp_open_documents: std::collections::HashSet<PathBuf>,
+    lsp_synced_versions: HashMap<PathBuf, i32>,
+    lsp_diagnostics: HashMap<PathBuf, (Option<i32>, Vec<Diagnostic>)>,
+    lsp_request_generation: HashMap<PathBuf, u64>,
+    lsp_sync_generation: HashMap<PathBuf, u64>,
+    _lsp_task: Option<Task<()>>,
     // IDE server: agents in the terminal connect here to drive xero. Its env is
     // injected into every terminal so Claude Code discovers it.
     ide: Option<IdeServer>,
@@ -170,6 +180,8 @@ impl XenonApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let registry = xenon_store::load_registry().unwrap_or_default();
         let settings = xenon_store::load_settings().unwrap_or_default();
+        let lsp_settings = settings.lsp.clone();
+        let (lsp, lsp_events) = LspHost::new();
         xenon_settings::apply(&settings, cx);
         xenon_terminal::apply_theme(cx);
         let mut app = Self {
@@ -206,6 +218,14 @@ impl XenonApp {
             attention: HashMap::new(),
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),
+            lsp,
+            lsp_settings,
+            lsp_open_documents: std::collections::HashSet::new(),
+            lsp_synced_versions: HashMap::new(),
+            lsp_diagnostics: HashMap::new(),
+            lsp_request_generation: HashMap::new(),
+            lsp_sync_generation: HashMap::new(),
+            _lsp_task: None,
             ide: None,
             _ide_task: None,
             remote: None,
@@ -220,6 +240,7 @@ impl XenonApp {
         };
         app.load_sessions();
         app.start_ide_server(cx);
+        app.start_lsp_events(lsp_events, cx);
         app.restart_git_dirt_watch(cx);
         Self::register_main_handle(cx);
         let active = app

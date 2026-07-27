@@ -19,7 +19,10 @@ pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
 // Buffer::create_new / empty / save_force used by shell (New File, Save As).
 pub use edit::{EditCommand, Motion};
 pub use find::FindOptions;
-pub use view::{DiskAlert, EditorEvent, EditorView, Find, FindNext, FindPrevious};
+pub use view::{
+    DiskAlert, EditorDiagnostic, EditorDiagnosticSeverity, EditorEvent, EditorView, Find, FindNext,
+    FindPrevious,
+};
 
 #[cfg(test)]
 mod tests;

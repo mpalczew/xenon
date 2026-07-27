@@ -88,7 +88,7 @@ impl XenonApp {
 
         self.reindex(root, false, cx);
         self.persist_active();
-        self.nav_seed_active(id);
+        self.nav_seed_active(id, cx);
         cx.notify();
     }
 

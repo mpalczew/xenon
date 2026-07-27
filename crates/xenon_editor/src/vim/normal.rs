@@ -74,6 +74,14 @@ impl VimState {
         let count = self.count.max(1);
 
         match ch {
+            'd' if self.count == usize::MAX => {
+                self.count = 0;
+                HandleResult {
+                    handled: true,
+                    request_definition: true,
+                    ..Default::default()
+                }
+            }
             '"' => {
                 self.register_pending = true;
                 handled(false)

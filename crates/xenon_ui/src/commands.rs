@@ -36,6 +36,9 @@ pub enum CommandId {
     PrevTab,
     GoBack,
     GoForward,
+    GoToDefinition,
+    NextDiagnostic,
+    PreviousDiagnostic,
     ToggleSidebar,
     ToggleBrowser,
     ToggleTerminal,
@@ -63,7 +66,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 37] {
+const fn all_commands() -> [CommandEntry; 40] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -73,6 +76,9 @@ const fn all_commands() -> [CommandEntry; 37] {
         cmd!(KeyboardHelp, "Keyboard Shortcuts", "⌘⇧/", "Navigate"),
         cmd!(GoBack, "Go Back", "⌘[", "Navigate"),
         cmd!(GoForward, "Go Forward", "⌘]", "Navigate"),
+        cmd!(GoToDefinition, "Go to Definition", "F12", "Navigate"),
+        cmd!(NextDiagnostic, "Next Diagnostic", "F8", "Navigate"),
+        cmd!(PreviousDiagnostic, "Previous Diagnostic", "⇧F8", "Navigate"),
         cmd!(FocusTerminal, "Focus Terminal", "⌘1", "Focus"),
         cmd!(FocusEditor, "Focus Editor", "⌘2", "Focus"),
         cmd!(FocusBrowser, "Focus File Tree", "⌘3", "Focus"),
@@ -107,6 +113,6 @@ const fn all_commands() -> [CommandEntry; 37] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 37] = all_commands();
+    static ENTRIES: [CommandEntry; 40] = all_commands();
     &ENTRIES
 }

@@ -25,6 +25,7 @@ xenon_editor = { path = "crates/xenon_editor" }
 xenon_finder = { path = "crates/xenon_finder" }
 xenon_ui = { path = "crates/xenon_ui" }
 xenon_ide = { path = "crates/xenon_ide" }
+xenon_lsp = { path = "crates/xenon_lsp" }
 xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
 
@@ -46,6 +47,8 @@ anyhow = "1"
 thiserror = "2"
 async-channel = "2"
 tungstenite = "0.24"
+lsp-types = "0.97"
+url = "2"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

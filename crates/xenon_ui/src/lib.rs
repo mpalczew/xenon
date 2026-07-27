@@ -65,6 +65,9 @@ actions!(
         PrevTab,
         GoBack,
         GoForward,
+        GoToDefinition,
+        NextDiagnostic,
+        PreviousDiagnostic,
         CommandPalette,
         KeyboardHelp,
     ]
@@ -102,6 +105,9 @@ pub fn bind_keys(cx: &mut App) {
         // Surface history (browser-style; not sequential tab cycle)
         KeyBinding::new("cmd-[", GoBack, None),
         KeyBinding::new("cmd-]", GoForward, None),
+        KeyBinding::new("f12", GoToDefinition, Some("Editor")),
+        KeyBinding::new("f8", NextDiagnostic, Some("Editor")),
+        KeyBinding::new("shift-f8", PreviousDiagnostic, Some("Editor")),
         KeyBinding::new("cmd-w", CloseEditor, None),
         // Edit
         KeyBinding::new("cmd-s", Save, None),

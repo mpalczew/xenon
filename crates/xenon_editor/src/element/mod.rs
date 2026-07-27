@@ -8,7 +8,12 @@ use gpui::{
 };
 use ropey::Rope;
 
+mod decorations;
+mod layout_scroll;
 mod paint;
+use decorations::layout_decorations;
+pub use decorations::{DiagnosticRange, PaintRect};
+use layout_scroll::{LayoutSizes, scroll_offsets};
 pub use paint::{line_height, paint};
 
 pub(super) const GUTTER_PAD_LEFT: f32 = 8.;
@@ -42,6 +47,10 @@ pub struct EditorLayout {
     /// Current search match highlight.
     pub search_current: Vec<Bounds<Pixels>>,
     pub search_current_color: Hsla,
+    pub occurrences: Vec<Bounds<Pixels>>,
+    pub occurrence_color: Hsla,
+    pub diagnostic_underlines: Vec<PaintRect>,
+    pub diagnostic_marks: Vec<PaintRect>,
     pub cell_width: Pixels,
     pub gutter: Option<Bounds<Pixels>>,
     pub gutter_color: Hsla,
@@ -60,6 +69,9 @@ pub struct LayoutInput<'a> {
     pub search_current: Option<std::ops::Range<usize>>,
     pub search_match_color: Hsla,
     pub search_current_color: Hsla,
+    pub occurrences: &'a [std::ops::Range<usize>],
+    pub occurrence_color: Hsla,
+    pub diagnostics: &'a [DiagnosticRange],
     pub default_color: Hsla,
     pub line_number_color: Hsla,
     pub gutter_color: Hsla,
@@ -109,27 +121,13 @@ pub fn layout(
     let content_width = content_width(input.rope, cell_w);
     let content_height = metrics.line_height * (input.rope.len_lines() as f32);
     let (row, col) = input.cursor;
-    let mut scroll_top = input.scroll_top;
-    let mut scroll_left = input.scroll_left;
-    if input.follow_cursor {
-        // Overlay scrollbars sit on the canvas edge; follow into the clear area.
-        let (follow_w, follow_h) = crate::scroll::follow_viewport(
-            text_width,
-            input.viewport_height,
-            content_width,
-            content_height,
-            crate::scroll::scrollbar_reserve(),
-        );
-        scroll_top =
-            crate::scroll::keep_row_visible(scroll_top, row, metrics.line_height, follow_h);
-        scroll_left = crate::scroll::keep_col_visible(scroll_left, col, cell_w, follow_w);
-    }
-    scroll_top = scroll_top
-        .min((content_height - input.viewport_height).max(px(0.)))
-        .max(px(0.));
-    scroll_left = scroll_left
-        .min((content_width - text_width).max(px(0.)))
-        .max(px(0.));
+    let sizes = LayoutSizes {
+        cell: cell_w,
+        text_width,
+        content_width,
+        content_height,
+    };
+    let (scroll_top, scroll_left) = scroll_offsets(&input, &metrics, &sizes);
     let text_origin = point(input.origin.x + gutter_width - scroll_left, input.origin.y);
     let gutter = input
         .show_line_numbers
@@ -180,6 +178,7 @@ pub fn layout(
     let search_current = hits.rects(input.search_current.as_ref());
     let search_matches =
         hits.other_search_rects(input.search_matches, input.search_current.as_ref());
+    let decorations = layout_decorations(&hits, &input, gutter.as_ref());
     EditorLayout {
         lines,
         line_numbers,
@@ -199,6 +198,10 @@ pub fn layout(
         search_match_color: input.search_match_color,
         search_current,
         search_current_color: input.search_current_color,
+        occurrences: decorations.occurrences,
+        occurrence_color: input.occurrence_color,
+        diagnostic_underlines: decorations.underlines,
+        diagnostic_marks: decorations.marks,
         cell_width: cell_w,
         gutter,
         gutter_color: input.gutter_color,

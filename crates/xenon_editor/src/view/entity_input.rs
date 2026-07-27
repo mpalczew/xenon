@@ -34,6 +34,7 @@ impl EntityInputHandler for EditorView {
         }
         buffer.apply(EditCommand::Insert(text.to_string()));
         self.recompute_highlights();
+        self.emit_buffer_changed(cx);
         if self.find_is_open() {
             self.rescan_find();
         }
@@ -67,6 +68,7 @@ impl EntityInputHandler for EditorView {
         }
         buffer.apply(EditCommand::Insert(new_text.to_string()));
         self.recompute_highlights();
+        self.emit_buffer_changed(cx);
         if self.find_is_open() {
             self.rescan_find();
         }

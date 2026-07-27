@@ -116,6 +116,8 @@ pub struct AppSettings {
     /// Optional host for copyable phone URLs (MagicDNS name, LAN hostname, etc.).
     #[serde(default)]
     pub remote_hostname: String,
+    #[serde(default)]
+    pub lsp: LspSettings,
 }
 
 impl Default for AppSettings {
@@ -139,7 +141,46 @@ impl Default for AppSettings {
             remote_password: String::new(),
             remote_port: default_remote_port(),
             remote_hostname: String::new(),
+            lsp: LspSettings::default(),
         }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LspCommand {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LspSettings {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub rust: LspCommand,
+    #[serde(default = "default_typescript_lsp")]
+    pub typescript: LspCommand,
+}
+
+impl Default for LspSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            rust: LspCommand {
+                command: None,
+                args: Vec::new(),
+            },
+            typescript: default_typescript_lsp(),
+        }
+    }
+}
+
+fn default_typescript_lsp() -> LspCommand {
+    LspCommand {
+        command: None,
+        args: vec!["--stdio".into()],
     }
 }
 

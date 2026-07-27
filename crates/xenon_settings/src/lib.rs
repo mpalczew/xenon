@@ -104,6 +104,7 @@ pub fn snapshot(cx: &App) -> AppSettings {
         remote_password: disk.remote_password,
         remote_port: disk.remote_port,
         remote_hostname: disk.remote_hostname,
+        lsp: disk.lsp,
     }
 }
 

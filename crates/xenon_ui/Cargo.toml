@@ -15,6 +15,7 @@ xenon_finder.workspace = true
 xenon_terminal.workspace = true
 xenon_editor.workspace = true
 xenon_ide.workspace = true
+xenon_lsp.workspace = true
 xenon_remote.workspace = true
 xenon_settings.workspace = true
 theme.workspace = true
@@ -25,6 +26,7 @@ log = "0.4"
 lucide-icons.workspace = true
 nucleo.workspace = true
 notify.workspace = true
+lsp-types.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

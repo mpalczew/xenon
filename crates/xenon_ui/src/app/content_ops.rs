@@ -107,7 +107,7 @@ impl XenonApp {
         let Some(root) = self.workspace_root(id) else {
             return;
         };
-        self.nav_sync_active(id);
+        self.nav_sync_active(id, cx);
         let view = self.spawn_terminal(root, id, cx);
         let content = self.contents.entry(id).or_default();
         let tab_id = content.next_tab_id();
@@ -137,7 +137,7 @@ impl XenonApp {
             .and_then(|c| c.active_tab())
             .map(|t| t.id())
         {
-            self.nav_visit(tab_id);
+            self.nav_visit(tab_id, cx);
         }
         cx.notify();
     }
@@ -152,12 +152,23 @@ impl XenonApp {
     }
 
     pub(crate) fn open_editor(&mut self, path: PathBuf, focus: bool, cx: &mut Context<Self>) {
+        if let Err(error) = self.open_editor_at(path, focus, None, cx) {
+            log::error!("open failed: {error}");
+        }
+    }
+
+    pub(crate) fn open_editor_at(
+        &mut self,
+        path: PathBuf,
+        focus: bool,
+        at: Option<(u32, u32)>,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
         let Some(id) = self.active else {
-            log::warn!("open_editor: no active workspace for {}", path.display());
-            return;
+            anyhow::bail!("no active workspace for {}", path.display());
         };
         if focus {
-            self.nav_sync_active(id);
+            self.nav_sync_active(id, cx);
         }
         if let Some(content) = self.contents.get(&id)
             && let Some(root) = &content.root
@@ -173,24 +184,43 @@ impl XenonApp {
                 }
                 c.focused = Some(pane);
             }
+            if let Some((row, col)) = at
+                && let Some(view) = self
+                    .contents
+                    .get(&id)
+                    .and_then(|content| content.root.as_ref())
+                    .and_then(|root| root.find_leaf(pane))
+                    .and_then(|leaf| leaf.tabs.get(idx))
+                    .and_then(LiveTab::as_editor)
+            {
+                view.update(cx, |editor, cx| {
+                    editor.set_cursor_position(row, col, cx);
+                });
+            }
             self.touch_recent_file(id, &path);
             self.finder = None;
             if focus {
                 self.deferred.pending_focus = Some(FocusPane::Editor);
                 if let Some(tab_id) = tab_id {
-                    self.nav_visit(tab_id);
+                    self.nav_visit(tab_id, cx);
                 }
             }
             if self.file_browser.is_open() {
                 self.reveal_active_file(cx);
             }
             cx.notify();
-            return;
+            return Ok(());
         }
 
         match EditorView::build(path.clone(), focus, cx) {
             Ok(view) => {
+                if let Some((row, col)) = at {
+                    view.update(cx, |editor, cx| {
+                        editor.set_cursor_position(row, col, cx);
+                    });
+                }
                 self.wire_editor_selection(&view, cx);
+                self.lsp_attach_editor(id, &view, cx);
                 let name = file_name(&path);
                 let content = self.contents.entry(id).or_default();
                 let tab_id = content.next_tab_id();
@@ -223,14 +253,15 @@ impl XenonApp {
                 self.finder = None;
                 if focus {
                     self.deferred.pending_focus = Some(FocusPane::Editor);
-                    self.nav_visit(tab_id);
+                    self.nav_visit(tab_id, cx);
                 }
                 if self.file_browser.is_open() {
                     self.reveal_active_file(cx);
                 }
                 cx.notify();
+                Ok(())
             }
-            Err(error) => log::error!("open failed: {error}"),
+            Err(error) => Err(error),
         }
     }
 
@@ -270,7 +301,7 @@ impl XenonApp {
                 view.read(cx).focus_handle(cx).focus(window, cx);
             }
         }
-        self.nav_visit(tab_id);
+        self.nav_visit(tab_id, cx);
         cx.notify();
     }
 
@@ -327,6 +358,20 @@ impl XenonApp {
         window: Option<&mut Window>,
         cx: &mut Context<Self>,
     ) {
+        let closed_editor_path = self
+            .contents
+            .get(&workspace)
+            .and_then(|content| content.root.as_ref())
+            .and_then(|root| {
+                root.find_tab(tab).and_then(|(pane, index)| {
+                    root.find_leaf(pane)
+                        .and_then(|leaf| leaf.tabs.get(index))
+                        .and_then(|tab| match tab {
+                            LiveTab::Editor { path, .. } => Some(path.clone()),
+                            LiveTab::Terminal { .. } => None,
+                        })
+                })
+            });
         let outcome = {
             let Some(content) = self.contents.get_mut(&workspace) else {
                 return;
@@ -354,6 +399,9 @@ impl XenonApp {
                 DropTabOutcome::Unsplit
             }
         };
+        if let Some(path) = closed_editor_path {
+            self.lsp_detach_path(&path);
+        }
         self.nav_prune_tab(workspace, tab);
         self.save_layout(workspace);
         match outcome {

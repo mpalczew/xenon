@@ -10,8 +10,10 @@ mod find_session;
 mod image;
 mod input;
 mod layout;
+mod lsp;
 mod menu;
 
+use std::ops::Range;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -41,6 +43,9 @@ pub(super) const ZOOM_STEP: f32 = 1.2;
 pub struct EditorView {
     pub(super) content: Content,
     pub(super) highlights: Vec<highlight::Span>,
+    pub(super) occurrence_ranges: Vec<Range<usize>>,
+    pub(super) diagnostics: Vec<EditorDiagnostic>,
+    pub(super) lsp_status: Option<String>,
     pub(super) scroll_top: Pixels,
     pub(super) scroll_left: Pixels,
     /// Last laid-out cursor; when it changes, layout scrolls to follow.
@@ -80,12 +85,46 @@ pub enum EditorEvent {
         end_character: u32,
     },
     /// Vim `:q` / `:wq` — close this editor tab.
-    RequestClose { force: bool },
+    RequestClose {
+        force: bool,
+    },
     /// Buffer path rebinding (Save As / `:w path`).
-    PathChanged { path: PathBuf },
+    PathChanged {
+        path: PathBuf,
+    },
+    BufferChanged {
+        path: PathBuf,
+        text: String,
+    },
+    Saved {
+        path: PathBuf,
+    },
+    CursorMoved {
+        path: PathBuf,
+        row: u32,
+        col: u32,
+    },
+    GoToDefinition {
+        path: PathBuf,
+        row: u32,
+        col: u32,
+    },
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorDiagnosticSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Clone, Debug)]
+pub struct EditorDiagnostic {
+    pub range: Range<usize>,
+    pub severity: EditorDiagnosticSeverity,
+    pub message: String,
+}
 
 pub(super) enum Content {
     Text(Buffer),
@@ -123,6 +162,9 @@ impl EditorView {
         let mut view = Self {
             content,
             highlights: Vec::new(),
+            occurrence_ranges: Vec::new(),
+            diagnostics: Vec::new(),
+            lsp_status: None,
             scroll_top: px(0.),
             scroll_left: px(0.),
             last_cursor: None,
@@ -321,6 +363,15 @@ impl Render for EditorView {
             .context_menu
             .map(|position| self.render_context_menu(position, &colors, cx));
         let find_bar = self.render_find_bar(&colors, cx);
+        let lsp_status = self.lsp_status.clone().map(|status| {
+            div()
+                .px_2()
+                .py_px()
+                .text_xs()
+                .bg(colors.panel_background)
+                .text_color(colors.text_muted)
+                .child(status)
+        });
         div()
             .track_focus(&self.focus)
             .key_context("Editor")
@@ -360,6 +411,7 @@ impl Render for EditorView {
             .flex_col()
             .bg(colors.editor_background)
             .children(alert)
+            .children(lsp_status)
             .children(find_bar)
             .child(
                 div()

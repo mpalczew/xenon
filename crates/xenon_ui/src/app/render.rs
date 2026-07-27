@@ -2,8 +2,8 @@ use super::*;
 use crate::resize::ResizeEdge;
 use crate::{
     CloseWorkspace, CommandPalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal,
-    GoBack, GoForward, KeyboardHelp, NextTab, NextWorkspace, PrevTab, PrevWorkspace, SplitDown,
-    SplitRight,
+    GoBack, GoForward, GoToDefinition, KeyboardHelp, NextDiagnostic, NextTab, NextWorkspace,
+    PrevTab, PrevWorkspace, PreviousDiagnostic, SplitDown, SplitRight,
 };
 use gpui::{
     AnyElement, DragMoveEvent, Focusable, KeyDownEvent, MouseButton, MouseUpEvent, relative,
@@ -215,6 +215,15 @@ impl XenonApp {
         }))
         .on_action(cx.listener(|this, _: &GoForward, window, cx| {
             this.go_forward(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &GoToDefinition, _, cx| {
+            this.go_to_definition(cx);
+        }))
+        .on_action(cx.listener(|this, _: &NextDiagnostic, _, cx| {
+            this.next_diagnostic(true, cx);
+        }))
+        .on_action(cx.listener(|this, _: &PreviousDiagnostic, _, cx| {
+            this.next_diagnostic(false, cx);
         }))
         .on_action(cx.listener(|this, _: &CommandPalette, window, cx| {
             this.open_command_palette(window, cx);

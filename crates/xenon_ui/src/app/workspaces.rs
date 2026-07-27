@@ -334,6 +334,15 @@ impl XenonApp {
             return;
         };
         let record = self.registry.workspaces.remove(index);
+        self.lsp.stop_workspace(&record.root);
+        self.lsp_open_documents
+            .retain(|path| !path.starts_with(&record.root));
+        self.lsp_diagnostics
+            .retain(|path, _| !path.starts_with(&record.root));
+        self.lsp_synced_versions
+            .retain(|path, _| !path.starts_with(&record.root));
+        self.lsp_sync_generation
+            .retain(|path, _| !path.starts_with(&record.root));
         let closed_active = self.active == Some(id);
         let dead_content = self.contents.remove(&id);
         self.sessions.remove(&id);

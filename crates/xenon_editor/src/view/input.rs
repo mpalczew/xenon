@@ -52,6 +52,7 @@ impl EditorView {
             };
             if edited {
                 self.recompute_highlights();
+                self.emit_buffer_changed(cx);
             }
             cx.stop_propagation();
             cx.notify();
@@ -73,6 +74,7 @@ impl EditorView {
         if keystroke.modifiers.control && keystroke.key == "r" {
             if self.redo_edit() {
                 self.recompute_highlights();
+                self.emit_buffer_changed(cx);
             }
             cx.stop_propagation();
             cx.notify();
@@ -91,9 +93,11 @@ impl EditorView {
         }
         if edits {
             self.recompute_highlights();
+            self.emit_buffer_changed(cx);
         } else {
             // Move/Extend: push selection to Claude IDE bridge.
             self.emit_selection(cx);
+            self.emit_cursor(cx);
         }
         cx.stop_propagation();
         cx.notify();
@@ -164,6 +168,7 @@ impl EditorView {
                 let r = self.vim.paste_system(buffer, &text, false);
                 if r.edited {
                     self.recompute_highlights();
+                    self.emit_buffer_changed(cx);
                 }
             }
             return true;
@@ -176,6 +181,11 @@ impl EditorView {
         }
         if result.edited {
             self.recompute_highlights();
+            self.emit_buffer_changed(cx);
+        } else if result.request_definition {
+            self.emit_go_to_definition(cx);
+        } else if result.handled {
+            self.emit_cursor(cx);
         }
         // If vim consumed the key as a command (e.g. `i` entering insert), do not
         // also insert that character. Only plain typing in insert returns false.
@@ -217,6 +227,14 @@ impl EditorView {
             return;
         };
         let (row, col) = mouse::position_at(layout, event.position);
+        if event.modifiers.platform {
+            buffer.set_cursor_position(row, col);
+            self.emit_go_to_definition(cx);
+            self.focus.focus(window, cx);
+            cx.stop_propagation();
+            cx.notify();
+            return;
+        }
         let click_count = self.click_tracker.count(row, col);
         let extend = event.modifiers.shift;
         match click_count {
@@ -251,6 +269,7 @@ impl EditorView {
             self.emit_selection(cx);
         }
         self.focus.focus(window, cx);
+        self.emit_cursor(cx);
         cx.stop_propagation();
         cx.notify();
     }
