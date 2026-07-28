@@ -83,29 +83,20 @@ pub fn snapshot(cx: &App) -> AppSettings {
     let ui = ui_font(cx);
     let theme = theme_preference(cx);
     let disk = xenon_store::load_settings().unwrap_or_default();
-    AppSettings {
-        editor_font_size: editor.size,
-        editor_font_family: editor.family,
-        terminal_font_size: terminal.size,
-        terminal_font_family: terminal.family,
-        ui_font_size: ui.size,
-        ui_font_family: ui.family,
-        show_line_numbers: show_line_numbers(cx),
-        vim_mode: vim_mode(cx),
-        theme: theme.mode,
-        light_theme: theme.light,
-        dark_theme: theme.dark,
-        terminal_auto_close: terminal_auto_close(cx),
-        workspaces_collapsed: disk.workspaces_collapsed,
-        files_open: disk.files_open,
-        // Window geometry is chrome-only (not a gpui global); preserve on font/theme saves.
-        window: disk.window,
-        // Remote password/port/hostname are chrome-only; preserve on font/theme saves.
-        remote_password: disk.remote_password,
-        remote_port: disk.remote_port,
-        remote_hostname: disk.remote_hostname,
-        lsp: disk.lsp,
-    }
+    let mut settings = disk;
+    settings.editor_font_size = editor.size;
+    settings.editor_font_family = editor.family;
+    settings.terminal_font_size = terminal.size;
+    settings.terminal_font_family = terminal.family;
+    settings.ui_font_size = ui.size;
+    settings.ui_font_family = ui.family;
+    settings.show_line_numbers = show_line_numbers(cx);
+    settings.vim_mode = vim_mode(cx);
+    settings.theme = theme.mode;
+    settings.light_theme = theme.light;
+    settings.dark_theme = theme.dark;
+    settings.terminal_auto_close = terminal_auto_close(cx);
+    settings
 }
 
 fn theme_preference(cx: &App) -> ThemePreference {
@@ -120,7 +111,25 @@ fn theme_preference(cx: &App) -> ThemePreference {
 
 /// Persist current globals to disk. Logs on failure; never panics.
 pub fn save(cx: &App) {
-    if let Err(error) = xenon_store::save_settings(&snapshot(cx)) {
+    let snapshot = snapshot(cx);
+    if let Err(error) = xenon_store::update_settings(|settings| {
+        settings.editor_font_size = snapshot.editor_font_size;
+        settings
+            .editor_font_family
+            .clone_from(&snapshot.editor_font_family);
+        settings.terminal_font_size = snapshot.terminal_font_size;
+        settings
+            .terminal_font_family
+            .clone_from(&snapshot.terminal_font_family);
+        settings.ui_font_size = snapshot.ui_font_size;
+        settings.ui_font_family.clone_from(&snapshot.ui_font_family);
+        settings.show_line_numbers = snapshot.show_line_numbers;
+        settings.vim_mode = snapshot.vim_mode;
+        settings.theme = snapshot.theme;
+        settings.light_theme.clone_from(&snapshot.light_theme);
+        settings.dark_theme.clone_from(&snapshot.dark_theme);
+        settings.terminal_auto_close = snapshot.terminal_auto_close;
+    }) {
         log::error!("save settings failed: {error}");
     }
 }

@@ -316,7 +316,7 @@ impl XenonApp {
                     end_line,
                     end_character,
                 } => {
-                    let Some(ide) = this.ide.as_ref() else {
+                    let Some(ide) = this.services.ide.as_ref() else {
                         return;
                     };
                     ide.notify_selection(&SelectionSnapshot {

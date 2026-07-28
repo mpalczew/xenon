@@ -53,7 +53,7 @@ impl XenonApp {
             },
         };
         let position = Position::new(row, char_col_to_utf16(&line, col as usize));
-        let Ok(request) = self.lsp.definition(&root, family, &path, position) else {
+        let Ok(request) = self.lsp.host.definition(&root, family, &path, position) else {
             return;
         };
         cx.spawn(async move |app, cx| {
@@ -82,9 +82,10 @@ impl XenonApp {
         };
         let path = view.read(cx).path().to_path_buf();
         let current = view.read(cx).cursor_position().unwrap_or_default();
-        let Some((_, diagnostics)) = self.lsp_diagnostics.get(&path) else {
+        let Some(document) = self.lsp.documents.get(&path) else {
             return;
         };
+        let diagnostics = &document.diagnostics;
         let mut positions = diagnostics
             .iter()
             .map(|diagnostic| {

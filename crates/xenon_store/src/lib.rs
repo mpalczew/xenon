@@ -6,6 +6,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -27,6 +28,7 @@ pub use terminal::TerminalAutoClose;
 /// Serializes tests that mutate process-global data-dir env vars.
 #[cfg(test)]
 pub(crate) static DATA_DIR_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -117,7 +119,27 @@ fn migrate_settings_value(value: &mut serde_json::Value) {
     }
 }
 
-pub fn save_settings(settings: &AppSettings) -> Result<(), StoreError> {
+#[cfg(test)]
+pub(crate) fn save_settings(settings: &AppSettings) -> Result<(), StoreError> {
+    let _guard = SETTINGS_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    save_settings_unlocked(settings)
+}
+
+/// Atomically load, mutate, and save settings while preserving fields the
+/// caller does not own.
+pub fn update_settings(update: impl FnOnce(&mut AppSettings)) -> Result<AppSettings, StoreError> {
+    let _guard = SETTINGS_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let mut settings = load_settings()?;
+    update(&mut settings);
+    save_settings_unlocked(&settings)?;
+    Ok(settings)
+}
+
+fn save_settings_unlocked(settings: &AppSettings) -> Result<(), StoreError> {
     write_atomic(&settings_path(), settings)
 }
 

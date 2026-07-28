@@ -183,7 +183,11 @@ impl XenonApp {
         // Shared pure assembler: viewport only (scrollback rows discarded).
         let lines = xenon_remote::viewport_lines(cells, cols, rows);
         let seq = {
-            let mut map = self.remote_frame_seq.lock().expect("remote seq lock");
+            let mut map = self
+                .services
+                .remote_frame_seq
+                .lock()
+                .expect("remote seq lock");
             let e = map.entry((wid, tab_id)).or_insert(0);
             *e = e.wrapping_add(1).max(1);
             let _ = next_global_seq();

@@ -39,10 +39,12 @@ dismiss and confirm paths must set the next focus target before destroying the
 overlay. A dead or off-tree `FocusId` is an illegal state because app commands
 then silently stop receiving actions.
 
+Teardown routes through one focus-transfer helper. It targets the remaining
+editor/terminal when available and otherwise focuses the shell, including
+asynchronous dirty-close paths without a `Window` handle.
+
 ## Open gaps
 
-- Centralize teardown focus transfer across workspace, tab, pane, dirty-close,
-  and overlay paths. Closing the last workspace can still leave zombie focus.
 - Find replace (⌘⌥F).
 - Keyboard access to terminal On-exit cycling.
 - Keyboard choice between terminal path targets (editor vs default app).

@@ -38,20 +38,20 @@ impl XenonApp {
             .iter()
             .map(|w| (w.id, w.root.clone()))
             .collect::<Vec<_>>();
-        if let Some(tx) = &self.git_dirt_tx
+        if let Some(tx) = &self.services.git_dirt_tx
             && tx.try_send(DirtMsg::SetRoots(roots.clone())).is_ok()
         {
             return;
         }
         let (tx, rx) = async_channel::unbounded();
-        self.git_dirt_tx = Some(tx.clone());
-        self._git_dirt_task = Some(cx.spawn(async move |app, cx| {
+        self.services.git_dirt_tx = Some(tx.clone());
+        self.services.git_dirt_task = Some(cx.spawn(async move |app, cx| {
             watch_git_dirt(app, cx, roots, tx, rx).await;
         }));
     }
 
     pub(crate) fn workspace_dirt(&self, id: WorkspaceId) -> Option<GitDirt> {
-        self.git_dirt.get(&id).copied()
+        self.services.git_dirt.get(&id).copied()
     }
 }
 
@@ -320,8 +320,8 @@ fn apply_full(
     snapshot: HashMap<WorkspaceId, GitDirt>,
 ) -> Result<(), ()> {
     app.update(cx, |app, cx| {
-        if app.git_dirt != snapshot {
-            app.git_dirt = snapshot;
+        if app.services.git_dirt != snapshot {
+            app.services.git_dirt = snapshot;
             cx.notify();
         }
     })
@@ -334,9 +334,9 @@ fn prune_closed(
     open: &HashSet<WorkspaceId>,
 ) -> Result<(), ()> {
     app.update(cx, |app, cx| {
-        let before = app.git_dirt.len();
-        app.git_dirt.retain(|id, _| open.contains(id));
-        if app.git_dirt.len() != before {
+        let before = app.services.git_dirt.len();
+        app.services.git_dirt.retain(|id, _| open.contains(id));
+        if app.services.git_dirt.len() != before {
             cx.notify();
         }
     })
@@ -354,12 +354,12 @@ fn apply_partial(
         for &id in measured {
             match updates.get(&id) {
                 Some(&dirt) => {
-                    if app.git_dirt.insert(id, dirt) != Some(dirt) {
+                    if app.services.git_dirt.insert(id, dirt) != Some(dirt) {
                         changed = true;
                     }
                 }
                 None => {
-                    if app.git_dirt.remove(&id).is_some() {
+                    if app.services.git_dirt.remove(&id).is_some() {
                         changed = true;
                     }
                 }

@@ -28,14 +28,14 @@ rediscover.
   separate modal flow with smartcase.
 - The embedded Vim layer is intentionally good-enough, not a Neovim host.
 - Settings geometry and chrome preferences share `settings.json`; partial
-  saves must preserve fields they do not own.
+  saves use the locked load-mutate-save boundary and preserve fields they do
+  not own.
 
 ## Gotchas
 
 - GPUI typed text arrives through `EntityInputHandler`, not ordinary key-down
   handlers. Printable key handlers must return unhandled.
-- Palette destruction without a live restore target creates keyboard void.
-  Closing the last workspace has the same zombie-focus risk.
+- Palette and content teardown must route focus to a live surface or the shell.
 - A fresh PTY grid is tiny before first paint. Remote-only reopen must call
   `ensure_grid_size`.
 - Markdown YAML metadata requires the pulldown-cmark metadata option; otherwise
@@ -49,7 +49,6 @@ rediscover.
 
 ## Open product work
 
-- Make focus ownership unrepresentable as an invalid state.
 - Find replace.
 - Keyboard paths for terminal On-exit, open-target choice, and workspace
   reorder.

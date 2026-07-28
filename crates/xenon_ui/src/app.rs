@@ -20,8 +20,6 @@ use xenon_core::{
 use xenon_editor::{EditorEvent, EditorView};
 use xenon_finder::{FileIndex, Finder};
 use xenon_ide::{IdeCommand, IdeServer, SelectionSnapshot};
-use xenon_lsp::{Diagnostic, LspHost};
-use xenon_remote::RemoteServer;
 use xenon_terminal::{TerminalEvent, TerminalView};
 
 use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
@@ -54,6 +52,7 @@ mod palette;
 mod panels;
 pub(crate) mod remote;
 mod render;
+mod services;
 mod sessions;
 mod settings_window;
 mod split_ops;
@@ -66,7 +65,9 @@ mod workspaces;
 
 use deferred::{DeferredUi, FocusPane, FontPane};
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
+use lsp::LspState;
 use nav_history::NavHistory;
+use services::AppServices;
 use sessions::AttentionReason;
 
 /// Open tab context menu (right-click on a tab chip).
@@ -147,41 +148,15 @@ pub struct XenonApp {
     _bell_subs: Vec<Subscription>,
     // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
-    lsp: LspHost,
-    lsp_settings: xenon_store::LspSettings,
-    lsp_open_documents: std::collections::HashSet<PathBuf>,
-    lsp_synced_versions: HashMap<PathBuf, i32>,
-    lsp_diagnostics: HashMap<PathBuf, (Option<i32>, Vec<Diagnostic>)>,
-    lsp_request_generation: HashMap<PathBuf, u64>,
-    lsp_sync_generation: HashMap<PathBuf, u64>,
-    _lsp_task: Option<Task<()>>,
-    // IDE server: agents in the terminal connect here to drive xero. Its env is
-    // injected into every terminal so Claude Code discovers it.
-    ide: Option<IdeServer>,
-    _ide_task: Option<Task<()>>,
-    /// Mobile PTY remote (viewport + keys); off by default.
-    remote: Option<RemoteServer>,
-    _remote_task: Option<Task<()>>,
-    /// Per (workspace, tab) frame sequence for remote viewport stream.
-    remote_frame_seq: std::sync::Arc<std::sync::Mutex<HashMap<(WorkspaceId, u64), u64>>>,
-    // Live git dirt totals per workspace (dirty only); refreshed by FS events.
-    git_dirt: HashMap<WorkspaceId, crate::git_dirt::GitDirt>,
-    /// Commands into the long-lived git-dirt task (root set changes).
-    git_dirt_tx: Option<async_channel::Sender<git_dirt::DirtMsg>>,
-    _git_dirt_task: Option<Task<()>>,
-    /// Debounced write of main-window geometry to settings.json.
-    bounds_save_task: Option<Task<()>>,
-    /// Generation token so only the latest trailing debounce writes.
-    bounds_save_gen: u64,
-    _window_bounds_sub: Option<Subscription>,
+    lsp: LspState,
+    services: AppServices,
 }
 
 impl XenonApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let registry = xenon_store::load_registry().unwrap_or_default();
         let settings = xenon_store::load_settings().unwrap_or_default();
-        let lsp_settings = settings.lsp.clone();
-        let (lsp, lsp_events) = LspHost::new();
+        let (lsp, lsp_events) = LspState::new(settings.lsp.clone());
         xenon_settings::apply(&settings, cx);
         xenon_terminal::apply_theme(cx);
         let mut app = Self {
@@ -219,24 +194,7 @@ impl XenonApp {
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),
             lsp,
-            lsp_settings,
-            lsp_open_documents: std::collections::HashSet::new(),
-            lsp_synced_versions: HashMap::new(),
-            lsp_diagnostics: HashMap::new(),
-            lsp_request_generation: HashMap::new(),
-            lsp_sync_generation: HashMap::new(),
-            _lsp_task: None,
-            ide: None,
-            _ide_task: None,
-            remote: None,
-            _remote_task: None,
-            remote_frame_seq: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
-            git_dirt: HashMap::new(),
-            git_dirt_tx: None,
-            _git_dirt_task: None,
-            bounds_save_task: None,
-            bounds_save_gen: 0,
-            _window_bounds_sub: None,
+            services: AppServices::default(),
         };
         app.load_sessions();
         app.start_ide_server(cx);
@@ -257,24 +215,25 @@ impl XenonApp {
 
     /// Persist position/size (and maximized/fullscreen) after move/resize settles.
     pub fn track_window_bounds(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self._window_bounds_sub = Some(cx.observe_window_bounds(window, |this, window, cx| {
-            this.queue_save_window_bounds(window, cx);
-        }));
+        self.services.window_bounds_subscription =
+            Some(cx.observe_window_bounds(window, |this, window, cx| {
+                this.queue_save_window_bounds(window, cx);
+            }));
     }
 
     fn queue_save_window_bounds(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         // Trailing debounce: each move/resize restarts the timer; only the last wins.
-        self.bounds_save_gen = self.bounds_save_gen.wrapping_add(1);
-        let token = self.bounds_save_gen;
-        self.bounds_save_task = Some(cx.spawn_in(window, async move |this, cx| {
+        self.services.bounds_save_generation = self.services.bounds_save_generation.wrapping_add(1);
+        let token = self.services.bounds_save_generation;
+        self.services.bounds_save_task = Some(cx.spawn_in(window, async move |this, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(150))
                 .await;
             this.update_in(cx, |this, window, _cx| {
-                if this.bounds_save_gen != token {
+                if this.services.bounds_save_generation != token {
                     return;
                 }
-                this.bounds_save_task.take();
+                this.services.bounds_save_task.take();
                 persist_window_geometry(window);
             })
             .ok();
@@ -294,13 +253,13 @@ impl XenonApp {
     fn start_ide_server(&mut self, cx: &mut Context<Self>) {
         let (tx, rx) = async_channel::unbounded();
         match IdeServer::start(self.active_roots(), tx) {
-            Ok(server) => self.ide = Some(server),
+            Ok(server) => self.services.ide = Some(server),
             Err(error) => {
                 log::error!("IDE server failed to start: {error}");
                 return;
             }
         }
-        self._ide_task = Some(cx.spawn(async move |view, cx| {
+        self.services.ide_task = Some(cx.spawn(async move |view, cx| {
             while let Ok(command) = rx.recv().await {
                 if view
                     .update(cx, |app, cx| app.handle_ide(command, cx))
@@ -323,7 +282,8 @@ impl XenonApp {
 
     /// Environment injected into every terminal so agents find the IDE server.
     fn terminal_env(&self) -> Vec<(String, String)> {
-        self.ide
+        self.services
+            .ide
             .as_ref()
             .map(|server| server.env())
             .unwrap_or_default()
@@ -339,7 +299,7 @@ impl XenonApp {
 
     fn update_ide_roots(&mut self) {
         let roots = self.active_roots();
-        if let Some(server) = &mut self.ide
+        if let Some(server) = &mut self.services.ide
             && let Err(error) = server.update_roots(roots)
         {
             log::error!("failed to update IDE workspace roots: {error}");
@@ -387,13 +347,10 @@ fn save_session(workspace: WorkspaceId, session: &SessionState, context: &str) {
 
 /// Persist Workspaces/Files section collapse into settings.json.
 fn persist_section_prefs(workspaces_collapsed: bool, files_open: bool) {
-    let mut settings = xenon_store::load_settings().unwrap_or_default();
-    if settings.workspaces_collapsed == workspaces_collapsed && settings.files_open == files_open {
-        return;
-    }
-    settings.workspaces_collapsed = workspaces_collapsed;
-    settings.files_open = files_open;
-    if let Err(error) = xenon_store::save_settings(&settings) {
+    if let Err(error) = xenon_store::update_settings(|settings| {
+        settings.workspaces_collapsed = workspaces_collapsed;
+        settings.files_open = files_open;
+    }) {
         log::error!("persist section prefs failed: {error}");
     }
 }
@@ -403,12 +360,9 @@ fn persist_window_geometry(window: &Window) {
     let Some(geo) = geometry_from_window(window) else {
         return;
     };
-    let mut settings = xenon_store::load_settings().unwrap_or_default();
-    if settings.window == Some(geo) {
-        return;
-    }
-    settings.window = Some(geo);
-    if let Err(error) = xenon_store::save_settings(&settings) {
+    if let Err(error) = xenon_store::update_settings(|settings| {
+        settings.window = Some(geo);
+    }) {
         log::error!("persist window geometry failed: {error}");
     }
 }

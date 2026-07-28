@@ -149,6 +149,11 @@ impl XenonApp {
             FocusPane::Terminal => self.focus_terminal(window, cx),
             FocusPane::Editor => self.focus_editor(window, cx),
             FocusPane::Browser => self.focus_browser(window, cx),
+            FocusPane::Shell => {
+                self.browser_focused = false;
+                self.focus.focus(window, cx);
+                cx.notify();
+            }
         }
     }
 
@@ -160,7 +165,22 @@ impl XenonApp {
             }
             _ if self.active_content().is_some_and(|c| c.has_terminal()) => FocusPane::Terminal,
             _ if self.has_editor() => FocusPane::Editor,
-            _ => FocusPane::Terminal,
+            _ => FocusPane::Shell,
+        }
+    }
+
+    /// Teardown always transfers focus to a live surface or the shell.
+    pub(super) fn focus_after_teardown(
+        &mut self,
+        window: Option<&mut Window>,
+        cx: &mut Context<Self>,
+    ) {
+        let target = self.fallback_content_pane();
+        if let Some(window) = window {
+            self.focus_pane(target, window, cx);
+        } else {
+            self.deferred.pending_focus = Some(target);
+            cx.notify();
         }
     }
 
@@ -191,7 +211,7 @@ impl XenonApp {
         let target = match self.focused_pane(window, cx) {
             Some(FocusPane::Editor) => FontPane::Editor,
             Some(FocusPane::Terminal) => FontPane::Terminal,
-            Some(FocusPane::Browser) | None => self.deferred.last_font_pane,
+            Some(FocusPane::Browser | FocusPane::Shell) | None => self.deferred.last_font_pane,
         };
         self.deferred.last_font_pane = target;
         target
@@ -207,7 +227,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) | Some(FocusPane::Browser) | None => {
+            Some(FocusPane::Terminal) => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.cut_selection(cx);
@@ -215,6 +235,7 @@ impl XenonApp {
                     });
                 }
             }
+            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
         }
     }
 
@@ -228,7 +249,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) | Some(FocusPane::Browser) | None => {
+            Some(FocusPane::Terminal) => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.copy_selection(cx);
@@ -236,6 +257,7 @@ impl XenonApp {
                     });
                 }
             }
+            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
         }
     }
 
@@ -249,7 +271,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) | Some(FocusPane::Browser) | None => {
+            Some(FocusPane::Terminal) => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.paste_clipboard(cx);
@@ -257,6 +279,7 @@ impl XenonApp {
                     });
                 }
             }
+            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
         }
     }
 }

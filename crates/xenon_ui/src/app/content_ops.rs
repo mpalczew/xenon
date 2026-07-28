@@ -417,7 +417,7 @@ impl XenonApp {
                     self.focus_leaf_active(fid, window, cx);
                 }
             }
-            DropTabOutcome::Empty => {}
+            DropTabOutcome::Empty => self.focus_after_teardown(window, cx),
         }
         cx.notify();
     }

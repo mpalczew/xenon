@@ -11,6 +11,7 @@ pub(super) enum FocusPane {
     Terminal,
     Editor,
     Browser,
+    Shell,
 }
 
 /// Content surface for cmd-+ / cmd-- font zoom (editor and terminal only).

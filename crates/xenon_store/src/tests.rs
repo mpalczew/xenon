@@ -5,7 +5,7 @@ use xenon_core::{Registry, SessionState, WorkspaceRec};
 
 use crate::{
     AppSettings, StoreError, WindowGeometry, WindowState, load_registry, load_session,
-    load_settings, save_registry, save_session, save_settings,
+    load_settings, save_registry, save_session, save_settings, update_settings,
 };
 
 /// Point `data_dir()` at a temp directory for the duration of a closure.
@@ -132,6 +132,28 @@ fn settings_round_trip() {
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);
+    });
+}
+
+#[test]
+fn settings_update_preserves_unowned_fields() {
+    with_data_dir(|| {
+        let settings = AppSettings {
+            remote_password: "keep-me".into(),
+            lsp: crate::LspSettings {
+                enabled: false,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        save_settings(&settings).unwrap();
+
+        update_settings(|settings| settings.show_line_numbers = false).unwrap();
+
+        let updated = load_settings().unwrap();
+        assert!(!updated.show_line_numbers);
+        assert_eq!(updated.remote_password, "keep-me");
+        assert!(!updated.lsp.enabled);
     });
 }
 

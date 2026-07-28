@@ -335,14 +335,6 @@ impl XenonApp {
         };
         let record = self.registry.workspaces.remove(index);
         self.lsp.stop_workspace(&record.root);
-        self.lsp_open_documents
-            .retain(|path| !path.starts_with(&record.root));
-        self.lsp_diagnostics
-            .retain(|path, _| !path.starts_with(&record.root));
-        self.lsp_synced_versions
-            .retain(|path, _| !path.starts_with(&record.root));
-        self.lsp_sync_generation
-            .retain(|path, _| !path.starts_with(&record.root));
         let closed_active = self.active == Some(id);
         let dead_content = self.contents.remove(&id);
         self.sessions.remove(&id);
@@ -351,7 +343,7 @@ impl XenonApp {
         // Drop the finder index for this root so it can be rebuilt if reopened.
         self.file_indexes.remove(&record.root);
         self.index_tasks.remove(&record.root);
-        self.git_dirt.remove(&id);
+        self.services.git_dirt.remove(&id);
         self.registry.closed_workspaces.push(record);
         if closed_active {
             self.active = None;
@@ -360,10 +352,17 @@ impl XenonApp {
         save_registry(&self.registry, "close_workspace");
         self.update_ide_roots();
         self.restart_git_dirt_watch(cx);
-        if closed_active && let Some(next) = self.first_workspace() {
-            match window {
-                Some(window) => self.select_workspace(next, window, cx),
-                None => self.activate_workspace(next, cx),
+        if closed_active {
+            if let Some(next) = self.first_workspace() {
+                match window {
+                    Some(window) => self.select_workspace(next, window, cx),
+                    None => {
+                        self.activate_workspace(next, cx);
+                        self.focus_after_teardown(None, cx);
+                    }
+                }
+            } else {
+                self.focus_after_teardown(window, cx);
             }
         }
         cx.notify();

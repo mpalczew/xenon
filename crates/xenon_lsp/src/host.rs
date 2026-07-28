@@ -83,8 +83,16 @@ impl LspHost {
         config: ServerConfig,
     ) -> Result<(), LspError> {
         let key = (root.clone(), family);
-        if self.servers.lock().map_err(lock_error)?.contains_key(&key) {
-            return Ok(());
+        let stale = {
+            let mut servers = self.servers.lock().map_err(lock_error)?;
+            match servers.get(&key).map(|server| server.client.state()) {
+                Some(state) if server_is_live(state) => return Ok(()),
+                Some(_) => servers.remove(&key),
+                None => None,
+            }
+        };
+        if let Some(server) = stale {
+            server.client.shutdown();
         }
         let (client_tx, client_rx) = mpsc::channel();
         let client = Arc::new(Client::spawn(&config.command, &config.args, client_tx)?);
@@ -243,6 +251,10 @@ impl LspHost {
             }
         })
     }
+}
+
+fn server_is_live(state: ClientState) -> bool {
+    matches!(state, ClientState::Starting | ClientState::Running)
 }
 
 fn provider_enabled<T>(provider: &Option<lsp_types::OneOf<bool, T>>) -> bool {
@@ -436,5 +448,18 @@ impl Drop for LspHost {
         for server in servers {
             server.client.shutdown();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_and_stopped_servers_are_replaceable() {
+        assert!(server_is_live(ClientState::Starting));
+        assert!(server_is_live(ClientState::Running));
+        assert!(!server_is_live(ClientState::Failed));
+        assert!(!server_is_live(ClientState::Stopped));
     }
 }

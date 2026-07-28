@@ -8,8 +8,8 @@ mod tasks;
 mod workspace;
 
 pub use content::{
-    ContentLayout, DEFAULT_SPLIT_RATIO, DropEdge, LayoutError, LeafPane, LegacySession,
-    MAX_NEST_DEPTH, PaneId, PaneNode, SplitAxis, TabId, TabState, migrate_from_legacy,
+    ContentLayout, DEFAULT_SPLIT_RATIO, DropEdge, LeafPane, LegacySession, MAX_NEST_DEPTH, PaneId,
+    PaneNode, SplitAxis, TabId, TabState, migrate_from_legacy,
 };
 pub use ids::WorkspaceId;
 pub use session::{

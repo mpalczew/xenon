@@ -71,17 +71,17 @@ fn effective_port(saved: u16) -> u16 {
 
 /// Ensure a password exists on disk; generate once if empty. Returns (port, password).
 fn ensure_remote_credentials() -> (u16, String) {
-    let mut s = xenon_store::load_settings().unwrap_or_default();
-    let port = effective_port(s.remote_port);
-    if s.remote_port != port {
-        s.remote_port = port;
-    }
-    if s.remote_password.is_empty() {
-        s.remote_password = xenon_remote::new_token();
-    }
-    if let Err(e) = xenon_store::save_settings(&s) {
+    let s = xenon_store::update_settings(|settings| {
+        settings.remote_port = effective_port(settings.remote_port);
+        if settings.remote_password.is_empty() {
+            settings.remote_password = xenon_remote::new_token();
+        }
+    })
+    .unwrap_or_else(|e| {
         log::error!("save remote credentials failed: {e}");
-    }
+        xenon_store::AppSettings::default()
+    });
+    let port = effective_port(s.remote_port);
     (port, s.remote_password)
 }
 
@@ -91,15 +91,15 @@ pub(crate) fn set_remote_password(password: String, window: &mut Window, cx: &mu
     if password.is_empty() {
         return;
     }
-    let mut s = xenon_store::load_settings().unwrap_or_default();
-    s.remote_password = password;
-    if let Err(e) = xenon_store::save_settings(&s) {
+    if let Err(e) = xenon_store::update_settings(|settings| {
+        settings.remote_password = password.clone();
+    }) {
         log::error!("save remote password failed: {e}");
         return;
     }
     if let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) {
         let _ = main.update(cx, |app, cx| {
-            let was_on = app.remote.is_some();
+            let was_on = app.services.remote.is_some();
             if was_on {
                 app.stop_mobile_remote(cx);
                 app.start_mobile_remote(window, cx, false);
@@ -114,9 +114,9 @@ pub(crate) fn set_remote_password(password: String, window: &mut Window, cx: &mu
 /// Persist hostname for copyable URLs (server bind unchanged — no restart).
 pub(crate) fn set_remote_hostname(hostname: String, cx: &mut App) {
     let hostname = normalize_hostname(&hostname);
-    let mut s = xenon_store::load_settings().unwrap_or_default();
-    s.remote_hostname = hostname;
-    if let Err(e) = xenon_store::save_settings(&s) {
+    if let Err(e) = xenon_store::update_settings(|settings| {
+        settings.remote_hostname = hostname.clone();
+    }) {
         log::error!("save remote hostname failed: {e}");
         return;
     }
@@ -217,7 +217,7 @@ impl XenonApp {
         let hostname = xenon_store::load_settings()
             .map(|s| normalize_hostname(&s.remote_hostname))
             .unwrap_or_default();
-        match &self.remote {
+        match &self.services.remote {
             Some(s) => MobileRemoteInfo {
                 enabled: true,
                 port: s.port,
@@ -249,7 +249,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
         announce: bool,
     ) {
-        if self.remote.is_some() {
+        if self.services.remote.is_some() {
             self.stop_mobile_remote(cx);
             if announce {
                 let answer = window.prompt(
@@ -275,7 +275,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
         announce: bool,
     ) {
-        if self.remote.is_some() {
+        if self.services.remote.is_some() {
             return;
         }
         let (tx, rx) = async_channel::unbounded::<HostRequest>();
@@ -308,8 +308,8 @@ impl XenonApp {
                     })
                     .detach();
                 }
-                self.remote = Some(server);
-                self.remote_frame_seq = Arc::new(Mutex::new(HashMap::new()));
+                self.services.remote = Some(server);
+                self.services.remote_frame_seq = Arc::new(Mutex::new(HashMap::new()));
                 self.spawn_remote_host(rx, cx);
             }
             Err(e) => {
@@ -328,13 +328,13 @@ impl XenonApp {
     }
 
     pub(crate) fn stop_mobile_remote(&mut self, cx: &mut Context<Self>) {
-        if let Some(server) = self.remote.take() {
+        if let Some(server) = self.services.remote.take() {
             server.stop();
             drop(server);
             log::info!("Mobile remote OFF");
         }
-        self._remote_task = None;
-        self.remote_frame_seq = Arc::new(Mutex::new(HashMap::new()));
+        self.services.remote_task = None;
+        self.services.remote_frame_seq = Arc::new(Mutex::new(HashMap::new()));
         publish_remote_info(info_from_disk(), cx);
         self.refresh_settings_window(cx);
         cx.notify();
@@ -351,7 +351,7 @@ impl XenonApp {
         rx: async_channel::Receiver<HostRequest>,
         cx: &mut Context<Self>,
     ) {
-        self._remote_task = Some(cx.spawn(async move |view, cx| {
+        self.services.remote_task = Some(cx.spawn(async move |view, cx| {
             while let Ok(req) = rx.recv().await {
                 if view
                     .update(cx, |app, cx| app.handle_remote_request(req, cx))

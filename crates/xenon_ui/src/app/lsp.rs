@@ -14,7 +14,10 @@ use super::XenonApp;
 
 mod discovery;
 mod navigation;
+mod state;
 use discovery::{collect_editors, executable_on_path, has_root_marker, language_for_path};
+use state::LspDocumentState;
+pub(super) use state::LspState;
 
 impl XenonApp {
     pub(super) fn start_lsp_events(
@@ -23,7 +26,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         let receiver = Arc::new(Mutex::new(receiver));
-        self._lsp_task = Some(cx.spawn(async move |app, cx| {
+        self.lsp.event_task = Some(cx.spawn(async move |app, cx| {
             loop {
                 let receiver = Arc::clone(&receiver);
                 let event = cx
@@ -49,7 +52,7 @@ impl XenonApp {
         view: &Entity<EditorView>,
         cx: &mut Context<Self>,
     ) {
-        if !self.lsp_settings.enabled {
+        if !self.lsp.settings.enabled {
             return;
         }
         let path = view.read(cx).path().to_path_buf();
@@ -68,7 +71,7 @@ impl XenonApp {
             });
             return;
         };
-        if let Err(error) = self.lsp.start_server(root.clone(), family, config) {
+        if let Err(error) = self.lsp.host.start_server(root.clone(), family, config) {
             log::info!("LSP unavailable for {}: {error}", path.display());
             view.update(cx, |editor, cx| {
                 editor.set_lsp_status(Some(missing_server_message(family)), cx);
@@ -79,14 +82,17 @@ impl XenonApp {
     }
 
     pub(super) fn lsp_buffer_changed(&mut self, path: &Path, text: String, cx: &mut Context<Self>) {
-        self.lsp_diagnostics.remove(path);
+        if let Some(document) = self.lsp.documents.get_mut(path) {
+            document.diagnostics.clear();
+            document.diagnostics_version = None;
+        }
         self.apply_lsp_decorations(path, Vec::new(), cx);
         let Some((root, family)) = self.lsp_context(path) else {
             return;
         };
         let path = path.to_path_buf();
         let generation = self.bump_sync_generation(&path);
-        let host = self.lsp.clone();
+        let host = self.lsp.host.clone();
         cx.spawn(async move |app, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(100))
@@ -97,10 +103,11 @@ impl XenonApp {
                 .spawn(async move { host.change_document(&root, family, &sync_path, text) })
                 .await;
             app.update(cx, |app, _| {
-                if app.lsp_sync_generation.get(&path) == Some(&generation)
+                if let Some(document) = app.lsp.documents.get_mut(&path)
+                    && document.sync_generation == generation
                     && let Ok(version) = result
                 {
-                    app.lsp_synced_versions.insert(path, version);
+                    document.synced_version = Some(version);
                 }
             })
             .ok();
@@ -112,20 +119,22 @@ impl XenonApp {
         let Some((root, family)) = self.lsp_context(path) else {
             return;
         };
-        let _ = self.lsp.save_document(&root, family, path);
+        let _ = self.lsp.host.save_document(&root, family, path);
     }
 
     pub(super) fn lsp_detach_path(&mut self, path: &Path) {
-        if !self.lsp_open_documents.remove(path) {
+        if !self
+            .lsp
+            .documents
+            .get(path)
+            .is_some_and(|document| document.open)
+        {
             return;
         }
         if let Some((root, family)) = self.lsp_context(path) {
-            let _ = self.lsp.close_document(&root, family, path);
+            let _ = self.lsp.host.close_document(&root, family, path);
         }
-        self.lsp_diagnostics.remove(path);
-        self.lsp_request_generation.remove(path);
-        self.lsp_sync_generation.remove(path);
-        self.lsp_synced_versions.remove(path);
+        self.lsp.documents.remove(path);
     }
 
     pub(super) fn lsp_cursor_moved(
@@ -146,7 +155,7 @@ impl XenonApp {
             return;
         };
         let position = Position::new(row, char_col_to_utf16(&line, col as usize));
-        let host = self.lsp.clone();
+        let host = self.lsp.host.clone();
         cx.spawn(async move |app, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(220))
@@ -167,7 +176,12 @@ impl XenonApp {
                 return;
             };
             app.update(cx, |app, cx| {
-                if app.lsp_request_generation.get(&path) == Some(&generation) {
+                if app
+                    .lsp
+                    .documents
+                    .get(&path)
+                    .is_some_and(|document| document.request_generation == generation)
+                {
                     app.apply_highlights(&path, highlights, cx);
                 }
             })
@@ -183,15 +197,16 @@ impl XenonApp {
                 version,
                 diagnostics,
             } => {
-                let current_version = self.lsp_synced_versions.get(&path).copied();
+                let document = self.lsp.documents.entry(path.clone()).or_default();
+                let current_version = document.synced_version;
                 if version
                     .zip(current_version)
                     .is_some_and(|(got, current)| got < current)
                 {
                     return;
                 }
-                self.lsp_diagnostics
-                    .insert(path.clone(), (version.or(current_version), diagnostics));
+                document.diagnostics_version = version.or(current_version);
+                document.diagnostics = diagnostics;
                 self.apply_lsp_decorations(&path, Vec::new(), cx);
             }
             HostEvent::ServerState {
@@ -252,7 +267,12 @@ impl XenonApp {
         let Some((path, text)) = view.read(cx).text_snapshot() else {
             return;
         };
-        if self.lsp_open_documents.contains(&path) {
+        if self
+            .lsp
+            .documents
+            .get(&path)
+            .is_some_and(|document| document.open)
+        {
             return;
         }
         let Some((_, language_id)) = language_for_path(&path) else {
@@ -260,6 +280,7 @@ impl XenonApp {
         };
         if self
             .lsp
+            .host
             .open_document(
                 root,
                 family,
@@ -271,8 +292,14 @@ impl XenonApp {
             )
             .is_ok()
         {
-            self.lsp_synced_versions.insert(path.clone(), 0);
-            self.lsp_open_documents.insert(path);
+            self.lsp.documents.insert(
+                path,
+                LspDocumentState {
+                    open: true,
+                    synced_version: Some(0),
+                    ..Default::default()
+                },
+            );
         }
     }
 
@@ -333,10 +360,12 @@ impl XenonApp {
         view: &Entity<EditorView>,
         cx: &App,
     ) -> Vec<EditorDiagnostic> {
-        self.lsp_diagnostics
+        self.lsp
+            .documents
             .get(path)
-            .map(|(_, diagnostics)| {
-                diagnostics
+            .map(|document| {
+                document
+                    .diagnostics
                     .iter()
                     .filter_map(|diagnostic| {
                         let severity = match diagnostic.severity {
@@ -408,33 +437,23 @@ impl XenonApp {
     }
 
     fn bump_lsp_generation(&mut self, path: &Path) -> u64 {
-        let generation = self
-            .lsp_request_generation
-            .get(path)
-            .copied()
-            .unwrap_or_default()
-            .saturating_add(1);
-        self.lsp_request_generation
-            .insert(path.to_path_buf(), generation);
+        let document = self.lsp.documents.entry(path.to_path_buf()).or_default();
+        let generation = document.request_generation.saturating_add(1);
+        document.request_generation = generation;
         generation
     }
 
     fn bump_sync_generation(&mut self, path: &Path) -> u64 {
-        let generation = self
-            .lsp_sync_generation
-            .get(path)
-            .copied()
-            .unwrap_or_default()
-            .saturating_add(1);
-        self.lsp_sync_generation
-            .insert(path.to_path_buf(), generation);
+        let document = self.lsp.documents.entry(path.to_path_buf()).or_default();
+        let generation = document.sync_generation.saturating_add(1);
+        document.sync_generation = generation;
         generation
     }
 
     fn server_config(&self, family: LanguageFamily) -> Option<ServerConfig> {
         let configured = match family {
-            LanguageFamily::Rust => &self.lsp_settings.rust,
-            LanguageFamily::TypeScript => &self.lsp_settings.typescript,
+            LanguageFamily::Rust => &self.lsp.settings.rust,
+            LanguageFamily::TypeScript => &self.lsp.settings.typescript,
         };
         if let Some(command) = configured.command.clone() {
             return Some(ServerConfig {
