@@ -1,6 +1,7 @@
 //! Files-tree context menu (right-click / keyboard).
 
 use super::*;
+
 impl XenonApp {
     pub(crate) fn open_browser_menu(
         &mut self,
@@ -32,7 +33,7 @@ impl XenonApp {
     pub(crate) fn on_browser_menu_key(
         &mut self,
         event: &gpui::KeyDownEvent,
-        __window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
         let Some(menu) = self.browser_menu.as_ref() else {
@@ -67,7 +68,13 @@ impl XenonApp {
                 let path = menu.path.clone();
                 let is_dir = menu.is_dir;
                 self.dismiss_browser_menu(cx);
-                self.run_browser_menu_action(action, path, is_dir, cx);
+                if action == BrowserMenuAction::Delete {
+                    if let Some(p) = path {
+                        self.confirm_delete_path(p, is_dir, window, cx);
+                    }
+                } else {
+                    self.run_browser_menu_action(action, path, is_dir, cx);
+                }
                 true
             }
             _ => false,
@@ -129,7 +136,71 @@ impl XenonApp {
                     self.open_editor(p, true, cx);
                 }
             }
+            BrowserMenuAction::Delete => {}
         }
+    }
+
+    /// Confirm, move to Trash, close matching editor tabs, refresh the tree.
+    fn confirm_delete_path(
+        &mut self,
+        path: PathBuf,
+        is_dir: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_string_lossy().into_owned());
+        let kind = if is_dir { "folder" } else { "file" };
+        let message = format!("Move the {kind} \"{name}\" to the Trash?");
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            &message,
+            Some("You can restore it from the Trash later."),
+            &["Move to Trash", "Cancel"],
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            let Ok(choice) = answer.await else {
+                return;
+            };
+            if choice != 0 {
+                return;
+            }
+            this.update(cx, |this, cx| this.delete_path(path, is_dir, cx))
+                .ok();
+        })
+        .detach();
+    }
+
+    fn delete_path(&mut self, path: PathBuf, is_dir: bool, cx: &mut Context<Self>) {
+        if let Err(error) = trash::delete(&path) {
+            log::error!("move to trash failed for {}: {error}", path.display());
+            return;
+        }
+        if let Some(id) = self.active {
+            let tabs = self.editor_tabs_under(id, &path, is_dir);
+            if !tabs.is_empty() {
+                self.drop_tabs(id, &tabs, None, cx);
+            }
+        }
+        if let Some(id) = self.active
+            && let Some(root) = self.workspace_root(id)
+        {
+            self.reindex(root, true, cx);
+        }
+        cx.notify();
+    }
+
+    /// Open editor tabs for `path`, or any file under it when `is_dir`.
+    fn editor_tabs_under(&self, workspace: WorkspaceId, path: &Path, is_dir: bool) -> Vec<TabId> {
+        let mut out = Vec::new();
+        let Some(root) = self.contents.get(&workspace).and_then(|c| c.root.as_ref()) else {
+            return out;
+        };
+        collect_editor_tabs_under(root, path, is_dir, &mut out);
+        out
     }
 
     pub(crate) fn render_browser_menu(
@@ -169,9 +240,15 @@ impl XenonApp {
                 label,
                 &colors,
                 is_sel,
-                cx.listener(move |this, _, _window, cx| {
+                cx.listener(move |this, _, window, cx| {
                     this.dismiss_browser_menu(cx);
-                    this.run_browser_menu_action(action, path.clone(), is_dir, cx);
+                    if action == BrowserMenuAction::Delete {
+                        if let Some(p) = path.clone() {
+                            this.confirm_delete_path(p, is_dir, window, cx);
+                        }
+                    } else {
+                        this.run_browser_menu_action(action, path.clone(), is_dir, cx);
+                    }
                 }),
             ));
         }
@@ -206,6 +283,7 @@ enum BrowserMenuAction {
     RevealInFinder,
     OpenInDefaultApp,
     OpenInEditor,
+    Delete,
 }
 
 fn browser_menu_actions(menu: &crate::app::BrowserContextMenu) -> Vec<BrowserMenuAction> {
@@ -225,6 +303,9 @@ fn browser_menu_actions(menu: &crate::app::BrowserContextMenu) -> Vec<BrowserMen
             BrowserMenuAction::OpenInDefaultApp,
         ]);
     }
+    if menu.path.is_some() {
+        items.push(BrowserMenuAction::Delete);
+    }
     items
 }
 
@@ -238,5 +319,24 @@ fn browser_menu_label(action: BrowserMenuAction) -> &'static str {
         BrowserMenuAction::RevealInFinder => "Reveal in Finder",
         BrowserMenuAction::OpenInDefaultApp => "Open in Default App",
         BrowserMenuAction::OpenInEditor => "Open in Editor",
+        BrowserMenuAction::Delete => "Move to Trash",
+    }
+}
+
+fn collect_editor_tabs_under(node: &LiveNode, path: &Path, is_dir: bool, out: &mut Vec<TabId>) {
+    match node {
+        LiveNode::Leaf(leaf) => {
+            for tab in &leaf.tabs {
+                if let Some(editor_path) = tab.editor_path()
+                    && (editor_path == path || (is_dir && editor_path.starts_with(path)))
+                {
+                    out.push(tab.id());
+                }
+            }
+        }
+        LiveNode::Split { first, second, .. } => {
+            collect_editor_tabs_under(first, path, is_dir, out);
+            collect_editor_tabs_under(second, path, is_dir, out);
+        }
     }
 }

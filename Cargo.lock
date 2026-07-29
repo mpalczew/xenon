@@ -2247,7 +2247,7 @@ dependencies = [
  "text",
  "thiserror 2.0.18",
  "time",
- "trash",
+ "trash 5.2.5",
  "unicode-normalization",
  "util",
  "windows 0.61.3",
@@ -7011,6 +7011,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "trash"
+version = "5.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7602e0c7d66ec2d92a8c917219fbc7894039efa2063b9064260110828a356f46"
+dependencies = [
+ "chrono",
+ "libc",
+ "log",
+ "objc2 0.6.4",
+ "objc2-foundation 0.3.2",
+ "once_cell",
+ "percent-encoding",
+ "scopeguard",
+ "urlencoding",
+ "windows 0.56.0",
+]
+
+[[package]]
 name = "tree-sitter"
 version = "0.26.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9185,6 +9203,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "theme",
+ "trash 5.2.6",
  "xenon_core",
  "xenon_editor",
  "xenon_finder",
