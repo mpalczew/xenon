@@ -36,6 +36,8 @@ pub(crate) struct TreeRow {
     pub path: PathBuf,
     pub name: String,
     pub is_dir: bool,
+    /// True when the path itself is a symlink (not merely a path under one).
+    pub is_symlink: bool,
     pub expanded: bool,
     pub is_open: bool,
     pub depth: usize,
@@ -122,13 +124,14 @@ impl FileBrowser {
             depth,
             open_file,
         } = query;
-        for (path, name, is_dir) in sorted_entries(dir) {
+        for (path, name, is_dir, is_symlink) in sorted_entries(dir) {
             let expanded = is_dir && self.expanded_dirs.contains(&path);
             rows.push(TreeRow {
                 is_open: open_file == Some(path.as_path()),
                 path: path.clone(),
                 name,
                 is_dir,
+                is_symlink,
                 expanded,
                 depth,
             });
@@ -157,6 +160,13 @@ pub(crate) fn dir_marker(is_dir: bool, expanded: bool) -> Option<Icon> {
 
 /// Lucide glyph for a tree row (matches sidebar/toolbar icon language).
 pub(crate) fn file_icon(row: &TreeRow) -> Icon {
+    if row.is_symlink {
+        return if row.is_dir {
+            Icon::FolderSymlink
+        } else {
+            Icon::FileSymlink
+        };
+    }
     if row.is_dir {
         return if row.expanded {
             Icon::FolderOpen
@@ -189,7 +199,7 @@ pub(crate) fn file_icon(row: &TreeRow) -> Icon {
     }
 }
 
-fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool)> {
+fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool, bool)> {
     let Ok(read) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -197,11 +207,17 @@ fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool)> {
         .flatten()
         .map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
-            let is_dir = entry
-                .file_type()
-                .map(|entry| entry.is_dir())
-                .unwrap_or(false);
-            (entry.path(), name, is_dir)
+            let path = entry.path();
+            let ft = entry.file_type().ok();
+            // DirEntry::file_type is the link itself, not the target.
+            let is_symlink = ft.as_ref().is_some_and(|t| t.is_symlink());
+            // Follow the link so symlink→dir still expands as a folder.
+            let is_dir = if is_symlink {
+                path.is_dir()
+            } else {
+                ft.is_some_and(|t| t.is_dir())
+            };
+            (path, name, is_dir, is_symlink)
         })
         .collect();
     entries.sort_by(|a, b| {
@@ -209,4 +225,49 @@ fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool)> {
             .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
     });
     entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn marks_file_and_dir_symlinks() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        fs::write(root.join("plain.txt"), "hi").unwrap();
+        fs::create_dir(root.join("real_dir")).unwrap();
+        symlink(root.join("plain.txt"), root.join("link.txt")).unwrap();
+        symlink(root.join("real_dir"), root.join("link_dir")).unwrap();
+
+        let browser = FileBrowser::default();
+        let rows = browser.rows(root, None);
+        let by_name: std::collections::HashMap<_, _> =
+            rows.into_iter().map(|r| (r.name.clone(), r)).collect();
+
+        let plain = by_name.get("plain.txt").unwrap();
+        assert!(!plain.is_symlink);
+        assert!(!plain.is_dir);
+        assert_eq!(char::from(file_icon(plain)), char::from(Icon::FileText));
+
+        let link = by_name.get("link.txt").unwrap();
+        assert!(link.is_symlink);
+        assert!(!link.is_dir);
+        assert_eq!(char::from(file_icon(link)), char::from(Icon::FileSymlink));
+
+        let dir = by_name.get("real_dir").unwrap();
+        assert!(!dir.is_symlink);
+        assert!(dir.is_dir);
+        assert_eq!(char::from(file_icon(dir)), char::from(Icon::Folder));
+
+        let link_dir = by_name.get("link_dir").unwrap();
+        assert!(link_dir.is_symlink);
+        assert!(link_dir.is_dir);
+        assert_eq!(
+            char::from(file_icon(link_dir)),
+            char::from(Icon::FolderSymlink)
+        );
+    }
 }
