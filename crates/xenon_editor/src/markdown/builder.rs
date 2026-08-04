@@ -13,7 +13,7 @@ use theme::Theme;
 use super::selectable::SelectableBlock;
 use super::state::PreviewState;
 use super::table::{Table, TablePaint, render_table};
-use super::yaml::split_simple_yaml_pairs;
+use super::yaml::{MetaPaint, render_metadata};
 use super::{code_block_width, heading_size, wide_block};
 use crate::highlight;
 
@@ -44,6 +44,8 @@ pub(super) struct Builder {
     def_title_source: Option<Range<usize>>,
     /// Source range for the in-progress table cell (from Start/End TableCell).
     cell_source: Option<Range<usize>>,
+    /// Open lists: `None` = unordered; `Some(n)` = next ordered number.
+    list_stack: Vec<Option<u64>>,
 }
 
 pub(super) struct BuilderColors {
@@ -87,7 +89,24 @@ impl Builder {
             def_title: None,
             def_title_source: None,
             cell_source: None,
+            list_stack: Vec::new(),
         }
+    }
+
+    fn list_pad(&self) -> Option<Pixels> {
+        (!self.list_stack.is_empty()).then_some(px(16. * self.list_stack.len() as f32))
+    }
+
+    fn push_item_marker(&mut self) {
+        let marker = match self.list_stack.last_mut() {
+            Some(Some(n)) => {
+                let s = format!("{n}. ");
+                *n += 1;
+                s
+            }
+            _ => "• ".into(),
+        };
+        self.inline.push_str(&marker);
     }
 
     pub(super) fn finish(self) -> (Vec<AnyElement>, Vec<SharedString>, Vec<Range<usize>>) {
@@ -181,7 +200,8 @@ impl Builder {
             Tag::FootnoteDefinition(label) => {
                 self.inline.push_str(&format!("[^{label}]: "));
             }
-            Tag::Item => self.inline.push_str("• "),
+            Tag::List(start) => self.list_stack.push(start),
+            Tag::Item => self.push_item_marker(),
             Tag::DefinitionListTitle | Tag::DefinitionListDefinition => {
                 self.inline.clear();
                 self.highlights.clear();
@@ -216,13 +236,16 @@ impl Builder {
     fn end(&mut self, tag: TagEnd, range: Range<usize>) {
         match tag {
             TagEnd::Paragraph if !self.in_table_cell() => {
-                self.flush_block(self.base, false, None, range)
+                self.flush_block(self.base, false, self.list_pad(), range)
             }
             TagEnd::Paragraph => {}
             TagEnd::Heading(level) => {
                 self.flush_block(heading_size(self.base, level), true, None, range)
             }
-            TagEnd::Item => self.flush_block(self.base, false, Some(px(16.)), range),
+            TagEnd::Item => self.flush_block(self.base, false, self.list_pad(), range),
+            TagEnd::List(_) => {
+                self.list_stack.pop();
+            }
             TagEnd::CodeBlock => self.flush_code(range),
             TagEnd::MetadataBlock(_) => self.flush_metadata(range),
             TagEnd::Emphasis => self.italic = self.italic.saturating_sub(1),
@@ -343,83 +366,20 @@ impl Builder {
         if body.is_empty() {
             return;
         }
-        let panel = if let Some(pairs) = split_simple_yaml_pairs(body) {
-            self.metadata_pairs_panel(pairs, source_range)
-        } else {
-            self.metadata_raw_panel(body, source_range)
+        let paint = MetaPaint {
+            rule: self.rule,
+            code_bg: self.code_bg,
+            muted: self.muted,
+            base: self.base,
+            mono: self.mono.clone(),
+            host: self.host.clone(),
+            selection: self.selection_color,
         };
-        self.blocks.push(panel);
-    }
-    fn metadata_pairs_panel(
-        &mut self,
-        pairs: Vec<(String, String)>,
-        source_range: Range<usize>,
-    ) -> AnyElement {
-        let mut panel = div()
-            .my_3()
-            .w_full()
-            .min_w_0()
-            .p_3()
-            .rounded_md()
-            .border_1()
-            .border_color(self.rule)
-            .bg(self.code_bg)
-            .flex()
-            .flex_col()
-            .gap_2();
-        for (key, value) in pairs {
-            // Keys/values share the frontmatter source range (block-granular copy).
-            let key_el =
-                self.push_selectable(SharedString::from(key), Vec::new(), source_range.clone());
-            let value_el =
-                self.push_selectable(SharedString::from(value), Vec::new(), source_range.clone());
-            panel = panel.child(
-                div()
-                    .w_full()
-                    .min_w_0()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .child(
-                        div()
-                            .text_size(px(f32::from(self.base) * 0.85))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(self.muted)
-                            .child(key_el),
-                    )
-                    .child(
-                        div()
-                            .w_full()
-                            .min_w_0()
-                            .whitespace_normal()
-                            .text_size(self.base)
-                            .child(value_el),
-                    ),
-            );
-        }
-        panel.into_any_element()
-    }
-
-    fn metadata_raw_panel(&mut self, body: &str, source_range: Range<usize>) -> AnyElement {
-        let child = self.push_selectable(
-            SharedString::from(body.to_string()),
-            Vec::new(),
-            source_range,
-        );
-        div()
-            .my_3()
-            .w_full()
-            .min_w_0()
-            .p_3()
-            .rounded_md()
-            .border_1()
-            .border_color(self.rule)
-            .bg(self.code_bg)
-            .font_family(self.mono.clone())
-            .text_size(px(f32::from(self.base) * 0.9))
-            .whitespace_normal()
-            .child(child)
-            .into_any_element()
+        let (element, plains, ranges) =
+            render_metadata(body, source_range, &paint, self.plain.len());
+        self.plain.extend(plains);
+        self.source_ranges.extend(ranges);
+        self.blocks.push(element);
     }
 
     fn flush_definition(&mut self, body_source: Range<usize>) {

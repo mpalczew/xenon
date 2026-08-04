@@ -1,4 +1,141 @@
-//! Simple YAML frontmatter key/value extraction (not a full YAML parser).
+//! YAML frontmatter parse + preview panel chrome.
+
+use std::ops::Range;
+
+use gpui::{
+    AnyElement, Entity, FontWeight, Hsla, IntoElement, ParentElement, Pixels, SharedString, Styled,
+    div, px,
+};
+
+use super::selectable::SelectableBlock;
+use super::state::PreviewState;
+
+/// Paint tokens for frontmatter panel chrome + selectable fields.
+pub(super) struct MetaPaint {
+    pub rule: Hsla,
+    pub code_bg: Hsla,
+    pub muted: Hsla,
+    pub base: Pixels,
+    pub mono: String,
+    pub host: Entity<PreviewState>,
+    pub selection: Hsla,
+}
+
+/// Render frontmatter body; return plain texts + source ranges in document order.
+pub(super) fn render_metadata(
+    body: &str,
+    source_range: Range<usize>,
+    paint: &MetaPaint,
+    block_base: usize,
+) -> (AnyElement, Vec<SharedString>, Vec<Range<usize>>) {
+    if let Some(pairs) = split_simple_yaml_pairs(body) {
+        pairs_panel(pairs, source_range, paint, block_base)
+    } else {
+        raw_panel(body, source_range, paint, block_base)
+    }
+}
+
+fn pairs_panel(
+    pairs: Vec<(String, String)>,
+    source_range: Range<usize>,
+    paint: &MetaPaint,
+    mut block_ix: usize,
+) -> (AnyElement, Vec<SharedString>, Vec<Range<usize>>) {
+    let mut plains = Vec::new();
+    let mut ranges = Vec::new();
+    let mut panel = div()
+        .my_3()
+        .w_full()
+        .min_w_0()
+        .p_3()
+        .rounded_md()
+        .border_1()
+        .border_color(paint.rule)
+        .bg(paint.code_bg)
+        .flex()
+        .flex_col()
+        .gap_2();
+    for (key, value) in pairs {
+        // Keys/values share the frontmatter source range (block-granular copy).
+        let key_s = SharedString::from(key);
+        let val_s = SharedString::from(value);
+        plains.push(key_s.clone());
+        ranges.push(source_range.clone());
+        plains.push(val_s.clone());
+        ranges.push(source_range.clone());
+        let key_el = SelectableBlock::new(
+            block_ix,
+            key_s,
+            Vec::new(),
+            paint.host.clone(),
+            paint.selection,
+        );
+        block_ix += 1;
+        let value_el = SelectableBlock::new(
+            block_ix,
+            val_s,
+            Vec::new(),
+            paint.host.clone(),
+            paint.selection,
+        );
+        block_ix += 1;
+        panel = panel.child(
+            div()
+                .w_full()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(
+                    div()
+                        .text_size(px(f32::from(paint.base) * 0.85))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(paint.muted)
+                        .child(key_el),
+                )
+                .child(
+                    div()
+                        .w_full()
+                        .min_w_0()
+                        .whitespace_normal()
+                        .text_size(paint.base)
+                        .child(value_el),
+                ),
+        );
+    }
+    (panel.into_any_element(), plains, ranges)
+}
+
+fn raw_panel(
+    body: &str,
+    source_range: Range<usize>,
+    paint: &MetaPaint,
+    block_ix: usize,
+) -> (AnyElement, Vec<SharedString>, Vec<Range<usize>>) {
+    let text = SharedString::from(body.to_string());
+    let child = SelectableBlock::new(
+        block_ix,
+        text.clone(),
+        Vec::new(),
+        paint.host.clone(),
+        paint.selection,
+    );
+    let element = div()
+        .my_3()
+        .w_full()
+        .min_w_0()
+        .p_3()
+        .rounded_md()
+        .border_1()
+        .border_color(paint.rule)
+        .bg(paint.code_bg)
+        .font_family(paint.mono.clone())
+        .text_size(px(f32::from(paint.base) * 0.9))
+        .whitespace_normal()
+        .child(child)
+        .into_any_element();
+    (element, vec![text], vec![source_range])
+}
 
 /// Parse simple `key: value` YAML (including indented multi-line values).
 /// Returns `None` when the body is not a flat list of pairs.

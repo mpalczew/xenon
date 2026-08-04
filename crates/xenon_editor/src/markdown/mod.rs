@@ -162,4 +162,21 @@ mod tests {
         }
         assert!(saw_h2, "baseline: no yaml flag yields setext H2");
     }
+
+    /// Nested list items must see increasing open-list depth (preview pad uses this).
+    #[test]
+    fn nested_list_item_depths() {
+        let src = "- a\n  - b\n    - c\n- d\n";
+        let mut depth = 0u32;
+        let mut item_depths = Vec::new();
+        for event in Parser::new_ext(src, markdown_options()) {
+            match event {
+                Event::Start(Tag::List(_)) => depth += 1,
+                Event::End(TagEnd::List(_)) => depth = depth.saturating_sub(1),
+                Event::Start(Tag::Item) => item_depths.push(depth),
+                _ => {}
+            }
+        }
+        assert_eq!(item_depths, vec![1, 2, 3, 1]);
+    }
 }
