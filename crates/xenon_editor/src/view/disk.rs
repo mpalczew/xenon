@@ -44,41 +44,47 @@ impl EditorView {
 
     /// Reload from disk when the file changed and this buffer is clean.
     /// Dirty buffers are left alone (conflict); deleted files mark dirty.
+    /// Image tabs silently reload (no local edits to conflict with).
     pub fn sync_from_disk(&mut self, cx: &mut Context<Self>) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        match buffer.check_external() {
-            Ok(ExternalState::Reloaded) => {
-                self.disk_alert = DiskAlert::None;
-                self.recompute_highlights();
-                self.emit_buffer_changed(cx);
-                cx.notify();
-            }
-            Ok(ExternalState::Conflicted) => {
-                if self.disk_alert != DiskAlert::Conflict {
-                    self.disk_alert = DiskAlert::Conflict;
-                    cx.notify();
-                }
-            }
-            Ok(ExternalState::Deleted) => {
-                if self.disk_alert != DiskAlert::Deleted {
-                    self.disk_alert = DiskAlert::Deleted;
-                    cx.notify();
-                }
-            }
-            Ok(ExternalState::Unchanged) => {
-                if self.disk_alert != DiskAlert::None {
+        match &mut self.content {
+            Content::Text(buffer) => match buffer.check_external() {
+                Ok(ExternalState::Reloaded) => {
                     self.disk_alert = DiskAlert::None;
+                    self.recompute_highlights();
+                    self.emit_buffer_changed(cx);
+                    cx.notify();
+                }
+                Ok(ExternalState::Conflicted) => {
+                    if self.disk_alert != DiskAlert::Conflict {
+                        self.disk_alert = DiskAlert::Conflict;
+                        cx.notify();
+                    }
+                }
+                Ok(ExternalState::Deleted) => {
+                    if self.disk_alert != DiskAlert::Deleted {
+                        self.disk_alert = DiskAlert::Deleted;
+                        cx.notify();
+                    }
+                }
+                Ok(ExternalState::Unchanged) => {
+                    if self.disk_alert != DiskAlert::None {
+                        self.disk_alert = DiskAlert::None;
+                        cx.notify();
+                    }
+                }
+                Err(error) => {
+                    log::warn!(
+                        "external check failed for {}: {error}",
+                        buffer.path().display()
+                    );
+                }
+            },
+            Content::Image(viewer) => {
+                if viewer.sync_from_disk() {
                     cx.notify();
                 }
             }
-            Err(error) => {
-                log::warn!(
-                    "external check failed for {}: {error}",
-                    buffer.path().display()
-                );
-            }
+            Content::Unsupported { .. } => {}
         }
     }
 

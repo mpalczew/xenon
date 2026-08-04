@@ -1,20 +1,28 @@
-use std::path::PathBuf;
+//! Image tab: zoom/pan state, disk reload, and GPUI paint element.
 
-use gpui::{
-    AnyElement, App, Bounds, DispatchPhase, Element, ElementId, Entity, GlobalElementId,
-    InspectorElementId, IntoElement, LayoutId, MouseUpEvent, ObjectFit, ParentElement, Pixels,
-    Point, ScrollDelta, ScrollWheelEvent, Style, Styled, StyledImage, Window, div, img, point, px,
-    relative, size,
-};
+mod element;
+#[cfg(test)]
+mod reload_test;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::SystemTime;
+
+use gpui::{Bounds, Image, ImageFormat, Pixels, Point, ScrollDelta, ScrollWheelEvent, point, px};
 use image::ImageReader;
 
-use crate::view::{Content, EditorView};
+pub(super) use element::ImageContentElement;
 
 const MIN_IMAGE_ZOOM: f32 = 0.05;
 const MAX_IMAGE_ZOOM: f32 = 16.0;
 
 pub(super) struct ImageViewer {
     pub(super) path: PathBuf,
+    /// Disk mtime at last successful load; used to detect external rewrites.
+    disk_mtime: Option<SystemTime>,
+    /// Content-hashed GPUI image so path-keyed asset cache is not sticky.
+    image: Option<Arc<Image>>,
     natural_size: Option<ImageSize>,
     zoom: ImageZoom,
     pub(super) pan_offset: Point<Pixels>,
@@ -36,25 +44,53 @@ enum ImageZoom {
 
 impl ImageViewer {
     pub(super) fn new(path: PathBuf) -> Self {
-        Self {
-            natural_size: read_image_size(&path),
+        let mut viewer = Self {
             path,
+            disk_mtime: None,
+            image: None,
+            natural_size: None,
             zoom: ImageZoom::Fit,
             pan_offset: Point::default(),
             drag_last: None,
             viewport: None,
+        };
+        viewer.reload_from_disk();
+        viewer
+    }
+
+    /// Compare against disk; reload when the file's mtime moved.
+    /// Returns true when the displayed image was refreshed.
+    pub(super) fn sync_from_disk(&mut self) -> bool {
+        let current = fs::metadata(&self.path).and_then(|m| m.modified()).ok();
+        if current.is_none() {
+            // Deleted: keep last decoded frame; nothing new to show.
+            return false;
         }
+        if current == self.disk_mtime {
+            return false;
+        }
+        self.reload_from_disk();
+        true
+    }
+
+    fn reload_from_disk(&mut self) {
+        self.disk_mtime = fs::metadata(&self.path).and_then(|m| m.modified()).ok();
+        self.natural_size = read_image_size(&self.path);
+        // Image::id is a content hash, so a real rewrite is a new GPUI asset key
+        // (path-keyed img(path) would keep showing the first decode forever).
+        self.image = load_gpui_image(&self.path);
+        self.clamp_pan();
     }
 
     pub(super) fn zoom_by(&mut self, factor: f32) {
         let zoom = self.current_zoom() * factor;
-        self.zoom = ImageZoom::Manual(clamp_zoom(zoom));
+        self.zoom = ImageZoom::Manual(zoom.clamp(MIN_IMAGE_ZOOM, MAX_IMAGE_ZOOM));
         self.clamp_pan();
     }
 
     pub(super) fn zoom_at(&mut self, factor: f32, position: Point<Pixels>) {
         let old_zoom = self.current_zoom();
-        let new_zoom = clamp_zoom(old_zoom * factor);
+        let new_zoom = (old_zoom * factor).clamp(MIN_IMAGE_ZOOM, MAX_IMAGE_ZOOM);
         self.zoom = ImageZoom::Manual(new_zoom);
         self.anchor_zoom(old_zoom, new_zoom, position);
     }
@@ -158,135 +194,6 @@ pub(super) fn zoom_factor_for_scroll(delta: Pixels) -> f32 {
     }
 }
 
-pub(super) struct ImageContentElement {
-    view: Entity<EditorView>,
-}
-
-impl ImageContentElement {
-    pub(super) fn new(view: Entity<EditorView>) -> Self {
-        Self { view }
-    }
-}
-
-impl IntoElement for ImageContentElement {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
-impl Element for ImageContentElement {
-    type RequestLayoutState = ();
-    type PrepaintState = Option<(AnyElement, bool)>;
-
-    fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, Self::RequestLayoutState) {
-        (
-            window.request_layout(
-                Style {
-                    size: size(relative(1.).into(), relative(1.).into()),
-                    ..Default::default()
-                },
-                [],
-                cx,
-            ),
-            (),
-        )
-    }
-
-    fn prepaint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
-        _request_layout: &mut Self::RequestLayoutState,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Self::PrepaintState {
-        let (path, pan, size, dragging) = {
-            let view = self.view.read(cx);
-            let Content::Image(viewer) = &view.content else {
-                return None;
-            };
-            let zoom = viewer.zoom_for_bounds(bounds);
-            (
-                viewer.path.clone(),
-                clamp_pan(viewer.pan_offset, bounds, viewer.natural_size, zoom),
-                viewer.scaled_size(zoom),
-                viewer.drag_last.is_some(),
-            )
-        };
-        self.view.update(cx, |view, _| {
-            if let Content::Image(viewer) = &mut view.content {
-                viewer.viewport = Some(bounds);
-                viewer.pan_offset = pan;
-            }
-        });
-
-        let left = bounds.size.width / 2. - px(size.width) / 2. + pan.x;
-        let top = bounds.size.height / 2. - px(size.height) / 2. + pan.y;
-        let mut image = div()
-            .relative()
-            .size_full()
-            .child(
-                div()
-                    .absolute()
-                    .left(left)
-                    .top(top)
-                    .w(px(size.width))
-                    .h(px(size.height))
-                    .child(img(path).object_fit(ObjectFit::Fill).size_full()),
-            )
-            .into_any_element();
-
-        image.prepaint_as_root(bounds.origin, bounds.size.into(), window, cx);
-        Some((image, dragging))
-    }
-
-    fn paint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
-        _request_layout: &mut Self::RequestLayoutState,
-        prepaint: &mut Self::PrepaintState,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        let Some((mut element, dragging)) = prepaint.take() else {
-            return;
-        };
-        if dragging {
-            let view = self.view.clone();
-            window.on_mouse_event(move |_event: &MouseUpEvent, phase, _window, cx| {
-                if phase == DispatchPhase::Bubble {
-                    view.update(cx, |view, cx| {
-                        if let Content::Image(viewer) = &mut view.content {
-                            viewer.drag_last = None;
-                            cx.notify();
-                        }
-                    });
-                }
-            });
-        }
-        element.paint(window, cx);
-    }
-}
-
 fn clamp_pan(
     pan: Point<Pixels>,
     bounds: Bounds<Pixels>,
@@ -316,7 +223,7 @@ fn fit_zoom_for(bounds: Bounds<Pixels>, natural_size: Option<ImageSize>) -> f32 
         .clamp(MIN_IMAGE_ZOOM, 1.)
 }
 
-fn read_image_size(path: &std::path::Path) -> Option<ImageSize> {
+fn read_image_size(path: &Path) -> Option<ImageSize> {
     let size = ImageReader::open(path).ok()?.into_dimensions().ok()?;
     Some(ImageSize {
         width: size.0 as f32,
@@ -324,6 +231,34 @@ fn read_image_size(path: &std::path::Path) -> Option<ImageSize> {
     })
 }
 
-fn clamp_zoom(zoom: f32) -> f32 {
-    zoom.clamp(MIN_IMAGE_ZOOM, MAX_IMAGE_ZOOM)
+fn load_gpui_image(path: &Path) -> Option<Arc<Image>> {
+    let bytes = fs::read(path).ok()?;
+    let format = gpui_format(&bytes, path)?;
+    Some(Arc::new(Image::from_bytes(format, bytes)))
+}
+
+fn gpui_format(bytes: &[u8], path: &Path) -> Option<ImageFormat> {
+    if let Ok(format) = image::guess_format(bytes) {
+        return match format {
+            image::ImageFormat::Png => Some(ImageFormat::Png),
+            image::ImageFormat::Jpeg => Some(ImageFormat::Jpeg),
+            image::ImageFormat::WebP => Some(ImageFormat::Webp),
+            image::ImageFormat::Gif => Some(ImageFormat::Gif),
+            image::ImageFormat::Bmp => Some(ImageFormat::Bmp),
+            image::ImageFormat::Tiff => Some(ImageFormat::Tiff),
+            image::ImageFormat::Ico => Some(ImageFormat::Ico),
+            image::ImageFormat::Pnm => Some(ImageFormat::Pnm),
+            _ => None,
+        };
+    }
+    // SVG has no binary magic the `image` crate recognizes.
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("svg") => Some(ImageFormat::Svg),
+        _ => None,
+    }
 }
