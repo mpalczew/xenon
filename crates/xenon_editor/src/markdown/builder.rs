@@ -46,6 +46,8 @@ pub(super) struct Builder {
     cell_source: Option<Range<usize>>,
     /// Open lists: `None` = unordered; `Some(n)` = next ordered number.
     list_stack: Vec<Option<u64>>,
+    /// Source ranges for open list items (stack; nested items push).
+    item_sources: Vec<Range<usize>>,
 }
 
 pub(super) struct BuilderColors {
@@ -90,11 +92,12 @@ impl Builder {
             def_title_source: None,
             cell_source: None,
             list_stack: Vec::new(),
+            item_sources: Vec::new(),
         }
     }
 
     fn list_pad(&self) -> Option<Pixels> {
-        (!self.list_stack.is_empty()).then_some(px(16. * self.list_stack.len() as f32))
+        (!self.list_stack.is_empty()).then_some(px(20. * self.list_stack.len() as f32))
     }
 
     fn push_item_marker(&mut self) {
@@ -107,6 +110,20 @@ impl Builder {
             _ => "• ".into(),
         };
         self.inline.push_str(&marker);
+    }
+
+    /// Tight lists emit item text then a nested `List` with no `Paragraph` end —
+    /// flush the lead-in so nested items are separate blocks (not `• a• b`).
+    fn push_list(&mut self, start: Option<u64>, list_range: Range<usize>) {
+        if !self.inline.trim().is_empty() {
+            let src = self
+                .item_sources
+                .last()
+                .map(|item| item.start..list_range.start)
+                .unwrap_or_else(|| list_range.clone());
+            self.flush_block(self.base, false, self.list_pad(), src);
+        }
+        self.list_stack.push(start);
     }
 
     pub(super) fn finish(self) -> (Vec<AnyElement>, Vec<SharedString>, Vec<Range<usize>>) {
@@ -200,8 +217,11 @@ impl Builder {
             Tag::FootnoteDefinition(label) => {
                 self.inline.push_str(&format!("[^{label}]: "));
             }
-            Tag::List(start) => self.list_stack.push(start),
-            Tag::Item => self.push_item_marker(),
+            Tag::List(start) => self.push_list(start, range),
+            Tag::Item => {
+                self.item_sources.push(range);
+                self.push_item_marker();
+            }
             Tag::DefinitionListTitle | Tag::DefinitionListDefinition => {
                 self.inline.clear();
                 self.highlights.clear();
@@ -242,7 +262,10 @@ impl Builder {
             TagEnd::Heading(level) => {
                 self.flush_block(heading_size(self.base, level), true, None, range)
             }
-            TagEnd::Item => self.flush_block(self.base, false, self.list_pad(), range),
+            TagEnd::Item => {
+                let src = self.item_sources.pop().unwrap_or(range);
+                self.flush_block(self.base, false, self.list_pad(), src);
+            }
             TagEnd::List(_) => {
                 self.list_stack.pop();
             }

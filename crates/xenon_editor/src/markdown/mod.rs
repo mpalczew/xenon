@@ -179,4 +179,80 @@ mod tests {
         }
         assert_eq!(item_depths, vec![1, 2, 3, 1]);
     }
+
+    /// Mirrors builder list flush rules (tight lists: flush lead-in before nested List).
+    fn list_preview_blocks(src: &str) -> Vec<(u32, String)> {
+        let mut depth = 0u32;
+        let mut stack: Vec<Option<u64>> = Vec::new();
+        let mut inline = String::new();
+        let mut blocks = Vec::new();
+        let flush = |depth: u32, inline: &mut String, blocks: &mut Vec<(u32, String)>| {
+            if inline.trim().is_empty() {
+                inline.clear();
+                return;
+            }
+            blocks.push((depth, std::mem::take(inline)));
+        };
+        for event in Parser::new_ext(src, markdown_options()) {
+            match event {
+                Event::Start(Tag::List(start)) => {
+                    flush(depth, &mut inline, &mut blocks);
+                    stack.push(start);
+                    depth = stack.len() as u32;
+                }
+                Event::End(TagEnd::List(_)) => {
+                    stack.pop();
+                    depth = stack.len() as u32;
+                }
+                Event::Start(Tag::Item) => {
+                    let marker = match stack.last_mut() {
+                        Some(Some(n)) => {
+                            let s = format!("{n}. ");
+                            *n += 1;
+                            s
+                        }
+                        _ => "• ".into(),
+                    };
+                    inline.push_str(&marker);
+                }
+                Event::Text(t) => inline.push_str(&t),
+                Event::TaskListMarker(checked) => {
+                    inline.push_str(if checked { "[x] " } else { "[ ] " });
+                }
+                Event::End(TagEnd::Item) => flush(depth, &mut inline, &mut blocks),
+                Event::End(TagEnd::Paragraph) => flush(depth, &mut inline, &mut blocks),
+                _ => {}
+            }
+        }
+        blocks
+    }
+
+    #[test]
+    fn tight_nested_list_splits_into_separate_blocks() {
+        let blocks = list_preview_blocks("- a\n  - b\n    - c\n- d\n");
+        assert_eq!(
+            blocks,
+            vec![
+                (1, "• a".into()),
+                (2, "• b".into()),
+                (3, "• c".into()),
+                (1, "• d".into()),
+            ],
+            "must not collapse nested tight items into one block"
+        );
+    }
+
+    #[test]
+    fn ordered_nested_list_markers() {
+        let blocks = list_preview_blocks("1. a\n   1. b\n   2. c\n2. d\n");
+        assert_eq!(
+            blocks,
+            vec![
+                (1, "1. a".into()),
+                (2, "1. b".into()),
+                (2, "2. c".into()),
+                (1, "2. d".into()),
+            ]
+        );
+    }
 }
