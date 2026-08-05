@@ -19,6 +19,9 @@ rediscover.
 
 ## Load-bearing choices
 
+- `.vscode/tasks.json` exposes only `project xenon` and `project install`.
+  Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent
+  extra `project` labels.
 - Known open/closed workspaces outrank filesystem discovery. Workspace MRU is
   persisted; file MRU is an in-memory tiebreaker only.
 - Cmd-P serves its cached index immediately and refreshes in the background.

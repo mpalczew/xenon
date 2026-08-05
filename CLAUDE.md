@@ -21,21 +21,24 @@ Personas and product priorities live in `PRODUCT.md`.
 
 ## Build & run
 
-- Dev: `cargo build` / `cargo run` (workspace root). `cargo test` runs the unit
-  tests (pure crates only; GPUI views are verified by launch tests).
-- Install as an app: `project install` (`.vscode/tasks.json` shell tasks)
+- Dev: run cargo directly — `cargo build` / `cargo run` / `cargo test` /
+  `cargo fmt --all` / `cargo clippy --workspace --all-targets -- -D warnings`
+  (workspace root). Unit tests cover pure crates only; GPUI views are verified
+  by launch tests. Full gate: `scripts/health` (fmtcheck + clippy + shape + test).
+- Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
+  cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
   release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`),
   **stable-codesigns** it, and copies it to `~/Applications/Xenon.app` (override
   with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`). Not `/Applications`:
   reinstalling there from a shell hosted by the app triggers macOS App
-  Management TCC every time. `project bundle` stops before copying. Signing
-  identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY` if
-  set, else first `Developer ID Application`, else `Apple Development`, else
+  Management TCC every time. `scripts/release/bundle` stops before copying.
+  Signing identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY`
+  if set, else first `Developer ID Application`, else `Apple Development`, else
   auto-created local `xero-dev` self-signed cert. Bundle id stays
   `dev.xero.xero` so TCC grants stick.
   Never ad-hoc `-` for install — that changes the CDHash every build and drops
-  Full Disk Access. Use `project sign_setup` to print the identity. Complex
-  release steps live under `scripts/release/`; list all tasks with `project`.
+  Full Disk Access. Use `scripts/release/sign_setup` to print the identity.
+  Complex release steps live under `scripts/release/`.
 - Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
   Toolchain (`xcodebuild -downloadComponent MetalToolchain`). Missing either
   fails the build inside `wasmtime-c-api-impl` / `gpui_macos` respectively.
@@ -69,8 +72,9 @@ Crates under `crates/`:
   TypeScript navigation, highlights, and diagnostics.
 - `xenon_remote` — optional local HTTP service for phone-sized terminal
   viewport and input over LAN/Tailscale.
-- Project commands: shell tasks in `.vscode/tasks.json` (Run Task palette
-  cmd-shift-r injects into the workspace terminal; `project <label>` from any shell).
+- Project tasks: only `xenon` and `install` in `.vscode/tasks.json` (Run Task
+  palette cmd-shift-r; `project <label>` from any shell). Build/test/fmt/lint
+  are plain cargo (or `scripts/health`); do not invent extra `project` labels.
 
 Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
 an `EntityInputHandler` registered during paint (`window.handle_input`), NOT
@@ -96,8 +100,10 @@ forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   ask the user to read diffs for quality control.
 - Run `project install` at the END of all work, once every change is complete —
   this is how the user dogfoods. It release-builds and installs
-  `~/Applications/Xenon.app`; the user verifies there, not in the debug build. Do
-  not install mid-way through a multi-step change; batch it as the final step.
+  `~/Applications/Xenon.app`; the user verifies there (or via `project xenon` /
+  `~/bin/xenon`), not in the debug build. Do not install mid-way through a
+  multi-step change; batch it as the final step. During work, use cargo /
+  `scripts/health` directly — not `project` wrappers.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request.
 - Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
