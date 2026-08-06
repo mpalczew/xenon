@@ -1,7 +1,7 @@
 //! Normal/visual character dispatch for vim mode.
 
 use super::motion;
-use super::ops::visual_excl_end;
+use super::paste::visual_excl_end;
 use super::{
     FindKind, HandleResult, LastChange, Mode, Motion, Object, Operator, VimState, edited, handled,
 };
@@ -71,16 +71,71 @@ impl VimState {
             return handled(false);
         }
 
+        // `g` prefix: `gg`, `gd`, `gJ` (invalid second key clears the prefix).
+        if self.pending_g {
+            self.pending_g = false;
+            return match ch {
+                'g' => {
+                    if self.count > 0 {
+                        let line = self.count.saturating_sub(1);
+                        let row = line.min(buffer.rope().len_lines().saturating_sub(1));
+                        buffer.set_cursor_position(row, 0);
+                        self.count = 0;
+                        handled(false)
+                    } else {
+                        self.count = 0;
+                        self.do_motion(buffer, Motion::FileStart, 1)
+                    }
+                }
+                'd' => {
+                    self.count = 0;
+                    HandleResult {
+                        handled: true,
+                        request_definition: true,
+                        ..Default::default()
+                    }
+                }
+                'J' => {
+                    let lines = if self.count == 0 {
+                        2
+                    } else {
+                        self.count.max(2)
+                    };
+                    if self.mode.is_visual() {
+                        self.join_visual(buffer, false)
+                    } else {
+                        self.join_lines(buffer, lines, false)
+                    }
+                }
+                _ => handled(false),
+            };
+        }
+        // `z` prefix: `zz` centers the cursor line.
+        if self.pending_z {
+            self.pending_z = false;
+            return match ch {
+                'z' => {
+                    self.count = 0;
+                    HandleResult {
+                        handled: true,
+                        scroll_center: true,
+                        ..Default::default()
+                    }
+                }
+                _ => handled(false),
+            };
+        }
+
         let count = self.count.max(1);
 
         match ch {
-            'd' if self.count == usize::MAX => {
-                self.count = 0;
-                HandleResult {
-                    handled: true,
-                    request_definition: true,
-                    ..Default::default()
-                }
+            'g' => {
+                self.pending_g = true;
+                handled(false)
+            }
+            'z' => {
+                self.pending_z = true;
+                handled(false)
             }
             '"' => {
                 self.register_pending = true;
@@ -101,6 +156,9 @@ impl VimState {
                 self.enter_insert(buffer);
                 handled(false)
             }
+            // Visual-block insert at left / right edge of the rectangle.
+            'I' if self.mode == Mode::VisualBlock => self.block_insert(buffer, true),
+            'A' if self.mode == Mode::VisualBlock => self.block_insert(buffer, false),
             'I' if !self.mode.is_visual() => {
                 let pos = motion::apply(buffer.rope(), buffer.cursor(), &Motion::FirstNonBlank, 1);
                 buffer.set_cursor_raw(pos);
@@ -135,10 +193,12 @@ impl VimState {
             'v' => {
                 if self.mode == Mode::Visual {
                     buffer.clear_selection();
+                    self.block_anchor = None;
                     self.mode = Mode::Normal;
                 } else {
+                    // From block: drop to char visual on the head char.
+                    self.block_anchor = None;
                     self.mode = Mode::Visual;
-                    // Half-open range: include the character under the cursor.
                     let c = buffer.cursor();
                     let end = visual_excl_end(buffer, c);
                     buffer.set_selection(c, end);
@@ -149,8 +209,10 @@ impl VimState {
             'V' => {
                 if self.mode == Mode::VisualLine {
                     buffer.clear_selection();
+                    self.block_anchor = None;
                     self.mode = Mode::Normal;
                 } else {
+                    self.block_anchor = None;
                     self.mode = Mode::VisualLine;
                     let range = selection::line_range_at(buffer.rope(), buffer.cursor());
                     buffer.set_selection(range.start, range.end);
@@ -171,17 +233,8 @@ impl VimState {
             '^' => self.do_motion(buffer, Motion::FirstNonBlank, 1),
             '$' => self.do_motion(buffer, Motion::LineEnd, 1),
             '%' => self.do_percent(buffer),
-            // Second `g` after a pending `g` → file start (`gg`).
-            'g' if self.count == usize::MAX => {
-                self.count = 0;
-                self.do_motion(buffer, Motion::FileStart, 1)
-            }
-            'g' => {
-                self.count = usize::MAX;
-                handled(false)
-            }
             'G' => {
-                if self.count == 0 || self.count == usize::MAX {
+                if self.count == 0 {
                     self.count = 0;
                     self.do_motion(buffer, Motion::FileEnd, 1)
                 } else {
@@ -192,6 +245,42 @@ impl VimState {
                     handled(false)
                 }
             }
+            // Join lines (`J`); count is total lines fused (default 2).
+            'J' if self.mode.is_visual() => self.join_visual(buffer, true),
+            'J' => {
+                let lines = if self.count == 0 {
+                    2
+                } else {
+                    self.count.max(2)
+                };
+                self.join_lines(buffer, lines, true)
+            }
+            // `D` = `d$`, `C` = `c$`, `Y` = `yy`, `S` = `cc`.
+            'D' if !self.mode.is_visual() => {
+                self.count = 0;
+                self.operator = Some(Operator::Delete);
+                self.finish_motion(buffer, Motion::LineEnd, 1)
+            }
+            'C' if !self.mode.is_visual() => {
+                self.count = 0;
+                self.operator = Some(Operator::Change);
+                self.finish_motion(buffer, Motion::LineEnd, 1)
+            }
+            'Y' if !self.mode.is_visual() => {
+                self.operator = Some(Operator::Yank);
+                self.op_or_line(buffer, Operator::Yank, count, 'y')
+            }
+            'S' if !self.mode.is_visual() && self.operator.is_none() => {
+                self.operator = Some(Operator::Change);
+                self.op_or_line(buffer, Operator::Change, count, 'c')
+            }
+            // Indent / outdent / reindent.
+            '>' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Indent),
+            '<' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Outdent),
+            '=' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Reindent),
+            '>' => self.op_or_line(buffer, Operator::Indent, count, '>'),
+            '<' => self.op_or_line(buffer, Operator::Outdent, count, '<'),
+            '=' => self.op_or_line(buffer, Operator::Reindent, count, '='),
             'f' => {
                 self.awaiting_find = Some(FindKind::Find);
                 handled(false)
@@ -315,12 +404,7 @@ impl VimState {
                 self.awaiting_object = Some(true);
                 handled(false)
             }
-            _ => {
-                if self.count == usize::MAX {
-                    self.count = 0;
-                }
-                handled(false)
-            }
+            _ => handled(false),
         }
     }
 

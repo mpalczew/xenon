@@ -1,7 +1,13 @@
 //! Operators, paste, and motion application for vim mode.
 
+use super::block;
+use super::block_ops::paste_blockwise;
 use super::motion;
 use super::object::Object;
+use super::paste::{
+    lines_covering, linewise_range, paste_charwise, paste_linewise, visual_excl_end,
+    visual_head_pos,
+};
 use super::repeat::LastChange;
 use super::{HandleResult, Mode, Motion, Operator, VimState, edited, handled};
 use crate::buffer::Buffer;
@@ -20,11 +26,11 @@ impl VimState {
             return self.visual_operator(buffer, op);
         }
         if self.operator == Some(op) {
-            // dd / cc / yy
+            // dd / cc / yy / >> / << / ==
             self.operator = None;
             let lines = count.max(1);
             let reg = self.registers.pending();
-            // Yank is not a "change" for `.`; delete/change are.
+            // Yank is not a "change" for `.`; delete/change/indent are.
             if op != Operator::Yank {
                 self.last_change = Some(LastChange::Lines {
                     op,
@@ -68,17 +74,34 @@ impl VimState {
                 count
             };
             self.count = 0;
-            let range = motion::operator_range(buffer.rope(), buffer.cursor(), &motion, op_count);
-            let reg = self.registers.pending();
-            self.last_change = Some(LastChange::Operator {
+            // Indent family is always linewise in classic vim (`>w` still whole lines).
+            let force_line = matches!(
                 op,
-                motion: motion.clone(),
-                count: op_count,
-                register: reg,
-            });
-            return self.apply_range(buffer, op, range, motion.is_linewise());
+                Operator::Indent | Operator::Outdent | Operator::Reindent
+            );
+            let range = if force_line {
+                let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, op_count);
+                lines_covering(buffer, buffer.cursor(), target)
+            } else {
+                motion::operator_range(buffer.rope(), buffer.cursor(), &motion, op_count)
+            };
+            let reg = self.registers.pending();
+            if op != Operator::Yank {
+                self.last_change = Some(LastChange::Operator {
+                    op,
+                    motion: motion.clone(),
+                    count: op_count,
+                    register: reg,
+                });
+            }
+            return self.apply_range(buffer, op, range, force_line || motion.is_linewise());
         }
-        if self.mode.is_visual() {
+        if self.mode == Mode::VisualBlock {
+            // Head moves; anchor corner stays put. Desired column is free to go past EOL.
+            let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, count);
+            buffer.set_cursor_raw(target);
+            buffer.clear_selection();
+        } else if self.mode.is_visual() {
             // Motions run from the inclusive head (cursor is exclusive end in char visual).
             let from = if self.mode == Mode::Visual {
                 visual_head_pos(buffer)
@@ -151,15 +174,21 @@ impl VimState {
         buffer: &mut Buffer,
         op: Operator,
     ) -> HandleResult {
+        if self.mode == Mode::VisualBlock {
+            return self.block_operator(buffer, op);
+        }
         let Some(range) = buffer.selection_range() else {
             self.mode = Mode::Normal;
+            self.block_anchor = None;
             return handled(false);
         };
         let result = self.apply_range(buffer, op, range, self.mode == Mode::VisualLine);
         self.mode = Mode::Normal;
+        self.block_anchor = None;
         result
     }
 
+    /// Visual-block `d`/`c`/`y`/`>`/`<`/`=`.
     pub(in crate::vim) fn apply_range(
         &mut self,
         buffer: &mut Buffer,
@@ -167,6 +196,12 @@ impl VimState {
         range: std::ops::Range<usize>,
         linewise: bool,
     ) -> HandleResult {
+        if matches!(
+            op,
+            Operator::Indent | Operator::Outdent | Operator::Reindent
+        ) {
+            return self.shift_range(buffer, op, range);
+        }
         if range.start >= range.end {
             self.clear_pending();
             return handled(false);
@@ -203,6 +238,7 @@ impl VimState {
                 }
                 true
             }
+            Operator::Indent | Operator::Outdent | Operator::Reindent => unreachable!(),
         };
         HandleResult {
             handled: true,
@@ -212,6 +248,7 @@ impl VimState {
         }
     }
 
+    /// `J` / `gJ`: fuse `lines` lines starting at the cursor (≥2).
     pub(in crate::vim) fn delete_chars(
         &mut self,
         buffer: &mut Buffer,
@@ -238,6 +275,38 @@ impl VimState {
     }
 
     pub(in crate::vim) fn replace_char(&mut self, buffer: &mut Buffer, ch: char) -> HandleResult {
+        if self.mode == Mode::VisualBlock {
+            let Some(corners) = self.block_corners(buffer) else {
+                self.mode = Mode::Normal;
+                return handled(false);
+            };
+            let ranges = block::char_ranges(buffer.rope(), corners);
+            if ranges.is_empty() {
+                self.mode = Mode::Normal;
+                self.block_anchor = None;
+                return handled(false);
+            }
+            for range in ranges.into_iter().rev() {
+                let len = range.end.saturating_sub(range.start);
+                if len == 0 {
+                    continue;
+                }
+                let new: String = std::iter::repeat_n(ch, len).collect();
+                let old = buffer.rope().slice(range.clone()).to_string();
+                buffer.apply_edit(Edit {
+                    start: range.start,
+                    old,
+                    new,
+                });
+            }
+            let pos = block::offset_at(buffer.rope(), corners.min_row, corners.min_col);
+            buffer.set_cursor_raw(pos);
+            buffer.clear_selection();
+            self.block_anchor = None;
+            self.mode = Mode::Normal;
+            self.last_change = Some(LastChange::Replace { ch });
+            return edited();
+        }
         if self.mode.is_visual() {
             let Some(range) = buffer.selection_range() else {
                 self.mode = Mode::Normal;
@@ -277,6 +346,14 @@ impl VimState {
 
     /// Swap visual anchor and head (`o` in visual).
     pub(in crate::vim) fn visual_swap_ends(&mut self, buffer: &mut Buffer) -> HandleResult {
+        if self.mode == Mode::VisualBlock {
+            if let Some(anchor) = self.block_anchor {
+                let head = buffer.cursor_position();
+                self.block_anchor = Some(head);
+                buffer.set_cursor_position(anchor.0, anchor.1);
+            }
+            return handled(false);
+        }
         if let (Some(anchor), cursor) = (buffer.selection_anchor(), buffer.cursor()) {
             buffer.set_selection(cursor, anchor);
         }
@@ -289,6 +366,23 @@ impl VimState {
         buffer: &mut Buffer,
         before: bool,
     ) -> HandleResult {
+        if self.mode == Mode::VisualBlock {
+            // Paste register into the block: keep register, delete to black hole.
+            let content = self.registers.paste();
+            self.registers.set_pending('_');
+            let _ = self.block_operator(buffer, Operator::Delete);
+            if content.text.is_empty() {
+                return handled(false);
+            }
+            self.last_change = Some(LastChange::Paste { before: true });
+            if content.blockwise {
+                return paste_blockwise(buffer, &content.text, true);
+            }
+            if content.linewise {
+                return paste_linewise(buffer, &content.text, true);
+            }
+            return paste_charwise(buffer, &content.text, true);
+        }
         let Some(range) = buffer.selection_range() else {
             self.mode = Mode::Normal;
             return handled(false);
@@ -299,6 +393,7 @@ impl VimState {
         buffer.set_selection(range.start, range.end);
         buffer.delete_selection();
         self.mode = Mode::Normal;
+        self.block_anchor = None;
         self.paste(buffer, before)
     }
 
@@ -315,6 +410,9 @@ impl VimState {
             return handled(false);
         }
         self.last_change = Some(LastChange::Paste { before });
+        if content.blockwise {
+            return paste_blockwise(buffer, &content.text, before);
+        }
         if content.linewise {
             return paste_linewise(buffer, &content.text, before);
         }
@@ -322,7 +420,12 @@ impl VimState {
     }
 
     /// Paste system clipboard text (view resolved `"+`). Characterwise.
-    pub fn paste_system(&mut self, buffer: &mut Buffer, text: &str, before: bool) -> HandleResult {
+    pub(crate) fn paste_system(
+        &mut self,
+        buffer: &mut Buffer,
+        text: &str,
+        before: bool,
+    ) -> HandleResult {
         self.registers.set_unnamed(text);
         self.last_change = Some(LastChange::Paste { before });
         paste_charwise(buffer, text, before)
@@ -342,88 +445,4 @@ impl VimState {
         let range = linewise_range(buffer, count.max(1));
         self.apply_range(buffer, op, range, true)
     }
-}
-
-/// Exclusive end past char at `pos` (vim visual includes that char).
-pub(in crate::vim) fn visual_excl_end(buffer: &Buffer, pos: usize) -> usize {
-    let len = buffer.rope().len_chars();
-    if pos < len && buffer.rope().char(pos) != '\n' {
-        pos + 1
-    } else {
-        pos
-    }
-}
-
-/// Inclusive head character for a half-open visual selection.
-fn visual_head_pos(buffer: &Buffer) -> usize {
-    let c = buffer.cursor();
-    if c > 0 { c - 1 } else { c }
-}
-
-/// Char range for `count` lines starting at the cursor (includes trailing newlines).
-fn linewise_range(buffer: &Buffer, count: usize) -> std::ops::Range<usize> {
-    let mut range = selection::line_range_at(buffer.rope(), buffer.cursor());
-    for _ in 1..count {
-        if range.end >= buffer.rope().len_chars() {
-            break;
-        }
-        let next = selection::line_range_at(buffer.rope(), range.end);
-        range.end = next.end;
-    }
-    if range.end < buffer.rope().len_chars() && buffer.rope().char(range.end) == '\n' {
-        range.end += 1;
-    }
-    range
-}
-
-fn paste_charwise(buffer: &mut Buffer, text: &str, before: bool) -> HandleResult {
-    if !before && buffer.cursor() < buffer.rope().len_chars() {
-        buffer.set_cursor_raw(buffer.cursor() + 1);
-    }
-    buffer.replace_selection(text);
-    edited()
-}
-
-/// Linewise `p` / `P`: whole lines below / above the current line.
-fn paste_linewise(buffer: &mut Buffer, text: &str, before: bool) -> HandleResult {
-    let mut text = text.to_string();
-    if !text.ends_with('\n') {
-        text.push('\n');
-    }
-    let cursor = buffer.cursor();
-    let line = selection::line_range_at(buffer.rope(), cursor);
-    let len = buffer.rope().len_chars();
-    let (insert_at, body_start) = if before {
-        (line.start, line.start)
-    } else if line.end < len && buffer.rope().char(line.end) == '\n' {
-        let at = line.end + 1;
-        (at, at)
-    } else {
-        // Last line has no trailing newline: open a new line below first.
-        text.insert(0, '\n');
-        (line.end, line.end + 1)
-    };
-    buffer.clear_selection();
-    buffer.set_cursor_raw(insert_at);
-    buffer.replace_selection(&text);
-    let body_end = insert_at + text.chars().count();
-    buffer.set_cursor_raw(first_non_blank(buffer.rope(), body_start, body_end));
-    edited()
-}
-
-/// First non-blank char in `[start, end)`, or `start` if the span is blank.
-fn first_non_blank(rope: &ropey::Rope, start: usize, end: usize) -> usize {
-    let end = end.min(rope.len_chars());
-    let mut pos = start.min(end);
-    while pos < end {
-        let c = rope.char(pos);
-        if c == '\n' {
-            break;
-        }
-        if c != ' ' && c != '\t' {
-            return pos;
-        }
-        pos += 1;
-    }
-    start.min(end)
 }

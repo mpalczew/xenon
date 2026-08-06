@@ -63,7 +63,7 @@ fn layout(
     };
     let content_height = line_height * (lines as f32);
     let max_scroll = (content_height - bounds.size.height).max(px(0.));
-    let follow_cursor = follow_cursor(view, max_scroll, cx);
+    let (follow_cursor, center_cursor) = scroll_intent(view, max_scroll, cx);
 
     let show_line_numbers = xenon_settings::show_line_numbers(cx);
     let editor_layout = {
@@ -97,11 +97,12 @@ fn layout(
             _ => (&[][..], None),
         };
         let diagnostics = diagnostic_ranges(view, theme);
+        let selection_ranges = view.vim.paint_selection_ranges(buffer);
         element::layout(
             element::LayoutInput {
                 rope: buffer.rope(),
                 cursor: buffer.cursor_position(),
-                selection: buffer.selection_range(),
+                selection_ranges: &selection_ranges,
                 selection_color: theme.colors().element_selected,
                 search_matches,
                 search_current,
@@ -122,6 +123,7 @@ fn layout(
                 scroll_left: view.scroll_left,
                 show_line_numbers,
                 follow_cursor,
+                center_cursor,
             },
             element::TextMetrics {
                 font: &element::editor_font(&face.family),
@@ -144,8 +146,17 @@ fn layout(
     editor_layout
 }
 
-fn follow_cursor(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) -> bool {
+/// `(follow_cursor, center_cursor)` for this layout pass.
+fn scroll_intent(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) -> (bool, bool) {
     view.update(cx, |view, _| {
+        view.scroll_top = view.scroll_top.min(max_scroll);
+        if view.scroll_center_once {
+            view.scroll_center_once = false;
+            if let Content::Text(buffer) = &view.content {
+                view.last_cursor = Some(buffer.cursor_position());
+            }
+            return (false, true);
+        }
         let follow = match &view.content {
             Content::Text(buffer) => {
                 let cursor = buffer.cursor_position();
@@ -157,8 +168,7 @@ fn follow_cursor(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) ->
             }
             Content::Image(_) | Content::Unsupported { .. } => false,
         };
-        view.scroll_top = view.scroll_top.min(max_scroll);
-        follow
+        (follow, false)
     })
 }
 

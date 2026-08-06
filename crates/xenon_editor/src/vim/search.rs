@@ -141,6 +141,180 @@ fn next_byte_boundary(text: &str, from_byte: usize) -> usize {
     i.min(len)
 }
 
+use super::{HandleResult, SearchDraft, VimState, handled};
+use crate::buffer::Buffer;
+use crate::selection;
+
+impl VimState {
+    pub(in crate::vim) fn handle_search_key(
+        &mut self,
+        buffer: &mut Buffer,
+        key: &str,
+    ) -> HandleResult {
+        match key {
+            "escape" => {
+                if let Some(draft) = self.search_draft.take() {
+                    buffer.clear_selection();
+                    buffer.set_cursor_raw(draft.origin);
+                }
+                handled(false)
+            }
+            "enter" => {
+                self.commit_search(buffer);
+                handled(false)
+            }
+            "backspace" => {
+                if let Some(draft) = &mut self.search_draft {
+                    draft.pattern.pop();
+                }
+                self.apply_incsearch(buffer);
+                handled(false)
+            }
+            // Printable keys must NOT claim handled here: on macOS that stops
+            // propagation and blocks EntityInputHandler / key_char delivery.
+            _ => HandleResult::default(),
+        }
+    }
+
+    /// Append text to the active `/`/`?` draft (from key_char or IME).
+    pub(in crate::vim) fn append_search_char(
+        &mut self,
+        buffer: &mut Buffer,
+        text: &str,
+    ) -> HandleResult {
+        if self.search_draft.is_none() {
+            return HandleResult::default();
+        }
+        let clean: String = text.chars().filter(|c| !c.is_control()).collect();
+        if clean.is_empty() {
+            return handled(false);
+        }
+        if let Some(draft) = &mut self.search_draft {
+            draft.pattern.push_str(&clean);
+        }
+        self.apply_incsearch(buffer);
+        handled(false)
+    }
+
+    /// Start `/` or `?` prompt; cursor origin is restored on Esc.
+    pub(in crate::vim) fn begin_search(&mut self, buffer: &Buffer, forward: bool) {
+        self.search_draft = Some(SearchDraft {
+            pattern: String::new(),
+            forward,
+            origin: buffer.cursor(),
+            has_match: false,
+        });
+        self.clear_pending();
+    }
+
+    /// Jump to first match of the draft pattern from origin (incsearch).
+    fn apply_incsearch(&mut self, buffer: &mut Buffer) {
+        let Some(draft) = &self.search_draft else {
+            return;
+        };
+        let pattern = draft.pattern.clone();
+        let forward = draft.forward;
+        let origin = draft.origin;
+        if pattern.is_empty() {
+            if let Some(d) = &mut self.search_draft {
+                d.has_match = false;
+            }
+            buffer.clear_selection();
+            buffer.set_cursor_raw(origin);
+            return;
+        }
+        if let Some(pos) = find_inclusive(buffer.rope(), &pattern, origin, forward) {
+            if let Some(d) = &mut self.search_draft {
+                d.has_match = true;
+            }
+            super::paste::highlight_match(buffer, pos, pattern.chars().count());
+        } else {
+            if let Some(d) = &mut self.search_draft {
+                d.has_match = false;
+            }
+            buffer.clear_selection();
+            buffer.set_cursor_raw(origin);
+        }
+    }
+
+    fn commit_search(&mut self, buffer: &mut Buffer) {
+        let Some(draft) = self.search_draft.take() else {
+            return;
+        };
+        let mut pattern = draft.pattern;
+        // Empty `/` reuses the last pattern (classic vim).
+        if pattern.is_empty() {
+            if let Some(prev) = &self.search {
+                pattern = prev.pattern.clone();
+            } else {
+                buffer.clear_selection();
+                buffer.set_cursor_raw(draft.origin);
+                return;
+            }
+        }
+        self.search = Some(SearchState::new(pattern.clone(), draft.forward));
+        // Keep the incsearch landing spot when we already matched; otherwise jump.
+        if draft.has_match {
+            return;
+        }
+        if let Some(pos) = find_inclusive(buffer.rope(), &pattern, draft.origin, draft.forward) {
+            super::paste::highlight_match(buffer, pos, pattern.chars().count());
+        } else {
+            buffer.clear_selection();
+            buffer.set_cursor_raw(draft.origin);
+        }
+    }
+
+    pub(in crate::vim) fn search_again(
+        &mut self,
+        buffer: &mut Buffer,
+        same_dir: bool,
+    ) -> HandleResult {
+        let Some(state) = &self.search else {
+            return handled(false);
+        };
+        let pattern = state.pattern.clone();
+        if pattern.is_empty() {
+            return handled(false);
+        }
+        let forward = if same_dir {
+            state.forward
+        } else {
+            !state.forward
+        };
+        let count = self.count.max(1);
+        self.count = 0;
+        let mut pos = None;
+        for _ in 0..count {
+            let from = buffer.cursor();
+            pos = find(buffer.rope(), &pattern, from, forward);
+            if let Some(p) = pos {
+                // Advance cursor so the next count iteration can leave this match.
+                buffer.set_cursor_raw(p);
+            } else {
+                break;
+            }
+        }
+        if let Some(p) = pos {
+            super::paste::highlight_match(buffer, p, pattern.chars().count());
+        }
+        handled(false)
+    }
+
+    pub(in crate::vim) fn search_word(&mut self, buffer: &mut Buffer) -> HandleResult {
+        let range = selection::word_range_at(buffer.rope(), buffer.cursor());
+        let pattern = buffer.rope().slice(range).to_string();
+        if pattern.is_empty() {
+            return handled(false);
+        }
+        self.search = Some(SearchState::new(pattern.clone(), true));
+        if let Some(pos) = find(buffer.rope(), &pattern, buffer.cursor(), true) {
+            super::paste::highlight_match(buffer, pos, pattern.chars().count());
+        }
+        handled(false)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

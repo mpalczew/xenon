@@ -11,7 +11,9 @@ impl VimState {
     pub(in crate::vim) fn begin_ex(&mut self, buffer: &mut Buffer) {
         self.search_draft = None;
         self.ex_status = None;
-        let visual_lines = if self.mode.is_visual() {
+        let visual_lines = if self.mode == Mode::VisualBlock {
+            self.block_corners(buffer).map(|c| (c.min_row, c.max_row))
+        } else if self.mode.is_visual() {
             buffer.selection_range().map(|r| {
                 let a = buffer.rope().char_to_line(r.start);
                 let end = r
@@ -31,6 +33,7 @@ impl VimState {
         };
         if self.mode.is_visual() {
             self.mode = Mode::Normal;
+            self.block_anchor = None;
             buffer.clear_selection();
         }
         self.ex_draft = Some(ExDraft { line, visual_lines });

@@ -50,6 +50,8 @@ pub struct EditorView {
     pub(super) scroll_left: Pixels,
     /// Last laid-out cursor; when it changes, layout scrolls to follow.
     pub(super) last_cursor: Option<(usize, usize)>,
+    /// Next layout should center the cursor line (`zz`).
+    pub(super) scroll_center_once: bool,
     focus: FocusHandle,
     autofocus: bool,
     focused_once: bool,
@@ -167,6 +169,7 @@ impl EditorView {
             lsp_status: None,
             scroll_top: px(0.),
             scroll_left: px(0.),
+            scroll_center_once: false,
             last_cursor: None,
             focus: cx.focus_handle(),
             autofocus,

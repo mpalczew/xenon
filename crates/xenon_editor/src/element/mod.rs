@@ -61,8 +61,8 @@ pub struct EditorLayout {
 pub struct LayoutInput<'a> {
     pub rope: &'a Rope,
     pub cursor: (usize, usize),
-    /// Half-open char selection, if any.
-    pub selection: Option<std::ops::Range<usize>>,
+    /// Half-open char selection ranges (char visual = one; block = many).
+    pub selection_ranges: &'a [std::ops::Range<usize>],
     pub selection_color: Hsla,
     /// All find matches (char ranges); current is painted stronger.
     pub search_matches: &'a [std::ops::Range<usize>],
@@ -85,6 +85,8 @@ pub struct LayoutInput<'a> {
     pub show_line_numbers: bool,
     /// When true, scroll so the cursor stays inside the viewport.
     pub follow_cursor: bool,
+    /// When true, center the cursor line (`zz`); wins over `follow_cursor`.
+    pub center_cursor: bool,
 }
 
 pub struct TextMetrics<'a> {
@@ -174,7 +176,10 @@ pub fn layout(
         first_row: first,
         last_row: last,
     };
-    let selection = hits.rects(input.selection.as_ref());
+    let mut selection = Vec::new();
+    for range in input.selection_ranges {
+        selection.extend(hits.rects(Some(range)));
+    }
     let search_current = hits.rects(input.search_current.as_ref());
     let search_matches =
         hits.other_search_rects(input.search_matches, input.search_current.as_ref());

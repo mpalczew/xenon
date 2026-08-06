@@ -14,7 +14,7 @@ pub enum LastChange {
         count: usize,
         register: Option<char>,
     },
-    /// Linewise double-op: `dd` / `cc` (and count: `3dd`).
+    /// Linewise double-op: `dd` / `cc` / `>>` (and count: `3dd`).
     Lines {
         op: super::Operator,
         count: usize,
@@ -32,4 +32,8 @@ pub enum LastChange {
     Replace { ch: char },
     /// Paste from register (`p` / `P`).
     Paste { before: bool },
+    /// Join lines (`J` / `gJ`). `lines` is how many lines to fuse (≥2).
+    Join { lines: usize, space: bool },
+    /// Increment / decrement number under cursor (`Ctrl-a` / `Ctrl-x`).
+    Number { delta: i64 },
 }

@@ -36,6 +36,16 @@ pub fn keep_row_visible(
     }
 }
 
+/// Vertical scroll so `cursor_row` sits in the middle of the viewport (`zz`).
+pub fn center_row(cursor_row: usize, line_height: Pixels, viewport_height: Pixels) -> Pixels {
+    if line_height <= px(0.) || viewport_height <= px(0.) {
+        return px(0.);
+    }
+    let cursor_top = line_height * (cursor_row as f32);
+    let mid = (viewport_height - line_height) / 2.;
+    (cursor_top - mid).max(px(0.))
+}
+
 /// Horizontal scroll so the cursor column stays inside the text area.
 pub fn keep_col_visible(
     scroll_left: Pixels,

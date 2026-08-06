@@ -30,6 +30,11 @@ rediscover.
 - Editor and terminal find share UX but not implementation. Vim search is a
   separate modal flow with smartcase.
 - The embedded Vim layer is intentionally good-enough, not a Neovim host.
+  Daily edits cover join (`J`/`gJ`), `D`/`C`/`Y`/`S`, indent (`>>`/`<<`/`=`),
+  number bump (`Ctrl-a`/`x`), `zz`, and visual-block (`Ctrl-v` with multi-range
+  paint and blockwise registers). Indent uses a fixed 4-space shiftwidth (no
+  setting). Still missing muscle-memory extras such as case ops, `R`/`U`, rich
+  motions/objects, marks, macros, and full virtualedit block quirks.
 - Settings geometry and chrome preferences share `settings.json`; partial
   saves use the locked load-mutate-save boundary and preserve fields they do
   not own.

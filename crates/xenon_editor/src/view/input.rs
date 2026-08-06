@@ -138,6 +138,46 @@ impl EditorView {
             // Stay in draft prompt; don't fall through to buffer edits.
             return true;
         }
+        // Ctrl chords (not Cmd): number bump, visual-block.
+        if keystroke.modifiers.control
+            && !keystroke.modifiers.platform
+            && !keystroke.modifiers.alt
+            && !keystroke.modifiers.shift
+        {
+            match keystroke.key.as_str() {
+                "a" | "x" if self.vim.mode == Mode::Normal => {
+                    let delta = if keystroke.key == "a" { 1i64 } else { -1 };
+                    let Content::Text(buffer) = &mut self.content else {
+                        return false;
+                    };
+                    let count = self.vim.count_for_ctrl().max(1);
+                    let result = self.vim.change_number(buffer, delta, count);
+                    let handled = self.apply_vim_result(result, cx);
+                    if handled {
+                        cx.stop_propagation();
+                        cx.notify();
+                    }
+                    return handled;
+                }
+                "v" if self.vim.mode == Mode::Normal
+                    || self.vim.mode == Mode::Visual
+                    || self.vim.mode == Mode::VisualLine
+                    || self.vim.mode == Mode::VisualBlock =>
+                {
+                    let Content::Text(buffer) = &mut self.content else {
+                        return false;
+                    };
+                    let result = self.vim.toggle_visual_block(buffer);
+                    let handled = self.apply_vim_result(result, cx);
+                    if handled {
+                        cx.stop_propagation();
+                        cx.notify();
+                    }
+                    return handled;
+                }
+                _ => {}
+            }
+        }
         if self.handle_vim_key(&keystroke.key, cx) {
             cx.stop_propagation();
             cx.notify();
@@ -178,6 +218,9 @@ impl EditorView {
         }
         if let Some(ex) = result.ex {
             self.apply_ex_effect(ex, cx);
+        }
+        if result.scroll_center {
+            self.scroll_center_once = true;
         }
         if result.edited {
             self.recompute_highlights();

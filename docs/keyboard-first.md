@@ -23,7 +23,8 @@ surface and the non-obvious focus model.
 
 Find strips use ⌘F, Return/Shift-Return, ⌥C/W/R, and Escape. Elevated
 palettes support type-to-filter, arrows, Return, and Escape. Vim mode includes
-normal/visual/insert, `/` and `?`, `n`/`N`, `%`, and the supported ex commands.
+normal/visual/visual-line/visual-block (`Ctrl-v`), `/` and `?`, `n`/`N`, `%`,
+join/indent/number-bump/scroll-center edits, and the supported ex commands.
 
 ## Focus ownership
 

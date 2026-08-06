@@ -10,6 +10,8 @@ use std::collections::HashMap;
 pub struct RegisterContent {
     pub text: String,
     pub linewise: bool,
+    /// From visual-block yank/delete; paste inserts column-wise.
+    pub blockwise: bool,
 }
 
 #[derive(Default)]
@@ -21,62 +23,82 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn set_pending(&mut self, name: char) {
+    pub(crate) fn set_pending(&mut self, name: char) {
         self.pending = Some(name);
     }
 
-    pub fn take_pending(&mut self) -> Option<char> {
+    pub(crate) fn take_pending(&mut self) -> Option<char> {
         self.pending.take()
     }
 
-    pub fn pending(&self) -> Option<char> {
+    pub(crate) fn pending(&self) -> Option<char> {
         self.pending
     }
 
     /// Store text into the pending register (or unnamed). Uppercase appends.
-    pub fn yank(&mut self, text: &str, linewise: bool) {
+    pub(crate) fn yank(&mut self, text: &str, linewise: bool) {
+        self.yank_ex(text, linewise, false);
+    }
+
+    pub(crate) fn yank_block(&mut self, text: &str) {
+        self.yank_ex(text, false, true);
+    }
+
+    fn yank_ex(&mut self, text: &str, linewise: bool, blockwise: bool) {
         let name = self.pending.take().unwrap_or('"');
-        self.write(name, text, linewise);
+        self.write(name, text, linewise, blockwise);
         if name != '"' {
             self.unnamed = RegisterContent {
                 text: text.to_string(),
                 linewise,
+                blockwise,
             };
         }
     }
 
     /// Delete also updates the unnamed register (unless black-hole `_`).
-    pub fn delete(&mut self, text: &str, linewise: bool) {
+    pub(crate) fn delete(&mut self, text: &str, linewise: bool) {
+        self.delete_ex(text, linewise, false);
+    }
+
+    pub(crate) fn delete_block(&mut self, text: &str) {
+        self.delete_ex(text, false, true);
+    }
+
+    fn delete_ex(&mut self, text: &str, linewise: bool, blockwise: bool) {
         let name = self.pending.take().unwrap_or('"');
         if name == '_' {
             return;
         }
-        self.write(name, text, linewise);
+        self.write(name, text, linewise, blockwise);
         if name != '"' {
             self.unnamed = RegisterContent {
                 text: text.to_string(),
                 linewise,
+                blockwise,
             };
         }
     }
 
-    pub fn paste(&mut self) -> RegisterContent {
+    pub(crate) fn paste(&mut self) -> RegisterContent {
         let name = self.pending.take().unwrap_or('"');
         self.read(name)
     }
 
     /// Characterwise content into the unnamed register (system clipboard).
-    pub fn set_unnamed(&mut self, text: &str) {
+    pub(crate) fn set_unnamed(&mut self, text: &str) {
         self.unnamed = RegisterContent {
             text: text.to_string(),
             linewise: false,
+            blockwise: false,
         };
     }
 
-    fn write(&mut self, name: char, text: &str, linewise: bool) {
+    fn write(&mut self, name: char, text: &str, linewise: bool, blockwise: bool) {
         let content = RegisterContent {
             text: text.to_string(),
             linewise,
+            blockwise,
         };
         match name {
             '"' => self.unnamed = content,
@@ -89,6 +111,7 @@ impl Registers {
                 entry.text.push_str(text);
                 // Vim: result is linewise if either side is linewise.
                 entry.linewise = entry.linewise || linewise;
+                entry.blockwise = entry.blockwise || blockwise;
                 self.unnamed = entry.clone();
             }
             '+' | '*' => {
