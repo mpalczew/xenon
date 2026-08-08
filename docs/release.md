@@ -14,23 +14,23 @@ and attention, stable installation, and continued daily dogfood.
 
 ## Packaging
 
-- [ ] Rename GitHub `mpalczew/xero` to `mpalczew/xenon` and update the remote.
-- [ ] Make the repository public with GPL-3.0 clearly visible.
-- [ ] Add a concise README with install instructions, screenshots, and the
-      anti-IDE pitch.
+- [x] Rename GitHub `mpalczew/xero` to `mpalczew/xenon` and update the remote.
+- [x] Make the repository public with GPL-3.0 clearly visible (`LICENSE` + README).
+- [x] Add a concise README with install instructions and the anti-IDE pitch.
+- [x] Add short contribution guidance (`CONTRIBUTING.md`) that discourages
+      low-signal generated submissions.
+- [ ] Add screenshots to the README.
 - [ ] Add Homebrew distribution.
 - [ ] Decide notarization for public binaries.
-- [ ] Add short contribution guidance and issue templates that discourage
-      low-signal generated submissions.
+- [ ] Add issue templates (optional; CONTRIBUTING covers the anti-noise bar).
 - [ ] Draft the HN launch around multi-harness freedom, layout, and native feel.
 
 ## Rename state
 
 Completed: Xenon app/binary name, `~/.xenon` migration, `XENON_*` environment
-variables with legacy aliases, release scripts, crate paths, icon, and launcher
-compatibility. The bundle id intentionally remains `dev.xero.xero` so existing
-TCC grants survive.
+variables with legacy aliases, release scripts, crate paths, icon, launcher
+compatibility, and GitHub `mpalczew/xenon` (public). The bundle id intentionally
+remains `dev.xero.xero` so existing TCC grants survive.
 
-The remaining identity work is the GitHub rename and Homebrew formula. Rename
-the existing repository instead of deleting and recreating it so history and
-redirects remain intact. Never force-push during that move.
+Remaining identity / distribution work: Homebrew formula and notarization.
+Never force-push.

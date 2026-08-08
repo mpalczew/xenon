@@ -60,4 +60,5 @@ rediscover.
 - Find replace.
 - Keyboard paths for terminal On-exit, open-target choice, and workspace
   reorder.
-- Finish the GitHub rename and public packaging in `docs/release.md`.
+- Public packaging left in `docs/release.md` (Homebrew, notarization,
+  screenshots)—repo is already `mpalczew/xenon` and public.

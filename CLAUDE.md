@@ -7,17 +7,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Xenon: a macOS agent shell for driving coding agents, built in Rust on GPUI
 (zed's UI framework). Left sidebar of workspaces; main panel is an embedded
 terminal optionally split with tree-sitter-highlighted editors (tabs per
-workspace). License: GPL-3.0.
+workspace). License: GPL-3.0-or-later. Public repo: `mpalczew/xenon`.
 
 **Product vision (source of truth: `PRODUCT.md`):** native macOS **agent shell**
 (**anti-IDE**) for many agents across workspaces, any terminal harness
 (PTY-agnostic). "IDE" means live-here-all-day (author replaced VS Code), not
-VS Code parity on day one. **Public name: Xenon**; CLI/binary **`xenon`**.
-Public name **Xenon**; binary/`Xenon.app`; data `~/.xenon` (migrates from
-`~/.xero`). Install:
-`project install` → `~/Applications/Xenon.app`. Homebrew later. OSS success:
+VS Code parity on day one. Public name **Xenon**; CLI/binary **`xenon`**;
+app `Xenon.app`; data `~/.xenon` (migrates from `~/.xero`). Public install:
+`./scripts/release/install` → `~/Applications/Xenon.app` (see README). Author
+dogfood path may use `project install` / `~/bin/xenon`. OSS success:
 **substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
-Personas and product priorities live in `PRODUCT.md`.
+Personas and product priorities live in `PRODUCT.md`. Strangers: `README.md`
+and `CONTRIBUTING.md`.
 
 ## Build & run
 
@@ -88,24 +89,27 @@ keeps a clean-room rewrite possible.
 
 ## Rules
 
-`.cursor/rules/core.mdc` holds the user's core AI rules (a copy of their
-global `~/.claude/CLAUDE.md`, sourced from personalfiles
-`doc/ai_rules/core.md`). Those rules apply here; do not duplicate them in this
-file. Key points: minimize cognitive load, present options at real decision
-forks before building, Rule of 7, never amend/rebase/force-push, bash not zsh.
+`.cursor/rules/core.mdc` holds the author's core AI rules when present. Those
+rules apply to agent work here; do not duplicate them in this file. Key points:
+minimize cognitive load, present options at real decision forks before
+building, Rule of 7, never amend/rebase/force-push, bash not zsh.
 
-- **Solo product, agent-owned quality.** No other humans review the code. The
-  agent reviews, builds, and tests; surface risks and decision forks, then
-  implement. Prefer **large coherent hauls** over small PR-sized slices. Do not
-  ask the user to read diffs for quality control.
+- **Agent-owned quality on author sessions.** The product is open source and
+  welcomes substantive human review via issues/PRs (`CONTRIBUTING.md`). On the
+  author's solo agent sessions there is no second human in the loop: the agent
+  reviews, builds, and tests; surface risks and decision forks, then implement.
+  Prefer **large coherent hauls** over small PR-sized slices. Do not ask the
+  author to read diffs for quality control.
 - Run `project install` at the END of all work, once every change is complete —
-  this is how the user dogfoods. It release-builds and installs
-  `~/Applications/Xenon.app`; the user verifies there (or via `project xenon` /
-  `~/bin/xenon`), not in the debug build. Do not install mid-way through a
+  this is how the author dogfoods. It release-builds and installs
+  `~/Applications/Xenon.app`; the author verifies there (or via `project xenon` /
+  `~/bin/xenon`), not in the debug build. Public/contributor install path is
+  `./scripts/release/install` (README). Do not install mid-way through a
   multi-step change; batch it as the final step. During work, use cargo /
   `scripts/health` directly — not `project` wrappers.
 - When implementation work is done, offer to commit and push. Do not commit or
-  push without the user's explicit request.
+  push without the user's explicit request (except when an explicit goal
+  requires landing public docs on `origin/main`).
 - Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
   chrome or UX work. Keep them aligned with settled decisions; do not invent a
   competing vision in chat only. Cross-cutting current decisions live in

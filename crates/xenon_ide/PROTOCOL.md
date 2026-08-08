@@ -16,7 +16,7 @@ the agent in the IDE and breaks that interop; we do not follow that path.
   the port.
 - Contents:
   ```json
-  {"pid":4165,"workspaceFolders":["/abs/path"],"ideName":"xero",
+  {"pid":4165,"workspaceFolders":["/abs/path"],"ideName":"xenon",
    "transport":"ws","runningInWindows":false,"authToken":"<uuid>"}
   ```
 - The IDE injects `CLAUDE_CODE_SSE_PORT=<port>` into its integrated terminal's
@@ -34,7 +34,7 @@ the agent in the IDE and breaks that interop; we do not follow that path.
   ```json
   {"protocolVersion":"2024-11-05",
    "capabilities":{"tools":{"listChanged":true}},
-   "serverInfo":{"name":"xero","version":"0.1.0"}}
+   "serverInfo":{"name":"xenon","version":"0.1.0"}}
   ```
 - Client -> `notifications/initialized` (no response).
 - Client -> `tools/list` -> server returns the tool list below.
@@ -52,7 +52,7 @@ the agent in the IDE and breaks that interop; we do not follow that path.
 - `getWorkspaceFolders` () - workspace roots.
 - `checkDocumentDirty` (filePath) / `saveDocument` (filePath).
 - `close_tab` (tab_name) / `closeAllDiffTabs` ().
-- `executeCode` (code) - Jupyter only; xero returns unsupported.
+- `executeCode` (code) - Jupyter only; Xenon returns unsupported.
 
 ## Xenon scope
 

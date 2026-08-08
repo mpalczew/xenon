@@ -22,8 +22,8 @@
 | Item | Notes |
 |------|--------|
 | **Find replace** | Feature never built: in-buffer find (⌘F) ships; **replace** (⌘⌥F / replace all) does not exist. Separate product work. |
-| **GitHub repo rename** | User: `mpalczew/xero` → `xenon` on GitHub |
-| **Homebrew** | Public ship |
+| **Homebrew** | Public ship distribution |
+| **Screenshots / notarization** | Public packaging polish; see `docs/release.md` |
 | **Deeper peels** | See below |
 
 ## Deeper peels (what that means)

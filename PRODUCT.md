@@ -44,8 +44,8 @@ semantic is right even if the spelling must change (Xero accounting collision).
 brew + XenServer PATH collision). Metaphor: noble gas, present but inert,
 anti-IDE. App: `Xenon.app`. Data: `~/.xenon` (auto-migrate from `~/.xero`).
 Env: `XENON_DATA_DIR` / `XENON_SLOT` with legacy `XERO_*` aliases. Bundle id
-stays `dev.xero.xero` (TCC). Crate paths `crates/xenon_*`. GitHub repo
-rename still open. Checklist: `docs/release.md`.
+stays `dev.xero.xero` (TCC). Crate paths `crates/xenon_*`. GitHub:
+`mpalczew/xenon` (public). Checklist: `docs/release.md`.
 
 Rejected or DQ: xero (accounting), xe CLI, mu (Mu Editor), nyx (Nix verbal +
 brew), vexo (vex), soft metaphors (weft/skiff). zeno/wu kept as also-rans only.
@@ -148,8 +148,8 @@ Market this: **anti-IDE shell where the agent is free to leave.**
 
 ## Competitive frame
 
-| People use today | Gap xero fills |
-|------------------|----------------|
+| People use today | Gap Xenon fills |
+|------------------|-----------------|
 | Many terminal tabs / tmux | No workspace model; weak editor; no attention model |
 | Cursor / Studio / VS Code AI | Strong single-flow agent UX; often one harness; heavier feel |
 | Multiple IDE windows | Context soup; slow context switch |
@@ -165,7 +165,7 @@ Visions are directional. Goals are concrete.
 - Public ship; Hacker News when the wedge is obvious in a few minutes of use.
 - **Primary success signal:** substantive issues and PRs from people who care
   enough to engage the codebase. That is the "this is the one" metric.
-- **Author proof (already true):** real daily work runs through xero; hard to
+- **Author proof (already true):** real daily work runs through Xenon; hard to
   imagine leaving. Keep that bar.
 - **Lesser signal:** install counts / "still using after 2 weeks" without
   deeper engagement. Useful, not decisive.
@@ -174,9 +174,9 @@ Visions are directional. Goals are concrete.
 
 ## Name (release gate)
 
-The public rename to Xenon is complete in the app, binary, data directory, and
-crate paths. The remaining identity work is the GitHub repository rename and
-public packaging. See `docs/release.md`.
+The public rename to Xenon is complete in the app, binary, data directory,
+crate paths, and GitHub (`mpalczew/xenon`, public). Remaining packaging:
+Homebrew and notarization. See `docs/release.md`.
 
 ## Brand personality
 
