@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Assert stranger-facing OSS surface: license, README install path, CONTRIBUTING.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fail=0
+
+need() {
+    local path="$1"
+    if [[ ! -e "$root/$path" ]]; then
+        echo "missing: $path" >&2
+        fail=1
+    fi
+}
+
+need LICENSE
+need README.md
+need CONTRIBUTING.md
+need scripts/release/install
+
+if [[ ! -x "$root/scripts/release/install" ]]; then
+    echo "not executable: scripts/release/install" >&2
+    fail=1
+fi
+
+if ! grep -q 'END OF TERMS AND CONDITIONS' "$root/LICENSE"; then
+    echo "LICENSE incomplete (no END OF TERMS AND CONDITIONS)" >&2
+    fail=1
+fi
+
+if ! grep -q 'github.com/mpalczew/xenon' "$root/README.md"; then
+    echo "README missing public clone URL" >&2
+    fail=1
+fi
+
+if ! grep -q 'scripts/release/install' "$root/README.md"; then
+    echo "README missing stranger install path scripts/release/install" >&2
+    fail=1
+fi
+
+if ! grep -q 'scripts/health' "$root/CONTRIBUTING.md"; then
+    echo "CONTRIBUTING missing scripts/health gate" >&2
+    fail=1
+fi
+
+if ! grep -q 'substantive' "$root/CONTRIBUTING.md"; then
+    echo "CONTRIBUTING missing substantive-engagement bar" >&2
+    fail=1
+fi
+
+# Cargo SPDX must stay aligned with the GPL text on disk.
+if ! grep -q 'license = "GPL-3.0-or-later"' "$root/Cargo.toml"; then
+    echo 'Cargo.toml license must be GPL-3.0-or-later' >&2
+    fail=1
+fi
+
+if [[ "$fail" -ne 0 ]]; then
+    exit 1
+fi
+echo "check-public-surface: ok"
