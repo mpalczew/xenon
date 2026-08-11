@@ -126,12 +126,17 @@ impl XenonApp {
 
     pub(crate) fn toggle_workspaces_section(&mut self, cx: &mut Context<Self>) {
         self.workspaces_collapsed = !self.workspaces_collapsed;
-        persist_section_prefs(self.workspaces_collapsed, self.file_browser.is_open());
+        self.persist_section_prefs();
         cx.notify();
     }
 
     pub(crate) fn workspaces_collapsed(&self) -> bool {
         self.workspaces_collapsed
+    }
+
+    /// Pinned Workspaces list height when Files is open (`None` = content-sized).
+    pub(crate) fn workspaces_section_height(&self) -> Option<f32> {
+        self.workspaces_section_height
     }
 
     fn on_workspace_picker_event(

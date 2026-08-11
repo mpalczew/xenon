@@ -104,6 +104,10 @@ pub struct AppSettings {
     /// Left panel Files section expanded.
     #[serde(default = "default_true")]
     pub files_open: bool,
+    /// Pinned Workspaces list height (px) when Files is also open.
+    /// `None` = size to content (workspaces-first; no artificial cap).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspaces_section_height: Option<f32>,
     /// Last main window position/size (None until the user has moved/resized once).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowGeometry>,
@@ -137,6 +141,7 @@ impl Default for AppSettings {
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
+            workspaces_section_height: None,
             window: None,
             remote_password: String::new(),
             remote_port: default_remote_port(),

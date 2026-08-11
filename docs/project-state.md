@@ -11,7 +11,9 @@ rediscover.
   and/or multiple workspaces.
 - Terminals and editors are peer surfaces in pane tab stacks. PTYs are not
   restored across restart; terminal slots reopen as fresh shells.
-- The Files tree lives under Workspaces in the optional sidebar.
+- The Files tree lives under Workspaces in the optional sidebar. When both are
+  open, Workspaces sizes to content (or a user-pinned height); drag the split
+  between sections to resize. Files takes the remainder.
 - Attention is a workspace dot driven by BEL or inferred idle-after-output.
   The latter is local inference, not an agent completion event.
 - The Claude IDE bridge is optional garnish. PTY session portability is the

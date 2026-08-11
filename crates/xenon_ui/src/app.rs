@@ -127,6 +127,8 @@ pub struct XenonApp {
     layout_dirty: bool,
     /// Workspaces section collapsed in the left panel.
     workspaces_collapsed: bool,
+    /// Pinned Workspaces list height when Files is open (`None` = content-sized).
+    workspaces_section_height: Option<f32>,
     file_browser: FileBrowser,
     /// Dedicated settings window (cmd-,). None when closed or not yet opened.
     settings_window: Option<WindowHandle<SettingsView>>,
@@ -179,6 +181,7 @@ impl XenonApp {
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             layout_dirty: false,
             workspaces_collapsed: settings.workspaces_collapsed,
+            workspaces_section_height: settings.workspaces_section_height,
             file_browser: FileBrowser::with_open(settings.files_open),
             settings_window: None,
             renaming: None,
@@ -342,16 +345,6 @@ fn save_registry(registry: &Registry, context: &str) {
 fn save_session(workspace: WorkspaceId, session: &SessionState, context: &str) {
     if let Err(error) = xenon_store::save_session(workspace, session) {
         log::error!("{context}: failed to save session {workspace}: {error}");
-    }
-}
-
-/// Persist Workspaces/Files section collapse into settings.json.
-fn persist_section_prefs(workspaces_collapsed: bool, files_open: bool) {
-    if let Err(error) = xenon_store::update_settings(|settings| {
-        settings.workspaces_collapsed = workspaces_collapsed;
-        settings.files_open = files_open;
-    }) {
-        log::error!("persist section prefs failed: {error}");
     }
 }
 

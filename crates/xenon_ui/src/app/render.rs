@@ -255,8 +255,12 @@ impl XenonApp {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if matches!(*event.drag(cx), ResizeEdge::Sidebar) {
-            self.on_resize_drag(event, event.bounds.origin.x, ResizeEdge::Sidebar, cx);
+        match *event.drag(cx) {
+            ResizeEdge::Sidebar | ResizeEdge::SidebarSections => {
+                let edge = *event.drag(cx);
+                self.on_resize_drag(event, event.bounds.origin.x, edge, cx);
+            }
+            ResizeEdge::Content { .. } => {}
         }
     }
 

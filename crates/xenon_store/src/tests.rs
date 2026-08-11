@@ -118,6 +118,7 @@ fn settings_round_trip() {
             terminal_auto_close: crate::TerminalAutoClose::Immediate,
             workspaces_collapsed: true,
             files_open: false,
+            workspaces_section_height: Some(180.0),
             window: Some(WindowGeometry::new(
                 120.0,
                 80.0,

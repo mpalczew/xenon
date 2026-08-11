@@ -80,16 +80,41 @@ impl XenonApp {
             ws_rows.push(self.workspace_list_end_drop(cx).into_any_element());
         }
 
-        // Expanded workspaces take limited height when Files is also open.
+        // When Files is open: workspaces-first height (content or pinned), drag to resize.
+        // When Files is closed: workspaces fill the column.
+        let share_column = files_open && has_active;
+        let body_h = share_column.then(|| {
+            self.workspaces_section_height().unwrap_or_else(|| {
+                crate::resize::workspaces_body_content_height(workspaces.len(), ROW_H)
+            })
+        });
+
         let workspace_body = (!ws_collapsed).then(|| {
-            div()
+            let rows = div()
                 .id("sidebar-rows")
-                .when(files_open && has_active, |s| s.flex_none().max_h(px(220.)))
-                .when(!(files_open && has_active), |s| s.flex_1())
+                .flex_1()
                 .min_h_0()
                 .overflow_y_scroll()
                 .py_1()
-                .children(ws_rows)
+                .children(ws_rows);
+            div()
+                .relative()
+                .when(share_column, |s| {
+                    s.flex_none()
+                        .h(px(body_h.unwrap_or(crate::resize::MIN_WORKSPACES_BODY)))
+                })
+                .when(!share_column, |s| s.flex_1())
+                .min_h_0()
+                .flex()
+                .flex_col()
+                .child(rows)
+                .when(share_column, |s| {
+                    s.child(crate::resize::row_resize_handle(
+                        "sidebar-section-resize",
+                        crate::resize::ResizeEdge::SidebarSections,
+                        colors.border,
+                    ))
+                })
         });
 
         div()

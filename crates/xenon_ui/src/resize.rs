@@ -10,6 +10,8 @@ use xenon_core::{PaneId, SplitAxis};
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResizeEdge {
     Sidebar,
+    /// Vertical split between Workspaces list and Files tree in the sidebar.
+    SidebarSections,
     /// Content split: axis + first child's leaf id (for ratio updates).
     Content {
         axis: SplitAxis,
@@ -28,6 +30,15 @@ pub(crate) const SNAP_PX: f32 = 72.;
 const MIN_MAIN: f32 = 280.;
 const MIN_SIDEBAR: f32 = 140.;
 const MAX_SIDEBAR: f32 = 480.;
+
+/// Workspaces section header height (sidebar).
+pub(crate) const WORKSPACES_HEADER_H: f32 = 32.;
+/// Files section header height (sidebar).
+pub(crate) const FILES_HEADER_H: f32 = 28.;
+/// Minimum Workspaces list body height when Files is open.
+pub(crate) const MIN_WORKSPACES_BODY: f32 = 48.;
+/// Minimum Files tree body height when both sections are open.
+pub(crate) const MIN_FILES_BODY: f32 = 96.;
 
 struct ResizeGhost;
 
@@ -114,8 +125,24 @@ pub(crate) fn resolve_drag(edge: ResizeEdge, raw: f32, available: f32) -> DragRe
             let max = (available - MIN_MAIN).clamp(MIN_SIDEBAR, MAX_SIDEBAR);
             DragResult::Width(raw.clamp(MIN_SIDEBAR, max))
         }
-        ResizeEdge::Content { .. } => DragResult::Width(raw),
+        ResizeEdge::SidebarSections | ResizeEdge::Content { .. } => DragResult::Width(raw),
     }
+}
+
+/// Clamp Workspaces list body height for the sidebar section split.
+///
+/// `raw` is the desired body height (px). `sidebar_h` is the full sidebar column height.
+pub(crate) fn resolve_section_height(raw: f32, sidebar_h: f32) -> f32 {
+    let max = (sidebar_h - WORKSPACES_HEADER_H - FILES_HEADER_H - MIN_FILES_BODY)
+        .max(MIN_WORKSPACES_BODY);
+    raw.clamp(MIN_WORKSPACES_BODY, max)
+}
+
+/// Content-sized Workspaces list height (no artificial cap).
+pub(crate) fn workspaces_body_content_height(workspace_count: usize, row_h: f32) -> f32 {
+    // rows + end drop strip + vertical padding (py_1 ≈ 4px each side)
+    let content = workspace_count as f32 * row_h + 4. + 8.;
+    content.max(MIN_WORKSPACES_BODY)
 }
 
 #[cfg(test)]
@@ -136,5 +163,25 @@ mod tests {
             panic!("expected width");
         };
         assert!(w <= 800. - MIN_MAIN + 0.1);
+    }
+
+    #[test]
+    fn section_height_leaves_room_for_files() {
+        let h = resolve_section_height(2000., 600.);
+        assert!(h <= 600. - WORKSPACES_HEADER_H - FILES_HEADER_H - MIN_FILES_BODY + 0.1);
+        assert!(h >= MIN_WORKSPACES_BODY);
+    }
+
+    #[test]
+    fn section_height_respects_minimum() {
+        assert_eq!(resolve_section_height(10., 800.), MIN_WORKSPACES_BODY);
+    }
+
+    #[test]
+    fn content_height_scales_with_count() {
+        let one = workspaces_body_content_height(1, 24.);
+        let ten = workspaces_body_content_height(10, 24.);
+        assert!(ten > one);
+        assert!(ten > 220.); // larger than the old hard cap when many workspaces
     }
 }

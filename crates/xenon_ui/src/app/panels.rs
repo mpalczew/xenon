@@ -1,9 +1,22 @@
 use super::*;
-use crate::resize::{DragResult, ResizeEdge, resolve_drag};
+use crate::resize::{
+    DragResult, ResizeEdge, WORKSPACES_HEADER_H, resolve_drag, resolve_section_height,
+};
 use gpui::DragMoveEvent;
 use xenon_core::SplitAxis;
 
 impl XenonApp {
+    /// Persist Workspaces/Files section prefs into settings.json.
+    pub(super) fn persist_section_prefs(&self) {
+        if let Err(error) = xenon_store::update_settings(|settings| {
+            settings.workspaces_collapsed = self.workspaces_collapsed;
+            settings.files_open = self.file_browser.is_open();
+            settings.workspaces_section_height = self.workspaces_section_height;
+        }) {
+            log::error!("persist section prefs failed: {error}");
+        }
+    }
+
     pub(crate) fn sidebar_visible(&self) -> bool {
         !self.sidebar_collapsed
     }
@@ -105,6 +118,24 @@ impl XenonApp {
                     }
                 }
             }
+            ResizeEdge::SidebarSections => {
+                let raw =
+                    f32::from(event.event.position.y - event.bounds.origin.y) - WORKSPACES_HEADER_H;
+                let available = f32::from(event.bounds.size.height);
+                if available < 1.0 {
+                    return;
+                }
+                let height = resolve_section_height(raw, available);
+                let changed = match self.workspaces_section_height {
+                    Some(h) => (h - height).abs() >= 0.5,
+                    None => true,
+                };
+                if changed {
+                    self.workspaces_section_height = Some(height);
+                    self.layout_dirty = true;
+                    cx.notify();
+                }
+            }
             ResizeEdge::Content { axis, first_leaf } => {
                 let pos = match axis {
                     SplitAxis::Horizontal => {
@@ -142,6 +173,7 @@ impl XenonApp {
         if let Some(id) = self.active {
             self.save_layout(id);
         }
+        self.persist_section_prefs();
     }
 
     pub(crate) fn sidebar_width_px(&self) -> f32 {

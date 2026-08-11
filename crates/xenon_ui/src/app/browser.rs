@@ -10,7 +10,7 @@ impl XenonApp {
         if self.file_browser.is_open() {
             self.file_browser.close();
             self.browser_focused = false;
-            persist_section_prefs(self.workspaces_collapsed, false);
+            self.persist_section_prefs();
             cx.notify();
             return;
         }
@@ -22,7 +22,7 @@ impl XenonApp {
         self.sidebar_collapsed = false;
         if !self.reveal_active_file(cx) {
             self.file_browser.open();
-            persist_section_prefs(self.workspaces_collapsed, true);
+            self.persist_section_prefs();
             if let Some(id) = self.active {
                 self.save_layout(id);
             }
@@ -69,7 +69,9 @@ impl XenonApp {
         div()
             .id("workspace-tree")
             .flex_1()
-            .min_h_0()
+            .min_h(px(
+                crate::resize::MIN_FILES_BODY + crate::resize::FILES_HEADER_H
+            ))
             .flex()
             .flex_col()
             .min_w_0()
@@ -304,7 +306,7 @@ impl XenonApp {
     ) {
         self.sidebar_collapsed = false;
         self.file_browser.reveal_dir(root, dir);
-        persist_section_prefs(self.workspaces_collapsed, self.file_browser.is_open());
+        self.persist_section_prefs();
         if let Some(id) = self.active {
             self.save_layout(id);
         }
