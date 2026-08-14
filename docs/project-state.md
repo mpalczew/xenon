@@ -18,6 +18,12 @@ rediscover.
   The latter is local inference, not an agent completion event.
 - The Claude IDE bridge is optional garnish. PTY session portability is the
   product boundary.
+- No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` /
+  `.pdf` hand off to the system default app. Markdown preview stays a GPUI
+  document. Agent computer-use stays in the harness (Playwright, Chrome,
+  browser MCP). Revisit an in-app preview only if GPUI grows an overlay-safe
+  webview, or a time-boxed spike plus dogfood evidence that the system-browser
+  hop is a weekly blocker.
 
 ## Load-bearing choices
 
@@ -56,6 +62,12 @@ rediscover.
 - Git dirt stays flush-right; hover actions must occupy the same gutter.
 - A completed `project install` updates the app on disk, but a running process
   keeps the old binary. Never kill Xenon to force the switch.
+- In this codebase, “browser” is the Files tree, not a web view.
+- GPUI (pinned Zed rev) has no webview primitive. The window is one Metal
+  `NSView`. A native WKWebView / wry child view composites above the GPU
+  scene, so palettes and menus draw behind the page. Zed’s wry experiment
+  (PR 52447) hit this and did not merge. Do not add a webview surface unless
+  upstream GPUI composites under overlays.
 
 ## Open product work
 
