@@ -1,7 +1,7 @@
-//! Detect agent-like "finished a turn" from PTY wakeup cadence.
+//! Detect agent-like work from PTY wakeup cadence.
 //!
 //! Named harness titles need fewer wakeups; anonymous shells need a heavier burst
-//! so `npm install` noise does not light the workspace attention dot.
+//! so `npm install` noise does not light the workspace working / done dots.
 
 use std::time::Duration;
 
@@ -12,8 +12,9 @@ pub(super) const BUSY_WAKEUPS: u32 = 15;
 /// No harness name in title: require a heavier burst.
 pub(super) const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
 
-/// Quiet period after `busy` wakeups looks like an agent finishing.
-pub(super) fn agent_finish_signal(busy: u32, title: &str) -> bool {
+/// Burst this large counts as agent work: pulse while output continues, then
+/// the settle timer marks the workspace done.
+pub(super) fn agent_busy_signal(busy: u32, title: &str) -> bool {
     if busy == 0 {
         return false;
     }
@@ -41,12 +42,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn agent_finish_detects_named_and_anonymous_bursts() {
-        assert!(!agent_finish_signal(5, "claude"));
-        assert!(agent_finish_signal(15, "claude code"));
-        assert!(agent_finish_signal(20, "Grok session"));
-        assert!(!agent_finish_signal(20, "bash"));
-        assert!(agent_finish_signal(40, "bash"));
+    fn agent_busy_detects_named_and_anonymous_bursts() {
+        assert!(!agent_busy_signal(5, "claude"));
+        assert!(agent_busy_signal(15, "claude code"));
+        assert!(agent_busy_signal(20, "Grok session"));
+        assert!(!agent_busy_signal(20, "bash"));
+        assert!(agent_busy_signal(40, "bash"));
         assert!(agent_title("kimi-cli"));
         assert!(!agent_title("zsh"));
     }

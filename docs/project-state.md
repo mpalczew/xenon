@@ -14,8 +14,10 @@ rediscover.
 - The Files tree lives under Workspaces in the optional sidebar. When both are
   open, Workspaces sizes to content (or a user-pinned height); drag the split
   between sections to resize. Files takes the remainder.
-- Attention is a workspace dot driven by BEL or inferred idle-after-output.
-  The latter is local inference, not an agent completion event.
+- Attention is a workspace dot: static warning after BEL or inferred
+  idle-after-output; pulsing info while a terminal is in an agent-sized burst.
+  The latter is local inference, not an agent completion event. Working
+  outranks a settled mark on the same workspace. Terminal tabs also pulse.
 - The Claude IDE bridge is optional garnish. PTY session portability is the
   product boundary.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` /

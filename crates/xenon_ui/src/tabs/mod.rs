@@ -26,6 +26,24 @@ fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
         .bg(paint.accent)
 }
 
+fn term_chip_paint(
+    colors: &theme::ThemeColors,
+    is_active: bool,
+    is_exited: bool,
+    cx: &App,
+) -> chrome::SelectionPaint {
+    let paint = chrome::tab_selection(colors, is_active);
+    if !is_exited {
+        return paint;
+    }
+    let status = cx.theme().status();
+    chrome::SelectionPaint {
+        background: status.ignored_background,
+        foreground: status.ignored,
+        accent: status.ignored_border,
+    }
+}
+
 fn dirty_dot(color: gpui::Hsla) -> impl IntoElement {
     div()
         .w(px(6.))
@@ -127,12 +145,14 @@ impl XenonApp {
             let is_active = index == active;
             match tab {
                 LiveTab::Terminal { id, view } => {
-                    let title = view.read(cx).title(cx);
-                    let exited = view.read(cx).is_exited();
+                    let term = view.read(cx);
+                    let title = term.title(cx);
+                    let exited = term.is_exited();
+                    let working = term.is_working();
                     let tab_id = *id;
                     chips.push(
                         self.mixed_term_chip(
-                            pane, index, tab_id, &title, is_active, exited, ws, cx,
+                            pane, index, tab_id, &title, is_active, exited, working, ws, cx,
                         )
                         .into_any_element(),
                     );
@@ -241,26 +261,12 @@ impl XenonApp {
         title: &str,
         is_active: bool,
         is_exited: bool,
+        is_working: bool,
         ws: Option<xenon_core::WorkspaceId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let status = cx.theme().status().clone();
-        let paint = chrome::tab_selection(&colors, is_active);
-        let (bg, label_color, underline) = if is_exited {
-            (
-                status.ignored_background,
-                status.ignored,
-                status.ignored_border,
-            )
-        } else {
-            (paint.background, paint.foreground, paint.accent)
-        };
-        let paint = chrome::SelectionPaint {
-            background: bg,
-            foreground: label_color,
-            accent: underline,
-        };
+        let paint = term_chip_paint(&colors, is_active, is_exited, cx);
         let group = format!("tab-{}-{}", pane.0, index);
         let tip = if is_exited {
             format!("{title} — process exited")
@@ -281,7 +287,7 @@ impl XenonApp {
             .min_w_0()
             .border_r_1()
             .border_color(if is_exited {
-                status.ignored_border
+                paint.accent
             } else {
                 colors.border
             })
@@ -330,6 +336,10 @@ impl XenonApp {
                     .min_w_0()
                     .truncate()
                     .child(title_owned),
+            )
+            .children(
+                is_working
+                    .then(|| crate::chrome::status_pip(crate::chrome::working_color(cx), true)),
             )
             .child(tab_close(
                 SharedString::from(format!("tab-close-{}-{}", pane.0, index)),

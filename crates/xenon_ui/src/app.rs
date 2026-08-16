@@ -2,7 +2,7 @@
 //! a live content pane tree (mixed terminal/editor tabs). Workspaces are the
 //! unit of switching; each keeps its own running PTYs while open.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,6 +34,7 @@ use crate::{
     ToggleSidebar,
 };
 
+mod attention;
 mod browser;
 mod browser_menu;
 mod content_ops;
@@ -63,12 +64,12 @@ mod terminals;
 mod tree_keys;
 mod workspaces;
 
+pub(crate) use attention::{AttentionReason, WorkspaceDot, workspace_dot};
 use deferred::{DeferredUi, FocusPane, FontPane};
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use lsp::LspState;
 use nav_history::NavHistory;
 use services::AppServices;
-use sessions::AttentionReason;
 
 /// Open tab context menu (right-click on a tab chip).
 #[derive(Clone, Debug)]
@@ -144,9 +145,11 @@ pub struct XenonApp {
     _task_picker_sub: Option<Subscription>,
     _workspace_picker_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
-    // Workspaces flagged for attention (sidebar dot). Value is the last reason,
-    // shown on hover for debugging. Cleared when the workspace is selected.
+    // Workspaces flagged for attention (sidebar static dot). Value is the last
+    // reason, shown on hover for debugging. Cleared when the workspace is selected.
     attention: HashMap<WorkspaceId, AttentionReason>,
+    // Workspaces with at least one terminal in an agent-sized burst (sidebar pulse).
+    working: HashSet<WorkspaceId>,
     _bell_subs: Vec<Subscription>,
     // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
@@ -194,6 +197,7 @@ impl XenonApp {
             _workspace_picker_sub: None,
             _command_palette_sub: None,
             attention: HashMap::new(),
+            working: HashSet::new(),
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),
             lsp,

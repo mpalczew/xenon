@@ -1,14 +1,7 @@
-//! Workspace activation, terminals, attention, and rename.
+//! Workspace activation, terminals, and rename.
 
 use super::*;
 use xenon_core::{PaneId, TabId, TabState};
-
-/// Why a workspace attention badge is lit. Last write wins; for debug tooltips.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AttentionReason {
-    Bell,
-    IdleSettled,
-}
 
 /// Terminal path clicks that are view-first (not edit-first) should hand off
 /// to the OS default app instead of opening a Xenon editor tab.
@@ -20,15 +13,6 @@ fn prefer_system_open(path: &Path) -> bool {
             .as_deref(),
         Some("html" | "htm" | "pdf")
     )
-}
-
-impl AttentionReason {
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::Bell => "Bell",
-            Self::IdleSettled => "Idle after busy output",
-        }
-    }
 }
 
 impl XenonApp {
@@ -233,17 +217,29 @@ impl XenonApp {
                             this.flag_attention(workspace, AttentionReason::Bell, cx);
                         }
                     }
+                    TerminalEvent::Working => {
+                        if let Some(workspace) = owner {
+                            this.sync_working(workspace, cx);
+                        }
+                    }
                     TerminalEvent::Finished => {
                         if let Some(workspace) = owner {
+                            this.sync_working(workspace, cx);
                             this.flag_attention(workspace, AttentionReason::IdleSettled, cx);
                         }
                     }
                     TerminalEvent::Interacted => {
                         if let Some(workspace) = owner {
+                            this.sync_working(workspace, cx);
                             this.clear_attention(workspace, cx);
                         }
                     }
-                    TerminalEvent::Exited => this.on_terminal_exited(view.clone(), cx),
+                    TerminalEvent::Exited => {
+                        if let Some(workspace) = owner {
+                            this.sync_working(workspace, cx);
+                        }
+                        this.on_terminal_exited(view.clone(), cx);
+                    }
                     TerminalEvent::AutoCloseChanged => {
                         this.on_terminal_auto_close_changed(view.clone(), cx)
                     }
@@ -311,23 +307,6 @@ impl XenonApp {
             self.deferred.pending_palette_query = Some(basename);
             cx.notify();
         }
-    }
-
-    fn flag_attention(&mut self, id: WorkspaceId, reason: AttentionReason, cx: &mut Context<Self>) {
-        match self.attention.insert(id, reason) {
-            Some(prev) if prev == reason => {}
-            _ => cx.notify(),
-        }
-    }
-
-    pub(crate) fn clear_attention(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
-        if self.attention.remove(&id).is_some() {
-            cx.notify();
-        }
-    }
-
-    pub(crate) fn attention_reason(&self, id: WorkspaceId) -> Option<AttentionReason> {
-        self.attention.get(&id).copied()
     }
 
     pub(crate) fn select_workspace(

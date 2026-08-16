@@ -22,7 +22,7 @@ use std::ops::Range;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use attention::{IDLE_AFTER, agent_finish_signal};
+use attention::{IDLE_AFTER, agent_busy_signal};
 use find_session::FindSession;
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
@@ -87,7 +87,9 @@ enum State {
 pub enum TerminalEvent {
     Bell,
     Interacted,
-    /// A busy Claude terminal went quiet: the agent likely finished its turn.
+    /// Output crossed the agent-sized burst threshold; the terminal is working.
+    Working,
+    /// A busy terminal went quiet: the agent likely finished its turn.
     Finished,
     /// The shell process exited; the terminal is dead but stays open.
     Exited,
@@ -147,6 +149,9 @@ pub struct TerminalView {
     _spawn: Task<()>,
     /// Output batches in the current burst; reset when output settles.
     wakeups: u32,
+    /// True after this burst crossed the agent-work threshold and before it
+    /// settles or the user types.
+    working: bool,
     /// Debounce that fires `on_idle` once output has been quiet for `IDLE_AFTER`.
     _idle_check: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -190,6 +195,7 @@ impl TerminalView {
             _find_task: Task::ready(()),
             _spawn: spawn,
             wakeups: 0,
+            working: false,
             _idle_check: Task::ready(()),
             _subscriptions: Vec::new(),
         }
@@ -274,6 +280,10 @@ impl TerminalView {
             }
             Event::Wakeup => {
                 self.wakeups = self.wakeups.saturating_add(1);
+                if !self.working && agent_busy_signal(self.wakeups, &self.title(cx)) {
+                    self.working = true;
+                    cx.emit(TerminalEvent::Working);
+                }
                 self.arm_idle_check(cx);
                 // Scrollback moved; refresh match ranges without jumping.
                 if self.find_is_open() {
@@ -285,6 +295,8 @@ impl TerminalView {
             }
             Event::CloseTerminal => {
                 self.exited = true;
+                self.working = false;
+                self.wakeups = 0;
                 cx.emit(TerminalEvent::Exited);
                 cx.notify();
             }
@@ -325,10 +337,16 @@ impl TerminalView {
     /// thrash, not a one-line command), flag the stream for attention.
     fn on_idle(&mut self, cx: &mut Context<Self>) {
         let busy = std::mem::replace(&mut self.wakeups, 0);
+        let was_working = std::mem::replace(&mut self.working, false);
         let title = self.title(cx);
-        if agent_finish_signal(busy, &title) {
+        if was_working || agent_busy_signal(busy, &title) {
             cx.emit(TerminalEvent::Finished);
         }
+    }
+
+    /// True while this terminal is in an agent-sized output burst.
+    pub fn is_working(&self) -> bool {
+        self.working
     }
 
     /// Whether the shell process has exited (the terminal is dead).
@@ -364,6 +382,7 @@ impl TerminalView {
     /// finish detector, so their own keystroke echo can't be mistaken for an
     /// agent working (only output that arrives without interaction counts).
     fn note_interaction(&mut self, cx: &mut Context<Self>) {
+        self.working = false;
         self.wakeups = 0;
         cx.emit(TerminalEvent::Interacted);
     }

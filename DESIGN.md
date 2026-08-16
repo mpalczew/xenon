@@ -46,7 +46,10 @@ panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
 
 ## Attention
 
-`theme.status().warning` dot on workspaces that need the user. Not hard-coded hex.
+`theme.status().warning` static dot on workspaces that need the user (bell or
+inferred idle-after-output). `theme.status().info` pulsating dot while a
+terminal is in an agent-sized burst. Working outranks attention on the same
+row. Not hard-coded hex. Pulse is status, not decoration.
 
 ## Typography
 
@@ -55,7 +58,8 @@ editor/terminal content (settings-controlled faces).
 
 ## Motion
 
-None for selection. Instant paint. Speed is product.
+None for selection. Instant paint. Speed is product. Exception: the working
+status pip uses a quiet opacity pulse (~1.4s, theme token).
 
 ## Themes
 

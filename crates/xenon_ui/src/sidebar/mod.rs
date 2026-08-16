@@ -8,7 +8,7 @@ use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
 
-use crate::app::XenonApp;
+use crate::app::{WorkspaceDot, XenonApp, workspace_dot};
 use crate::icons::icon;
 
 mod widgets;
@@ -23,8 +23,8 @@ struct WorkspaceRows {
     name: String,
     path: String,
     active: bool,
-    /// Debug label for the attention badge tooltip (`None` = no badge).
-    attention: Option<&'static str>,
+    /// Workspace status pip (`None` = quiet).
+    status: Option<WorkspaceDot>,
 }
 
 struct WorkspaceHeader<'a> {
@@ -32,7 +32,7 @@ struct WorkspaceHeader<'a> {
     name: &'a str,
     path: &'a str,
     active: bool,
-    attention: Option<&'static str>,
+    status: Option<WorkspaceDot>,
     /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
     dirt: Option<(String, String)>,
 }
@@ -50,7 +50,7 @@ impl XenonApp {
                 name: w.name.clone(),
                 path: w.root.display().to_string(),
                 active: active == Some(w.id),
-                attention: self.attention_reason(w.id).map(|r| r.label()),
+                status: workspace_dot(self.is_working(w.id), self.attention_reason(w.id)),
             })
             .collect();
 
@@ -69,7 +69,7 @@ impl XenonApp {
                             name: &workspace.name,
                             path: &workspace.path,
                             active: workspace.active,
-                            attention: workspace.attention,
+                            status: workspace.status,
                             dirt,
                         },
                         cx,
@@ -208,7 +208,7 @@ impl XenonApp {
             name,
             path,
             active,
-            attention,
+            status,
             dirt,
         } = header;
         if let Some(field) = self.rename_workspace_field(id) {
@@ -250,7 +250,7 @@ impl XenonApp {
                     this.reorder_workspace(dragged.0, id, cx)
                 }),
             )
-            .child(self.workspace_title_hit(id, name, attention, cx))
+            .child(self.workspace_title_hit(id, name, status, cx))
             .child(workspace_dirt_gutter(dirt, &group, &colors))
             .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .into_any_element()
@@ -277,19 +277,27 @@ impl XenonApp {
         &self,
         id: WorkspaceId,
         name: &str,
-        attention: Option<&'static str>,
+        status: Option<WorkspaceDot>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let attention_dot = attention.map(|label| {
-            let tip = SharedString::from(label);
+        let attention_dot = status.map(|dot| {
+            let (tip, color, pulse) = match dot {
+                WorkspaceDot::Working => (
+                    SharedString::from("Working"),
+                    crate::chrome::working_color(cx),
+                    true,
+                ),
+                WorkspaceDot::Attention(label) => (
+                    SharedString::from(label),
+                    crate::chrome::attention_color(cx),
+                    false,
+                ),
+            };
             div()
                 .id(("ws-attention", id_hash(id.to_string())))
-                .w(px(6.))
-                .h(px(6.))
-                .rounded_full()
-                .bg(crate::chrome::attention_color(cx))
                 .tooltip(path_tooltip(tip))
+                .child(crate::chrome::status_pip(color, pulse))
         });
         div()
             .id(("ws-select", id_hash(id.to_string())))
