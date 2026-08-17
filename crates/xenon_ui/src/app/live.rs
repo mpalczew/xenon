@@ -134,12 +134,12 @@ impl LiveNode {
         }
     }
 
-    pub(crate) fn for_each_terminal(&self, f: &mut dyn FnMut(&Entity<TerminalView>)) {
+    pub(crate) fn for_each_terminal(&self, f: &mut dyn FnMut(TabId, &Entity<TerminalView>)) {
         match self {
             Self::Leaf(l) => {
                 for t in &l.tabs {
-                    if let Some(v) = t.as_terminal() {
-                        f(v);
+                    if let LiveTab::Terminal { id, view } = t {
+                        f(*id, view);
                     }
                 }
             }
@@ -288,7 +288,7 @@ impl LiveContent {
     pub(crate) fn has_terminal(&self) -> bool {
         let mut any = false;
         if let Some(root) = &self.root {
-            root.for_each_terminal(&mut |_| any = true);
+            root.for_each_terminal(&mut |_, _| any = true);
         }
         any
     }

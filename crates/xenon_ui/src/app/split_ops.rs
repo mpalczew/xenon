@@ -449,21 +449,23 @@ impl XenonApp {
         }
     }
 
-    /// Find (workspace, pane, index) for a terminal entity.
+    /// Find (workspace, tab) for a terminal entity.
     pub(super) fn locate_terminal(
         &self,
         view: &Entity<TerminalView>,
-    ) -> Option<(WorkspaceId, PaneId, usize)> {
+    ) -> Option<(WorkspaceId, TabId)> {
         for (id, content) in &self.contents {
-            if let Some(root) = &content.root {
-                for pane in root.leaf_ids() {
-                    if let Some(leaf) = root.find_leaf(pane)
-                        && let Some(idx) =
-                            leaf.tabs.iter().position(|t| t.as_terminal() == Some(view))
-                    {
-                        return Some((*id, pane, idx));
-                    }
+            let Some(root) = &content.root else {
+                continue;
+            };
+            let mut found = None;
+            root.for_each_terminal(&mut |tab, term| {
+                if found.is_none() && term == view {
+                    found = Some(tab);
                 }
+            });
+            if let Some(tab) = found {
+                return Some((*id, tab));
             }
         }
         None

@@ -48,7 +48,7 @@ impl XenonApp {
         token: u64,
         cx: &mut Context<Self>,
     ) {
-        let Some((ws, _pane, _idx)) = self.locate_terminal(view) else {
+        let Some((ws, tab)) = self.locate_terminal(view) else {
             return;
         };
         let term = view.read(cx);
@@ -58,17 +58,7 @@ impl XenonApp {
         if term.auto_close().delay().is_none() {
             return;
         }
-        let tab = self.locate_terminal(view).and_then(|(ws2, pane, idx)| {
-            self.contents
-                .get(&ws2)
-                .and_then(|c| c.root.as_ref()?.find_leaf(pane))
-                .and_then(|l| l.tabs.get(idx).map(|t| t.id()))
-        });
-        let _ = ws;
-        if let Some(tab) = tab {
-            let ws = self.locate_terminal(view).map(|(w, _, _)| w).unwrap_or(ws);
-            self.drop_tab(ws, tab, None, cx);
-        }
+        self.drop_tab(ws, tab, None, cx);
         cx.notify();
     }
 }

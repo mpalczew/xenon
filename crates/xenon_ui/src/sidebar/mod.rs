@@ -8,7 +8,7 @@ use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
 
-use crate::app::{WorkspaceDot, XenonApp, workspace_dot};
+use crate::app::{WorkspaceDot, XenonApp};
 use crate::icons::icon;
 
 mod widgets;
@@ -50,7 +50,7 @@ impl XenonApp {
                 name: w.name.clone(),
                 path: w.root.display().to_string(),
                 active: active == Some(w.id),
-                status: workspace_dot(self.is_working(w.id), self.attention_reason(w.id)),
+                status: self.workspace_status(w.id, cx),
             })
             .collect();
 
@@ -282,22 +282,10 @@ impl XenonApp {
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let attention_dot = status.map(|dot| {
-            let (tip, color, pulse) = match dot {
-                WorkspaceDot::Working => (
-                    SharedString::from("Working"),
-                    crate::chrome::working_color(cx),
-                    true,
-                ),
-                WorkspaceDot::Attention(label) => (
-                    SharedString::from(label),
-                    crate::chrome::attention_color(cx),
-                    false,
-                ),
-            };
             div()
                 .id(("ws-attention", id_hash(id.to_string())))
-                .tooltip(path_tooltip(tip))
-                .child(crate::chrome::status_pip(color, pulse))
+                .tooltip(path_tooltip(SharedString::from(dot.tooltip())))
+                .child(dot.pip(cx))
         });
         div()
             .id(("ws-select", id_hash(id.to_string())))

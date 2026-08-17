@@ -2,7 +2,7 @@
 //! a live content pane tree (mixed terminal/editor tabs). Workspaces are the
 //! unit of switching; each keeps its own running PTYs while open.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -64,7 +64,7 @@ mod terminals;
 mod tree_keys;
 mod workspaces;
 
-pub(crate) use attention::{AttentionReason, WorkspaceDot, workspace_dot};
+pub(crate) use attention::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
 use deferred::{DeferredUi, FocusPane, FontPane};
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use lsp::LspState;
@@ -145,11 +145,8 @@ pub struct XenonApp {
     _task_picker_sub: Option<Subscription>,
     _workspace_picker_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
-    // Workspaces flagged for attention (sidebar static dot). Value is the last
-    // reason, shown on hover for debugging. Cleared when the workspace is selected.
-    attention: HashMap<WorkspaceId, AttentionReason>,
-    // Workspaces with at least one terminal in an agent-sized burst (sidebar pulse).
-    working: HashSet<WorkspaceId>,
+    // Per-terminal-tab attention (sidebar + tab chips). Workspace row is derived.
+    attention: AttentionMap,
     _bell_subs: Vec<Subscription>,
     // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
@@ -196,8 +193,7 @@ impl XenonApp {
             _task_picker_sub: None,
             _workspace_picker_sub: None,
             _command_palette_sub: None,
-            attention: HashMap::new(),
-            working: HashSet::new(),
+            attention: AttentionMap::default(),
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),
             lsp,

@@ -46,10 +46,11 @@ panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
 
 ## Attention
 
-`theme.status().warning` static dot on workspaces that need the user (bell or
-inferred idle-after-output). `theme.status().info` pulsating dot while a
-terminal is in an agent-sized burst. Working outranks attention on the same
-row. Not hard-coded hex. Pulse is status, not decoration.
+`theme.status().warning` static dot on a workspace or terminal tab that needs
+the user (bell or inferred idle-after-output). `theme.status().info` pulsating
+dot while that terminal is in an agent-sized burst. Working outranks attention
+on the same tab; the workspace row is the aggregate of its terminals. Not
+hard-coded hex. Pulse is status, not decoration.
 
 ## Typography
 

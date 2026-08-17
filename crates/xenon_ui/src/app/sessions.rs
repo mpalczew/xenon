@@ -210,34 +210,32 @@ impl XenonApp {
         let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
         self._bell_subs
             .push(cx.subscribe(&terminal, move |this, view, event, cx| {
-                let owner = this.workspace_of_terminal(&view);
+                let owner = this.locate_terminal(&view);
                 match event {
                     TerminalEvent::Bell => {
-                        if let Some(workspace) = owner {
-                            this.flag_attention(workspace, AttentionReason::Bell, cx);
+                        if let Some((workspace, tab)) = owner {
+                            this.flag_attention(workspace, tab, AttentionReason::Bell, cx);
+                            this.refresh_terminal_status(cx);
                         }
                     }
                     TerminalEvent::Working => {
-                        if let Some(workspace) = owner {
-                            this.sync_working(workspace, cx);
-                        }
+                        this.refresh_terminal_status(cx);
                     }
                     TerminalEvent::Finished => {
-                        if let Some(workspace) = owner {
-                            this.sync_working(workspace, cx);
-                            this.flag_attention(workspace, AttentionReason::IdleSettled, cx);
+                        if let Some((workspace, tab)) = owner {
+                            this.flag_attention(workspace, tab, AttentionReason::IdleSettled, cx);
                         }
+                        // Sibling may still be working; still repaint this tab's pip.
+                        this.refresh_terminal_status(cx);
                     }
                     TerminalEvent::Interacted => {
-                        if let Some(workspace) = owner {
-                            this.sync_working(workspace, cx);
-                            this.clear_attention(workspace, cx);
+                        if let Some((workspace, tab)) = owner {
+                            this.clear_tab_attention(workspace, tab, cx);
                         }
+                        this.refresh_terminal_status(cx);
                     }
                     TerminalEvent::Exited => {
-                        if let Some(workspace) = owner {
-                            this.sync_working(workspace, cx);
-                        }
+                        this.refresh_terminal_status(cx);
                         this.on_terminal_exited(view.clone(), cx);
                     }
                     TerminalEvent::AutoCloseChanged => {
@@ -249,10 +247,6 @@ impl XenonApp {
                 }
             }));
         terminal
-    }
-
-    fn workspace_of_terminal(&self, view: &Entity<TerminalView>) -> Option<WorkspaceId> {
-        self.locate_terminal(view).map(|(id, _, _)| id)
     }
 
     /// Terminal cmd-click on a path: browser-native types go to the system
@@ -316,7 +310,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         self.activate_workspace(id, cx);
-        self.clear_attention(id, cx);
+        self.dismiss_viewed_terminal(cx);
         if let Some(terminal) = self.active_terminal() {
             terminal.read(cx).focus_handle(cx).focus(window, cx);
         }

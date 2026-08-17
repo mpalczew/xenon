@@ -34,7 +34,7 @@ impl XenonApp {
         }
         let mut found = None;
         if let Some(root) = content.root.as_ref() {
-            root.for_each_terminal(&mut |v| {
+            root.for_each_terminal(&mut |_, v| {
                 if found.is_none() {
                     found = Some(v.clone());
                 }
@@ -275,22 +275,23 @@ impl XenonApp {
         let Some(id) = self.active else {
             return;
         };
-        let Some(content) = self.contents.get_mut(&id) else {
+        let Some(tab) = (|| {
+            let content = self.contents.get_mut(&id)?;
+            let leaf = content.root.as_mut().and_then(|r| r.find_leaf_mut(pane))?;
+            if index >= leaf.tabs.len() {
+                return None;
+            }
+            leaf.active = index;
+            content.focused = Some(pane);
+            Some(leaf.tabs[index].clone())
+        })() else {
             return;
         };
-        let Some(leaf) = content.root.as_mut().and_then(|r| r.find_leaf_mut(pane)) else {
-            return;
-        };
-        if index >= leaf.tabs.len() {
-            return;
-        }
-        leaf.active = index;
-        content.focused = Some(pane);
-        self.browser_focused = false;
-        let tab = leaf.tabs[index].clone();
         let tab_id = tab.id();
+        self.browser_focused = false;
         match tab {
             LiveTab::Terminal { view, .. } => {
+                self.clear_tab_attention(id, tab_id, cx);
                 self.deferred.last_font_pane = FontPane::Terminal;
                 view.read(cx).focus_handle(cx).focus(window, cx);
             }
@@ -402,6 +403,7 @@ impl XenonApp {
         if let Some(path) = closed_editor_path {
             self.lsp_detach_path(&path);
         }
+        self.attention.clear_tab(workspace, tab);
         self.nav_prune_tab(workspace, tab);
         self.save_layout(workspace);
         match outcome {

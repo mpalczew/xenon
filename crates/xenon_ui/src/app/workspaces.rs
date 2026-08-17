@@ -343,8 +343,7 @@ impl XenonApp {
         let closed_active = self.active == Some(id);
         let dead_content = self.contents.remove(&id);
         self.sessions.remove(&id);
-        self.attention.remove(&id);
-        self.working.remove(&id);
+        self.attention.clear_workspace(id);
         self.recent_files.remove(&id);
         // Drop the finder index for this root so it can be rebuilt if reopened.
         self.file_indexes.remove(&record.root);

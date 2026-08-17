@@ -11,7 +11,7 @@ use theme::ActiveTheme;
 use xenon_core::PaneId;
 
 use crate::{
-    app::{DragTab, LiveLeaf, LiveTab, XenonApp},
+    app::{DragTab, LiveLeaf, LiveTab, WorkspaceDot, XenonApp, workspace_dot},
     chrome::{self, SelectionPaint},
     preview_icon,
 };
@@ -42,15 +42,6 @@ fn term_chip_paint(
         foreground: status.ignored,
         accent: status.ignored_border,
     }
-}
-
-fn dirty_dot(color: gpui::Hsla) -> impl IntoElement {
-    div()
-        .w(px(6.))
-        .h(px(6.))
-        .rounded_full()
-        .bg(color)
-        .flex_none()
 }
 
 fn tab_close(
@@ -148,11 +139,12 @@ impl XenonApp {
                     let term = view.read(cx);
                     let title = term.title(cx);
                     let exited = term.is_exited();
-                    let working = term.is_working();
                     let tab_id = *id;
+                    let attention = ws.and_then(|id| self.tab_attention(id, tab_id));
+                    let status = workspace_dot(term.is_working(), attention);
                     chips.push(
                         self.mixed_term_chip(
-                            pane, index, tab_id, &title, is_active, exited, working, ws, cx,
+                            pane, index, tab_id, &title, is_active, exited, status, ws, cx,
                         )
                         .into_any_element(),
                     );
@@ -261,7 +253,7 @@ impl XenonApp {
         title: &str,
         is_active: bool,
         is_exited: bool,
-        is_working: bool,
+        status: Option<WorkspaceDot>,
         ws: Option<xenon_core::WorkspaceId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
@@ -270,6 +262,8 @@ impl XenonApp {
         let group = format!("tab-{}-{}", pane.0, index);
         let tip = if is_exited {
             format!("{title} — process exited")
+        } else if let Some(dot) = status {
+            format!("{title} — {}", dot.tooltip())
         } else {
             title.to_string()
         };
@@ -337,10 +331,7 @@ impl XenonApp {
                     .truncate()
                     .child(title_owned),
             )
-            .children(
-                is_working
-                    .then(|| crate::chrome::status_pip(crate::chrome::working_color(cx), true)),
-            )
+            .children(status.map(|dot| dot.pip(cx)))
             .child(tab_close(
                 SharedString::from(format!("tab-close-{}-{}", pane.0, index)),
                 &group,
@@ -429,7 +420,7 @@ impl XenonApp {
                     .truncate()
                     .child(name_owned),
             )
-            .children(is_dirty.then(|| dirty_dot(paint.foreground)))
+            .children(is_dirty.then(|| chrome::status_pip(paint.foreground, false)))
             .child(tab_close(
                 SharedString::from(format!("etab-close-{}-{}", pane.0, index)),
                 &group,
