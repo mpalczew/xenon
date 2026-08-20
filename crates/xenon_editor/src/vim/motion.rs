@@ -32,6 +32,9 @@ pub enum Motion {
     Percent {
         pct: usize,
     },
+    /// Current line, `count` lines down (`_`, and the motion in `dd`/`yy`).
+    /// Count 1 stays on this line; count 2 is one line down.
+    Line,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,7 +58,8 @@ impl Motion {
             | Motion::WORDBackward
             | Motion::FileStart
             | Motion::FileEnd
-            | Motion::Percent { .. } => MotionKind::Exclusive,
+            | Motion::Percent { .. }
+            | Motion::Line => MotionKind::Exclusive,
             Motion::LineEnd
             | Motion::WordEnd
             | Motion::MatchPair
@@ -72,6 +76,7 @@ impl Motion {
                 | Motion::FileStart
                 | Motion::FileEnd
                 | Motion::Percent { .. }
+                | Motion::Line
         )
     }
 }
@@ -79,6 +84,14 @@ impl Motion {
 /// Apply `count` repetitions of `motion` from `cursor`.
 pub fn apply(rope: &Rope, cursor: usize, motion: &Motion, count: usize) -> usize {
     let count = count.max(1);
+    if matches!(motion, Motion::Line) {
+        // `_` / `dd`: count 1 is this line; extra count walks down.
+        let mut pos = cursor;
+        for _ in 1..count {
+            pos = vertical(rope, pos, 1);
+        }
+        return first_non_blank(rope, pos);
+    }
     let mut pos = cursor;
     for _ in 0..count {
         pos = step(rope, pos, motion);
@@ -132,6 +145,7 @@ fn step(rope: &Rope, cursor: usize, motion: &Motion) -> usize {
         } => find_char(rope, cursor, *ch, *before, *forward),
         Motion::MatchPair => pair::match_pair(rope, cursor),
         Motion::Percent { pct } => pair::percent_of_file(rope, *pct),
+        Motion::Line => first_non_blank(rope, cursor),
     }
 }
 

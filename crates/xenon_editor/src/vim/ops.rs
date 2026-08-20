@@ -5,8 +5,7 @@ use super::block_ops::paste_blockwise;
 use super::motion;
 use super::object::Object;
 use super::paste::{
-    lines_covering, linewise_range, paste_charwise, paste_linewise, visual_excl_end,
-    visual_head_pos,
+    lines_covering, paste_charwise, paste_linewise, visual_excl_end, visual_head_pos,
 };
 use super::repeat::LastChange;
 use super::{HandleResult, Mode, Motion, Operator, VimState, edited, handled};
@@ -15,40 +14,43 @@ use crate::selection;
 use crate::undo::Edit;
 
 impl VimState {
+    /// Start an operator; stash the prefix count so `2dw` / `2d3w` can multiply.
+    pub(in crate::vim) fn begin_operator(&mut self, op: Operator) {
+        self.operator_count = self.count.max(1);
+        self.count = 0;
+        self.operator = Some(op);
+    }
+
     pub(in crate::vim) fn op_or_line(
         &mut self,
         buffer: &mut Buffer,
         op: Operator,
         count: usize,
-        same: char,
     ) -> HandleResult {
         if self.mode.is_visual() {
             return self.visual_operator(buffer, op);
         }
         if self.operator == Some(op) {
-            // dd / cc / yy / >> / << / ==
-            self.operator = None;
-            let lines = count.max(1);
-            let reg = self.registers.pending();
-            // Yank is not a "change" for `.`; delete/change/indent are.
-            if op != Operator::Yank {
-                self.last_change = Some(LastChange::Lines {
-                    op,
-                    count: lines,
-                    register: reg,
-                });
-            }
-            self.count = 0;
-            let range = linewise_range(buffer, lines);
-            return self.apply_range(buffer, op, range, true);
+            // dd / cc / yy / >> / << / == — same as operator + line motion `_`.
+            return self.finish_motion(buffer, Motion::Line, count);
         }
-        let _ = same;
-        self.operator = Some(op);
-        // Keep self.count so `3dw` works (count was set by digits before the op).
-        if self.count == 0 {
-            // no-op: operator pending with implicit count 1
-        }
+        self.begin_operator(op);
         handled(false)
+    }
+
+    /// `Y` / `S`: operator + line motion with the prefix count (`2Y` = two lines).
+    pub(in crate::vim) fn apply_linewise_now(
+        &mut self,
+        buffer: &mut Buffer,
+        op: Operator,
+    ) -> HandleResult {
+        if self.mode.is_visual() {
+            return self.visual_operator(buffer, op);
+        }
+        if self.operator != Some(op) {
+            self.begin_operator(op);
+        }
+        self.finish_motion(buffer, Motion::Line, 1)
     }
 
     pub(in crate::vim) fn do_motion(
@@ -68,29 +70,27 @@ impl VimState {
     ) -> HandleResult {
         let count = count.max(1);
         if let Some(op) = self.operator.take() {
-            let op_count = if self.count > 0 && self.count != usize::MAX {
-                self.count
-            } else {
-                count
-            };
+            let op_count = self.operator_count.max(1);
+            self.operator_count = 0;
             self.count = 0;
+            let effective = op_count.saturating_mul(count);
             // Indent family is always linewise in classic vim (`>w` still whole lines).
             let force_line = matches!(
                 op,
                 Operator::Indent | Operator::Outdent | Operator::Reindent
             );
             let range = if force_line {
-                let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, op_count);
+                let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, effective);
                 lines_covering(buffer, buffer.cursor(), target)
             } else {
-                motion::operator_range(buffer.rope(), buffer.cursor(), &motion, op_count)
+                motion::operator_range(buffer.rope(), buffer.cursor(), &motion, effective)
             };
             let reg = self.registers.pending();
             if op != Operator::Yank {
                 self.last_change = Some(LastChange::Operator {
                     op,
                     motion: motion.clone(),
-                    count: op_count,
+                    count: effective,
                     register: reg,
                 });
             }
@@ -429,20 +429,5 @@ impl VimState {
         self.registers.set_unnamed(text);
         self.last_change = Some(LastChange::Paste { before });
         paste_charwise(buffer, text, before)
-    }
-
-    /// Re-apply a linewise `dd` / `cc` (used by `.`).
-    pub(in crate::vim) fn repeat_lines(
-        &mut self,
-        buffer: &mut Buffer,
-        op: Operator,
-        count: usize,
-        register: Option<char>,
-    ) -> HandleResult {
-        if let Some(r) = register {
-            self.registers.set_pending(r);
-        }
-        let range = linewise_range(buffer, count.max(1));
-        self.apply_range(buffer, op, range, true)
     }
 }

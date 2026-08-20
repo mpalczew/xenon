@@ -16,6 +16,8 @@ mod search;
 mod substitute;
 
 #[cfg(test)]
+mod count_tests;
+#[cfg(test)]
 mod tests;
 
 pub use ex::{ExDraft, ExEffect};
@@ -81,6 +83,8 @@ pub enum Operator {
 pub struct VimState {
     pub mode: Mode,
     count: usize,
+    /// Count captured when the operator was typed; multiplied with the motion count.
+    operator_count: usize,
     operator: Option<Operator>,
     awaiting_object: Option<bool>, // Some(around) after i/a following operator
     awaiting_find: Option<FindKind>,
@@ -162,6 +166,7 @@ impl VimState {
 
     pub(in crate::vim) fn clear_pending(&mut self) {
         self.count = 0;
+        self.operator_count = 0;
         self.operator = None;
         self.awaiting_object = None;
         self.awaiting_find = None;
@@ -275,11 +280,6 @@ impl VimState {
                 let range = motion::operator_range(buffer.rope(), buffer.cursor(), &motion, count);
                 self.apply_range(buffer, op, range, motion.is_linewise())
             }
-            LastChange::Lines {
-                op,
-                count,
-                register,
-            } => self.repeat_lines(buffer, op, count, register),
             LastChange::Object {
                 op,
                 object,

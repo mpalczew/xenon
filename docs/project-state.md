@@ -42,10 +42,14 @@ rediscover.
 - Editor and terminal find share UX but not implementation. Vim search is a
   separate modal flow with smartcase.
 - The embedded Vim layer is intentionally good-enough, not a Neovim host.
-  Daily edits cover join (`J`/`gJ`), `D`/`C`/`Y`/`S`, indent (`>>`/`<<`/`=`),
-  number bump (`Ctrl-a`/`x`), `zz`, and visual-block (`Ctrl-v` with multi-range
-  paint and blockwise registers). Indent uses a fixed 4-space shiftwidth (no
-  setting). Still missing muscle-memory extras such as case ops, `R`/`U`, rich
+  Operators compose with motions: `dd`/`yy`/`cc`/`>>` are the line motion `_`
+  (count lines), not a special "delete this line." Prefix count and motion
+  count multiply (`2dd` = 2 lines, `2dj` = 3, `2d3d` = 6). Headless Neovim is
+  the test oracle when `nvim` is on PATH; it is not the runtime. Daily edits
+  cover join (`J`/`gJ`), `D`/`C`/`Y`/`S`, indent (`>>`/`<<`/`=`), number bump
+  (`Ctrl-a`/`x`), `zz`, and visual-block (`Ctrl-v` with multi-range paint and
+  blockwise registers). Indent uses a fixed 4-space shiftwidth (no setting).
+  Still missing muscle-memory extras such as case ops, `R`/`U`, rich
   motions/objects, marks, macros, and full virtualedit block quirks.
 - Settings geometry and chrome preferences share `settings.json`; partial
   saves use the locked load-mutate-save boundary and preserve fields they do

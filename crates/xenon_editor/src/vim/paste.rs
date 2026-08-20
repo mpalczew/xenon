@@ -21,22 +21,6 @@ pub(in crate::vim) fn visual_head_pos(buffer: &Buffer) -> usize {
     if c > 0 { c - 1 } else { c }
 }
 
-/// Char range for `count` lines starting at the cursor (includes trailing newlines).
-pub(in crate::vim) fn linewise_range(buffer: &Buffer, count: usize) -> std::ops::Range<usize> {
-    let mut range = selection::line_range_at(buffer.rope(), buffer.cursor());
-    for _ in 1..count {
-        if range.end >= buffer.rope().len_chars() {
-            break;
-        }
-        let next = selection::line_range_at(buffer.rope(), range.end);
-        range.end = next.end;
-    }
-    if range.end < buffer.rope().len_chars() && buffer.rope().char(range.end) == '\n' {
-        range.end += 1;
-    }
-    range
-}
-
 pub(in crate::vim) fn paste_charwise(
     buffer: &mut Buffer,
     text: &str,

@@ -7,16 +7,10 @@ use super::object::Object;
 pub enum LastChange {
     /// Inserted `text` (after a change that entered insert).
     Insert { text: String },
-    /// Operator applied to a motion.
+    /// Operator applied to a motion (`dw`, `2dd`, `>j`, …).
     Operator {
         op: super::Operator,
         motion: Motion,
-        count: usize,
-        register: Option<char>,
-    },
-    /// Linewise double-op: `dd` / `cc` / `>>` (and count: `3dd`).
-    Lines {
-        op: super::Operator,
         count: usize,
         register: Option<char>,
     },

@@ -231,6 +231,7 @@ impl VimState {
             'e' => self.do_motion(buffer, Motion::WordEnd, count),
             '0' => self.do_motion(buffer, Motion::LineStart, 1),
             '^' => self.do_motion(buffer, Motion::FirstNonBlank, 1),
+            '_' => self.do_motion(buffer, Motion::Line, count),
             '$' => self.do_motion(buffer, Motion::LineEnd, 1),
             '%' => self.do_percent(buffer),
             'G' => {
@@ -266,21 +267,17 @@ impl VimState {
                 self.operator = Some(Operator::Change);
                 self.finish_motion(buffer, Motion::LineEnd, 1)
             }
-            'Y' if !self.mode.is_visual() => {
-                self.operator = Some(Operator::Yank);
-                self.op_or_line(buffer, Operator::Yank, count, 'y')
-            }
+            'Y' if !self.mode.is_visual() => self.apply_linewise_now(buffer, Operator::Yank),
             'S' if !self.mode.is_visual() && self.operator.is_none() => {
-                self.operator = Some(Operator::Change);
-                self.op_or_line(buffer, Operator::Change, count, 'c')
+                self.apply_linewise_now(buffer, Operator::Change)
             }
             // Indent / outdent / reindent.
             '>' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Indent),
             '<' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Outdent),
             '=' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Reindent),
-            '>' => self.op_or_line(buffer, Operator::Indent, count, '>'),
-            '<' => self.op_or_line(buffer, Operator::Outdent, count, '<'),
-            '=' => self.op_or_line(buffer, Operator::Reindent, count, '='),
+            '>' => self.op_or_line(buffer, Operator::Indent, count),
+            '<' => self.op_or_line(buffer, Operator::Outdent, count),
+            '=' => self.op_or_line(buffer, Operator::Reindent, count),
             'f' => {
                 self.awaiting_find = Some(FindKind::Find);
                 handled(false)
@@ -324,9 +321,9 @@ impl VimState {
                     handled(false)
                 }
             }
-            'd' => self.op_or_line(buffer, Operator::Delete, count, 'd'),
-            'c' => self.op_or_line(buffer, Operator::Change, count, 'c'),
-            'y' => self.op_or_line(buffer, Operator::Yank, count, 'y'),
+            'd' => self.op_or_line(buffer, Operator::Delete, count),
+            'c' => self.op_or_line(buffer, Operator::Change, count),
+            'y' => self.op_or_line(buffer, Operator::Yank, count),
             'x' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Delete),
             'X' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Delete),
             'x' => self.delete_chars(buffer, count, false),
