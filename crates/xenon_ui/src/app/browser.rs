@@ -271,6 +271,16 @@ impl XenonApp {
                     cx.notify();
                 }
             }
+            FinderEvent::SelectedBeside(relative) => {
+                self.deferred.restore_pane = None;
+                if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
+                    self.open_editor_beside(root.join(relative), cx);
+                } else {
+                    self.finder = None;
+                    self.deferred.pending_focus = Some(FocusPane::Terminal);
+                    cx.notify();
+                }
+            }
             FinderEvent::RevealDir(relative) => {
                 // Was: clear restore, drop finder, never re-focus → void.
                 // Directory reveal owns the Files tree; focus it next frame.

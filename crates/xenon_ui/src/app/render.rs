@@ -61,7 +61,18 @@ impl Render for XenonApp {
 
 impl XenonApp {
     fn drain_deferred_ui(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(pane) = self.deferred.pending_focus.take() {
+        if let Some(pane) = self.deferred.pending_leaf.take() {
+            self.deferred.pending_focus = None;
+            if self
+                .active_content()
+                .and_then(|c| c.root.as_ref()?.find_leaf(pane))
+                .is_some()
+            {
+                self.focus_leaf_active(pane, window, cx);
+            } else {
+                self.focus_after_teardown(Some(window), cx);
+            }
+        } else if let Some(pane) = self.deferred.pending_focus.take() {
             self.focus_pane(pane, window, cx);
         }
         if let Some(query) = self.deferred.pending_palette_query.take() {
@@ -440,6 +451,9 @@ impl XenonApp {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, window, cx| {
+                    // Tab strip is not track_focus; without this the root
+                    // XenonApp handle steals GPUI and the pane ring goes away.
+                    window.prevent_default();
                     this.focus_leaf_active(pane_id, window, cx);
                 }),
             )

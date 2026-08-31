@@ -152,120 +152,6 @@ impl XenonApp {
         }
     }
 
-    pub(crate) fn open_editor(&mut self, path: PathBuf, focus: bool, cx: &mut Context<Self>) {
-        if let Err(error) = self.open_editor_at(path, focus, None, cx) {
-            log::error!("open failed: {error}");
-        }
-    }
-
-    pub(crate) fn open_editor_at(
-        &mut self,
-        path: PathBuf,
-        focus: bool,
-        at: Option<(u32, u32)>,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        let Some(id) = self.active else {
-            anyhow::bail!("no active workspace for {}", path.display());
-        };
-        if focus {
-            self.nav_sync_active(id, cx);
-        }
-        if let Some(content) = self.contents.get(&id)
-            && let Some(root) = &content.root
-            && let Some((pane, idx)) = root.find_editor_path(&path)
-        {
-            let tab_id = root
-                .find_leaf(pane)
-                .and_then(|l| l.tabs.get(idx))
-                .map(|t| t.id());
-            if let Some(c) = self.contents.get_mut(&id) {
-                if let Some(leaf) = c.root.as_mut().and_then(|r| r.find_leaf_mut(pane)) {
-                    leaf.active = idx;
-                }
-                c.focused = Some(pane);
-            }
-            if let Some((row, col)) = at
-                && let Some(view) = self
-                    .contents
-                    .get(&id)
-                    .and_then(|content| content.root.as_ref())
-                    .and_then(|root| root.find_leaf(pane))
-                    .and_then(|leaf| leaf.tabs.get(idx))
-                    .and_then(LiveTab::as_editor)
-            {
-                view.update(cx, |editor, cx| {
-                    editor.set_cursor_position(row, col, cx);
-                });
-            }
-            self.touch_recent_file(id, &path);
-            self.finder = None;
-            if focus {
-                self.deferred.pending_focus = Some(FocusPane::Editor);
-                if let Some(tab_id) = tab_id {
-                    self.nav_visit(tab_id, cx);
-                }
-            }
-            if self.file_browser.is_open() {
-                self.reveal_active_file(cx);
-            }
-            cx.notify();
-            return Ok(());
-        }
-
-        match EditorView::build(path.clone(), focus, cx) {
-            Ok(view) => {
-                if let Some((row, col)) = at {
-                    view.update(cx, |editor, cx| {
-                        editor.set_cursor_position(row, col, cx);
-                    });
-                }
-                self.wire_editor_selection(&view, cx);
-                self.lsp_attach_editor(id, &view, cx);
-                let name = file_name(&path);
-                let content = self.contents.entry(id).or_default();
-                let tab_id = content.next_tab_id();
-                let tab = LiveTab::Editor {
-                    id: tab_id,
-                    path: path.clone(),
-                    name,
-                    view,
-                };
-                if content.root.is_none() {
-                    let pane = content.next_pane_id();
-                    content.root = Some(LiveNode::Leaf(LiveLeaf {
-                        id: pane,
-                        tabs: vec![tab],
-                        active: 0,
-                    }));
-                    content.focused = Some(pane);
-                } else if let Some(leaf) = content.focused_leaf_mut() {
-                    leaf.tabs.push(tab);
-                    leaf.active = leaf.tabs.len() - 1;
-                } else if let Some(first) = content.leaf_ids().first().copied() {
-                    content.focused = Some(first);
-                    if let Some(leaf) = content.focused_leaf_mut() {
-                        leaf.tabs.push(tab);
-                        leaf.active = leaf.tabs.len() - 1;
-                    }
-                }
-                self.touch_recent_file(id, &path);
-                self.save_layout(id);
-                self.finder = None;
-                if focus {
-                    self.deferred.pending_focus = Some(FocusPane::Editor);
-                    self.nav_visit(tab_id, cx);
-                }
-                if self.file_browser.is_open() {
-                    self.reveal_active_file(cx);
-                }
-                cx.notify();
-                Ok(())
-            }
-            Err(error) => Err(error),
-        }
-    }
-
     pub(crate) fn activate_tab_in_pane(
         &mut self,
         pane: PaneId,
@@ -458,18 +344,22 @@ impl XenonApp {
         self.save_layout(workspace);
         match outcome {
             DropTabOutcome::FocusPane(pane) => {
-                if let Some(window) = window {
-                    self.focus_leaf_active(pane, window, cx);
+                if self.active == Some(workspace) {
+                    self.focus_leaf_now_or_later(pane, window, cx);
                 }
             }
             DropTabOutcome::Unsplit => {
-                if let Some(window) = window
+                if self.active == Some(workspace)
                     && let Some(fid) = self.contents.get(&workspace).and_then(|c| c.focused)
                 {
-                    self.focus_leaf_active(fid, window, cx);
+                    self.focus_leaf_now_or_later(fid, window, cx);
                 }
             }
-            DropTabOutcome::Empty => self.focus_after_teardown(window, cx),
+            DropTabOutcome::Empty => {
+                if self.active == Some(workspace) {
+                    self.focus_after_teardown(window, cx);
+                }
+            }
         }
         cx.notify();
     }

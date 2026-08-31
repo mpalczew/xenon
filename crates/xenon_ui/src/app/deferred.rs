@@ -4,6 +4,7 @@
 //! and command/workspace jumps queue here and drain during `Render`.
 
 use super::*;
+use xenon_core::PaneId;
 
 /// Which pane held keyboard focus before an overlay opened.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,6 +30,8 @@ pub(super) struct DeferredUi {
     pub restore_pane: Option<FocusPane>,
     /// Re-focus this pane during the next render.
     pub pending_focus: Option<FocusPane>,
+    /// Re-focus this leaf (remaining tab after a window-less close).
+    pub pending_leaf: Option<PaneId>,
     /// Last editor/terminal focus for zoom when chrome has focus.
     pub last_font_pane: FontPane,
     /// cmd-clicked basename to open in the file palette.

@@ -49,6 +49,7 @@ mod lsp;
 mod nav_history;
 mod nav_ops;
 mod navigation;
+mod open_ops;
 mod palette;
 mod panels;
 pub(crate) mod remote;

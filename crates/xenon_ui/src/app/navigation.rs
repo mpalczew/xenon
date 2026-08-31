@@ -3,6 +3,7 @@
 //! held keyboard focus around the finder.
 
 use super::*;
+use xenon_core::PaneId;
 
 /// Cap on per-workspace recently opened paths used for cmd-p ranking.
 const MAX_RECENT_FILES: usize = 64;
@@ -182,6 +183,22 @@ impl XenonApp {
             self.focus_pane(target, window, cx);
         } else {
             self.deferred.pending_focus = Some(target);
+            cx.notify();
+        }
+    }
+
+    /// Focus a leaf now, or on the next paint when the caller has no `Window`
+    /// (PTY auto-close, dirty-close, vim `:q`).
+    pub(super) fn focus_leaf_now_or_later(
+        &mut self,
+        pane: PaneId,
+        window: Option<&mut Window>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(window) = window {
+            self.focus_leaf_active(pane, window, cx);
+        } else {
+            self.deferred.pending_leaf = Some(pane);
             cx.notify();
         }
     }

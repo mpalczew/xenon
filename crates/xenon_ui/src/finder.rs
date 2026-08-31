@@ -18,8 +18,8 @@ use xenon_finder::{FileIndex, FileMatch};
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, ScrollResults, input_registrar, panel, query_row, reveal_selected, scrim,
-    scroll_results, simple_row, step_selection,
+    PaletteLayout, ScrollResults, hint_row, input_registrar, panel, query_row, reveal_selected,
+    scrim, scroll_results, simple_row, step_selection,
 };
 
 /// Debounce before scoring a large index (keeps keystrokes snappy).
@@ -28,6 +28,8 @@ const CARET_BLINK: Duration = Duration::from_millis(530);
 
 pub enum FinderEvent {
     Selected(PathBuf),
+    /// ⌘↩ / ⌃↩ / ⌘-click: open in a new pane to the right.
+    SelectedBeside(PathBuf),
     RevealDir(PathBuf),
     Dismissed,
 }
@@ -169,7 +171,7 @@ impl FinderView {
         self.results_for == self.query
     }
 
-    fn confirm(&mut self, cx: &mut Context<Self>) {
+    fn confirm(&mut self, beside: bool, cx: &mut Context<Self>) {
         // Ignore Enter while results belong to a previous query.
         if !self.results_ready() {
             return;
@@ -177,24 +179,30 @@ impl FinderView {
         if let Some(result) = self.results.get(self.selected) {
             if result.is_dir {
                 cx.emit(FinderEvent::RevealDir(result.path.clone()));
+            } else if beside {
+                cx.emit(FinderEvent::SelectedBeside(result.path.clone()));
             } else {
                 cx.emit(FinderEvent::Selected(result.path.clone()));
             }
         }
     }
 
-    fn click_result(&mut self, index: usize, cx: &mut Context<Self>) {
+    fn click_result(&mut self, index: usize, beside: bool, cx: &mut Context<Self>) {
         if !self.results_ready() {
             return;
         }
         self.selected = index;
-        self.confirm(cx);
+        self.confirm(beside, cx);
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         match event.keystroke.key.as_str() {
             "escape" => cx.emit(FinderEvent::Dismissed),
-            "enter" => self.confirm(cx),
+            "enter" => {
+                let beside =
+                    event.keystroke.modifiers.platform || event.keystroke.modifiers.control;
+                self.confirm(beside, cx);
+            }
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
             "backspace" => {
@@ -260,7 +268,10 @@ impl Render for FinderView {
                     m.path.to_string_lossy().into_owned()
                 };
                 simple_row(("finder-row", i), label, i == self.selected, &colors)
-                    .on_click(cx.listener(move |this, _, _, cx| this.click_result(i, cx)))
+                    .on_click(cx.listener(move |this, event: &gpui::ClickEvent, _, cx| {
+                        let beside = event.modifiers().platform || event.modifiers().control;
+                        this.click_result(i, beside, cx);
+                    }))
                     .into_any_element()
             })
             .collect();
@@ -284,7 +295,8 @@ impl Render for FinderView {
                         selected: self.selected,
                         scroll: &self.scroll,
                         colors: &colors,
-                    })),
+                    }))
+                    .child(hint_row("↩ open  ·  ⌘↩ beside", &colors)),
             )
     }
 }
