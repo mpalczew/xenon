@@ -1,7 +1,34 @@
 //! Keyboard-first navigation: pane focus, workspace cycle, tabs, closes.
 
 use super::*;
-use xenon_core::{SplitAxis, WorkspaceId};
+use xenon_core::{PaneId, SplitAxis, WorkspaceId};
+
+/// Which tree target should own keys / ⌘W / tab cycle.
+///
+/// GPUI surface focus wins over a stale Files flag or the persisted leaf pointer.
+/// Those two are fallbacks for chrome clicks (no surface owns GPUI).
+pub(super) fn resolve_focus_target(
+    gpui_leaf: Option<PaneId>,
+    browser_focused: bool,
+    session_leaf: Option<PaneId>,
+) -> Option<FocusTarget> {
+    if let Some(pane) = gpui_leaf {
+        return Some(FocusTarget::Leaf(pane));
+    }
+    if browser_focused {
+        return Some(FocusTarget::Browser);
+    }
+    session_leaf.map(FocusTarget::Leaf)
+}
+
+pub(crate) fn tab_has_gpui_focus(tab: &LiveTab, window: &Window, cx: &App) -> bool {
+    match tab {
+        LiveTab::Terminal { view, .. } => {
+            view.read(cx).focus_handle(cx).contains_focused(window, cx)
+        }
+        LiveTab::Editor { view, .. } => view.read(cx).focus_handle(cx).contains_focused(window, cx),
+    }
+}
 
 impl XenonApp {
     pub(super) fn focus_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -48,31 +75,40 @@ impl XenonApp {
         }
     }
 
-    fn current_focus_target(&self, window: &Window, cx: &Context<Self>) -> Option<FocusTarget> {
-        if self.browser_focused {
-            return Some(FocusTarget::Browser);
-        }
-        // Which leaf has focused surface?
-        let content = self.active_content()?;
-        let root = content.root.as_ref()?;
+    /// Leaf whose active tab owns GPUI keyboard focus, if any.
+    pub(super) fn leaf_with_gpui_focus(
+        &self,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> Option<PaneId> {
+        let root = self.active_content()?.root.as_ref()?;
         for pane in root.leaf_ids() {
             if let Some(leaf) = root.find_leaf(pane)
-                && let Some(tab) = leaf.active_tab()
+                && leaf
+                    .active_tab()
+                    .is_some_and(|tab| tab_has_gpui_focus(tab, window, cx))
             {
-                let focused = match tab {
-                    LiveTab::Terminal { view, .. } => {
-                        view.read(cx).focus_handle(cx).contains_focused(window, cx)
-                    }
-                    LiveTab::Editor { view, .. } => {
-                        view.read(cx).focus_handle(cx).contains_focused(window, cx)
-                    }
-                };
-                if focused {
-                    return Some(FocusTarget::Leaf(pane));
-                }
+                return Some(pane);
             }
         }
-        content.focused.map(FocusTarget::Leaf)
+        None
+    }
+
+    fn current_focus_target(&self, window: &Window, cx: &Context<Self>) -> Option<FocusTarget> {
+        resolve_focus_target(
+            self.leaf_with_gpui_focus(window, cx),
+            self.browser_focused,
+            self.active_content().and_then(|c| c.focused),
+        )
+    }
+
+    /// Point the session leaf at the GPUI-focused surface so ⌘W / split / ⌘N
+    /// match the pane the user is actually typing in.
+    pub(super) fn follow_gpui_leaf(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let Some(pane) = self.leaf_with_gpui_focus(window, cx) else {
+            return;
+        };
+        self.adopt_focused_pane(pane, cx);
     }
 
     pub(super) fn next_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -113,6 +149,7 @@ impl XenonApp {
     }
 
     fn step_tab(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
+        self.follow_gpui_leaf(window, cx);
         let Some(content) = self.active_content() else {
             return;
         };
@@ -129,6 +166,7 @@ impl XenonApp {
     }
 
     pub(super) fn close_focused_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.follow_gpui_leaf(window, cx);
         let Some(content) = self.active_content() else {
             return;
         };
@@ -151,8 +189,33 @@ impl XenonApp {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum FocusTarget {
-    Leaf(xenon_core::PaneId),
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FocusTarget {
+    Leaf(PaneId),
     Browser,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FocusTarget, resolve_focus_target};
+    use xenon_core::PaneId;
+
+    #[test]
+    fn resolve_focus_target_prefers_gpui_then_browser_then_session() {
+        let gpui = PaneId(2);
+        let session = PaneId(1);
+        assert_eq!(
+            resolve_focus_target(Some(gpui), true, Some(session)),
+            Some(FocusTarget::Leaf(gpui))
+        );
+        assert_eq!(
+            resolve_focus_target(None, true, Some(session)),
+            Some(FocusTarget::Browser)
+        );
+        assert_eq!(
+            resolve_focus_target(None, false, Some(session)),
+            Some(FocusTarget::Leaf(session))
+        );
+        assert_eq!(resolve_focus_target(None, false, None), None);
+    }
 }

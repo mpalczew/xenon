@@ -4,7 +4,7 @@ use gpui::{
     ClipboardItem, Context, KeyDownEvent, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Window,
 };
 
-use super::{Content, EditorView};
+use super::{Content, EditorEvent, EditorView};
 use crate::edit::{EditCommand, Motion};
 use crate::mouse;
 use crate::vim::Mode;
@@ -235,6 +235,11 @@ impl EditorView {
         result.handled
     }
 
+    pub(super) fn claim_keyboard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.focus.focus(window, cx);
+        cx.emit(EditorEvent::Focused);
+    }
+
     pub(super) fn on_right_down(
         &mut self,
         event: &MouseDownEvent,
@@ -242,7 +247,7 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         self.context_menu = Some(event.position);
-        self.focus.focus(window, cx);
+        self.claim_keyboard(window, cx);
         cx.stop_propagation();
         cx.notify();
     }
@@ -251,6 +256,18 @@ impl EditorView {
         if self.context_menu.take().is_some() {
             cx.notify();
         }
+    }
+
+    pub(super) fn on_preview_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !mouse::is_primary_down(event) {
+            return;
+        }
+        self.claim_keyboard(window, cx);
     }
 
     pub(super) fn on_mouse_down(
@@ -264,16 +281,20 @@ impl EditorView {
         }
         self.dismiss_menu(cx);
         let Content::Text(buffer) = &mut self.content else {
+            self.claim_keyboard(window, cx);
+            cx.notify();
             return;
         };
         let Some(layout) = self.click_layout else {
+            self.claim_keyboard(window, cx);
+            cx.notify();
             return;
         };
         let (row, col) = mouse::position_at(layout, event.position);
         if event.modifiers.platform {
             buffer.set_cursor_position(row, col);
             self.emit_go_to_definition(cx);
-            self.focus.focus(window, cx);
+            self.claim_keyboard(window, cx);
             cx.stop_propagation();
             cx.notify();
             return;
@@ -311,7 +332,7 @@ impl EditorView {
         if click_count >= 2 {
             self.emit_selection(cx);
         }
-        self.focus.focus(window, cx);
+        self.claim_keyboard(window, cx);
         self.emit_cursor(cx);
         cx.stop_propagation();
         cx.notify();

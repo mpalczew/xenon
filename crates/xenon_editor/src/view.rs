@@ -111,6 +111,8 @@ pub enum EditorEvent {
         row: u32,
         col: u32,
     },
+    /// Mouse (or other user action) claimed keyboard focus on this view.
+    Focused,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -326,6 +328,7 @@ impl EditorView {
             .on_action(cx.listener(|this, _: &SelectAll, _, cx| {
                 this.select_all(cx);
             }))
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_preview_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .relative()
             .size_full()

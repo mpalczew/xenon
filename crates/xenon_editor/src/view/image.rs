@@ -88,7 +88,7 @@ impl EditorView {
             return;
         };
         viewer.drag_last = Some(event.position);
-        self.focus.focus(window, cx);
+        self.claim_keyboard(window, cx);
     }
 
     pub(super) fn on_image_mouse_move(

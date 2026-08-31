@@ -5,9 +5,7 @@ use crate::{
     GoBack, GoForward, GoToDefinition, KeyboardHelp, NextDiagnostic, NextTab, NextWorkspace,
     PrevTab, PrevWorkspace, PreviousDiagnostic, SplitDown, SplitRight,
 };
-use gpui::{
-    AnyElement, DragMoveEvent, Focusable, KeyDownEvent, MouseButton, MouseUpEvent, relative,
-};
+use gpui::{AnyElement, DragMoveEvent, KeyDownEvent, MouseButton, MouseUpEvent, relative};
 use xenon_core::{PaneId, SplitAxis};
 use xenon_settings::{Copy, Cut, Paste};
 
@@ -293,8 +291,7 @@ impl XenonApp {
 
         match content.and_then(|c| c.root.as_ref()) {
             Some(root) => {
-                let focused = content.and_then(|c| c.focused);
-                panel = panel.child(self.render_live_node(root, focused, window, cx));
+                panel = panel.child(self.render_live_node(root, window, cx));
             }
             None => {
                 let message = if self.active.is_some() {
@@ -315,13 +312,12 @@ impl XenonApp {
     fn render_live_node(
         &self,
         node: &LiveNode,
-        focused: Option<PaneId>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let colors = cx.theme().colors().clone();
         match node {
-            LiveNode::Leaf(leaf) => self.render_leaf(leaf, focused == Some(leaf.id), window, cx),
+            LiveNode::Leaf(leaf) => self.render_leaf(leaf, window, cx),
             LiveNode::Split {
                 axis,
                 ratio,
@@ -333,8 +329,8 @@ impl XenonApp {
                     axis: *axis,
                     first_leaf,
                 };
-                let first_el = self.render_live_node(first, focused, window, cx);
-                let second_el = self.render_live_node(second, focused, window, cx);
+                let first_el = self.render_live_node(first, window, cx);
+                let second_el = self.render_live_node(second, window, cx);
                 match axis {
                     SplitAxis::Horizontal => div()
                         .flex()
@@ -389,29 +385,16 @@ impl XenonApp {
         }
     }
 
-    fn render_leaf(
-        &self,
-        leaf: &LiveLeaf,
-        is_focused: bool,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
+    fn render_leaf(&self, leaf: &LiveLeaf, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let colors = cx.theme().colors().clone();
-        let ring = if is_focused {
-            // Check actual keyboard focus on active surface
-            let surface_focused = leaf.active_tab().is_some_and(|tab| match tab {
-                LiveTab::Terminal { view, .. } => {
-                    view.read(cx).focus_handle(cx).contains_focused(window, cx)
-                }
-                LiveTab::Editor { view, .. } => {
-                    view.read(cx).focus_handle(cx).contains_focused(window, cx)
-                }
-            });
-            if surface_focused {
-                colors.border_focused
-            } else {
-                gpui::transparent_black()
-            }
+        // Ring tracks GPUI keyboard ownership, not the session leaf pointer.
+        // AND-ing the two left splits with a purple tab underline, no pane
+        // ring, and ⌘W closing the other half.
+        let ring = if leaf
+            .active_tab()
+            .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx))
+        {
+            colors.border_focused
         } else {
             gpui::transparent_black()
         };
@@ -454,6 +437,12 @@ impl XenonApp {
             .min_h_0()
             .border_2()
             .border_color(ring)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, window, cx| {
+                    this.focus_leaf_active(pane_id, window, cx);
+                }),
+            )
             .child(tabs)
             .child(body)
             .children(drop_overlay)

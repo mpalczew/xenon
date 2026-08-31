@@ -12,6 +12,7 @@ impl XenonApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.follow_gpui_leaf(window, cx);
         let Some(ws) = self.active else {
             return;
         };
@@ -346,6 +347,11 @@ impl XenonApp {
                 EditorEvent::GoToDefinition { path, row, col } => {
                     this.request_definition(path.clone(), *row, *col, cx);
                 }
+                EditorEvent::Focused => {
+                    if let Some((workspace, tab)) = this.locate_editor(&view) {
+                        this.adopt_tab_as_focused(workspace, tab, cx);
+                    }
+                }
             }));
     }
 
@@ -466,6 +472,17 @@ impl XenonApp {
             });
             if let Some(tab) = found {
                 return Some((*id, tab));
+            }
+        }
+        None
+    }
+
+    /// Find (workspace, tab) for an editor entity.
+    pub(super) fn locate_editor(&self, view: &Entity<EditorView>) -> Option<(WorkspaceId, TabId)> {
+        let ids: Vec<WorkspaceId> = self.contents.keys().copied().collect();
+        for id in ids {
+            if let Some(tab) = self.tab_id_for_editor(id, view) {
+                return Some((id, tab));
             }
         }
         None

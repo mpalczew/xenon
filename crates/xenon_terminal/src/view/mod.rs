@@ -624,9 +624,10 @@ impl TerminalView {
     fn on_mouse_down(
         &mut self,
         event: &MouseDownEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.focus.focus(window, cx);
         let State::Ready(terminal) = &self.state else {
             return;
         };

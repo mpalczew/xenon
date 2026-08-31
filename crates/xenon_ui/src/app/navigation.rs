@@ -111,20 +111,22 @@ impl XenonApp {
     }
 
     pub(super) fn focused_pane(&self, window: &Window, cx: &Context<Self>) -> Option<FocusPane> {
+        if let Some(pane) = self.leaf_with_gpui_focus(window, cx) {
+            return match self
+                .active_content()?
+                .root
+                .as_ref()?
+                .find_leaf(pane)?
+                .active_tab()?
+            {
+                LiveTab::Terminal { .. } => Some(FocusPane::Terminal),
+                LiveTab::Editor { .. } => Some(FocusPane::Editor),
+            };
+        }
         if self.browser_focused {
             return Some(FocusPane::Browser);
         }
         match self.active_content().and_then(|c| c.active_tab()) {
-            Some(LiveTab::Terminal { view, .. })
-                if view.read(cx).focus_handle(cx).contains_focused(window, cx) =>
-            {
-                Some(FocusPane::Terminal)
-            }
-            Some(LiveTab::Editor { view, .. })
-                if view.read(cx).focus_handle(cx).contains_focused(window, cx) =>
-            {
-                Some(FocusPane::Editor)
-            }
             Some(LiveTab::Terminal { .. }) => Some(FocusPane::Terminal),
             Some(LiveTab::Editor { .. }) => Some(FocusPane::Editor),
             None => {

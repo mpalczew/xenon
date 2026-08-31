@@ -35,6 +35,19 @@ needs one live focus owner:
 - the Files tree through the shell focus handle; or
 - the shell itself when no content exists.
 
+Two layers must not disagree:
+
+- **GPUI** `FocusHandle` is who actually receives keys (and the purple pane
+  ring). Clicking or typing in a surface moves this.
+- **Session** `LiveContent.focused` is which leaf ⌘W / ⌃⇥ / split / ⌘N target.
+  Tab-chip clicks already updated both. Body clicks used to move only GPUI, so
+  a split could show a tab underline, no pane ring, and ⌘W closed the other
+  half. Commands now follow GPUI when a surface owns it; clicks/typing also
+  write the session leaf.
+
+The pane ring is GPUI-only. The tab underline is “this tab is active in its
+leaf,” which is why a split can underline two tabs at once.
+
 Closing a focused surface is a focus transfer, not just removal. Overlay
 dismiss and confirm paths must set the next focus target before destroying the
 overlay. A dead or off-tree `FocusId` is an illegal state because app commands

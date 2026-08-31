@@ -59,6 +59,7 @@ impl XenonApp {
     /// Prefer the leaf's active tab when it is already a terminal (so Run Task on a
     /// newly opened tab does not jump back to the first terminal).
     pub(super) fn focus_or_new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.follow_gpui_leaf(window, cx);
         self.browser_focused = false;
         self.deferred.last_font_pane = FontPane::Terminal;
         if let Some(content) = self.active_content()
@@ -78,10 +79,19 @@ impl XenonApp {
         self.new_terminal(window, cx);
     }
 
-    /// ⌘⇧E: focus last editor if any.
+    /// ⌘⇧E / ⌘2: focus last editor if any, and make that leaf the session target.
     pub(super) fn focus_or_reveal_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.browser_focused = false;
         self.deferred.last_font_pane = FontPane::Editor;
+        let located = self.active_editor().and_then(|editor| {
+            let (ws, tab) = self.locate_editor(&editor)?;
+            let (pane, idx) = self.contents.get(&ws)?.root.as_ref()?.find_tab(tab)?;
+            Some((pane, idx))
+        });
+        if let Some((pane, idx)) = located {
+            self.activate_tab_in_pane(pane, idx, window, cx);
+            return;
+        }
         if let Some(editor) = self.active_editor() {
             editor.read(cx).focus_handle(cx).focus(window, cx);
             cx.notify();

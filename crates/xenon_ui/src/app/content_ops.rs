@@ -143,6 +143,7 @@ impl XenonApp {
     }
 
     pub(crate) fn new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.follow_gpui_leaf(window, cx);
         self.browser_focused = false;
         self.add_terminal(cx);
         if let Some(terminal) = self.active_terminal() {
@@ -319,6 +320,55 @@ impl XenonApp {
             .map(|l| l.active)
             .unwrap_or(0);
         self.activate_tab_in_pane(pane, index, window, cx);
+    }
+
+    /// Session leaf follows a surface the user is actually using (click/type).
+    pub(super) fn adopt_focused_pane(&mut self, pane: PaneId, cx: &mut Context<Self>) {
+        let Some(id) = self.active else {
+            return;
+        };
+        let Some(content) = self.contents.get_mut(&id) else {
+            return;
+        };
+        if content
+            .root
+            .as_ref()
+            .and_then(|r| r.find_leaf(pane))
+            .is_none()
+        {
+            return;
+        }
+        if content.focused == Some(pane) && !self.browser_focused {
+            return;
+        }
+        content.focused = Some(pane);
+        self.browser_focused = false;
+        cx.notify();
+    }
+
+    pub(super) fn adopt_tab_as_focused(
+        &mut self,
+        workspace: WorkspaceId,
+        tab: TabId,
+        cx: &mut Context<Self>,
+    ) {
+        let pane = {
+            let Some(content) = self.contents.get_mut(&workspace) else {
+                return;
+            };
+            let Some((pane, idx)) = content.root.as_ref().and_then(|r| r.find_tab(tab)) else {
+                return;
+            };
+            if let Some(leaf) = content.root.as_mut().and_then(|r| r.find_leaf_mut(pane)) {
+                leaf.active = idx;
+            }
+            if self.active != Some(workspace) {
+                content.focused = Some(pane);
+                return;
+            }
+            pane
+        };
+        self.adopt_focused_pane(pane, cx);
     }
 
     /// Close by tab id (dirty guard for editors).

@@ -231,6 +231,7 @@ impl XenonApp {
                     TerminalEvent::Interacted => {
                         if let Some((workspace, tab)) = owner {
                             this.clear_tab_attention(workspace, tab, cx);
+                            this.adopt_tab_as_focused(workspace, tab, cx);
                         }
                         this.refresh_terminal_status(cx);
                     }
