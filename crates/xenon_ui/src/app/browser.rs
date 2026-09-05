@@ -152,7 +152,7 @@ impl XenonApp {
         let kb = self.browser_focused && self.file_browser.cursor() == Some(index);
         let paint = crate::chrome::list_selection(&colors, row.is_open || kb);
         let id = SharedString::from(row.path.to_string_lossy().into_owned());
-        const ICON: f32 = 12.;
+        const ICON: f32 = 14.;
         let chevron = div()
             .w(px(14.))
             .flex()
@@ -190,7 +190,7 @@ impl XenonApp {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .text_color(colors.text_muted)
+                    .text_color(colors.icon)
                     .child(crate::icons::icon(glyph, px(ICON))),
             )
             .child(div().flex_1().min_w_0().truncate().child(row.name.clone()))
@@ -215,9 +215,7 @@ impl XenonApp {
     }
 
     pub(super) fn open_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.task_picker = None;
-        self.workspace_picker = None;
-        self.command_palette = None;
+        self.dismiss_palettes();
         self.open_palette_with_query(String::new(), window, cx);
     }
 
@@ -234,9 +232,7 @@ impl XenonApp {
         let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return;
         };
-        self.task_picker = None;
-        self.workspace_picker = None;
-        self.command_palette = None;
+        self.dismiss_palettes();
         self.deferred.restore_pane = self.focused_pane(window, cx);
         // Cache first (instant open); force=true re-walks in the background.
         // A synchronous rebuild on every open would stall large roots ($HOME).

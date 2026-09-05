@@ -22,8 +22,6 @@ use crate::settings::SettingsView;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DropdownId {
     Mode,
-    LightTheme,
-    DarkTheme,
     UiFamily,
     EditorFamily,
     TerminalFamily,

@@ -189,7 +189,8 @@ product surface: trust defaults, screenshot identity, and personality.
   theme-aware attention, consistent icons.
 - **Option 3-lite:** agent-cockpit bias (workspace attention, terminal status,
   cool density) without a full IA rewrite yet.
-- **Default dark:** real elevation (not pure void as the trust default).
+- **Default dark:** Neon Noir (cool cockpit). One Dark remains in the pack.
+- **Default light:** One Light with a white canvas (not a gray slab).
 - **True Black:** opt-in pure black; selection must stay multi-channel.
 - **Tone:** cool (blues / cyans / violets preferred for dogfood).
 

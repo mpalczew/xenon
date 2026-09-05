@@ -55,8 +55,8 @@ impl Render for PathTooltip {
 }
 
 pub(super) const ROW_H: f32 = 24.;
-pub(super) const ICON_SM: f32 = 12.;
-pub(super) const ICON_MD: f32 = 13.;
+pub(super) const ICON_SM: f32 = 14.;
+pub(super) const ICON_MD: f32 = 15.;
 /// Square hit target for pencil / close on workspace rows.
 pub(super) const ACTION_BTN: f32 = 20.;
 /// Two action buttons (no gap) — keeps dirt gutter and hover overlay aligned.

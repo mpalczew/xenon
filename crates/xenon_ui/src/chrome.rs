@@ -61,6 +61,11 @@ pub(crate) fn tab_bar_background(colors: &ThemeColors) -> Hsla {
     colors.tab_bar_background
 }
 
+/// Sidebar fill. Canvas, not panel gray. Toolbar keeps `panel_background`.
+pub(crate) fn sidebar_background(colors: &ThemeColors) -> Hsla {
+    colors.editor_background
+}
+
 /// Attention / "needs you" indicator. Theme status.warning, not hard-coded amber.
 pub(crate) fn attention_color(cx: &App) -> Hsla {
     use theme::ActiveTheme;

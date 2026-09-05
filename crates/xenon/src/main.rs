@@ -13,7 +13,7 @@ use xenon_ui::{
     FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack, GoForward,
     IncreaseFontSize, KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile, Paste, PrevTab,
     PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser, ToggleEditor,
-    ToggleSettings, ToggleSidebar, ToggleTerminal, XenonApp,
+    ToggleSettings, ToggleSidebar, ToggleTerminal, ToggleThemes, XenonApp,
 };
 
 actions!(xenon, [Quit]);
@@ -161,6 +161,7 @@ fn wire_menus(cx: &mut App) {
     cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
     cx.set_menus([
         Menu::new("Xenon").items([
+            MenuItem::action("Themes…", ToggleThemes),
             MenuItem::action("Preferences…", ToggleSettings),
             MenuItem::separator(),
             MenuItem::action("Quit", Quit),
@@ -204,6 +205,7 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("Go Back", GoBack),
             MenuItem::action("Go Forward", GoForward),
             MenuItem::separator(),
+            MenuItem::action("Themes…", ToggleThemes),
             MenuItem::action("Keyboard Shortcuts", KeyboardHelp),
             MenuItem::separator(),
             MenuItem::action("Zoom In", IncreaseFontSize),

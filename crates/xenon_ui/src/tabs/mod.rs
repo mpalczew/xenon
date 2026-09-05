@@ -7,12 +7,14 @@ use gpui::{
     MouseDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled,
     Window, div, px,
 };
+use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::PaneId;
 
 use crate::{
     app::{DragTab, LiveLeaf, LiveTab, WorkspaceDot, XenonApp, workspace_dot},
     chrome::{self, SelectionPaint},
+    icons::icon,
     preview_icon,
 };
 
@@ -59,7 +61,7 @@ fn tab_close(
         .group_hover(group, |s| s.visible())
         .hover(|s| s.text_color(colors.text))
         .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")))
-        .child("✕")
+        .child(icon(Icon::X, px(12.)))
         .on_click(on_click)
 }
 
@@ -232,7 +234,7 @@ impl XenonApp {
             .cursor_pointer()
             .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
             .tooltip(tip_tooltip(SharedString::from("New Terminal · ⌘N")))
-            .child("+")
+            .child(icon(Icon::Plus, px(13.)))
             .on_click(cx.listener(move |this, _, window, cx| {
                 if let Some(content) = this.active.and_then(|id| this.contents.get_mut(&id)) {
                     content.focused = Some(pane);
@@ -317,6 +319,7 @@ impl XenonApp {
                     cx.new(|_| TabTooltip { text: full.clone() }).into()
                 }
             })
+            .child(icon(Icon::SquareTerminal, px(13.)))
             .child(
                 div()
                     .text_sm()

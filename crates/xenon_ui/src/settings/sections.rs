@@ -2,7 +2,7 @@
 
 use gpui::{
     App, Context, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString,
-    StatefulInteractiveElement, Styled, div, px,
+    StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
 
@@ -24,8 +24,6 @@ pub(super) fn appearance_section(
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
     let mode_opts: Vec<SharedString> = vec!["System".into(), "Light".into(), "Dark".into()];
-    let light = xenon_terminal::theme_names(theme::Appearance::Light, cx);
-    let dark = xenon_terminal::theme_names(theme::Appearance::Dark, cx);
     let body = div()
         .flex()
         .flex_col()
@@ -45,38 +43,59 @@ pub(super) fn appearance_section(
             cx,
         ))
         .child(row_divider(cx))
-        .child(dropdown_row(
-            DropdownProps {
-                id: DropdownId::LightTheme,
-                title: "Light Theme",
-                selected: &settings.light_theme,
-                options: &light,
-                filterable: true,
-                open: state.open == Some(DropdownId::LightTheme),
-                filter: state.filter,
-                highlight: state.highlight,
-                caret_on: state.caret_on,
-                viewport_height: state.viewport_height,
-            },
-            cx,
-        ))
+        .child(theme_name_row("Light", &settings.light_theme, cx))
         .child(row_divider(cx))
-        .child(dropdown_row(
-            DropdownProps {
-                id: DropdownId::DarkTheme,
-                title: "Dark Theme",
-                selected: &settings.dark_theme,
-                options: &dark,
-                filterable: true,
-                open: state.open == Some(DropdownId::DarkTheme),
-                filter: state.filter,
-                highlight: state.highlight,
-                caret_on: state.caret_on,
-                viewport_height: state.viewport_height,
-            },
-            cx,
-        ));
+        .child(theme_name_row("Dark", &settings.dark_theme, cx))
+        .child(row_divider(cx))
+        .child(browse_themes_row(cx));
     group_card("Appearance", body, cx)
+}
+
+fn theme_name_row(
+    label: &'static str,
+    name: &str,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    div()
+        .flex()
+        .items_center()
+        .justify_between()
+        .px_3()
+        .py_2()
+        .child(div().text_sm().text_color(colors.text_muted).child(label))
+        .child(div().text_sm().child(name.to_string()))
+}
+
+fn browse_themes_row(cx: &mut Context<SettingsView>) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    div()
+        .id("browse-themes")
+        .flex()
+        .items_center()
+        .justify_between()
+        .px_3()
+        .py_2()
+        .cursor_pointer()
+        .hover(|s| s.bg(colors.element_hover))
+        .on_click(cx.listener(|_, _, window, cx| {
+            cx.stop_propagation();
+            open_theme_gallery(window, cx);
+        }))
+        .child(div().text_sm().child("Browse themes…"))
+        .child(div().text_xs().text_color(colors.text_muted).child("⌘⌥T"))
+}
+
+fn open_theme_gallery(_window: &mut Window, cx: &mut App) {
+    for handle in cx.windows() {
+        let Some(main) = handle.downcast::<crate::XenonApp>() else {
+            continue;
+        };
+        let _ = main.update(cx, |app, window, cx| {
+            app.open_theme_picker(window, cx);
+            window.activate_window();
+        });
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -191,8 +210,6 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
     let mut settings = xenon_settings::snapshot(cx);
     match id {
         DropdownId::Mode => settings.theme = parse_mode(&value),
-        DropdownId::LightTheme => settings.light_theme = value,
-        DropdownId::DarkTheme => settings.dark_theme = value,
         DropdownId::UiFamily => {
             settings.ui_font_family = xenon_settings::ensure_ui_family(&value, cx);
         }
@@ -208,10 +225,7 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
     }
     xenon_settings::apply(&settings, cx);
     xenon_settings::save(cx);
-    if matches!(
-        id,
-        DropdownId::Mode | DropdownId::LightTheme | DropdownId::DarkTheme
-    ) {
+    if matches!(id, DropdownId::Mode) {
         xenon_terminal::apply_theme(cx);
     } else {
         xenon_terminal::refresh_windows(cx);

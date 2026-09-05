@@ -128,7 +128,7 @@ impl XenonApp {
             .min_w_0()
             .border_r_1()
             .border_color(colors.border)
-            .bg(colors.panel_background)
+            .bg(crate::chrome::sidebar_background(&colors))
             .child(self.workspaces_section_header(ws_collapsed, cx))
             .children(workspace_body)
             .children(has_active.then(|| self.render_files_section(cx)))
@@ -328,7 +328,7 @@ impl XenonApp {
             .justify_end()
             .invisible()
             .group_hover(group, |s| s.visible())
-            .bg(colors.panel_background)
+            .bg(crate::chrome::sidebar_background(colors))
             .child(icon_button(
                 ("ws-rename", id_hash(id.to_string())),
                 Icon::Pencil,

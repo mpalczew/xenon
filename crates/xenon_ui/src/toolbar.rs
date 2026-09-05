@@ -15,7 +15,7 @@ use crate::{
     SplitRight, ToggleSettings, ToggleSidebar,
 };
 
-const ICON: f32 = 14.;
+const ICON: f32 = 16.;
 
 impl XenonApp {
     pub(crate) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -203,6 +203,11 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     } else {
         colors.panel_background
     };
+    let fg = if active {
+        paint.foreground
+    } else {
+        colors.icon
+    };
     div()
         .id(id)
         .flex()
@@ -212,7 +217,7 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
         .h(px(26.))
         .rounded_sm()
         .bg(background)
-        .text_color(paint.foreground)
+        .text_color(fg)
         .cursor_pointer()
         .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
         .child(icon(glyph, px(ICON)))

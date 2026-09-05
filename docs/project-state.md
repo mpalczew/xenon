@@ -54,6 +54,14 @@ rediscover.
 - Settings geometry and chrome preferences share `settings.json`; partial
   saves use the locked load-mutate-save boundary and preserve fields they do
   not own.
+- Theme gallery (⌘⌥T) is a separate overlay from Settings. Picking a card
+  writes that appearance slot and switches Mode to Light or Dark so the
+  choice is visible immediately. The gallery stays open until Escape.
+  Settings Appearance shows current names plus Browse themes…, not the old
+  theme dropdowns.
+- Sidebar paints `editor_background` (canvas). Toolbar stays `panel_background`.
+- Lilex is bundled and the default mono. GPUI still lists `.ZedMono` /
+  `.ZedSans` aliases; the pickers hide those unless the files exist.
 
 ## Gotchas
 
@@ -79,6 +87,7 @@ rediscover.
 
 ## Open product work
 
+- Check [Rust Glancer](https://rust-glancer.github.io/blog/hello-world/) as a low-RAM disk-cached Rust LSP for `xenon_lsp` (<100MB, no proc-macro execution). HN: https://news.ycombinator.com/item?id=49393052
 - Find replace.
 - Keyboard paths for terminal On-exit, open-target choice, and workspace
   reorder.

@@ -3,6 +3,7 @@
 //! Also hosts clipboard actions so editor and terminal share one Cut/Copy/Paste.
 
 mod faces;
+mod fonts;
 mod mono_font;
 
 use gpui::{App, Global, actions};
@@ -16,6 +17,7 @@ pub use faces::{
     nudge_terminal_font_size, nudge_ui_font_size, reset_editor_font_size, reset_font_sizes,
     reset_terminal_font_size, terminal_font, ui_font,
 };
+pub use fonts::load_embedded_fonts;
 pub use mono_font::{
     canonicalize as canonicalize_mono_family, display_name as display_mono_family,
     ensure as ensure_mono_family, is_family as is_monospace_family,

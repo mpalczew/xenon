@@ -30,6 +30,7 @@ impl XenonApp {
         }
         self.active = Some(id);
         self.finder = None;
+        self.theme_picker = None;
 
         let session = self.sessions.get(&id).cloned().unwrap_or_else(|| {
             let session = SessionState {

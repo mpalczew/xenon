@@ -11,6 +11,14 @@ fn is_mono_family_dropdown(id: DropdownId) -> bool {
     matches!(id, DropdownId::EditorFamily | DropdownId::TerminalFamily)
 }
 
+/// GPUI advertises `.ZedMono` / `.ZedSans` even when those files are not loaded.
+fn is_virtual_family(name: &str) -> bool {
+    matches!(
+        name,
+        ".ZedMono" | ".ZedSans" | "Zed Plex Mono" | "Zed Plex Sans"
+    )
+}
+
 fn is_ui_family_dropdown(id: DropdownId) -> bool {
     matches!(id, DropdownId::UiFamily)
 }
@@ -34,6 +42,7 @@ fn mono_cache() -> &'static Mutex<Option<Vec<SharedString>>> {
 /// Names must be real Core Text families (not marketing labels like "SF Mono").
 fn seed_mono_families() -> Vec<SharedString> {
     [
+        "Lilex",
         "Menlo",
         "Monaco",
         "Courier New",
@@ -75,17 +84,24 @@ pub(crate) fn warm_mono_font_families(cx: &App) {
         FontFamilyCache::global(cx)
             .list_font_families(cx)
             .into_iter()
-            .filter(|name| xenon_settings::is_monospace_family(name.as_ref(), cx))
+            .filter(|name| {
+                let n = name.as_ref();
+                !is_virtual_family(n) && xenon_settings::is_monospace_family(n, cx)
+            })
             .collect::<Vec<SharedString>>()
     }))
     .unwrap_or_else(|_| seed_mono_families());
     let mut guard = mono_cache().lock().unwrap_or_else(|e| e.into_inner());
     if guard.is_none() {
-        *guard = Some(if list.is_empty() {
+        let mut list = if list.is_empty() {
             seed_mono_families()
         } else {
             list
-        });
+        };
+        if !list.iter().any(|n| n.as_ref() == "Lilex") {
+            list.insert(0, SharedString::from("Lilex"));
+        }
+        *guard = Some(list);
     }
 }
 
@@ -133,6 +149,7 @@ pub(crate) fn warm_ui_font_families(cx: &App) {
         FontFamilyCache::global(cx)
             .list_font_families(cx)
             .into_iter()
+            .filter(|name| !is_virtual_family(name.as_ref()))
             .collect::<Vec<SharedString>>()
     }))
     .unwrap_or_else(|_| seed_ui_families());

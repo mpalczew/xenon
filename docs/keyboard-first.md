@@ -19,6 +19,7 @@ surface and the non-obvious focus model.
 | Navigation back / forward | ⌘[ / ⌘] |
 | Find next / previous | ⌘G / ⌘⇧G |
 | Markdown preview | ⌘⇧V |
+| Themes | ⌘⌥T |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
 
 Find strips use ⌘F, Return/Shift-Return, ⌥C/W/R, and Escape. Elevated

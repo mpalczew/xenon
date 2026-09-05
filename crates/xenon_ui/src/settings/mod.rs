@@ -366,8 +366,6 @@ pub(super) fn is_filterable(id: DropdownId) -> bool {
 fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
     match id {
         DropdownId::Mode => vec!["System".into(), "Light".into(), "Dark".into()],
-        DropdownId::LightTheme => xenon_terminal::theme_names(theme::Appearance::Light, cx),
-        DropdownId::DarkTheme => xenon_terminal::theme_names(theme::Appearance::Dark, cx),
         DropdownId::UiFamily => ui_font_families(cx),
         DropdownId::EditorFamily | DropdownId::TerminalFamily => mono_font_families(cx),
         DropdownId::TerminalAutoClose => [

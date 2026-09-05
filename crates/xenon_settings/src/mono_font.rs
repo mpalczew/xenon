@@ -7,6 +7,7 @@ use xenon_store::DEFAULT_FONT_FAMILY;
 pub fn canonicalize(family: &str) -> String {
     match family.trim() {
         "SF Mono" | "SFMono" | "SFMono-Regular" => ".SF NS Mono".into(),
+        "Zed Mono" | ".ZedMono" | "Zed Plex Mono" => "Lilex".into(),
         other => other.to_string(),
     }
 }
@@ -19,7 +20,7 @@ pub fn display_name(family: &str) -> &str {
     }
 }
 
-/// Resolve aliases and require a monospaced face; otherwise fall back to Menlo.
+/// Resolve aliases and require a monospaced face; otherwise fall back to Lilex.
 pub fn ensure(family: &str, cx: &App) -> String {
     let candidate = canonicalize(family);
     if is_safe(&candidate, cx) {
@@ -71,6 +72,8 @@ mod tests {
     fn alias_sf_mono() {
         assert_eq!(canonicalize("SF Mono"), ".SF NS Mono");
         assert_eq!(canonicalize("SFMono"), ".SF NS Mono");
+        assert_eq!(canonicalize("Zed Mono"), "Lilex");
+        assert_eq!(canonicalize(".ZedMono"), "Lilex");
         assert_eq!(canonicalize("Menlo"), "Menlo");
     }
 

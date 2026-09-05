@@ -195,7 +195,7 @@ fn settings_missing_theme_defaults_to_system() {
         assert_eq!(settings.editor_font_size, 16.0);
         assert_eq!(settings.terminal_font_size, 14.0);
         assert_eq!(settings.ui_font_size, 14.0);
-        assert_eq!(settings.editor_font_family, "Menlo");
+        assert_eq!(settings.editor_font_family, "Lilex");
         assert_eq!(settings.ui_font_family, ".SystemUIFont");
     });
 }

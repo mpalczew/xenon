@@ -10,9 +10,7 @@ impl XenonApp {
         let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return;
         };
-        self.finder = None;
-        self.workspace_picker = None;
-        self.command_palette = None;
+        self.dismiss_palettes();
         self.deferred.restore_pane = self.focused_pane(window, cx);
         let (tasks, error) = match load_shell_tasks(&root) {
             Ok(tasks) if tasks.is_empty() => (

@@ -62,6 +62,7 @@ mod tab_context;
 mod tab_drop;
 mod tasks;
 mod terminals;
+mod themes;
 mod tree_keys;
 mod workspaces;
 
@@ -107,6 +108,7 @@ pub struct XenonApp {
     task_picker: Option<Entity<TaskPickerView>>,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
     command_palette: Option<Entity<crate::command_palette::CommandPaletteView>>,
+    theme_picker: Option<Entity<crate::theme_picker::ThemePickerView>>,
     /// File tree has keyboard focus (arrows/enter route here, not editor/terminal).
     browser_focused: bool,
     // Per-root fuzzy index shared by cmd-p and cmd-click resolution, built off
@@ -146,6 +148,7 @@ pub struct XenonApp {
     _task_picker_sub: Option<Subscription>,
     _workspace_picker_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
+    _theme_picker_sub: Option<Subscription>,
     // Per-terminal-tab attention (sidebar + tab chips). Workspace row is derived.
     attention: AttentionMap,
     _bell_subs: Vec<Subscription>,
@@ -171,6 +174,7 @@ impl XenonApp {
             task_picker: None,
             workspace_picker: None,
             command_palette: None,
+            theme_picker: None,
             browser_focused: false,
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
@@ -194,6 +198,7 @@ impl XenonApp {
             _task_picker_sub: None,
             _workspace_picker_sub: None,
             _command_palette_sub: None,
+            _theme_picker_sub: None,
             attention: AttentionMap::default(),
             _bell_subs: Vec::new(),
             _selection_subs: Vec::new(),

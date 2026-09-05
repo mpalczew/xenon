@@ -17,6 +17,7 @@ mod settings;
 mod sidebar;
 mod tabs;
 mod task_picker;
+mod theme_picker;
 mod toolbar;
 mod workspace_discover;
 mod workspace_picker;
@@ -51,6 +52,7 @@ actions!(
         DecreaseFontSize,
         ResetFontSize,
         ToggleSettings,
+        ToggleThemes,
         ToggleMobileRemote,
         TogglePreview,
         // Keyboard-first navigation
@@ -150,6 +152,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-\\", SplitDown, None),
         KeyBinding::new("cmd-e", ToggleBrowser, None),
         KeyBinding::new("cmd-,", ToggleSettings, None),
+        KeyBinding::new("cmd-alt-t", ToggleThemes, None),
         KeyBinding::new("cmd-shift-v", TogglePreview, None),
         KeyBinding::new("cmd-=", IncreaseFontSize, None),
         KeyBinding::new("cmd-+", IncreaseFontSize, None),
@@ -159,6 +162,7 @@ pub fn bind_keys(cx: &mut App) {
 }
 
 pub fn init(cx: &mut App) {
+    xenon_settings::load_embedded_fonts(cx);
     icons::load_icon_font(cx);
     bind_keys(cx);
 }

@@ -16,8 +16,8 @@ Product UI. Familiar IDE bones; signature is multi-stream anti-IDE chrome.
 
 | Level | Role | One Dark example |
 |-------|------|------------------|
-| 0 | Editor / terminal canvas | `#000000` |
-| 1 | Panel, tab bar, toolbar | `#14161c` |
+| 0 | Editor / terminal canvas, sidebar | `#000000` |
+| 1 | Toolbar, tab bar | `#14161c` |
 | 2 | Elevated menus / popovers | `#1c1f26` |
 | Selected | List / chip fill | `element.selected` |
 
@@ -64,8 +64,9 @@ status pip uses a quiet opacity pulse (~1.4s, theme token).
 
 ## Themes
 
-Bundled families under `crates/xenon_terminal/assets/`. Default dark: **One Dark**
-(with elevation). Opt-in void: **True Black**.
+Bundled families under `crates/xenon_terminal/assets/`. Default dark: **Neon Noir**.
+Default light: **One Light** (white canvas, not a gray slab). Opt-in void: **True Black**.
+Theme gallery: ⌘⌥T, separate from Settings.
 
 | Job | Families |
 |-----|----------|
