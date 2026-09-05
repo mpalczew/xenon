@@ -187,6 +187,26 @@ impl XenonApp {
         }
     }
 
+    /// After a workspace becomes active, put keys on its remembered leaf.
+    /// Existing terminals/editors skip `focused_once`, so a switch that does
+    /// not transfer focus leaves the shell `track_focus` handle owning keys.
+    pub(super) fn focus_workspace_leaf(
+        &mut self,
+        window: Option<&mut Window>,
+        cx: &mut Context<Self>,
+    ) {
+        let pane = self.active_content().and_then(|c| {
+            let id = c.focused?;
+            c.root.as_ref()?.find_leaf(id)?;
+            Some(id)
+        });
+        if let Some(pane) = pane {
+            self.focus_leaf_now_or_later(pane, window, cx);
+        } else {
+            self.focus_after_teardown(window, cx);
+        }
+    }
+
     /// Focus a leaf now, or on the next paint when the caller has no `Window`
     /// (PTY auto-close, dirty-close, vim `:q`).
     pub(super) fn focus_leaf_now_or_later(

@@ -59,8 +59,10 @@ leaf,” which is why a split can underline two tabs at once.
 
 Closing a focused surface is a focus transfer, not just removal. Overlay
 dismiss and confirm paths must set the next focus target before destroying the
-overlay. A dead or off-tree `FocusId` is an illegal state because app commands
-then silently stop receiving actions.
+overlay. Switching workspace (⌘⇧O, sidebar, ⌘⌥↓/↑, command palette) is the
+same transfer: land on that workspace's focused leaf, not the overlay or the
+previous workspace. A dead or off-tree `FocusId` is an illegal state because
+app commands then silently stop receiving actions.
 
 Teardown routes through one focus-transfer helper. It targets the remaining
 editor/terminal when available and otherwise focuses the shell, including

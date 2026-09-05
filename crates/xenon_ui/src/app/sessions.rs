@@ -312,9 +312,7 @@ impl XenonApp {
     ) {
         self.activate_workspace(id, cx);
         self.dismiss_viewed_terminal(cx);
-        if let Some(terminal) = self.active_terminal() {
-            terminal.read(cx).focus_handle(cx).focus(window, cx);
-        }
+        self.focus_workspace_leaf(Some(window), cx);
     }
 
     pub(crate) fn start_rename_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {

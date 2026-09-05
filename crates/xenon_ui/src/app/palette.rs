@@ -59,11 +59,7 @@ impl XenonApp {
             }
             CommandPaletteEvent::ActivateWorkspace(id) => {
                 self.command_palette = None;
-                self.deferred.pending_focus = self
-                    .deferred
-                    .restore_pane
-                    .take()
-                    .or_else(|| Some(self.fallback_content_pane()));
+                self.deferred.restore_pane = None;
                 self.deferred.pending_workspace = Some(*id);
                 cx.notify();
             }

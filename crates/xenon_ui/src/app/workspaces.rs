@@ -150,6 +150,9 @@ impl XenonApp {
                 self.workspace_picker = None;
                 self.deferred.restore_pane = None;
                 self.apply_workspace_pick(candidate, cx);
+                // Overlay is gone; land on the active workspace's leaf, not the
+                // previous workspace. No Window here — drain on next paint.
+                self.focus_workspace_leaf(None, cx);
             }
             WorkspacePickerEvent::Forget(id) => {
                 self.forget_closed_workspace(*id);
