@@ -1,7 +1,7 @@
 //! Workspace activation, terminals, and rename.
 
 use super::*;
-use xenon_core::{PaneId, TabId, TabState};
+use xenon_core::TabState;
 
 /// Terminal path clicks that are view-first (not edit-first) should hand off
 /// to the OS default app instead of opening a Xenon editor tab.
@@ -50,27 +50,6 @@ impl XenonApp {
             self.seed_recent_from_content(id, &live);
             self.contents.insert(id, live);
         }
-        if self.contents.get(&id).is_some_and(|c| c.is_empty()) {
-            let terminal = self.spawn_terminal(root.clone(), id, cx);
-            let pane = PaneId(1);
-            let tab = LiveTab::Terminal {
-                id: TabId(1),
-                view: terminal,
-            };
-            self.contents.insert(
-                id,
-                LiveContent {
-                    root: Some(LiveNode::Leaf(LiveLeaf {
-                        id: pane,
-                        tabs: vec![tab],
-                        active: 0,
-                    })),
-                    focused: Some(pane),
-                },
-            );
-            self.save_layout(id);
-        }
-
         self.reindex(root, false, cx);
         self.persist_active();
         self.nav_seed_active(id, cx);

@@ -11,8 +11,8 @@ use crate::app::XenonApp;
 use crate::chrome::{accent_surface, list_selection};
 use crate::icons::icon;
 use crate::{
-    FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, PrevWorkspace, RunTask, Save,
-    SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
+    CloseWorkspace, FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, PrevWorkspace,
+    RunTask, Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
 };
 
 const ICON: f32 = 16.;
@@ -226,6 +226,30 @@ impl XenonApp {
             ))
             .child(tool_button(
                 ToolButton {
+                    id: "tb-palette",
+                    glyph: Icon::Search,
+                    label: "Go to File · ⌘P",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(FilePalette),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-close-workspace",
+                    glyph: Icon::X,
+                    label: "Close Workspace · ⌘⌥W",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(CloseWorkspace),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
                     id: "tb-file-browser",
                     glyph: Icon::FolderTree,
                     label: "File Browser · ⌘E",
@@ -233,18 +257,6 @@ impl XenonApp {
                     muted: false,
                     primary: false,
                     action: Box::new(ToggleBrowser),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-palette",
-                    glyph: Icon::Search,
-                    label: "Go to File · ⌘P",
-                    active: false,
-                    muted: true,
-                    primary: false,
-                    action: Box::new(FilePalette),
                 },
                 cx,
             ))

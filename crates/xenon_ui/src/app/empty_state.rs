@@ -6,6 +6,8 @@ use gpui::{
 };
 use std::sync::Arc;
 
+use crate::commands::{CommandEntry, CommandId, catalog};
+
 use super::XenonApp;
 
 fn xenon_icon() -> Arc<Image> {
@@ -86,17 +88,80 @@ impl XenonApp {
                 }))
                 .into_any_element()
         });
-        empty_state_content(colors, title, subtitle, primary, secondary)
+        let close_workspace = has_workspace.then(|| {
+            let hover = colors.element_hover;
+            let text = colors.text;
+            div()
+                .id("empty-close-workspace")
+                .px_3()
+                .py_2()
+                .rounded_sm()
+                .border_1()
+                .border_color(colors.border)
+                .text_color(colors.text_muted)
+                .cursor_pointer()
+                .hover(move |s| s.bg(hover).text_color(text))
+                .child("Close Workspace  ⌘⌥W")
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.close_active_workspace(window, cx);
+                }))
+                .into_any_element()
+        });
+        let shortcuts = shortcut_entries(has_workspace)
+            .iter()
+            .filter_map(|id| catalog().iter().find(|entry| entry.id == *id))
+            .copied()
+            .collect();
+        empty_state_content(EmptyStateContent {
+            colors,
+            title,
+            subtitle,
+            primary,
+            secondary,
+            close_workspace,
+            shortcuts,
+        })
     }
 }
 
-fn empty_state_content(
+fn shortcut_entries(has_workspace: bool) -> &'static [CommandId] {
+    if has_workspace {
+        &[
+            CommandId::CommandPalette,
+            CommandId::FocusTerminal,
+            CommandId::FocusEditor,
+            CommandId::ToggleSidebar,
+            CommandId::KeyboardHelp,
+        ]
+    } else {
+        &[
+            CommandId::CommandPalette,
+            CommandId::ToggleSidebar,
+            CommandId::KeyboardHelp,
+        ]
+    }
+}
+
+struct EmptyStateContent {
     colors: theme::ThemeColors,
     title: &'static str,
     subtitle: &'static str,
     primary: AnyElement,
     secondary: Option<AnyElement>,
-) -> impl IntoElement {
+    close_workspace: Option<AnyElement>,
+    shortcuts: Vec<CommandEntry>,
+}
+
+fn empty_state_content(content: EmptyStateContent) -> impl IntoElement {
+    let EmptyStateContent {
+        colors,
+        title,
+        subtitle,
+        primary,
+        secondary,
+        close_workspace,
+        shortcuts,
+    } = content;
     div()
         .flex()
         .flex_1()
@@ -133,7 +198,36 @@ fn empty_state_content(
                         .gap_2()
                         .pt_2()
                         .child(primary)
-                        .children(secondary),
+                        .children(secondary)
+                        .children(close_workspace),
+                )
+                .child(
+                    div()
+                        .pt_3()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(colors.text_muted)
+                                .child("Useful shortcuts"),
+                        )
+                        .children(shortcuts.into_iter().map(|entry| {
+                            div()
+                                .flex()
+                                .justify_between()
+                                .gap_4()
+                                .text_xs()
+                                .child(div().text_color(colors.text_muted).child(entry.label))
+                                .child(
+                                    div()
+                                        .text_color(colors.text)
+                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                        .child(entry.keys),
+                                )
+                        })),
                 ),
         )
 }

@@ -230,10 +230,6 @@ pub(crate) struct LiveContent {
 }
 
 impl LiveContent {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.root.is_none()
-    }
-
     pub(crate) fn focused_leaf(&self) -> Option<&LiveLeaf> {
         let id = self.focused?;
         self.root.as_ref()?.find_leaf(id)
