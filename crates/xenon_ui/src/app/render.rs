@@ -310,16 +310,7 @@ impl XenonApp {
                 panel = panel.child(self.render_live_node(root, window, cx));
             }
             None => {
-                let message = if self.active.is_some() {
-                    "No open surfaces · ⌘N terminal · open a file"
-                } else {
-                    "Open a workspace (⌘⇧O)"
-                };
-                panel = panel
-                    .items_center()
-                    .justify_center()
-                    .text_color(colors.text_muted)
-                    .child(message);
+                panel = panel.child(self.render_empty_state(colors, cx));
             }
         }
         panel

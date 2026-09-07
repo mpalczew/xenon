@@ -281,12 +281,6 @@ impl XenonApp {
             .h_full()
             .flex_none()
             .min_w_0()
-            .border_r_1()
-            .border_color(if is_exited {
-                paint.accent
-            } else {
-                colors.border
-            })
             .bg(paint.background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
@@ -378,8 +372,6 @@ impl XenonApp {
             .h_full()
             .flex_none()
             .min_w_0()
-            .border_r_1()
-            .border_color(colors.border)
             .bg(paint.background)
             .text_color(paint.foreground)
             .cursor_pointer()
@@ -410,6 +402,7 @@ impl XenonApp {
             .tooltip(move |_window: &mut Window, cx: &mut App| {
                 cx.new(|_| TabTooltip { text: tip.clone() }).into()
             })
+            .child(icon(Icon::FileText, px(13.)))
             .child(
                 div()
                     .text_sm()

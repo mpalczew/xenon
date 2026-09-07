@@ -42,6 +42,7 @@ mod deferred;
 pub(crate) mod dirty_close;
 mod editors;
 mod empty_hint;
+mod empty_state;
 mod git_dirt;
 mod keyboard;
 mod live;

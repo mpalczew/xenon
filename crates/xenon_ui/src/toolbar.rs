@@ -68,6 +68,7 @@ impl XenonApp {
                 },
                 cx,
             ))
+            .child(toolbar_divider(cx))
             .child(tool_button(
                 ToolButton {
                     id: "tb-go-back",
@@ -88,6 +89,7 @@ impl XenonApp {
                 },
                 cx,
             ))
+            .child(toolbar_divider(cx))
             .child(tool_button(
                 ToolButton {
                     id: "tb-split-right",
@@ -114,17 +116,35 @@ impl XenonApp {
 
     fn toolbar_center(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let label = self.breadcrumb_label().unwrap_or_default();
+        let workspace = self
+            .active_workspace()
+            .and_then(|id| self.registry().workspace(id))
+            .map(|workspace| workspace.name.clone());
+        let breadcrumb = self.breadcrumb_label();
         div()
             .flex_1()
             .min_w_0()
             .flex()
             .items_center()
             .justify_center()
+            .gap_2()
             .px_3()
             .text_sm()
-            .text_color(colors.text_muted)
-            .child(div().min_w_0().truncate().child(label))
+            .children(workspace.map(|name| {
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(colors.text)
+                    .child(name)
+            }))
+            .children(breadcrumb.map(|label| {
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(colors.text_muted)
+                    .child(label)
+            }))
     }
 
     fn toolbar_right(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -178,6 +198,11 @@ impl XenonApp {
             cx,
         ))
     }
+}
+
+fn toolbar_divider(cx: &mut Context<XenonApp>) -> impl IntoElement + use<> {
+    let colors = cx.theme().colors().clone();
+    div().w(px(1.)).h(px(16.)).mx_1().bg(colors.border)
 }
 
 struct ToolButton {

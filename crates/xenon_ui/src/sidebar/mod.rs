@@ -237,7 +237,12 @@ impl XenonApp {
             })
             .when(!active, |s| s.text_color(colors.text_muted))
             .border_t_2()
-            .border_color(gpui::transparent_black())
+            .border_l_2()
+            .border_color(if active {
+                colors.border_selected
+            } else {
+                gpui::transparent_black()
+            })
             .tooltip(path_tooltip(path_tip))
             .on_drag(DragWorkspace(id), drag_chip(name))
             .can_drop(move |drag, _, _| {
