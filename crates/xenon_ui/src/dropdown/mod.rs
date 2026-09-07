@@ -21,7 +21,6 @@ use crate::settings::SettingsView;
 /// Which settings dropdown is open (at most one).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DropdownId {
-    Mode,
     UiFamily,
     EditorFamily,
     TerminalFamily,

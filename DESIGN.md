@@ -64,9 +64,10 @@ status pip uses a quiet opacity pulse (~1.4s, theme token).
 
 ## Themes
 
-Bundled families under `crates/xenon_terminal/assets/`. Default dark: **Neon Noir**.
+Bundled families under `crates/xenon_terminal/assets/`. Default dark: **One Dark**.
 Default light: **One Light** (white canvas, not a gray slab). Opt-in void: **True Black**.
-Theme gallery: ⌘⌥T, separate from Settings.
+Theme gallery: ⌘⌥T, separate from Settings. Picking a card fills that
+appearance slot; it does not switch Mode.
 
 | Job | Families |
 |-----|----------|

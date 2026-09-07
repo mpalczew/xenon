@@ -92,7 +92,7 @@ pub struct AppSettings {
     /// Theme name used for light appearance (e.g. "One Light").
     #[serde(default = "default_light_theme")]
     pub light_theme: String,
-    /// Theme name used for dark appearance (e.g. "Neon Noir").
+    /// Theme name used for dark appearance (e.g. "One Dark").
     #[serde(default = "default_dark_theme")]
     pub dark_theme: String,
     /// Close terminal tabs when the shell process exits.
@@ -211,8 +211,8 @@ pub const DEFAULT_FONT_FAMILY: &str = "Lilex";
 pub const DEFAULT_UI_FONT_FAMILY: &str = ".SystemUIFont";
 /// Default light theme name (One Light).
 pub const DEFAULT_LIGHT_THEME: &str = "One Light";
-/// Default dark theme name (Neon Noir).
-pub const DEFAULT_DARK_THEME: &str = "Neon Noir";
+/// Default dark theme name (One Dark).
+pub const DEFAULT_DARK_THEME: &str = "One Dark";
 
 fn default_light_theme() -> String {
     DEFAULT_LIGHT_THEME.into()

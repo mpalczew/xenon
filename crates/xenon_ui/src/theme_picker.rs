@@ -10,6 +10,7 @@ use nucleo::{Config, Matcher};
 use theme::{ActiveTheme, Appearance, Theme, ThemeColors, ThemeRegistry};
 use xenon_store::ThemeMode;
 
+use crate::chrome;
 use crate::impl_palette_query_input;
 use crate::palette::{
     PaletteLayout, fuzzy_index_order, hint_row, input_registrar, optional_title, panel, query_row,
@@ -44,15 +45,7 @@ impl EventEmitter<ThemePickerEvent> for ThemePickerView {}
 
 impl ThemePickerView {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        let snap = xenon_settings::snapshot(cx);
-        let current = match snap.theme {
-            ThemeMode::Light => snap.light_theme.clone(),
-            ThemeMode::Dark => snap.dark_theme.clone(),
-            ThemeMode::System => match theme::SystemAppearance::global(cx).0 {
-                Appearance::Light => snap.light_theme.clone(),
-                Appearance::Dark => snap.dark_theme.clone(),
-            },
-        };
+        let current = live_theme_name(cx);
         let mut items: Vec<ThemeItem> = ThemeRegistry::global(cx)
             .list()
             .into_iter()
@@ -112,7 +105,7 @@ impl ThemePickerView {
         let name = self.items[idx].name.clone();
         let appearance = self.items[idx].appearance;
         apply_named_theme(&name, appearance, cx);
-        self.current = name;
+        self.current = live_theme_name(cx);
         cx.notify();
     }
 
@@ -190,7 +183,7 @@ fn chrome_demo(colors: &ThemeColors) -> impl IntoElement + use<> {
                         .w(px(28.))
                         .flex_none()
                         .h_full()
-                        .bg(colors.panel_background)
+                        .bg(chrome::sidebar_background(colors))
                         .border_r_1()
                         .border_color(colors.border)
                         .child(
@@ -251,6 +244,7 @@ impl Focusable for ThemePickerView {
 impl ThemePickerView {
     fn cards(&self, colors: &ThemeColors, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
         let registry = ThemeRegistry::global(cx);
+        let snap = xenon_settings::snapshot(cx);
         self.results
             .iter()
             .enumerate()
@@ -264,8 +258,14 @@ impl ThemePickerView {
                     Appearance::Light => "Light",
                     Appearance::Dark => "Dark",
                 };
+                let stored = match item.appearance {
+                    Appearance::Light => snap.light_theme == item.name,
+                    Appearance::Dark => snap.dark_theme == item.name,
+                };
                 let caption = if current {
                     format!("{kind} · current")
+                } else if stored {
+                    format!("{kind} · saved")
                 } else {
                     kind.to_string()
                 };
@@ -364,21 +364,37 @@ impl Render for ThemePickerView {
     }
 }
 
+fn showing_appearance(cx: &App) -> Appearance {
+    let settings = xenon_settings::snapshot(cx);
+    match settings.theme {
+        ThemeMode::Light => Appearance::Light,
+        ThemeMode::Dark => Appearance::Dark,
+        ThemeMode::System => theme::SystemAppearance::global(cx).0,
+    }
+}
+
+fn live_theme_name(cx: &App) -> String {
+    let settings = xenon_settings::snapshot(cx);
+    match showing_appearance(cx) {
+        Appearance::Light => settings.light_theme,
+        Appearance::Dark => settings.dark_theme,
+    }
+}
+
+/// Store the pick in its light/dark slot. Repaint only when that slot is on screen.
 fn apply_named_theme(name: &str, appearance: Appearance, cx: &mut App) {
     let mut settings = xenon_settings::snapshot(cx);
     match appearance {
-        Appearance::Light => {
-            settings.light_theme = name.to_string();
-            settings.theme = ThemeMode::Light;
-        }
-        Appearance::Dark => {
-            settings.dark_theme = name.to_string();
-            settings.theme = ThemeMode::Dark;
-        }
+        Appearance::Light => settings.light_theme = name.to_string(),
+        Appearance::Dark => settings.dark_theme = name.to_string(),
     }
     xenon_settings::apply(&settings, cx);
     xenon_settings::save(cx);
-    xenon_terminal::apply_theme(cx);
+    if showing_appearance(cx) == appearance {
+        xenon_terminal::apply_theme(cx);
+    } else {
+        xenon_terminal::refresh_windows(cx);
+    }
 }
 
 impl_palette_query_input!(ThemePickerView);

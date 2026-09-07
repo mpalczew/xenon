@@ -55,10 +55,10 @@ rediscover.
   saves use the locked load-mutate-save boundary and preserve fields they do
   not own.
 - Theme gallery (⌘⌥T) is a separate overlay from Settings. Picking a card
-  writes that appearance slot and switches Mode to Light or Dark so the
-  choice is visible immediately. The gallery stays open until Escape.
-  Settings Appearance shows current names plus Browse themes…, not the old
-  theme dropdowns.
+  writes that appearance slot only. It does not switch Mode, so a dark pick
+  while in light stays in light. The gallery stays open until Escape.
+  Settings Appearance is Mode segments plus the live theme name (opens the
+  gallery). Window is 640×480.
 - Sidebar paints `editor_background` (canvas). Toolbar stays `panel_background`.
 - Lilex is bundled and the default mono. GPUI still lists `.ZedMono` /
   `.ZedSans` aliases; the pickers hide those unless the files exist.

@@ -20,57 +20,88 @@ pub(super) struct OpenState<'a> {
 
 pub(super) fn appearance_section(
     settings: &xenon_store::AppSettings,
-    state: OpenState<'_>,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    let mode_opts: Vec<SharedString> = vec!["System".into(), "Light".into(), "Dark".into()];
     let body = div()
         .flex()
         .flex_col()
-        .child(dropdown_row(
-            DropdownProps {
-                id: DropdownId::Mode,
-                title: "Mode",
-                selected: mode_label(settings.theme),
-                options: &mode_opts,
-                filterable: false,
-                open: state.open == Some(DropdownId::Mode),
-                filter: state.filter,
-                highlight: state.highlight,
-                caret_on: state.caret_on,
-                viewport_height: state.viewport_height,
-            },
-            cx,
-        ))
+        .child(mode_segments(settings.theme, cx))
         .child(row_divider(cx))
-        .child(theme_name_row("Light", &settings.light_theme, cx))
-        .child(row_divider(cx))
-        .child(theme_name_row("Dark", &settings.dark_theme, cx))
-        .child(row_divider(cx))
-        .child(browse_themes_row(cx));
+        .child(current_theme_row(settings, cx));
     group_card("Appearance", body, cx)
 }
 
-fn theme_name_row(
-    label: &'static str,
-    name: &str,
+fn mode_segments(
+    selected: xenon_settings::ThemeMode,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
+    use xenon_settings::ThemeMode;
     let colors = cx.theme().colors().clone();
     div()
         .flex()
-        .items_center()
-        .justify_between()
+        .flex_col()
+        .gap_1()
         .px_3()
         .py_2()
-        .child(div().text_sm().text_color(colors.text_muted).child(label))
-        .child(div().text_sm().child(name.to_string()))
+        .child(div().text_sm().text_color(colors.text_muted).child("Mode"))
+        .child(
+            div()
+                .flex()
+                .gap_1()
+                .child(mode_seg("System", ThemeMode::System, selected, cx))
+                .child(mode_seg("Light", ThemeMode::Light, selected, cx))
+                .child(mode_seg("Dark", ThemeMode::Dark, selected, cx)),
+        )
 }
 
-fn browse_themes_row(cx: &mut Context<SettingsView>) -> impl IntoElement {
+fn mode_seg(
+    label: &'static str,
+    mode: xenon_settings::ThemeMode,
+    selected: xenon_settings::ThemeMode,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
+    let on = mode == selected;
     div()
-        .id("browse-themes")
+        .id(label)
+        .flex_1()
+        .px_2()
+        .py_1()
+        .rounded_sm()
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(if on {
+            colors.element_selected
+        } else {
+            gpui::transparent_black()
+        })
+        .text_sm()
+        .font_weight(if on {
+            gpui::FontWeight::MEDIUM
+        } else {
+            gpui::FontWeight::NORMAL
+        })
+        .text_color(if on { colors.text } else { colors.text_muted })
+        .cursor_pointer()
+        .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+        .on_click(cx.listener(move |_, _, window, cx| {
+            cx.stop_propagation();
+            apply_mode(mode, cx);
+            window.refresh();
+            cx.notify();
+        }))
+        .child(label)
+}
+
+fn current_theme_row(
+    settings: &xenon_store::AppSettings,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    let name = live_theme_name(settings, cx);
+    div()
+        .id("current-theme")
         .flex()
         .items_center()
         .justify_between()
@@ -82,8 +113,38 @@ fn browse_themes_row(cx: &mut Context<SettingsView>) -> impl IntoElement {
             cx.stop_propagation();
             open_theme_gallery(window, cx);
         }))
-        .child(div().text_sm().child("Browse themes…"))
-        .child(div().text_xs().text_color(colors.text_muted).child("⌘⌥T"))
+        .child(div().text_sm().text_color(colors.text_muted).child("Theme"))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap_2()
+                .child(div().text_sm().child(name))
+                .child(div().text_xs().text_color(colors.text_muted).child("⌘⌥T")),
+        )
+}
+
+fn live_theme_name(settings: &xenon_store::AppSettings, cx: &App) -> String {
+    match showing_appearance(settings.theme, cx) {
+        theme::Appearance::Light => settings.light_theme.clone(),
+        theme::Appearance::Dark => settings.dark_theme.clone(),
+    }
+}
+
+fn showing_appearance(mode: xenon_settings::ThemeMode, cx: &App) -> theme::Appearance {
+    match mode {
+        xenon_settings::ThemeMode::Light => theme::Appearance::Light,
+        xenon_settings::ThemeMode::Dark => theme::Appearance::Dark,
+        xenon_settings::ThemeMode::System => theme::SystemAppearance::global(cx).0,
+    }
+}
+
+fn apply_mode(mode: xenon_settings::ThemeMode, cx: &mut App) {
+    let mut settings = xenon_settings::snapshot(cx);
+    settings.theme = mode;
+    xenon_settings::apply(&settings, cx);
+    xenon_settings::save(cx);
+    xenon_terminal::apply_theme(cx);
 }
 
 fn open_theme_gallery(_window: &mut Window, cx: &mut App) {
@@ -209,7 +270,6 @@ fn auto_close_options() -> [xenon_settings::TerminalAutoClose; 5] {
 pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
     let mut settings = xenon_settings::snapshot(cx);
     match id {
-        DropdownId::Mode => settings.theme = parse_mode(&value),
         DropdownId::UiFamily => {
             settings.ui_font_family = xenon_settings::ensure_ui_family(&value, cx);
         }
@@ -225,11 +285,7 @@ pub(super) fn apply_dropdown_pick(id: DropdownId, value: String, cx: &mut App) {
     }
     xenon_settings::apply(&settings, cx);
     xenon_settings::save(cx);
-    if matches!(id, DropdownId::Mode) {
-        xenon_terminal::apply_theme(cx);
-    } else {
-        xenon_terminal::refresh_windows(cx);
-    }
+    xenon_terminal::refresh_windows(cx);
 }
 
 pub(super) fn apply_size_nudge(target: SizeTarget, delta: f32, cx: &mut App) {
@@ -345,22 +401,6 @@ fn settings_toggle(
                 .text_xs()
                 .children(row.checked.then_some("x")),
         )
-}
-
-fn mode_label(mode: xenon_settings::ThemeMode) -> &'static str {
-    match mode {
-        xenon_settings::ThemeMode::System => "System",
-        xenon_settings::ThemeMode::Light => "Light",
-        xenon_settings::ThemeMode::Dark => "Dark",
-    }
-}
-
-fn parse_mode(label: &str) -> xenon_settings::ThemeMode {
-    match label {
-        "Light" => xenon_settings::ThemeMode::Light,
-        "Dark" => xenon_settings::ThemeMode::Dark,
-        _ => xenon_settings::ThemeMode::System,
-    }
 }
 
 fn parse_auto_close(label: &str) -> xenon_settings::TerminalAutoClose {

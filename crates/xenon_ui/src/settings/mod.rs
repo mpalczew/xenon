@@ -266,7 +266,7 @@ impl SettingsView {
             .on_click(cx.listener(|this, _, _, cx| {
                 this.dismiss_dropdown(cx);
             }))
-            .child(appearance_section(&settings, state, cx))
+            .child(appearance_section(&settings, cx))
             .child(font_section(
                 "UI Font",
                 DropdownId::UiFamily,
@@ -360,12 +360,11 @@ impl Render for SettingsView {
 }
 
 pub(super) fn is_filterable(id: DropdownId) -> bool {
-    !matches!(id, DropdownId::Mode | DropdownId::TerminalAutoClose)
+    !matches!(id, DropdownId::TerminalAutoClose)
 }
 
 fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
     match id {
-        DropdownId::Mode => vec!["System".into(), "Light".into(), "Dark".into()],
         DropdownId::UiFamily => ui_font_families(cx),
         DropdownId::EditorFamily | DropdownId::TerminalFamily => mono_font_families(cx),
         DropdownId::TerminalAutoClose => [

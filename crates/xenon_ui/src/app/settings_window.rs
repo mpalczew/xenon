@@ -34,7 +34,7 @@ impl XenonApp {
         if self.settings_window.is_some() {
             return;
         }
-        let bounds = Bounds::centered(None, size(px(480.), px(640.)), cx);
+        let bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
         match cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
