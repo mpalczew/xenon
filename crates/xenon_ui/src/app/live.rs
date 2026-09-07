@@ -76,25 +76,25 @@ pub(crate) enum LiveNode {
 }
 
 impl LiveNode {
-    pub(crate) fn leaf_ids(&self) -> Vec<PaneId> {
-        let mut out = Vec::new();
-        self.collect_leaves(&mut out);
-        out
-    }
-
-    fn collect_leaves(&self, out: &mut Vec<PaneId>) {
+    pub(crate) fn for_each_leaf(&self, f: &mut dyn FnMut(&LiveLeaf)) {
         match self {
-            Self::Leaf(l) => out.push(l.id),
+            Self::Leaf(leaf) => f(leaf),
             Self::Split { first, second, .. } => {
-                first.collect_leaves(out);
-                second.collect_leaves(out);
+                first.for_each_leaf(f);
+                second.for_each_leaf(f);
             }
         }
     }
 
+    pub(crate) fn leaf_ids(&self) -> Vec<PaneId> {
+        let mut out = Vec::new();
+        self.for_each_leaf(&mut |leaf| out.push(leaf.id));
+        out
+    }
+
     pub(crate) fn find_leaf(&self, id: PaneId) -> Option<&LiveLeaf> {
         match self {
-            Self::Leaf(l) if l.id == id => Some(l),
+            Self::Leaf(leaf) if leaf.id == id => Some(leaf),
             Self::Leaf(_) => None,
             Self::Split { first, second, .. } => {
                 first.find_leaf(id).or_else(|| second.find_leaf(id))
@@ -113,57 +113,51 @@ impl LiveNode {
     }
 
     pub(crate) fn find_tab(&self, tab: TabId) -> Option<(PaneId, usize)> {
-        match self {
-            Self::Leaf(l) => l.tabs.iter().position(|t| t.id() == tab).map(|i| (l.id, i)),
-            Self::Split { first, second, .. } => {
-                first.find_tab(tab).or_else(|| second.find_tab(tab))
+        let mut found = None;
+        self.for_each_leaf(&mut |leaf| {
+            if found.is_none() {
+                found = leaf
+                    .tabs
+                    .iter()
+                    .position(|t| t.id() == tab)
+                    .map(|i| (leaf.id, i));
             }
-        }
+        });
+        found
     }
 
     pub(crate) fn find_editor_path(&self, path: &Path) -> Option<(PaneId, usize)> {
-        match self {
-            Self::Leaf(l) => l
-                .tabs
-                .iter()
-                .position(|t| t.editor_path() == Some(path))
-                .map(|i| (l.id, i)),
-            Self::Split { first, second, .. } => first
-                .find_editor_path(path)
-                .or_else(|| second.find_editor_path(path)),
-        }
+        let mut found = None;
+        self.for_each_leaf(&mut |leaf| {
+            if found.is_none() {
+                found = leaf
+                    .tabs
+                    .iter()
+                    .position(|t| t.editor_path() == Some(path))
+                    .map(|i| (leaf.id, i));
+            }
+        });
+        found
     }
 
     pub(crate) fn for_each_terminal(&self, f: &mut dyn FnMut(TabId, &Entity<TerminalView>)) {
-        match self {
-            Self::Leaf(l) => {
-                for t in &l.tabs {
-                    if let LiveTab::Terminal { id, view } = t {
-                        f(*id, view);
-                    }
+        self.for_each_leaf(&mut |leaf| {
+            for tab in &leaf.tabs {
+                if let LiveTab::Terminal { id, view } = tab {
+                    f(*id, view);
                 }
             }
-            Self::Split { first, second, .. } => {
-                first.for_each_terminal(f);
-                second.for_each_terminal(f);
-            }
-        }
+        });
     }
 
     pub(crate) fn for_each_editor(&self, f: &mut dyn FnMut(&Entity<EditorView>, &Path)) {
-        match self {
-            Self::Leaf(l) => {
-                for t in &l.tabs {
-                    if let LiveTab::Editor { view, path, .. } = t {
-                        f(view, path);
-                    }
+        self.for_each_leaf(&mut |leaf| {
+            for tab in &leaf.tabs {
+                if let LiveTab::Editor { view, path, .. } = tab {
+                    f(view, path);
                 }
             }
-            Self::Split { first, second, .. } => {
-                first.for_each_editor(f);
-                second.for_each_editor(f);
-            }
-        }
+        });
     }
 
     pub(crate) fn nest_depth(&self, leaf: PaneId) -> Option<u32> {
@@ -218,20 +212,14 @@ impl LiveNode {
     }
 
     fn max_ids(&self) -> (u64, u64) {
-        match self {
-            Self::Leaf(l) => {
-                let mut max_tab = 0u64;
-                for t in &l.tabs {
-                    max_tab = max_tab.max(t.id().0);
-                }
-                (l.id.0, max_tab)
+        let mut max_ids = (0, 0);
+        self.for_each_leaf(&mut |leaf| {
+            max_ids.0 = max_ids.0.max(leaf.id.0);
+            for tab in &leaf.tabs {
+                max_ids.1 = max_ids.1.max(tab.id().0);
             }
-            Self::Split { first, second, .. } => {
-                let (p1, t1) = first.max_ids();
-                let (p2, t2) = second.max_ids();
-                (p1.max(p2), t1.max(t2))
-            }
-        }
+        });
+        max_ids
     }
 }
 
