@@ -1,11 +1,19 @@
 //! Empty content state: explain the next useful action without a tour.
 
 use gpui::{
-    Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    div, px,
+    AnyElement, Context, Image, ImageFormat, InteractiveElement, IntoElement, ParentElement,
+    StatefulInteractiveElement, Styled, div, img, px,
 };
+use std::sync::Arc;
 
 use super::XenonApp;
+
+fn xenon_icon() -> Arc<Image> {
+    Arc::new(Image::from_bytes(
+        ImageFormat::Png,
+        include_bytes!("../../../../macos/xenon-icon-source.png").to_vec(),
+    ))
+}
 
 impl XenonApp {
     pub(super) fn render_empty_state(
@@ -78,40 +86,54 @@ impl XenonApp {
                 }))
                 .into_any_element()
         });
-        div()
-            .flex_1()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .gap_2()
-                    .max_w(px(420.))
-                    .text_center()
-                    .child(
-                        div()
-                            .text_lg()
-                            .font_weight(gpui::FontWeight::MEDIUM)
-                            .text_color(colors.text)
-                            .child(title),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(colors.text_muted)
-                            .child(subtitle),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .gap_2()
-                            .pt_2()
-                            .child(primary)
-                            .children(secondary),
-                    ),
-            )
+        empty_state_content(colors, title, subtitle, primary, secondary)
     }
+}
+
+fn empty_state_content(
+    colors: theme::ThemeColors,
+    title: &'static str,
+    subtitle: &'static str,
+    primary: AnyElement,
+    secondary: Option<AnyElement>,
+) -> impl IntoElement {
+    div()
+        .flex()
+        .flex_1()
+        .min_w_0()
+        .min_h_0()
+        .size_full()
+        .items_center()
+        .justify_center()
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap_2()
+                .max_w(px(420.))
+                .text_center()
+                .child(img(xenon_icon()).size(px(72.)))
+                .child(
+                    div()
+                        .text_lg()
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(colors.text)
+                        .child(title),
+                )
+                .child(
+                    div()
+                        .text_sm()
+                        .text_color(colors.text_muted)
+                        .child(subtitle),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .pt_2()
+                        .child(primary)
+                        .children(secondary),
+                ),
+        )
 }

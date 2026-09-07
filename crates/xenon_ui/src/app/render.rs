@@ -394,19 +394,10 @@ impl XenonApp {
 
     fn render_leaf(&self, leaf: &LiveLeaf, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let colors = cx.theme().colors().clone();
-        // Ring tracks GPUI keyboard ownership, not the session leaf pointer.
-        // AND-ing the two left splits with a purple tab underline, no pane
-        // ring, and ⌘W closing the other half.
-        let ring = if leaf
+        let focused = leaf
             .active_tab()
-            .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx))
-        {
-            colors.border_focused
-        } else {
-            gpui::transparent_black()
-        };
-
-        let tabs = self.render_mixed_tabs(leaf, cx);
+            .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx));
+        let tabs = self.render_mixed_tabs(leaf, focused, cx);
         let body = match leaf.active_tab() {
             Some(LiveTab::Terminal { view, .. }) => div()
                 .flex_1()
@@ -442,8 +433,6 @@ impl XenonApp {
             .size_full()
             .min_w_0()
             .min_h_0()
-            .border_2()
-            .border_color(ring)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, window, cx| {

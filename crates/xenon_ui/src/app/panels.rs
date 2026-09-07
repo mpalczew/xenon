@@ -21,11 +21,6 @@ impl XenonApp {
         !self.sidebar_collapsed
     }
 
-    pub(crate) fn breadcrumb_label(&self) -> Option<String> {
-        let id = self.active?;
-        self.registry.workspace(id).map(|w| w.name.clone())
-    }
-
     /// Snapshot live tree + sidebar into session and save.
     pub(super) fn save_layout(&mut self, id: WorkspaceId) {
         let content = self

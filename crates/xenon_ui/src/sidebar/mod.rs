@@ -231,9 +231,12 @@ impl XenonApp {
             .rounded_sm()
             .text_sm()
             .when(active, |s| {
-                s.bg(colors.element_selected)
-                    .text_color(colors.text)
-                    .font_weight(gpui::FontWeight::MEDIUM)
+                s.bg(crate::chrome::accent_surface(
+                    colors.element_selected,
+                    colors.text_accent,
+                ))
+                .text_color(colors.text)
+                .font_weight(gpui::FontWeight::MEDIUM)
             })
             .when(!active, |s| s.text_color(colors.text_muted))
             .border_t_2()
@@ -286,6 +289,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
+        let active = self.active_workspace() == Some(id);
         let attention_dot = status.map(|dot| {
             div()
                 .id(("ws-attention", id_hash(id.to_string())))
@@ -306,7 +310,11 @@ impl XenonApp {
             }))
             .child(
                 div()
-                    .text_color(colors.text_muted)
+                    .text_color(if active {
+                        colors.text_accent
+                    } else {
+                        colors.text_muted
+                    })
                     .child(icon(Icon::Folder, px(ICON_SM))),
             )
             .child(div().truncate().child(name.to_string()))

@@ -18,6 +18,12 @@ pub(crate) struct SelectionPaint {
     pub accent: Hsla,
 }
 
+/// A restrained accent wash for focused surfaces. The theme supplies both
+/// the base and accent, so light, dark, and high-contrast palettes stay intact.
+pub(crate) fn accent_surface(base: Hsla, accent: Hsla) -> Hsla {
+    base.blend(accent.opacity(0.08))
+}
+
 /// List / nav row (workspaces, finder, tree, toolbar toggles).
 pub(crate) fn list_selection(colors: &ThemeColors, active: bool) -> SelectionPaint {
     if active {
@@ -36,19 +42,22 @@ pub(crate) fn list_selection(colors: &ThemeColors, active: bool) -> SelectionPai
 }
 
 /// Tab chip: prefers theme tab tokens; falls back when they collapse.
-pub(crate) fn tab_selection(colors: &ThemeColors, active: bool) -> SelectionPaint {
-    let (background, foreground, accent) = if active {
+pub(crate) fn tab_selection(colors: &ThemeColors, active: bool, focused: bool) -> SelectionPaint {
+    let (background, foreground, accent) = if active && focused {
         let mut bg = colors.tab_active_background;
-        if same_color(bg, colors.tab_inactive_background) {
+        // Light themes often use the canvas as the active tab surface. That
+        // makes the active tab look like a hole in the shelf, so prefer the
+        // theme's selected surface when the tokens collapse.
+        if same_color(bg, colors.tab_inactive_background)
+            || same_color(bg, colors.editor_background)
+            || same_color(bg, colors.tab_bar_background)
+        {
             bg = colors.element_selected;
         }
+        bg = accent_surface(bg, colors.text_accent);
         (bg, colors.text, colors.text_accent)
     } else {
-        (
-            colors.tab_inactive_background,
-            colors.text_muted,
-            transparent_black(),
-        )
+        (transparent_black(), colors.text_muted, transparent_black())
     };
     SelectionPaint {
         background,

@@ -1,23 +1,43 @@
-//! The top toolbar: sidebar toggle, split actions, breadcrumb, quick actions.
+//! The top toolbar: navigation, split actions, contextual status, quick actions.
 
 use gpui::{
-    Action, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
+    Action, App, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 
 use crate::app::XenonApp;
-use crate::chrome::list_selection;
+use crate::chrome::{accent_surface, list_selection};
 use crate::icons::icon;
 use crate::{
-    FilePalette, GoBack, GoForward, NextWorkspace, PrevWorkspace, RunTask, Save, SplitDown,
-    SplitRight, ToggleSettings, ToggleSidebar,
+    FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, PrevWorkspace, RunTask, Save,
+    SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
 };
 
 const ICON: f32 = 16.;
 
 impl XenonApp {
+    fn workspace_status_counts(&self, id: xenon_core::WorkspaceId, cx: &App) -> (usize, usize) {
+        let Some(root) = self
+            .contents
+            .get(&id)
+            .and_then(|content| content.root.as_ref())
+        else {
+            return (0, 0);
+        };
+        let mut working = 0;
+        let mut waiting = 0;
+        root.for_each_terminal(&mut |tab, view| {
+            if view.read(cx).is_working() {
+                working += 1;
+            } else if self.tab_attention(id, tab).is_some() {
+                waiting += 1;
+            }
+        });
+        (working, waiting)
+    }
+
     pub(crate) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         div()
@@ -27,7 +47,7 @@ impl XenonApp {
             .px_2()
             .border_b_1()
             .border_color(colors.border)
-            .bg(colors.panel_background)
+            .bg(accent_surface(colors.panel_background, colors.text_accent))
             .child(self.toolbar_left(cx))
             .child(self.toolbar_center(cx))
             .child(self.toolbar_right(cx))
@@ -44,6 +64,8 @@ impl XenonApp {
                     glyph: Icon::PanelLeft,
                     label: "Workspace Sidebar · ⌘B",
                     active: self.sidebar_visible(),
+                    muted: false,
+                    primary: false,
                     action: Box::new(ToggleSidebar),
                 },
                 cx,
@@ -51,9 +73,11 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-prev-workspace",
-                    glyph: Icon::ChevronUp,
+                    glyph: Icon::ArrowUp,
                     label: "Previous Workspace · ⌘⌥↑",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(PrevWorkspace),
                 },
                 cx,
@@ -61,9 +85,11 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-next-workspace",
-                    glyph: Icon::ChevronDown,
+                    glyph: Icon::ArrowDown,
                     label: "Next Workspace · ⌘⌥↓",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(NextWorkspace),
                 },
                 cx,
@@ -72,9 +98,11 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-go-back",
-                    glyph: Icon::ChevronLeft,
+                    glyph: Icon::ArrowLeft,
                     label: "Go Back · ⌘[",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(GoBack),
                 },
                 cx,
@@ -82,9 +110,11 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-go-forward",
-                    glyph: Icon::ChevronRight,
+                    glyph: Icon::ArrowRight,
                     label: "Go Forward · ⌘]",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(GoForward),
                 },
                 cx,
@@ -97,6 +127,8 @@ impl XenonApp {
                     glyph: Icon::SplitSquareHorizontal,
                     label: "Split Right · ⌘\\",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(SplitRight),
                 },
                 cx,
@@ -108,6 +140,8 @@ impl XenonApp {
                     glyph: Icon::SplitSquareVertical,
                     label: "Split Down · ⌘⇧\\",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(SplitDown),
                 },
                 cx,
@@ -115,12 +149,14 @@ impl XenonApp {
     }
 
     fn toolbar_center(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let workspace = self
-            .active_workspace()
-            .and_then(|id| self.registry().workspace(id))
-            .map(|workspace| workspace.name.clone());
-        let breadcrumb = self.breadcrumb_label();
+        let status_colors = cx.theme().status().clone();
+        let summary = self.active_workspace().map(|id| {
+            let (working, waiting) = self.workspace_status_counts(id, cx);
+            (working, waiting)
+        });
+        let dirty = self
+            .active_editor()
+            .is_some_and(|view| view.read(cx).is_dirty());
         div()
             .flex_1()
             .min_w_0()
@@ -130,21 +166,42 @@ impl XenonApp {
             .gap_2()
             .px_3()
             .text_sm()
-            .children(workspace.map(|name| {
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .text_color(colors.text)
-                    .child(name)
-            }))
-            .children(breadcrumb.map(|label| {
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .text_color(colors.text_muted)
-                    .child(label)
-            }))
+            .children(
+                summary
+                    .filter(|(working, waiting)| *working > 0 || *waiting > 0)
+                    .map(|(working, waiting)| {
+                        let label = match (working, waiting) {
+                            (0, waiting) => format!("{waiting} waiting"),
+                            (working, 0) => format!("{working} running"),
+                            (working, waiting) => format!("{working} running · {waiting} waiting"),
+                        };
+                        let color = if waiting > 0 {
+                            status_colors.warning
+                        } else {
+                            status_colors.info
+                        };
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_1()
+                            .text_xs()
+                            .text_color(color)
+                            .child(crate::chrome::status_pip(
+                                color,
+                                working > 0 && waiting == 0,
+                            ))
+                            .child(label)
+                    }),
+            )
+            .children(
+                (summary.is_none_or(|(working, waiting)| working == 0 && waiting == 0) && dirty)
+                    .then(|| {
+                        div()
+                            .text_xs()
+                            .text_color(status_colors.warning)
+                            .child("Unsaved changes")
+                    }),
+            )
     }
 
     fn toolbar_right(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -157,10 +214,36 @@ impl XenonApp {
             .gap_1()
             .child(tool_button(
                 ToolButton {
+                    id: "tb-new-terminal",
+                    glyph: Icon::SquareTerminal,
+                    label: "New Terminal · ⌘N",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(NewTerminal),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-file-browser",
+                    glyph: Icon::FolderTree,
+                    label: "File Browser · ⌘E",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(ToggleBrowser),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
                     id: "tb-palette",
                     glyph: Icon::Search,
                     label: "Go to File · ⌘P",
                     active: false,
+                    muted: true,
+                    primary: false,
                     action: Box::new(FilePalette),
                 },
                 cx,
@@ -171,6 +254,8 @@ impl XenonApp {
                     glyph: Icon::Play,
                     label: "Run Task · ⌘⇧R",
                     active: false,
+                    muted: false,
+                    primary: true,
                     action: Box::new(RunTask),
                 },
                 cx,
@@ -182,6 +267,8 @@ impl XenonApp {
                     glyph: Icon::Save,
                     label: "Save · ⌘S",
                     active: false,
+                    muted: false,
+                    primary: false,
                     action: Box::new(Save),
                 },
                 cx,
@@ -193,6 +280,8 @@ impl XenonApp {
                 glyph: Icon::Settings,
                 label: "Settings · ⌘,",
                 active: false,
+                muted: false,
+                primary: false,
                 action: Box::new(ToggleSettings),
             },
             cx,
@@ -210,6 +299,8 @@ struct ToolButton {
     glyph: Icon,
     label: &'static str,
     active: bool,
+    muted: bool,
+    primary: bool,
     action: Box<dyn Action>,
 }
 
@@ -219,17 +310,22 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
         glyph,
         label,
         active,
+        muted,
+        primary,
         action: boxed,
     } = button;
     let colors = cx.theme().colors().clone();
-    let paint = list_selection(&colors, active);
-    let background = if active {
+    let highlighted = active || primary;
+    let paint = list_selection(&colors, highlighted);
+    let background = if highlighted {
         paint.background
     } else {
-        colors.panel_background
+        gpui::transparent_black()
     };
-    let fg = if active {
+    let fg = if highlighted {
         paint.foreground
+    } else if muted {
+        colors.text_muted
     } else {
         colors.icon
     };

@@ -1,11 +1,12 @@
 //! Mixed terminal/editor tab strips per leaf pane.
 
 pub(crate) mod menu;
+mod tooltips;
 
 use gpui::{
     App, AppContext, Context, Focusable, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled,
-    Window, div, px,
+    MouseDownEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
@@ -17,6 +18,7 @@ use crate::{
     icons::icon,
     preview_icon,
 };
+use tooltips::{DragGhost, TabTooltip};
 
 fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
     div()
@@ -28,13 +30,29 @@ fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
         .bg(paint.accent)
 }
 
+fn tab_status_rail(status: WorkspaceDot, cx: &App) -> gpui::AnyElement {
+    let color = match status {
+        WorkspaceDot::Working => crate::chrome::working_color(cx),
+        WorkspaceDot::Attention(_) => crate::chrome::attention_color(cx),
+    };
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .h(px(2.))
+        .bg(color)
+        .into_any_element()
+}
+
 fn term_chip_paint(
     colors: &theme::ThemeColors,
     is_active: bool,
+    is_focused: bool,
     is_exited: bool,
     cx: &App,
 ) -> chrome::SelectionPaint {
-    let paint = chrome::tab_selection(colors, is_active);
+    let paint = chrome::tab_selection(colors, is_active, is_focused);
     if !is_exited {
         return paint;
     }
@@ -65,26 +83,6 @@ fn tab_close(
         .on_click(on_click)
 }
 
-struct TabTooltip {
-    text: SharedString,
-}
-
-impl Render for TabTooltip {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        div()
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .bg(colors.elevated_surface_background)
-            .border_1()
-            .border_color(colors.border)
-            .text_color(colors.text)
-            .text_sm()
-            .child(self.text.clone())
-    }
-}
-
 fn tip_tooltip(tip: SharedString) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView {
     move |_window: &mut Window, cx: &mut App| cx.new(|_| TabTooltip { text: tip.clone() }).into()
 }
@@ -93,11 +91,12 @@ impl XenonApp {
     pub(crate) fn render_mixed_tabs(
         &self,
         leaf: &LiveLeaf,
+        focused: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let pane = leaf.id;
-        let chips = self.mixed_tab_chips(leaf, cx);
+        let chips = self.mixed_tab_chips(leaf, focused, cx);
         let preview = self.md_preview_btn(leaf, pane, &colors, cx);
         // Pin trailing chrome (+, md preview). Chips absorb width pressure so
         // those controls stay visible when many tabs are open.
@@ -107,7 +106,10 @@ impl XenonApp {
             .h(px(30.))
             .border_b_1()
             .border_color(colors.border)
-            .bg(chrome::tab_bar_background(&colors))
+            .bg(chrome::accent_surface(
+                chrome::tab_bar_background(&colors),
+                colors.text_accent,
+            ))
             .child(
                 div()
                     .flex()
@@ -115,6 +117,8 @@ impl XenonApp {
                     .flex_1()
                     .min_w_0()
                     .h_full()
+                    .gap_1()
+                    .px_1()
                     .overflow_hidden()
                     .children(chips),
             )
@@ -129,7 +133,12 @@ impl XenonApp {
             )
     }
 
-    fn mixed_tab_chips(&self, leaf: &LiveLeaf, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
+    fn mixed_tab_chips(
+        &self,
+        leaf: &LiveLeaf,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> Vec<gpui::AnyElement> {
         let pane = leaf.id;
         let active = leaf.active;
         let ws = self.active;
@@ -146,7 +155,16 @@ impl XenonApp {
                     let status = workspace_dot(term.is_working(), attention);
                     chips.push(
                         self.mixed_term_chip(
-                            pane, index, tab_id, &title, is_active, exited, status, ws, cx,
+                            pane,
+                            index,
+                            tab_id,
+                            &title,
+                            is_active,
+                            focused && is_active,
+                            exited,
+                            status,
+                            ws,
+                            cx,
                         )
                         .into_any_element(),
                     );
@@ -162,7 +180,16 @@ impl XenonApp {
                     let path_s = path.display().to_string();
                     chips.push(
                         self.mixed_editor_chip(
-                            pane, index, tab_id, name, &path_s, is_active, dirty, ws, cx,
+                            pane,
+                            index,
+                            tab_id,
+                            name,
+                            &path_s,
+                            is_active,
+                            focused && is_active,
+                            dirty,
+                            ws,
+                            cx,
                         )
                         .into_any_element(),
                     );
@@ -254,13 +281,14 @@ impl XenonApp {
         tab_id: xenon_core::TabId,
         title: &str,
         is_active: bool,
+        is_focused: bool,
         is_exited: bool,
         status: Option<WorkspaceDot>,
         ws: Option<xenon_core::WorkspaceId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let paint = term_chip_paint(&colors, is_active, is_exited, cx);
+        let paint = term_chip_paint(&colors, is_active, is_focused, is_exited, cx);
         let group = format!("tab-{}-{}", pane.0, index);
         let tip = if is_exited {
             format!("{title} — process exited")
@@ -270,6 +298,11 @@ impl XenonApp {
             title.to_string()
         };
         let title_owned = title.to_string();
+        let display_title = if matches!(title, "bash" | "zsh" | "fish") {
+            format!("{title} · {}", index + 1)
+        } else {
+            title_owned.clone()
+        };
         div()
             .id(SharedString::from(format!("tab-{}-{}", pane.0, index)))
             .group(group.clone())
@@ -313,11 +346,19 @@ impl XenonApp {
                     cx.new(|_| TabTooltip { text: full.clone() }).into()
                 }
             })
-            .child(icon(Icon::SquareTerminal, px(13.)))
+            .child(
+                div()
+                    .text_color(if is_focused {
+                        paint.accent
+                    } else {
+                        paint.foreground
+                    })
+                    .child(icon(Icon::SquareTerminal, px(13.))),
+            )
             .child(
                 div()
                     .text_sm()
-                    .font_weight(if is_active {
+                    .font_weight(if is_focused {
                         gpui::FontWeight::MEDIUM
                     } else {
                         gpui::FontWeight::NORMAL
@@ -326,9 +367,10 @@ impl XenonApp {
                     .max_w(px(160.))
                     .min_w_0()
                     .truncate()
-                    .child(title_owned),
+                    .child(display_title),
             )
             .children(status.map(|dot| dot.pip(cx)))
+            .children(status.map(|dot| tab_status_rail(dot, cx)))
             .child(tab_close(
                 SharedString::from(format!("tab-close-{}-{}", pane.0, index)),
                 &group,
@@ -352,12 +394,13 @@ impl XenonApp {
         name: &str,
         path: &str,
         is_active: bool,
+        is_focused: bool,
         is_dirty: bool,
         ws: Option<xenon_core::WorkspaceId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let paint = chrome::tab_selection(&colors, is_active);
+        let paint = chrome::tab_selection(&colors, is_active, is_focused);
         let group = format!("tab-{}-{}", pane.0, index);
         let tip = SharedString::from(path.to_string());
         let name_owned = name.to_string();
@@ -402,11 +445,19 @@ impl XenonApp {
             .tooltip(move |_window: &mut Window, cx: &mut App| {
                 cx.new(|_| TabTooltip { text: tip.clone() }).into()
             })
-            .child(icon(Icon::FileText, px(13.)))
+            .child(
+                div()
+                    .text_color(if is_focused {
+                        paint.accent
+                    } else {
+                        paint.foreground
+                    })
+                    .child(icon(Icon::FileText, px(13.))),
+            )
             .child(
                 div()
                     .text_sm()
-                    .font_weight(if is_active {
+                    .font_weight(if is_focused {
                         gpui::FontWeight::MEDIUM
                     } else {
                         gpui::FontWeight::NORMAL
@@ -427,24 +478,5 @@ impl XenonApp {
                 }),
             ))
             .child(tab_underline(paint))
-    }
-}
-
-struct DragGhost {
-    label: SharedString,
-}
-
-impl Render for DragGhost {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        div()
-            .px_2()
-            .py_1()
-            .rounded_sm()
-            .bg(colors.elevated_surface_background)
-            .border_1()
-            .border_color(colors.border)
-            .text_sm()
-            .child(self.label.clone())
     }
 }
