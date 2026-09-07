@@ -26,6 +26,7 @@ and `CONTRIBUTING.md`.
   `cargo fmt --all` / `cargo clippy --workspace --all-targets -- -D warnings`
   (workspace root). Unit tests cover pure crates only; GPUI views are verified
   by launch tests. Full gate: `scripts/health` (fmtcheck + clippy + shape + test).
+  Run `scripts/health` before committing; the commit hook enforces its format and lint subset.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
   release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`),
