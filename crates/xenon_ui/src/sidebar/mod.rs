@@ -226,8 +226,7 @@ impl XenonApp {
             .items_center()
             .h(px(ROW_H))
             .mx_1()
-            .pl_2()
-            .pr(px(2.))
+            .px_2()
             .rounded_sm()
             .text_sm()
             .when(active, |s| {
@@ -239,7 +238,6 @@ impl XenonApp {
                 .font_weight(gpui::FontWeight::MEDIUM)
             })
             .when(!active, |s| s.text_color(colors.text_muted))
-            .border_t_2()
             .border_l_2()
             .border_color(if active {
                 colors.border_selected
@@ -329,6 +327,12 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let group = group.to_string();
+        let active = self.active_workspace() == Some(id);
+        let surface = if active {
+            crate::chrome::accent_surface(colors.element_selected, colors.text_accent)
+        } else {
+            crate::chrome::sidebar_background(colors)
+        };
         // Fixed equal slots so pencil / x share the same center grid as the gutter.
         div()
             .absolute()
@@ -341,7 +345,7 @@ impl XenonApp {
             .justify_end()
             .invisible()
             .group_hover(group, |s| s.visible())
-            .bg(crate::chrome::sidebar_background(colors))
+            .bg(surface)
             .child(icon_button(
                 ("ws-rename", id_hash(id.to_string())),
                 Icon::Pencil,
@@ -356,7 +360,7 @@ impl XenonApp {
                 ("workspace-close", id_hash(id.to_string())),
                 Icon::X,
                 colors.clone(),
-                Some("Close Workspace · ⌘⌥W"),
+                Some("Close · ⌘⌥W"),
                 cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     this.close_workspace(id, window, cx);
@@ -373,9 +377,18 @@ pub(super) fn icon_button(
     on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
     let tip = tip.map(SharedString::from);
+    let danger = matches!(glyph, Icon::X);
+    let danger_color = colors.version_control_deleted;
+    let hover_background = if danger {
+        danger_color.opacity(0.14)
+    } else {
+        colors.element_hover
+    };
+    let hover_foreground = if danger { danger_color } else { colors.text };
     // Equal hit targets; glyph centered in a fixed box so pencil/x share baseline.
-    let btn = div()
+    let mut btn = div()
         .id(id)
+        .relative()
         .flex_none()
         .flex()
         .items_center()
@@ -383,9 +396,13 @@ pub(super) fn icon_button(
         .w(px(widgets::ACTION_BTN))
         .h(px(widgets::ACTION_BTN))
         .rounded_sm()
-        .text_color(colors.text_muted)
+        .text_color(if danger {
+            danger_color
+        } else {
+            colors.text_muted
+        })
         .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+        .hover(move |s| s.bg(hover_background).text_color(hover_foreground))
         .child(
             div()
                 .flex()
@@ -395,8 +412,29 @@ pub(super) fn icon_button(
                 .child(icon(glyph, px(ICON_MD))),
         )
         .on_click(on_click);
+    if danger && let Some(text) = tip.clone() {
+        btn = btn.group("workspace-close-action").child(
+            div()
+                .absolute()
+                .right_0()
+                .bottom(px(24.))
+                .invisible()
+                .group_hover("workspace-close-action", |s| s.visible())
+                .px_2()
+                .py_1()
+                .rounded_sm()
+                .bg(colors.elevated_surface_background)
+                .border_1()
+                .border_color(colors.border)
+                .text_color(colors.text)
+                .text_xs()
+                .whitespace_nowrap()
+                .child(text),
+        );
+    }
     match tip {
-        Some(text) => btn.tooltip(path_tooltip(text)).into_any_element(),
+        Some(text) if !danger => btn.tooltip(path_tooltip(text)).into_any_element(),
         None => btn.into_any_element(),
+        Some(_) => btn.into_any_element(),
     }
 }

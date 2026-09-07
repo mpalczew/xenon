@@ -74,8 +74,7 @@ pub(super) fn workspace_rename_row(
         .items_center()
         .h(px(ROW_H))
         .mx_1()
-        .pl_2()
-        .pr(px(2.))
+        .px_2()
         .rounded_sm()
         .child(
             div()
