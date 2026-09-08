@@ -1,8 +1,9 @@
 //! The collapsible left column: expandable Workspaces + Files sections.
 
 use gpui::{
-    Context, InteractiveElement, IntoElement, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px,
+    Anchor, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
+    StatefulInteractiveElement, Styled, Window, anchored, deferred, div, point,
+    prelude::FluentBuilder, px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
@@ -151,6 +152,7 @@ impl XenonApp {
             Icon::ChevronDown
         };
         div()
+            .relative()
             .flex()
             .items_center()
             .justify_between()
@@ -196,6 +198,59 @@ impl XenonApp {
                     this.add_workspace_from_plus(window, cx);
                 }),
             ))
+            .children(self.render_workspace_submenu(cx))
+    }
+
+    fn render_workspace_submenu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+        let selected = self.workspace_menu.map(|menu| menu.selected)?;
+        let colors = cx.theme().colors().clone();
+        Some(
+            div()
+                .absolute()
+                .top(px(30.))
+                .right(px(4.))
+                .w(px(0.))
+                .h(px(0.))
+                .child(
+                    deferred(
+                        anchored()
+                            .anchor(Anchor::TopRight)
+                            .offset(point(px(0.), px(4.)))
+                            .child(
+                                div()
+                                    .id("workspace-submenu")
+                                    .w(px(190.))
+                                    .p_1()
+                                    .rounded_sm()
+                                    .occlude()
+                                    .border_1()
+                                    .border_color(colors.border)
+                                    .bg(colors.panel_background)
+                                    .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()))
+                                    .child(crate::tabs::menu::menu_item(
+                                        "workspace-menu-new",
+                                        "▣  New workspace…",
+                                        &colors,
+                                        selected == 0,
+                                        cx.listener(|this, _, window, cx| {
+                                            this.workspace_menu = None;
+                                            this.open_workspace_creator(window, cx);
+                                        }),
+                                    ))
+                                    .child(crate::tabs::menu::menu_item(
+                                        "workspace-menu-open",
+                                        "▱  Open workspace…",
+                                        &colors,
+                                        selected == 1,
+                                        cx.listener(|this, _, window, cx| {
+                                            this.open_workspace_picker_from_plus(window, cx);
+                                        }),
+                                    )),
+                            ),
+                    )
+                    .with_priority(100),
+                ),
+        )
     }
 
     fn workspace_header(

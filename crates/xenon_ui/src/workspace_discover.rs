@@ -12,6 +12,7 @@ const MAX_RESULTS: usize = 20;
 const MAX_COLLECT: usize = 64;
 /// Hard stop: never readdir more than this many directories per discover call.
 const MAX_VISITS: usize = 2_500;
+const MAX_PARENT_DIRS: usize = 4_000;
 
 /// Expand `~` / `~/…` and absolute paths.
 pub(crate) fn expand_user_path(input: &str) -> Option<PathBuf> {
@@ -72,6 +73,51 @@ pub(crate) fn default_search_roots() -> Vec<PathBuf> {
         .map(|name| home.join(name))
         .filter(|p| p.is_dir())
         .collect()
+}
+
+/// Collect searchable parent folders under the user's home directory.
+/// Hidden folders and known system/build trees are excluded before traversal.
+pub(crate) fn discover_parent_dirs() -> Vec<PathBuf> {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return Vec::new();
+    };
+    let mut dirs = vec![home.clone()];
+    let mut queue = vec![(home, 0usize)];
+    let mut index = 0;
+    while index < queue.len() && dirs.len() < MAX_PARENT_DIRS {
+        let (parent, depth) = queue[index].clone();
+        index += 1;
+        if depth >= 4 {
+            continue;
+        }
+        let Ok(entries) = std::fs::read_dir(&parent) else {
+            continue;
+        };
+        let mut children: Vec<PathBuf> = entries
+            .flatten()
+            .filter_map(|entry| {
+                let file_type = entry.file_type().ok()?;
+                if !file_type.is_dir() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if should_skip_dir(&name) {
+                    None
+                } else {
+                    Some(entry.path())
+                }
+            })
+            .collect();
+        children.sort();
+        for child in children {
+            if dirs.len() >= MAX_PARENT_DIRS {
+                break;
+            }
+            queue.push((child.clone(), depth + 1));
+            dirs.push(child);
+        }
+    }
+    dirs
 }
 
 /// How to interpret the palette query for discovery.

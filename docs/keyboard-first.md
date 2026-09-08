@@ -27,6 +27,10 @@ palettes support type-to-filter, arrows, Return, and Escape. ⌘P also takes
 ⌘↩ / ⌃↩ (or ⌘-click) to open the file in a new pane to the right. If that
 path is already open, focus the existing tab (paths stay unique).
 
+The sidebar Workspaces `+` opens a two-item menu. Arrow keys and Return choose
+New workspace or Open workspace; New workspace accepts the directory name first,
+then fuzzy-filters visible parent folders under `~`.
+
 Tabs and panes stay separate verbs. ⌃⇥ cycles tabs in the focused leaf.
 ⌃` cycles leaves, then Files. Do not make ⌃⇥ wrap across panes (VS Code /
 Zed / IntelliJ use ⌃⇥ as an MRU picker, not sequential wrap). ⌘1/2/3 stay

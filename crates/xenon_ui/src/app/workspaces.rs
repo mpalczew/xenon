@@ -73,15 +73,12 @@ impl XenonApp {
 
     /// Open Workspace palette from the sidebar + (reopen/discover only — no open list).
     pub(crate) fn add_workspace_from_plus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.workspace_picker.is_some() {
-            self.workspace_picker = None;
-            self.browse_for_workspace(cx);
-            return;
-        }
-        self.open_workspace_picker(WorkspacePickerMode::Plus, window, cx);
+        let _ = window;
+        self.workspace_menu = Some(crate::app::WorkspaceMenu { selected: 0 });
+        cx.notify();
     }
 
-    fn open_workspace_picker(
+    pub(crate) fn open_workspace_picker(
         &mut self,
         mode: WorkspacePickerMode,
         window: &mut Window,
@@ -233,7 +230,7 @@ impl XenonApp {
         .detach();
     }
 
-    fn register_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+    pub(crate) fn register_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let Some(root) = crate::workspace_discover::resolve_existing_dir(&root) else {
             return;
         };
@@ -412,7 +409,7 @@ impl XenonApp {
 
 /// How the Open Workspace palette was launched.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum WorkspacePickerMode {
+pub(crate) enum WorkspacePickerMode {
     /// ⌘⇧O: closed + other open (not current).
     Keyboard,
     /// Sidebar +: closed + discover only.

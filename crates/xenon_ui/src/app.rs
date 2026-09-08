@@ -27,6 +27,7 @@ use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::settings::SettingsView;
 use crate::task_picker::TaskPickerView;
+use crate::workspace_create::WorkspaceCreateView;
 use crate::workspace_picker::WorkspacePickerView;
 use crate::{
     AddWorkspace, CloseEditor, DecreaseFontSize, FilePalette, IncreaseFontSize, NewFile,
@@ -65,6 +66,7 @@ mod tasks;
 mod terminals;
 mod themes;
 mod tree_keys;
+mod workspace_create_ops;
 mod workspaces;
 
 pub(crate) use attention::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
@@ -92,6 +94,11 @@ pub(crate) struct BrowserContextMenu {
     pub selected: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct WorkspaceMenu {
+    pub selected: usize,
+}
+
 /// What the sidebar inline rename field is editing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RenameTarget {
@@ -108,6 +115,7 @@ pub struct XenonApp {
     finder: Option<Entity<FinderView>>,
     task_picker: Option<Entity<TaskPickerView>>,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
+    workspace_create: Option<Entity<WorkspaceCreateView>>,
     command_palette: Option<Entity<crate::command_palette::CommandPaletteView>>,
     theme_picker: Option<Entity<crate::theme_picker::ThemePickerView>>,
     /// File tree has keyboard focus (arrows/enter route here, not editor/terminal).
@@ -144,10 +152,12 @@ pub struct XenonApp {
     pub(crate) tab_menu: Option<TabContextMenu>,
     /// Right-click menu on the Files tree.
     pub(crate) browser_menu: Option<BrowserContextMenu>,
+    pub(crate) workspace_menu: Option<WorkspaceMenu>,
     focus: FocusHandle,
     _finder_sub: Option<Subscription>,
     _task_picker_sub: Option<Subscription>,
     _workspace_picker_sub: Option<Subscription>,
+    _workspace_create_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
     _theme_picker_sub: Option<Subscription>,
     // Per-terminal-tab attention (sidebar + tab chips). Workspace row is derived.
@@ -174,6 +184,7 @@ impl XenonApp {
             finder: None,
             task_picker: None,
             workspace_picker: None,
+            workspace_create: None,
             command_palette: None,
             theme_picker: None,
             browser_focused: false,
@@ -194,10 +205,12 @@ impl XenonApp {
             _rename_sub: None,
             tab_menu: None,
             browser_menu: None,
+            workspace_menu: None,
             focus: cx.focus_handle(),
             _finder_sub: None,
             _task_picker_sub: None,
             _workspace_picker_sub: None,
+            _workspace_create_sub: None,
             _command_palette_sub: None,
             _theme_picker_sub: None,
             attention: AttentionMap::default(),

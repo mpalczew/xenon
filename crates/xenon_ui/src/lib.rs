@@ -19,6 +19,7 @@ mod tabs;
 mod task_picker;
 mod theme_picker;
 mod toolbar;
+mod workspace_create;
 mod workspace_discover;
 mod workspace_picker;
 

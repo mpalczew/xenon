@@ -23,6 +23,7 @@ impl Render for XenonApp {
         let finder = self.finder.clone();
         let task_picker = self.task_picker.clone();
         let workspace_picker = self.workspace_picker.clone();
+        let workspace_create = self.workspace_create.clone();
         let command_palette = self.command_palette.clone();
         let theme_picker = self.theme_picker.clone();
         let tab_menu = self.render_tab_menu(cx);
@@ -32,6 +33,7 @@ impl Render for XenonApp {
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if this.on_tab_menu_key(event, window, cx)
                     || this.on_browser_menu_key(event, window, cx)
+                    || this.on_workspace_menu_key(event, window, cx)
                     || this.on_browser_key(event, window, cx)
                 {
                     cx.stop_propagation();
@@ -53,6 +55,7 @@ impl Render for XenonApp {
             .children(finder)
             .children(task_picker)
             .children(workspace_picker)
+            .children(workspace_create)
             .children(command_palette)
             .children(theme_picker)
             .children(tab_menu)
