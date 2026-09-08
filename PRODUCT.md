@@ -102,8 +102,10 @@ It is still central: when it works, it directly helps real daily work.
   editors are the same kind of surface. Open file → tab in the focused pane
   (not an automatic split). Split horizontal/vertical on demand via toolbar,
   tab drag-and-drop (edge = split, center = move tab), or keyboard. Closing the
-  last tab in a split pane **unsplits**; when the content area is fully empty,
-  show an empty state (keep the area; teach ⌘N / open). Sidebar (workspaces +
+  last tab in a split pane **unsplits** unless it is an intentional reserved
+  empty pane; reserved panes persist as layout slots and can be removed with
+  their pane-level ×. When the content area is fully empty, show the existing
+  empty state (keep the area; teach ⌘N / open). Sidebar (workspaces +
   files) is optional chrome, not a third content column. This replaced the
   older fixed terminal|editor split. Detail: `docs/designs/pane-tree-layout.md`.
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special

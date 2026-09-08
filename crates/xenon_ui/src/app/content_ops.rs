@@ -118,14 +118,17 @@ impl XenonApp {
                 id: pane,
                 tabs: vec![tab],
                 active: 0,
+                parked: false,
             }));
             content.focused = Some(pane);
         } else if let Some(leaf) = content.focused_leaf_mut() {
+            leaf.parked = false;
             leaf.tabs.push(tab);
             leaf.active = leaf.tabs.len() - 1;
         } else if let Some(first) = content.leaf_ids().first().copied() {
             content.focused = Some(first);
             if let Some(leaf) = content.focused_leaf_mut() {
+                leaf.parked = false;
                 leaf.tabs.push(tab);
                 leaf.active = leaf.tabs.len() - 1;
             }
@@ -325,6 +328,9 @@ impl XenonApp {
             leaf.tabs.remove(idx);
             if !leaf.tabs.is_empty() {
                 fix_active_idx(&mut leaf.active, idx, leaf.tabs.len());
+                content.focused = Some(pane);
+                DropTabOutcome::FocusPane(pane)
+            } else if leaf.parked {
                 content.focused = Some(pane);
                 DropTabOutcome::FocusPane(pane)
             } else if content.leaf_ids().len() <= 1 {

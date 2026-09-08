@@ -75,6 +75,7 @@ impl XenonApp {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn open_editor_at(
         &mut self,
         path: PathBuf,
@@ -154,14 +155,17 @@ impl XenonApp {
                         id: pane,
                         tabs: vec![tab],
                         active: 0,
+                        parked: false,
                     }));
                     content.focused = Some(pane);
                 } else if let Some(leaf) = content.focused_leaf_mut() {
+                    leaf.parked = false;
                     leaf.tabs.push(tab);
                     leaf.active = leaf.tabs.len() - 1;
                 } else if let Some(first) = content.leaf_ids().first().copied() {
                     content.focused = Some(first);
                     if let Some(leaf) = content.focused_leaf_mut() {
+                        leaf.parked = false;
                         leaf.tabs.push(tab);
                         leaf.active = leaf.tabs.len() - 1;
                     }
@@ -223,6 +227,7 @@ impl XenonApp {
                 id: new_pane,
                 tabs: vec![tab],
                 active: 0,
+                parked: false,
             })),
         };
         if let Some(root) = content.root.as_mut()

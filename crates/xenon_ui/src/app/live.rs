@@ -56,6 +56,7 @@ pub(crate) struct LiveLeaf {
     pub id: PaneId,
     pub tabs: Vec<LiveTab>,
     pub active: usize,
+    pub parked: bool,
 }
 
 impl LiveLeaf {
@@ -304,6 +305,7 @@ fn snapshot_node(node: &LiveNode) -> PaneNode {
             id: leaf.id,
             active: leaf.active,
             tabs: leaf.tabs.iter().map(snapshot_tab).collect(),
+            parked: leaf.parked,
         }),
         LiveNode::Split {
             axis,

@@ -165,6 +165,10 @@ impl XenonApp {
             CommandId::ToggleEditor => self.focus_or_reveal_editor(window, cx),
             CommandId::SplitRight => self.split_right(window, cx),
             CommandId::SplitDown => self.split_down(window, cx),
+            CommandId::ReserveEmptyPaneRight => {
+                self.park_empty_pane(xenon_core::SplitAxis::Horizontal, window, cx)
+            }
+            CommandId::RemoveEmptyPane => self.remove_focused_empty_pane(window, cx),
             CommandId::ToggleSettings => self.toggle_settings_window(cx),
             CommandId::ToggleThemes => self.open_theme_picker(window, cx),
             CommandId::ToggleMobileRemote => self.toggle_mobile_remote(window, cx),

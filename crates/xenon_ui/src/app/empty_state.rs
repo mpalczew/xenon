@@ -4,9 +4,11 @@ use gpui::{
     AnyElement, Context, Image, ImageFormat, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, Styled, div, img, px,
 };
+use lucide_icons::Icon;
 use std::sync::Arc;
 
 use crate::commands::{CommandEntry, CommandId, catalog};
+use xenon_core::{PaneId, SplitAxis};
 
 use super::XenonApp;
 
@@ -18,9 +20,11 @@ fn xenon_icon() -> Arc<Image> {
 }
 
 impl XenonApp {
+    #[allow(clippy::too_many_lines)]
     pub(super) fn render_empty_state(
         &self,
         colors: theme::ThemeColors,
+        remove_pane: Option<PaneId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let has_workspace = self.active.is_some();
@@ -88,6 +92,25 @@ impl XenonApp {
                 }))
                 .into_any_element()
         });
+        let reserve = has_workspace.then(|| {
+            let hover = colors.element_hover;
+            let text = colors.text;
+            div()
+                .id("empty-reserve-pane")
+                .px_3()
+                .py_2()
+                .rounded_sm()
+                .border_1()
+                .border_color(colors.border)
+                .text_color(colors.text_muted)
+                .cursor_pointer()
+                .hover(move |s| s.bg(hover).text_color(text))
+                .child("Reserve Pane Right  ⌘⌥\\")
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.park_empty_pane(SplitAxis::Horizontal, window, cx);
+                }))
+                .into_any_element()
+        });
         let close_workspace = has_workspace.then(|| {
             let hover = colors.element_hover;
             let text = colors.text;
@@ -107,6 +130,41 @@ impl XenonApp {
                 }))
                 .into_any_element()
         });
+        let remove_empty_pane = remove_pane.filter(|pane| {
+            self.active_content()
+                .and_then(|content| content.root.as_ref())
+                .is_some_and(|root| {
+                    root.leaf_ids().len() > 1
+                        && root
+                            .find_leaf(*pane)
+                            .is_some_and(|leaf| leaf.tabs.is_empty())
+                })
+        });
+        let remove_empty_pane = remove_empty_pane.map(|pane| {
+            let hover = colors.element_hover;
+            let muted = colors.text_muted;
+            div()
+                .id(("remove-empty-pane", pane.0))
+                .absolute()
+                .top_2()
+                .right_2()
+                .flex()
+                .items_center()
+                .justify_center()
+                .w(px(24.))
+                .h(px(24.))
+                .rounded_sm()
+                .text_color(muted)
+                .cursor_pointer()
+                .hover(move |s| s.bg(hover).text_color(colors.text))
+                .tooltip(crate::tabs::tip_tooltip("Remove empty pane".into()))
+                .child(crate::icons::icon(Icon::X, px(14.)))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.remove_empty_pane(pane, window, cx);
+                }))
+                .into_any_element()
+        });
         let shortcuts = shortcut_entries(has_workspace)
             .iter()
             .filter_map(|id| catalog().iter().find(|entry| entry.id == *id))
@@ -118,7 +176,9 @@ impl XenonApp {
             subtitle,
             primary,
             secondary,
+            reserve,
             close_workspace,
+            remove_empty_pane,
             shortcuts,
         })
     }
@@ -148,7 +208,9 @@ struct EmptyStateContent {
     subtitle: &'static str,
     primary: AnyElement,
     secondary: Option<AnyElement>,
+    reserve: Option<AnyElement>,
     close_workspace: Option<AnyElement>,
+    remove_empty_pane: Option<AnyElement>,
     shortcuts: Vec<CommandEntry>,
 }
 
@@ -159,15 +221,19 @@ fn empty_state_content(content: EmptyStateContent) -> impl IntoElement {
         subtitle,
         primary,
         secondary,
+        reserve,
         close_workspace,
+        remove_empty_pane,
         shortcuts,
     } = content;
     div()
+        .relative()
         .flex()
         .flex_1()
         .min_w_0()
         .min_h_0()
         .size_full()
+        .children(remove_empty_pane)
         .items_center()
         .justify_center()
         .child(
@@ -199,6 +265,7 @@ fn empty_state_content(content: EmptyStateContent) -> impl IntoElement {
                         .pt_2()
                         .child(primary)
                         .children(secondary)
+                        .children(reserve)
                         .children(close_workspace),
                 )
                 .child(

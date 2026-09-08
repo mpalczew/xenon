@@ -86,11 +86,13 @@ impl XenonApp {
                 id: src_pane,
                 tabs: source_tabs,
                 active: 0,
+                parked: false,
             })),
             second: Box::new(LiveNode::Leaf(LiveLeaf {
                 id: new_pane,
                 tabs: vec![moved],
                 active: 0,
+                parked: false,
             })),
         };
         if let Some(root) = content.root.as_mut()
@@ -155,6 +157,7 @@ impl XenonApp {
         };
         {
             let leaf = content.root.as_mut().unwrap().find_leaf_mut(dest).unwrap();
+            leaf.parked = false;
             leaf.tabs.push(tab_state);
             leaf.active = leaf.tabs.len() - 1;
         }
@@ -281,6 +284,7 @@ impl XenonApp {
             id: new_pane,
             tabs: vec![tab_state],
             active: 0,
+            parked: false,
         };
         let (first, second) = if edge.tab_in_first() {
             (LiveNode::Leaf(new_leaf), LiveNode::Leaf(target_leaf))

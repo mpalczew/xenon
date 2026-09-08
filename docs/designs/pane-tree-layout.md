@@ -50,7 +50,7 @@
 | Pattern | Where |
 |---------|--------|
 | Snap-close + residual reopen | `resize.rs`, `panels.rs` |
-| Empty teaching UI | `empty_hint.rs`, terminal empty body |
+| Empty teaching UI | `empty_state.rs`, terminal empty body |
 | Tab chip strip + context menu | `tabs/mod.rs`, `tabs/menu.rs` |
 | Dirty close | `dirty_close.rs` |
 | Overlay focus restore | `DeferredUi.pending_focus` |
@@ -75,7 +75,7 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 6. Split H / V on demand.
 7. Split triggers: **toolbar**, **tab drag-and-drop**, **keyboard** (all three required).
 8. DnD: drag tab only; drop **center** = move into pane; drop **edge** (L/R/T/B) = split, tab in new sibling.
-9. Close cascade: last tab in a leaf with sibling → **unsplit**; last surface overall → **content empty state** (no zombie empty panes).
+9. Close cascade: last tab in a leaf with sibling → **unsplit**, unless the leaf is an intentional reserved empty pane; last surface overall → **content empty state**.
 10. Pane splitter drag-resize; persist ratios.
 11. Sidebar stays optional chrome (unchanged product role).
 12. Focus model: focused **leaf id** (+ browser as non-tree focus); cycle leaves + browser.
@@ -90,7 +90,7 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 | Multi-terminal PTY restore across app restart | PTYs are live processes; v1 may record tab *placeholders* or skip (see Open questions) |
 | Freeform multi-row grids / arbitrary graph | Rule of 7; binary tree is enough |
 | Nest depth UI chrome / “maximize pane” | Not needed for agent-first dogfood |
-| Empty zombie panes user can keep | Explicitly rejected |
+| Accidental empty panes | Still rejected; intentional reserved empty panes are persisted layout slots |
 | Mode switcher (Agent vs Inspect) | Layout is enough |
 | “Open to the side” from finder as separate product action | Split then open, or add later as thin wrapper |
 | Tab reorder within pane via DnD | Nice; not required for split model (optional stretch if cheap) |
@@ -103,7 +103,8 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 
 - Default session: one leaf, terminal tabs; open file becomes another tab in that leaf.
 - User can split right/down via toolbar button, keybinding, and tab edge-drop; reverse by closing last tab in a half.
-- Fully empty content area shows empty state with keyboard path (⌘N / open file).
+- Fully empty content area shows the existing empty state with keyboard path (⌘N / open file).
+- Empty panes reuse that same existing empty state. A pane-level × appears only when the pane is empty and the tree has more than one leaf; it removes that exact pane.
 - Old session JSON loads without data loss of layout intent (see migration).
 - No fixed terminal|editor columns remain as the product model in code paths for the main content area.
 - `cargo test` (core + store) green; `project install` dogfoodable.
@@ -134,7 +135,7 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 | Close tab (⌘W / chip / menu) | Close; dirty guard for editors; then unsplit/empty cascade |
 | ⌘B | Sidebar toggle (unchanged) |
 
-**Split creates:** new sibling leaf with **no tabs** is forbidden by invariant (no empty leaves). Therefore split must either:
+**Normal split creates:** new sibling leaf with **no tabs** is forbidden by invariant. The separate reserve-pane action is the intentional exception and marks the empty leaf as reserved. Therefore normal split must either:
 
 - **(Recommended)** Move the active tab into the new sibling and leave the rest in the original, **or**
 - Duplicate nothing; require a tab to drag (toolbar split moves **active** tab to new pane)
@@ -175,7 +176,8 @@ That never leaves an empty leaf and keeps an agent shell on the “old” side w
 
 | State | UI |
 |-------|-----|
-| Empty content | Centered empty state; no tab strip; no splitters |
+| Empty content | Existing centered empty state; no tab strip; no splitters |
+| Reserved empty pane | Same existing empty state; pane-level × only when another leaf remains |
 | Single leaf + tabs | One tab strip (mixed icons/labels); body = active surface |
 | Multi-leaf | Recursive split UI; each leaf has own strip; focused leaf focus ring |
 | Drag tab | Ghost chip; drop zones: center highlight + 4 edge bands |
@@ -253,8 +255,9 @@ TabState —
 
 LeafPane —
   id: PaneId
-  tabs: Vec<TabState>        // ordered strip; may be empty ONLY transiently during ops
+  tabs: Vec<TabState>        // ordered strip; empty only for a reserved pane
   active: usize              // index into tabs; valid if !tabs.is_empty()
+  parked: bool               // intentional empty layout slot
 
 PaneNode —
   Leaf(LeafPane)
@@ -274,13 +277,13 @@ SessionState (rewritten) —
 ### Invariants
 
 1. `root.is_none()` ↔ empty content; `focused` is `None`.
-2. If `root` is `Some`, every **leaf** in the tree has `tabs.len() >= 1` **after** any public op completes.
+2. If `root` is `Some`, every leaf has tabs after normal split/move/close operations. An empty leaf is allowed only when it is explicitly marked `parked` (reserved).
 3. `focused` is always a leaf id present in the tree when `root` is `Some`.
 4. `active < tabs.len()` for every non-empty leaf.
 5. `ratio` clamped to `[0.15, 0.85]`.
 6. Nest depth (split edges on path root→leaf) ≤ **3**.
 7. Editor paths unique per workspace (one tab instance); open existing focuses its leaf.
-8. No leaf exists with zero tabs after ops (split/close implement this via unsplit or spawn terminal).
+8. No unmarked leaf exists with zero tabs after ops. Reserved empty leaves are intentional and removable when the tree has more than one leaf.
 
 ### Modified entities
 
@@ -551,9 +554,10 @@ Drop:
 ⌘W / chip
   → if editor dirty: modal; Cancel aborts
   → remove LiveTab; drop entity
-  → if leaf empty:
+  → if leaf empty and not reserved:
        if parent split: replace parent with sibling (unsplit); focus sibling
        else: root = None (empty state)
+  → if leaf empty and reserved: keep the leaf as a layout slot
   → persist; notify; focus remaining active surface or nothing
 ```
 
@@ -643,7 +647,7 @@ Default surface is a splittable tab grid of terminals; editors are tabs (or pane
 | Keep fixed columns + “sometimes hide editor” | Fights agent-first; still special-cases editor |
 | Modes (Agent / Inspect) | Two concepts for one layout need |
 | Clone-on-split for terminals | Meaningless for PTYs; confusing |
-| Empty leaves allowed | Zombie chrome; unsplit is cleaner |
+| Unmarked empty leaves allowed | Zombie chrome; only explicit reserved empty panes persist |
 | Persist live PTY identity | Not available across process death |
 
 ---

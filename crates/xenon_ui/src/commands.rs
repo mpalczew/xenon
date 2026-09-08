@@ -45,6 +45,8 @@ pub enum CommandId {
     ToggleEditor,
     SplitRight,
     SplitDown,
+    ReserveEmptyPaneRight,
+    RemoveEmptyPane,
     ToggleSettings,
     ToggleThemes,
     ToggleMobileRemote,
@@ -67,7 +69,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 41] {
+const fn all_commands() -> [CommandEntry; 43] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -103,6 +105,13 @@ const fn all_commands() -> [CommandEntry; 41] {
         cmd!(ToggleEditor, "Focus Editor", "⌘⇧E", "View"),
         cmd!(SplitRight, "Split Right", "⌘\\", "View"),
         cmd!(SplitDown, "Split Down", "⌘⇧\\", "View"),
+        cmd!(
+            ReserveEmptyPaneRight,
+            "Reserve Pane to the Right",
+            "⌘⌥\\",
+            "View"
+        ),
+        cmd!(RemoveEmptyPane, "Remove Empty Pane", "", "View"),
         cmd!(ToggleSettings, "Settings", "⌘,", "View"),
         cmd!(ToggleThemes, "Themes…", "⌘⌥T", "View"),
         cmd!(ToggleMobileRemote, "Toggle Mobile Remote", "", "View"),
@@ -115,6 +124,6 @@ const fn all_commands() -> [CommandEntry; 41] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 41] = all_commands();
+    static ENTRIES: [CommandEntry; 43] = all_commands();
     &ENTRIES
 }

@@ -151,7 +151,7 @@ impl XenonApp {
                         }
                     }
                 }
-                if tabs.is_empty() {
+                if tabs.is_empty() && !leaf.parked {
                     // Keep leaf valid with a terminal.
                     let view = self.spawn_terminal(root.to_path_buf(), workspace, cx);
                     tabs.push(LiveTab::Terminal {
@@ -164,6 +164,7 @@ impl XenonApp {
                     id: leaf.id,
                     tabs,
                     active,
+                    parked: leaf.parked,
                 })
             }
             xenon_core::PaneNode::Split {

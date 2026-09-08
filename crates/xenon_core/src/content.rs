@@ -83,6 +83,9 @@ pub struct LeafPane {
     pub tabs: Vec<TabState>,
     #[serde(default)]
     pub active: usize,
+    /// Keep this leaf visible when it has no tabs.
+    #[serde(default)]
+    pub parked: bool,
 }
 
 impl LeafPane {
@@ -92,7 +95,12 @@ impl LeafPane {
         } else {
             active.min(tabs.len() - 1)
         };
-        Self { id, tabs, active }
+        Self {
+            id,
+            tabs,
+            active,
+            parked: false,
+        }
     }
 }
 
@@ -326,6 +334,26 @@ mod tests {
         let json = serde_json::to_string(&c).unwrap();
         let parsed: ContentLayout = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.leaf_ids().len(), 2);
+    }
+
+    #[test]
+    fn parked_empty_leaf_round_trips() {
+        let content = ContentLayout {
+            root: Some(PaneNode::Leaf(LeafPane {
+                id: PaneId(1),
+                tabs: Vec::new(),
+                active: 0,
+                parked: true,
+            })),
+            focused: Some(PaneId(1)),
+        };
+        let json = serde_json::to_string(&content).unwrap();
+        let parsed: ContentLayout = serde_json::from_str(&json).unwrap();
+        let PaneNode::Leaf(leaf) = parsed.root.unwrap() else {
+            panic!("expected leaf");
+        };
+        assert!(leaf.parked);
+        assert!(leaf.tabs.is_empty());
     }
 
     #[test]
