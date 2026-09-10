@@ -293,6 +293,9 @@ impl Builder {
             TagEnd::TableHead => {
                 if let Some(table) = &mut self.table {
                     table.in_head = false;
+                    // pulldown-cmark emits the header cells directly inside
+                    // TableHead; only body rows get a TableRow wrapper.
+                    table.finish_row();
                 }
             }
             TagEnd::Table => self.flush_table(),
