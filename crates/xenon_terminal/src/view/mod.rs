@@ -20,6 +20,7 @@ pub(crate) use input::pty_input_bytes;
 
 use std::ops::Range;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::Result;
 use attention::{IDLE_AFTER, agent_busy_signal};
@@ -48,6 +49,8 @@ actions!(xenon_terminal, [Find, FindNext, FindPrevious]);
 
 const LINE_HEIGHT_MULTIPLIER: f32 = 1.2;
 const SCROLL_MULTIPLIER: f32 = 3.;
+const TERMINAL_REPAINT_INTERVAL: Duration = Duration::from_millis(8);
+const FIND_REFRESH_INTERVAL: Duration = Duration::from_millis(50);
 
 struct MouseChipTooltip {
     text: SharedString,
@@ -146,7 +149,13 @@ pub struct TerminalView {
     find: Option<FindSession>,
     /// In-flight find_matches task (dropped on next rescan / close).
     _find_task: Task<()>,
+    /// Coalesces scrollback search refreshes while output is streaming.
+    _find_refresh_task: Task<()>,
     _spawn: Task<()>,
+    /// Coalesces PTY wakeups into one UI repaint per interval.
+    _repaint_task: Task<()>,
+    repaint_scheduled: bool,
+    find_refresh_scheduled: bool,
     /// Output batches in the current burst; reset when output settles.
     wakeups: u32,
     /// True after this burst crossed the agent-work threshold and before it
@@ -193,7 +202,11 @@ impl TerminalView {
             chrome_hovered: false,
             find: None,
             _find_task: Task::ready(()),
+            _find_refresh_task: Task::ready(()),
             _spawn: spawn,
+            _repaint_task: Task::ready(()),
+            repaint_scheduled: false,
+            find_refresh_scheduled: false,
             wakeups: 0,
             working: false,
             _idle_check: Task::ready(()),
@@ -285,13 +298,13 @@ impl TerminalView {
                     cx.emit(TerminalEvent::Working);
                 }
                 self.arm_idle_check(cx);
-                // Scrollback moved; refresh match ranges without jumping.
-                if self.find_is_open() {
-                    self.rescan_find(false, cx);
-                }
-                // Always notify so inactive tabs still schedule work; remote
-                // frame capture also reads the live grid on Wakeup without paint.
-                cx.notify();
+                // Scrollback moved; refresh match ranges without jumping, but
+                // do not restart the scan for every PTY chunk.
+                self.schedule_find_refresh(cx);
+                // PTY output can arrive much faster than the display can paint.
+                // Keep the latest terminal state and publish one repaint at a
+                // time so output cannot crowd keyboard events off the UI queue.
+                self.schedule_repaint(cx);
             }
             Event::CloseTerminal => {
                 self.exited = true;
@@ -304,6 +317,38 @@ impl TerminalView {
             Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
+    }
+
+    fn schedule_repaint(&mut self, cx: &mut Context<Self>) {
+        if self.repaint_scheduled {
+            return;
+        }
+        self.repaint_scheduled = true;
+        self._repaint_task = cx.spawn(async move |view, cx| {
+            cx.background_executor()
+                .timer(TERMINAL_REPAINT_INTERVAL)
+                .await;
+            view.update(cx, |view, cx| {
+                view.repaint_scheduled = false;
+                cx.notify();
+            })
+            .ok();
+        });
+    }
+
+    fn schedule_find_refresh(&mut self, cx: &mut Context<Self>) {
+        if !self.find_is_open() || self.find_refresh_scheduled {
+            return;
+        }
+        self.find_refresh_scheduled = true;
+        self._find_refresh_task = cx.spawn(async move |view, cx| {
+            cx.background_executor().timer(FIND_REFRESH_INTERVAL).await;
+            view.update(cx, |view, cx| {
+                view.find_refresh_scheduled = false;
+                view.rescan_find(false, cx);
+            })
+            .ok();
+        });
     }
 
     /// A cmd-click landed on a URL or path-like target in the terminal.
