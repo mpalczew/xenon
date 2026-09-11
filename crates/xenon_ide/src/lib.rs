@@ -1,9 +1,12 @@
 //! Xenon as a Claude Code "IDE": a localhost WebSocket MCP server that agents
 //! running in the terminal connect to. See PROTOCOL.md.
 
+#[cfg(unix)]
+mod codex_protocol;
 mod lock;
 mod protocol;
 
+use std::collections::HashMap;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Sender as MpscSender};
@@ -18,13 +21,18 @@ use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{Message, accept_hdr};
 use uuid::Uuid;
 
+#[cfg(unix)]
+use codex_protocol::{
+    serve_connection as serve_codex_connection, write_frame as write_codex_frame,
+};
+
 /// A request from a connected agent for the UI to act on.
 pub enum IdeCommand {
     OpenFile(PathBuf),
 }
 
 /// Snapshot of the active editor selection for Claude context.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct SelectionSnapshot {
     pub path: PathBuf,
     pub text: String,
@@ -42,6 +50,8 @@ pub struct IdeServer {
     roots: Arc<RwLock<Vec<PathBuf>>>,
     /// Outbound notify queues for connected CLI clients (selection, etc.).
     clients: Arc<Mutex<Vec<MpscSender<String>>>>,
+    #[cfg(unix)]
+    codex: Option<CodexIdeServer>,
 }
 
 impl IdeServer {
@@ -53,6 +63,14 @@ impl IdeServer {
         let lock_path = lock::write(port, &token, &roots)?;
         let roots = Arc::new(RwLock::new(roots));
         let clients: Arc<Mutex<Vec<MpscSender<String>>>> = Arc::new(Mutex::new(Vec::new()));
+        #[cfg(unix)]
+        let codex = match CodexIdeServer::start(roots.clone()) {
+            Ok(server) => Some(server),
+            Err(error) => {
+                log::warn!("Codex IDE context server unavailable: {error}");
+                None
+            }
+        };
         log::info!("xenon IDE server on 127.0.0.1:{port}");
 
         let server_roots = roots.clone();
@@ -76,6 +94,8 @@ impl IdeServer {
             lock_path,
             roots,
             clients,
+            #[cfg(unix)]
+            codex,
         })
     }
 
@@ -99,6 +119,10 @@ impl IdeServer {
 
     /// Push current editor selection to connected Claude CLI clients.
     pub fn notify_selection(&self, snap: &SelectionSnapshot) {
+        #[cfg(unix)]
+        if let Some(codex) = &self.codex {
+            codex.set_selection(snap.clone());
+        }
         let is_empty = snap.text.is_empty();
         let msg = json!({
             "jsonrpc": "2.0",
@@ -117,6 +141,163 @@ impl IdeServer {
         .to_string();
         let mut clients = self.clients.lock().expect("IDE clients lock poisoned");
         clients.retain(|tx| tx.send(msg.clone()).is_ok());
+    }
+}
+
+#[cfg(unix)]
+struct CodexIdeServer {
+    socket_path: PathBuf,
+    selection: Arc<Mutex<Option<SelectionSnapshot>>>,
+    client_id: String,
+    follower: bool,
+    contexts: Arc<Mutex<HashMap<String, CodexContext>>>,
+}
+
+#[cfg(unix)]
+#[derive(Clone)]
+struct CodexContext {
+    workspaces: Vec<PathBuf>,
+    selection: Option<SelectionSnapshot>,
+    last_active: u64,
+}
+
+#[cfg(unix)]
+impl CodexIdeServer {
+    fn start(roots: Arc<RwLock<Vec<PathBuf>>>) -> Result<Self> {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::net::UnixListener;
+
+        let codex_home = std::env::var_os("CODEX_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".codex")))
+            .unwrap_or_else(|| PathBuf::from(".codex"));
+        let dir = codex_home.join("ipc");
+        fs::create_dir_all(&dir)?;
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
+        let socket_path = dir.join("ipc.sock");
+        let client_id = std::env::var("XENON_SLOT")
+            .unwrap_or_else(|_| format!("xenon-{}", std::process::id()))
+            .to_ascii_lowercase();
+        let selection = Arc::new(Mutex::new(None));
+        let contexts = Arc::new(Mutex::new(HashMap::new()));
+        let listener = match UnixListener::bind(&socket_path) {
+            Ok(listener) => {
+                fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600))?;
+                let server_roots = roots.clone();
+                let server_contexts = contexts.clone();
+                let server_selection = selection.clone();
+                let server_client_id = client_id.clone();
+                thread::Builder::new()
+                    .name("xenon-codex-ide".into())
+                    .spawn(move || {
+                        for stream in listener.incoming().flatten() {
+                            let roots = server_roots.clone();
+                            let contexts = server_contexts.clone();
+                            let selection = server_selection.clone();
+                            thread::spawn(move || {
+                                if let Err(error) =
+                                    serve_codex_connection(stream, &roots, &selection, &contexts)
+                                {
+                                    log::debug!("Codex IDE connection ended: {error}");
+                                }
+                            });
+                        }
+                    })?;
+                contexts
+                    .lock()
+                    .expect("Codex contexts lock poisoned")
+                    .insert(
+                        server_client_id,
+                        CodexContext {
+                            workspaces: roots.read().expect("IDE roots lock poisoned").clone(),
+                            selection: None,
+                            last_active: 0,
+                        },
+                    );
+                true
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => false,
+            Err(error) => return Err(error.into()),
+        };
+        if !listener {
+            let mut stream = std::os::unix::net::UnixStream::connect(&socket_path)?;
+            write_codex_frame(
+                &mut stream,
+                &serde_json::json!({
+                    "type": "register", "clientId": client_id,
+                    "workspaces": roots.read().expect("IDE roots lock poisoned").clone()
+                }),
+            )?;
+            log::info!("Codex IDE client registered with existing server");
+        } else {
+            log::info!("Codex IDE context server on {}", socket_path.display());
+        }
+        Ok(Self {
+            socket_path,
+            selection,
+            client_id,
+            follower: !listener,
+            contexts,
+        })
+    }
+
+    fn set_selection(&self, selection: SelectionSnapshot) {
+        *self
+            .selection
+            .lock()
+            .expect("Codex selection lock poisoned") = Some(selection);
+        let current = self
+            .selection
+            .lock()
+            .expect("Codex selection lock poisoned")
+            .clone();
+        let workspaces = self
+            .contexts
+            .lock()
+            .expect("Codex contexts lock poisoned")
+            .get(&self.client_id)
+            .map(|context| context.workspaces.clone())
+            .unwrap_or_default();
+        self.contexts
+            .lock()
+            .expect("Codex contexts lock poisoned")
+            .insert(
+                self.client_id.clone(),
+                CodexContext {
+                    workspaces,
+                    selection: current.clone(),
+                    last_active: monotonic_activity(),
+                },
+            );
+        if self.follower
+            && let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&self.socket_path)
+        {
+            let _ = write_codex_frame(
+                &mut stream,
+                &serde_json::json!({
+                    "type": "update", "clientId": self.client_id,
+                    "selection": current
+                }),
+            );
+        }
+    }
+}
+
+#[cfg(unix)]
+fn monotonic_activity() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+#[cfg(unix)]
+impl Drop for CodexIdeServer {
+    fn drop(&mut self) {
+        if !self.follower {
+            let _ = std::fs::remove_file(&self.socket_path);
+        }
     }
 }
 

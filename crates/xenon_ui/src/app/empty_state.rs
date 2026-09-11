@@ -8,7 +8,7 @@ use lucide_icons::Icon;
 use std::sync::Arc;
 
 use crate::commands::{CommandEntry, CommandId, catalog};
-use xenon_core::{PaneId, SplitAxis};
+use xenon_core::PaneId;
 
 use super::XenonApp;
 
@@ -92,25 +92,6 @@ impl XenonApp {
                 }))
                 .into_any_element()
         });
-        let reserve = has_workspace.then(|| {
-            let hover = colors.element_hover;
-            let text = colors.text;
-            div()
-                .id("empty-reserve-pane")
-                .px_3()
-                .py_2()
-                .rounded_sm()
-                .border_1()
-                .border_color(colors.border)
-                .text_color(colors.text_muted)
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover).text_color(text))
-                .child("Reserve Pane Right  ⌘⌥\\")
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.park_empty_pane(SplitAxis::Horizontal, window, cx);
-                }))
-                .into_any_element()
-        });
         let close_workspace = has_workspace.then(|| {
             let hover = colors.element_hover;
             let text = colors.text;
@@ -176,7 +157,6 @@ impl XenonApp {
             subtitle,
             primary,
             secondary,
-            reserve,
             close_workspace,
             remove_empty_pane,
             shortcuts,
@@ -208,7 +188,6 @@ struct EmptyStateContent {
     subtitle: &'static str,
     primary: AnyElement,
     secondary: Option<AnyElement>,
-    reserve: Option<AnyElement>,
     close_workspace: Option<AnyElement>,
     remove_empty_pane: Option<AnyElement>,
     shortcuts: Vec<CommandEntry>,
@@ -221,7 +200,6 @@ fn empty_state_content(content: EmptyStateContent) -> impl IntoElement {
         subtitle,
         primary,
         secondary,
-        reserve,
         close_workspace,
         remove_empty_pane,
         shortcuts,
@@ -265,7 +243,6 @@ fn empty_state_content(content: EmptyStateContent) -> impl IntoElement {
                         .pt_2()
                         .child(primary)
                         .children(secondary)
-                        .children(reserve)
                         .children(close_workspace),
                 )
                 .child(

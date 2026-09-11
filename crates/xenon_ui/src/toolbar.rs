@@ -12,7 +12,8 @@ use crate::chrome::{accent_surface, list_selection};
 use crate::icons::icon;
 use crate::{
     CloseWorkspace, FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, PrevWorkspace,
-    RunTask, Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
+    ReserveEmptyPaneRight, RunTask, Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings,
+    ToggleSidebar,
 };
 
 const ICON: f32 = 16.;
@@ -119,6 +120,14 @@ impl XenonApp {
                 },
                 cx,
             ))
+            .child(self.toolbar_layout_buttons(cx))
+    }
+
+    fn toolbar_layout_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
             .child(toolbar_divider(cx))
             .child(tool_button(
                 ToolButton {
@@ -143,6 +152,18 @@ impl XenonApp {
                     muted: false,
                     primary: false,
                     action: Box::new(SplitDown),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-reserve-panel-right",
+                    glyph: Icon::PanelRightDashed,
+                    label: "Reserve Panel Right · ⌘⌥\\",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(ReserveEmptyPaneRight),
                 },
                 cx,
             ))
