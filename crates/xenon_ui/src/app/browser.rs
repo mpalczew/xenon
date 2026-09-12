@@ -162,6 +162,8 @@ impl XenonApp {
             .children(marker.map(|m| crate::icons::icon(m, px(ICON))));
         let path_for_menu = row.path.clone();
         let is_dir = row.is_dir;
+        let rename_field = self.rename_file_field(&row.path);
+        let is_renaming = rename_field.is_some();
         div()
             .id(id)
             .flex()
@@ -193,7 +195,13 @@ impl XenonApp {
                     .text_color(colors.icon)
                     .child(crate::icons::icon(glyph, px(ICON))),
             )
-            .child(div().flex_1().min_w_0().truncate().child(row.name.clone()))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .when_some(rename_field, |this, field| this.child(field))
+                    .when(!is_renaming, |this| this.child(row.name.clone())),
+            )
             .on_click(cx.listener(move |this, _, _window, cx| {
                 this.browser_focused = false;
                 this.file_browser.ensure_cursor();

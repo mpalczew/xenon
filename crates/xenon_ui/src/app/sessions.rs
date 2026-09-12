@@ -305,11 +305,19 @@ impl XenonApp {
         self.begin_rename(RenameTarget::Workspace(id), name, cx);
     }
 
-    fn begin_rename(&mut self, target: RenameTarget, name: String, cx: &mut Context<Self>) {
+    pub(crate) fn begin_rename(
+        &mut self,
+        target: RenameTarget,
+        name: String,
+        cx: &mut Context<Self>,
+    ) {
         let field = cx.new(|cx| RenameView::new(name, cx));
+        let subscribed_target = target.clone();
         self._rename_sub = Some(
             cx.subscribe(&field, move |this, _field, event, cx| match event {
-                RenameEvent::Committed(name) => this.apply_rename(target, name.clone(), cx),
+                RenameEvent::Committed(name) => {
+                    this.apply_rename(subscribed_target.clone(), name.clone(), cx)
+                }
                 RenameEvent::Cancelled => this.cancel_rename(cx),
             }),
         );
@@ -324,6 +332,15 @@ impl XenonApp {
             .map(|(_, field)| field.clone())
     }
 
+    pub(crate) fn rename_file_field(&self, path: &Path) -> Option<Entity<RenameView>> {
+        self.renaming
+            .as_ref()
+            .filter(|(target, _)| {
+                matches!(target, RenameTarget::File { path: target_path, .. } if target_path == path)
+            })
+            .map(|(_, field)| field.clone())
+    }
+
     fn apply_rename(&mut self, target: RenameTarget, name: String, cx: &mut Context<Self>) {
         match target {
             RenameTarget::Workspace(id) => {
@@ -332,11 +349,34 @@ impl XenonApp {
                     save_registry(&self.registry, "rename_workspace");
                 }
             }
+            RenameTarget::File { path, .. } => {
+                let Some(parent) = path.parent() else { return };
+                let destination = parent.join(&name);
+                if destination != *path
+                    && !destination.exists()
+                    && std::fs::rename(path, &destination).is_ok()
+                    && let Some(id) = self.active
+                    && let Some(root) = self.workspace_root(id)
+                {
+                    self.reindex(root, true, cx);
+                }
+            }
         }
         self.cancel_rename(cx);
     }
 
     fn cancel_rename(&mut self, cx: &mut Context<Self>) {
+        if let Some((
+            RenameTarget::File {
+                path,
+                created: true,
+            },
+            _,
+        )) = &self.renaming
+            && path.exists()
+        {
+            let _ = std::fs::remove_file(path);
+        }
         self.renaming = None;
         self._rename_sub = None;
         cx.notify();

@@ -32,37 +32,26 @@ impl XenonApp {
 
     /// Create a new empty file with the save dialog starting in `dir`.
     pub(crate) fn new_file_in_dir(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
-        let rx = cx.prompt_for_new_path(&dir, Some("untitled.txt"));
-        cx.spawn(async move |this, cx| {
-            if let Ok(Ok(Some(path))) = rx.await {
-                this.update(cx, |this, cx| {
-                    if let Some(parent) = path.parent()
-                        && !parent.as_os_str().is_empty()
-                        && let Err(error) = std::fs::create_dir_all(parent)
-                    {
-                        log::error!("new file mkdir failed: {error}");
-                        return;
-                    }
-                    if !path.exists()
-                        && let Err(error) = std::fs::write(&path, b"")
-                    {
-                        log::error!("new file create failed: {error}");
-                        return;
-                    }
-                    // Expand parent in the tree so the new file is visible.
-                    if let Some(parent) = path.parent()
-                        && let Some(id) = this.active
-                        && let Some(root) = this.workspace_root(id)
-                    {
-                        this.file_browser.reveal_dir(&root, parent);
-                        this.reindex(root, true, cx);
-                    }
-                    this.open_editor(path, true, cx);
-                })
-                .ok();
-            }
-        })
-        .detach();
+        let mut path = dir.join("untitled");
+        let mut index = 2;
+        while path.exists() {
+            path = dir.join(format!("untitled-{index}"));
+            index += 1;
+        }
+        if let Err(error) = std::fs::File::create(&path) {
+            log::error!("new file create failed: {error}");
+            return;
+        }
+        self.file_browser.reveal_dir(&dir, &dir);
+        self.reindex(dir.clone(), true, cx);
+        self.begin_rename(
+            RenameTarget::File {
+                path,
+                created: true,
+            },
+            "untitled".to_string(),
+            cx,
+        );
     }
 
     /// Create a new empty directory (path prompt under `dir`).

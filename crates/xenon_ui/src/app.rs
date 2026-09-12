@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
     App, AppContext, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
     IntoElement, ParentElement, PathPromptOptions, Pixels, Point, PromptLevel, Render,
@@ -100,9 +101,10 @@ pub(crate) struct WorkspaceMenu {
 }
 
 /// What the sidebar inline rename field is editing.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RenameTarget {
     Workspace(WorkspaceId),
+    File { path: PathBuf, created: bool },
 }
 
 pub struct XenonApp {

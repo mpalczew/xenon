@@ -102,6 +102,20 @@ impl XenonApp {
         match action {
             BrowserMenuAction::NewFile => self.new_file_in_dir(parent_for_create, cx),
             BrowserMenuAction::NewFolder => self.new_folder_in_dir(parent_for_create, cx),
+            BrowserMenuAction::Rename => {
+                if let Some(path) = path
+                    && let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned())
+                {
+                    self.begin_rename(
+                        RenameTarget::File {
+                            path,
+                            created: false,
+                        },
+                        name,
+                        cx,
+                    );
+                }
+            }
             BrowserMenuAction::CopyPath => {
                 if let Some(p) = target {
                     Self::copy_path_abs(&p, cx);
@@ -277,6 +291,7 @@ impl XenonApp {
 enum BrowserMenuAction {
     NewFile,
     NewFolder,
+    Rename,
     CopyPath,
     CopyRelativePath,
     CopyName,
@@ -294,6 +309,7 @@ fn browser_menu_actions(menu: &crate::app::BrowserContextMenu) -> Vec<BrowserMen
         BrowserMenuAction::CopyRelativePath,
     ];
     if menu.path.is_some() {
+        items.push(BrowserMenuAction::Rename);
         items.push(BrowserMenuAction::CopyName);
     }
     items.push(BrowserMenuAction::RevealInFinder);
@@ -313,6 +329,7 @@ fn browser_menu_label(action: BrowserMenuAction) -> &'static str {
     match action {
         BrowserMenuAction::NewFile => "New File…",
         BrowserMenuAction::NewFolder => "New Folder…",
+        BrowserMenuAction::Rename => "Rename",
         BrowserMenuAction::CopyPath => "Copy Path",
         BrowserMenuAction::CopyRelativePath => "Copy Relative Path",
         BrowserMenuAction::CopyName => "Copy Name",
