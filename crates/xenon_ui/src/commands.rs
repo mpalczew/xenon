@@ -51,6 +51,7 @@ pub enum CommandId {
     ToggleThemes,
     ToggleMobileRemote,
     TogglePreview,
+    ToggleMemory,
     CommandPalette,
     KeyboardHelp,
     ZoomIn,
@@ -69,7 +70,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 43] {
+const fn all_commands() -> [CommandEntry; 44] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -116,6 +117,7 @@ const fn all_commands() -> [CommandEntry; 43] {
         cmd!(ToggleThemes, "Themes…", "⌘⌥T", "View"),
         cmd!(ToggleMobileRemote, "Toggle Mobile Remote", "", "View"),
         cmd!(TogglePreview, "Toggle Markdown Preview", "⌘⇧V", "View"),
+        cmd!(ToggleMemory, "Memory Diagnostics", "⌘⌥M", "View"),
         cmd!(ZoomIn, "Zoom In", "⌘=", "View"),
         cmd!(ZoomOut, "Zoom Out", "⌘-", "View"),
         cmd!(ZoomReset, "Reset Zoom", "⌘0", "View"),
@@ -124,6 +126,6 @@ const fn all_commands() -> [CommandEntry; 43] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 43] = all_commands();
+    static ENTRIES: [CommandEntry; 44] = all_commands();
     &ENTRIES
 }

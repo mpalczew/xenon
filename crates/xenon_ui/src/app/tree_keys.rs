@@ -173,6 +173,7 @@ impl XenonApp {
             CommandId::ToggleThemes => self.open_theme_picker(window, cx),
             CommandId::ToggleMobileRemote => self.toggle_mobile_remote(window, cx),
             CommandId::TogglePreview => self.toggle_preview(cx),
+            CommandId::ToggleMemory => self.toggle_memory(cx),
             CommandId::CommandPalette => self.open_command_palette(window, cx),
             CommandId::KeyboardHelp => self.open_keyboard_help(window, cx),
             CommandId::ZoomIn => self.nudge_font_size(1.0, window, cx),

@@ -49,6 +49,7 @@ mod git_dirt;
 mod keyboard;
 mod live;
 mod lsp;
+mod memory;
 mod nav_history;
 mod nav_ops;
 mod navigation;
@@ -169,6 +170,10 @@ pub struct XenonApp {
     _selection_subs: Vec<Subscription>,
     lsp: LspState,
     services: AppServices,
+    memory_panel: bool,
+    memory_snapshot: Option<memory::MemorySnapshot>,
+    memory_history: Vec<memory::MemorySample>,
+    memory_task: Option<Task<()>>,
 }
 
 impl XenonApp {
@@ -220,9 +225,14 @@ impl XenonApp {
             _selection_subs: Vec::new(),
             lsp,
             services: AppServices::default(),
+            memory_panel: false,
+            memory_snapshot: None,
+            memory_history: Vec::new(),
+            memory_task: None,
         };
         app.load_sessions();
         app.start_ide_server(cx);
+        app.start_memory_monitor(cx);
         app.start_lsp_events(lsp_events, cx);
         app.restart_git_dirt_watch(cx);
         Self::register_main_handle(cx);

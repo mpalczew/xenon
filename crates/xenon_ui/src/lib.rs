@@ -58,6 +58,7 @@ actions!(
         ToggleThemes,
         ToggleMobileRemote,
         TogglePreview,
+        ToggleMemory,
         // Keyboard-first navigation
         FocusTerminal,
         FocusEditor,
@@ -158,6 +159,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-,", ToggleSettings, None),
         KeyBinding::new("cmd-alt-t", ToggleThemes, None),
         KeyBinding::new("cmd-shift-v", TogglePreview, None),
+        KeyBinding::new("cmd-alt-m", ToggleMemory, None),
         KeyBinding::new("cmd-=", IncreaseFontSize, None),
         KeyBinding::new("cmd-+", IncreaseFontSize, None),
         KeyBinding::new("cmd--", DecreaseFontSize, None),

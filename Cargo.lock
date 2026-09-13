@@ -9134,6 +9134,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon_memory"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "xenon_remote"
 version = "0.1.0"
 dependencies = [
@@ -9200,6 +9209,7 @@ dependencies = [
  "lucide-icons",
  "notify",
  "nucleo",
+ "serde",
  "serde_json",
  "tempfile",
  "theme",
@@ -9209,6 +9219,7 @@ dependencies = [
  "xenon_finder",
  "xenon_ide",
  "xenon_lsp",
+ "xenon_memory",
  "xenon_remote",
  "xenon_settings",
  "xenon_store",

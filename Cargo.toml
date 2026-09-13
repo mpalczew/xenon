@@ -28,6 +28,7 @@ xenon_ide = { path = "crates/xenon_ide" }
 xenon_lsp = { path = "crates/xenon_lsp" }
 xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
+xenon_memory = { path = "crates/xenon_memory" }
 
 # zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a
 # deliberate chore: bump every rev below together, then fix compile errors.

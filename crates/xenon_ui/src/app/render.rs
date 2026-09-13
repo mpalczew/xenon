@@ -26,6 +26,11 @@ impl Render for XenonApp {
         let workspace_create = self.workspace_create.clone();
         let command_palette = self.command_palette.clone();
         let theme_picker = self.theme_picker.clone();
+        let memory_panel = if self.memory_panel {
+            Some(self.render_memory_panel(cx))
+        } else {
+            None
+        };
         let tab_menu = self.render_tab_menu(cx);
         let browser_menu = self.render_browser_menu(cx);
         let body = self.render_shell_body(sidebar, main, colors.clone(), cx);
@@ -58,6 +63,7 @@ impl Render for XenonApp {
             .children(workspace_create)
             .children(command_palette)
             .children(theme_picker)
+            .children(memory_panel)
             .children(tab_menu)
             .children(browser_menu)
     }
@@ -167,6 +173,9 @@ impl XenonApp {
             }))
             .on_action(cx.listener(|this, _: &ToggleSettings, _, cx| {
                 this.toggle_settings_window(cx);
+            }))
+            .on_action(cx.listener(|this, _: &crate::ToggleMemory, _, cx| {
+                this.toggle_memory(cx);
             }))
             .on_action(cx.listener(|this, _: &crate::ToggleThemes, window, cx| {
                 this.open_theme_picker(window, cx);
