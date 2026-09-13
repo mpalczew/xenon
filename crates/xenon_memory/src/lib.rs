@@ -45,7 +45,8 @@ mod macos {
     const TASK_VM_INFO: i32 = 22;
     const KERN_SUCCESS: KernReturn = 0;
 
-    // task_vm_info's physical-footprint fields are stable at these word offsets.
+    // task_vm_info's fields are laid out as 64-bit values except for the two
+    // 32-bit values following virtual_size. These offsets match the macOS SDK.
     #[repr(C)]
     struct TaskVmInfo {
         fields: [u64; 40],
@@ -75,11 +76,14 @@ mod macos {
         if result != KERN_SUCCESS {
             return ProcessMemory::default();
         }
+        let footprint = info.fields[18];
         ProcessMemory {
             resident_bytes: info.fields[2],
-            compressed_bytes: info.fields[17],
-            footprint_bytes: info.fields[19],
-            peak_footprint_bytes: info.fields[20],
+            compressed_bytes: info.fields[15],
+            footprint_bytes: footprint,
+            // There is no separate phys-footprint peak field. The ledger peak
+            // follows min_address and max_address.
+            peak_footprint_bytes: footprint.max(info.fields[21]),
         }
     }
 }
@@ -95,5 +99,14 @@ mod tests {
         write_snapshot(&path, &ProcessMemory::default()).unwrap();
         let parsed: ProcessMemory = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
         assert_eq!(parsed, ProcessMemory::default());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn process_memory_has_sane_footprint() {
+        let memory = process_memory();
+        assert!(memory.footprint_bytes > 0);
+        assert!(memory.peak_footprint_bytes >= memory.footprint_bytes);
+        assert!(memory.compressed_bytes < memory.footprint_bytes.saturating_mul(100));
     }
 }
