@@ -237,6 +237,7 @@ product surface: trust defaults, screenshot identity, and personality.
 - Replacing every agent harness's own UI.
 - Full Option 3 agent-rail redesign until Option 2 chrome system exists.
 - Deep multi-provider control plane (shell stays primary).
-- Embedded web browser / webview pane. URLs and `.html` / `.pdf` use the
-  system default app; see `docs/project-state.md`.
+- Full Chrome replacement and agent-driven in-app browsing remain out of scope.
+  A focused WebKit tab for opening links is in scope; see
+  `docs/designs/embedded-browser.md`.
 - Agent-driven in-app browser (the harness owns computer-use).
