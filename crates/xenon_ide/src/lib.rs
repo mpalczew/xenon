@@ -181,6 +181,25 @@ impl CodexIdeServer {
             .to_ascii_lowercase();
         let selection = Arc::new(Mutex::new(None));
         let contexts = Arc::new(Mutex::new(HashMap::new()));
+        // A forced exit can leave the Unix socket path behind after its
+        // listener is gone. Reclaim only a path that is provably unreachable;
+        // a live listener remains untouched and is handled as a follower below.
+        let stale_socket = socket_path.exists()
+            && matches!(
+                std::os::unix::net::UnixStream::connect(&socket_path),
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound
+                    )
+            );
+        if stale_socket {
+            match std::fs::remove_file(&socket_path) {
+                Ok(()) => log::info!("removed stale Codex IDE socket"),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
         let listener = match UnixListener::bind(&socket_path) {
             Ok(listener) => {
                 fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600))?;
