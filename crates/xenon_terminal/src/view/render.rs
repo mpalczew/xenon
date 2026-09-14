@@ -23,6 +23,14 @@ impl Render for TerminalView {
                 this.copy_selection(cx);
                 cx.notify();
             }))
+            .on_action(cx.listener(|this, _: &xenon_settings::CopyClean, _, cx| {
+                this.copy_clean_selection(cx);
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &xenon_settings::CopyCode, _, cx| {
+                this.copy_code_selection(cx);
+                cx.notify();
+            }))
             .on_action(cx.listener(|this, _: &Paste, _, cx| {
                 this.paste_clipboard(cx);
                 cx.notify();
@@ -174,6 +182,22 @@ impl TerminalView {
                 context_item("menu-copy", "Copy", "⌘C", &colors).on_click(cx.listener(
                     |this, _, _, cx| {
                         this.copy_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("menu-copy-clean", "Copy Clean", "", &colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.copy_clean_selection(cx);
+                        this.dismiss_menu(cx);
+                    },
+                )),
+            )
+            .child(
+                context_item("menu-copy-code", "Copy Code", "", &colors).on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.copy_code_selection(cx);
                         this.dismiss_menu(cx);
                     },
                 )),

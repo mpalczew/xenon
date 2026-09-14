@@ -9,11 +9,11 @@ use xenon_store::{
     IpcRequest, WindowState, bind_server, parse_cli_paths, serve_forever, try_handoff,
 };
 use xenon_ui::{
-    AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, Cut, DecreaseFontSize,
-    FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack, GoForward,
-    IncreaseFontSize, KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile, Paste, PrevTab,
-    PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser, ToggleEditor,
-    ToggleSettings, ToggleSidebar, ToggleTerminal, ToggleThemes, XenonApp,
+    AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, CopyClean, CopyCode, Cut,
+    DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack,
+    GoForward, IncreaseFontSize, KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile,
+    Paste, PrevTab, PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser,
+    ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, ToggleThemes, XenonApp,
 };
 
 actions!(xenon, [Quit]);
@@ -183,6 +183,8 @@ fn wire_menus(cx: &mut App) {
         Menu::new("Edit").items([
             MenuItem::os_action("Cut", Cut, OsAction::Cut),
             MenuItem::os_action("Copy", Copy, OsAction::Copy),
+            MenuItem::action("Copy Clean", CopyClean),
+            MenuItem::action("Copy Code", CopyCode),
             MenuItem::os_action("Paste", Paste, OsAction::Paste),
             MenuItem::separator(),
             MenuItem::os_action("Select All", SelectAll, OsAction::SelectAll),

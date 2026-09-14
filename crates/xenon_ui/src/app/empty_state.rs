@@ -50,7 +50,7 @@ impl XenonApp {
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover))
-                .child("New Terminal  ⌘N")
+                .child("New Terminal")
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.new_terminal(window, cx);
                 }))
@@ -86,7 +86,7 @@ impl XenonApp {
                 .text_color(colors.text_muted)
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover).text_color(text))
-                .child("Open File  ⌘P")
+                .child("Open File")
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.open_palette(window, cx);
                 }))
@@ -105,7 +105,7 @@ impl XenonApp {
                 .text_color(colors.text_muted)
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover).text_color(text))
-                .child("Close Workspace  ⌘⌥W")
+                .child("Close Workspace")
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.close_active_workspace(window, cx);
                 }))
@@ -214,64 +214,110 @@ fn empty_state_content(content: EmptyStateContent) -> impl IntoElement {
         .children(remove_empty_pane)
         .items_center()
         .justify_center()
+        .child(empty_card(EmptyStateContent {
+            colors,
+            title,
+            subtitle,
+            primary,
+            secondary,
+            close_workspace,
+            remove_empty_pane: None,
+            shortcuts,
+        }))
+}
+
+fn empty_card(content: EmptyStateContent) -> impl IntoElement {
+    let EmptyStateContent {
+        colors,
+        title,
+        subtitle,
+        primary,
+        secondary,
+        close_workspace,
+        shortcuts,
+        ..
+    } = content;
+    div()
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap_3()
+        .w_full()
+        .max_w(px(420.))
+        .overflow_hidden()
+        .p_6()
+        .rounded_lg()
+        .border_1()
+        .border_color(colors.border)
+        .bg(crate::chrome::accent_surface(
+            colors.elevated_surface_background,
+            colors.text_accent,
+        ))
+        .text_center()
+        .child(
+            div()
+                .rounded_md()
+                .overflow_hidden()
+                .child(img(xenon_icon()).size(px(56.))),
+        )
+        .child(
+            div()
+                .text_lg()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(colors.text)
+                .child(title),
+        )
+        .child(
+            div()
+                .text_sm()
+                .text_color(colors.text_muted)
+                .child(subtitle),
+        )
         .child(
             div()
                 .flex()
-                .flex_col()
-                .items_center()
+                .flex_wrap()
+                .justify_center()
                 .gap_2()
-                .max_w(px(420.))
-                .text_center()
-                .child(img(xenon_icon()).size(px(72.)))
-                .child(
-                    div()
-                        .text_lg()
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(colors.text)
-                        .child(title),
-                )
-                .child(
-                    div()
-                        .text_sm()
-                        .text_color(colors.text_muted)
-                        .child(subtitle),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .gap_2()
-                        .pt_2()
-                        .child(primary)
-                        .children(secondary)
-                        .children(close_workspace),
-                )
-                .child(
-                    div()
-                        .pt_3()
-                        .w_full()
-                        .flex()
-                        .flex_col()
-                        .gap_1()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(colors.text_muted)
-                                .child("Useful shortcuts"),
-                        )
-                        .children(shortcuts.into_iter().map(|entry| {
-                            div()
-                                .flex()
-                                .justify_between()
-                                .gap_4()
-                                .text_xs()
-                                .child(div().text_color(colors.text_muted).child(entry.label))
-                                .child(
-                                    div()
-                                        .text_color(colors.text)
-                                        .font_weight(gpui::FontWeight::MEDIUM)
-                                        .child(entry.keys),
-                                )
-                        })),
-                ),
+                .pt_1()
+                .w_full()
+                .min_w_0()
+                .child(primary)
+                .children(secondary)
+                .children(close_workspace),
         )
+        .child(shortcut_list(colors, shortcuts))
+}
+
+fn shortcut_list(colors: theme::ThemeColors, shortcuts: Vec<CommandEntry>) -> impl IntoElement {
+    div()
+        .pt_3()
+        .mt_1()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap_1()
+        .border_t_1()
+        .border_color(colors.border)
+        .child(
+            div()
+                .pt_3()
+                .text_xs()
+                .text_color(colors.text_muted)
+                .child("Useful shortcuts"),
+        )
+        .children(shortcuts.into_iter().map(move |entry| {
+            div()
+                .flex()
+                .justify_between()
+                .gap_4()
+                .text_xs()
+                .child(div().text_color(colors.text_muted).child(entry.label))
+                .child(
+                    div()
+                        .text_color(colors.text)
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .child(entry.keys),
+                )
+        }))
 }

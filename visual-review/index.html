@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Xenon visual review</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0b0c; --fg:#e8e8ea; --muted:#8a8a90; --border:#2a2a2e; --accent:#6c9eff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { position:sticky; top:0; z-index:1; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+            padding:12px 16px; border-bottom:1px solid var(--border); background:#141416; }
+  h1 { font-size:16px; margin:0; font-weight:600; }
+  button { background:var(--accent); color:#000; border:0; border-radius:8px; padding:8px 12px; font-weight:600; }
+  #copy-out { flex:1; min-width:240px; font: 13px ui-monospace, menlo, monospace; padding:8px;
+               border-radius:8px; border:1px solid var(--border); background:#0b0b0c; color:var(--fg); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; padding:16px; }
+  .card { display:flex; flex-direction:column; gap:8px; border:1px solid var(--border); border-radius:12px;
+           padding:10px; background:#141416; }
+  .card img { width:100%; height:auto; border-radius:8px; background:#000; }
+  .card span { font-size:12px; color:var(--muted); }
+  .card:has(input:checked) { outline:2px solid var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Xenon screenshots</h1>
+  <button type="button" id="copy">Copy disapproved</button>
+  <textarea id="copy-out" rows="3" placeholder="Select shots, then copy a pasteable list."></textarea>
+</header>
+<main class="grid">
+<label class="card"><input type="checkbox" data-name="chrome_empty_no_workspace_dark"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_empty_no_workspace_dark.png" alt="chrome_empty_no_workspace_dark"><span>chrome_empty_no_workspace_dark</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_empty_no_workspace_light"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_empty_no_workspace_light.png" alt="chrome_empty_no_workspace_light"><span>chrome_empty_no_workspace_light</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_empty_no_workspace_true_black"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_empty_no_workspace_true_black.png" alt="chrome_empty_no_workspace_true_black"><span>chrome_empty_no_workspace_true_black</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_empty_with_workspace_dark"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_empty_with_workspace_dark.png" alt="chrome_empty_with_workspace_dark"><span>chrome_empty_with_workspace_dark</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_empty_with_workspace_light"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_empty_with_workspace_light.png" alt="chrome_empty_with_workspace_light"><span>chrome_empty_with_workspace_light</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_empty_with_workspace_true_black"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_empty_with_workspace_true_black.png" alt="chrome_empty_with_workspace_true_black"><span>chrome_empty_with_workspace_true_black</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_files_git_dirt"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_files_git_dirt.png" alt="chrome_files_git_dirt"><span>chrome_files_git_dirt</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_files_selected"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_files_selected.png" alt="chrome_files_selected"><span>chrome_files_selected</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_focus_ring"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_focus_ring.png" alt="chrome_focus_ring"><span>chrome_focus_ring</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_populated_dark"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_populated_dark.png" alt="chrome_populated_dark"><span>chrome_populated_dark</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_populated_light"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_populated_light.png" alt="chrome_populated_light"><span>chrome_populated_light</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_populated_true_black"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_populated_true_black.png" alt="chrome_populated_true_black"><span>chrome_populated_true_black</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_reserved_empty_pane"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_reserved_empty_pane.png" alt="chrome_reserved_empty_pane"><span>chrome_reserved_empty_pane</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_sidebar_attention"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_sidebar_attention.png" alt="chrome_sidebar_attention"><span>chrome_sidebar_attention</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_sidebar_working"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_sidebar_working.png" alt="chrome_sidebar_working"><span>chrome_sidebar_working</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_split_down"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_split_down.png" alt="chrome_split_down"><span>chrome_split_down</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_split_right"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_split_right.png" alt="chrome_split_right"><span>chrome_split_right</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_tabs_attention"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_tabs_attention.png" alt="chrome_tabs_attention"><span>chrome_tabs_attention</span></label>
+<label class="card"><input type="checkbox" data-name="chrome_tabs_dirty"><img src="../crates/xenon/test_fixtures/visual_tests/chrome_tabs_dirty.png" alt="chrome_tabs_dirty"><span>chrome_tabs_dirty</span></label>
+<label class="card"><input type="checkbox" data-name="content_editor_find"><img src="../crates/xenon/test_fixtures/visual_tests/content_editor_find.png" alt="content_editor_find"><span>content_editor_find</span></label>
+<label class="card"><input type="checkbox" data-name="content_editor_highlight"><img src="../crates/xenon/test_fixtures/visual_tests/content_editor_highlight.png" alt="content_editor_highlight"><span>content_editor_highlight</span></label>
+<label class="card"><input type="checkbox" data-name="content_image_viewer"><img src="../crates/xenon/test_fixtures/visual_tests/content_image_viewer.png" alt="content_image_viewer"><span>content_image_viewer</span></label>
+<label class="card"><input type="checkbox" data-name="content_markdown_preview"><img src="../crates/xenon/test_fixtures/visual_tests/content_markdown_preview.png" alt="content_markdown_preview"><span>content_markdown_preview</span></label>
+<label class="card"><input type="checkbox" data-name="content_terminal_find"><img src="../crates/xenon/test_fixtures/visual_tests/content_terminal_find.png" alt="content_terminal_find"><span>content_terminal_find</span></label>
+<label class="card"><input type="checkbox" data-name="content_terminal_grid"><img src="../crates/xenon/test_fixtures/visual_tests/content_terminal_grid.png" alt="content_terminal_grid"><span>content_terminal_grid</span></label>
+<label class="card"><input type="checkbox" data-name="content_unsupported"><img src="../crates/xenon/test_fixtures/visual_tests/content_unsupported.png" alt="content_unsupported"><span>content_unsupported</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_browser_menu"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_browser_menu.png" alt="overlay_browser_menu"><span>overlay_browser_menu</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_command_palette"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_command_palette.png" alt="overlay_command_palette"><span>overlay_command_palette</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_editor_menu"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_editor_menu.png" alt="overlay_editor_menu"><span>overlay_editor_menu</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_finder"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_finder.png" alt="overlay_finder"><span>overlay_finder</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_keyboard_help"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_keyboard_help.png" alt="overlay_keyboard_help"><span>overlay_keyboard_help</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_memory"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_memory.png" alt="overlay_memory"><span>overlay_memory</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_rename"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_rename.png" alt="overlay_rename"><span>overlay_rename</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_settings_dropdown"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_settings_dropdown.png" alt="overlay_settings_dropdown"><span>overlay_settings_dropdown</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_tab_menu"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_tab_menu.png" alt="overlay_tab_menu"><span>overlay_tab_menu</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_tab_tooltip"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_tab_tooltip.png" alt="overlay_tab_tooltip"><span>overlay_tab_tooltip</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_task_picker"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_task_picker.png" alt="overlay_task_picker"><span>overlay_task_picker</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_terminal_menu"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_terminal_menu.png" alt="overlay_terminal_menu"><span>overlay_terminal_menu</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_theme_gallery"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_theme_gallery.png" alt="overlay_theme_gallery"><span>overlay_theme_gallery</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_workspace_create"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_workspace_create.png" alt="overlay_workspace_create"><span>overlay_workspace_create</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_workspace_menu"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_workspace_menu.png" alt="overlay_workspace_menu"><span>overlay_workspace_menu</span></label>
+<label class="card"><input type="checkbox" data-name="overlay_workspace_picker"><img src="../crates/xenon/test_fixtures/visual_tests/overlay_workspace_picker.png" alt="overlay_workspace_picker"><span>overlay_workspace_picker</span></label>
+<label class="card"><input type="checkbox" data-name="remote_auth"><img src="../crates/xenon/test_fixtures/visual_tests/remote_auth.png" alt="remote_auth"><span>remote_auth</span></label>
+<label class="card"><input type="checkbox" data-name="remote_session"><img src="../crates/xenon/test_fixtures/visual_tests/remote_session.png" alt="remote_session"><span>remote_session</span></label>
+<label class="card"><input type="checkbox" data-name="settings_window"><img src="../crates/xenon/test_fixtures/visual_tests/settings_window.png" alt="settings_window"><span>settings_window</span></label>
+
+</main>
+<script src="review.js"></script>
+<script>
+(function () {
+  function items() {
+    var nodes = document.querySelectorAll('input[type=checkbox][data-name]');
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) {
+      out.push({ name: nodes[i].getAttribute('data-name'), checked: nodes[i].checked });
+    }
+    return out;
+  }
+  function refresh() {
+    document.getElementById('copy-out').value = disapprovalClipboard(selectedNames(items()));
+  }
+  document.querySelector('main').addEventListener('change', refresh);
+  document.getElementById('copy').addEventListener('click', function () {
+    refresh();
+    var box = document.getElementById('copy-out');
+    box.focus();
+    box.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(box.value);
+    }
+  });
+})();
+</script>
+</body>
+</html>

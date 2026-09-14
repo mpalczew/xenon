@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Capture / compare Xenon screenshot tests (macOS Metal). Not part of scripts/health.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+export VISUAL_TEST_OUTPUT_DIR="${VISUAL_TEST_OUTPUT_DIR:-$root/target/visual_tests}"
+exec cargo run -p xenon --bin xenon_visual_test_runner --features visual-tests --release "$@"

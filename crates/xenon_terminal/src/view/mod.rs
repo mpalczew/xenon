@@ -16,6 +16,8 @@ mod find_session;
 mod input;
 mod paths;
 mod render;
+#[cfg(feature = "visual-tests")]
+mod visual;
 pub(crate) use input::pty_input_bytes;
 
 use std::ops::Range;
@@ -41,7 +43,9 @@ use terminal::{Terminal, TerminalBuilder};
 use theme::ActiveTheme;
 use util::paths::PathStyle;
 
-use crate::clipboard::{terminal_clipboard_text, terminal_paths_text};
+use crate::clipboard::{
+    clean_agent_output, extract_code, terminal_clipboard_text, terminal_paths_text,
+};
 use crate::grid;
 use xenon_settings::{Copy, Cut, Paste, TerminalAutoClose};
 
@@ -72,11 +76,11 @@ impl Render for MouseChipTooltip {
     }
 }
 
-/// Host-select mode while the TUI has mouse reporting: inject shift so zed
-/// skips mouse reports. Must NOT be used on mouse-down for a new selection —
-/// shift+simple is "extend only" and never starts a selection.
+/// Allow Option-drag to select from a TUI without changing the persistent mouse
+/// policy. This gives users a terminal-like escape hatch when a TUI owns mouse
+/// reporting.
 fn inject_shift_for_host_drag(mouse_to_app: bool, reporting: bool, alt: bool) -> bool {
-    reporting && !mouse_to_app && !alt
+    reporting && (!mouse_to_app || alt)
 }
 
 enum State {
@@ -593,6 +597,22 @@ impl TerminalView {
         }
     }
 
+    pub fn copy_clean_selection(&self, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state
+            && let Some(text) = terminal.read(cx).last_content().selection_text.clone()
+        {
+            cx.write_to_clipboard(ClipboardItem::new_string(clean_agent_output(&text)));
+        }
+    }
+
+    pub fn copy_code_selection(&self, cx: &mut Context<Self>) {
+        if let State::Ready(terminal) = &self.state
+            && let Some(text) = terminal.read(cx).last_content().selection_text.clone()
+        {
+            cx.write_to_clipboard(ClipboardItem::new_string(extract_code(&text)));
+        }
+    }
+
     /// Cut: copy the selection (terminal scrollback is not deleted).
     pub fn cut_selection(&self, cx: &mut Context<Self>) {
         self.copy_selection(cx);
@@ -683,7 +703,8 @@ impl TerminalView {
         // the TUI). Shift on simple-click only *extends* and never starts. So:
         // 1–2 clicks → word selection (public API); 3+ → line selection via
         // shift inject (Lines is not the "extend only" path).
-        if reporting && !self.mouse_to_app && event.button == MouseButton::Left {
+        let host_select = reporting && (!self.mouse_to_app || event.modifiers.alt);
+        if host_select && event.button == MouseButton::Left {
             terminal.update(cx, |terminal, cx| match event.click_count {
                 0 => {}
                 1 | 2 => terminal.select_word_at_event_position(event),
@@ -812,7 +833,7 @@ impl TerminalView {
                 ))
                 .child(self.mouse_policy_option(
                     "Select text",
-                    "Left-drag selects text to copy. Use this to copy from a TUI.",
+                    "Left-drag selects text to copy. Option-drag is also available without changing this setting.",
                     !to_app,
                     false,
                     &colors,

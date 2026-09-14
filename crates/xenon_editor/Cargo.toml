@@ -7,6 +7,10 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+visual-tests = []
+
 [dependencies]
 ropey.workspace = true
 regex.workspace = true

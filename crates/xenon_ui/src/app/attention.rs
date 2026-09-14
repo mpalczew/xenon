@@ -39,9 +39,9 @@ impl WorkspaceDot {
 
     pub(crate) fn pip(self, cx: &App) -> impl IntoElement {
         match self {
-            Self::Working => crate::chrome::status_pip(crate::chrome::working_color(cx), true),
+            Self::Working => crate::chrome::status_pip(crate::chrome::working_color(cx), true, cx),
             Self::Attention(_) => {
-                crate::chrome::status_pip(crate::chrome::attention_color(cx), false)
+                crate::chrome::status_pip(crate::chrome::attention_color(cx), false, cx)
             }
         }
     }

@@ -123,19 +123,36 @@ impl XenonApp {
             .absolute()
             .top(px(48.))
             .right(px(16.))
-            .w(px(390.))
+            .w(px(360.))
             .max_h(px(560.))
             .p_4()
-            .gap_3()
+            .gap_2()
             .flex()
             .flex_col()
+            .rounded_lg()
             .bg(colors.elevated_surface_background)
             .border_1()
             .border_color(colors.border)
             .text_color(colors.text)
             .shadow_lg()
-            .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).child("Memory"))
-            .child(div().text_sm().text_color(colors.text_muted).child(format!("Updated {}", snapshot.captured_at)))
+            .child(
+                div()
+                    .flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child("Memory"),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(colors.text_muted)
+                            .child(snapshot.captured_at.clone()),
+                    ),
+            )
             .child(memory_metric("Footprint", process.footprint_bytes, colors.text_accent))
             .child(memory_metric("Peak", process.peak_footprint_bytes, colors.text_muted))
             .child(memory_metric("Resident", process.resident_bytes, colors.text_muted))
@@ -152,8 +169,13 @@ fn memory_metric(label: &str, bytes: u64, color: gpui::Hsla) -> impl IntoElement
     div()
         .flex()
         .justify_between()
+        .text_sm()
         .child(div().text_color(color).child(label.to_string()))
-        .child(format_bytes(bytes))
+        .child(
+            div()
+                .font_family(xenon_store::DEFAULT_FONT_FAMILY)
+                .child(format_bytes(bytes)),
+        )
 }
 
 fn format_bytes(bytes: u64) -> String {

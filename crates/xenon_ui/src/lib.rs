@@ -24,12 +24,18 @@ mod workspace_discover;
 mod workspace_picker;
 
 pub use settings::SettingsView;
+pub use visual_review::{disapproval_clipboard, selected_names};
+
+mod visual_review;
+
+#[cfg(feature = "visual-tests")]
+pub use app::visual::{SCENES, Scene, apply_scene, surface_names};
 
 use gpui::{App, KeyBinding, actions};
 
 pub use app::XenonApp;
 pub(crate) use icons::preview_icon;
-pub use xenon_settings::{Copy, Cut, Paste, SelectAll};
+pub use xenon_settings::{Copy, CopyClean, CopyCode, Cut, Paste, SelectAll};
 
 actions!(
     xenon,

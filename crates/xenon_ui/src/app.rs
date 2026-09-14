@@ -37,6 +37,7 @@ use crate::{
 };
 
 mod attention;
+mod boot;
 mod browser;
 mod browser_menu;
 mod content_ops;
@@ -49,7 +50,7 @@ mod git_dirt;
 mod keyboard;
 mod live;
 mod lsp;
-mod memory;
+pub(crate) mod memory;
 mod nav_history;
 mod nav_ops;
 mod navigation;
@@ -68,6 +69,8 @@ mod tasks;
 mod terminals;
 mod themes;
 mod tree_keys;
+#[cfg(feature = "visual-tests")]
+pub(crate) mod visual;
 mod workspace_create_ops;
 mod workspaces;
 
@@ -174,78 +177,13 @@ pub struct XenonApp {
     memory_snapshot: Option<memory::MemorySnapshot>,
     memory_history: Vec<memory::MemorySample>,
     memory_task: Option<Task<()>>,
+    /// Visual tests must not write session files between scenes.
+    skip_persist: bool,
 }
 
 impl XenonApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        let registry = xenon_store::load_registry().unwrap_or_default();
-        let settings = xenon_store::load_settings().unwrap_or_default();
-        let (lsp, lsp_events) = LspState::new(settings.lsp.clone());
-        xenon_settings::apply(&settings, cx);
-        xenon_terminal::apply_theme(cx);
-        let mut app = Self {
-            registry,
-            sessions: HashMap::new(),
-            contents: HashMap::new(),
-            active: None,
-            finder: None,
-            task_picker: None,
-            workspace_picker: None,
-            workspace_create: None,
-            command_palette: None,
-            theme_picker: None,
-            browser_focused: false,
-            file_indexes: HashMap::new(),
-            index_tasks: HashMap::new(),
-            recent_files: HashMap::new(),
-            nav_history: HashMap::new(),
-            nav_suppress: false,
-            deferred: DeferredUi::default(),
-            sidebar_collapsed: false,
-            sidebar_width: DEFAULT_SIDEBAR_WIDTH,
-            layout_dirty: false,
-            workspaces_collapsed: settings.workspaces_collapsed,
-            workspaces_section_height: settings.workspaces_section_height,
-            file_browser: FileBrowser::with_open(settings.files_open),
-            settings_window: None,
-            renaming: None,
-            _rename_sub: None,
-            tab_menu: None,
-            browser_menu: None,
-            workspace_menu: None,
-            focus: cx.focus_handle(),
-            _finder_sub: None,
-            _task_picker_sub: None,
-            _workspace_picker_sub: None,
-            _workspace_create_sub: None,
-            _command_palette_sub: None,
-            _theme_picker_sub: None,
-            attention: AttentionMap::default(),
-            _bell_subs: Vec::new(),
-            _selection_subs: Vec::new(),
-            lsp,
-            services: AppServices::default(),
-            memory_panel: false,
-            memory_snapshot: None,
-            memory_history: Vec::new(),
-            memory_task: None,
-        };
-        app.load_sessions();
-        app.start_ide_server(cx);
-        app.start_memory_monitor(cx);
-        app.start_lsp_events(lsp_events, cx);
-        app.restart_git_dirt_watch(cx);
-        Self::register_main_handle(cx);
-        let active = app
-            .registry
-            .active
-            .map(|a| a.workspace)
-            .filter(|id| app.registry.workspace(*id).is_some())
-            .or_else(|| app.first_workspace());
-        if let Some(id) = active {
-            app.activate_workspace(id, cx);
-        }
-        app
+        Self::boot(cx, boot::BootKind::Normal)
     }
 
     /// Persist position/size (and maximized/fullscreen) after move/resize settles.
@@ -358,6 +296,9 @@ impl XenonApp {
     }
 
     fn persist_active(&mut self) {
+        if self.skip_persist {
+            return;
+        }
         if let Some(workspace) = self.active {
             if let Some(rec) = self.registry.workspace_mut(workspace) {
                 rec.touch_opened();

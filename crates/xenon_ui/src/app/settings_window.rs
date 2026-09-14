@@ -30,7 +30,7 @@ impl XenonApp {
         .detach();
     }
 
-    fn open_settings_window_now(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn open_settings_window_now(&mut self, cx: &mut Context<Self>) {
         if self.settings_window.is_some() {
             return;
         }

@@ -300,6 +300,36 @@ impl XenonApp {
         }
     }
 
+    pub(super) fn clipboard_copy_clean(&self, window: &Window, cx: &mut Context<Self>) {
+        match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => self.clipboard_copy(window, cx),
+            Some(FocusPane::Terminal) => {
+                if let Some(terminal) = self.active_terminal() {
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.copy_clean_selection(cx);
+                        cx.notify();
+                    });
+                }
+            }
+            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+        }
+    }
+
+    pub(super) fn clipboard_copy_code(&self, window: &Window, cx: &mut Context<Self>) {
+        match self.focused_pane(window, cx) {
+            Some(FocusPane::Editor) => self.clipboard_copy(window, cx),
+            Some(FocusPane::Terminal) => {
+                if let Some(terminal) = self.active_terminal() {
+                    terminal.update(cx, |terminal, cx| {
+                        terminal.copy_code_selection(cx);
+                        cx.notify();
+                    });
+                }
+            }
+            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+        }
+    }
+
     pub(super) fn clipboard_paste(&self, window: &Window, cx: &mut Context<Self>) {
         match self.focused_pane(window, cx) {
             Some(FocusPane::Editor) => {

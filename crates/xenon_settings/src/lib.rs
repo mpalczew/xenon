@@ -10,7 +10,10 @@ use gpui::{App, Global, actions};
 use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
 // Shared edit actions (app menu, keybindings, context menus).
-actions!(xenon_clipboard, [Cut, Copy, Paste, SelectAll]);
+actions!(
+    xenon_clipboard,
+    [Cut, Copy, CopyClean, CopyCode, Paste, SelectAll]
+);
 
 pub use faces::{
     FaceFont, display_ui_family, editor_font, ensure_ui_family, nudge_editor_font_size,

@@ -467,7 +467,7 @@ impl XenonApp {
                     .truncate()
                     .child(name_owned),
             )
-            .children(is_dirty.then(|| chrome::status_pip(paint.foreground, false)))
+            .children(is_dirty.then(|| chrome::status_pip(paint.foreground, false, cx)))
             .child(tab_close(
                 SharedString::from(format!("etab-close-{}-{}", pane.0, index)),
                 &group,

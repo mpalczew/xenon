@@ -7,6 +7,14 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+visual-tests = [
+    "gpui/test-support",
+    "xenon_terminal/visual-tests",
+    "xenon_editor/visual-tests",
+]
+
 [dependencies]
 gpui.workspace = true
 xenon_core.workspace = true

@@ -6,6 +6,155 @@ use anyhow::Result;
 use gpui::{ClipboardEntry, ClipboardItem, Image, ImageFormat};
 use image::ImageFormat as EncodedImageFormat;
 
+pub(crate) fn clean_agent_output(text: &str) -> String {
+    let text = strip_terminal_control_sequences(text);
+    let mut lines: Vec<String> = text
+        .lines()
+        .map(|line| line.trim_end().to_string())
+        .collect();
+    let content_lines: Vec<&str> = lines
+        .iter()
+        .map(String::as_str)
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    let quote_block = !content_lines.is_empty()
+        && content_lines.iter().all(|line| {
+            let line = line.trim_start();
+            line == ">" || line.starts_with("> ")
+        });
+    let tui_block = content_lines.len() >= 2
+        && content_lines
+            .iter()
+            .filter(|line| {
+                matches!(
+                    line.trim_start().chars().next(),
+                    Some('│' | '┃' | '║' | '|')
+                )
+            })
+            .count()
+            * 2
+            >= content_lines.len();
+
+    for line in &mut lines {
+        if quote_block {
+            let trimmed = line.trim_start();
+            *line = trimmed
+                .strip_prefix("> ")
+                .or_else(|| trimmed.strip_prefix('>'))
+                .unwrap_or(trimmed)
+                .to_string();
+        }
+        if tui_block {
+            let trimmed = line.trim_start();
+            if let Some(border) = trimmed
+                .chars()
+                .next()
+                .filter(|c| matches!(c, '│' | '┃' | '║' | '|'))
+            {
+                *line = trimmed[border.len_utf8()..].trim_start().to_string();
+            }
+        }
+        *line = strip_status_suffix(line);
+    }
+
+    while lines.first().is_some_and(|line| line.is_empty()) {
+        lines.remove(0);
+    }
+    while lines.last().is_some_and(|line| line.is_empty()) {
+        lines.pop();
+    }
+    lines.join("\n")
+}
+
+/// Return fenced code blocks, or cleaned text when the selection has no fence.
+pub(crate) fn extract_code(text: &str) -> String {
+    let stripped = strip_terminal_control_sequences(text);
+    let mut blocks = Vec::new();
+    let mut current = Vec::new();
+    let mut in_block = false;
+    for line in stripped.lines() {
+        let trimmed = line.trim_start();
+        let marker = trimmed
+            .chars()
+            .next()
+            .filter(|c| matches!(c, '│' | '┃' | '║' | '|'))
+            .map(|border| trimmed[border.len_utf8()..].trim_start())
+            .unwrap_or(trimmed);
+        if marker.starts_with("```") || marker.starts_with("~~~") {
+            if in_block {
+                blocks.push(current.join("\n"));
+            }
+            current.clear();
+            in_block = !in_block;
+        } else if in_block {
+            current.push(line);
+        }
+    }
+    if in_block && !current.is_empty() {
+        blocks.push(current.join("\n"));
+    }
+    if blocks.is_empty() {
+        clean_agent_output(text)
+    } else {
+        blocks.join("\n\n")
+    }
+}
+
+fn strip_terminal_control_sequences(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            if chars.peek() == Some(&']') {
+                chars.next();
+                while let Some(ch) = chars.next() {
+                    if ch == '\u{7}' {
+                        break;
+                    }
+                    if ch == '\u{1b}' && chars.next_if_eq(&'\\').is_some() {
+                        break;
+                    }
+                }
+            } else {
+                let _ = chars.next_if_eq(&'[');
+                for ch in chars.by_ref() {
+                    if ('@'..='~').contains(&ch) {
+                        break;
+                    }
+                }
+            }
+        } else if !ch.is_control() || matches!(ch, '\n' | '\r' | '\t') {
+            result.push(ch);
+        }
+    }
+    result.replace('\r', "")
+}
+
+fn strip_status_suffix(line: &str) -> String {
+    let without_cursor = line
+        .trim_end()
+        .trim_end_matches(['█', '▌', '▋', '▊', '▉'])
+        .trim_end();
+    let Some((prefix, suffix)) = without_cursor.rsplit_once("  ") else {
+        return without_cursor.to_string();
+    };
+    let time = suffix
+        .strip_suffix(" AM")
+        .or_else(|| suffix.strip_suffix(" PM"))
+        .unwrap_or(suffix);
+    let looks_like_time = time.split_once(':').is_some_and(|(hour, minute)| {
+        !hour.is_empty()
+            && !minute.is_empty()
+            && hour.chars().all(|c| c.is_ascii_digit())
+            && minute.chars().take(2).all(|c| c.is_ascii_digit())
+    });
+    if looks_like_time {
+        prefix.trim_end().to_string()
+    } else {
+        without_cursor.to_string()
+    }
+}
+
 pub(crate) fn terminal_clipboard_text(item: ClipboardItem) -> Option<String> {
     for entry in &item.entries {
         if let ClipboardEntry::ExternalPaths(paths) = entry {
@@ -127,6 +276,36 @@ mod tests {
         assert_eq!(
             terminal_clipboard_text(item),
             Some("'/tmp/a b.png' /tmp/c.png".into())
+        );
+    }
+
+    #[test]
+    fn clean_agent_output_strips_quotes_and_tui_chrome() {
+        assert_eq!(
+            clean_agent_output("> line one\n> line two\n> line three"),
+            "line one\nline two\nline three"
+        );
+        assert_eq!(
+            clean_agent_output(
+                "│   line one                                      2:47 PM  █\n│   line two                                              █"
+            ),
+            "line one\nline two"
+        );
+        assert_eq!(
+            clean_agent_output("\u{1b}[31mred\u{1b}[0m and more"),
+            "red and more"
+        );
+    }
+
+    #[test]
+    fn extract_code_returns_fenced_blocks() {
+        assert_eq!(
+            extract_code("before\n```rust\nfn main() {}\n```\nafter"),
+            "fn main() {}"
+        );
+        assert_eq!(
+            extract_code("```\ntimeout  10:00 AM\n| a | b |\n```"),
+            "timeout  10:00 AM\n| a | b |"
         );
     }
 }

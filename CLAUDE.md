@@ -25,7 +25,8 @@ and `CONTRIBUTING.md`.
 - Dev: run cargo directly — `cargo build` / `cargo run` / `cargo test` /
   `cargo fmt --all` / `cargo clippy --workspace --all-targets -- -D warnings`
   (workspace root). Unit tests cover pure crates only; GPUI views are verified
-  by launch tests. Full gate: `scripts/health` (fmtcheck + clippy + shape + test).
+  by launch tests plus `scripts/visual-tests` (`docs/visual-tests.md`). Full
+  gate: `scripts/health` (fmtcheck + clippy + shape + test).
   Run `scripts/health` before committing; the commit hook enforces its format and lint subset.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
@@ -95,6 +96,7 @@ rules apply to agent work here; do not duplicate them in this file. Key points:
 minimize cognitive load, present options at real decision forks before
 building, Rule of 7, never amend/rebase/force-push, bash not zsh.
 
+- UI that paints is incomplete without screenshot coverage of those surfaces and a `/ui-iteration` review of the images. How: `docs/visual-tests.md`.
 - **Agent-owned quality on author sessions.** The product is open source and
   welcomes substantive human review via issues/PRs (`CONTRIBUTING.md`). On the
   author's solo agent sessions there is no second human in the loop: the agent

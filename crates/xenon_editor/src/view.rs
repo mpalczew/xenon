@@ -12,6 +12,8 @@ mod input;
 mod layout;
 mod lsp;
 mod menu;
+#[cfg(feature = "visual-tests")]
+mod visual;
 
 use std::ops::Range;
 use std::path::PathBuf;

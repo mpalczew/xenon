@@ -7,6 +7,10 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+visual-tests = []
+
 [dependencies]
 gpui.workspace = true
 terminal.workspace = true

@@ -8,7 +8,7 @@ use crate::{
 };
 use gpui::{AnyElement, DragMoveEvent, KeyDownEvent, MouseButton, MouseUpEvent, relative};
 use xenon_core::{PaneId, SplitAxis};
-use xenon_settings::{Copy, Cut, Paste};
+use xenon_settings::{Copy, CopyClean, CopyCode, Cut, Paste};
 
 impl Render for XenonApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -207,6 +207,12 @@ impl XenonApp {
             }))
             .on_action(cx.listener(|this, _: &Copy, window, cx| {
                 this.clipboard_copy(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CopyClean, window, cx| {
+                this.clipboard_copy_clean(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &CopyCode, window, cx| {
+                this.clipboard_copy_code(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Paste, window, cx| {
                 this.clipboard_paste(window, cx);

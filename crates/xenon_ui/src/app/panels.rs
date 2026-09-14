@@ -8,6 +8,9 @@ use xenon_core::SplitAxis;
 impl XenonApp {
     /// Persist Workspaces/Files section prefs into settings.json.
     pub(super) fn persist_section_prefs(&self) {
+        if self.skip_persist {
+            return;
+        }
         if let Err(error) = xenon_store::update_settings(|settings| {
             settings.workspaces_collapsed = self.workspaces_collapsed;
             settings.files_open = self.file_browser.is_open();
@@ -23,6 +26,9 @@ impl XenonApp {
 
     /// Snapshot live tree + sidebar into session and save.
     pub(super) fn save_layout(&mut self, id: WorkspaceId) {
+        if self.skip_persist {
+            return;
+        }
         let content = self
             .contents
             .get(&id)

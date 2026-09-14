@@ -11,9 +11,9 @@ use crate::app::XenonApp;
 use crate::chrome::{accent_surface, list_selection};
 use crate::icons::icon;
 use crate::{
-    CloseWorkspace, FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, PrevWorkspace,
-    ReserveEmptyPaneRight, RunTask, Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings,
-    ToggleSidebar,
+    CloseWorkspace, Copy, Cut, FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, Paste,
+    PrevWorkspace, ReserveEmptyPaneRight, RunTask, Save, SplitDown, SplitRight, ToggleBrowser,
+    ToggleSettings, ToggleSidebar,
 };
 
 const ICON: f32 = 16.;
@@ -121,6 +121,7 @@ impl XenonApp {
                 cx,
             ))
             .child(self.toolbar_layout_buttons(cx))
+            .child(self.edit_tools(cx))
     }
 
     fn toolbar_layout_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -210,6 +211,7 @@ impl XenonApp {
                             .child(crate::chrome::status_pip(
                                 color,
                                 working > 0 && waiting == 0,
+                                cx,
                             ))
                             .child(label)
                     }),
@@ -319,6 +321,51 @@ impl XenonApp {
             },
             cx,
         ))
+    }
+
+    fn edit_tools(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let _ = self;
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .child(toolbar_divider(cx))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-cut",
+                    glyph: Icon::Scissors,
+                    label: "Cut · ⌘X",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(Cut),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-copy",
+                    glyph: Icon::Copy,
+                    label: "Copy · ⌘C",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(Copy),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-paste",
+                    glyph: Icon::ClipboardPaste,
+                    label: "Paste · ⌘V",
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(Paste),
+                },
+                cx,
+            ))
     }
 }
 

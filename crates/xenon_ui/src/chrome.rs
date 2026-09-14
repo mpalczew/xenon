@@ -3,6 +3,8 @@
 
 use std::time::Duration;
 
+#[cfg(feature = "visual-tests")]
+use gpui::Global;
 use gpui::{
     Animation, AnimationExt, App, Hsla, IntoElement, Styled, div, pulsating_between, px,
     transparent_black,
@@ -87,15 +89,40 @@ pub(crate) fn working_color(cx: &App) -> Hsla {
     cx.theme().status().info
 }
 
+#[cfg(feature = "visual-tests")]
+struct MotionFrozen;
+
+#[cfg(feature = "visual-tests")]
+impl Global for MotionFrozen {}
+
+/// Stop wall-clock chrome animation (visual tests). GPUI pulses use
+/// `web_time::Instant`, not the test dispatcher clock.
+#[cfg(feature = "visual-tests")]
+pub(crate) fn freeze_motion(cx: &mut App) {
+    cx.set_global(MotionFrozen);
+}
+
+fn motion_frozen(cx: &App) -> bool {
+    #[cfg(feature = "visual-tests")]
+    {
+        cx.has_global::<MotionFrozen>()
+    }
+    #[cfg(not(feature = "visual-tests"))]
+    {
+        let _ = cx;
+        false
+    }
+}
+
 /// 6px status pip. Pulse is working; static is attention / dirty-style marks.
-pub(crate) fn status_pip(color: Hsla, pulse: bool) -> impl IntoElement {
+pub(crate) fn status_pip(color: Hsla, pulse: bool, cx: &App) -> impl IntoElement {
     let pip = div()
         .w(px(6.))
         .h(px(6.))
         .rounded_full()
         .bg(color)
         .flex_none();
-    if pulse {
+    if pulse && !motion_frozen(cx) {
         pip.with_animation(
             "working-pulse",
             Animation::new(Duration::from_millis(1400))
