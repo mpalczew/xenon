@@ -8,7 +8,7 @@ use std::time::Duration;
 #[cfg(feature = "visual-tests")]
 use gpui::Global;
 use gpui::{
-    Animation, AnimationExt, AnyElement, App, ElementId, Hsla, IntoElement, Styled, div, px,
+    Animation, AnimationExt, AnyElement, App, ElementId, Hsla, IntoElement, Styled, px,
     transparent_black,
 };
 use theme::ThemeColors;
@@ -119,18 +119,6 @@ pub fn section_reveal(
             },
         )
         .into_any_element()
-}
-
-/// Six-pixel status pip. Working pulses; attention stays static.
-pub fn status_pip(color: Hsla, pulse: bool, cx: &App) -> impl IntoElement {
-    let _ = (pulse, cx);
-    let pip = div()
-        .w(px(6.))
-        .h(px(6.))
-        .rounded_full()
-        .bg(color)
-        .flex_none();
-    pip.into_any_element()
 }
 
 fn same_color(a: Hsla, b: Hsla) -> bool {

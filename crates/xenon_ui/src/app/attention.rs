@@ -22,7 +22,7 @@ impl AttentionReason {
     }
 }
 
-/// Sidebar / tab status pip. Working outranks a settled attention mark.
+/// Terminal tab status. Working outranks a settled attention mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WorkspaceDot {
     Working,
@@ -34,17 +34,6 @@ impl WorkspaceDot {
         match self {
             Self::Working => "Working",
             Self::Attention(label) => label,
-        }
-    }
-
-    pub(crate) fn pip(self, cx: &App) -> impl IntoElement {
-        match self {
-            Self::Working => {
-                crate::chrome::status_pip(crate::chrome::status_color(cx, false), true, cx)
-            }
-            Self::Attention(_) => {
-                crate::chrome::status_pip(crate::chrome::status_color(cx, true), false, cx)
-            }
         }
     }
 }

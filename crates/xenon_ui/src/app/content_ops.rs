@@ -101,6 +101,10 @@ impl XenonApp {
     }
 
     pub(crate) fn add_terminal(&mut self, cx: &mut Context<Self>) {
+        self.add_terminal_to_pane(None, cx);
+    }
+
+    fn add_terminal_to_pane(&mut self, target: Option<PaneId>, cx: &mut Context<Self>) {
         let Some(id) = self.active else {
             return;
         };
@@ -121,6 +125,16 @@ impl XenonApp {
                 parked: false,
             }));
             content.focused = Some(pane);
+        } else if let Some(pane) = target
+            && let Some(leaf) = content
+                .root
+                .as_mut()
+                .and_then(|root| root.find_leaf_mut(pane))
+        {
+            content.focused = Some(pane);
+            leaf.parked = false;
+            leaf.tabs.push(tab);
+            leaf.active = leaf.tabs.len() - 1;
         } else if let Some(leaf) = content.focused_leaf_mut() {
             leaf.parked = false;
             leaf.tabs.push(tab);
@@ -149,6 +163,20 @@ impl XenonApp {
         self.follow_gpui_leaf(window, cx);
         self.browser_focused = false;
         self.add_terminal(cx);
+        if let Some(terminal) = self.active_terminal() {
+            self.deferred.last_font_pane = FontPane::Terminal;
+            terminal.read(cx).focus_handle(cx).focus(window, cx);
+        }
+    }
+
+    pub(super) fn new_terminal_in_pane(
+        &mut self,
+        pane: PaneId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.browser_focused = false;
+        self.add_terminal_to_pane(Some(pane), cx);
         if let Some(terminal) = self.active_terminal() {
             self.deferred.last_font_pane = FontPane::Terminal;
             terminal.read(cx).focus_handle(cx).focus(window, cx);

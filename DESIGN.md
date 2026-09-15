@@ -11,7 +11,7 @@ Product UI. Familiar IDE bones; signature is multi-stream anti-IDE chrome.
 
 Reusable chrome primitives live in `crates/xenon_design_system` and are consumed
 by `xenon_ui`. Its public vocabulary is `SelectionPaint`, `list_selection`,
-`tab_selection`, `accent_surface`, `status_pip`, and theme-semantic status
+`tab_selection`, `accent_surface`, and theme-semantic status
 colors. Feature composition remains in `xenon_ui`.
 
 The workspace rail uses a compact two-line row: folder icon and workspace name
@@ -66,11 +66,12 @@ panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
 
 ## Attention
 
-`theme.status().warning` is a static yellow top rail on a terminal tab that needs
-the user (bell or inferred idle-after-output). `theme.status().info` is a top
-rail while that terminal is in an agent-sized burst; it pulses only when the tab
-is not selected. Working outranks attention on the same tab; the workspace row
-is the aggregate of its terminals. Not hard-coded hex.
+`theme.status().warning` is a static yellow status rail on an unselected terminal
+tab that needs the user (bell or inferred idle-after-output). `theme.status().info`
+is a pulsing status rail on an unselected terminal tab while it is in an agent-sized
+burst. Selected tabs have no status rail; the bottom accent underline is
+selection-only. Working outranks attention on the same tab; the workspace row is
+the aggregate of its terminals. Not hard-coded hex.
 
 ## Typography
 
@@ -81,7 +82,8 @@ editor/terminal content (settings-controlled faces).
 
 Selection is instant paint. Sidebar section open/close uses a 180ms spatial
 reveal with 6px travel. Unselected working workspace/tab rails use a quiet
-~1.4s opacity pulse; status dots remain static.
+~1.4s opacity pulse; finished attention uses a static warning rail. Selected
+workspace and tab rails do not carry status.
 
 ## Themes
 

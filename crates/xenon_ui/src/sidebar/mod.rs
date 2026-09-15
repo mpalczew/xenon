@@ -44,7 +44,6 @@ struct WorkspaceTitle<'a> {
     id: WorkspaceId,
     name: &'a str,
     path: &'a str,
-    status: Option<WorkspaceDot>,
 }
 
 impl XenonApp {
@@ -271,6 +270,15 @@ impl XenonApp {
         let group = format!("ws-{id}");
         let drop_line = colors.drop_target_border;
         let path_tip = SharedString::from(path.to_string());
+        let edge_color = if active {
+            colors.text_accent
+        } else {
+            match status {
+                Some(WorkspaceDot::Working) => crate::chrome::status_color(cx, false),
+                Some(WorkspaceDot::Attention(_)) => crate::chrome::status_color(cx, true),
+                None => gpui::transparent_black(),
+            }
+        };
         let row = div()
             .id(("ws-row", id_hash(id.to_string())))
             .group(group.clone())
@@ -289,11 +297,7 @@ impl XenonApp {
             })
             .when(!active, |s| s.text_color(colors.text_muted))
             .border_l_2()
-            .border_color(if active {
-                colors.text_accent
-            } else {
-                gpui::transparent_black()
-            })
+            .border_color(edge_color)
             .tooltip(path_tooltip(path_tip))
             .on_drag(DragWorkspace(id), drag_chip(name))
             .can_drop(move |drag, _, _| {
@@ -306,25 +310,17 @@ impl XenonApp {
                     this.reorder_workspace(dragged.0, id, cx)
                 }),
             )
-            .child(self.workspace_title_hit(
-                WorkspaceTitle {
-                    id,
-                    name,
-                    path,
-                    status,
-                },
-                cx,
-            ))
+            .child(self.workspace_title_hit(WorkspaceTitle { id, name, path }, cx))
             .child(workspace_dirt_gutter(dirt, &group, &colors))
             .child(self.workspace_hover_actions(id, &group, &colors, cx));
         #[cfg(not(feature = "visual-tests"))]
-        if active {
+        if !active && matches!(status, Some(WorkspaceDot::Working)) {
             row.with_animation(
-                ("workspace-edge", id_hash(id.to_string())),
+                ("workspace-status", id_hash(id.to_string())),
                 Animation::new(std::time::Duration::from_millis(1400))
                     .repeat()
                     .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
-                move |this, delta| this.border_color(colors.text_accent.opacity(delta)),
+                move |this, delta| this.border_color(edge_color.opacity(delta)),
             )
             .into_any_element()
         } else {
@@ -359,19 +355,8 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let WorkspaceTitle {
-            id,
-            name,
-            path,
-            status,
-        } = title;
+        let WorkspaceTitle { id, name, path } = title;
         let active = self.active_workspace() == Some(id);
-        let attention_dot = status.map(|dot| {
-            div()
-                .id(("ws-attention", id_hash(id.to_string())))
-                .tooltip(path_tooltip(SharedString::from(dot.tooltip())))
-                .child(dot.pip(cx))
-        });
         div()
             .id(("ws-select", id_hash(id.to_string())))
             .flex()
@@ -406,8 +391,7 @@ impl XenonApp {
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .child(name.to_string()),
                     )
-                    .child(div().flex_1())
-                    .children(attention_dot),
+                    .child(div().flex_1()),
             )
             .child(
                 div()

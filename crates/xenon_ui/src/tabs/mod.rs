@@ -32,7 +32,10 @@ fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
         .bg(paint.accent)
 }
 
-fn tab_status_rail(status: WorkspaceDot, _selected: bool, cx: &App) -> gpui::AnyElement {
+fn tab_status_rail(status: WorkspaceDot, selected: bool, cx: &App) -> Option<gpui::AnyElement> {
+    if selected {
+        return None;
+    }
     let color = match status {
         WorkspaceDot::Working => crate::chrome::status_color(cx, false),
         WorkspaceDot::Attention(_) => crate::chrome::status_color(cx, true),
@@ -45,18 +48,19 @@ fn tab_status_rail(status: WorkspaceDot, _selected: bool, cx: &App) -> gpui::Any
         .h(px(2.))
         .bg(color);
     #[cfg(not(feature = "visual-tests"))]
-    if matches!(status, WorkspaceDot::Working) && !_selected {
-        return rail
-            .with_animation(
+    if matches!(status, WorkspaceDot::Working) {
+        return Some(
+            rail.with_animation(
                 "tab-working-rail",
                 Animation::new(std::time::Duration::from_millis(1400))
                     .repeat()
                     .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
                 move |this, delta| this.opacity(delta),
             )
-            .into_any_element();
+            .into_any_element(),
+        );
     }
-    rail.into_any_element()
+    Some(rail.into_any_element())
 }
 
 fn term_chip_paint(
@@ -373,7 +377,7 @@ impl XenonApp {
                     .truncate()
                     .child(display_title),
             )
-            .children(status.map(|dot| tab_status_rail(dot, is_active, cx)))
+            .children(status.and_then(|dot| tab_status_rail(dot, is_active, cx)))
             .child(tab_close(
                 SharedString::from(format!("tab-close-{}-{}", pane.0, index)),
                 &group,

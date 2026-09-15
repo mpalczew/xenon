@@ -40,19 +40,25 @@ impl XenonApp {
         };
         let primary = if has_workspace {
             let hover = colors.element_hover;
+            let target_pane = remove_pane;
             div()
                 .id("empty-new-terminal")
-                .px_3()
+                .px_4()
                 .py_2()
                 .rounded_sm()
-                .bg(colors.element_selected)
-                .text_color(colors.text)
+                .bg(colors.text_accent)
+                .text_color(colors.background)
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover))
+                .tooltip(crate::tabs::tip_tooltip("New Terminal · ⌘N".into()))
                 .child("New Terminal")
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.new_terminal(window, cx);
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    if let Some(pane) = target_pane {
+                        this.new_terminal_in_pane(pane, window, cx);
+                    } else {
+                        this.new_terminal(window, cx);
+                    }
                 }))
                 .into_any_element()
         } else {
@@ -86,6 +92,7 @@ impl XenonApp {
                 .text_color(colors.text_muted)
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover).text_color(text))
+                .tooltip(crate::tabs::tip_tooltip("Open File · ⌘O".into()))
                 .child("Open File")
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.open_palette(window, cx);
@@ -105,6 +112,7 @@ impl XenonApp {
                 .text_color(colors.text_muted)
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover).text_color(text))
+                .tooltip(crate::tabs::tip_tooltip("Close Workspace · ⌘⌥W".into()))
                 .child("Close Workspace")
                 .on_click(cx.listener(|this, _, window, cx| {
                     this.close_active_workspace(window, cx);
