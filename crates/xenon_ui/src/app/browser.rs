@@ -113,8 +113,8 @@ impl XenonApp {
             .flex()
             .items_center()
             .gap_1()
-            .h(px(28.))
-            .px_2()
+            .h(px(52.))
+            .px_4()
             .border_t_1()
             .border_color(border)
             .cursor_pointer()
@@ -140,7 +140,7 @@ impl XenonApp {
                     .text_xs()
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.text_muted)
-                    .child("Files"),
+                    .child("FILES"),
             )
     }
 

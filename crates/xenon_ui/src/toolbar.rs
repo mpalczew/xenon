@@ -10,11 +10,7 @@ use theme::ActiveTheme;
 use crate::app::XenonApp;
 use crate::chrome::{accent_surface, list_selection};
 use crate::icons::icon;
-use crate::{
-    CloseWorkspace, Copy, Cut, FilePalette, GoBack, GoForward, NewTerminal, NextWorkspace, Paste,
-    PrevWorkspace, ReserveEmptyPaneRight, RunTask, Save, SplitDown, SplitRight, ToggleBrowser,
-    ToggleSettings, ToggleSidebar,
-};
+use crate::{NextWorkspace, PrevWorkspace, ReserveEmptyPaneRight, SplitRight, ToggleSidebar};
 
 const ICON: f32 = 16.;
 
@@ -48,14 +44,12 @@ impl XenonApp {
         div()
             .flex()
             .items_center()
-            .h(px(36.))
+            .h(px(56.))
             .px_2()
             .border_b_1()
             .border_color(colors.border)
             .bg(accent_surface(colors.panel_background, colors.text_accent))
             .child(self.toolbar_left(cx))
-            .child(self.toolbar_center(cx))
-            .child(self.toolbar_right(cx))
     }
 
     fn toolbar_left(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -66,7 +60,7 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-sidebar",
-                    glyph: Icon::PanelLeft,
+                    glyph: Icon::List,
                     label: "Workspace Sidebar · ⌘B",
                     active: self.sidebar_visible(),
                     muted: false,
@@ -100,32 +94,7 @@ impl XenonApp {
                 cx,
             ))
             .child(toolbar_divider(cx))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-go-back",
-                    glyph: Icon::ArrowLeft,
-                    label: "Go Back · ⌘[",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(GoBack),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-go-forward",
-                    glyph: Icon::ArrowRight,
-                    label: "Go Forward · ⌘]",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(GoForward),
-                },
-                cx,
-            ))
             .child(self.toolbar_layout_buttons(cx))
-            .child(self.edit_tools(cx))
     }
 
     fn toolbar_layout_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -133,7 +102,6 @@ impl XenonApp {
             .flex()
             .items_center()
             .gap_1()
-            .child(toolbar_divider(cx))
             .child(tool_button(
                 ToolButton {
                     id: "tb-split-right",
@@ -149,19 +117,6 @@ impl XenonApp {
             ))
             .child(tool_button(
                 ToolButton {
-                    id: "tb-split-down",
-                    // Vertical glyph = top/bottom panes.
-                    glyph: Icon::SplitSquareVertical,
-                    label: "Split Down · ⌘⇧\\",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(SplitDown),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
                     id: "tb-reserve-panel-right",
                     glyph: Icon::PanelRightDashed,
                     label: "Reserve Panel Right · ⌘⌥\\",
@@ -169,204 +124,6 @@ impl XenonApp {
                     muted: false,
                     primary: false,
                     action: Box::new(ReserveEmptyPaneRight),
-                },
-                cx,
-            ))
-    }
-
-    fn toolbar_center(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let status_colors = cx.theme().status().clone();
-        let summary = self.active_workspace().map(|id| {
-            let (working, waiting) = self.workspace_status_counts(id, cx);
-            (working, waiting)
-        });
-        let dirty = self
-            .active_editor()
-            .is_some_and(|view| view.read(cx).is_dirty());
-        div()
-            .flex_1()
-            .min_w_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .gap_2()
-            .px_3()
-            .text_sm()
-            .children(
-                summary
-                    .filter(|(working, waiting)| *working > 0 || *waiting > 0)
-                    .map(|(working, waiting)| {
-                        let label = match (working, waiting) {
-                            (0, waiting) => format!("{waiting} waiting"),
-                            (working, 0) => format!("{working} running"),
-                            (working, waiting) => format!("{working} running · {waiting} waiting"),
-                        };
-                        let color = if waiting > 0 {
-                            status_colors.warning
-                        } else {
-                            status_colors.info
-                        };
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_1()
-                            .text_xs()
-                            .text_color(color)
-                            .child(crate::chrome::status_pip(
-                                color,
-                                working > 0 && waiting == 0,
-                                cx,
-                            ))
-                            .child(label)
-                    }),
-            )
-            .children(
-                (summary.is_none_or(|(working, waiting)| working == 0 && waiting == 0) && dirty)
-                    .then(|| {
-                        div()
-                            .text_xs()
-                            .text_color(status_colors.warning)
-                            .child("Unsaved changes")
-                    }),
-            )
-    }
-
-    fn toolbar_right(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let dirty = self
-            .active_editor()
-            .is_some_and(|view| view.read(cx).is_dirty());
-        let mut row = div()
-            .flex()
-            .items_center()
-            .gap_1()
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-new-terminal",
-                    glyph: Icon::SquareTerminal,
-                    label: "New Terminal · ⌘N",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(NewTerminal),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-palette",
-                    glyph: Icon::Search,
-                    label: "Go to File · ⌘P",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(FilePalette),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-close-workspace",
-                    glyph: Icon::X,
-                    label: "Close Workspace · ⌘⌥W",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(CloseWorkspace),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-file-browser",
-                    glyph: Icon::FolderTree,
-                    label: "File Browser · ⌘E",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(ToggleBrowser),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-run-task",
-                    glyph: Icon::Play,
-                    label: "Run Task · ⌘⇧R",
-                    active: false,
-                    muted: false,
-                    primary: true,
-                    action: Box::new(RunTask),
-                },
-                cx,
-            ));
-        if dirty {
-            row = row.child(tool_button(
-                ToolButton {
-                    id: "tb-save",
-                    glyph: Icon::Save,
-                    label: "Save · ⌘S",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(Save),
-                },
-                cx,
-            ));
-        }
-        row.child(tool_button(
-            ToolButton {
-                id: "tb-settings",
-                glyph: Icon::Settings,
-                label: "Settings · ⌘,",
-                active: false,
-                muted: false,
-                primary: false,
-                action: Box::new(ToggleSettings),
-            },
-            cx,
-        ))
-    }
-
-    fn edit_tools(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let _ = self;
-        div()
-            .flex()
-            .items_center()
-            .gap_1()
-            .child(toolbar_divider(cx))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-cut",
-                    glyph: Icon::Scissors,
-                    label: "Cut · ⌘X",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(Cut),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-copy",
-                    glyph: Icon::Copy,
-                    label: "Copy · ⌘C",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(Copy),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-paste",
-                    glyph: Icon::ClipboardPaste,
-                    label: "Paste · ⌘V",
-                    active: false,
-                    muted: false,
-                    primary: false,
-                    action: Box::new(Paste),
                 },
                 cx,
             ))

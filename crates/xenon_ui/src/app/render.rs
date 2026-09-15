@@ -17,7 +17,6 @@ impl Render for XenonApp {
         let ui = xenon_settings::ui_font(cx);
         window.set_rem_size(px(ui.size));
         let colors = cx.theme().colors().clone();
-        let toolbar = self.render_toolbar(cx);
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
@@ -55,7 +54,6 @@ impl Render for XenonApp {
             .bg(colors.background)
             .text_color(colors.text)
             .font_family(ui.family)
-            .child(toolbar)
             .child(body)
             .children(finder)
             .children(task_picker)
@@ -318,6 +316,7 @@ impl XenonApp {
         let content = self.active_content();
         let mut panel = div()
             .flex()
+            .flex_col()
             .flex_1()
             .size_full()
             .min_w_0()
@@ -327,6 +326,8 @@ impl XenonApp {
             .on_drag_move(cx.listener(|_, _: &DragMoveEvent<DragTab>, _, cx| {
                 cx.notify();
             }));
+
+        panel = panel.child(self.render_toolbar(cx));
 
         match content.and_then(|c| c.root.as_ref()) {
             Some(root) => {
@@ -423,6 +424,7 @@ impl XenonApp {
             .active_tab()
             .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx));
         let tabs = self.render_mixed_tabs(leaf, focused, cx);
+        let context = self.render_workspace_context(cx);
         let body = match leaf.active_tab() {
             Some(LiveTab::Terminal { view, .. }) => div()
                 .flex_1()
@@ -472,6 +474,7 @@ impl XenonApp {
                 }),
             )
             .child(tabs)
+            .child(context)
             .child(body)
             .children(drop_overlay)
             .into_any_element()

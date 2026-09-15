@@ -14,12 +14,12 @@ by `xenon_ui`. Its public vocabulary is `SelectionPaint`, `list_selection`,
 `tab_selection`, `accent_surface`, `status_pip`, and theme-semantic status
 colors. Feature composition remains in `xenon_ui`.
 
-The workspace rail uses a compact two-line row: workspace name and folder icon
-on line one; `clean`, `working`, or `needs you` aggregate on line two. The full
-path remains available as the row tooltip instead of competing with status in a
-truncated label. Working uses the theme info token, attention uses the theme
-warning token, and clean rows remain muted. This makes the active workspace and
-attention queue scannable without adding a third content column.
+The workspace rail uses a quiet single-line row: folder icon, workspace name,
+and a right-aligned semantic pip. The active row uses the accent surface plus a
+left edge; working uses the theme info token and attention uses the theme
+warning token. The full path remains available as the row tooltip. The main
+column carries the workspace context bar—name, shortened path, and active agent
+state—so the rail stays scannable without repeating prose.
 
 Maintained preview: `visual-review/xenon-design-system.html` and
 `visual-review/xenon-mocks.html`. Native evidence is captured by

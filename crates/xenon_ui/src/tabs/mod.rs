@@ -103,7 +103,7 @@ impl XenonApp {
         div()
             .flex()
             .items_center()
-            .h(px(30.))
+            .h(px(52.))
             .border_b_1()
             .border_color(colors.border)
             .bg(chrome::accent_surface(
@@ -117,7 +117,7 @@ impl XenonApp {
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .gap_1()
+                    .gap_0()
                     .px_1()
                     .overflow_hidden()
                     .children(chips),
@@ -314,6 +314,8 @@ impl XenonApp {
             .h_full()
             .flex_none()
             .min_w_0()
+            .border_r_1()
+            .border_color(colors.border)
             .bg(paint.background)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
@@ -346,15 +348,6 @@ impl XenonApp {
                     cx.new(|_| TabTooltip { text: full.clone() }).into()
                 }
             })
-            .child(
-                div()
-                    .text_color(if is_focused {
-                        paint.accent
-                    } else {
-                        paint.foreground
-                    })
-                    .child(icon(Icon::SquareTerminal, px(13.))),
-            )
             .child(
                 div()
                     .text_sm()
@@ -415,6 +408,8 @@ impl XenonApp {
             .h_full()
             .flex_none()
             .min_w_0()
+            .border_r_1()
+            .border_color(colors.border)
             .bg(paint.background)
             .text_color(paint.foreground)
             .cursor_pointer()
@@ -445,15 +440,6 @@ impl XenonApp {
             .tooltip(move |_window: &mut Window, cx: &mut App| {
                 cx.new(|_| TabTooltip { text: tip.clone() }).into()
             })
-            .child(
-                div()
-                    .text_color(if is_focused {
-                        paint.accent
-                    } else {
-                        paint.foreground
-                    })
-                    .child(icon(Icon::FileText, px(13.))),
-            )
             .child(
                 div()
                     .text_sm()
