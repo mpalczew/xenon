@@ -45,7 +45,6 @@ struct WorkspaceHeader<'a> {
 struct WorkspaceTitle<'a> {
     id: WorkspaceId,
     name: &'a str,
-    path: &'a str,
     status: Option<WorkspaceDot>,
     working: usize,
     waiting: usize,
@@ -337,7 +336,6 @@ impl XenonApp {
                 WorkspaceTitle {
                     id,
                     name,
-                    path,
                     status,
                     working,
                     waiting,
@@ -375,7 +373,6 @@ impl XenonApp {
         let WorkspaceTitle {
             id,
             name,
-            path,
             status,
             working,
             waiting,
@@ -432,7 +429,7 @@ impl XenonApp {
                         colors.text_muted
                     })
                     .truncate()
-                    .child(workspace_status_label(path, working, waiting)),
+                    .child(workspace_status_label(working, waiting)),
             )
     }
 
@@ -486,14 +483,13 @@ impl XenonApp {
     }
 }
 
-fn workspace_status_label(path: &str, working: usize, waiting: usize) -> String {
-    let state = match (working, waiting) {
-        (0, 0) => "quiet".to_string(),
+fn workspace_status_label(working: usize, waiting: usize) -> String {
+    match (working, waiting) {
+        (0, 0) => "clean".to_string(),
         (working, 0) => format!("{working} working"),
         (0, waiting) => format!("{waiting} needs you"),
         (working, waiting) => format!("{working} working · {waiting} needs you"),
-    };
-    format!("{state} · {path}")
+    }
 }
 
 pub(super) fn icon_button(
