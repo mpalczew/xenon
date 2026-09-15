@@ -424,7 +424,6 @@ impl XenonApp {
             .active_tab()
             .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx));
         let tabs = self.render_mixed_tabs(leaf, focused, cx);
-        let context = self.render_workspace_context(cx);
         let body = match leaf.active_tab() {
             Some(LiveTab::Terminal { view, .. }) => div()
                 .flex_1()
@@ -474,7 +473,6 @@ impl XenonApp {
                 }),
             )
             .child(tabs)
-            .child(context)
             .child(body)
             .children(drop_overlay)
             .into_any_element()

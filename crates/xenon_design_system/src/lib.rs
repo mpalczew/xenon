@@ -54,7 +54,6 @@ pub fn tab_selection(colors: &ThemeColors, active: bool, focused: bool) -> Selec
         {
             bg = colors.element_selected;
         }
-        bg = accent_surface(bg, colors.text_accent);
         (bg, colors.text, colors.text_accent)
     } else {
         (transparent_black(), colors.text_muted, transparent_black())

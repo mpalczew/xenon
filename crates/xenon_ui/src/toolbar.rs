@@ -1,44 +1,20 @@
 //! The top toolbar: navigation, split actions, contextual status, quick actions.
 
 use gpui::{
-    Action, App, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
+    Action, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 
 use crate::app::XenonApp;
-use crate::chrome::{accent_surface, list_selection};
+use crate::chrome::list_selection;
 use crate::icons::icon;
 use crate::{NextWorkspace, PrevWorkspace, ReserveEmptyPaneRight, SplitRight, ToggleSidebar};
 
 const ICON: f32 = 16.;
 
 impl XenonApp {
-    pub(crate) fn workspace_status_counts(
-        &self,
-        id: xenon_core::WorkspaceId,
-        cx: &App,
-    ) -> (usize, usize) {
-        let Some(root) = self
-            .contents
-            .get(&id)
-            .and_then(|content| content.root.as_ref())
-        else {
-            return (0, 0);
-        };
-        let mut working = 0;
-        let mut waiting = 0;
-        root.for_each_terminal(&mut |tab, view| {
-            if view.read(cx).is_working() {
-                working += 1;
-            } else if self.tab_attention(id, tab).is_some() {
-                waiting += 1;
-            }
-        });
-        (working, waiting)
-    }
-
     pub(crate) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         div()
@@ -48,7 +24,7 @@ impl XenonApp {
             .px_2()
             .border_b_1()
             .border_color(colors.border)
-            .bg(accent_surface(colors.panel_background, colors.text_accent))
+            .bg(colors.toolbar_background)
             .child(self.toolbar_left(cx))
     }
 

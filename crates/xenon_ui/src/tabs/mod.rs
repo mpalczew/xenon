@@ -103,13 +103,10 @@ impl XenonApp {
         div()
             .flex()
             .items_center()
-            .h(px(52.))
+            .h(px(42.))
             .border_b_1()
             .border_color(colors.border)
-            .bg(chrome::accent_surface(
-                colors.tab_bar_background,
-                colors.text_accent,
-            ))
+            .bg(colors.tab_bar_background)
             .child(
                 div()
                     .flex()

@@ -32,9 +32,9 @@ const MIN_SIDEBAR: f32 = 140.;
 const MAX_SIDEBAR: f32 = 480.;
 
 /// Workspaces section header height (sidebar).
-pub(crate) const WORKSPACES_HEADER_H: f32 = 32.;
+pub(crate) const WORKSPACES_HEADER_H: f32 = 60.;
 /// Files section header height (sidebar).
-pub(crate) const FILES_HEADER_H: f32 = 28.;
+pub(crate) const FILES_HEADER_H: f32 = 52.;
 /// Minimum Workspaces list body height when Files is open.
 pub(crate) const MIN_WORKSPACES_BODY: f32 = 48.;
 /// Minimum Files tree body height when both sections are open.
@@ -140,8 +140,8 @@ pub(crate) fn resolve_section_height(raw: f32, sidebar_h: f32) -> f32 {
 
 /// Content-sized Workspaces list height (no artificial cap).
 pub(crate) fn workspaces_body_content_height(workspace_count: usize, row_h: f32) -> f32 {
-    // rows + end drop strip + vertical padding (py_1 ≈ 4px each side)
-    let content = workspace_count as f32 * row_h + 4. + 8.;
+    // rows + the thin drop strip; the list intentionally has no trailing pad.
+    let content = workspace_count as f32 * row_h + 2.;
     content.max(MIN_WORKSPACES_BODY)
 }
 

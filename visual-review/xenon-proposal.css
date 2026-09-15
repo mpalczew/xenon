@@ -25,7 +25,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin:0; background:var(--void); color:var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; line-height:1.45; }
-body.theme-light { color-scheme:light; --void:#f5f7fa; --canvas:#ffffff; --surface:#eef2f6; --surface-2:#e4eaf1; --surface-3:#d9e2ec; --line:#c7d2df; --text:#142235; --muted:#62738a; --faint:#8b9aab; --cyan:#087f9c; --cyan-dim:#c6edf4; --violet:#7250c4; --violet-dim:#e5ddfb; --amber:#a96500; --amber-dim:#f8e3bd; --green:#18834e; --shadow:0 14px 32px rgba(34,55,76,.12); }
+body.theme-light { color-scheme:light; --void:#f8f9fb; --canvas:#ffffff; --surface:#eff2f6; --surface-2:#e6eaf0; --surface-3:#dfe7ef; --line:#c5d2df; --text:#192134; --muted:#60738a; --faint:#8b9aab; --cyan:#087f9c; --cyan-dim:#c6edf4; --violet:#7250c4; --violet-dim:#e5ddfb; --amber:#a96500; --amber-dim:#f8e3bd; --green:#18834e; --shadow:0 14px 32px rgba(34,55,76,.12); }
 button, input { font:inherit; }
 button { cursor:pointer; }
 a { color:inherit; }
@@ -81,7 +81,10 @@ h1 em { color:var(--cyan); font-style:normal; }
 .shell { overflow:hidden; display:grid; grid-template-columns:220px 1fr; min-height:560px; border:1px solid var(--line); border-radius:var(--radius-lg); background:var(--canvas); box-shadow:var(--shadow); }
 .rail { padding:21px 12px; border-right:1px solid var(--line); background:var(--surface); }
 .rail-title { display:flex; justify-content:space-between; margin:0 8px 15px; color:var(--muted); font-size:11px; font-weight:750; }
-.rail-item { display:flex; align-items:center; gap:9px; padding:10px 9px; border-left:2px solid transparent; border-radius:7px; color:var(--muted); font-size:12px; }
+.rail-item { display:flex; align-items:center; gap:9px; padding:8px 9px; border-left:2px solid transparent; border-radius:7px; color:var(--muted); font-size:12px; }
+.rail-item small { display:block; color:var(--muted); font-size:10px; margin-top:2px; }
+.files-list .rail-item { padding-top:5px; padding-bottom:5px; }
+.rail > .rail-item:nth-child(n+7) { padding-top:5px; padding-bottom:5px; }
 .rail-item.active { border-left-color:var(--cyan); color:var(--text); background:var(--surface-2); font-weight:700; }
 .rail-item .pip { margin-left:auto; }
 .canvas { display:flex; flex-direction:column; min-width:0; }

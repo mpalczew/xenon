@@ -71,7 +71,6 @@ mod themes;
 mod tree_keys;
 #[cfg(feature = "visual-tests")]
 pub(crate) mod visual;
-mod workspace_context;
 mod workspace_create_ops;
 mod workspaces;
 

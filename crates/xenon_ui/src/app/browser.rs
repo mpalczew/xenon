@@ -82,7 +82,7 @@ impl XenonApp {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .py_1()
+                    .py_0()
                     .children(
                         rows.into_iter()
                             .enumerate()
@@ -98,11 +98,6 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let chevron = if collapsed {
-            lucide_icons::Icon::ChevronRight
-        } else {
-            lucide_icons::Icon::ChevronDown
-        };
         let border = if self.browser_focused && !collapsed {
             colors.border_focused
         } else {
@@ -112,7 +107,6 @@ impl XenonApp {
             .id("files-section-header")
             .flex()
             .items_center()
-            .gap_1()
             .h(px(52.))
             .px_4()
             .border_t_1()
@@ -125,15 +119,6 @@ impl XenonApp {
                 cx.listener(|this, event: &gpui::MouseDownEvent, _, cx| {
                     this.open_browser_menu(None, true, event.position, cx);
                 }),
-            )
-            .child(
-                div()
-                    .w(px(14.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .text_color(colors.text_muted)
-                    .child(crate::icons::icon(chevron, px(12.))),
             )
             .child(
                 div()

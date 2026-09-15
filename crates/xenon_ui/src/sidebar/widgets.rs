@@ -54,7 +54,7 @@ impl Render for PathTooltip {
     }
 }
 
-pub(super) const ROW_H: f32 = 46.;
+pub(super) const ROW_H: f32 = 44.;
 pub(super) const ICON_SM: f32 = 14.;
 pub(super) const ICON_MD: f32 = 15.;
 /// Square hit target for pencil / close on workspace rows.
@@ -73,7 +73,7 @@ pub(super) fn workspace_rename_row(
         .flex()
         .items_center()
         .h(px(ROW_H))
-        .mx_4()
+        .mx_2()
         .px_2()
         .rounded_sm()
         .child(

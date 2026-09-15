@@ -41,6 +41,7 @@ struct WorkspaceHeader<'a> {
 struct WorkspaceTitle<'a> {
     id: WorkspaceId,
     name: &'a str,
+    path: &'a str,
     status: Option<WorkspaceDot>,
 }
 
@@ -102,7 +103,7 @@ impl XenonApp {
                 .flex_1()
                 .min_h_0()
                 .overflow_y_scroll()
-                .py_1()
+                .py_0()
                 .children(ws_rows);
             div()
                 .relative()
@@ -135,7 +136,7 @@ impl XenonApp {
             .min_w_0()
             .border_r_1()
             .border_color(colors.border)
-            .bg(colors.editor_background)
+            .bg(colors.panel_background)
             .child(self.workspaces_section_header(ws_collapsed, cx))
             .children(workspace_body)
             .children(has_active.then(|| self.render_files_section(cx)))
@@ -148,15 +149,10 @@ impl XenonApp {
 
     fn workspaces_section_header(
         &self,
-        collapsed: bool,
+        _collapsed: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let chevron = if collapsed {
-            Icon::ChevronRight
-        } else {
-            Icon::ChevronDown
-        };
         div()
             .relative()
             .flex()
@@ -175,15 +171,6 @@ impl XenonApp {
                     .cursor_pointer()
                     .hover(|s| s.text_color(colors.text))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_workspaces_section(cx)))
-                    .child(
-                        div()
-                            .w(px(14.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_color(colors.text_muted)
-                            .child(icon(chevron, px(ICON_SM))),
-                    )
                     .child(
                         div()
                             .text_xs()
@@ -284,17 +271,14 @@ impl XenonApp {
             .flex()
             .items_center()
             .h(px(ROW_H))
-            .mx_4()
+            .mx_2()
             .px_2()
             .rounded_sm()
             .text_sm()
             .when(active, |s| {
-                s.bg(crate::chrome::accent_surface(
-                    colors.panel_background,
-                    colors.text_accent,
-                ))
-                .text_color(colors.text)
-                .font_weight(gpui::FontWeight::MEDIUM)
+                s.bg(colors.element_selected)
+                    .text_color(colors.text)
+                    .font_weight(gpui::FontWeight::MEDIUM)
             })
             .when(!active, |s| s.text_color(colors.text_muted))
             .border_l_2()
@@ -315,7 +299,15 @@ impl XenonApp {
                     this.reorder_workspace(dragged.0, id, cx)
                 }),
             )
-            .child(self.workspace_title_hit(WorkspaceTitle { id, name, status }, cx))
+            .child(self.workspace_title_hit(
+                WorkspaceTitle {
+                    id,
+                    name,
+                    path,
+                    status,
+                },
+                cx,
+            ))
             .child(workspace_dirt_gutter(dirt, &group, &colors))
             .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .into_any_element()
@@ -327,8 +319,8 @@ impl XenonApp {
         let drop_line = colors.drop_target_border;
         div()
             .id("ws-drop-end")
-            .h(px(4.))
-            .mx_4()
+            .h(px(2.))
+            .mx_2()
             .border_t_2()
             .border_color(gpui::transparent_black())
             .can_drop(|drag, _, _| drag.downcast_ref::<DragWorkspace>().is_some())
@@ -344,7 +336,12 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let WorkspaceTitle { id, name, status } = title;
+        let WorkspaceTitle {
+            id,
+            name,
+            path,
+            status,
+        } = title;
         let active = self.active_workspace() == Some(id);
         let attention_dot = status.map(|dot| {
             div()
@@ -355,7 +352,9 @@ impl XenonApp {
         div()
             .id(("ws-select", id_hash(id.to_string())))
             .flex()
-            .items_center()
+            .flex_col()
+            .items_start()
+            .justify_center()
             .min_w_0()
             .flex_1()
             .cursor_pointer()
@@ -378,9 +377,23 @@ impl XenonApp {
                             })
                             .child(icon(Icon::Folder, px(ICON_SM))),
                     )
-                    .child(div().truncate().child(name.to_string()))
+                    .child(
+                        div()
+                            .truncate()
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .child(name.to_string()),
+                    )
                     .child(div().flex_1())
                     .children(attention_dot),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .pl(px(20.))
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .truncate()
+                    .child(compact_workspace_path(path)),
             )
     }
 
@@ -432,6 +445,21 @@ impl XenonApp {
                 }),
             ))
     }
+}
+
+fn compact_workspace_path(path: &str) -> String {
+    std::env::var_os("HOME")
+        .and_then(|home| {
+            path.strip_prefix(home.to_string_lossy().as_ref())
+                .map(|rest| {
+                    if rest.is_empty() {
+                        "~".to_string()
+                    } else {
+                        format!("~{rest}")
+                    }
+                })
+        })
+        .unwrap_or_else(|| path.to_string())
 }
 
 pub(super) fn icon_button(
