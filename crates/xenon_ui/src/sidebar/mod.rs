@@ -62,7 +62,7 @@ impl XenonApp {
             })
             .collect();
 
-        let ws_collapsed = self.workspaces_collapsed();
+        let ws_collapsed = self.workspaces_collapsed() && !self.workspace_section_closing;
         let files_open = self.is_browsing();
         let has_active = active.is_some();
 
@@ -119,6 +119,7 @@ impl XenonApp {
                     rows,
                     ("workspaces-content", ws_collapsed as u32),
                     cx,
+                    !self.workspace_section_closing,
                 ))
                 .when(share_column, |s| {
                     s.child(crate::resize::row_resize_handle(

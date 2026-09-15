@@ -103,6 +103,7 @@ pub fn section_reveal(
     element: impl IntoElement + Styled + 'static,
     id: impl Into<ElementId>,
     cx: &App,
+    opening: bool,
 ) -> AnyElement {
     if motion_frozen(cx) {
         return element.into_any_element();
@@ -112,7 +113,7 @@ pub fn section_reveal(
             id,
             Animation::new(Duration::from_millis(180))
                 .with_easing(|delta| delta * delta * (3. - 2. * delta)),
-            |this, delta| this.opacity(delta),
+            move |this, delta| this.opacity(if opening { delta } else { 1. - delta }),
         )
         .into_any_element()
 }

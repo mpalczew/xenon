@@ -3,14 +3,34 @@ use super::*;
 impl XenonApp {
     /// Whether the file tree is shown in the workspace panel (⌘E).
     pub(crate) fn is_browsing(&self) -> bool {
-        self.active.is_some() && self.file_browser.is_open()
+        self.active.is_some() && (self.file_browser.is_open() || self.files_section_closing)
     }
 
     pub(crate) fn toggle_browser(&mut self, cx: &mut Context<Self>) {
+        if self.files_section_closing {
+            self.files_section_animation.take();
+            self.files_section_closing = false;
+            cx.notify();
+            return;
+        }
         if self.file_browser.is_open() {
-            self.file_browser.close();
-            self.browser_focused = false;
-            self.persist_section_prefs();
+            self.files_section_closing = true;
+            self.files_section_animation = Some(cx.spawn(async move |this, cx| {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(180))
+                    .await;
+                this.update(cx, |this, cx| {
+                    if this.files_section_closing {
+                        this.file_browser.close();
+                        this.files_section_closing = false;
+                        this.browser_focused = false;
+                        this.persist_section_prefs();
+                        cx.notify();
+                    }
+                    this.files_section_animation.take();
+                })
+                .ok();
+            }));
             cx.notify();
             return;
         }
@@ -88,8 +108,9 @@ impl XenonApp {
                             .enumerate()
                             .map(|(i, row)| self.tree_row(i, row, cx)),
                     ),
-                ("files-content", 0_u32),
+                ("files-content", self.files_section_closing as u32),
                 cx,
+                !self.files_section_closing,
             ))
             .into_any_element()
     }

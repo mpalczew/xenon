@@ -146,9 +146,13 @@ pub struct XenonApp {
     layout_dirty: bool,
     /// Workspaces section collapsed in the left panel.
     workspaces_collapsed: bool,
+    pub(crate) workspace_section_closing: bool,
+    pub(crate) workspace_section_animation: Option<Task<()>>,
     /// Pinned Workspaces list height when Files is open (`None` = content-sized).
     workspaces_section_height: Option<f32>,
     file_browser: FileBrowser,
+    files_section_closing: bool,
+    files_section_animation: Option<Task<()>>,
     /// Dedicated settings window (cmd-,). None when closed or not yet opened.
     settings_window: Option<WindowHandle<SettingsView>>,
     // Workspace being renamed inline, plus its editing field.

@@ -120,8 +120,34 @@ impl XenonApp {
     }
 
     pub(crate) fn toggle_workspaces_section(&mut self, cx: &mut Context<Self>) {
-        self.workspaces_collapsed = !self.workspaces_collapsed;
-        self.persist_section_prefs();
+        if self.workspace_section_closing {
+            self.workspace_section_animation.take();
+            self.workspace_section_closing = false;
+            cx.notify();
+            return;
+        }
+        if self.workspaces_collapsed {
+            self.workspaces_collapsed = false;
+            self.persist_section_prefs();
+            cx.notify();
+            return;
+        }
+        self.workspace_section_closing = true;
+        self.workspace_section_animation = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(180))
+                .await;
+            this.update(cx, |this, cx| {
+                if this.workspace_section_closing {
+                    this.workspaces_collapsed = true;
+                    this.workspace_section_closing = false;
+                    this.persist_section_prefs();
+                    cx.notify();
+                }
+                this.workspace_section_animation.take();
+            })
+            .ok();
+        }));
         cx.notify();
     }
 
