@@ -32,8 +32,8 @@ fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
 
 fn tab_status_rail(status: WorkspaceDot, cx: &App) -> gpui::AnyElement {
     let color = match status {
-        WorkspaceDot::Working => crate::chrome::working_color(cx),
-        WorkspaceDot::Attention(_) => crate::chrome::attention_color(cx),
+        WorkspaceDot::Working => crate::chrome::status_color(cx, false),
+        WorkspaceDot::Attention(_) => crate::chrome::status_color(cx, true),
     };
     div()
         .absolute()
@@ -103,7 +103,7 @@ impl XenonApp {
         div()
             .flex()
             .items_center()
-            .h(px(42.))
+            .h(px(34.))
             .border_b_1()
             .border_color(colors.border)
             .bg(colors.tab_bar_background)

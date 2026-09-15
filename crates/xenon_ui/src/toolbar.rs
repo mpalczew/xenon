@@ -20,7 +20,7 @@ impl XenonApp {
         div()
             .flex()
             .items_center()
-            .h(px(56.))
+            .h(px(44.))
             .px_2()
             .border_b_1()
             .border_color(colors.border)

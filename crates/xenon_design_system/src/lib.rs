@@ -8,8 +8,8 @@ use std::time::Duration;
 #[cfg(feature = "visual-tests")]
 use gpui::Global;
 use gpui::{
-    Animation, AnimationExt, App, Hsla, IntoElement, Styled, div, pulsating_between, px,
-    transparent_black,
+    Animation, AnimationExt, AnyElement, App, ElementId, Hsla, IntoElement, Styled, div,
+    pulsating_between, px, transparent_black,
 };
 use theme::ThemeColors;
 
@@ -65,14 +65,13 @@ pub fn tab_selection(colors: &ThemeColors, active: bool, focused: bool) -> Selec
     }
 }
 
-pub fn attention_color(cx: &App) -> Hsla {
+pub fn status_color(cx: &App, attention: bool) -> Hsla {
     use theme::ActiveTheme;
-    cx.theme().status().warning
-}
-
-pub fn working_color(cx: &App) -> Hsla {
-    use theme::ActiveTheme;
-    cx.theme().status().info
+    if attention {
+        cx.theme().status().warning
+    } else {
+        cx.theme().status().info
+    }
 }
 
 #[cfg(feature = "visual-tests")]
@@ -97,6 +96,25 @@ fn motion_frozen(cx: &App) -> bool {
         let _ = cx;
         false
     }
+}
+
+/// Fade content into an expanding shell section without delaying interaction.
+pub fn section_reveal(
+    element: impl IntoElement + Styled + 'static,
+    id: impl Into<ElementId>,
+    cx: &App,
+) -> AnyElement {
+    if motion_frozen(cx) {
+        return element.into_any_element();
+    }
+    element
+        .with_animation(
+            id,
+            Animation::new(Duration::from_millis(180))
+                .with_easing(|delta| delta * delta * (3. - 2. * delta)),
+            |this, delta| this.opacity(delta),
+        )
+        .into_any_element()
 }
 
 /// Six-pixel status pip. Working pulses; attention stays static.

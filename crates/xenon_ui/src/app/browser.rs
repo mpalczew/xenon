@@ -76,7 +76,7 @@ impl XenonApp {
             .flex_col()
             .min_w_0()
             .child(self.files_section_header(false, cx))
-            .child(
+            .child(xenon_design_system::section_reveal(
                 div()
                     .id("browser")
                     .flex_1()
@@ -88,7 +88,9 @@ impl XenonApp {
                             .enumerate()
                             .map(|(i, row)| self.tree_row(i, row, cx)),
                     ),
-            )
+                ("files-content", 0_u32),
+                cx,
+            ))
             .into_any_element()
     }
 

@@ -115,7 +115,11 @@ impl XenonApp {
                 .min_h_0()
                 .flex()
                 .flex_col()
-                .child(rows)
+                .child(xenon_design_system::section_reveal(
+                    rows,
+                    ("workspaces-content", ws_collapsed as u32),
+                    cx,
+                ))
                 .when(share_column, |s| {
                     s.child(crate::resize::row_resize_handle(
                         "sidebar-section-resize",

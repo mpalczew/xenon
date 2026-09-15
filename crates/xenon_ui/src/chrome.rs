@@ -3,6 +3,5 @@
 //! dependency so other Xenon surfaces can reuse the same vocabulary.
 
 pub(crate) use xenon_design_system::{
-    SelectionPaint, accent_surface, attention_color, list_selection, status_pip, tab_selection,
-    working_color,
+    SelectionPaint, accent_surface, list_selection, status_color, status_pip, tab_selection,
 };
