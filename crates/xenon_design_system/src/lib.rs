@@ -8,8 +8,8 @@ use std::time::Duration;
 #[cfg(feature = "visual-tests")]
 use gpui::Global;
 use gpui::{
-    Animation, AnimationExt, AnyElement, App, ElementId, Hsla, IntoElement, Styled, div,
-    pulsating_between, px, transparent_black,
+    Animation, AnimationExt, AnyElement, App, ElementId, Hsla, IntoElement, Styled, div, px,
+    transparent_black,
 };
 use theme::ThemeColors;
 
@@ -113,31 +113,24 @@ pub fn section_reveal(
             id,
             Animation::new(Duration::from_millis(180))
                 .with_easing(|delta| delta * delta * (3. - 2. * delta)),
-            move |this, delta| this.opacity(if opening { delta } else { 1. - delta }),
+            move |this, delta| {
+                let progress = if opening { delta } else { 1. - delta };
+                this.opacity(progress).pt(px(6. * (1. - progress)))
+            },
         )
         .into_any_element()
 }
 
 /// Six-pixel status pip. Working pulses; attention stays static.
 pub fn status_pip(color: Hsla, pulse: bool, cx: &App) -> impl IntoElement {
+    let _ = (pulse, cx);
     let pip = div()
         .w(px(6.))
         .h(px(6.))
         .rounded_full()
         .bg(color)
         .flex_none();
-    if pulse && !motion_frozen(cx) {
-        pip.with_animation(
-            "working-pulse",
-            Animation::new(Duration::from_millis(1400))
-                .repeat()
-                .with_easing(pulsating_between(0.35, 1.0)),
-            |this, delta| this.opacity(delta),
-        )
-        .into_any_element()
-    } else {
-        pip.into_any_element()
-    }
+    pip.into_any_element()
 }
 
 fn same_color(a: Hsla, b: Hsla) -> bool {

@@ -5,6 +5,8 @@ use gpui::{
     StatefulInteractiveElement, Styled, Window, anchored, deferred, div, point,
     prelude::FluentBuilder, px,
 };
+#[cfg(not(feature = "visual-tests"))]
+use gpui::{Animation, AnimationExt};
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
@@ -269,7 +271,7 @@ impl XenonApp {
         let group = format!("ws-{id}");
         let drop_line = colors.drop_target_border;
         let path_tip = SharedString::from(path.to_string());
-        div()
+        let row = div()
             .id(("ws-row", id_hash(id.to_string())))
             .group(group.clone())
             .relative()
@@ -314,8 +316,24 @@ impl XenonApp {
                 cx,
             ))
             .child(workspace_dirt_gutter(dirt, &group, &colors))
-            .child(self.workspace_hover_actions(id, &group, &colors, cx))
+            .child(self.workspace_hover_actions(id, &group, &colors, cx));
+        #[cfg(not(feature = "visual-tests"))]
+        if active {
+            row.with_animation(
+                ("workspace-edge", id_hash(id.to_string())),
+                Animation::new(std::time::Duration::from_millis(1400))
+                    .repeat()
+                    .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
+                move |this, delta| this.border_color(colors.text_accent.opacity(delta)),
+            )
             .into_any_element()
+        } else {
+            row.into_any_element()
+        }
+        #[cfg(feature = "visual-tests")]
+        {
+            row.into_any_element()
+        }
     }
 
     /// Thin drop strip under the last open workspace (keeps gap small).
