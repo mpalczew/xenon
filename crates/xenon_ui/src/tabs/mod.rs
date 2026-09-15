@@ -3,6 +3,8 @@
 pub(crate) mod menu;
 mod tooltips;
 
+#[cfg(not(feature = "visual-tests"))]
+use gpui::{Animation, AnimationExt};
 use gpui::{
     App, AppContext, Context, Focusable, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div,
@@ -30,19 +32,31 @@ fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
         .bg(paint.accent)
 }
 
-fn tab_status_rail(status: WorkspaceDot, cx: &App) -> gpui::AnyElement {
+fn tab_status_rail(status: WorkspaceDot, _selected: bool, cx: &App) -> gpui::AnyElement {
     let color = match status {
         WorkspaceDot::Working => crate::chrome::status_color(cx, false),
         WorkspaceDot::Attention(_) => crate::chrome::status_color(cx, true),
     };
-    div()
+    let rail = div()
         .absolute()
         .top_0()
         .left_0()
         .right_0()
         .h(px(2.))
-        .bg(color)
-        .into_any_element()
+        .bg(color);
+    #[cfg(not(feature = "visual-tests"))]
+    if matches!(status, WorkspaceDot::Working) && !_selected {
+        return rail
+            .with_animation(
+                "tab-working-rail",
+                Animation::new(std::time::Duration::from_millis(1400))
+                    .repeat()
+                    .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
+                move |this, delta| this.opacity(delta),
+            )
+            .into_any_element();
+    }
+    rail.into_any_element()
 }
 
 fn term_chip_paint(
@@ -359,8 +373,7 @@ impl XenonApp {
                     .truncate()
                     .child(display_title),
             )
-            .children(status.map(|dot| dot.pip(cx)))
-            .children(status.map(|dot| tab_status_rail(dot, cx)))
+            .children(status.map(|dot| tab_status_rail(dot, is_active, cx)))
             .child(tab_close(
                 SharedString::from(format!("tab-close-{}-{}", pane.0, index)),
                 &group,
@@ -385,7 +398,7 @@ impl XenonApp {
         path: &str,
         is_active: bool,
         is_focused: bool,
-        is_dirty: bool,
+        _is_dirty: bool,
         ws: Option<xenon_core::WorkspaceId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
@@ -450,7 +463,6 @@ impl XenonApp {
                     .truncate()
                     .child(name_owned),
             )
-            .children(is_dirty.then(|| chrome::status_pip(paint.foreground, false, cx)))
             .child(tab_close(
                 SharedString::from(format!("etab-close-{}-{}", pane.0, index)),
                 &group,
