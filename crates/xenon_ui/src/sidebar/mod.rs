@@ -26,6 +26,8 @@ struct WorkspaceRows {
     active: bool,
     /// Workspace status pip (`None` = quiet).
     status: Option<WorkspaceDot>,
+    working: usize,
+    waiting: usize,
 }
 
 struct WorkspaceHeader<'a> {
@@ -34,8 +36,19 @@ struct WorkspaceHeader<'a> {
     path: &'a str,
     active: bool,
     status: Option<WorkspaceDot>,
+    working: usize,
+    waiting: usize,
     /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
     dirt: Option<(String, String)>,
+}
+
+struct WorkspaceTitle<'a> {
+    id: WorkspaceId,
+    name: &'a str,
+    path: &'a str,
+    status: Option<WorkspaceDot>,
+    working: usize,
+    waiting: usize,
 }
 
 impl XenonApp {
@@ -46,12 +59,17 @@ impl XenonApp {
             .registry()
             .workspaces
             .iter()
-            .map(|w| WorkspaceRows {
-                id: w.id,
-                name: w.name.clone(),
-                path: w.root.display().to_string(),
-                active: active == Some(w.id),
-                status: self.workspace_status(w.id, cx),
+            .map(|w| {
+                let (working, waiting) = self.workspace_status_counts(w.id, cx);
+                WorkspaceRows {
+                    id: w.id,
+                    name: w.name.clone(),
+                    path: w.root.display().to_string(),
+                    active: active == Some(w.id),
+                    status: self.workspace_status(w.id, cx),
+                    working,
+                    waiting,
+                }
             })
             .collect();
 
@@ -71,6 +89,8 @@ impl XenonApp {
                             path: &workspace.path,
                             active: workspace.active,
                             status: workspace.status,
+                            working: workspace.working,
+                            waiting: workspace.waiting,
                             dirt,
                         },
                         cx,
@@ -129,7 +149,7 @@ impl XenonApp {
             .min_w_0()
             .border_r_1()
             .border_color(colors.border)
-            .bg(crate::chrome::sidebar_background(&colors))
+            .bg(colors.editor_background)
             .child(self.workspaces_section_header(ws_collapsed, cx))
             .children(workspace_body)
             .children(has_active.then(|| self.render_files_section(cx)))
@@ -264,6 +284,8 @@ impl XenonApp {
             path,
             active,
             status,
+            working,
+            waiting,
             dirt,
         } = header;
         if let Some(field) = self.rename_workspace_field(id) {
@@ -311,7 +333,17 @@ impl XenonApp {
                     this.reorder_workspace(dragged.0, id, cx)
                 }),
             )
-            .child(self.workspace_title_hit(id, name, status, cx))
+            .child(self.workspace_title_hit(
+                WorkspaceTitle {
+                    id,
+                    name,
+                    path,
+                    status,
+                    working,
+                    waiting,
+                },
+                cx,
+            ))
             .child(workspace_dirt_gutter(dirt, &group, &colors))
             .child(self.workspace_hover_actions(id, &group, &colors, cx))
             .into_any_element()
@@ -336,12 +368,18 @@ impl XenonApp {
 
     fn workspace_title_hit(
         &self,
-        id: WorkspaceId,
-        name: &str,
-        status: Option<WorkspaceDot>,
+        title: WorkspaceTitle<'_>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
+        let WorkspaceTitle {
+            id,
+            name,
+            path,
+            status,
+            working,
+            waiting,
+        } = title;
         let active = self.active_workspace() == Some(id);
         let attention_dot = status.map(|dot| {
             div()
@@ -352,8 +390,10 @@ impl XenonApp {
         div()
             .id(("ws-select", id_hash(id.to_string())))
             .flex()
-            .items_center()
-            .gap_1()
+            .flex_col()
+            .items_start()
+            .justify_center()
+            .gap_0()
             .min_w_0()
             .flex_1()
             .cursor_pointer()
@@ -363,15 +403,37 @@ impl XenonApp {
             }))
             .child(
                 div()
-                    .text_color(if active {
-                        colors.text_accent
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .w_full()
+                    .child(
+                        div()
+                            .text_color(if active {
+                                colors.text_accent
+                            } else {
+                                colors.text_muted
+                            })
+                            .child(icon(Icon::Folder, px(ICON_SM))),
+                    )
+                    .child(div().truncate().child(name.to_string()))
+                    .children(attention_dot),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .pl(px(20.))
+                    .text_xs()
+                    .text_color(if waiting > 0 {
+                        cx.theme().status().warning
+                    } else if working > 0 {
+                        cx.theme().status().info
                     } else {
                         colors.text_muted
                     })
-                    .child(icon(Icon::Folder, px(ICON_SM))),
+                    .truncate()
+                    .child(workspace_status_label(path, working, waiting)),
             )
-            .child(div().truncate().child(name.to_string()))
-            .children(attention_dot)
     }
 
     fn workspace_hover_actions(
@@ -386,7 +448,7 @@ impl XenonApp {
         let surface = if active {
             crate::chrome::accent_surface(colors.element_selected, colors.text_accent)
         } else {
-            crate::chrome::sidebar_background(colors)
+            colors.editor_background
         };
         // Fixed equal slots so pencil / x share the same center grid as the gutter.
         div()
@@ -422,6 +484,16 @@ impl XenonApp {
                 }),
             ))
     }
+}
+
+fn workspace_status_label(path: &str, working: usize, waiting: usize) -> String {
+    let state = match (working, waiting) {
+        (0, 0) => "quiet".to_string(),
+        (working, 0) => format!("{working} working"),
+        (0, waiting) => format!("{waiting} needs you"),
+        (working, waiting) => format!("{working} working · {waiting} needs you"),
+    };
+    format!("{state} · {path}")
 }
 
 pub(super) fn icon_button(

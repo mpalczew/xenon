@@ -25,7 +25,7 @@ impl XenonApp {
             #[cfg(feature = "visual-tests")]
             BootKind::Visual => {
                 app.skip_persist = true;
-                crate::chrome::freeze_motion(cx);
+                xenon_design_system::freeze_motion(cx);
                 drop(lsp_events);
             }
         }

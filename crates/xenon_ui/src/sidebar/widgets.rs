@@ -54,7 +54,7 @@ impl Render for PathTooltip {
     }
 }
 
-pub(super) const ROW_H: f32 = 24.;
+pub(super) const ROW_H: f32 = 38.;
 pub(super) const ICON_SM: f32 = 14.;
 pub(super) const ICON_MD: f32 = 15.;
 /// Square hit target for pencil / close on workspace rows.

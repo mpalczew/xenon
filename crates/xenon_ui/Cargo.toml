@@ -11,6 +11,7 @@ workspace = true
 default = []
 visual-tests = [
     "gpui/test-support",
+    "xenon_design_system/visual-tests",
     "xenon_terminal/visual-tests",
     "xenon_editor/visual-tests",
 ]
@@ -27,6 +28,7 @@ xenon_lsp.workspace = true
 xenon_remote.workspace = true
 xenon_settings.workspace = true
 xenon_memory.workspace = true
+xenon_design_system.workspace = true
 serde.workspace = true
 theme.workspace = true
 anyhow.workspace = true

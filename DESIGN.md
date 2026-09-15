@@ -7,6 +7,23 @@ Visual system for the Xenon agent shell. Complements
 
 Product UI. Familiar IDE bones; signature is multi-stream anti-IDE chrome.
 
+## Shared library
+
+Reusable chrome primitives live in `crates/xenon_design_system` and are consumed
+by `xenon_ui`. Its public vocabulary is `SelectionPaint`, `list_selection`,
+`tab_selection`, `accent_surface`, `status_pip`, and theme-semantic status
+colors. Feature composition remains in `xenon_ui`.
+
+The workspace rail uses a compact two-line row: workspace name and folder icon
+on line one; `working` / `needs you` aggregate plus truncated path on line two.
+Working uses the theme info token, attention uses the theme warning token, and
+quiet rows remain muted. This makes the active workspace and attention queue
+scannable without adding a third content column.
+
+Maintained preview: `visual-review/xenon-design-system.html` and
+`visual-review/xenon-mocks.html`. Native evidence is captured by
+`scripts/visual-tests`.
+
 ## Color strategy
 
 **Restrained.** Tinted neutrals from the active theme pack; one accent

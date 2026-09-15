@@ -10,7 +10,6 @@ use nucleo::{Config, Matcher};
 use theme::{ActiveTheme, Appearance, Theme, ThemeColors, ThemeRegistry};
 use xenon_store::ThemeMode;
 
-use crate::chrome;
 use crate::impl_palette_query_input;
 use crate::palette::{
     PaletteLayout, fuzzy_index_order, hint_row, input_registrar, optional_title, panel, query_row,
@@ -183,7 +182,7 @@ fn chrome_demo(colors: &ThemeColors) -> impl IntoElement + use<> {
                         .w(px(28.))
                         .flex_none()
                         .h_full()
-                        .bg(chrome::sidebar_background(colors))
+                        .bg(colors.editor_background)
                         .border_r_1()
                         .border_color(colors.border)
                         .child(

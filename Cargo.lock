@@ -9140,6 +9140,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon_design_system"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "theme",
+]
+
+[[package]]
 name = "xenon_editor"
 version = "0.1.0"
 dependencies = [
@@ -9315,6 +9323,7 @@ dependencies = [
  "theme",
  "trash 5.2.6",
  "xenon_core",
+ "xenon_design_system",
  "xenon_editor",
  "xenon_finder",
  "xenon_ide",

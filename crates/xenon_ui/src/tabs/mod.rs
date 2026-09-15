@@ -107,7 +107,7 @@ impl XenonApp {
             .border_b_1()
             .border_color(colors.border)
             .bg(chrome::accent_surface(
-                chrome::tab_bar_background(&colors),
+                colors.tab_bar_background,
                 colors.text_accent,
             ))
             .child(

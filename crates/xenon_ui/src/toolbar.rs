@@ -19,7 +19,11 @@ use crate::{
 const ICON: f32 = 16.;
 
 impl XenonApp {
-    fn workspace_status_counts(&self, id: xenon_core::WorkspaceId, cx: &App) -> (usize, usize) {
+    pub(crate) fn workspace_status_counts(
+        &self,
+        id: xenon_core::WorkspaceId,
+        cx: &App,
+    ) -> (usize, usize) {
         let Some(root) = self
             .contents
             .get(&id)
