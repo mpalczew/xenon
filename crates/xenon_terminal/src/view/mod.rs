@@ -76,11 +76,16 @@ impl Render for MouseChipTooltip {
     }
 }
 
-/// Allow Option-drag to select from a TUI without changing the persistent mouse
-/// policy. This gives users a terminal-like escape hatch when a TUI owns mouse
-/// reporting.
-fn inject_shift_for_host_drag(mouse_to_app: bool, reporting: bool, alt: bool) -> bool {
-    reporting && (!mouse_to_app || alt)
+/// Steal the mouse from TUI reporting so Zed treats the event as host input.
+/// Shift disables `mouse_mode`; Option-drag / Select text use that for selection,
+/// ⌘ uses it for hyperlink hover and ⌘-click to open.
+fn inject_shift_for_host_drag(
+    mouse_to_app: bool,
+    reporting: bool,
+    alt: bool,
+    command: bool,
+) -> bool {
+    reporting && (!mouse_to_app || alt || command)
 }
 
 enum State {
@@ -699,6 +704,16 @@ impl TerminalView {
         let terminal = terminal.clone();
         self.note_interaction(cx);
         let reporting = terminal.read(cx).mouse_mode(false);
+        let command = event.modifiers.secondary();
+        // ⌘-click must reach Zed's hyperlink handler. Inject shift so reporting
+        // is off, but still call mouse_down (the Select-text path never does).
+        if reporting && command && event.button == MouseButton::Left {
+            let mut e = event.clone();
+            e.modifiers.shift = true;
+            terminal.update(cx, |terminal, cx| terminal.mouse_down(&e, cx));
+            cx.notify();
+            return;
+        }
         // Host-select + mouse reporting: cannot use normal mouse_down (reports to
         // the TUI). Shift on simple-click only *extends* and never starts. So:
         // 1–2 clicks → word selection (public API); 3+ → line selection via
@@ -732,7 +747,12 @@ impl TerminalView {
         };
         let reporting = terminal.read(cx).mouse_mode(false);
         let mut event = event.clone();
-        if inject_shift_for_host_drag(self.mouse_to_app, reporting, event.modifiers.alt) {
+        if inject_shift_for_host_drag(
+            self.mouse_to_app,
+            reporting,
+            event.modifiers.alt,
+            event.modifiers.secondary(),
+        ) {
             event.modifiers.shift = true;
         }
         if event.pressed_button == Some(MouseButton::Left) {
@@ -767,7 +787,12 @@ impl TerminalView {
         if let State::Ready(terminal) = &self.state {
             let reporting = terminal.read(cx).mouse_mode(false);
             let mut event = event.clone();
-            if inject_shift_for_host_drag(self.mouse_to_app, reporting, event.modifiers.alt) {
+            if inject_shift_for_host_drag(
+                self.mouse_to_app,
+                reporting,
+                event.modifiers.alt,
+                event.modifiers.secondary(),
+            ) {
                 event.modifiers.shift = true;
             }
             terminal.update(cx, |terminal, cx| terminal.mouse_up(&event, cx));
@@ -825,7 +850,7 @@ impl TerminalView {
                 .bg(colors.elevated_surface_background)
                 .child(self.mouse_policy_option(
                     "Click in app",
-                    "Left-drag goes to the TUI (default when Grok/etc. want the mouse).",
+                    "Left-drag goes to the TUI (default when Grok/etc. want the mouse). ⌘-click still opens paths and URLs.",
                     to_app,
                     true,
                     &colors,
@@ -978,4 +1003,22 @@ fn build(
         Vec::new(),
         PathStyle::local(),
     )
+}
+
+#[cfg(test)]
+mod mouse_policy_tests {
+    use super::inject_shift_for_host_drag;
+
+    #[test]
+    fn cmd_steals_mouse_from_tui() {
+        // Click in app + ⌘: hover/click must not report to the program.
+        assert!(inject_shift_for_host_drag(true, true, false, true));
+        // Click in app, no modifier: TUI keeps the mouse.
+        assert!(!inject_shift_for_host_drag(true, true, false, false));
+        // Option-drag and Select text still steal.
+        assert!(inject_shift_for_host_drag(true, true, true, false));
+        assert!(inject_shift_for_host_drag(false, true, false, false));
+        // No mouse reporting: nothing to steal.
+        assert!(!inject_shift_for_host_drag(true, false, false, true));
+    }
 }

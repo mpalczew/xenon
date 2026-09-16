@@ -78,6 +78,11 @@ rediscover.
 - Git dirt stays flush-right; hover actions must occupy the same gutter.
 - A completed `project install` updates the app on disk, but a running process
   keeps the old binary. Never kill Xenon to force the switch.
+- TUI mouse reporting sends clicks to the PTY. ⌘-click open injects shift (so
+  reporting is off) and still calls Zed `mouse_down`; the Select-text word-select
+  path never does, and would swallow the hyperlink. ⌘ is open-path, not
+  momentary select mode. Option-drag / hover-chrome Select text stay the copy
+  hatch.
 - In this codebase, “browser” is the Files tree, not a web view.
 - GPUI (pinned Zed rev) has no webview primitive. The window is one Metal
   `NSView`. A native WKWebView / wry child view composites above the GPU

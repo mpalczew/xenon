@@ -25,7 +25,9 @@ surface and the non-obvious focus model.
 Find strips use ⌘F, Return/Shift-Return, ⌥C/W/R, and Escape. Elevated
 palettes support type-to-filter, arrows, Return, and Escape. ⌘P also takes
 ⌘↩ / ⌃↩ (or ⌘-click) to open the file in a new pane to the right. If that
-path is already open, focus the existing tab (paths stay unique).
+path is already open, focus the existing tab (paths stay unique). Terminal
+⌘-click opens a path or URL even while a TUI has mouse reporting; Option-drag
+(or hover-chrome Select text) copies. Do not bind hold-⌘ to select mode.
 
 The sidebar Workspaces `+` opens a two-item menu. Arrow keys and Return choose
 New workspace or Open workspace; New workspace accepts the directory name first,
