@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+  <rect width="960" height="420" fill="#090b10"/>
+  <text x="32" y="36" fill="#edf5ff" font-family="ui-sans-serif, system-ui, -apple-system" font-size="18" font-weight="700">Copy Clean glyph options</text>
+  <text x="32" y="56" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="12">16px as shipped, 32px beside it. Lucide 1.23.0.</text>
+
+  <!-- A -->
+  <g transform="translate(32,80)">
+    <rect width="292" height="150" rx="13" fill="#151b25" stroke="#57e6ff"/>
+    <text x="16" y="28" fill="#edf5ff" font-family="ui-sans-serif, system-ui" font-size="14" font-weight="700">A · CopyMinus</text>
+    <text x="16" y="48" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="11">recommended · subtract chrome</text>
+    <rect x="16" y="64" width="260" height="64" rx="8" fill="#14161c"/>
+    <g fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(36,80) scale(0.6667)">
+        <line x1="12" x2="18" y1="15" y2="15"/>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+      <g transform="translate(80,72) scale(1.333)">
+        <line x1="12" x2="18" y1="15" y2="15"/>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+    </g>
+    <text x="16" y="144" fill="#57e6ff" font-family="ui-monospace, Menlo" font-size="11">Icon::CopyMinus</text>
+  </g>
+
+  <!-- B -->
+  <g transform="translate(334,80)">
+    <rect width="292" height="150" rx="13" fill="#151b25" stroke="#2a3849"/>
+    <text x="16" y="28" fill="#edf5ff" font-family="ui-sans-serif, system-ui" font-size="14" font-weight="700">B · CopySlash</text>
+    <text x="16" y="48" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="11">copy without · reads forbidden</text>
+    <rect x="16" y="64" width="260" height="64" rx="8" fill="#14161c"/>
+    <g fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(36,80) scale(0.6667)">
+        <line x1="12" x2="18" y1="18" y2="12"/>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+      <g transform="translate(80,72) scale(1.333)">
+        <line x1="12" x2="18" y1="18" y2="12"/>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+    </g>
+    <text x="16" y="144" fill="#57e6ff" font-family="ui-monospace, Menlo" font-size="11">Icon::CopySlash</text>
+  </g>
+
+  <!-- C -->
+  <g transform="translate(636,80)">
+    <rect width="292" height="150" rx="13" fill="#151b25" stroke="#2a3849"/>
+    <text x="16" y="28" fill="#edf5ff" font-family="ui-sans-serif, system-ui" font-size="14" font-weight="700">C · CopyCheck</text>
+    <text x="16" y="48" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="11">reads as success, not strip</text>
+    <rect x="16" y="64" width="260" height="64" rx="8" fill="#14161c"/>
+    <g fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(36,80) scale(0.6667)">
+        <path d="m12 15 2 2 4-4"/>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+      <g transform="translate(80,72) scale(1.333)">
+        <path d="m12 15 2 2 4-4"/>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+    </g>
+    <text x="16" y="144" fill="#57e6ff" font-family="ui-monospace, Menlo" font-size="11">Icon::CopyCheck</text>
+  </g>
+
+  <!-- D -->
+  <g transform="translate(32,246)">
+    <rect width="292" height="150" rx="13" fill="#151b25" stroke="#2a3849"/>
+    <text x="16" y="28" fill="#edf5ff" font-family="ui-sans-serif, system-ui" font-size="14" font-weight="700">D · BrushCleaning</text>
+    <text x="16" y="48" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="11">literal clean · loses copy family</text>
+    <rect x="16" y="64" width="260" height="64" rx="8" fill="#14161c"/>
+    <g fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(36,80) scale(0.6667)">
+        <path d="m16 22-1-4"/>
+        <path d="M19 13.99a1 1 0 0 0 1-1V12a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2v.99a1 1 0 0 0 1 1"/>
+        <path d="M5 14h14l1.973 6.767A1 1 0 0 1 20 22H4a1 1 0 0 1-.973-1.233z"/>
+        <path d="m8 22 1-4"/>
+      </g>
+      <g transform="translate(80,72) scale(1.333)">
+        <path d="m16 22-1-4"/>
+        <path d="M19 13.99a1 1 0 0 0 1-1V12a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2v.99a1 1 0 0 0 1 1"/>
+        <path d="M5 14h14l1.973 6.767A1 1 0 0 1 20 22H4a1 1 0 0 1-.973-1.233z"/>
+        <path d="m8 22 1-4"/>
+      </g>
+    </g>
+    <text x="16" y="144" fill="#57e6ff" font-family="ui-monospace, Menlo" font-size="11">Icon::BrushCleaning</text>
+  </g>
+
+  <!-- E -->
+  <g transform="translate(334,246)">
+    <rect width="292" height="150" rx="13" fill="#151b25" stroke="#2a3849"/>
+    <text x="16" y="28" fill="#edf5ff" font-family="ui-sans-serif, system-ui" font-size="14" font-weight="700">E · Eraser</text>
+    <text x="16" y="48" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="11">strip / wipe · reads as delete</text>
+    <rect x="16" y="64" width="260" height="64" rx="8" fill="#14161c"/>
+    <g fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(36,80) scale(0.6667)">
+        <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+        <path d="M22 21H7"/>
+        <path d="m5 11 9 9"/>
+      </g>
+      <g transform="translate(80,72) scale(1.333)">
+        <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+        <path d="M22 21H7"/>
+        <path d="m5 11 9 9"/>
+      </g>
+    </g>
+    <text x="16" y="144" fill="#57e6ff" font-family="ui-monospace, Menlo" font-size="11">Icon::Eraser</text>
+  </g>
+
+  <!-- now -->
+  <g transform="translate(636,246)">
+    <rect width="292" height="150" rx="13" fill="#151b25" stroke="#2a3849"/>
+    <text x="16" y="28" fill="#edf5ff" font-family="ui-sans-serif, system-ui" font-size="14" font-weight="700">Now · Copy</text>
+    <text x="16" y="48" fill="#8fa0b6" font-family="ui-sans-serif, system-ui" font-size="11">baseline · identical to Copy</text>
+    <rect x="16" y="64" width="260" height="64" rx="8" fill="#14161c"/>
+    <g fill="none" stroke="#9aa3b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(36,80) scale(0.6667)">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+      <g transform="translate(80,72) scale(1.333)">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </g>
+    </g>
+    <text x="16" y="144" fill="#57e6ff" font-family="ui-monospace, Menlo" font-size="11">Icon::Copy</text>
+  </g>
+</svg>

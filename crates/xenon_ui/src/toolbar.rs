@@ -278,7 +278,7 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-copy-clean",
-                    glyph: Icon::Copy,
+                    glyph: Icon::CopyCheck,
                     label: "Copy Clean · ⌘⇧C",
                     active: false,
                     muted: false,
