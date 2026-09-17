@@ -11,7 +11,7 @@
       "label": "install",
       "type": "shell",
       "command": "scripts/release/install",
-      "detail": "bundle and copy Xenon.app into ~/Applications"
+      "detail": "bundle Xenon.app into ~/Applications and install ~/bin/xenon"
     }
   ]
 }

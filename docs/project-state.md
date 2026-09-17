@@ -26,8 +26,8 @@ rediscover.
   (`~/.xenon-skill.json`), not per-slot `settings.json`. PTYs inject
   `XENON_DATA_DIR` so open targets this instance. Dogfood (both A/B live):
   `which xenon` is still `~/bin/xenon`; A/B routing is that env plus the
-  launcher’s `open` handler, not PATH to the app binary. The launcher is not
-  in this repo.
+  launcher’s `open` handler (`scripts/xenon`, copied to `~/bin/xenon` by
+  `scripts/release/install`).
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` /
   `.pdf` hand off to the system default app. Markdown preview stays a GPUI
   document. Agent computer-use stays in the harness (Playwright, Chrome,

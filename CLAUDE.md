@@ -31,8 +31,9 @@ and `CONTRIBUTING.md`.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
   release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`),
-  **stable-codesigns** it, and copies it to `~/Applications/Xenon.app` (override
-  with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`). Not `/Applications`:
+  **stable-codesigns** it, copies it to `~/Applications/Xenon.app` (override
+  with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`), and installs
+  `scripts/xenon` to `~/bin/xenon` (`XENON_BIN_DIR` to override). Not `/Applications`:
   reinstalling there from a shell hosted by the app triggers macOS App
   Management TCC every time. `scripts/release/bundle` stops before copying.
   Signing identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY`

@@ -90,9 +90,10 @@ open ~/Applications/Xenon.app
 ```
 
 That release-builds `xenon`, assembles `Xenon.app`, **stable-codesigns** it
-(so TCC grants like Full Disk Access survive reinstalls), and copies it to
+(so TCC grants like Full Disk Access survive reinstalls), copies it to
 `~/Applications` (not `/Applications`—reinstalling there from a shell hosted
-by the app trips macOS App Management prompts).
+by the app trips macOS App Management prompts), and installs the slot
+launcher to `~/bin/xenon` (`XENON_BIN_DIR` to override).
 
 Override install location:
 

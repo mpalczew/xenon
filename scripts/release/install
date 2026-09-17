@@ -18,3 +18,10 @@ codesign --force --deep --sign "$identity" "$dest" || {
     exit 1
 }
 echo "installed $dest (signed: $identity)"
+
+bin_dir="${XENON_BIN_DIR:-$HOME/bin}"
+mkdir -p "$bin_dir"
+cp "$root/scripts/xenon" "$bin_dir/xenon"
+chmod +x "$bin_dir/xenon"
+ln -sfn xenon "$bin_dir/xero"
+echo "installed $bin_dir/xenon"
