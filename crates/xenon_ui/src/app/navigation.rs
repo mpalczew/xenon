@@ -300,18 +300,20 @@ impl XenonApp {
         }
     }
 
-    pub(super) fn clipboard_copy_clean(&self, window: &Window, cx: &mut Context<Self>) {
+    pub(super) fn clipboard_copy_clean(&self, window: &mut Window, cx: &mut Context<Self>) {
         match self.focused_pane(window, cx) {
             Some(FocusPane::Editor) => self.clipboard_copy(window, cx),
             Some(FocusPane::Terminal) => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
-                        terminal.copy_clean_selection(cx);
+                        terminal.copy_clean_selection(window, cx);
                         cx.notify();
                     });
+                } else {
+                    window.play_system_bell();
                 }
             }
-            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+            Some(FocusPane::Browser | FocusPane::Shell) | None => window.play_system_bell(),
         }
     }
 

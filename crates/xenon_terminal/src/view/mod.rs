@@ -79,13 +79,16 @@ impl Render for MouseChipTooltip {
 /// Steal the mouse from TUI reporting so Zed treats the event as host input.
 /// Shift disables `mouse_mode`; Option-drag / Select text use that for selection,
 /// ⌘ uses it for hyperlink hover and ⌘-click to open.
+/// `host_drag` stays true from host-select mouse-down until the button is
+/// released, so releasing Option mid-drag does not hand the mouse back to the TUI.
 fn inject_shift_for_host_drag(
     mouse_to_app: bool,
     reporting: bool,
     alt: bool,
     command: bool,
+    host_drag: bool,
 ) -> bool {
-    reporting && (!mouse_to_app || alt || command)
+    reporting && (host_drag || !mouse_to_app || alt || command)
 }
 
 enum State {
@@ -152,6 +155,9 @@ pub struct TerminalView {
     /// When the TUI enables mouse reporting: true = pass mouse to the app
     /// (default), false = host text selection. Toggled from hover chrome.
     mouse_to_app: bool,
+    /// Host-select gesture in progress (Option-drag or Select text). Sticky
+    /// until the left button is released, even if Option is released.
+    host_select_drag: bool,
     /// Top hover chrome is open (thin hit zone expands into the full bar).
     chrome_hovered: bool,
     /// cmd-f find bar (scrollback search via alacritty RegexSearch).
@@ -208,6 +214,7 @@ impl TerminalView {
             menu_path: None,
             hovered_link: None,
             mouse_to_app: true,
+            host_select_drag: false,
             chrome_hovered: false,
             find: None,
             _find_task: Task::ready(()),
@@ -602,12 +609,29 @@ impl TerminalView {
         }
     }
 
-    pub fn copy_clean_selection(&self, cx: &mut Context<Self>) {
-        if let State::Ready(terminal) = &self.state
-            && let Some(text) = terminal.read(cx).last_content().selection_text.clone()
-        {
-            cx.write_to_clipboard(ClipboardItem::new_string(clean_agent_output(&text)));
-        }
+    pub fn copy_clean_selection(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self
+            .live_selection_text(window, cx)
+            .or_else(|| clipboard_plain_text(cx));
+        let Some(text) = text.filter(|text| !text.trim().is_empty()) else {
+            window.play_system_bell();
+            return;
+        };
+        cx.write_to_clipboard(ClipboardItem::new_string(clean_agent_output(&text)));
+    }
+
+    fn live_selection_text(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<String> {
+        let State::Ready(terminal) = &self.state else {
+            return None;
+        };
+        let terminal = terminal.clone();
+        terminal.update(cx, |terminal, cx| terminal.sync(window, cx));
+        terminal
+            .read(cx)
+            .last_content()
+            .selection_text
+            .clone()
+            .filter(|text| !text.is_empty())
     }
 
     pub fn copy_code_selection(&self, cx: &mut Context<Self>) {
@@ -720,6 +744,7 @@ impl TerminalView {
         // shift inject (Lines is not the "extend only" path).
         let host_select = reporting && (!self.mouse_to_app || event.modifiers.alt);
         if host_select && event.button == MouseButton::Left {
+            self.host_select_drag = true;
             terminal.update(cx, |terminal, cx| match event.click_count {
                 0 => {}
                 1 | 2 => terminal.select_word_at_event_position(event),
@@ -732,6 +757,7 @@ impl TerminalView {
             cx.notify();
             return;
         }
+        self.host_select_drag = false;
         terminal.update(cx, |terminal, cx| terminal.mouse_down(event, cx));
         cx.notify();
     }
@@ -742,6 +768,9 @@ impl TerminalView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if event.pressed_button != Some(MouseButton::Left) {
+            self.host_select_drag = false;
+        }
         let State::Ready(terminal) = &self.state else {
             return;
         };
@@ -752,6 +781,7 @@ impl TerminalView {
             reporting,
             event.modifiers.alt,
             event.modifiers.secondary(),
+            self.host_select_drag,
         ) {
             event.modifiers.shift = true;
         }
@@ -783,7 +813,8 @@ impl TerminalView {
             });
     }
 
-    fn on_mouse_up(&mut self, event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_up(&mut self, event: &MouseUpEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let copy_host = self.host_select_drag && event.button == MouseButton::Left;
         if let State::Ready(terminal) = &self.state {
             let reporting = terminal.read(cx).mouse_mode(false);
             let mut event = event.clone();
@@ -792,12 +823,30 @@ impl TerminalView {
                 reporting,
                 event.modifiers.alt,
                 event.modifiers.secondary(),
+                self.host_select_drag,
             ) {
                 event.modifiers.shift = true;
             }
-            terminal.update(cx, |terminal, cx| terminal.mouse_up(&event, cx));
+            let terminal = terminal.clone();
+            terminal.update(cx, |terminal, cx| {
+                terminal.mouse_up(&event, cx);
+                if copy_host {
+                    terminal.sync(window, cx);
+                }
+            });
+            if copy_host
+                && let Some(text) = terminal
+                    .read(cx)
+                    .last_content()
+                    .selection_text
+                    .clone()
+                    .filter(|text| !text.is_empty())
+            {
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+            }
             cx.notify();
         }
+        self.host_select_drag = false;
     }
 
     /// Hover-only top chrome. Thin hit zone by default; expands into one bar with
@@ -975,6 +1024,12 @@ impl TerminalView {
     }
 }
 
+fn clipboard_plain_text(cx: &App) -> Option<String> {
+    cx.read_from_clipboard()?
+        .text()
+        .filter(|text| !text.is_empty())
+}
+
 fn build(
     working_dir: Option<PathBuf>,
     env: Vec<(String, String)>,
@@ -1012,13 +1067,16 @@ mod mouse_policy_tests {
     #[test]
     fn cmd_steals_mouse_from_tui() {
         // Click in app + ⌘: hover/click must not report to the program.
-        assert!(inject_shift_for_host_drag(true, true, false, true));
+        assert!(inject_shift_for_host_drag(true, true, false, true, false));
         // Click in app, no modifier: TUI keeps the mouse.
-        assert!(!inject_shift_for_host_drag(true, true, false, false));
+        assert!(!inject_shift_for_host_drag(true, true, false, false, false));
         // Option-drag and Select text still steal.
-        assert!(inject_shift_for_host_drag(true, true, true, false));
-        assert!(inject_shift_for_host_drag(false, true, false, false));
+        assert!(inject_shift_for_host_drag(true, true, true, false, false));
+        assert!(inject_shift_for_host_drag(false, true, false, false, false));
         // No mouse reporting: nothing to steal.
-        assert!(!inject_shift_for_host_drag(true, false, false, true));
+        assert!(!inject_shift_for_host_drag(true, false, false, true, false));
+        // Option released mid-drag: keep stealing until mouse-up.
+        assert!(inject_shift_for_host_drag(true, true, false, false, true));
+        assert!(!inject_shift_for_host_drag(true, false, false, false, true));
     }
 }

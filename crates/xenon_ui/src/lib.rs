@@ -126,6 +126,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-s", SaveAs, None),
         KeyBinding::new("cmd-x", Cut, None),
         KeyBinding::new("cmd-c", Copy, None),
+        KeyBinding::new("cmd-shift-c", CopyClean, None),
         KeyBinding::new("cmd-v", Paste, None),
         KeyBinding::new("cmd-a", SelectAll, Some("Editor")),
         // In-buffer find (editor context; also works when find bar focused)

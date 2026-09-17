@@ -23,10 +23,12 @@ impl Render for TerminalView {
                 this.copy_selection(cx);
                 cx.notify();
             }))
-            .on_action(cx.listener(|this, _: &xenon_settings::CopyClean, _, cx| {
-                this.copy_clean_selection(cx);
-                cx.notify();
-            }))
+            .on_action(
+                cx.listener(|this, _: &xenon_settings::CopyClean, window, cx| {
+                    this.copy_clean_selection(window, cx);
+                    cx.notify();
+                }),
+            )
             .on_action(cx.listener(|this, _: &xenon_settings::CopyCode, _, cx| {
                 this.copy_code_selection(cx);
                 cx.notify();
@@ -187,12 +189,12 @@ impl TerminalView {
                 )),
             )
             .child(
-                context_item("menu-copy-clean", "Copy Clean", "", &colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.copy_clean_selection(cx);
+                context_item("menu-copy-clean", "Copy Clean", "⌘⇧C", &colors).on_click(
+                    cx.listener(|this, _, window, cx| {
+                        this.copy_clean_selection(window, cx);
                         this.dismiss_menu(cx);
-                    },
-                )),
+                    }),
+                ),
             )
             .child(
                 context_item("menu-copy-code", "Copy Code", "", &colors).on_click(cx.listener(

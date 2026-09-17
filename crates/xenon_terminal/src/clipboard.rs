@@ -12,31 +12,18 @@ pub(crate) fn clean_agent_output(text: &str) -> String {
         .lines()
         .map(|line| line.trim_end().to_string())
         .collect();
-    let content_lines: Vec<&str> = lines
+    let content: Vec<&str> = lines
         .iter()
         .map(String::as_str)
         .filter(|line| !line.trim().is_empty())
         .collect();
-    let quote_block = !content_lines.is_empty()
-        && content_lines.iter().all(|line| {
+    let quote_block = !content.is_empty()
+        && content.iter().all(|line| {
             let line = line.trim_start();
             line == ">" || line.starts_with("> ")
         });
-    let tui_block = content_lines.len() >= 2
-        && content_lines
-            .iter()
-            .filter(|line| {
-                matches!(
-                    line.trim_start().chars().next(),
-                    Some('│' | '┃' | '║' | '|')
-                )
-            })
-            .count()
-            * 2
-            >= content_lines.len();
-
-    for line in &mut lines {
-        if quote_block {
+    if quote_block {
+        for line in &mut lines {
             let trimmed = line.trim_start();
             *line = trimmed
                 .strip_prefix("> ")
@@ -44,19 +31,15 @@ pub(crate) fn clean_agent_output(text: &str) -> String {
                 .unwrap_or(trimmed)
                 .to_string();
         }
-        if tui_block {
-            let trimmed = line.trim_start();
-            if let Some(border) = trimmed
-                .chars()
-                .next()
-                .filter(|c| matches!(c, '│' | '┃' | '║' | '|'))
-            {
-                *line = trimmed[border.len_utf8()..].trim_start().to_string();
-            }
-        }
-        *line = strip_status_suffix(line);
     }
-
+    let cleaned: Vec<(String, bool)> = lines
+        .iter()
+        .map(|line| {
+            let (text, wrapped) = strip_box_gutters(line);
+            (strip_status_suffix(&text), wrapped)
+        })
+        .collect();
+    let mut lines = unwrap_box_lines(cleaned);
     while lines.first().is_some_and(|line| line.is_empty()) {
         lines.remove(0);
     }
@@ -98,6 +81,55 @@ pub(crate) fn extract_code(text: &str) -> String {
     } else {
         blocks.join("\n\n")
     }
+}
+
+/// Strip one leading/trailing box-drawing gutter. `true` means the line filled
+/// the TUI box (trailing border after padding) and the next line may wrap.
+fn strip_box_gutters(line: &str) -> (String, bool) {
+    let is_border = |ch: char| matches!(ch, '│' | '┃' | '║');
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return (String::new(), false);
+    }
+    if trimmed.chars().all(is_border) {
+        return (String::new(), false);
+    }
+
+    let mut s = line;
+    if let Some(ch) = s.trim_start().chars().next().filter(|c| is_border(*c)) {
+        s = s.trim_start()[ch.len_utf8()..].trim_start();
+    }
+    let s = s.trim_end();
+    let Some(ch) = s.chars().last().filter(|c| is_border(*c)) else {
+        return (s.to_string(), false);
+    };
+    let without = &s[..s.len() - ch.len_utf8()];
+    let wrapped = without.ends_with("  ");
+    (without.trim().to_string(), wrapped)
+}
+
+fn unwrap_box_lines(lines: Vec<(String, bool)>) -> Vec<String> {
+    let mut out: Vec<(String, bool)> = Vec::new();
+    for (text, wrapped) in lines {
+        if text.is_empty() {
+            if let Some(prev) = out.last_mut() {
+                prev.1 = false;
+            }
+            out.push((text, false));
+            continue;
+        }
+        if let Some(prev) = out.last_mut()
+            && prev.1
+            && !prev.0.is_empty()
+        {
+            prev.0.push(' ');
+            prev.0.push_str(&text);
+            prev.1 = wrapped;
+            continue;
+        }
+        out.push((text, wrapped));
+    }
+    out.into_iter().map(|(text, _)| text).collect()
 }
 
 fn strip_terminal_control_sequences(text: &str) -> String {
@@ -294,6 +326,25 @@ mod tests {
         assert_eq!(
             clean_agent_output("\u{1b}[31mred\u{1b}[0m and more"),
             "red and more"
+        );
+        let dirty = "  Keep this for the “more” bias:                                      │\n\
+│\n\
+│ Be thorough. Reuse what still applies.                             │\n\
+│\n\
+Replace the exploration line with this:                             │\n\
+│\n\
+│ A stated need is not an implementation request. make the change             │\n\
+│ when asked.";
+        assert_eq!(
+            clean_agent_output(dirty),
+            "Keep this for the “more” bias:\n\n\
+Be thorough. Reuse what still applies.\n\n\
+Replace the exploration line with this:\n\n\
+A stated need is not an implementation request. make the change when asked."
+        );
+        assert_eq!(
+            clean_agent_output("| a | b |\n| 1 | 2 |"),
+            "| a | b |\n| 1 | 2 |"
         );
     }
 

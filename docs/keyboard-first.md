@@ -18,6 +18,7 @@ surface and the non-obvious focus model.
 | Tab next / previous / close | ⌃⇥ / ⌃⇧⇥ / ⌘W (this leaf only) |
 | Navigation back / forward | ⌘[ / ⌘] |
 | Find next / previous | ⌘G / ⌘⇧G |
+| Copy Clean | ⌘⇧C |
 | Markdown preview | ⌘⇧V |
 | Themes | ⌘⌥T |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
@@ -27,7 +28,9 @@ palettes support type-to-filter, arrows, Return, and Escape. ⌘P also takes
 ⌘↩ / ⌃↩ (or ⌘-click) to open the file in a new pane to the right. If that
 path is already open, focus the existing tab (paths stay unique). Terminal
 ⌘-click opens a path or URL even while a TUI has mouse reporting; Option-drag
-(or hover-chrome Select text) copies. Do not bind hold-⌘ to select mode.
+(or hover-chrome Select text) selects and copies. Copy Clean (⌘⇧C) strips TUI
+chrome from the selection, or from the clipboard if the selection is gone.
+Do not bind hold-⌘ to select mode.
 
 The sidebar Workspaces `+` opens a two-item menu. Arrow keys and Return choose
 New workspace or Open workspace; New workspace accepts the directory name first,
