@@ -90,6 +90,9 @@ impl XenonApp {
             } else {
                 self.focus_after_teardown(Some(window), cx);
             }
+        } else if self.skill_prompt.is_some() {
+            self.deferred.pending_focus = None;
+            self.focus_skill_prompt(window, cx);
         } else if let Some(pane) = self.deferred.pending_focus.take() {
             self.focus_pane(pane, window, cx);
         }

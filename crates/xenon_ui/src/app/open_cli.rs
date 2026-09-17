@@ -35,7 +35,8 @@ impl XenonApp {
 
     fn open_spec_in_focused(&mut self, spec: &OpenFileSpec, cx: &mut Context<Self>) {
         let at = spec_cursor(spec);
-        if let Err(error) = self.open_editor_at(spec.path.clone(), false, at, cx) {
+        let focus = takes_editor_focus(spec.pane);
+        if let Err(error) = self.open_editor_at(spec.path.clone(), focus, at, cx) {
             log::error!("open failed: {error}");
             return;
         }
@@ -168,6 +169,11 @@ impl XenonApp {
     }
 }
 
+/// `--pane focused` is the one policy that should take GPUI focus.
+pub(super) fn takes_editor_focus(pane: OpenPane) -> bool {
+    matches!(pane, OpenPane::Focused)
+}
+
 fn spec_cursor(spec: &OpenFileSpec) -> Option<(u32, u32)> {
     spec.line.map(|line| {
         (
@@ -208,4 +214,16 @@ fn apply_range_to_view(
     view.update(cx, |editor, cx| {
         editor.set_selection_range(start, (end_row, end_col), cx);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_focused_pane_steals_editor_focus() {
+        assert!(takes_editor_focus(OpenPane::Focused));
+        assert!(!takes_editor_focus(OpenPane::Sibling));
+        assert!(!takes_editor_focus(OpenPane::SplitRight));
+    }
 }
