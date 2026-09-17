@@ -133,6 +133,22 @@ pub(super) fn settings_window(app: &mut XenonApp, cx: &mut Context<XenonApp>) {
     app.open_settings_window_now(cx);
 }
 
+pub(super) fn settings_agents_installed(app: &mut XenonApp, cx: &mut Context<XenonApp>) {
+    let _ = xenon_store::install_skill();
+    app.open_settings_window_now(cx);
+}
+
+pub(super) fn skill_prompt(
+    app: &mut XenonApp,
+    scene: super::Scene,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+) {
+    super::theme_for(scene, cx);
+    populate(app, window, cx);
+    app.show_skill_prompt(cx);
+}
+
 fn focused_tab(app: &XenonApp) -> Option<(PaneId, xenon_core::TabId)> {
     let content = app.active_content()?;
     let leaf = content.focused_leaf()?;

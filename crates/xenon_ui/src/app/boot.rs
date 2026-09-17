@@ -21,6 +21,9 @@ impl XenonApp {
                 app.start_memory_monitor(cx);
                 app.start_lsp_events(lsp_events, cx);
                 app.restart_git_dirt_watch(cx);
+                if let Err(error) = xenon_store::refresh_on_launch() {
+                    log::warn!("skill refresh: {error}");
+                }
             }
             #[cfg(feature = "visual-tests")]
             BootKind::Visual => {
@@ -106,6 +109,8 @@ impl XenonApp {
             memory_history: Vec::new(),
             memory_task: None,
             skip_persist: false,
+            skill_prompt: None,
+            skill_skipped_session: false,
         }
     }
 }

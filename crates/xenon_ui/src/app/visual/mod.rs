@@ -57,6 +57,9 @@ pub enum Scene {
     SettingsDropdown,
     TabTooltip,
     SettingsWindow,
+    SkillPromptDark,
+    SkillPromptLight,
+    SettingsAgentsInstalled,
 }
 
 pub const SCENES: &[Scene] = &[
@@ -105,6 +108,9 @@ pub const SCENES: &[Scene] = &[
     Scene::SettingsDropdown,
     Scene::TabTooltip,
     Scene::SettingsWindow,
+    Scene::SkillPromptDark,
+    Scene::SkillPromptLight,
+    Scene::SettingsAgentsInstalled,
 ];
 
 const REMOTE_SURFACES: &[&str] = &["remote_auth", "remote_session"];
@@ -163,6 +169,9 @@ impl Scene {
             Self::SettingsDropdown => "overlay_settings_dropdown",
             Self::TabTooltip => "overlay_tab_tooltip",
             Self::SettingsWindow => "settings_window",
+            Self::SkillPromptDark => "overlay_skill_prompt_dark",
+            Self::SkillPromptLight => "overlay_skill_prompt_light",
+            Self::SettingsAgentsInstalled => "settings_agents_installed",
         }
     }
 
@@ -231,6 +240,10 @@ pub fn apply_scene(
         Scene::SettingsDropdown => overlays::settings_dropdown(app, window, cx),
         Scene::TabTooltip => overlays::tab_tooltip(app, window, cx),
         Scene::SettingsWindow => overlays::settings_window(app, cx),
+        Scene::SkillPromptDark | Scene::SkillPromptLight => {
+            overlays::skill_prompt(app, scene, window, cx)
+        }
+        Scene::SettingsAgentsInstalled => overlays::settings_agents_installed(app, cx),
     }
 }
 
@@ -257,7 +270,10 @@ fn set_theme(mode: ThemeMode, dark: &str, light: &str, cx: &mut Context<XenonApp
 
 fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
     match scene {
-        Scene::EmptyNoWorkspaceLight | Scene::EmptyWithWorkspaceLight | Scene::PopulatedLight => {
+        Scene::EmptyNoWorkspaceLight
+        | Scene::EmptyWithWorkspaceLight
+        | Scene::PopulatedLight
+        | Scene::SkillPromptLight => {
             set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
         }
         Scene::EmptyNoWorkspaceTrueBlack

@@ -34,5 +34,5 @@ mod view;
 
 pub use init::{apply_theme, init, observe_appearance, refresh_windows, theme_names};
 pub use terminal;
-pub use view::{Find, FindNext, FindPrevious, TerminalEvent, TerminalView};
+pub use view::{Find, FindNext, FindPrevious, TerminalEvent, TerminalView, agent_title};
 pub use viewport::viewport_lines;

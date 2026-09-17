@@ -29,7 +29,7 @@ impl XenonApp {
     }
 
     /// Longest registry root (open or closed) that is a prefix of `path`.
-    fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
+    pub(super) fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
         let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let mut best: Option<(usize, WorkspaceId)> = None;
         for rec in self
@@ -49,7 +49,7 @@ impl XenonApp {
         best.map(|(_, id)| id)
     }
 
-    fn focus_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+    pub(super) fn focus_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
         if self.registry.workspace(id).is_some() {
             self.activate_workspace(id, cx);
             return;

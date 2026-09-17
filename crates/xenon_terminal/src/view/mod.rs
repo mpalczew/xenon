@@ -11,6 +11,7 @@
 //! zed patterns stay easier to re-sync.
 
 mod attention;
+pub use attention::agent_title;
 mod find_bar;
 mod find_session;
 mod input;

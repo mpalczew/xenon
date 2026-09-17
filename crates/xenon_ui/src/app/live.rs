@@ -93,6 +93,26 @@ impl LiveNode {
         out
     }
 
+    /// Other leaf of the parent split that contains `id`.
+    pub(crate) fn sibling_of(&self, id: PaneId) -> Option<PaneId> {
+        match self {
+            Self::Leaf(_) => None,
+            Self::Split { first, second, .. } => {
+                if let Self::Leaf(leaf) = first.as_ref()
+                    && leaf.id == id
+                {
+                    return second.leaf_ids().first().copied();
+                }
+                if let Self::Leaf(leaf) = second.as_ref()
+                    && leaf.id == id
+                {
+                    return first.leaf_ids().first().copied();
+                }
+                first.sibling_of(id).or_else(|| second.sibling_of(id))
+            }
+        }
+    }
+
     pub(crate) fn find_leaf(&self, id: PaneId) -> Option<&LiveLeaf> {
         match self {
             Self::Leaf(leaf) if leaf.id == id => Some(leaf),

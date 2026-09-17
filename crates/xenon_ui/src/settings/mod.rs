@@ -5,6 +5,7 @@ mod line_edit;
 mod remote_edit;
 mod remote_section;
 mod sections;
+mod skill_section;
 
 use std::time::Duration;
 
@@ -25,6 +26,7 @@ use sections::{
     OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
     font_section, terminal_section,
 };
+use skill_section::skill_section;
 
 const CARET_BLINK: Duration = Duration::from_millis(530);
 
@@ -170,7 +172,7 @@ impl SettingsView {
                     cx.stop_propagation();
                 }
                 "down" => {
-                    self.toggle_focus = (self.toggle_focus + 1).min(2);
+                    self.toggle_focus = (self.toggle_focus + 1).min(3);
                     cx.notify();
                     cx.stop_propagation();
                 }
@@ -223,7 +225,8 @@ impl SettingsView {
                 xenon_settings::toggle_vim_mode(cx);
                 xenon_settings::save(cx);
             }
-            _ => remote_section::activate_mobile_remote(window, cx),
+            2 => remote_section::activate_mobile_remote(window, cx),
+            _ => skill_section::toggle_skill_from_keys(cx),
         }
         window.refresh();
         cx.notify();
@@ -267,6 +270,7 @@ impl SettingsView {
                 this.dismiss_dropdown(cx);
             }))
             .child(appearance_section(&settings, cx))
+            .child(skill_section(self.toggle_focus == 3, cx))
             .child(font_section(
                 "UI Font",
                 DropdownId::UiFamily,

@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xenon — agent skill (proposal)</title>
+<style>
+  :root {
+    --bg: #090b10;
+    --page: #dce0e5;
+    --muted: #a9afbc;
+    --faint: #878a98;
+    --line: #2a3140;
+    --accent: #74ade8;
+    --accent-text: #0b1016;
+    --tab-bar: #14161c;
+    --hover: #1a1a1a;
+    --selected: #2a3140;
+    --elevated: #1c1f26;
+    --panel: #14161c;
+    --canvas: #000000;
+    --text: #dce0e5;
+    --text-muted: #a9afbc;
+    --border: #464b57;
+    --border-variant: #363c46;
+    --warning: #dec184;
+    --ok: #73e6a3;
+    --info: #74ade8;
+    --focus: #47679e;
+    --sidebar: #14161c;
+    --row-active: #2a3140;
+    --term: #abb2bf;
+    --scrim: rgba(0, 0, 0, 0.55);
+    --dialog-bg: #1c1f26;
+    --shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+    --pip-glow: 0 0 0 3px rgba(116, 173, 232, 0.16);
+    --reveal-ms: 180ms;
+    --reveal-y: 6px;
+    --dialog-w: 420px;
+    --settings-w: 640px;
+    --settings-h: 480px;
+    color-scheme: dark;
+  }
+  html.theme-light {
+    --bg: #f8f9fb;
+    --page: #192134;
+    --muted: #60738a;
+    --faint: #8b9aab;
+    --line: #c5d2df;
+    --accent: #087f9c;
+    --accent-text: #ffffff;
+    --tab-bar: #e6eaf0;
+    --hover: #dfe7ef;
+    --selected: #e6eaf0;
+    --elevated: #eff2f6;
+    --panel: #eff2f6;
+    --canvas: #ffffff;
+    --text: #192134;
+    --text-muted: #60738a;
+    --border: #c5d2df;
+    --border-variant: #d7e0ea;
+    --warning: #a48819;
+    --ok: #3f953a;
+    --info: #5c78e2;
+    --focus: #087f9c;
+    --sidebar: #eff2f6;
+    --row-active: #e6eaf0;
+    --term: #2a2c33;
+    --scrim: rgba(25, 33, 52, 0.16);
+    --dialog-bg: #ffffff;
+    --shadow: 0 14px 32px rgba(34, 55, 76, 0.16);
+    --pip-glow: 0 0 0 3px rgba(8, 127, 156, 0.18);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--page);
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  kbd {
+    display: inline-block; min-width: 1.6em; padding: 1px 6px;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--panel); color: var(--page);
+    font: 11px ui-monospace, Menlo, monospace;
+  }
+  code { font: 12px ui-monospace, Menlo, monospace; color: var(--accent); }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 28px 28px 80px; }
+  .kicker {
+    margin: 0 0 8px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: .14em;
+    font-size: 10px; font-weight: 700;
+  }
+  h1 { margin: 0 0 10px; font-size: 28px; letter-spacing: -.03em; font-weight: 650; }
+  h2 { margin: 0 0 8px; font-size: 16px; font-weight: 650; }
+  .lede { margin: 0 0 22px; color: var(--muted); max-width: 640px; }
+  section { margin-top: 40px; }
+  .note { color: var(--muted); max-width: 640px; }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .pills.themes { margin-bottom: 22px; }
+  .pill {
+    border: 1px solid var(--line); border-radius: 99px;
+    padding: 5px 11px; background: transparent; color: var(--muted); font-size: 12px;
+  }
+  .pill.is-on { color: var(--text); background: var(--selected); border-color: var(--accent); }
+
+  .stage {
+    border: 1px solid var(--border-variant);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--canvas);
+  }
+  .stage-label {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-variant);
+    color: var(--faint); font-size: 11px;
+  }
+
+  /* Shell */
+  .shell {
+    position: relative;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    height: 520px;
+    background: var(--canvas);
+  }
+  .rail {
+    background: var(--sidebar);
+    border-right: 1px solid var(--border-variant);
+    padding: 10px 0;
+    font-size: 12px;
+  }
+  .rail-h {
+    display: flex; justify-content: space-between;
+    padding: 4px 12px 8px; color: var(--faint);
+    font-size: 10px; font-weight: 650; letter-spacing: .04em;
+  }
+  .wrow {
+    display: flex; gap: 8px; align-items: flex-start;
+    margin: 0 8px 4px; padding: 6px 8px;
+    border-radius: 6px; border-left: 2px solid transparent;
+    color: var(--text-muted);
+  }
+  .wrow small { display: block; color: var(--faint); font-size: 10px; margin-top: 1px; }
+  .wrow.is-active {
+    background: var(--row-active); color: var(--text); font-weight: 500;
+    border-left-color: var(--accent);
+  }
+  .frow { padding: 3px 16px; color: var(--text-muted); font-size: 12px; }
+  .frow.is-open { color: var(--text); background: var(--row-active); }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    height: 36px; padding: 0 12px;
+    background: var(--panel); border-bottom: 1px solid var(--border-variant);
+    color: var(--text-muted); font-size: 13px;
+  }
+  .toolbar .spacer { margin-left: auto; }
+  .tabs {
+    display: flex; height: 34px;
+    background: var(--tab-bar); border-bottom: 1px solid var(--border-variant);
+  }
+  .tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px; color: var(--text-muted); font-size: 13px;
+    border-right: 1px solid var(--border-variant);
+  }
+  .tab.is-active {
+    background: var(--canvas); color: var(--text); font-weight: 500;
+    box-shadow: inset 0 -2px var(--accent);
+  }
+  .pip {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--info); box-shadow: var(--pip-glow);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.75); } }
+  .term {
+    flex: 1; padding: 16px 20px;
+    font: 13px/1.7 ui-monospace, Menlo, monospace;
+    color: var(--term);
+  }
+  .term .dim { color: var(--faint); }
+  .term .g { color: var(--ok); }
+  .term .prompt { color: var(--accent); }
+  .caret {
+    display: inline-block; width: 7px; height: 14px; vertical-align: -2px;
+    background: var(--accent);
+  }
+
+  /* Prompt overlay */
+  .scrim {
+    position: absolute; inset: 0;
+    background: var(--scrim);
+    display: grid; place-items: center;
+    padding: 24px;
+  }
+  .dialog {
+    width: min(var(--dialog-w), 100%);
+    background: var(--dialog-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 18px 18px 14px;
+  }
+  .dialog.is-playing { animation: rise var(--reveal-ms) ease-out; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(var(--reveal-y)); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .dialog h3 { margin: 0 0 8px; font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+  .dialog p { margin: 0 0 10px; color: var(--text-muted); font-size: 13px; }
+  .dialog .homes {
+    margin: 0 0 16px; padding: 8px 10px;
+    border: 1px solid var(--border-variant); border-radius: 6px;
+    background: var(--panel); color: var(--faint);
+    font: 11px/1.55 ui-monospace, Menlo, monospace;
+  }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 11px; background: var(--panel); color: var(--text);
+    font-size: 12px; font-weight: 550;
+  }
+  .btn:hover { background: var(--hover); }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; font-weight: 650; }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.ghost { color: var(--text-muted); background: transparent; }
+  .keys { margin: 10px 0 0; color: var(--faint); font-size: 11px; text-align: right; }
+
+  /* Settings window */
+  .settings {
+    width: var(--settings-w); max-width: 100%;
+    height: var(--settings-h);
+    background: var(--canvas);
+    display: flex; flex-direction: column;
+  }
+  .settings-title {
+    padding: 14px 16px 10px; font-size: 16px; font-weight: 650;
+    border-bottom: 1px solid var(--border-variant);
+  }
+  .settings-body { flex: 1; overflow: auto; padding: 8px 0 16px; }
+  .group { padding: 10px 16px 4px; }
+  .group-title { margin: 0 0 6px; color: var(--text-muted); font-size: 13px; }
+  .card {
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--elevated); overflow: hidden;
+  }
+  .srow {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 8px 12px;
+  }
+  .srow .ttl { font-size: 13px; }
+  .srow .sub { margin-top: 3px; color: var(--text-muted); font-size: 11px; }
+  .srow.is-focus { background: var(--hover); }
+  .divr { height: 1px; background: var(--border); }
+  .check {
+    width: 18px; height: 18px; flex: none;
+    display: grid; place-items: center;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--elevated); font-size: 11px;
+  }
+  .check.is-on { background: var(--selected); }
+  .homes-list {
+    padding: 8px 12px 10px;
+    color: var(--faint);
+    font: 11px/1.55 ui-monospace, Menlo, monospace;
+  }
+  .homes-list .ok { color: var(--ok); }
+  .homes-list .warn { color: var(--warning); }
+  .srow-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 8px 12px 10px;
+  }
+  #settings-stage { width: var(--settings-w); max-width: 100%; }
+
+  .spec {
+    margin-top: 14px; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  }
+  .spec h3 { margin: 0 0 8px; font-size: 12px; font-weight: 650; color: var(--muted); }
+  .spec table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .spec th, .spec td { text-align: left; padding: 4px 8px 4px 0; vertical-align: top; }
+  .spec th { color: var(--faint); font-weight: 500; width: 28%; }
+  .spec td { color: var(--page); }
+  .spec code { color: var(--page); }
+  .replay {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-top: 12px; color: var(--muted); font-size: 12px;
+  }
+  .status { margin-top: 10px; color: var(--faint); font-size: 12px; min-height: 1.2em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dialog { animation: none; }
+    .pip { animation: none; }
+  }
+  html.reduced .dialog { animation: none; }
+  html.reduced .pip { animation: none; }
+</style>
+</head>
+<body>
+<div class="page">
+  <p class="kicker">Proposal · not implemented</p>
+  <h1>Agent skill</h1>
+  <p class="lede">
+    One prompt when an agent shows up. Settings always has the same control.
+    Skill is global (not per A/B slot). CLI still routes via <code>XENON_DATA_DIR</code>.
+    Chrome follows One Dark and One Light.
+  </p>
+  <div class="pills" role="tablist" aria-label="Scenes">
+    <button class="pill is-on" data-scene="prompt" type="button">Prompt</button>
+    <button class="pill" data-scene="off" type="button">Settings · off</button>
+    <button class="pill" data-scene="on" type="button">Settings · installed</button>
+    <button class="pill" data-scene="update" type="button">Settings · update</button>
+    <button class="pill" data-scene="modified" type="button">Settings · edited</button>
+  </div>
+  <div class="pills themes" role="tablist" aria-label="Appearance">
+    <button class="pill" data-theme="dark" type="button">One Dark</button>
+    <button class="pill" data-theme="light" type="button">One Light</button>
+  </div>
+
+  <section id="scene-prompt">
+    <div class="stage" id="prompt-stage">
+      <div class="stage-label">
+        <span>In-app dialog over the shell · first agent this machine</span>
+        <span>Return installs · Escape is Not now</span>
+      </div>
+      <div class="shell">
+        <aside class="rail">
+          <div class="rail-h"><span>WORKSPACES</span><span>+</span></div>
+          <div class="wrow is-active">
+            <span>⌁</span>
+            <div>xenon<small>~/src/desktop/xenon</small></div>
+          </div>
+          <div class="wrow"><span>⌁</span><div>ironscale<small>~/src/products/ironscale</small></div></div>
+          <div class="rail-h" style="margin-top:14px"><span>FILES</span></div>
+          <div class="frow">› crates</div>
+          <div class="frow">› docs</div>
+          <div class="frow is-open">  SKILL.md</div>
+        </aside>
+        <div class="main">
+          <div class="toolbar">
+            <span>☰</span><span>↑</span><span>↓</span>
+            <span class="spacer"></span>
+            <span>⚙</span>
+          </div>
+          <div class="tabs">
+            <div class="tab is-active">grok <i class="pip" title="agent working"></i></div>
+            <div class="tab">open_ops.rs</div>
+          </div>
+          <div class="term">
+            <div><span class="prompt">xenon</span> <span class="dim">~/src/desktop/xenon</span></div>
+            <div class="dim">$ grok</div>
+            <div class="g">Grok</div>
+            <div class="dim">How do I wire open_editor_beside from the CLI?</div>
+            <div><span class="prompt">›</span> <span class="caret"></span></div>
+          </div>
+        </div>
+        <div class="scrim" id="scrim">
+          <div class="dialog" id="dialog" role="dialog" aria-labelledby="dlg-title" aria-modal="true">
+            <h3 id="dlg-title">Install the Xenon skill?</h3>
+            <p>Grok is running here. A short skill teaches agents <code>xenon open</code> so they can show a file beside this terminal instead of dumping it in chat.</p>
+            <div class="homes">~/.agents/skills/xenon<br>~/.claude/skills/xenon</div>
+            <div class="actions">
+              <button class="btn ghost" type="button" data-act="never">Don't ask again</button>
+              <button class="btn" type="button" data-act="later">Not now</button>
+              <button class="btn primary" type="button" data-act="install" autofocus>Install skill</button>
+            </div>
+            <div class="keys"><kbd>↩</kbd> install · <kbd>esc</kbd> not now · <kbd>←</kbd><kbd>→</kbd> buttons</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="replay">
+      <button class="btn" type="button" id="replay">Replay entrance</button>
+      <span>180ms / 6px rise, same as sidebar reveal. Reduced motion: appear in place.</span>
+    </div>
+    <p class="status" id="prompt-status"></p>
+    <div class="spec" id="prompt-spec">
+      <h3>Specs · prompt</h3>
+      <table>
+        <tr><th>Trigger</th><td>First terminal whose title looks like an agent, skill missing, not declined for this skill version. Once per machine, not per tab or slot.</td></tr>
+        <tr><th>Surface</th><td>In-app dialog (not a macOS alert) so three actions and paths stay on one keyboard surface.</td></tr>
+        <tr><th>Dialog</th><td><code>420px</code> · radius <code>10px</code>. One Dark elevated <code>#1c1f26</code> / <code>#464b57</code>. One Light white <code>#ffffff</code> / <code>#c5d2df</code> so it lifts off the canvas.</td></tr>
+        <tr><th>Scrim</th><td>Does not click-dismiss; Escape is Not now. One Dark black <code>55%</code>. One Light <code>rgba(25,33,52,.16)</code> so sidebar and canvas still read as One Light.</td></tr>
+        <tr><th>Primary</th><td>Install skill, default focus. One Dark <code>#74ade8</code> on <code>#0b1016</code>. One Light <code>#087f9c</code> on white.</td></tr>
+        <tr><th>Motion</th><td>Opacity + translateY 6px, 180ms ease-out. No pulse on the dialog. Working pip on the grok tab still pulses.</td></tr>
+        <tr><th>Haptics</th><td>None. Desktop chrome. proposed — not physically verified.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="scene-settings" hidden>
+    <div class="stage" id="settings-stage">
+      <div class="stage-label">
+        <span>Settings window · 640 × 480 native size</span>
+        <span id="settings-label">Off</span>
+      </div>
+      <div class="settings" id="settings">
+        <div class="settings-title">Settings</div>
+        <div class="settings-body">
+          <div class="group">
+            <p class="group-title">Appearance</p>
+            <div class="card">
+              <div class="srow">
+                <div class="ttl">Mode</div>
+                <div class="actions" style="display:flex;gap:4px">
+                  <span class="btn ghost" style="pointer-events:none">System</span>
+                  <span class="btn" id="mode-light" style="pointer-events:none">Light</span>
+                  <span class="btn" id="mode-dark" style="pointer-events:none">Dark</span>
+                </div>
+              </div>
+              <div class="divr"></div>
+              <div class="srow">
+                <div class="ttl">Theme</div>
+                <div class="sub" id="theme-name">One Light  ⌥⌘T</div>
+              </div>
+            </div>
+          </div>
+          <div class="group">
+            <p class="group-title">Agents</p>
+            <div class="card">
+              <div class="srow is-focus" id="skill-row">
+                <div>
+                  <div class="ttl">Agent skill</div>
+                  <div class="sub" id="skill-sub">Off — prompt when an agent starts</div>
+                </div>
+                <div class="check" id="skill-check" aria-hidden="true"></div>
+              </div>
+              <div class="divr"></div>
+              <div class="homes-list" id="homes"></div>
+              <div class="divr" id="actions-div"></div>
+              <div class="srow-actions" id="skill-actions"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">
+      Toggle writes the managed skill into the homes. State lives next to
+      <code>~/.xenon-active-slot</code>, not in per-slot <code>settings.json</code>.
+    </p>
+    <div class="spec">
+      <h3>Specs · settings</h3>
+      <table>
+        <tr><th>Window</th><td>Existing Settings · <code>640×480</code> · new <strong>Agents</strong> group after Appearance in this mock (after Remote in product if Remote stays last-integration).</td></tr>
+        <tr><th>Row</th><td>Same toggle atom as Line numbers / Vim / Remote: 18×18 check, <code>x</code> when on. Selected fill is <code>element.selected</code> (One Dark <code>#2a3140</code>, One Light <code>#e6eaf0</code>).</td></tr>
+        <tr><th>Off</th><td>Subtitle “Off — prompt when an agent starts”. Button: Install skill.</td></tr>
+        <tr><th>Installed</th><td>Subtitle “Installed v3 · same skill for every slot”. Button: Remove.</td></tr>
+        <tr><th>Update</th><td>Managed copy older than bundled. Subtitle names both versions. Button: Update to v3. Silent rewrite also happens on launch.</td></tr>
+        <tr><th>Edited</th><td>File exists without <code>xenon_managed</code>. Do not overwrite. Buttons: Reset to bundled · Remove.</td></tr>
+        <tr><th>Homes</th><td><code>~/.agents/skills/xenon</code> canonical. <code>~/.claude/skills/xenon</code> and <code>~/.grok/skills/xenon</code> copies.</td></tr>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.get("reduced") === "1") document.documentElement.classList.add("reduced");
+  const themePills = [...document.querySelectorAll("[data-theme]")];
+  const modeLight = document.getElementById("mode-light");
+  const modeDark = document.getElementById("mode-dark");
+  const themeName = document.getElementById("theme-name");
+
+  function setTheme(theme) {
+    const light = theme === "light";
+    document.documentElement.classList.toggle("theme-light", light);
+    themePills.forEach((p) => p.classList.toggle("is-on", p.dataset.theme === theme));
+    modeLight.style.background = light ? "var(--selected)" : "transparent";
+    modeLight.style.color = light ? "var(--text)" : "var(--text-muted)";
+    modeDark.style.background = light ? "transparent" : "var(--selected)";
+    modeDark.style.color = light ? "var(--text-muted)" : "var(--text)";
+    themeName.textContent = light ? "One Light  ⌥⌘T" : "One Dark  ⌥⌘T";
+    const url = new URL(location.href);
+    url.searchParams.set("theme", theme);
+    history.replaceState(null, "", url);
+  }
+
+  const pills = [...document.querySelectorAll(".pill[data-scene]")];
+  const promptSec = document.getElementById("scene-prompt");
+  const settingsSec = document.getElementById("scene-settings");
+  const status = document.getElementById("prompt-status");
+  const dialog = document.getElementById("dialog");
+  const check = document.getElementById("skill-check");
+  const sub = document.getElementById("skill-sub");
+  const homes = document.getElementById("homes");
+  const actions = document.getElementById("skill-actions");
+  const label = document.getElementById("settings-label");
+
+  const STATES = {
+    off: {
+      label: "Off",
+      on: false,
+      sub: "Off — prompt when an agent starts",
+      homes: "~/.agents/skills/xenon   not installed\n~/.claude/skills/xenon   not installed\n~/.grok/skills/xenon     not installed",
+      buttons: [["Install skill", "primary", "install"]],
+    },
+    on: {
+      label: "Installed v3",
+      on: true,
+      sub: "Installed v3 · same skill for every slot",
+      homes: "~/.agents/skills/xenon   v3  managed\n~/.claude/skills/xenon   v3  copy\n~/.grok/skills/xenon     v3  copy",
+      buttons: [["Remove", "ghost", "remove"]],
+    },
+    update: {
+      label: "Update available",
+      on: true,
+      sub: "Installed v2 · bundled v3 — will refresh on next launch",
+      homes: "~/.agents/skills/xenon   v2  managed\n~/.claude/skills/xenon   v2  copy\n~/.grok/skills/xenon     v2  copy",
+      buttons: [["Update to v3", "primary", "update"], ["Remove", "ghost", "remove"]],
+    },
+    modified: {
+      label: "User-edited",
+      on: true,
+      sub: "You edited the skill · Xenon will not overwrite it",
+      homes: "~/.agents/skills/xenon   edited, not managed\n~/.claude/skills/xenon   copy\n~/.grok/skills/xenon     missing",
+      buttons: [["Reset to bundled", "primary", "reset"], ["Remove", "ghost", "remove"]],
+    },
+  };
+
+  function paintSettings(name) {
+    const s = STATES[name];
+    if (!s) return;
+    check.classList.toggle("is-on", s.on);
+    check.textContent = s.on ? "x" : "";
+    sub.textContent = s.sub;
+    homes.innerHTML = s.homes
+      .split("\n")
+      .map((line) => {
+        const cls = line.includes("edited") || line.includes("missing")
+          ? "warn"
+          : line.includes("v3")
+            ? "ok"
+            : "";
+        return `<div class="${cls}">${line}</div>`;
+      })
+      .join("");
+    actions.innerHTML = s.buttons
+      .map(([t, cls, act]) => `<button class="btn ${cls}" type="button" data-set="${act}">${t}</button>`)
+      .join("");
+    label.textContent = s.label;
+  }
+
+  function show(scene) {
+    const settings = scene !== "prompt";
+    promptSec.hidden = settings;
+    settingsSec.hidden = !settings;
+    pills.forEach((p) => p.classList.toggle("is-on", p.dataset.scene === scene));
+    if (settings) paintSettings(scene);
+    const url = new URL(location.href);
+    url.searchParams.set("scene", scene);
+    history.replaceState(null, "", url);
+  }
+
+  pills.forEach((p) => p.addEventListener("click", () => show(p.dataset.scene)));
+  themePills.forEach((p) => p.addEventListener("click", () => setTheme(p.dataset.theme)));
+
+  document.getElementById("replay").addEventListener("click", () => {
+    dialog.classList.remove("is-playing");
+    void dialog.offsetWidth;
+    dialog.classList.add("is-playing");
+    dialog.addEventListener("animationend", () => dialog.classList.remove("is-playing"), { once: true });
+  });
+
+  document.querySelectorAll("[data-act]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const act = btn.dataset.act;
+      const msg = {
+        install: "Would write managed SKILL.md into the homes, then hide.",
+        later: "Would skip this session. Prompt again next launch if an agent is running.",
+        never: "Would store declined_version = 3. Settings can still install.",
+      }[act];
+      status.textContent = msg;
+      if (act === "install") show("on");
+    });
+  });
+
+  actions.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-set]");
+    if (!btn) return;
+    const act = btn.dataset.set;
+    if (act === "install" || act === "update" || act === "reset") show("on");
+    if (act === "remove") show("off");
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (promptSec.hidden) return;
+    if (e.key === "Escape") {
+      status.textContent = "Escape → Not now.";
+    }
+    if (e.key === "Enter") {
+      status.textContent = "Return → Install skill.";
+      show("on");
+    }
+  });
+
+  const initial = params.get("scene") || "prompt";
+  const initialTheme = params.get("theme") === "dark" ? "dark" : "light";
+  show(initial);
+  setTheme(initialTheme);
+</script>
+</body>
+</html>

@@ -21,7 +21,10 @@ rediscover.
   terminals (any working → working; else any attention → attention). Viewing
   or using a tab dismisses only that tab.
 - The Claude IDE bridge is optional garnish. PTY session portability is the
-  product boundary.
+  product boundary. Agent chrome uses `xenon open` (CLI + managed skill under
+  `~/.agents/skills/xenon` and friends). Skill install state is global
+  (`~/.xenon-skill.json`), not per-slot `settings.json`. PTYs inject
+  `XENON_DATA_DIR` so open targets this instance.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` /
   `.pdf` hand off to the system default app. Markdown preview stays a GPUI
   document. Agent computer-use stays in the harness (Playwright, Chrome,

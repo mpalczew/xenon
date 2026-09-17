@@ -185,7 +185,9 @@ fn run_scene(
 
     let image = if matches!(
         scene,
-        xenon_ui::Scene::SettingsWindow | xenon_ui::Scene::SettingsDropdown
+        xenon_ui::Scene::SettingsWindow
+            | xenon_ui::Scene::SettingsDropdown
+            | xenon_ui::Scene::SettingsAgentsInstalled
     ) {
         let settings = window
             .update(cx, |app, _, _| app.visual_settings_window())?

@@ -200,6 +200,8 @@ impl XenonApp {
                         }
                     }
                     TerminalEvent::Working => {
+                        let title = view.read(cx).title(cx);
+                        this.maybe_offer_skill(&title, cx);
                         this.refresh_terminal_status(cx);
                     }
                     TerminalEvent::Finished => {

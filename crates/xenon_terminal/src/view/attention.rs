@@ -25,7 +25,7 @@ pub(super) fn agent_busy_signal(busy: u32, title: &str) -> bool {
 }
 
 /// Title (or process name fragment) suggests a coding agent, not a plain shell.
-pub(super) fn agent_title(title: &str) -> bool {
+pub fn agent_title(title: &str) -> bool {
     let t = title.to_ascii_lowercase();
     const NAMES: &[&str] = &[
         "claude", "grok", "kimi", "codex", "aider", "gemini", "cursor", "opencode", "windsurf",

@@ -58,7 +58,7 @@ impl XenonApp {
                     name,
                     view,
                 };
-                if !self.split_right_with_tab(tab) {
+                if !self.split_right_with_tab(tab, true) {
                     log::error!("open beside failed for {}", path.display());
                     return;
                 }
@@ -101,7 +101,9 @@ impl XenonApp {
                 if let Some(leaf) = c.root.as_mut().and_then(|r| r.find_leaf_mut(pane)) {
                     leaf.active = idx;
                 }
-                c.focused = Some(pane);
+                if focus {
+                    c.focused = Some(pane);
+                }
             }
             if let Some((row, col)) = at
                 && let Some(view) = self
@@ -189,7 +191,7 @@ impl XenonApp {
 
     /// Split the focused leaf to the right; `tab` is the new sibling's only tab.
     /// False if there is nothing to split or the nest cap is hit.
-    fn split_right_with_tab(&mut self, tab: LiveTab) -> bool {
+    pub(crate) fn split_right_with_tab(&mut self, tab: LiveTab, focus_new: bool) -> bool {
         let Some(ws) = self.active else {
             return false;
         };
@@ -235,7 +237,9 @@ impl XenonApp {
         {
             return false;
         }
-        content.focused = Some(new_pane);
+        if focus_new {
+            content.focused = Some(new_pane);
+        }
         self.save_layout(ws);
         true
     }

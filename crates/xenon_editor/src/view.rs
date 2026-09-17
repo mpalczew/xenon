@@ -234,6 +234,21 @@ impl EditorView {
         cx.notify();
     }
 
+    pub fn set_selection_range(
+        &mut self,
+        start: (u32, u32),
+        end: (u32, u32),
+        cx: &mut Context<Self>,
+    ) {
+        let Content::Text(buffer) = &mut self.content else {
+            return;
+        };
+        buffer.set_cursor_position(start.0 as usize, start.1 as usize);
+        buffer.set_cursor_position_extend(end.0 as usize, end.1 as usize, true);
+        self.emit_cursor(cx);
+        cx.notify();
+    }
+
     /// The file this editor is showing.
     pub fn path(&self) -> &std::path::Path {
         match &self.content {

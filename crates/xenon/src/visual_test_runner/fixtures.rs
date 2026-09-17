@@ -99,6 +99,7 @@ pub fn build() -> Result<Fixture> {
 
     unsafe {
         std::env::set_var("XENON_DATA_DIR", &data_dir);
+        std::env::set_var("XENON_SKILL_HOME", &data_dir);
         std::env::remove_var("XERO_DATA_DIR");
         std::env::set_var("SHELL", &shell);
         std::env::set_var("TERM", "xterm-256color");

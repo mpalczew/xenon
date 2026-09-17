@@ -19,6 +19,7 @@ surface and the non-obvious focus model.
 | Navigation back / forward | ⌘[ / ⌘] |
 | Find next / previous | ⌘G / ⌘⇧G |
 | Copy Clean | ⌘⇧C |
+| Agent skill prompt | Return install · Escape not now · ←/→ buttons |
 | Markdown preview | ⌘⇧V |
 | Themes | ⌘⌥T |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |

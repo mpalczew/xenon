@@ -12,16 +12,23 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use xenon_core::{Registry, SessionState, WorkspaceId};
 
+mod cli;
 mod ipc;
 mod settings;
+mod skill;
 mod terminal;
+pub use cli::{CliCommand, parse_cli};
 pub use ipc::{
-    IpcRequest, IpcResponse, bind_server, parse_cli_paths, send_request, serve_forever,
-    socket_path, try_handoff,
+    IpcRequest, IpcResponse, OpenFileSpec, OpenPane, bind_server, parse_cli_paths, send_request,
+    serve_forever, socket_path, try_handoff, try_handoff_request,
 };
 pub use settings::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME, DEFAULT_REMOTE_PORT,
     DEFAULT_UI_FONT_FAMILY, LspCommand, LspSettings, ThemeMode, WindowGeometry, WindowState,
+};
+pub use skill::{
+    SkillStatus, decline_skill, install_skill, refresh_on_launch, remove_skill,
+    should_prompt_skill, skill_home, skill_status,
 };
 pub use terminal::TerminalAutoClose;
 

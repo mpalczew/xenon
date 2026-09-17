@@ -52,6 +52,7 @@ pub(crate) mod memory;
 mod nav_history;
 mod nav_ops;
 mod navigation;
+mod open_cli;
 mod open_ops;
 mod palette;
 mod panels;
@@ -60,6 +61,7 @@ mod render;
 mod services;
 mod sessions;
 mod settings_window;
+mod skill_prompt;
 mod split_ops;
 mod tab_context;
 mod tab_drop;
@@ -193,6 +195,8 @@ pub struct XenonApp {
     memory_task: Option<Task<()>>,
     /// Visual tests must not write session files between scenes.
     skip_persist: bool,
+    skill_prompt: Option<skill_prompt::SkillPrompt>,
+    skill_skipped_session: bool,
 }
 
 impl XenonApp {
@@ -262,18 +266,42 @@ impl XenonApp {
         match command {
             IdeCommand::OpenFile(path) => {
                 log::info!("IDE openFile: {}", path.display());
-                self.open_editor(path, false, cx); // don't steal terminal focus
+                self.open_cli_file(
+                    xenon_store::OpenFileSpec {
+                        path,
+                        line: None,
+                        column: None,
+                        end_line: None,
+                        pane: xenon_store::OpenPane::Sibling,
+                    },
+                    cx,
+                );
             }
         }
     }
 
     /// Environment injected into every terminal so agents find the IDE server.
     fn terminal_env(&self) -> Vec<(String, String)> {
-        self.services
+        let mut env = self
+            .services
             .ide
             .as_ref()
             .map(|server| server.env())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        env.push((
+            "XENON_DATA_DIR".into(),
+            xenon_store::data_dir().display().to_string(),
+        ));
+        if let Ok(slot) = std::env::var("XENON_SLOT") {
+            env.push(("XENON_SLOT".into(), slot));
+        }
+        if let Ok(exe) = std::env::current_exe()
+            && let Some(dir) = exe.parent()
+        {
+            let rest = std::env::var("PATH").unwrap_or_default();
+            env.push(("PATH".into(), format!("{}:{rest}", dir.display())));
+        }
+        env
     }
 
     fn active_roots(&self) -> Vec<PathBuf> {

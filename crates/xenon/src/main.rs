@@ -6,7 +6,7 @@ use gpui::{
 };
 use gpui_platform::application;
 use xenon_store::{
-    IpcRequest, WindowState, bind_server, parse_cli_paths, serve_forever, try_handoff,
+    CliCommand, IpcRequest, WindowState, bind_server, parse_cli, serve_forever, try_handoff_request,
 };
 use xenon_ui::{
     AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, CopyClean, CopyCode, Cut,
@@ -20,16 +20,17 @@ actions!(xenon, [Quit]);
 
 fn main() {
     init_logging();
-    let paths = parse_cli_paths(std::env::args().skip(1));
-    // Single-instance handoff: a live primary for this data dir takes the paths.
-    if try_handoff(&paths) {
+    let command = parse_cli(std::env::args().skip(1));
+    let request = command.to_request();
+    // Single-instance handoff: a live primary for this data dir takes the request.
+    if try_handoff_request(&request) {
         return;
     }
     let listener = match bind_server() {
         Ok(l) => Some(l),
         Err(error) => {
             // Race: another primary bound first — hand off and exit.
-            if try_handoff(&paths) {
+            if try_handoff_request(&request) {
                 return;
             }
             log::warn!("ipc bind failed ({error}); continuing without single-instance");
@@ -37,7 +38,7 @@ fn main() {
         }
     };
 
-    let boot_paths = paths;
+    let boot = command;
     application().run(move |cx: &mut App| {
         xenon_terminal::init(cx);
         xenon_ui::init(cx);
@@ -57,9 +58,7 @@ fn main() {
                     if let Some(listener) = listener {
                         start_ipc(listener, cx);
                     }
-                    for path in boot_paths {
-                        app.open_cli_path(path, cx);
-                    }
+                    apply_cli_command(&mut app, boot, cx);
                     app
                 })
             },
@@ -97,6 +96,18 @@ fn initial_window_bounds(cx: &App) -> WindowBounds {
     }
 }
 
+fn apply_cli_command(app: &mut XenonApp, command: CliCommand, cx: &mut gpui::Context<XenonApp>) {
+    match command {
+        CliCommand::Paths(paths) => {
+            for path in paths {
+                app.open_cli_path(path, cx);
+            }
+        }
+        CliCommand::Open(spec) => app.open_cli_file(spec, cx),
+        CliCommand::Activate => {}
+    }
+}
+
 fn start_ipc(listener: std::os::unix::net::UnixListener, cx: &mut gpui::Context<XenonApp>) {
     let (tx, rx) = async_channel::unbounded::<IpcRequest>();
     serve_forever(listener, move |req| {
@@ -110,6 +121,7 @@ fn start_ipc(listener: std::os::unix::net::UnixListener, cx: &mut gpui::Context<
                         app.open_cli_path(path, cx);
                     }
                 }
+                IpcRequest::OpenFile(spec) => app.open_cli_file(spec, cx),
                 IpcRequest::Activate => {}
             });
             if result.is_err() {

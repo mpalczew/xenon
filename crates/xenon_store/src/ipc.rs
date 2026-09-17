@@ -21,11 +21,48 @@ pub fn socket_path() -> PathBuf {
     data_dir().join("ipc.sock")
 }
 
+/// Where an agent-originated file should land.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenPane {
+    #[default]
+    Sibling,
+    Focused,
+    SplitRight,
+}
+
+impl OpenPane {
+    pub(crate) fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "sibling" => Some(Self::Sibling),
+            "focused" => Some(Self::Focused),
+            "split-right" => Some(Self::SplitRight),
+            _ => None,
+        }
+    }
+}
+
+/// One file to open, with optional 1-based location.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenFileSpec {
+    pub path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub column: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<u32>,
+    #[serde(default)]
+    pub pane: OpenPane,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum IpcRequest {
     /// Open zero or more paths (dirs = workspaces, files = editors).
     Open { paths: Vec<PathBuf> },
+    /// Open one file at a location, in a chosen pane. Does not steal focus.
+    OpenFile(OpenFileSpec),
     /// Focus the running window without opening anything.
     Activate,
 }
@@ -47,7 +84,12 @@ pub fn try_handoff(paths: &[PathBuf]) -> bool {
             paths: paths.to_vec(),
         }
     };
-    send_request(&req).is_ok()
+    try_handoff_request(&req)
+}
+
+/// Same as [`try_handoff`] for an already-built request (`open` included).
+pub fn try_handoff_request(req: &IpcRequest) -> bool {
+    send_request(req).is_ok()
 }
 
 /// Connect and send one request; Ok only when the peer replies `ok: true`.
@@ -204,6 +246,28 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_open_file_request_json() {
+        let req = IpcRequest::OpenFile(OpenFileSpec {
+            path: PathBuf::from("/tmp/foo.rs"),
+            line: Some(42),
+            column: Some(8),
+            end_line: Some(80),
+            pane: OpenPane::Sibling,
+        });
+        let s = serde_json::to_string(&req).unwrap();
+        let back: IpcRequest = serde_json::from_str(&s).unwrap();
+        assert_eq!(req, back);
+        match &back {
+            IpcRequest::OpenFile(spec) => {
+                assert_eq!(spec.line, Some(42));
+                assert_eq!(spec.column, Some(8));
+                assert_eq!(spec.end_line, Some(80));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
     fn handoff_to_live_server() {
         // Serialize with other data_dir tests (process-global env).
         let _guard = crate::DATA_DIR_TEST_LOCK
@@ -227,9 +291,23 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         let req = got.lock().unwrap().clone().expect("received");
         match req {
-            IpcRequest::Open { paths } => assert_eq!(paths, vec![path]),
+            IpcRequest::Open { paths } => assert_eq!(paths, vec![path.clone()]),
             other => panic!("unexpected {other:?}"),
         }
+        let spec = OpenFileSpec {
+            path: path.clone(),
+            line: Some(4),
+            column: Some(2),
+            end_line: Some(9),
+            pane: OpenPane::SplitRight,
+        };
+        let req = IpcRequest::OpenFile(spec.clone());
+        assert!(try_handoff_request(&req), "open_file 1");
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(try_handoff_request(&req), "open_file 2");
+        std::thread::sleep(Duration::from_millis(20));
+        let last = got.lock().unwrap().clone().expect("received file");
+        assert_eq!(last, IpcRequest::OpenFile(spec));
         unsafe {
             std::env::remove_var("XENON_DATA_DIR");
             std::env::remove_var("XERO_DATA_DIR");
