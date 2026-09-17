@@ -11,9 +11,10 @@ use xenon_store::{
 use xenon_ui::{
     AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, CopyClean, CopyCode, Cut,
     DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack,
-    GoForward, IncreaseFontSize, KeyboardHelp, NewTerminal, NextTab, NextWorkspace, OpenFile,
-    Paste, PrevTab, PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll, ToggleBrowser,
-    ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, ToggleThemes, XenonApp,
+    GoForward, IncreaseFontSize, KeyboardHelp, NewTerminal, NewWorkspace, NextTab, NextWorkspace,
+    OpenFile, Paste, PrevTab, PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll,
+    ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, ToggleThemes,
+    XenonApp,
 };
 
 actions!(xenon, [Quit]);
@@ -182,6 +183,7 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("New Terminal", NewTerminal),
             MenuItem::separator(),
             MenuItem::action("Open File…", OpenFile),
+            MenuItem::action("New Workspace…", NewWorkspace),
             MenuItem::action("Open Workspace…", AddWorkspace),
             MenuItem::action("Go to File…", FilePalette),
             MenuItem::action("Command Palette…", CommandPalette),

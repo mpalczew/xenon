@@ -246,15 +246,18 @@ impl XenonApp {
             .on_mouse_down(gpui::MouseButton::Right, |_, _, cx| cx.stop_propagation());
 
         for (i, action) in items.into_iter().enumerate() {
-            let label = browser_menu_label(action);
+            let (label, keys) = browser_menu_row(action);
             let is_sel = i == selected;
             let path = path.clone();
-            menu_box = menu_box.child(crate::tabs::menu::menu_item(
-                SharedString::from(format!("browser-menu-{i}")),
-                label,
-                &colors,
-                is_sel,
-                cx.listener(move |this, _, window, cx| {
+            menu_box = menu_box.child(
+                crate::tabs::menu::menu_item(
+                    SharedString::from(format!("browser-menu-{i}")),
+                    label,
+                    keys,
+                    &colors,
+                    is_sel,
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
                     this.dismiss_browser_menu(cx);
                     if action == BrowserMenuAction::Delete {
                         if let Some(p) = path.clone() {
@@ -263,8 +266,8 @@ impl XenonApp {
                     } else {
                         this.run_browser_menu_action(action, path.clone(), is_dir, cx);
                     }
-                }),
-            ));
+                })),
+            );
         }
 
         Some(
@@ -325,18 +328,26 @@ fn browser_menu_actions(menu: &crate::app::BrowserContextMenu) -> Vec<BrowserMen
     items
 }
 
-fn browser_menu_label(action: BrowserMenuAction) -> &'static str {
+fn browser_menu_row(action: BrowserMenuAction) -> (&'static str, crate::chrome::Shortcut) {
+    use crate::chrome::Shortcut;
+    use crate::commands::{CommandId, shortcut};
     match action {
-        BrowserMenuAction::NewFile => "New File…",
-        BrowserMenuAction::NewFolder => "New Folder…",
-        BrowserMenuAction::Rename => "Rename",
-        BrowserMenuAction::CopyPath => "Copy Path",
-        BrowserMenuAction::CopyRelativePath => "Copy Relative Path",
-        BrowserMenuAction::CopyName => "Copy Name",
-        BrowserMenuAction::RevealInFinder => "Reveal in Finder",
-        BrowserMenuAction::OpenInDefaultApp => "Open in Default App",
-        BrowserMenuAction::OpenInEditor => "Open in Editor",
-        BrowserMenuAction::Delete => "Move to Trash",
+        BrowserMenuAction::NewFile => ("New File…", shortcut(CommandId::NewFile)),
+        BrowserMenuAction::NewFolder => ("New Folder…", shortcut(CommandId::NewFolder)),
+        BrowserMenuAction::Rename => ("Rename", Shortcut::new("F2")),
+        BrowserMenuAction::CopyPath => ("Copy Path", shortcut(CommandId::CopyPath)),
+        BrowserMenuAction::CopyRelativePath => {
+            ("Copy Relative Path", shortcut(CommandId::CopyRelativePath))
+        }
+        BrowserMenuAction::CopyName => ("Copy Name", Shortcut::new("⌘⌥⇧N")),
+        BrowserMenuAction::RevealInFinder => {
+            ("Reveal in Finder", shortcut(CommandId::RevealInFinder))
+        }
+        BrowserMenuAction::OpenInDefaultApp => {
+            ("Open in Default App", shortcut(CommandId::OpenInDefaultApp))
+        }
+        BrowserMenuAction::OpenInEditor => ("Open in Editor", Shortcut::new("↩")),
+        BrowserMenuAction::Delete => ("Move to Trash", Shortcut::new("⌘⌫")),
     }
 }
 

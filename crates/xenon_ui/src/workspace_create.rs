@@ -3,17 +3,16 @@
 use std::path::PathBuf;
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled, Window,
-    div,
+    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
+    Render, ScrollHandle, StatefulInteractiveElement, Styled, Window, div,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
-    input_registrar, panel, query_row, reveal_selected, scrim, scroll_results,
+    DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
+    fuzzy_index_order, hint_row, panel, query_row, reveal_selected, scrim, scroll_results,
 };
 use crate::workspace_discover::{discover_parent_dirs, resolve_existing_dir};
 
@@ -283,15 +282,20 @@ impl Render for WorkspaceCreateView {
         scrim("workspace-create-scrim", layout)
             .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspaceCreateEvent::Dismissed)))
             .child(
-                panel(layout, &colors)
-                    .track_focus(&self.focus)
-                    .key_context("WorkspaceCreate")
-                    .on_key_down(cx.listener(Self::on_key))
-                    .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(crate::palette::optional_title(title, &colors))
-                    .child(query_row(query, placeholder, true, &colors).into_any_element())
-                    .child(body)
-                    .child(hint_row(hint, &colors)),
+                bind_query_chrome(
+                    QueryChrome {
+                        panel: panel(layout, &colors),
+                        focus: self.focus.clone(),
+                        key_context: "WorkspaceCreate",
+                        view: cx.entity(),
+                    },
+                    cx,
+                    Self::on_key,
+                )
+                .child(crate::palette::optional_title(title, &colors))
+                .child(query_row(query, placeholder, true, &colors).into_any_element())
+                .child(body)
+                .child(hint_row(hint, &colors)),
             )
     }
 }

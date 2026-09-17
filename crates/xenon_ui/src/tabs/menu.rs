@@ -8,6 +8,8 @@ use theme::ActiveTheme;
 use xenon_core::{PaneId, TabId};
 
 use crate::app::{TabContextMenu, XenonApp};
+use crate::chrome::Shortcut;
+use crate::commands::{CommandId, shortcut};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TabMenuAction {
@@ -169,18 +171,21 @@ impl XenonApp {
             .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation());
 
         for (i, action) in items.into_iter().enumerate() {
-            let label = tab_menu_label(action);
+            let (label, keys) = tab_menu_row(action);
             let is_sel = i == selected;
-            menu_box = menu_box.child(menu_item(
-                SharedString::from(format!("tab-menu-{i}")),
-                label,
-                &colors,
-                is_sel,
-                cx.listener(move |this, _, window, cx| {
+            menu_box = menu_box.child(
+                menu_item(
+                    SharedString::from(format!("tab-menu-{i}")),
+                    label,
+                    keys,
+                    &colors,
+                    is_sel,
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
                     this.dismiss_tab_menu(cx);
                     this.run_tab_menu_action(action, tab, window, cx);
-                }),
-            ));
+                })),
+            );
         }
 
         Some(
@@ -200,40 +205,27 @@ impl XenonApp {
     }
 }
 
-fn tab_menu_label(action: TabMenuAction) -> &'static str {
+fn tab_menu_row(action: TabMenuAction) -> (&'static str, Shortcut) {
     match action {
-        TabMenuAction::Close => "Close Tab",
-        TabMenuAction::CloseOthers => "Close Other Tabs",
-        TabMenuAction::CopyPath => "Copy Path",
-        TabMenuAction::CopyRelativePath => "Copy Relative Path",
-        TabMenuAction::RevealInFinder => "Reveal in Finder",
-        TabMenuAction::OpenInDefaultApp => "Open in Default App",
+        TabMenuAction::Close => ("Close Tab", shortcut(CommandId::CloseFocusedTab)),
+        TabMenuAction::CloseOthers => ("Close Other Tabs", shortcut(CommandId::CloseOtherTabs)),
+        TabMenuAction::CopyPath => ("Copy Path", shortcut(CommandId::CopyPath)),
+        TabMenuAction::CopyRelativePath => {
+            ("Copy Relative Path", shortcut(CommandId::CopyRelativePath))
+        }
+        TabMenuAction::RevealInFinder => ("Reveal in Finder", shortcut(CommandId::RevealInFinder)),
+        TabMenuAction::OpenInDefaultApp => {
+            ("Open in Default App", shortcut(CommandId::OpenInDefaultApp))
+        }
     }
 }
 
 pub(crate) fn menu_item(
-    id: impl Into<SharedString>,
+    id: impl Into<gpui::ElementId>,
     label: impl Into<SharedString>,
+    shortcut: Shortcut,
     colors: &theme::ThemeColors,
     selected: bool,
-    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
-) -> impl IntoElement {
-    let hover = colors.element_selected;
-    let bg = if selected {
-        colors.element_selected
-    } else {
-        gpui::transparent_black()
-    };
-    div()
-        .id(id.into())
-        .flex()
-        .items_center()
-        .px_3()
-        .py_1()
-        .text_sm()
-        .bg(bg)
-        .cursor_pointer()
-        .hover(move |s| s.bg(hover))
-        .child(label.into())
-        .on_click(on_click)
+) -> gpui::Stateful<gpui::Div> {
+    crate::chrome::menu_item(id, label, shortcut, colors, selected)
 }

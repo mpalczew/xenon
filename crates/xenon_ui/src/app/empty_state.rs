@@ -183,6 +183,8 @@ fn shortcut_entries(has_workspace: bool) -> &'static [CommandId] {
         ]
     } else {
         &[
+            CommandId::NewWorkspace,
+            CommandId::OpenWorkspace,
             CommandId::CommandPalette,
             CommandId::ToggleSidebar,
             CommandId::KeyboardHelp,

@@ -4,6 +4,7 @@
 
 use super::*;
 use xenon_core::PaneId;
+use xenon_settings::{Copy, CopyClean, CopyCode, Cut, Paste};
 
 /// Cap on per-workspace recently opened paths used for cmd-p ranking.
 const MAX_RECENT_FILES: usize = 64;
@@ -254,6 +255,67 @@ impl XenonApp {
         };
         self.deferred.last_font_pane = target;
         target
+    }
+
+    pub(super) fn bind_path_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
+        root.on_action(cx.listener(|this, _: &crate::CloseOtherTabs, window, cx| {
+            this.close_other_tabs_focused(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &crate::CopyPath, _, cx| {
+            this.copy_focused_path(false, cx);
+        }))
+        .on_action(cx.listener(|this, _: &crate::CopyRelativePath, _, cx| {
+            this.copy_focused_path(true, cx);
+        }))
+        .on_action(cx.listener(|this, _: &crate::RevealInFinder, _, _cx| {
+            this.reveal_focused_path();
+        }))
+        .on_action(cx.listener(|this, _: &crate::OpenInDefaultApp, _, cx| {
+            this.open_focused_in_default_app(cx);
+        }))
+    }
+
+    pub(super) fn bind_clipboard_actions(
+        &self,
+        root: gpui::Div,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
+        root.on_action(cx.listener(|this, _: &Cut, window, cx| {
+            if !this.text_field_open() {
+                this.clipboard_cut(window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &Copy, window, cx| {
+            if !this.text_field_open() {
+                this.clipboard_copy(window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &CopyClean, window, cx| {
+            if !this.text_field_open() {
+                this.clipboard_copy_clean(window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &CopyCode, window, cx| {
+            if !this.text_field_open() {
+                this.clipboard_copy_code(window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &Paste, window, cx| {
+            if !this.text_field_open() {
+                this.clipboard_paste(window, cx);
+            }
+        }))
+    }
+
+    /// Palettes and the inline rename field own clipboard, not the session tab.
+    pub(crate) fn text_field_open(&self) -> bool {
+        self.finder.is_some()
+            || self.task_picker.is_some()
+            || self.workspace_picker.is_some()
+            || self.workspace_create.is_some()
+            || self.command_palette.is_some()
+            || self.theme_picker.is_some()
+            || self.renaming.is_some()
     }
 
     pub(super) fn clipboard_cut(&self, window: &Window, cx: &mut Context<Self>) {

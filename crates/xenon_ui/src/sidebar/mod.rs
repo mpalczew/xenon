@@ -216,7 +216,7 @@ impl XenonApp {
                             .child(
                                 div()
                                     .id("workspace-submenu")
-                                    .w(px(190.))
+                                    .min_w(px(220.))
                                     .p_1()
                                     .rounded_sm()
                                     .occlude()
@@ -224,25 +224,39 @@ impl XenonApp {
                                     .border_color(colors.border)
                                     .bg(colors.panel_background)
                                     .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()))
-                                    .child(crate::tabs::menu::menu_item(
-                                        "workspace-menu-new",
-                                        "▣  New workspace…",
-                                        &colors,
-                                        selected == 0,
-                                        cx.listener(|this, _, window, cx| {
-                                            this.workspace_menu = None;
-                                            this.open_workspace_creator(window, cx);
-                                        }),
-                                    ))
-                                    .child(crate::tabs::menu::menu_item(
-                                        "workspace-menu-open",
-                                        "▱  Open workspace…",
-                                        &colors,
-                                        selected == 1,
-                                        cx.listener(|this, _, window, cx| {
-                                            this.open_workspace_picker_from_plus(window, cx);
-                                        }),
-                                    )),
+                                    .child(
+                                        crate::tabs::menu::menu_item(
+                                            "workspace-menu-new",
+                                            "▣  New workspace…",
+                                            crate::commands::shortcut(
+                                                crate::commands::CommandId::NewWorkspace,
+                                            ),
+                                            &colors,
+                                            selected == 0,
+                                        )
+                                        .on_click(
+                                            cx.listener(|this, _, window, cx| {
+                                                this.workspace_menu = None;
+                                                this.open_workspace_creator(window, cx);
+                                            }),
+                                        ),
+                                    )
+                                    .child(
+                                        crate::tabs::menu::menu_item(
+                                            "workspace-menu-open",
+                                            "▱  Open workspace…",
+                                            crate::commands::shortcut(
+                                                crate::commands::CommandId::OpenWorkspace,
+                                            ),
+                                            &colors,
+                                            selected == 1,
+                                        )
+                                        .on_click(
+                                            cx.listener(|this, _, window, cx| {
+                                                this.open_workspace_picker_from_plus(window, cx);
+                                            }),
+                                        ),
+                                    ),
                             ),
                     )
                     .with_priority(100),

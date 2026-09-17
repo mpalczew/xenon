@@ -122,9 +122,11 @@ impl XenonApp {
     ) {
         match id {
             CommandId::NewTerminal => self.new_terminal(window, cx),
+            CommandId::NewWorkspace => self.open_workspace_creator(window, cx),
             CommandId::OpenWorkspace => self.add_workspace(window, cx),
             CommandId::OpenFile => self.open_file_dialog(cx),
             CommandId::NewFile => self.new_file_dialog(cx),
+            CommandId::NewFolder => self.new_folder_here(cx),
             CommandId::GoToFile => self.open_palette(window, cx),
             CommandId::RunTask => self.open_task_picker(window, cx),
             CommandId::Save => self.save_active_editor(cx),
@@ -145,7 +147,14 @@ impl XenonApp {
                 FindSurface::None => {}
             },
             CommandId::CloseFocusedTab => self.close_focused_tab(window, cx),
+            CommandId::CloseOtherTabs => self.close_other_tabs_focused(window, cx),
             CommandId::CloseWorkspace => self.close_active_workspace(window, cx),
+            CommandId::CopyPath => self.copy_focused_path(false, cx),
+            CommandId::CopyRelativePath => self.copy_focused_path(true, cx),
+            CommandId::CopyClean => self.clipboard_copy_clean(window, cx),
+            CommandId::CopyCode => self.clipboard_copy_code(window, cx),
+            CommandId::RevealInFinder => self.reveal_focused_path(),
+            CommandId::OpenInDefaultApp => self.open_focused_in_default_app(cx),
             CommandId::FocusTerminal => self.focus_terminal(window, cx),
             CommandId::FocusEditor => self.focus_editor(window, cx),
             CommandId::FocusBrowser => self.focus_browser(window, cx),
@@ -180,5 +189,20 @@ impl XenonApp {
             CommandId::ZoomOut => self.nudge_font_size(-1.0, window, cx),
             CommandId::ZoomReset => self.reset_font_size(window, cx),
         }
+    }
+
+    pub(crate) fn new_folder_here(&mut self, cx: &mut Context<Self>) {
+        let parent = match self.tree_cursor_path() {
+            Some(path) if path.is_dir() => path,
+            Some(path) => path
+                .parent()
+                .map(|parent| parent.to_path_buf())
+                .unwrap_or(path),
+            None => match self.active.and_then(|id| self.workspace_root(id)) {
+                Some(root) => root,
+                None => return,
+            },
+        };
+        self.new_folder_in_dir(parent, cx);
     }
 }

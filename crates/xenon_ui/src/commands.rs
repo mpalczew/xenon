@@ -14,9 +14,11 @@ pub struct CommandEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandId {
     NewTerminal,
+    NewWorkspace,
     OpenWorkspace,
     OpenFile,
     NewFile,
+    NewFolder,
     GoToFile,
     RunTask,
     Save,
@@ -25,7 +27,14 @@ pub enum CommandId {
     FindNext,
     FindPrevious,
     CloseFocusedTab,
+    CloseOtherTabs,
     CloseWorkspace,
+    CopyPath,
+    CopyRelativePath,
+    CopyClean,
+    CopyCode,
+    RevealInFinder,
+    OpenInDefaultApp,
     FocusTerminal,
     FocusEditor,
     FocusBrowser,
@@ -70,7 +79,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 44] {
+const fn all_commands() -> [CommandEntry; 53] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -95,9 +104,18 @@ const fn all_commands() -> [CommandEntry; 44] {
         cmd!(FindNext, "Find Next", "⌘G", "Edit"),
         cmd!(FindPrevious, "Find Previous", "⌘⇧G", "Edit"),
         cmd!(CloseFocusedTab, "Close Tab", "⌘W", "Edit"),
+        cmd!(CloseOtherTabs, "Close Other Tabs", "⌘⌥⇧W", "Edit"),
         cmd!(CloseWorkspace, "Close Workspace", "⌘⌥W", "Edit"),
+        cmd!(CopyPath, "Copy Path", "⌘⌥⇧C", "Edit"),
+        cmd!(CopyRelativePath, "Copy Relative Path", "⌘⌥⇧R", "Edit"),
+        cmd!(CopyClean, "Copy Clean", "⌘⇧C", "Edit"),
+        cmd!(CopyCode, "Copy Code", "⌘⌥C", "Edit"),
+        cmd!(RevealInFinder, "Reveal in Finder", "⌘⌥R", "Edit"),
+        cmd!(OpenInDefaultApp, "Open in Default App", "⌘⌥O", "Edit"),
         cmd!(NewTerminal, "New Terminal", "⌘N", "Create"),
+        cmd!(NewWorkspace, "New Workspace…", "⌘⌥N", "Create"),
         cmd!(NewFile, "New File…", "⌘⇧N", "Create"),
+        cmd!(NewFolder, "New Folder…", "⌘⌥⇧F", "Create"),
         cmd!(OpenFile, "Open File…", "⌘O", "Create"),
         cmd!(RunTask, "Run Task…", "⌘⇧R", "Create"),
         cmd!(ToggleSidebar, "Toggle Sidebar", "⌘B", "View"),
@@ -126,6 +144,59 @@ const fn all_commands() -> [CommandEntry; 44] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 44] = all_commands();
+    static ENTRIES: [CommandEntry; 53] = all_commands();
     &ENTRIES
+}
+
+pub fn entry(id: CommandId) -> CommandEntry {
+    catalog()
+        .iter()
+        .copied()
+        .find(|entry| entry.id == id)
+        .unwrap_or_else(|| panic!("missing command {id:?}"))
+}
+
+/// Shortcut shown on in-app menu rows. Panics if the command has no keys.
+pub fn shortcut(id: CommandId) -> xenon_design_system::Shortcut {
+    xenon_design_system::Shortcut::new(entry(id).keys)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_ids_are_unique() {
+        let mut seen = Vec::new();
+        for entry in catalog() {
+            assert!(
+                !seen.contains(&entry.id),
+                "duplicate catalog id {:?}",
+                entry.id
+            );
+            seen.push(entry.id);
+        }
+    }
+
+    #[test]
+    fn menu_commands_have_shortcuts() {
+        for id in [
+            CommandId::NewWorkspace,
+            CommandId::OpenWorkspace,
+            CommandId::CloseFocusedTab,
+            CommandId::CloseOtherTabs,
+            CommandId::CopyPath,
+            CommandId::CopyRelativePath,
+            CommandId::CopyClean,
+            CommandId::CopyCode,
+            CommandId::RevealInFinder,
+            CommandId::OpenInDefaultApp,
+            CommandId::NewFile,
+            CommandId::NewFolder,
+            CommandId::NewTerminal,
+        ] {
+            assert!(!entry(id).keys.is_empty(), "{id:?} needs a shortcut");
+            let _ = shortcut(id);
+        }
+    }
 }

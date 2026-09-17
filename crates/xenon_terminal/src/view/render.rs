@@ -155,62 +155,90 @@ impl TerminalView {
             let editor_path = path.clone();
             menu_box = menu_box
                 .child(
-                    context_item("menu-open-editor", "Open in Editor", "", &colors).on_click(
-                        cx.listener(move |this, _, _, cx| {
-                            cx.emit(TerminalEvent::OpenInEditor(editor_path.clone()));
-                            this.dismiss_menu(cx);
-                        }),
-                    ),
+                    context_item(
+                        "menu-open-editor",
+                        "Open in Editor",
+                        xenon_design_system::Shortcut::new("⌘↩"),
+                        &colors,
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.emit(TerminalEvent::OpenInEditor(editor_path.clone()));
+                        this.dismiss_menu(cx);
+                    })),
                 )
                 .child(
-                    context_item("menu-open-default", "Open in Default App", "", &colors).on_click(
-                        cx.listener(move |this, _, _, cx| {
-                            cx.open_with_system(&path);
-                            this.dismiss_menu(cx);
-                        }),
-                    ),
+                    context_item(
+                        "menu-open-default",
+                        "Open in Default App",
+                        xenon_design_system::Shortcut::new("⌥↩"),
+                        &colors,
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.open_with_system(&path);
+                        this.dismiss_menu(cx);
+                    })),
                 );
         }
         let menu_box = menu_box
             .child(
-                context_item("menu-cut", "Cut", "⌘X", &colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.cut_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "menu-cut",
+                    "Cut",
+                    xenon_design_system::Shortcut::new("⌘X"),
+                    &colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.cut_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("menu-copy", "Copy", "⌘C", &colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.copy_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "menu-copy",
+                    "Copy",
+                    xenon_design_system::Shortcut::new("⌘C"),
+                    &colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.copy_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("menu-copy-clean", "Copy Clean", "⌘⇧C", &colors).on_click(
-                    cx.listener(|this, _, window, cx| {
-                        this.copy_clean_selection(window, cx);
-                        this.dismiss_menu(cx);
-                    }),
-                ),
+                context_item(
+                    "menu-copy-clean",
+                    "Copy Clean",
+                    xenon_design_system::Shortcut::new("⌘⇧C"),
+                    &colors,
+                )
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.copy_clean_selection(window, cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("menu-copy-code", "Copy Code", "", &colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.copy_code_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "menu-copy-code",
+                    "Copy Code",
+                    xenon_design_system::Shortcut::new("⌘⌥C"),
+                    &colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.copy_code_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("menu-paste", "Paste", "⌘V", &colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.paste_clipboard(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "menu-paste",
+                    "Paste",
+                    xenon_design_system::Shortcut::new("⌘V"),
+                    &colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.paste_clipboard(cx);
+                    this.dismiss_menu(cx);
+                })),
             );
         div()
             .absolute()
@@ -230,30 +258,10 @@ impl TerminalView {
 fn context_item(
     id: &'static str,
     label: &'static str,
-    shortcut: &'static str,
+    shortcut: xenon_design_system::Shortcut,
     colors: &theme::ThemeColors,
 ) -> gpui::Stateful<gpui::Div> {
-    let hover = colors.element_selected;
-    let muted = colors.text_muted;
-    let text = colors.text;
-    let row = div()
-        .id(id)
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_6()
-        .px_3()
-        .py_1()
-        .text_sm()
-        .text_color(text)
-        .cursor_pointer()
-        .hover(move |style| style.bg(hover))
-        .child(label);
-    if shortcut.is_empty() {
-        row
-    } else {
-        row.child(div().text_xs().text_color(muted).child(shortcut))
-    }
+    xenon_design_system::menu_item(id, label, shortcut, colors, false)
 }
 
 fn grid_canvas(

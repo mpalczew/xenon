@@ -10,16 +10,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Task, Window,
+    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
+    Render, ScrollHandle, StatefulInteractiveElement, Task, Window,
 };
 use theme::ActiveTheme;
 use xenon_finder::{FileIndex, FileMatch};
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, ScrollResults, hint_row, input_registrar, panel, query_row, reveal_selected,
-    scrim, scroll_results, simple_row, step_selection,
+    PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, hint_row, panel, query_row,
+    reveal_selected, scrim, scroll_results, simple_row, step_selection,
 };
 
 /// Debounce before scoring a large index (keeps keystrokes snappy).
@@ -279,24 +279,29 @@ impl Render for FinderView {
         scrim("finder-scrim", layout)
             .on_click(cx.listener(|_, _, _, cx| cx.emit(FinderEvent::Dismissed)))
             .child(
-                panel(layout, &colors)
-                    .track_focus(&self.focus)
-                    .key_context("Finder")
-                    .on_key_down(cx.listener(Self::on_key))
-                    .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(
-                        query_row(&self.query, self.placeholder(), self.caret_on, &colors)
-                            .into_any_element(),
-                    )
-                    .child(scroll_results(ScrollResults {
-                        list_id: "finder-results",
-                        empty_message: empty,
-                        rows,
-                        selected: self.selected,
-                        scroll: &self.scroll,
-                        colors: &colors,
-                    }))
-                    .child(hint_row("↩ open  ·  ⌘↩ beside", &colors)),
+                bind_query_chrome(
+                    QueryChrome {
+                        panel: panel(layout, &colors),
+                        focus: self.focus.clone(),
+                        key_context: "Finder",
+                        view: cx.entity(),
+                    },
+                    cx,
+                    Self::on_key,
+                )
+                .child(
+                    query_row(&self.query, self.placeholder(), self.caret_on, &colors)
+                        .into_any_element(),
+                )
+                .child(scroll_results(ScrollResults {
+                    list_id: "finder-results",
+                    empty_message: empty,
+                    rows,
+                    selected: self.selected,
+                    scroll: &self.scroll,
+                    colors: &colors,
+                }))
+                .child(hint_row("↩ open  ·  ⌘↩ beside", &colors)),
             )
     }
 }

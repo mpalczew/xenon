@@ -13,6 +13,9 @@ use gpui::{
 };
 use theme::ThemeColors;
 
+mod menu;
+pub use menu::{Shortcut, menu_item};
+
 /// How a selectable chrome row or chip should paint.
 #[derive(Clone, Copy)]
 pub struct SelectionPaint {

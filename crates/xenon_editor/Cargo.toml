@@ -65,6 +65,7 @@ tree-sitter-elm.workspace = true
 tree-sitter-svelte-ng.workspace = true
 pulldown-cmark.workspace = true
 xenon_settings.workspace = true
+xenon_design_system.workspace = true
 log = "0.4"
 
 [dev-dependencies]

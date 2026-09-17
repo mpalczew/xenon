@@ -9,7 +9,8 @@ surface and the non-obvious focus model.
 | Area | Keys |
 |------|------|
 | New terminal / file | ⌘N / ⌘⇧N |
-| Open workspace / file | ⌘⇧O / ⌘P (↩ this pane, ⌘↩ / ⌃↩ new pane to the right) |
+| New / open workspace | ⌘⌥N / ⌘⇧O |
+| Open file | ⌘P (↩ this pane, ⌘↩ / ⌃↩ new pane to the right) |
 | Commands / help / task | ⌘⇧P / ⌘⇧/ / ⌘⇧R |
 | Save / Save As | ⌘S / ⌘⇧S |
 | Focus terminal / editor / Files | ⌘1 / ⌘2 / ⌘3 (kinds, not pane index) |
@@ -33,9 +34,10 @@ path is already open, focus the existing tab (paths stay unique). Terminal
 chrome from the selection, or from the clipboard if the selection is gone.
 Do not bind hold-⌘ to select mode.
 
-The sidebar Workspaces `+` opens a two-item menu. Arrow keys and Return choose
-New workspace or Open workspace; New workspace accepts the directory name first,
-then fuzzy-filters visible parent folders under `~`.
+The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open
+workspace). Arrow keys and Return choose a row. New workspace accepts the
+directory name first, then fuzzy-filters visible parent folders under `~`.
+While that field is focused, ⌘V pastes into the name, not the tab behind it.
 
 Tabs and panes stay separate verbs. ⌃⇥ cycles tabs in the focused leaf.
 The overflow count (`N ▾`) lists every tab in that leaf; arrows, Return, Delete, and Escape operate the list while it is open.

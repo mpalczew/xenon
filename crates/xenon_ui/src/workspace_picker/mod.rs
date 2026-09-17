@@ -24,8 +24,8 @@ use theme::ActiveTheme;
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, detail_row, hint_row_with_action, input_registrar,
-    panel, query_row, reveal_selected, scrim, scroll_results,
+    DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
+    hint_row_with_action, panel, query_row, reveal_selected, scrim, scroll_results,
 };
 use crate::workspace_discover::{
     DiscoverQuery, FoundRoot, discover, expand_user_path, parse_discover_query, ranking_needle,
@@ -356,30 +356,33 @@ impl Render for WorkspacePickerView {
         scrim("workspace-picker-scrim", layout)
             .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Dismissed)))
             .child(
-                panel(layout, &colors)
-                    .track_focus(&self.focus)
-                    .key_context("WorkspacePicker")
-                    .on_key_down(cx.listener(Self::on_key))
-                    .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(
-                        query_row(&self.query, "Open workspace…", true, &colors).into_any_element(),
+                bind_query_chrome(
+                    QueryChrome {
+                        panel: panel(layout, &colors),
+                        focus: self.focus.clone(),
+                        key_context: "WorkspacePicker",
+                        view: cx.entity(),
+                    },
+                    cx,
+                    Self::on_key,
+                )
+                .child(query_row(&self.query, "Open workspace…", true, &colors).into_any_element())
+                .child(scroll_results(ScrollResults {
+                    list_id: "workspace-picker-results",
+                    empty_message: empty,
+                    rows,
+                    selected: self.selected,
+                    scroll: &self.scroll,
+                    colors: &colors,
+                }))
+                .child(
+                    hint_row_with_action(
+                        "↵ open  ·  ⌘⌫ forget closed  ·  ~/src name  ·  esc",
+                        browse,
+                        &colors,
                     )
-                    .child(scroll_results(ScrollResults {
-                        list_id: "workspace-picker-results",
-                        empty_message: empty,
-                        rows,
-                        selected: self.selected,
-                        scroll: &self.scroll,
-                        colors: &colors,
-                    }))
-                    .child(
-                        hint_row_with_action(
-                            "↵ open  ·  ⌘⌫ forget closed  ·  ~/src name  ·  esc",
-                            browse,
-                            &colors,
-                        )
-                        .into_any_element(),
-                    ),
+                    .into_any_element(),
+                ),
             )
     }
 }

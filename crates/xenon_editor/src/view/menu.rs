@@ -24,27 +24,10 @@ pub(super) fn file_title(path: &std::path::Path) -> String {
 pub(super) fn context_item(
     id: &'static str,
     label: &'static str,
-    shortcut: &'static str,
+    shortcut: xenon_design_system::Shortcut,
     colors: &theme::ThemeColors,
 ) -> gpui::Stateful<gpui::Div> {
-    // Prefer element_selected: element_hover often matches elevated_surface.
-    let hover = colors.element_selected;
-    let muted = colors.text_muted;
-    let text = colors.text;
-    div()
-        .id(id)
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_6()
-        .px_3()
-        .py_1()
-        .text_sm()
-        .text_color(text)
-        .cursor_pointer()
-        .hover(move |s| s.bg(hover))
-        .child(label)
-        .child(div().text_xs().text_color(muted).child(shortcut))
+    xenon_design_system::menu_item(id, label, shortcut, colors, false)
 }
 
 impl EditorView {
@@ -101,36 +84,52 @@ impl EditorView {
             .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
             .on_mouse_move(|_, _, cx| cx.stop_propagation())
             .child(
-                context_item("editor-menu-cut", "Cut", "⌘X", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.cut_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "editor-menu-cut",
+                    "Cut",
+                    xenon_design_system::Shortcut::new("⌘X"),
+                    colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.cut_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("editor-menu-copy", "Copy", "⌘C", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.copy_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "editor-menu-copy",
+                    "Copy",
+                    xenon_design_system::Shortcut::new("⌘C"),
+                    colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.copy_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("editor-menu-paste", "Paste", "⌘V", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.paste_clipboard(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "editor-menu-paste",
+                    "Paste",
+                    xenon_design_system::Shortcut::new("⌘V"),
+                    colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.paste_clipboard(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("editor-menu-select-all", "Select All", "⌘A", colors).on_click(
-                    cx.listener(|this, _, _, cx| {
-                        this.select_all(cx);
-                        this.dismiss_menu(cx);
-                    }),
-                ),
+                context_item(
+                    "editor-menu-select-all",
+                    "Select All",
+                    xenon_design_system::Shortcut::new("⌘A"),
+                    colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.select_all(cx);
+                    this.dismiss_menu(cx);
+                })),
             );
         self.context_menu_shell(position, menu_box, cx)
     }
@@ -156,20 +155,28 @@ impl EditorView {
             .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
             .on_mouse_move(|_, _, cx| cx.stop_propagation())
             .child(
-                context_item("preview-menu-copy", "Copy", "⌘C", colors).on_click(cx.listener(
-                    |this, _, _, cx| {
-                        this.copy_selection(cx);
-                        this.dismiss_menu(cx);
-                    },
-                )),
+                context_item(
+                    "preview-menu-copy",
+                    "Copy",
+                    xenon_design_system::Shortcut::new("⌘C"),
+                    colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.copy_selection(cx);
+                    this.dismiss_menu(cx);
+                })),
             )
             .child(
-                context_item("preview-menu-select-all", "Select All", "⌘A", colors).on_click(
-                    cx.listener(|this, _, _, cx| {
-                        this.select_all(cx);
-                        this.dismiss_menu(cx);
-                    }),
-                ),
+                context_item(
+                    "preview-menu-select-all",
+                    "Select All",
+                    xenon_design_system::Shortcut::new("⌘A"),
+                    colors,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.select_all(cx);
+                    this.dismiss_menu(cx);
+                })),
             );
         self.context_menu_shell(position, menu_box, cx)
     }

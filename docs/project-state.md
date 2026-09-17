@@ -73,6 +73,10 @@ rediscover.
 
 - GPUI typed text arrives through `EntityInputHandler`, not ordinary key-down
   handlers. Printable key handlers must return unhandled.
+- In-app menus are `xenon_design_system::menu_item` only; the row requires a
+  `Shortcut`. Command chords come from `commands::shortcut`.
+- App-level Cut/Copy/Paste no-op while a query overlay or rename field is open.
+  Palettes bind those actions through `bind_query_chrome`.
 - Palette and content teardown must route focus to a live surface or the shell.
 - A fresh PTY grid is tiny before first paint. Remote-only reopen must call
   `ensure_grid_size`.

@@ -13,7 +13,8 @@ use gpui::{
 use theme::ActiveTheme;
 
 use crate::entity_input_noop_geometry;
-use crate::palette::input_registrar;
+use crate::palette::{QueryBuffer, copy_query, cut_query, input_registrar, paste_query};
+use xenon_settings::{Copy, Cut, Paste};
 
 const CARET_BLINK: Duration = Duration::from_millis(530);
 
@@ -134,6 +135,9 @@ impl Render for RenameView {
             .track_focus(&self.focus)
             .key_context("Rename")
             .on_key_down(cx.listener(Self::on_key))
+            .on_action(cx.listener(|this, _: &Paste, _, cx| paste_query(this, cx)))
+            .on_action(cx.listener(|this, _: &Cut, _, cx| cut_query(this, cx)))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| copy_query(this, cx)))
             .relative()
             .w_full()
             .px_1()
@@ -151,6 +155,18 @@ impl Render for RenameView {
                     .children(caret),
             )
             .child(input_registrar(cx.entity(), self.focus.clone()))
+    }
+}
+
+impl QueryBuffer for RenameView {
+    fn query_text(&self) -> &str {
+        &self.text
+    }
+
+    fn replace_query(&mut self, query: String, cx: &mut Context<Self>) {
+        self.text = query;
+        self.caret_on = true;
+        cx.notify();
     }
 }
 

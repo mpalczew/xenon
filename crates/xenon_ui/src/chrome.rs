@@ -3,5 +3,6 @@
 //! dependency so other Xenon surfaces can reuse the same vocabulary.
 
 pub(crate) use xenon_design_system::{
-    SelectionPaint, accent_surface, list_selection, status_color, tab_selection,
+    SelectionPaint, Shortcut, accent_surface, list_selection, menu_item, status_color,
+    tab_selection,
 };

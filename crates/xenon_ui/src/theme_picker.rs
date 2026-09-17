@@ -12,8 +12,8 @@ use xenon_store::ThemeMode;
 
 use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, fuzzy_index_order, hint_row, input_registrar, optional_title, panel, query_row,
-    scrim,
+    PaletteLayout, QueryChrome, bind_query_chrome, fuzzy_index_order, hint_row, optional_title,
+    panel, query_row, scrim,
 };
 
 const COLS: usize = 3;
@@ -329,36 +329,39 @@ impl Render for ThemePickerView {
         scrim("theme-picker-scrim", layout)
             .on_click(cx.listener(|_, _, _, cx| cx.emit(ThemePickerEvent::Dismissed)))
             .child(
-                panel(layout, &colors)
-                    .track_focus(&self.focus)
-                    .key_context("ThemePicker")
-                    .on_key_down(cx.listener(Self::on_key))
-                    .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(optional_title("Themes", &colors).into_any_element())
-                    .child(
-                        query_row(&self.query, "Filter themes…", true, &colors).into_any_element(),
+                bind_query_chrome(
+                    QueryChrome {
+                        panel: panel(layout, &colors),
+                        focus: self.focus.clone(),
+                        key_context: "ThemePicker",
+                        view: cx.entity(),
+                    },
+                    cx,
+                    Self::on_key,
+                )
+                .child(optional_title("Themes", &colors).into_any_element())
+                .child(query_row(&self.query, "Filter themes…", true, &colors).into_any_element())
+                .child(
+                    div()
+                        .id("theme-picker-grid")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .track_scroll(&self.scroll)
+                        .p(px(12.))
+                        .flex()
+                        .flex_row()
+                        .flex_wrap()
+                        .gap_3()
+                        .children(cards),
+                )
+                .child(
+                    hint_row(
+                        "↵ apply (stays open)  ·  esc dismiss  ·  arrows move  ·  type to filter",
+                        &colors,
                     )
-                    .child(
-                        div()
-                            .id("theme-picker-grid")
-                            .flex_1()
-                            .min_h_0()
-                            .overflow_y_scroll()
-                            .track_scroll(&self.scroll)
-                            .p(px(12.))
-                            .flex()
-                            .flex_row()
-                            .flex_wrap()
-                            .gap_3()
-                            .children(cards),
-                    )
-                    .child(
-                        hint_row(
-                            "↵ apply (stays open)  ·  esc dismiss  ·  arrows move  ·  type to filter",
-                            &colors,
-                        )
-                        .into_any_element(),
-                    ),
+                    .into_any_element(),
+                ),
             )
     }
 }

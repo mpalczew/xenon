@@ -8,7 +8,6 @@ use crate::{
 };
 use gpui::{AnyElement, DragMoveEvent, KeyDownEvent, MouseButton, MouseUpEvent, relative};
 use xenon_core::{PaneId, SplitAxis};
-use xenon_settings::{Copy, CopyClean, CopyCode, Cut, Paste};
 
 impl Render for XenonApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -137,6 +136,8 @@ impl XenonApp {
 
     fn bind_app_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
         let root = self.bind_core_actions(root, cx);
+        let root = self.bind_path_actions(root, cx);
+        let root = self.bind_clipboard_actions(root, cx);
         self.bind_nav_actions(root, cx)
     }
 
@@ -154,6 +155,12 @@ impl XenonApp {
             .on_action(
                 cx.listener(|this, _: &AddWorkspace, window, cx| this.add_workspace(window, cx)),
             )
+            .on_action(cx.listener(|this, _: &crate::NewWorkspace, window, cx| {
+                this.open_workspace_creator(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &crate::NewFolder, _, cx| {
+                this.new_folder_here(cx);
+            }))
             .on_action(
                 cx.listener(|this, _: &FilePalette, window, cx| this.open_palette(window, cx)),
             )
@@ -212,21 +219,6 @@ impl XenonApp {
             }))
             .on_action(cx.listener(|this, _: &ResetFontSize, window, cx| {
                 this.reset_font_size(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &Cut, window, cx| {
-                this.clipboard_cut(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &Copy, window, cx| {
-                this.clipboard_copy(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &CopyClean, window, cx| {
-                this.clipboard_copy_clean(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &CopyCode, window, cx| {
-                this.clipboard_copy_code(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &Paste, window, cx| {
-                this.clipboard_paste(window, cx);
             }))
     }
 

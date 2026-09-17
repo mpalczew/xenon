@@ -8,6 +8,7 @@ impl XenonApp {
         self.finder = None;
         self.task_picker = None;
         self.workspace_picker = None;
+        self.workspace_create = None;
         self.command_palette = None;
         self.theme_picker = None;
     }

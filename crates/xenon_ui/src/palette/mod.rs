@@ -8,7 +8,10 @@ mod input;
 mod layout;
 mod rows;
 
-pub(crate) use input::input_registrar;
+pub(crate) use input::{
+    QueryBuffer, QueryChrome, bind_query_chrome, copy_query, cut_query, input_registrar,
+    paste_query,
+};
 pub(crate) use layout::{
     PaletteLayout, ScrollResults, fuzzy_index_order, hint_row, hint_row_with_action,
     optional_title, panel, query_row, reveal_selected, scrim, scroll_results, step_selection,

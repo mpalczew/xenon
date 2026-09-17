@@ -137,6 +137,58 @@ impl XenonApp {
         ));
     }
 
+    fn focused_tab_id(&self) -> Option<TabId> {
+        Some(self.active_content()?.focused_leaf()?.active_tab()?.id())
+    }
+
+    fn focused_editor_path(&self) -> Option<PathBuf> {
+        self.active_content()?
+            .focused_leaf()?
+            .active_tab()?
+            .editor_path()
+            .map(|path| path.to_path_buf())
+            .or_else(|| {
+                self.file_browser
+                    .cursor()
+                    .and_then(|_| self.tree_cursor_path_opt())
+            })
+    }
+
+    fn tree_cursor_path_opt(&self) -> Option<PathBuf> {
+        let rows = self.tree_rows();
+        let i = self.file_browser.cursor()?;
+        rows.get(i).map(|row| row.path.clone())
+    }
+
+    pub(crate) fn close_other_tabs_focused(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.focused_tab_id() {
+            self.close_other_tabs(tab, window, cx);
+        }
+    }
+
+    pub(crate) fn copy_focused_path(&self, relative: bool, cx: &mut Context<Self>) {
+        let Some(path) = self.focused_editor_path() else {
+            return;
+        };
+        if relative {
+            self.copy_path_relative(&path, cx);
+        } else {
+            Self::copy_path_abs(&path, cx);
+        }
+    }
+
+    pub(crate) fn reveal_focused_path(&self) {
+        if let Some(path) = self.focused_editor_path() {
+            Self::reveal_in_finder(&path);
+        }
+    }
+
+    pub(crate) fn open_focused_in_default_app(&self, cx: &mut App) {
+        if let Some(path) = self.focused_editor_path() {
+            cx.open_with_system(&path);
+        }
+    }
+
     /// macOS: `open -R` selects the file in Finder.
     pub(crate) fn reveal_in_finder(path: &Path) {
         let _ = std::process::Command::new("open")

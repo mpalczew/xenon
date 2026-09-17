@@ -2,8 +2,8 @@
 //! Shell chrome lives in `crate::palette`; this file owns catalog + routing.
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Window,
+    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
+    Render, ScrollHandle, StatefulInteractiveElement, Window,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
@@ -12,9 +12,9 @@ use xenon_core::WorkspaceId;
 use crate::commands::{CommandEntry, CommandId, catalog};
 use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
-    input_registrar, optional_title, panel, query_row, reveal_selected, scrim, scroll_results,
-    step_selection,
+    DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
+    fuzzy_index_order, hint_row, optional_title, panel, query_row, reveal_selected, scrim,
+    scroll_results, step_selection,
 };
 
 #[derive(Clone, Debug)]
@@ -212,28 +212,30 @@ impl Render for CommandPaletteView {
         scrim("command-palette-scrim", layout)
             .on_click(cx.listener(|_, _, _, cx| cx.emit(CommandPaletteEvent::Dismissed)))
             .child(
-                panel(layout, &colors)
-                    .track_focus(&self.focus)
-                    .key_context("CommandPalette")
-                    .on_key_down(cx.listener(Self::on_key))
-                    .child(input_registrar(cx.entity(), self.focus.clone()).into_any_element())
-                    .child(optional_title(self.title(), &colors).into_any_element())
-                    .child(
-                        query_row(&self.query, self.placeholder(), true, &colors)
-                            .into_any_element(),
-                    )
-                    .child(scroll_results(ScrollResults {
-                        list_id: "command-palette-results",
-                        empty_message: "No matches",
-                        rows,
-                        selected: self.selected,
-                        scroll: &self.scroll,
-                        colors: &colors,
-                    }))
-                    .child(
-                        hint_row("↵ run  ·  esc dismiss  ·  type to filter", &colors)
-                            .into_any_element(),
-                    ),
+                bind_query_chrome(
+                    QueryChrome {
+                        panel: panel(layout, &colors),
+                        focus: self.focus.clone(),
+                        key_context: "CommandPalette",
+                        view: cx.entity(),
+                    },
+                    cx,
+                    Self::on_key,
+                )
+                .child(optional_title(self.title(), &colors).into_any_element())
+                .child(query_row(&self.query, self.placeholder(), true, &colors).into_any_element())
+                .child(scroll_results(ScrollResults {
+                    list_id: "command-palette-results",
+                    empty_message: "No matches",
+                    rows,
+                    selected: self.selected,
+                    scroll: &self.scroll,
+                    colors: &colors,
+                }))
+                .child(
+                    hint_row("↵ run  ·  esc dismiss  ·  type to filter", &colors)
+                        .into_any_element(),
+                ),
             )
     }
 }
