@@ -15,9 +15,7 @@ use gpui::{
     WindowHandle, div, px,
 };
 use theme::ActiveTheme;
-use xenon_core::{
-    Active, DEFAULT_SIDEBAR_WIDTH, Registry, SessionState, TabId, WorkspaceId, WorkspaceRec,
-};
+use xenon_core::{Active, Registry, SessionState, TabId, WorkspaceId, WorkspaceRec};
 use xenon_editor::{EditorEvent, EditorView};
 use xenon_finder::{FileIndex, Finder};
 use xenon_ide::{IdeCommand, IdeServer, SelectionSnapshot};
@@ -148,7 +146,7 @@ pub struct XenonApp {
     /// Overlay focus restore + window-deferred palette/command work.
     deferred: DeferredUi,
     sidebar_collapsed: bool,
-    /// Live sidebar width (px); persisted per-workspace.
+    /// Global live sidebar width (px); persisted in app settings.
     sidebar_width: f32,
     /// True after a width drag until flushed to the session.
     layout_dirty: bool,

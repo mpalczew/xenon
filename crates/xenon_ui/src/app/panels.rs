@@ -45,7 +45,6 @@ impl XenonApp {
 
     pub(super) fn apply_sidebar(&mut self, session: &SessionState) {
         self.sidebar_collapsed = !session.sidebar_visible;
-        self.sidebar_width = xenon_core::clamp_sidebar(session.sidebar_width);
     }
 
     pub(super) fn toggle_sidebar_panel(&mut self, cx: &mut Context<Self>) {
@@ -183,6 +182,11 @@ impl XenonApp {
         self.layout_dirty = false;
         if let Some(id) = self.active {
             self.save_layout(id);
+        }
+        if let Err(error) = xenon_store::update_settings(|settings| {
+            settings.sidebar_width = xenon_core::clamp_sidebar(self.sidebar_width);
+        }) {
+            log::error!("persist sidebar width failed: {error}");
         }
         self.persist_section_prefs();
     }

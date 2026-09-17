@@ -72,7 +72,7 @@ impl XenonApp {
             nav_suppress: false,
             deferred: DeferredUi::default(),
             sidebar_collapsed: false,
-            sidebar_width: DEFAULT_SIDEBAR_WIDTH,
+            sidebar_width: xenon_core::clamp_sidebar(settings.sidebar_width),
             layout_dirty: false,
             workspaces_collapsed: settings.workspaces_collapsed,
             workspace_section_closing: false,

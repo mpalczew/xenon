@@ -104,6 +104,9 @@ pub struct AppSettings {
     /// Left panel Files section expanded.
     #[serde(default = "default_true")]
     pub files_open: bool,
+    /// Global width of the left sidebar (px).
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: f32,
     /// Pinned Workspaces list height (px) when Files is also open.
     /// `None` = size to content (workspaces-first; no artificial cap).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -141,6 +144,7 @@ impl Default for AppSettings {
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
+            sidebar_width: 240.0,
             workspaces_section_height: None,
             window: None,
             remote_password: String::new(),
@@ -149,6 +153,10 @@ impl Default for AppSettings {
             lsp: LspSettings::default(),
         }
     }
+}
+
+fn default_sidebar_width() -> f32 {
+    240.0
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
