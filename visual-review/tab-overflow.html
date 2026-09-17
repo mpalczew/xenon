@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xenon — tab overflow (proposal)</title>
+<style>
+  :root {
+    --bg: #090b10;
+    --page: #dce0e5;
+    --muted: #a9afbc;
+    --faint: #878a98;
+    --line: #2a3140;
+    --accent: #74ade8;
+    --tab-bar: #14161c;
+    --tab-inactive: #14161c;
+    --tab-active: #000000;
+    --hover: #1a1a1a;
+    --selected: #2a3140;
+    --elevated: #1c1f26;
+    --panel: #14161c;
+    --canvas: #000000;
+    --text: #dce0e5;
+    --text-muted: #a9afbc;
+    --border: #464b57;
+    --border-variant: #363c46;
+    --warning: #dec184;
+    --info: #74ade8;
+    --tab-h: 34px;
+    --chip-pad-x: 12px;
+    --chip-gap: 8px;
+    --label-max: 160px;
+    --underline: 2px;
+    --rail: 2px;
+    --close: 16px;
+    --row-close: 22px;
+    --overflow-w: 44px;
+    --add-w: 30px;
+    --menu-w: 280px;
+    --menu-max-h: 320px;
+    --menu-offset: 4px;
+    --reveal-ms: 180ms;
+    --reveal-y: 6px;
+    --pulse-ms: 1400ms;
+    --menu-radius: 6px;
+    --focus: #47679e;
+    --row-h: 28px;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--page);
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: var(--accent); }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 28px 28px 80px; }
+  .kicker {
+    margin: 0 0 8px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  h1 { margin: 0 0 10px; font-size: 28px; letter-spacing: -.03em; font-weight: 650; }
+  h2 { margin: 0 0 8px; font-size: 16px; font-weight: 650; }
+  .lede, .note, .spec p { color: var(--muted); max-width: 640px; }
+  .lede { margin: 0 0 28px; }
+  .lede kbd, .note kbd, .keys kbd {
+    display: inline-block; min-width: 1.6em; padding: 1px 6px;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--panel); color: var(--page); font: 11px ui-monospace, Menlo, monospace;
+  }
+  section { margin-top: 36px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px; border: 1px solid var(--line); border-radius: 99px;
+    color: var(--muted); font-size: 11px;
+  }
+
+  .stage {
+    border: 1px solid var(--border-variant);
+    border-radius: 10px;
+    overflow: visible;
+    background: var(--canvas);
+  }
+  #wide-stage { width: 720px; max-width: 100%; }
+  .stage-label {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-variant);
+    color: var(--faint);
+    font-size: 11px;
+  }
+  .shell { position: relative; min-height: 420px; }
+  .shell.narrow { width: 520px; max-width: 100%; }
+
+  .tab-bar {
+    display: flex;
+    align-items: stretch;
+    height: var(--tab-h);
+    background: var(--tab-bar);
+    border-bottom: 1px solid var(--border-variant);
+  }
+  .chips {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .chip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--chip-gap);
+    flex: 0 0 auto;
+    height: 100%;
+    padding: 0 var(--chip-pad-x);
+    border: 0;
+    border-right: 1px solid var(--border-variant);
+    background: var(--tab-inactive);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    max-width: calc(var(--chip-pad-x) * 2 + var(--label-max) + var(--chip-gap) + var(--close));
+  }
+  .chip:hover { background: var(--hover); }
+  .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .chip.is-active {
+    background: var(--tab-active);
+    color: var(--text);
+    font-weight: 500;
+  }
+  .chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: var(--label-max);
+  }
+  .chip-close, .row-close, .overflow-btn, .add-btn {
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 4px;
+  }
+  .chip-close {
+    width: var(--close);
+    height: var(--close);
+    font-size: 11px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .chip:hover .chip-close,
+  .chip:focus-within .chip-close,
+  .chip.is-active .chip-close {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .chip-close:hover, .row-close:hover { color: var(--text); background: var(--selected); }
+  .chip-close:focus-visible, .row-close:focus-visible, .overflow-btn:focus-visible, .add-btn:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 1px;
+  }
+  .underline {
+    position: absolute; left: 0; right: 0; bottom: 0; height: var(--underline);
+    background: transparent; pointer-events: none;
+  }
+  .chip.is-active .underline { background: var(--accent); }
+  .status-rail {
+    position: absolute; left: 0; right: 0; top: 0; height: var(--rail);
+    pointer-events: none;
+  }
+  .chip.is-active .status-rail { display: none; }
+  .status-rail.working { background: var(--info); animation: pulse var(--pulse-ms) ease-in-out infinite; }
+  .status-rail.attention { background: var(--warning); }
+  @keyframes pulse {
+    50% { opacity: .5; }
+  }
+
+  .trailing {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: stretch;
+  }
+  .overflow-wrap { position: relative; display: flex; }
+  .overflow-btn, .add-btn {
+    height: 100%;
+    position: relative;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .overflow-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: var(--overflow-w);
+    padding: 0 8px;
+    font-weight: 400;
+  }
+  .add-btn { width: var(--add-w); font-size: 16px; display: grid; place-items: center; }
+  .overflow-btn:hover, .add-btn:hover { background: var(--hover); color: var(--text); }
+  .overflow-btn.is-open { background: var(--hover); color: var(--text); }
+  .overflow-btn .count { font-variant-numeric: tabular-nums; font-weight: 400; }
+  .overflow-btn .caret {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+  }
+  .overflow-btn.is-open .caret { transform: rotate(180deg); }
+  .overflow-btn .pip {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 5px;
+    height: 5px;
+  }
+
+  .menu {
+    position: absolute;
+    top: calc(var(--tab-h) + 4px);
+    right: 30px;
+    z-index: 8;
+    width: var(--menu-w);
+    max-height: var(--menu-max-h);
+    display: flex;
+    flex-direction: column;
+    background: var(--elevated);
+    border: 1px solid var(--border-variant);
+    border-radius: var(--menu-radius);
+    box-shadow: 0 12px 28px rgba(0,0,0,.35);
+    transform-origin: top right;
+    animation: reveal var(--reveal-ms) ease-out;
+  }
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(var(--reveal-y)); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .menu-list { overflow: auto; padding: 4px 0; }
+  .overflow-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: var(--row-h);
+    padding: 0 6px 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+  }
+  .overflow-row.is-packed {
+    color: var(--text-muted);
+    background: var(--hover);
+  }
+  .overflow-row.is-active-tab { font-weight: 500; }
+  .overflow-row.is-hi {
+    background: var(--selected);
+    color: var(--text);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .overflow-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-close {
+    width: var(--row-close);
+    height: var(--row-close);
+    flex: 0 0 auto;
+    font-size: 12px;
+  }
+  .pip {
+    width: 6px; height: 6px; border-radius: 50%; background: transparent; flex: 0 0 auto;
+  }
+  .pip.working { background: var(--info); animation: pulse var(--pulse-ms) ease-in-out infinite; }
+  .pip.attention { background: var(--warning); }
+
+  .body {
+    min-height: 360px;
+    padding: 18px 20px;
+    color: #acb2be;
+    font: 13px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .dim { color: #636d83; }
+
+  .keys { display: grid; grid-template-columns: 180px 1fr; gap: 6px 16px; max-width: 640px; color: var(--muted); font-size: 13px; }
+  .keys kbd { min-width: 1.6em; }
+
+  .spec {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 0;
+    border: 1px solid var(--border-variant);
+    border-radius: 8px;
+    overflow: hidden;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .spec dt, .spec dd { margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--border-variant); }
+  .spec dt { color: var(--faint); background: var(--panel); }
+  .spec dd { color: var(--page); background: #0e1116; }
+  .spec dt:last-of-type, .spec dd:last-of-type { border-bottom: 0; }
+
+  .replay { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .replay button {
+    padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); color: var(--page);
+  }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .compare .stage { min-width: 0; }
+
+  @media (max-width: 720px) {
+    .compare, .spec, .keys { grid-template-columns: 1fr; }
+    .page { padding: 20px 16px 56px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .menu { animation: none; }
+    .status-rail.working, .pip.working { animation: none; opacity: 1; }
+  }
+  html.reduced .menu { animation: none; }
+  html.reduced .status-rail.working, html.reduced .pip.working { animation: none; opacity: 1; }
+</style>
+</head>
+<body>
+<main class="page">
+  <p class="kicker">Proposal · option A</p>
+  <h1>Overflow chevron, close stays one click</h1>
+  <p class="lede">When chips do not fit, a trailing <strong style="color:var(--page);font-weight:600">3 ▾</strong> opens every tab in the leaf. The triangle is the menu cue. Close is always on the active chip and on every row. Off-strip working or attention is a pip on that control, not an accent bar. Ctrl-Tab still cycles in order.</p>
+
+  <section id="live">
+    <div class="stage-label" style="border:0;padding:0 0 8px;background:transparent">
+      <h2>Interactive strip</h2>
+      <span class="pill" id="live-meta"></span>
+    </div>
+    <div class="stage" id="wide-stage">
+      <div class="stage-label"><span>Proposed / One Dark · list open</span><span>Click 3 ▾ to toggle. Close from a chip or from a row.</span></div>
+      <div class="shell" data-demo="wide"></div>
+    </div>
+  </section>
+
+  <section id="close">
+    <h2>Close</h2>
+    <p class="note">Clipped tabs cannot be hovered, so hover-only × is not enough. Active chip keeps × visible. Overflow rows keep × visible. Row × closes that tab without activating it. Chip × and Cmd-W still close the focused tab.</p>
+  </section>
+
+  <section id="narrow">
+    <h2>Narrow pane</h2>
+    <p class="note">Same control in a split. Active tab stays on the strip. The rest go in the list.</p>
+    <div class="stage shell narrow" id="narrow-stage">
+      <div class="stage-label"><span>Proposed / 520px leaf</span><span>Split-sized overflow</span></div>
+      <div class="shell" data-demo="narrow"></div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <h2>Current vs proposed</h2>
+    <div class="compare">
+      <div class="stage" id="current-stage">
+        <div class="stage-label"><span>Current</span><span>overflow hidden, no access</span></div>
+        <div class="tab-bar" aria-hidden="true">
+          <div class="chips" id="current-chips"></div>
+          <div class="trailing"><button class="add-btn" tabindex="-1">+</button></div>
+        </div>
+        <div class="body"><span class="dim">Later chips clip. No list. No close. Off-strip attention is gone.</span></div>
+      </div>
+      <div class="stage">
+        <div class="stage-label"><span>Proposed</span><span>chevron + always-on close in the list</span></div>
+        <div class="shell" data-demo="compare"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="keys">
+    <h2>Keyboard</h2>
+    <div class="keys">
+      <div><kbd>ctrl-tab</kbd></div><div>Cycle tabs in this leaf (existing)</div>
+      <div><kbd>cmd-w</kbd></div><div>Close focused tab (existing)</div>
+      <div><kbd>down</kbd> / <kbd>up</kbd></div><div>Move in the open list</div>
+      <div><kbd>enter</kbd></div><div>Activate highlighted row</div>
+      <div><kbd>delete</kbd> / row ×</div><div>Close that tab, stay in the list</div>
+      <div><kbd>esc</kbd></div><div>Dismiss the list</div>
+    </div>
+  </section>
+
+  <section id="motion">
+    <h2>Motion</h2>
+    <p class="note">Menu opens with the same 180ms / 6px travel as sidebar reveals. Off-strip working is a pip on the overflow control, not a rail. Reduced motion: menu appears in place, pip stays solid.</p>
+    <div class="replay">
+      <button type="button" id="replay-menu">Replay menu</button>
+      <button type="button" id="replay-pulse">Replay chevron pulse</button>
+    </div>
+  </section>
+
+  <section id="haptics">
+    <h2>Haptics</h2>
+    <p class="note">None. This is mouse and keyboard chrome. Status stays visual (rail, pip). Proposed, not physically verified.</p>
+  </section>
+
+  <section id="specs">
+    <h2>Specs (from this page)</h2>
+    <p class="note">Values are read from computed styles on the live strip, not a second table.</p>
+    <dl class="spec" id="spec-list"></dl>
+  </section>
+</main>
+
+<script>
+(function () {
+  const SEED = [
+    { id: "t1", title: "claude · xenon", kind: "term", status: null },
+    { id: "t2", title: "NOTES.md", kind: "editor", status: null },
+    { id: "t3", title: "main.rs", kind: "editor", status: null },
+    { id: "t4", title: "gemini", kind: "term", status: null },
+    { id: "t5", title: "grok", kind: "term", status: null },
+    { id: "t6", title: "settings.rs", kind: "editor", status: null },
+    { id: "t7", title: "boot.rs", kind: "editor", status: null },
+    { id: "t8", title: "login", kind: "term", status: "attention" },
+    { id: "t9", title: "bash · 9", kind: "term", status: "working" }
+  ];
+
+  const demos = {};
+
+  function cloneSeed() {
+    return {
+      tabs: SEED.map((t) => Object.assign({}, t)),
+      active: "t2",
+      open: true,
+      hi: 1
+    };
+  }
+
+  function measureChip(tab) {
+    const probe = document.createElement("span");
+    probe.style.cssText = "position:absolute;visibility:hidden;font:13px/1.45 -apple-system,BlinkMacSystemFont,sans-serif;font-weight:500";
+    probe.textContent = tab.title;
+    document.body.appendChild(probe);
+    const label = Math.min(probe.getBoundingClientRect().width, 160);
+    probe.remove();
+    return 12 + 12 + 8 + 16 + 1 + label + 10;
+  }
+
+  function layout(state, avail) {
+    const widths = state.tabs.map(measureChip);
+    let room = Math.max(0, avail);
+    const visible = [];
+    const hidden = [];
+    const activeIdx = state.tabs.findIndex((t) => t.id === state.active);
+    let used = 0;
+    state.tabs.forEach((tab, i) => {
+      const w = widths[i];
+      const must = i === activeIdx;
+      if (!must && used + w <= room) {
+        visible.push(tab);
+        used += w;
+      } else if (must) {
+        while (visible.length && used + w > room) {
+          const drop = visible.pop();
+          used -= widths[state.tabs.findIndex((t) => t.id === drop.id)];
+          hidden.unshift(drop);
+        }
+        visible.push(tab);
+        used += w;
+      } else {
+        hidden.push(tab);
+      }
+    });
+    return { visible, hidden, showChevron: hidden.length > 0 };
+  }
+
+  function hiddenStatus(hidden) {
+    if (hidden.some((t) => t.status === "working")) return "working";
+    if (hidden.some((t) => t.status === "attention")) return "attention";
+    return null;
+  }
+
+  function rowsOf(state) {
+    if (state.hi >= state.tabs.length) state.hi = Math.max(0, state.tabs.length - 1);
+    return state.tabs;
+  }
+
+  function closeTab(state, id) {
+    const idx = state.tabs.findIndex((t) => t.id === id);
+    if (idx < 0 || state.tabs.length === 1) return;
+    const wasActive = state.active === id;
+    state.tabs.splice(idx, 1);
+    if (wasActive) {
+      const next = state.tabs[Math.min(idx, state.tabs.length - 1)];
+      state.active = next.id;
+    }
+  }
+
+  function activate(state, id) {
+    state.active = id;
+  }
+
+  function renderShell(root, key) {
+    const state = demos[key];
+    const bar = document.createElement("div");
+    bar.className = "tab-bar";
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    const trailing = document.createElement("div");
+    trailing.className = "trailing";
+    bar.appendChild(chips);
+    bar.appendChild(trailing);
+    root.innerHTML = "";
+    root.appendChild(bar);
+    const body = document.createElement("div");
+    body.className = "body";
+    root.appendChild(body);
+
+    const avail = chips.getBoundingClientRect().width || root.getBoundingClientRect().width - 30;
+    const { visible, hidden, showChevron } = layout(state, avail);
+    const status = hiddenStatus(hidden);
+
+    visible.forEach((tab) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (tab.id === state.active ? " is-active" : "");
+      chip.dataset.id = tab.id;
+      chip.innerHTML =
+        '<span class="chip-label"></span>' +
+        '<span class="chip-close" data-close title="Close Tab · ⌘W">×</span>' +
+        '<span class="underline"></span>' +
+        (tab.status && tab.id !== state.active
+          ? '<span class="status-rail ' + tab.status + '"></span>'
+          : "");
+      chip.querySelector(".chip-label").textContent = tab.title;
+      chip.addEventListener("click", (e) => {
+        if (e.target.closest("[data-close]")) {
+          e.stopPropagation();
+          closeTab(state, tab.id);
+        } else {
+          activate(state, tab.id);
+        }
+        paint(key);
+      });
+      chips.appendChild(chip);
+    });
+
+    if (showChevron) {
+      const wrap = document.createElement("div");
+      wrap.className = "overflow-wrap";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "overflow-btn" + (state.open ? " is-open" : "");
+      btn.title = hidden.length + " more tabs";
+      btn.setAttribute("aria-haspopup", "listbox");
+      btn.setAttribute("aria-expanded", state.open ? "true" : "false");
+      btn.innerHTML =
+        '<span class="count">' + hidden.length + "</span>" +
+        '<span class="caret" aria-hidden="true"></span>' +
+        (status ? '<i class="pip ' + status + '"></i>' : "");
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.open = !state.open;
+        if (state.open) {
+          const i = state.tabs.findIndex((t) => t.id === state.active);
+          state.hi = i < 0 ? 0 : i;
+        }
+        paint(key);
+      });
+      wrap.appendChild(btn);
+      trailing.appendChild(wrap);
+      if (state.open) {
+        const menu = renderMenu(state, hidden, key);
+        menu.dataset.menuFor = key;
+        root.appendChild(menu);
+      }
+    } else {
+      state.open = false;
+    }
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "add-btn";
+    add.title = "New Terminal · ⌘N";
+    add.textContent = "+";
+    add.addEventListener("click", () => {
+      const n = state.tabs.length + 1;
+      const id = "n" + n;
+      state.tabs.push({ id, title: "bash · " + n, kind: "term", status: null });
+      state.active = id;
+      paint(key);
+    });
+    trailing.appendChild(add);
+
+    const active = state.tabs.find((t) => t.id === state.active);
+    body.innerHTML =
+      '<div>' + (active ? active.title : "") + '</div>' +
+      '<div class="dim">' +
+      visible.length + " on strip · " + hidden.length + " in overflow · close from the chip or the list" +
+      "</div>";
+  }
+
+  function renderMenu(state, hidden, key) {
+    const menu = document.createElement("div");
+    menu.className = "menu";
+    menu.setAttribute("role", "listbox");
+    const list = document.createElement("div");
+    list.className = "menu-list";
+    const rows = rowsOf(state);
+    const hiddenIds = new Set(hidden.map((t) => t.id));
+    rows.forEach((tab, i) => {
+      const row = document.createElement("div");
+      row.className =
+        "overflow-row" +
+        (tab.id === state.active ? " is-active-tab" : "") +
+        (hiddenIds.has(tab.id) ? " is-packed" : "") +
+        (i === state.hi ? " is-hi" : "");
+      row.setAttribute("role", "option");
+      const pip = tab.status ? '<i class="pip ' + tab.status + '"></i>' : '<i class="pip"></i>';
+      row.innerHTML =
+        pip +
+        '<span class="grow"></span>' +
+        '<button type="button" class="row-close" data-close title="Close">×</button>';
+      row.querySelector(".grow").textContent = tab.title;
+      row.addEventListener("mouseenter", () => {
+        state.hi = i;
+        paint(key);
+      });
+      row.addEventListener("click", (e) => {
+        if (e.target.closest("[data-close]")) {
+          e.stopPropagation();
+          closeTab(state, tab.id);
+        } else {
+          activate(state, tab.id);
+        }
+        paint(key);
+      });
+      list.appendChild(row);
+    });
+    menu.appendChild(list);
+    return menu;
+  }
+
+  function paint(key) {
+    const root = document.querySelector('[data-demo="' + key + '"]');
+    if (!root || !demos[key]) return;
+    renderShell(root, key);
+    if (key === "wide") {
+      const s = demos.wide;
+      const avail = root.querySelector(".chips").getBoundingClientRect().width;
+      const { hidden } = layout(s, avail);
+      document.getElementById("live-meta").textContent =
+        s.tabs.length + " tabs · " + hidden.length + " overflowed";
+      fillSpecs(root);
+    }
+  }
+
+  function fillSpecs(root) {
+    const chip = root.querySelector(".chip.is-active") || root.querySelector(".chip");
+    const close = root.querySelector(".chip-close");
+    const bar = root.querySelector(".tab-bar");
+    const btn = root.querySelector(".overflow-btn");
+    const menu = root.querySelector(".menu");
+    const rowClose = menu && menu.querySelector(".row-close");
+    const cs = (el, prop) => (el ? getComputedStyle(el).getPropertyValue(prop).trim() : "—");
+    const px = (el, prop) => {
+      if (!el) return "—";
+      const r = el.getBoundingClientRect();
+      if (prop === "height") return Math.round(r.height) + "px";
+      if (prop === "width") return Math.round(r.width) + "px";
+      return cs(el, prop);
+    };
+    const rows = [
+      ["tab bar height", px(bar, "height")],
+      ["tab bar background", cs(bar, "background-color")],
+      ["active chip background", cs(chip, "background-color")],
+      ["active chip color / weight", cs(chip, "color") + " / " + cs(chip, "font-weight")],
+      ["underline", getComputedStyle(document.documentElement).getPropertyValue("--underline").trim() + " accent #74ade8"],
+      ["status rail", getComputedStyle(document.documentElement).getPropertyValue("--rail").trim() + " warning #dec184 / info #74ade8"],
+      ["chip close hit", px(close, "width") + " × " + px(close, "height") + " · visible on active"],
+      ["overflow control", px(btn, "width") + " · count + disclosure triangle, no accent rail"],
+      ["menu width / max-height", cs(menu, "width") + " / " + getComputedStyle(document.documentElement).getPropertyValue("--menu-max-h").trim()],
+      ["menu surface", cs(menu, "background-color") || "#1c1f26"],
+      ["row close hit", rowClose ? Math.round(rowClose.getBoundingClientRect().width) + "px" : "22px"],
+      ["menu motion", "180ms / 6px · none if reduced-motion"]
+    ];
+    const dl = document.getElementById("spec-list");
+    dl.innerHTML = rows.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("");
+  }
+
+  function paintCurrent() {
+    const host = document.getElementById("current-chips");
+    host.innerHTML = "";
+    SEED.forEach((tab, i) => {
+      const chip = document.createElement("button");
+      chip.className = "chip" + (tab.id === "t2" ? " is-active" : "");
+      chip.innerHTML = '<span class="chip-label"></span><span class="underline"></span>' +
+        (tab.status && tab.id !== "t2" ? '<span class="status-rail ' + tab.status + '"></span>' : "");
+      chip.querySelector(".chip-label").textContent = tab.title;
+      host.appendChild(chip);
+    });
+  }
+
+  ["wide", "narrow", "compare"].forEach((key) => {
+    demos[key] = cloneSeed();
+  });
+
+  const params = new URLSearchParams(location.search);
+  if (params.get("open") === "0") {
+    Object.keys(demos).forEach((k) => {
+      demos[k].open = false;
+    });
+  }
+  if (params.get("reduced") === "1") document.documentElement.classList.add("reduced");
+
+  function allPaint() {
+    paintCurrent();
+    ["wide", "narrow", "compare"].forEach(paint);
+  }
+
+  allPaint();
+  requestAnimationFrame(allPaint);
+  window.addEventListener("resize", () => {
+    ["wide", "narrow", "compare"].forEach(paint);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    const openKey = Object.keys(demos).find((k) => demos[k].open);
+    if (!openKey) return;
+    const state = demos[openKey];
+    const rows = rowsOf(state);
+    if (e.key === "Escape") {
+      state.open = false;
+      paint(openKey);
+      e.preventDefault();
+    } else if (e.key === "ArrowDown") {
+      state.hi = Math.min(rows.length - 1, state.hi + 1);
+      paint(openKey);
+      e.preventDefault();
+    } else if (e.key === "ArrowUp") {
+      state.hi = Math.max(0, state.hi - 1);
+      paint(openKey);
+      e.preventDefault();
+    } else if (e.key === "Enter" && rows[state.hi]) {
+      activate(state, rows[state.hi].id);
+      paint(openKey);
+      e.preventDefault();
+    } else if ((e.key === "Backspace" || e.key === "Delete") && rows[state.hi]) {
+      closeTab(state, rows[state.hi].id);
+      paint(openKey);
+      e.preventDefault();
+    }
+  });
+
+  document.getElementById("replay-menu").addEventListener("click", () => {
+    demos.wide.open = false;
+    paint("wide");
+    requestAnimationFrame(() => {
+      demos.wide.open = true;
+      paint("wide");
+    });
+  });
+  document.getElementById("replay-pulse").addEventListener("click", () => {
+    const pip = document.querySelector('[data-demo="wide"] .overflow-btn .pip');
+    if (!pip) return;
+    pip.style.animation = "none";
+    void pip.offsetWidth;
+    pip.style.animation = "";
+  });
+})();
+</script>
+</body>
+</html>

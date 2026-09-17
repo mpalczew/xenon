@@ -34,6 +34,7 @@ New workspace or Open workspace; New workspace accepts the directory name first,
 then fuzzy-filters visible parent folders under `~`.
 
 Tabs and panes stay separate verbs. ⌃⇥ cycles tabs in the focused leaf.
+The overflow count (`N ▾`) lists every tab in that leaf; arrows, Return, Delete, and Escape operate the list while it is open.
 ⌃` cycles leaves, then Files. Do not make ⌃⇥ wrap across panes (VS Code /
 Zed / IntelliJ use ⌃⇥ as an MRU picker, not sequential wrap). ⌘1/2/3 stay
 last-terminal / last-editor / Files.

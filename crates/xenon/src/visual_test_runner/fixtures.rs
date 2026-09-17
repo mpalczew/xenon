@@ -34,6 +34,22 @@ pub fn build() -> Result<Fixture> {
         demo_root.join("NOTES.md"),
         "# Notes\n\n- terminal first\n- `cmd-p` opens files\n\n```rust\nfn ok() {}\n```\n",
     )?;
+    for (name, body) in [
+        ("src/settings.rs", "pub struct Settings;\n"),
+        ("src/boot.rs", "pub fn boot() {}\n"),
+        ("src/gemini.rs", "pub fn gemini() {}\n"),
+        ("src/grok.rs", "pub fn grok() {}\n"),
+        ("src/login.rs", "pub fn login() {}\n"),
+        ("src/panels.rs", "pub fn panels() {}\n"),
+        ("src/agent.rs", "pub fn agent() {}\n"),
+        ("src/claude.rs", "pub fn claude() {}\n"),
+        ("src/xenon.rs", "pub fn xenon() {}\n"),
+        ("src/session.rs", "pub fn session() {}\n"),
+        ("src/content.rs", "pub fn content() {}\n"),
+        ("src/keyboard.rs", "pub fn keyboard() {}\n"),
+    ] {
+        fs::write(demo_root.join(name), body)?;
+    }
     fs::write(demo_root.join("blob.bin"), [0u8, 1, 2, 3, 0xff, 0x00])?;
     fs::write(
         demo_root.join(".vscode/tasks.json"),

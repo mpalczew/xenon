@@ -85,6 +85,8 @@ impl XenonApp {
             renaming: None,
             _rename_sub: None,
             tab_menu: None,
+            overflow_menu: None,
+            tab_strip_widths: HashMap::new(),
             browser_menu: None,
             workspace_menu: None,
             focus: cx.focus_handle(),

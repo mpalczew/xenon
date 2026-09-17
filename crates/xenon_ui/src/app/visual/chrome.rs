@@ -85,6 +85,54 @@ pub(super) fn tabs_dirty(app: &mut XenonApp, window: &mut Window, cx: &mut Conte
     cx.notify();
 }
 
+pub(super) fn tabs_overflow(
+    app: &mut XenonApp,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+    open: bool,
+) {
+    populate(app, window, cx);
+    for rel in [
+        "src/settings.rs",
+        "src/boot.rs",
+        "src/gemini.rs",
+        "src/grok.rs",
+        "src/login.rs",
+        "src/panels.rs",
+        "src/agent.rs",
+        "src/claude.rs",
+        "src/xenon.rs",
+        "src/session.rs",
+        "src/content.rs",
+        "src/keyboard.rs",
+    ] {
+        open_rel(app, rel, window, cx);
+    }
+    ensure_terminal(app, window, cx);
+    if let Some(id) = app.active
+        && let Some((_, tab)) = first_terminal_tab(app)
+    {
+        app.flag_attention(id, tab, AttentionReason::Bell, cx);
+    }
+    if let Some((pane, index)) = notes_tab(app) {
+        app.activate_tab_in_pane(pane, index, window, cx);
+        if open {
+            app.toggle_overflow_menu(pane, gpui::point(gpui::px(980.), gpui::px(48.)), cx);
+        }
+    }
+    cx.notify();
+}
+
+fn notes_tab(app: &XenonApp) -> Option<(xenon_core::PaneId, usize)> {
+    let content = app.active_content()?;
+    let leaf = content.focused_leaf()?;
+    let index = leaf.tabs.iter().position(|tab| {
+        tab.editor_path()
+            .is_some_and(|path| path.ends_with("NOTES.md"))
+    })?;
+    Some((leaf.id, index))
+}
+
 pub(super) fn tabs_attention(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
     ensure_terminal(app, window, cx);

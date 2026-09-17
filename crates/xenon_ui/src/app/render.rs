@@ -31,11 +31,13 @@ impl Render for XenonApp {
             None
         };
         let tab_menu = self.render_tab_menu(cx);
+        let overflow_menu = self.render_overflow_menu(cx);
         let browser_menu = self.render_browser_menu(cx);
         let body = self.render_shell_body(sidebar, main, colors.clone(), cx);
         self.bind_app_actions(div(), cx)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if this.on_tab_menu_key(event, window, cx)
+                    || this.on_overflow_menu_key(event, window, cx)
                     || this.on_browser_menu_key(event, window, cx)
                     || this.on_workspace_menu_key(event, window, cx)
                     || this.on_browser_key(event, window, cx)
@@ -63,6 +65,7 @@ impl Render for XenonApp {
             .children(theme_picker)
             .children(memory_panel)
             .children(tab_menu)
+            .children(overflow_menu)
             .children(browser_menu)
     }
 }

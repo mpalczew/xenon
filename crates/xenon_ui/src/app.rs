@@ -89,6 +89,14 @@ pub(crate) struct TabContextMenu {
     pub selected: usize,
 }
 
+/// Overflow tab list (count control on a packed strip).
+#[derive(Clone, Debug)]
+pub(crate) struct TabOverflowMenu {
+    pub pane: xenon_core::PaneId,
+    pub position: Point<Pixels>,
+    pub selected: usize,
+}
+
 /// Right-click menu on a Files tree row (or empty tree area / header).
 #[derive(Clone, Debug)]
 pub(crate) struct BrowserContextMenu {
@@ -160,6 +168,10 @@ pub struct XenonApp {
     _rename_sub: Option<Subscription>,
     /// Right-click menu on a terminal or editor tab.
     pub(crate) tab_menu: Option<TabContextMenu>,
+    /// Packed-strip overflow list.
+    pub(crate) overflow_menu: Option<TabOverflowMenu>,
+    /// Last measured chip-row width per leaf, used to pack overflow.
+    pub(crate) tab_strip_widths: HashMap<xenon_core::PaneId, Pixels>,
     /// Right-click menu on the Files tree.
     pub(crate) browser_menu: Option<BrowserContextMenu>,
     pub(crate) workspace_menu: Option<WorkspaceMenu>,

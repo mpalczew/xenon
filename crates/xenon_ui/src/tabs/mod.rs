@@ -1,105 +1,25 @@
 //! Mixed terminal/editor tab strips per leaf pane.
 
+mod chips;
+pub(crate) mod layout;
 pub(crate) mod menu;
+pub(crate) mod overflow;
 mod tooltips;
 
-#[cfg(not(feature = "visual-tests"))]
-use gpui::{Animation, AnimationExt};
 use gpui::{
-    App, AppContext, Context, Focusable, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div,
-    px,
+    App, AppContext, Context, Focusable, InteractiveElement, IntoElement, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, Window, canvas, div, px,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::PaneId;
 
 use crate::{
-    app::{DragTab, LiveLeaf, LiveTab, WorkspaceDot, XenonApp, workspace_dot},
-    chrome::{self, SelectionPaint},
+    app::{LiveLeaf, LiveTab, XenonApp, workspace_dot},
     icons::icon,
     preview_icon,
 };
-use tooltips::{DragGhost, TabTooltip};
-
-fn tab_underline(paint: SelectionPaint) -> impl IntoElement {
-    div()
-        .absolute()
-        .bottom_0()
-        .left_0()
-        .right_0()
-        .h(px(2.))
-        .bg(paint.accent)
-}
-
-fn tab_status_rail(status: WorkspaceDot, selected: bool, cx: &App) -> Option<gpui::AnyElement> {
-    if selected {
-        return None;
-    }
-    let color = match status {
-        WorkspaceDot::Working => crate::chrome::status_color(cx, false),
-        WorkspaceDot::Attention(_) => crate::chrome::status_color(cx, true),
-    };
-    let rail = div()
-        .absolute()
-        .top_0()
-        .left_0()
-        .right_0()
-        .h(px(2.))
-        .bg(color);
-    #[cfg(not(feature = "visual-tests"))]
-    if matches!(status, WorkspaceDot::Working) {
-        return Some(
-            rail.with_animation(
-                "tab-working-rail",
-                Animation::new(std::time::Duration::from_millis(1400))
-                    .repeat()
-                    .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
-                move |this, delta| this.opacity(delta),
-            )
-            .into_any_element(),
-        );
-    }
-    Some(rail.into_any_element())
-}
-
-fn term_chip_paint(
-    colors: &theme::ThemeColors,
-    is_active: bool,
-    is_focused: bool,
-    is_exited: bool,
-    cx: &App,
-) -> chrome::SelectionPaint {
-    let paint = chrome::tab_selection(colors, is_active, is_focused);
-    if !is_exited {
-        return paint;
-    }
-    let status = cx.theme().status();
-    chrome::SelectionPaint {
-        background: status.ignored_background,
-        foreground: status.ignored,
-        accent: status.ignored_border,
-    }
-}
-
-fn tab_close(
-    id: impl Into<gpui::ElementId>,
-    group: &str,
-    colors: &theme::ThemeColors,
-    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
-) -> impl IntoElement {
-    let group = group.to_string();
-    div()
-        .id(id)
-        .text_xs()
-        .text_color(colors.text_muted)
-        .invisible()
-        .group_hover(group, |s| s.visible())
-        .hover(|s| s.text_color(colors.text))
-        .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")))
-        .child(icon(Icon::X, px(12.)))
-        .on_click(on_click)
-}
+use tooltips::TabTooltip;
 
 pub(crate) fn tip_tooltip(tip: SharedString) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView {
     move |_window: &mut Window, cx: &mut App| cx.new(|_| TabTooltip { text: tip.clone() }).into()
@@ -114,10 +34,25 @@ impl XenonApp {
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let pane = leaf.id;
-        let chips = self.mixed_tab_chips(leaf, focused, cx);
+        let packed = self.packed_tabs(leaf, cx);
+        let chips = self.mixed_tab_chips(leaf, &packed.visible, focused, cx);
         let preview = self.md_preview_btn(leaf, pane, &colors, cx);
-        // Pin trailing chrome (+, md preview). Chips absorb width pressure so
-        // those controls stay visible when many tabs are open.
+        let overflow_open = self
+            .overflow_menu
+            .as_ref()
+            .is_some_and(|menu| menu.pane == pane);
+        let overflow = (!packed.hidden.is_empty()).then(|| {
+            overflow::overflow_trigger(
+                pane,
+                packed.hidden.len(),
+                overflow_open,
+                overflow::hidden_status(self, leaf, &packed.hidden, cx),
+                cx,
+            )
+        });
+        let entity = cx.entity();
+        // Pin trailing chrome (+, md preview). Overflow count sits in the chip
+        // row so + stays visible.
         div()
             .flex()
             .items_center()
@@ -127,15 +62,44 @@ impl XenonApp {
             .bg(colors.tab_bar_background)
             .child(
                 div()
+                    .relative()
                     .flex()
                     .items_center()
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .gap_0()
-                    .px_1()
-                    .overflow_hidden()
-                    .children(chips),
+                    .child(
+                        canvas(
+                            |bounds, _, _| bounds.size.width,
+                            move |_bounds, width, _, cx| {
+                                entity.update(cx, |this, cx| {
+                                    let prev = this.tab_strip_widths.get(&pane).copied();
+                                    let changed = prev.is_none_or(|old| {
+                                        (f32::from(old) - f32::from(width)).abs() > 1.0
+                                    });
+                                    if changed {
+                                        this.tab_strip_widths.insert(pane, width);
+                                        cx.notify();
+                                    }
+                                });
+                            },
+                        )
+                        .absolute()
+                        .size_full(),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .gap_0()
+                            .px_1()
+                            .overflow_hidden()
+                            .children(chips),
+                    )
+                    .children(overflow),
             )
             .child(
                 div()
@@ -151,6 +115,7 @@ impl XenonApp {
     fn mixed_tab_chips(
         &self,
         leaf: &LiveLeaf,
+        visible: &[usize],
         focused: bool,
         cx: &mut Context<Self>,
     ) -> Vec<gpui::AnyElement> {
@@ -158,7 +123,10 @@ impl XenonApp {
         let active = leaf.active;
         let ws = self.active;
         let mut chips = Vec::new();
-        for (index, tab) in leaf.tabs.iter().enumerate() {
+        for &index in visible {
+            let Some(tab) = leaf.tabs.get(index) else {
+                continue;
+            };
             let is_active = index == active;
             match tab {
                 LiveTab::Terminal { id, view } => {
@@ -286,196 +254,5 @@ impl XenonApp {
                     t.read(cx).focus_handle(cx).focus(window, cx);
                 }
             }))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn mixed_term_chip(
-        &self,
-        pane: PaneId,
-        index: usize,
-        tab_id: xenon_core::TabId,
-        title: &str,
-        is_active: bool,
-        is_focused: bool,
-        is_exited: bool,
-        status: Option<WorkspaceDot>,
-        ws: Option<xenon_core::WorkspaceId>,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let paint = term_chip_paint(&colors, is_active, is_focused, is_exited, cx);
-        let group = format!("tab-{}-{}", pane.0, index);
-        let tip = if is_exited {
-            format!("{title} — process exited")
-        } else if let Some(dot) = status {
-            format!("{title} — {}", dot.tooltip())
-        } else {
-            title.to_string()
-        };
-        let title_owned = title.to_string();
-        let display_title = if matches!(title, "bash" | "zsh" | "fish") {
-            format!("{title} · {}", index + 1)
-        } else {
-            title_owned.clone()
-        };
-        div()
-            .id(SharedString::from(format!("tab-{}-{}", pane.0, index)))
-            .group(group.clone())
-            .relative()
-            .flex()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .h_full()
-            .flex_none()
-            .min_w_0()
-            .border_r_1()
-            .border_color(colors.border)
-            .bg(paint.background)
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.activate_tab_in_pane(pane, index, window, cx);
-            }))
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    this.open_tab_menu(pane, tab_id, event.position, cx);
-                }),
-            )
-            .on_drag(
-                DragTab {
-                    workspace: ws.unwrap_or_default(),
-                    tab: tab_id,
-                },
-                {
-                    let label = title_owned.clone();
-                    move |_drag, _, _, cx| {
-                        cx.new(|_| DragGhost {
-                            label: SharedString::from(label.clone()),
-                        })
-                    }
-                },
-            )
-            .tooltip({
-                let full = SharedString::from(tip);
-                move |_window: &mut Window, cx: &mut App| {
-                    cx.new(|_| TabTooltip { text: full.clone() }).into()
-                }
-            })
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(if is_focused {
-                        gpui::FontWeight::MEDIUM
-                    } else {
-                        gpui::FontWeight::NORMAL
-                    })
-                    .text_color(paint.foreground)
-                    .max_w(px(160.))
-                    .min_w_0()
-                    .truncate()
-                    .child(display_title),
-            )
-            .children(status.and_then(|dot| tab_status_rail(dot, is_active, cx)))
-            .child(tab_close(
-                SharedString::from(format!("tab-close-{}-{}", pane.0, index)),
-                &group,
-                &colors,
-                {
-                    cx.listener(move |this, _, window, cx| {
-                        cx.stop_propagation();
-                        this.close_tab_id(tab_id, window, cx);
-                    })
-                },
-            ))
-            .child(tab_underline(paint))
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn mixed_editor_chip(
-        &self,
-        pane: PaneId,
-        index: usize,
-        tab_id: xenon_core::TabId,
-        name: &str,
-        path: &str,
-        is_active: bool,
-        is_focused: bool,
-        _is_dirty: bool,
-        ws: Option<xenon_core::WorkspaceId>,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
-        let paint = chrome::tab_selection(&colors, is_active, is_focused);
-        let group = format!("tab-{}-{}", pane.0, index);
-        let tip = SharedString::from(path.to_string());
-        let name_owned = name.to_string();
-        div()
-            .id(SharedString::from(format!("etab-{}-{}", pane.0, index)))
-            .group(group.clone())
-            .relative()
-            .flex()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .h_full()
-            .flex_none()
-            .min_w_0()
-            .border_r_1()
-            .border_color(colors.border)
-            .bg(paint.background)
-            .text_color(paint.foreground)
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover))
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.activate_tab_in_pane(pane, index, window, cx);
-            }))
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    this.open_tab_menu(pane, tab_id, event.position, cx);
-                }),
-            )
-            .on_drag(
-                DragTab {
-                    workspace: ws.unwrap_or_default(),
-                    tab: tab_id,
-                },
-                {
-                    let label = name_owned.clone();
-                    move |_drag, _, _, cx| {
-                        cx.new(|_| DragGhost {
-                            label: SharedString::from(label.clone()),
-                        })
-                    }
-                },
-            )
-            .tooltip(move |_window: &mut Window, cx: &mut App| {
-                cx.new(|_| TabTooltip { text: tip.clone() }).into()
-            })
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(if is_focused {
-                        gpui::FontWeight::MEDIUM
-                    } else {
-                        gpui::FontWeight::NORMAL
-                    })
-                    .max_w(px(160.))
-                    .min_w_0()
-                    .truncate()
-                    .child(name_owned),
-            )
-            .child(tab_close(
-                SharedString::from(format!("etab-close-{}-{}", pane.0, index)),
-                &group,
-                &colors,
-                cx.listener(move |this, _, window, cx| {
-                    cx.stop_propagation();
-                    this.close_tab_id(tab_id, window, cx);
-                }),
-            ))
-            .child(tab_underline(paint))
     }
 }

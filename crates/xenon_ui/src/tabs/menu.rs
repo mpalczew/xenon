@@ -31,6 +31,7 @@ impl XenonApp {
             return;
         }
         self.browser_menu = None;
+        self.overflow_menu = None;
         let _ = pane; // caller supplies pane for activate-before-menu if needed later
         self.tab_menu = Some(TabContextMenu {
             tab,

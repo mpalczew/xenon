@@ -27,6 +27,8 @@ pub enum Scene {
     FilesGitDirt,
     TabsDirty,
     TabsAttention,
+    TabsOverflow,
+    TabsOverflowMenu,
     SplitRight,
     SplitDown,
     ReservedEmptyPane,
@@ -73,6 +75,8 @@ pub const SCENES: &[Scene] = &[
     Scene::FilesGitDirt,
     Scene::TabsDirty,
     Scene::TabsAttention,
+    Scene::TabsOverflow,
+    Scene::TabsOverflowMenu,
     Scene::SplitRight,
     Scene::SplitDown,
     Scene::ReservedEmptyPane,
@@ -129,6 +133,8 @@ impl Scene {
             Self::FilesGitDirt => "chrome_files_git_dirt",
             Self::TabsDirty => "chrome_tabs_dirty",
             Self::TabsAttention => "chrome_tabs_attention",
+            Self::TabsOverflow => "chrome_tabs_overflow",
+            Self::TabsOverflowMenu => "overlay_tab_overflow",
             Self::SplitRight => "chrome_split_right",
             Self::SplitDown => "chrome_split_down",
             Self::ReservedEmptyPane => "chrome_reserved_empty_pane",
@@ -163,7 +169,12 @@ impl Scene {
     pub fn needs_terminal(self) -> bool {
         matches!(
             self,
-            Self::TerminalGrid | Self::TerminalFind | Self::TerminalMenu | Self::TabsAttention
+            Self::TerminalGrid
+                | Self::TerminalFind
+                | Self::TerminalMenu
+                | Self::TabsAttention
+                | Self::TabsOverflow
+                | Self::TabsOverflowMenu
         )
     }
 }
@@ -190,6 +201,8 @@ pub fn apply_scene(
         Scene::FilesGitDirt => chrome::files_git_dirt(app, window, cx),
         Scene::TabsDirty => chrome::tabs_dirty(app, window, cx),
         Scene::TabsAttention => chrome::tabs_attention(app, window, cx),
+        Scene::TabsOverflow => chrome::tabs_overflow(app, window, cx, false),
+        Scene::TabsOverflowMenu => chrome::tabs_overflow(app, window, cx, true),
         Scene::SplitRight => chrome::split_right(app, window, cx),
         Scene::SplitDown => chrome::split_down(app, window, cx),
         Scene::ReservedEmptyPane => chrome::reserved_empty(app, window, cx),
