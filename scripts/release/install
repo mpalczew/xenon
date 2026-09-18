@@ -13,7 +13,7 @@ mkdir -p "$dest_dir"
 rm -rf "$dest_dir/xero.app" "$dest"
 cp -R "$root/target/release/xenon.app" "$dest"
 identity="$(xenon_codesign_identity)"
-codesign --force --deep --sign "$identity" "$dest" || {
+codesign --force --deep --sign "$identity" --identifier dev.xero.xero "$dest" || {
     echo "codesign of installed app failed: $dest" >&2
     exit 1
 }

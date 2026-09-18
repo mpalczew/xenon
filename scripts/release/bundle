@@ -15,7 +15,8 @@ cp "$root/macos/xenon.icns" "$app/Contents/Resources/xenon.icns"
 # Dock/Launch Services run the stub; the GUI is xenon-bin beside it.
 cp "$root/target/release/xenon-stub" "$app/Contents/MacOS/xenon"
 cp "$root/target/release/xenon" "$app/Contents/MacOS/xenon-bin"
-codesign --force --deep --sign "$identity" "$app" || {
+# Same identifier on stub and xenon-bin so FDA/TCC survive exec of the GUI.
+codesign --force --deep --sign "$identity" --identifier dev.xero.xero "$app" || {
     echo "codesign failed with identity: $identity" >&2
     exit 1
 }
