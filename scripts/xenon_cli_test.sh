@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Prove scripts/release/install's CLI copy, and that `xenon open` execs the app
-# with XENON_DATA_DIR (does not flip slots).
+# Prove scripts/release/install's CLI copy, and that `xenon open` execs the
+# bundle entry (Mach-O stub at Contents/MacOS/xenon) with XENON_DATA_DIR
+# (does not flip slots).
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/xenon-cli.XXXXXX")"

@@ -30,7 +30,8 @@ and `CONTRIBUTING.md`.
   Run `scripts/health` before committing; the commit hook enforces its format and lint subset.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
-  release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`),
+  release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`;
+  `Contents/MacOS/xenon` is a Mach-O slot stub that execs `xenon-bin`),
   **stable-codesigns** it, copies it to `~/Applications/Xenon.app` (override
   with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`), and installs
   `scripts/xenon` to `~/bin/xenon` (`XENON_BIN_DIR` to override). Not `/Applications`:

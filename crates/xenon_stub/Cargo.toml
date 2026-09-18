@@ -1,0 +1,15 @@
+[package]
+name = "xenon_stub"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "xenon-stub"
+path = "src/main.rs"
+
+[dev-dependencies]
+tempfile = "3"

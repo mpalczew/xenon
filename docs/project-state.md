@@ -27,7 +27,15 @@ rediscover.
   `XENON_DATA_DIR` so open targets this instance. Dogfood (both A/B live):
   `which xenon` is still `~/bin/xenon`; A/B routing is that env plus the
   launcher’s `open` handler (`scripts/xenon`, copied to `~/bin/xenon` by
-  `scripts/release/install`).
+  `scripts/release/install`). The signed `Xenon.app` in the Dock is that
+  same release binary (bundle id `dev.xero.xero`). `CFBundleExecutable` is
+  a Mach-O stub (`Contents/MacOS/xenon`) that `exec`s `xenon-bin`. Cold
+  start from Dock/Spotlight/login: no data-dir env → last slot from
+  `~/.xenon-active-slot` when `~/.xenon-a`/`~/.xenon-b` exists, else ship
+  `~/.xenon`. Env already set is not overridden, so the CLI still execs
+  the stub with slot env (0/1/2 and `xenon open` do not flip via `open
+  -n`). Dock click while running activates; it does not spawn the other
+  slot. Public ship without the marker file is one instance at `~/.xenon`.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` /
   `.pdf` hand off to the system default app. Markdown preview stays a GPUI
   document. Agent computer-use stays in the harness (Playwright, Chrome,
@@ -88,6 +96,8 @@ rediscover.
 - Git dirt stays flush-right; hover actions must occupy the same gutter.
 - A completed `project install` updates the app on disk, but a running process
   keeps the old binary. Never kill Xenon to force the switch.
+- Do not make `CFBundleExecutable` a shell script: TCC/FDA follow the signed
+  Mach-O in `Xenon.app`, not `/bin/bash`. The stub is a small signed binary.
 - TUI mouse reporting sends clicks to the PTY. ⌘-click open injects shift (so
   reporting is off) and still calls Zed `mouse_down`; the Select-text word-select
   path never does, and would swallow the hyperlink. ⌘ is open-path, not

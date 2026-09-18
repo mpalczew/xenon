@@ -4,7 +4,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=codesign.sh
 source "$root/scripts/release/codesign.sh"
 
-(cd "$root" && cargo build --release -p xenon)
+(cd "$root" && cargo build --release -p xenon -p xenon_stub)
 
 app="$root/target/release/xenon.app"
 identity="$(xenon_codesign_identity)"
@@ -12,7 +12,9 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$root/macos/Info.plist" "$app/Contents/Info.plist"
 cp "$root/macos/xenon.icns" "$app/Contents/Resources/xenon.icns"
-cp "$root/target/release/xenon" "$app/Contents/MacOS/xenon"
+# Dock/Launch Services run the stub; the GUI is xenon-bin beside it.
+cp "$root/target/release/xenon-stub" "$app/Contents/MacOS/xenon"
+cp "$root/target/release/xenon" "$app/Contents/MacOS/xenon-bin"
 codesign --force --deep --sign "$identity" "$app" || {
     echo "codesign failed with identity: $identity" >&2
     exit 1
