@@ -1,10 +1,11 @@
 //! Keyboard-first creator for a new directory-backed workspace.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
-    Render, ScrollHandle, StatefulInteractiveElement, Styled, Window, div,
+    Render, ScrollHandle, StatefulInteractiveElement, Styled, Task, Window, div,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
@@ -14,7 +15,14 @@ use crate::palette::{
     DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
     fuzzy_index_order, hint_row, panel, query_row, reveal_selected, scrim, scroll_results,
 };
-use crate::workspace_discover::{discover_parent_dirs, resolve_existing_dir};
+use crate::workspace_discover::{
+    discover_parent_dirs, expand_user_path, list_parent_candidates, path_is_dir,
+    resolve_existing_dir,
+};
+
+const PARENT_LIST_DEBOUNCE: Duration = Duration::from_millis(60);
+const PARENT_EMPTY_TAKE: usize = 12;
+const PARENT_FILTER_TAKE: usize = 20;
 
 pub enum WorkspaceCreateEvent {
     Create { name: String, parent: PathBuf },
@@ -38,7 +46,11 @@ pub struct WorkspaceCreateView {
     focused_once: bool,
     matcher: Matcher,
     scroll: ScrollHandle,
-    _discover_task: Option<gpui::Task<()>>,
+    /// Path-scoped listing (`~/src`); `None` means fuzzy-filter `parents`.
+    scoped: Option<Vec<PathBuf>>,
+    listing_gen: u64,
+    _parents_task: Option<Task<()>>,
+    _listing_task: Option<Task<()>>,
 }
 
 impl EventEmitter<WorkspaceCreateEvent> for WorkspaceCreateView {}
@@ -56,20 +68,109 @@ impl WorkspaceCreateView {
             focused_once: false,
             matcher: Matcher::new(Config::DEFAULT),
             scroll: ScrollHandle::new(),
-            _discover_task: None,
+            scoped: None,
+            listing_gen: 0,
+            _parents_task: None,
+            _listing_task: None,
         };
         view.load_parent_dirs(cx);
         view
     }
 
     fn load_parent_dirs(&mut self, cx: &mut Context<Self>) {
-        self._discover_task = Some(cx.spawn(async move |this, cx| {
+        self._parents_task = Some(cx.spawn(async move |this, cx| {
             let dirs = cx
                 .background_executor()
                 .spawn(async { discover_parent_dirs() })
                 .await;
             this.update(cx, |this, cx| {
                 this.parents = dirs;
+                if this.scoped.is_none() {
+                    this.refilter();
+                    cx.notify();
+                }
+            })
+            .ok();
+        }));
+    }
+
+    fn refilter(&mut self) {
+        if let Some(scoped) = &self.scoped {
+            self.results = scoped.iter().take(PARENT_FILTER_TAKE).cloned().collect();
+            self.selected = 0;
+            return;
+        }
+        let q = self.query.trim();
+        self.results = if q.is_empty() {
+            self.parents
+                .iter()
+                .take(PARENT_EMPTY_TAKE)
+                .cloned()
+                .collect()
+        } else {
+            let haystacks: Vec<String> = self
+                .parents
+                .iter()
+                .map(|path| parent_haystack(path))
+                .collect();
+            fuzzy_index_order(&haystacks, q, &mut self.matcher)
+                .into_iter()
+                .map(|i| self.parents[i].clone())
+                .take(PARENT_FILTER_TAKE)
+                .collect()
+        };
+        self.selected = 0;
+    }
+
+    fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
+        self.query = query;
+        if self.step == Step::Parent {
+            self.kick_parent_listing(cx);
+        }
+        cx.notify();
+    }
+
+    fn kick_parent_listing(&mut self, cx: &mut Context<Self>) {
+        let q = self.query.trim().to_string();
+        let Some(expanded) = expand_user_path(&q) else {
+            self.listing_gen = self.listing_gen.wrapping_add(1);
+            self._listing_task = None;
+            self.scoped = None;
+            self.refilter();
+            return;
+        };
+        if path_is_dir(&expanded) {
+            self.scoped = Some(vec![expanded.clone()]);
+            self.results = vec![expanded];
+            self.selected = 0;
+        } else {
+            self.scoped = Some(Vec::new());
+            self.results.clear();
+            self.selected = 0;
+        }
+        self.listing_gen = self.listing_gen.wrapping_add(1);
+        let token = self.listing_gen;
+        let query_snapshot = q;
+        self._listing_task = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(PARENT_LIST_DEBOUNCE).await;
+            let still = this
+                .update(cx, |this, _| {
+                    this.listing_gen == token && this.query.trim() == query_snapshot
+                })
+                .unwrap_or(false);
+            if !still {
+                return;
+            }
+            let snapshot = query_snapshot.clone();
+            let found = cx
+                .background_executor()
+                .spawn(async move { list_parent_candidates(&snapshot) })
+                .await;
+            this.update(cx, |this, cx| {
+                if this.listing_gen != token || this.query.trim() != query_snapshot {
+                    return;
+                }
+                this.scoped = found;
                 this.refilter();
                 cx.notify();
             })
@@ -77,48 +178,26 @@ impl WorkspaceCreateView {
         }));
     }
 
-    fn refilter(&mut self) {
-        let haystacks: Vec<String> = self
-            .parents
-            .iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect();
-        self.results = if self.query.trim().is_empty() {
-            self.parents.iter().take(12).cloned().collect()
-        } else {
-            fuzzy_index_order(&haystacks, &self.query, &mut self.matcher)
-                .into_iter()
-                .map(|i| self.parents[i].clone())
-                .take(20)
-                .collect()
-        };
-        self.selected = self.selected.min(self.results.len().saturating_sub(1));
-    }
-
-    fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
-        self.query = query;
-        self.refilter();
-        cx.notify();
-    }
-
     fn selected_parent(&self) -> Option<PathBuf> {
         self.results.get(self.selected).cloned()
     }
 
-    fn valid_name(&self) -> bool {
-        let name = self.query.trim();
-        !name.is_empty()
-            && name != "."
-            && name != ".."
-            && !name.contains('/')
-            && !name.contains('\\')
+    fn parent_to_create(&self) -> Option<PathBuf> {
+        self.selected_parent()
+            .filter(|p| path_is_dir(p))
+            .or_else(|| expand_user_path(&self.query).and_then(|p| resolve_existing_dir(&p)))
+    }
+
+    fn valid_name_query(&self) -> bool {
+        is_valid_workspace_name(&self.query)
     }
 
     fn advance(&mut self, cx: &mut Context<Self>) {
-        if self.step == Step::Name && self.valid_name() {
+        if self.step == Step::Name && self.valid_name_query() {
             self.name = self.query.trim().to_string();
             self.step = Step::Parent;
             self.query.clear();
+            self.scoped = None;
             self.selected = 0;
             self.refilter();
             cx.notify();
@@ -129,10 +208,10 @@ impl WorkspaceCreateView {
         match self.step {
             Step::Name => self.advance(cx),
             Step::Parent => {
-                let Some(parent) = self.selected_parent() else {
+                let Some(parent) = self.parent_to_create() else {
                     return;
                 };
-                if resolve_existing_dir(&parent).is_some() && self.valid_name() {
+                if is_valid_workspace_name(&self.name) {
                     cx.emit(WorkspaceCreateEvent::Create {
                         name: self.name.trim().to_string(),
                         parent,
@@ -272,7 +351,7 @@ impl Render for WorkspaceCreateView {
         let placeholder = if self.step == Step::Name {
             "e.g. api-redesign"
         } else {
-            "Filter folders under ~"
+            "e.g. ~/src"
         };
         let hint = if self.step == Step::Name {
             "↵ next  ·  tab next  ·  esc cancel"
@@ -309,4 +388,26 @@ fn display_path(path: &std::path::Path) -> String {
         .unwrap_or_else(|_| path.display().to_string())
 }
 
+fn parent_haystack(path: &std::path::Path) -> String {
+    format!("{}\n{}", path.display(), display_path(path))
+}
+
+fn is_valid_workspace_name(name: &str) -> bool {
+    let name = name.trim();
+    !name.is_empty() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')
+}
+
 impl_palette_query_input!(WorkspaceCreateView);
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_workspace_name;
+
+    #[test]
+    fn name_rejects_paths() {
+        assert!(is_valid_workspace_name("crypto"));
+        assert!(!is_valid_workspace_name(""));
+        assert!(!is_valid_workspace_name("~/src"));
+        assert!(!is_valid_workspace_name("foo/bar"));
+    }
+}

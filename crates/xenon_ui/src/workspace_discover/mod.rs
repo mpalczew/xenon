@@ -14,6 +14,9 @@ const MAX_COLLECT: usize = 64;
 const MAX_VISITS: usize = 2_500;
 const MAX_PARENT_DIRS: usize = 4_000;
 
+mod parent;
+pub(crate) use parent::list_parent_candidates;
+
 /// Expand `~` / `~/…` and absolute paths.
 pub(crate) fn expand_user_path(input: &str) -> Option<PathBuf> {
     let s = input.trim();

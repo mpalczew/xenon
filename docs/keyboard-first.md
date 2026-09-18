@@ -36,7 +36,10 @@ Do not bind hold-⌘ to select mode.
 
 The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open
 workspace). Arrow keys and Return choose a row. New workspace accepts the
-directory name first, then fuzzy-filters visible parent folders under `~`.
+directory name first, then a parent folder. A typed path (`~/src`) lists that
+directory and its subfolders, shallower first. Bare text still fuzzy-filters
+folders under `~`. Enter creates using the named folder under the selected
+parent; Tab does not complete paths.
 While that field is focused, ⌘V pastes into the name, not the tab behind it.
 
 Tabs and panes stay separate verbs. ⌃⇥ cycles tabs in the focused leaf.
