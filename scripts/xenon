@@ -66,7 +66,8 @@ pid_is_live_app() {
     local comm
     comm="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
     comm="${comm##*/}"
-    [[ "$comm" == "xenon" || "$comm" == "xero" ]]
+    # Dock stub execs xenon-bin; comm is the GUI name, not CFBundleExecutable.
+    [[ "$comm" == "xenon" || "$comm" == "xenon-bin" || "$comm" == "xero" ]]
 }
 
 # macOS does not expose process env via `ps e`; read it with KERN_PROCARGS2.
@@ -191,7 +192,11 @@ running_instances() {
     done
 
     local pids
-    pids="$(pgrep -x xenon 2>/dev/null || true; pgrep -x xero 2>/dev/null || true)"
+    pids="$(
+        pgrep -x xenon 2>/dev/null || true
+        pgrep -x xenon-bin 2>/dev/null || true
+        pgrep -x xero 2>/dev/null || true
+    )"
     [[ -n "$pids" ]] || return 0
     while IFS= read -r pid; do
         [[ -z "$pid" ]] && continue
