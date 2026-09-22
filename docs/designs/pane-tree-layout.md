@@ -93,7 +93,7 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 | Accidental empty panes | Still rejected; intentional reserved empty panes are persisted layout slots |
 | Mode switcher (Agent vs Inspect) | Layout is enough |
 | “Open to the side” from finder as separate product action | Split then open, or add later as thin wrapper |
-| Tab reorder within pane via DnD | Nice; not required for split model (optional stretch if cheap) |
+| Tab reorder within pane via DnD | Implemented as live left/right half-tab targets |
 | Join/unsplit toolbar button beyond close-last-tab | Unsplit is automatic |
 | Replacing sidebar snap-close model | Orthogonal; keep |
 | Restoring editor scroll/cursor from session for all tabs | Optional in v1 if cheap; not blocking |
@@ -132,6 +132,7 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 | Toolbar Split Right / Split Down | Split **focused** leaf; new sibling starts empty **or** with a new terminal (see decision below) |
 | Tab drag to pane edge | Split target pane; dragged tab moves into new sibling |
 | Tab drag to pane center | Move tab into that pane’s stack; activate it |
+| Tab drag within a tab strip | Each tab is one target split into two equal halves: left moves before, right moves after; the dragged tab is excluded |
 | Close tab (⌘W / chip / menu) | Close; dirty guard for editors; then unsplit/empty cascade |
 | ⌘B | Sidebar toggle (unchanged) |
 
@@ -180,7 +181,7 @@ That never leaves an empty leaf and keeps an agent shell on the “old” side w
 | Reserved empty pane | Same existing empty state; pane-level × only when another leaf remains |
 | Single leaf + tabs | One tab strip (mixed icons/labels); body = active surface |
 | Multi-leaf | Recursive split UI; each leaf has own strip; focused leaf focus ring |
-| Drag tab | Ghost chip; drop zones: center highlight + 4 edge bands |
+| Drag tab | 40%-opacity duplicate ghost; tab-strip targets use equal left/right halves for live reorder; pane body keeps center/edge move/split targets |
 | Dirty close | Existing modal; cancel aborts close and unsplit |
 | At nest cap | Split command no-ops (no crash); optional brief no toast required v1 |
 
@@ -534,8 +535,9 @@ User SplitRight
 
 ```text
 Mouse down on tab chip → start drag payload { workspace, tab_id }
-Drag over leaf → compute zone: center | Left | Right | Top | Bottom (edge band ~20% or fixed px)
+Drag over a tab → compute left/right half for live reorder; drag over a leaf body → compute zone: center | Left | Right | Top | Bottom (edge band ~20% or fixed px)
 Drop:
+  tab-strip left half → move tab before target; tab-strip right half → move tab after target
   center → move_tab to target leaf (if same leaf: maybe reorder stretch / no-op)
   edge → drop_tab_on_edge (split target along edge; tab into new side)
   → dirty not involved

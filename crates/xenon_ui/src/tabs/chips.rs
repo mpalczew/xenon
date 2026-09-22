@@ -102,7 +102,7 @@ fn tab_close(
 }
 
 impl XenonApp {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     pub(super) fn mixed_term_chip(
         &self,
         pane: PaneId,
@@ -119,6 +119,7 @@ impl XenonApp {
         let colors = cx.theme().colors().clone();
         let paint = term_chip_paint(&colors, is_active, is_focused, is_exited, cx);
         let group = format!("tab-{}-{}", pane.0, index);
+        let dragging = self.dragging_tab == Some(tab_id) && cx.has_active_drag();
         let tip = if is_exited {
             format!("{title} — process exited")
         } else if let Some(dot) = status {
@@ -146,6 +147,7 @@ impl XenonApp {
             .border_r_1()
             .border_color(colors.border)
             .bg(paint.background)
+            .opacity(if dragging { 0.4 } else { 1.0 })
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
             .on_click(cx.listener(move |this, _, window, cx| {
@@ -164,9 +166,20 @@ impl XenonApp {
                 },
                 {
                     let label = title_owned.clone();
-                    move |_drag, _, _, cx| {
+                    let entity = cx.entity();
+                    let ghost_paint = paint;
+                    let ghost_focused = is_focused;
+                    move |drag, _, _, cx| {
+                        entity.update(cx, |this, cx| {
+                            this.dragging_tab = Some(drag.tab);
+                            cx.notify();
+                        });
                         cx.new(|_| DragGhost {
                             label: SharedString::from(label.clone()),
+                            background: ghost_paint.background,
+                            foreground: ghost_paint.foreground,
+                            accent: ghost_paint.accent,
+                            focused: ghost_focused,
                         })
                     }
                 },
@@ -205,6 +218,9 @@ impl XenonApp {
                 },
             ))
             .child(tab_underline(paint))
+            .children(super::XenonApp::tab_drop_slots(
+                self, pane, index, tab_id, cx,
+            ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -224,6 +240,7 @@ impl XenonApp {
         let colors = cx.theme().colors().clone();
         let paint = chrome::tab_selection(&colors, is_active, is_focused);
         let group = format!("tab-{}-{}", pane.0, index);
+        let dragging = self.dragging_tab == Some(tab_id) && cx.has_active_drag();
         let tip = SharedString::from(path.to_string());
         let name_owned = name.to_string();
         div()
@@ -240,6 +257,7 @@ impl XenonApp {
             .border_r_1()
             .border_color(colors.border)
             .bg(paint.background)
+            .opacity(if dragging { 0.4 } else { 1.0 })
             .text_color(paint.foreground)
             .cursor_pointer()
             .hover(|s| s.bg(colors.element_hover))
@@ -259,9 +277,20 @@ impl XenonApp {
                 },
                 {
                     let label = name_owned.clone();
-                    move |_drag, _, _, cx| {
+                    let entity = cx.entity();
+                    let ghost_paint = paint;
+                    let ghost_focused = is_focused;
+                    move |drag, _, _, cx| {
+                        entity.update(cx, |this, cx| {
+                            this.dragging_tab = Some(drag.tab);
+                            cx.notify();
+                        });
                         cx.new(|_| DragGhost {
                             label: SharedString::from(label.clone()),
+                            background: ghost_paint.background,
+                            foreground: ghost_paint.foreground,
+                            accent: ghost_paint.accent,
+                            focused: ghost_focused,
                         })
                     }
                 },
@@ -293,5 +322,8 @@ impl XenonApp {
                 }),
             ))
             .child(tab_underline(paint))
+            .children(super::XenonApp::tab_drop_slots(
+                self, pane, index, tab_id, cx,
+            ))
     }
 }

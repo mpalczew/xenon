@@ -327,6 +327,14 @@ impl XenonApp {
             .min_w_0()
             .min_h_0()
             .on_drag_move(cx.listener(Self::on_content_drag))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    if this.dragging_tab.take().is_some() {
+                        cx.notify();
+                    }
+                }),
+            )
             // Keep drop overlays painted for the whole tab drag.
             .on_drag_move(cx.listener(|_, _: &DragMoveEvent<DragTab>, _, cx| {
                 cx.notify();
@@ -429,15 +437,15 @@ impl XenonApp {
             .active_tab()
             .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx));
         let tabs = self.render_mixed_tabs(leaf, focused, cx);
-        let body = match leaf.active_tab() {
+        let body_content = match leaf.active_tab() {
             Some(LiveTab::Terminal { view, .. }) => div()
-                .flex_1()
+                .size_full()
                 .min_h_0()
                 .min_w_0()
                 .child(view.clone())
                 .into_any_element(),
             Some(LiveTab::Editor { view, .. }) => div()
-                .flex_1()
+                .size_full()
                 .min_h_0()
                 .min_w_0()
                 .overflow_hidden()
@@ -455,6 +463,13 @@ impl XenonApp {
         // While a tab is dragged, overlay hit-targets so terminal/editor content
         // does not swallow the drop. Center = move; edges = split.
         let drop_overlay = dragging.then(|| self.tab_drop_overlay(pane_id, ws, drop_line, cx));
+        let body = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .child(body_content)
+            .children(drop_overlay);
         div()
             .id(("leaf", leaf.id.0))
             .relative()
@@ -479,7 +494,6 @@ impl XenonApp {
             )
             .child(tabs)
             .child(body)
-            .children(drop_overlay)
             .into_any_element()
     }
 }

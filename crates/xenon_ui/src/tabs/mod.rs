@@ -8,18 +8,25 @@ mod tooltips;
 
 use gpui::{
     App, AppContext, Context, Focusable, InteractiveElement, IntoElement, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, Window, canvas, div, px,
+    SharedString, StatefulInteractiveElement, Styled, Window, canvas, div, prelude::FluentBuilder,
+    px, relative,
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
-use xenon_core::PaneId;
+use xenon_core::{PaneId, TabId};
 
 use crate::{
-    app::{LiveLeaf, LiveTab, XenonApp, workspace_dot},
+    app::{DragTab, LiveLeaf, LiveTab, XenonApp, workspace_dot},
     icons::icon,
     preview_icon,
 };
 use tooltips::TabTooltip;
+
+#[derive(Clone, Copy)]
+enum TabDropSide {
+    Before,
+    After,
+}
 
 pub(crate) fn tip_tooltip(tip: SharedString) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView {
     move |_window: &mut Window, cx: &mut App| cx.new(|_| TabTooltip { text: tip.clone() }).into()
@@ -128,7 +135,7 @@ impl XenonApp {
                 continue;
             };
             let is_active = index == active;
-            match tab {
+            let chip = match tab {
                 LiveTab::Terminal { id, view } => {
                     let term = view.read(cx);
                     let title = term.title(cx);
@@ -136,21 +143,19 @@ impl XenonApp {
                     let tab_id = *id;
                     let attention = ws.and_then(|id| self.tab_attention(id, tab_id));
                     let status = workspace_dot(term.is_working(), attention);
-                    chips.push(
-                        self.mixed_term_chip(
-                            pane,
-                            index,
-                            tab_id,
-                            &title,
-                            is_active,
-                            focused && is_active,
-                            exited,
-                            status,
-                            ws,
-                            cx,
-                        )
-                        .into_any_element(),
-                    );
+                    self.mixed_term_chip(
+                        pane,
+                        index,
+                        tab_id,
+                        &title,
+                        is_active,
+                        focused && is_active,
+                        exited,
+                        status,
+                        ws,
+                        cx,
+                    )
+                    .into_any_element()
                 }
                 LiveTab::Editor {
                     id,
@@ -161,25 +166,77 @@ impl XenonApp {
                     let dirty = view.read(cx).is_dirty();
                     let tab_id = *id;
                     let path_s = path.display().to_string();
-                    chips.push(
-                        self.mixed_editor_chip(
-                            pane,
-                            index,
-                            tab_id,
-                            name,
-                            &path_s,
-                            is_active,
-                            focused && is_active,
-                            dirty,
-                            ws,
-                            cx,
-                        )
-                        .into_any_element(),
-                    );
+                    self.mixed_editor_chip(
+                        pane,
+                        index,
+                        tab_id,
+                        name,
+                        &path_s,
+                        is_active,
+                        focused && is_active,
+                        dirty,
+                        ws,
+                        cx,
+                    )
+                    .into_any_element()
                 }
-            }
+            };
+            chips.push(chip);
         }
         chips
+    }
+
+    pub(super) fn tab_drop_slots(
+        &self,
+        pane: PaneId,
+        index: usize,
+        tab_id: TabId,
+        cx: &mut Context<Self>,
+    ) -> Vec<gpui::AnyElement> {
+        let workspace = self.active.unwrap_or_default();
+        let entity = cx.entity();
+        let slot = |side: TabDropSide| {
+            let id = match side {
+                TabDropSide::Before => format!("tab-drop-before-{}-{}", pane.0, index),
+                TabDropSide::After => format!("tab-drop-after-{}-{}", pane.0, index),
+            };
+            let insert_at = match side {
+                TabDropSide::Before => index,
+                TabDropSide::After => index + 1,
+            };
+            let entity = entity.clone();
+            div()
+                .id(SharedString::from(id))
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .w(relative(0.5))
+                .when(matches!(side, TabDropSide::Before), |s| s.left_0())
+                .when(matches!(side, TabDropSide::After), |s| s.right_0())
+                .can_drop(move |drag, _, _| {
+                    drag.downcast_ref::<DragTab>()
+                        .is_some_and(|d| d.workspace == workspace && d.tab != tab_id)
+                })
+                .drag_over::<DragTab>(move |style, drag, window, cx| {
+                    if drag.tab != tab_id {
+                        entity.update(cx, |this, cx| {
+                            this.move_tab_to_pane_at(drag.tab, pane, insert_at, window, cx);
+                        });
+                    }
+                    style
+                })
+                .on_drop(cx.listener(move |this, drag: &DragTab, window, cx| {
+                    if drag.workspace == workspace && drag.tab != tab_id {
+                        this.dragging_tab = None;
+                        this.move_tab_to_pane_at(drag.tab, pane, insert_at, window, cx);
+                    }
+                }))
+        };
+
+        vec![
+            slot(TabDropSide::Before).into_any_element(),
+            slot(TabDropSide::After).into_any_element(),
+        ]
     }
 
     fn md_preview_btn(

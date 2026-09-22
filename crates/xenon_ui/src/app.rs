@@ -172,6 +172,8 @@ pub struct XenonApp {
     pub(crate) overflow_menu: Option<TabOverflowMenu>,
     /// Last measured chip-row width per leaf, used to pack overflow.
     pub(crate) tab_strip_widths: HashMap<xenon_core::PaneId, Pixels>,
+    /// Tab currently being dragged, used to keep its source chip translucent.
+    pub(crate) dragging_tab: Option<TabId>,
     /// Right-click menu on the Files tree.
     pub(crate) browser_menu: Option<BrowserContextMenu>,
     pub(crate) workspace_menu: Option<WorkspaceMenu>,

@@ -113,6 +113,17 @@ impl XenonApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.move_tab_to_pane_at(tab, dest, usize::MAX, window, cx);
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn move_tab_to_pane_at(
+        &mut self,
+        tab: TabId,
+        dest: PaneId,
+        mut insert_at: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(ws) = self.active else {
             return;
         };
@@ -122,18 +133,6 @@ impl XenonApp {
         let Some((src_pane, src_idx)) = content.root.as_ref().and_then(|r| r.find_tab(tab)) else {
             return;
         };
-        if src_pane == dest {
-            if let Some(leaf) = content
-                .root
-                .as_mut()
-                .and_then(|r| r.find_leaf_mut(src_pane))
-            {
-                leaf.active = src_idx;
-            }
-            content.focused = Some(src_pane);
-            self.focus_leaf_active(src_pane, window, cx);
-            return;
-        }
         if content
             .root
             .as_ref()
@@ -141,6 +140,9 @@ impl XenonApp {
             .is_none()
         {
             return;
+        }
+        if src_pane == dest && insert_at != usize::MAX && src_idx < insert_at {
+            insert_at -= 1;
         }
         let tab_state = {
             let leaf = content
@@ -158,8 +160,13 @@ impl XenonApp {
         {
             let leaf = content.root.as_mut().unwrap().find_leaf_mut(dest).unwrap();
             leaf.parked = false;
-            leaf.tabs.push(tab_state);
-            leaf.active = leaf.tabs.len() - 1;
+            let at = if insert_at == usize::MAX {
+                leaf.tabs.len()
+            } else {
+                insert_at.min(leaf.tabs.len())
+            };
+            leaf.tabs.insert(at, tab_state);
+            leaf.active = at;
         }
         if content
             .root
@@ -176,7 +183,6 @@ impl XenonApp {
         self.focus_leaf_active(dest, window, cx);
         cx.notify();
     }
-
     #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
     pub(crate) fn drop_tab_on_edge(
         &mut self,
