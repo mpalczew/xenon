@@ -16,7 +16,7 @@ impl XenonApp {
     pub(crate) fn open_theme_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.dismiss_palettes();
         self.browser_focused = false;
-        self.deferred.restore_pane = self.focused_pane(window, cx);
+        self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let picker = cx.new(ThemePickerView::new);
         self._theme_picker_sub = Some(cx.subscribe(&picker, Self::on_theme_picker_event));
         self.theme_picker = Some(picker);

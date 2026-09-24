@@ -11,7 +11,7 @@ impl XenonApp {
             return;
         };
         self.dismiss_palettes();
-        self.deferred.restore_pane = self.focused_pane(window, cx);
+        self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let (tasks, error) = match load_shell_tasks(&root) {
             Ok(tasks) if tasks.is_empty() => (
                 Vec::new(),
@@ -70,7 +70,7 @@ impl XenonApp {
         terminal.update(cx, |term, cx| {
             term.inject_text(&line, cx);
         });
-        self.deferred.pending_focus = Some(FocusPane::Terminal);
+        self.deferred.pending_focus = Some(FocusOwner::Terminal);
         cx.notify();
     }
 }

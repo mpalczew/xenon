@@ -6,9 +6,9 @@
 use super::*;
 use xenon_core::PaneId;
 
-/// Which pane held keyboard focus before an overlay opened.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum FocusPane {
+/// Which app surface owned keyboard focus before an overlay opened.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FocusOwner {
     Terminal,
     Editor,
     Browser,
@@ -27,9 +27,9 @@ pub(super) enum FontPane {
 #[derive(Default)]
 pub(super) struct DeferredUi {
     /// Pane focused when the finder/palette opened.
-    pub restore_pane: Option<FocusPane>,
+    pub restore_pane: Option<FocusOwner>,
     /// Re-focus this pane during the next render.
-    pub pending_focus: Option<FocusPane>,
+    pub pending_focus: Option<FocusOwner>,
     /// Re-focus this leaf (remaining tab after a window-less close).
     pub pending_leaf: Option<PaneId>,
     /// Last editor/terminal focus for zoom when chrome has focus.

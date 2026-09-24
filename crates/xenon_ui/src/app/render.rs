@@ -40,15 +40,8 @@ impl Render for XenonApp {
         let body = self.render_shell_body(sidebar, main, colors.clone(), cx);
         self.bind_app_actions(div(), cx)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if this.on_skill_prompt_key(event, cx)
-                    || this.on_tab_menu_key(event, window, cx)
-                    || this.on_overflow_menu_key(event, window, cx)
-                    || this.on_browser_menu_key(event, window, cx)
-                    || this.on_workspace_menu_key(event, window, cx)
-                    || this.on_browser_key(event, window, cx)
-                {
-                    cx.stop_propagation();
-                }
+                this.log_shortcut_key_event(event, window, cx);
+                this.on_app_key_down(event, window, cx);
             }))
             .on_mouse_up(
                 MouseButton::Left,
@@ -93,7 +86,7 @@ impl XenonApp {
             self.deferred.pending_focus = None;
             self.focus_skill_prompt(window, cx);
         } else if let Some(pane) = self.deferred.pending_focus.take() {
-            self.focus_pane(pane, window, cx);
+            self.focus_owner(pane, window, cx);
         }
         if let Some(query) = self.deferred.pending_palette_query.take() {
             self.open_palette_with_query(query, window, cx);
@@ -148,13 +141,15 @@ impl XenonApp {
                 this.toggle_sidebar_panel(cx);
             }))
             .on_action(cx.listener(|this, _: &NewTerminal, window, cx| {
+                this.log_shortcut_action("NewTerminal", window, cx);
                 this.new_terminal(window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &NewFile, _, cx| this.new_file_dialog(cx)))
-            .on_action(
-                cx.listener(|this, _: &AddWorkspace, window, cx| this.add_workspace(window, cx)),
-            )
+            .on_action(cx.listener(|this, _: &AddWorkspace, window, cx| {
+                this.log_shortcut_action("AddWorkspace", window, cx);
+                this.add_workspace(window, cx);
+            }))
             .on_action(cx.listener(|this, _: &crate::NewWorkspace, window, cx| {
                 this.open_workspace_creator(window, cx);
             }))

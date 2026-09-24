@@ -64,7 +64,7 @@ impl XenonApp {
                 }
                 self.touch_recent_file(id, &path);
                 self.finder = None;
-                self.deferred.pending_focus = Some(FocusPane::Editor);
+                self.deferred.pending_focus = Some(FocusOwner::Editor);
                 self.nav_visit(tab_id, cx);
                 if self.file_browser.is_open() {
                     self.reveal_active_file(cx);
@@ -121,7 +121,7 @@ impl XenonApp {
             self.touch_recent_file(id, &path);
             self.finder = None;
             if focus {
-                self.deferred.pending_focus = Some(FocusPane::Editor);
+                self.deferred.pending_focus = Some(FocusOwner::Editor);
                 if let Some(tab_id) = tab_id {
                     self.nav_visit(tab_id, cx);
                 }
@@ -176,7 +176,7 @@ impl XenonApp {
                 self.save_layout(id);
                 self.finder = None;
                 if focus {
-                    self.deferred.pending_focus = Some(FocusPane::Editor);
+                    self.deferred.pending_focus = Some(FocusOwner::Editor);
                     self.nav_visit(tab_id, cx);
                 }
                 if self.file_browser.is_open() {

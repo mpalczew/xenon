@@ -47,7 +47,7 @@ impl XenonApp {
             return;
         }
         self.begin_skill_prompt(cx);
-        self.deferred.restore_pane = Some(FocusPane::Terminal);
+        self.deferred.restore_pane = Some(FocusOwner::Terminal);
         cx.notify();
     }
 
@@ -134,7 +134,7 @@ impl XenonApp {
                 .deferred
                 .restore_pane
                 .take()
-                .or(Some(FocusPane::Terminal));
+                .or(Some(FocusOwner::Terminal));
         }
         cx.notify();
     }

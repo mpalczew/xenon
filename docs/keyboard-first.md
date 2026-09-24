@@ -54,12 +54,17 @@ supported ex commands.
 
 ## Focus ownership
 
-GPUI actions run only on the focused node's path. The window therefore always
-needs one live focus owner:
+GPUI actions run on the focused node's path. An active Xenon window always has
+a logical focus owner:
 
 - the active terminal or editor;
 - the Files tree through the shell focus handle; or
 - the shell itself when no content exists.
+
+The logical owner is resolved as a non-optional `FocusOwner`; with no live
+surface, it is the shell. GPUI can report no focused element while the window
+is inactive. In that case GPUI dispatches actions from the root node. OS-level
+window blur is separate from Xenon's logical focus owner.
 
 Two layers must not disagree:
 
@@ -78,14 +83,19 @@ Closing a focused surface is a focus transfer, not just removal. Overlay
 dismiss and confirm paths must set the next focus target before destroying the
 overlay. Switching workspace (⌘⇧O, sidebar, ⌘⌥↓/↑, command palette) is the
 same transfer: land on that workspace's focused leaf, not the overlay or the
-previous workspace. A dead or off-tree `FocusId` is an illegal state because
-app commands then silently stop receiving actions.
+previous workspace. A dead or off-tree `FocusId` is recovered through the
+logical owner; GPUI falls back to the root dispatch node when no focused
+element exists.
 
 Teardown routes through one focus-transfer helper. It targets the remaining
 editor/terminal when available and otherwise focuses the shell, including
 asynchronous dirty-close paths without a `Window` handle (PTY auto-close after
 Ctrl-D queues the remaining leaf for the next paint). Clicking pane chrome
 must `prevent_default` so the shell `track_focus` handle does not steal.
+
+Shortcut and focus-transfer diagnostics are written to `xenon.log` at info
+level. For ⌘N / ⌘⇧O they record the raw key event and GPUI/Xenon focus owners,
+then whether the action handler ran. Last-tab close records the focus transfer.
 
 ## Open gaps
 

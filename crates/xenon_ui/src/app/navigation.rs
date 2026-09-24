@@ -112,48 +112,50 @@ impl XenonApp {
         self.file_indexes.insert(root, index);
     }
 
-    pub(super) fn focused_pane(&self, window: &Window, cx: &Context<Self>) -> Option<FocusPane> {
-        if let Some(pane) = self.leaf_with_gpui_focus(window, cx) {
-            return match self
-                .active_content()?
-                .root
-                .as_ref()?
-                .find_leaf(pane)?
-                .active_tab()?
-            {
-                LiveTab::Terminal { .. } => Some(FocusPane::Terminal),
-                LiveTab::Editor { .. } => Some(FocusPane::Editor),
+    /// Resolve a live Xenon focus owner. GPUI may have no focused element while
+    /// the window is inactive, but app commands always have a logical fallback.
+    pub(super) fn current_focus_owner(&self, window: &Window, cx: &Context<Self>) -> FocusOwner {
+        if let Some(pane) = self.leaf_with_gpui_focus(window, cx)
+            && let Some(tab) = self
+                .active_content()
+                .and_then(|content| content.root.as_ref())
+                .and_then(|root| root.find_leaf(pane))
+                .and_then(|leaf| leaf.active_tab())
+        {
+            return match tab {
+                LiveTab::Terminal { .. } => FocusOwner::Terminal,
+                LiveTab::Editor { .. } => FocusOwner::Editor,
             };
         }
         if self.browser_focused {
-            return Some(FocusPane::Browser);
+            return FocusOwner::Browser;
         }
         match self.active_content().and_then(|c| c.active_tab()) {
-            Some(LiveTab::Terminal { .. }) => Some(FocusPane::Terminal),
-            Some(LiveTab::Editor { .. }) => Some(FocusPane::Editor),
+            Some(LiveTab::Terminal { .. }) => FocusOwner::Terminal,
+            Some(LiveTab::Editor { .. }) => FocusOwner::Editor,
             None => {
                 if self.active_terminal().is_some() {
-                    Some(FocusPane::Terminal)
+                    FocusOwner::Terminal
                 } else if self.active_editor().is_some() {
-                    Some(FocusPane::Editor)
+                    FocusOwner::Editor
                 } else {
-                    None
+                    FocusOwner::Shell
                 }
             }
         }
     }
 
-    pub(super) fn focus_pane(
+    pub(super) fn focus_owner(
         &mut self,
-        pane: FocusPane,
+        pane: FocusOwner,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match pane {
-            FocusPane::Terminal => self.focus_terminal(window, cx),
-            FocusPane::Editor => self.focus_editor(window, cx),
-            FocusPane::Browser => self.focus_browser(window, cx),
-            FocusPane::Shell => {
+            FocusOwner::Terminal => self.focus_terminal(window, cx),
+            FocusOwner::Editor => self.focus_editor(window, cx),
+            FocusOwner::Browser => self.focus_browser(window, cx),
+            FocusOwner::Shell => {
                 self.browser_focused = false;
                 self.focus.focus(window, cx);
                 cx.notify();
@@ -161,15 +163,15 @@ impl XenonApp {
         }
     }
 
-    pub(super) fn fallback_content_pane(&self) -> FocusPane {
+    pub(super) fn fallback_content_pane(&self) -> FocusOwner {
         match self.deferred.last_font_pane {
-            FontPane::Editor if self.has_editor() => FocusPane::Editor,
+            FontPane::Editor if self.has_editor() => FocusOwner::Editor,
             FontPane::Terminal if self.active_content().is_some_and(|c| c.has_terminal()) => {
-                FocusPane::Terminal
+                FocusOwner::Terminal
             }
-            _ if self.active_content().is_some_and(|c| c.has_terminal()) => FocusPane::Terminal,
-            _ if self.has_editor() => FocusPane::Editor,
-            _ => FocusPane::Shell,
+            _ if self.active_content().is_some_and(|c| c.has_terminal()) => FocusOwner::Terminal,
+            _ if self.has_editor() => FocusOwner::Editor,
+            _ => FocusOwner::Shell,
         }
     }
 
@@ -181,8 +183,19 @@ impl XenonApp {
     ) {
         let target = self.fallback_content_pane();
         if let Some(window) = window {
-            self.focus_pane(target, window, cx);
+            log::info!(
+                "focus transfer: target={target:?}; window_active={}; gpui_focus_before={:?}",
+                window.is_window_active(),
+                window.focused(cx),
+            );
+            self.focus_owner(target, window, cx);
+            log::info!(
+                "focus transfer complete: target={target:?}; window_active={}; gpui_focus_after={:?}",
+                window.is_window_active(),
+                window.focused(cx),
+            );
         } else {
+            log::info!("focus transfer deferred: target={target:?}; window unavailable");
             self.deferred.pending_focus = Some(target);
             cx.notify();
         }
@@ -248,10 +261,10 @@ impl XenonApp {
     }
 
     fn font_target(&mut self, window: &Window, cx: &Context<Self>) -> FontPane {
-        let target = match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => FontPane::Editor,
-            Some(FocusPane::Terminal) => FontPane::Terminal,
-            Some(FocusPane::Browser | FocusPane::Shell) | None => self.deferred.last_font_pane,
+        let target = match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor => FontPane::Editor,
+            FocusOwner::Terminal => FontPane::Terminal,
+            FocusOwner::Browser | FocusOwner::Shell => self.deferred.last_font_pane,
         };
         self.deferred.last_font_pane = target;
         target
@@ -319,8 +332,8 @@ impl XenonApp {
     }
 
     pub(super) fn clipboard_cut(&self, window: &Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => {
+        match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor => {
                 if let Some(editor) = self.active_editor() {
                     editor.update(cx, |editor, cx| {
                         editor.cut_selection(cx);
@@ -328,7 +341,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) => {
+            FocusOwner::Terminal => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.cut_selection(cx);
@@ -336,13 +349,13 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+            FocusOwner::Browser | FocusOwner::Shell => {}
         }
     }
 
     pub(super) fn clipboard_copy(&self, window: &Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => {
+        match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor => {
                 if let Some(editor) = self.active_editor() {
                     editor.update(cx, |editor, cx| {
                         editor.copy_selection(cx);
@@ -350,7 +363,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) => {
+            FocusOwner::Terminal => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.copy_selection(cx);
@@ -358,14 +371,14 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+            FocusOwner::Browser | FocusOwner::Shell => {}
         }
     }
 
     pub(super) fn clipboard_copy_clean(&self, window: &mut Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => self.clipboard_copy(window, cx),
-            Some(FocusPane::Terminal) => {
+        match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor => self.clipboard_copy(window, cx),
+            FocusOwner::Terminal => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.copy_clean_selection(window, cx);
@@ -375,14 +388,14 @@ impl XenonApp {
                     window.play_system_bell();
                 }
             }
-            Some(FocusPane::Browser | FocusPane::Shell) | None => window.play_system_bell(),
+            FocusOwner::Browser | FocusOwner::Shell => window.play_system_bell(),
         }
     }
 
     pub(super) fn clipboard_copy_code(&self, window: &Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => self.clipboard_copy(window, cx),
-            Some(FocusPane::Terminal) => {
+        match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor => self.clipboard_copy(window, cx),
+            FocusOwner::Terminal => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.copy_code_selection(cx);
@@ -390,13 +403,13 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+            FocusOwner::Browser | FocusOwner::Shell => {}
         }
     }
 
     pub(super) fn clipboard_paste(&self, window: &Window, cx: &mut Context<Self>) {
-        match self.focused_pane(window, cx) {
-            Some(FocusPane::Editor) => {
+        match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor => {
                 if let Some(editor) = self.active_editor() {
                     editor.update(cx, |editor, cx| {
                         editor.paste_clipboard(cx);
@@ -404,7 +417,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Terminal) => {
+            FocusOwner::Terminal => {
                 if let Some(terminal) = self.active_terminal() {
                     terminal.update(cx, |terminal, cx| {
                         terminal.paste_clipboard(cx);
@@ -412,7 +425,7 @@ impl XenonApp {
                     });
                 }
             }
-            Some(FocusPane::Browser | FocusPane::Shell) | None => {}
+            FocusOwner::Browser | FocusOwner::Shell => {}
         }
     }
 }

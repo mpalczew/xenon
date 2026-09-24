@@ -45,6 +45,7 @@ mod editors;
 mod empty_pane_ops;
 mod empty_state;
 mod git_dirt;
+mod key_events;
 mod keyboard;
 mod live;
 mod lsp;
@@ -75,7 +76,7 @@ mod workspace_create_ops;
 mod workspaces;
 
 pub(crate) use attention::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
-use deferred::{DeferredUi, FocusPane, FontPane};
+use deferred::{DeferredUi, FocusOwner, FontPane};
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use lsp::LspState;
 use nav_history::NavHistory;

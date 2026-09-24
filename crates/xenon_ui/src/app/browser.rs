@@ -249,7 +249,7 @@ impl XenonApp {
             return;
         };
         self.dismiss_palettes();
-        self.deferred.restore_pane = self.focused_pane(window, cx);
+        self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         // Cache first (instant open); force=true re-walks in the background.
         // A synchronous rebuild on every open would stall large roots ($HOME).
         self.reindex(root.clone(), true, cx);
@@ -279,7 +279,7 @@ impl XenonApp {
                 } else {
                     // No open: still leave the finder without a focus void.
                     self.finder = None;
-                    self.deferred.pending_focus = Some(FocusPane::Terminal);
+                    self.deferred.pending_focus = Some(FocusOwner::Terminal);
                     cx.notify();
                 }
             }
@@ -289,7 +289,7 @@ impl XenonApp {
                     self.open_editor_beside(root.join(relative), cx);
                 } else {
                     self.finder = None;
-                    self.deferred.pending_focus = Some(FocusPane::Terminal);
+                    self.deferred.pending_focus = Some(FocusOwner::Terminal);
                     cx.notify();
                 }
             }
@@ -302,7 +302,7 @@ impl XenonApp {
                 } else {
                     self.finder = None;
                 }
-                self.deferred.pending_focus = Some(FocusPane::Browser);
+                self.deferred.pending_focus = Some(FocusOwner::Browser);
                 cx.notify();
             }
             FinderEvent::Dismissed => {

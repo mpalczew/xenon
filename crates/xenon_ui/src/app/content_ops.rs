@@ -391,6 +391,14 @@ impl XenonApp {
             }
             DropTabOutcome::Empty => {
                 if self.active == Some(workspace) {
+                    log::info!(
+                        "focus transition: last tab closed; window_active={}; gpui_focus_before={:?}; target={:?}",
+                        window
+                            .as_ref()
+                            .is_some_and(|window| window.is_window_active()),
+                        window.as_ref().and_then(|window| window.focused(cx)),
+                        self.fallback_content_pane(),
+                    );
                     self.focus_after_teardown(window, cx);
                 }
             }
