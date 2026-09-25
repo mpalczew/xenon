@@ -13,8 +13,23 @@ use gpui::{
 };
 use theme::ThemeColors;
 
+mod find_bar;
+mod focus;
 mod menu;
+mod notice;
+mod overlay;
+mod text_field;
+mod text_input;
+pub use find_bar::{FindBarAction, FindBarConfig, FindBarOptions, find_bar};
+pub use focus::FocusOnOpen;
+pub use notice::{TimedNotice, notice_panel};
+pub use overlay::{OverlayLayout, PaletteOverlay, palette_overlay};
+pub use text_input::{
+    TextInputAppearance, TextInputConfig, TextInputEvent, TextInputKeyBehavior, TextInputView,
+};
+mod multiline_text;
 pub use menu::{Shortcut, menu_item};
+pub use multiline_text::MultilineText;
 
 /// How a selectable chrome row or chip should paint.
 #[derive(Clone, Copy)]

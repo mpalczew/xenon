@@ -1,7 +1,7 @@
 //! The top toolbar: navigation, split actions, contextual status, quick actions.
 
 use gpui::{
-    Action, AppContext, Context, InteractiveElement, IntoElement, ParentElement,
+    Action, AppContext, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use lucide_icons::Icon;
@@ -9,11 +9,12 @@ use theme::ActiveTheme;
 
 use crate::app::XenonApp;
 use crate::chrome::list_selection;
+use crate::commands::{self, CommandId};
 use crate::icons::icon;
 use crate::{
-    CloseWorkspace, Copy, CopyClean, Cut, FilePalette, GoBack, GoForward, NewTerminal,
-    NextWorkspace, Paste, PrevWorkspace, ReserveEmptyPaneRight, RunTask, Save, SplitDown,
-    SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
+    CaptureWorklist, CloseWorkspace, Copy, CopyClean, Cut, FilePalette, GoBack, GoForward,
+    NewTerminal, NextWorkspace, OpenWorklist, Paste, PrevWorkspace, ReserveEmptyPaneRight, RunTask,
+    Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
 };
 
 const ICON: f32 = 16.;
@@ -43,7 +44,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-sidebar",
                     glyph: Icon::List,
-                    label: "Workspace Sidebar · ⌘B",
+                    command: CommandId::ToggleSidebar,
                     active: self.sidebar_visible(),
                     muted: false,
                     primary: false,
@@ -55,7 +56,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-prev-workspace",
                     glyph: Icon::ArrowUp,
-                    label: "Previous Workspace · ⌘⌥↑",
+                    command: CommandId::PrevWorkspace,
                     active: false,
                     muted: false,
                     primary: false,
@@ -67,7 +68,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-next-workspace",
                     glyph: Icon::ArrowDown,
-                    label: "Next Workspace · ⌘⌥↓",
+                    command: CommandId::NextWorkspace,
                     active: false,
                     muted: false,
                     primary: false,
@@ -80,7 +81,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-go-back",
                     glyph: Icon::ArrowLeft,
-                    label: "Go Back · ⌘[",
+                    command: CommandId::GoBack,
                     active: false,
                     muted: false,
                     primary: false,
@@ -92,7 +93,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-go-forward",
                     glyph: Icon::ArrowRight,
-                    label: "Go Forward · ⌘]",
+                    command: CommandId::GoForward,
                     active: false,
                     muted: false,
                     primary: false,
@@ -114,7 +115,7 @@ impl XenonApp {
                     id: "tb-split-right",
                     // Reversed vs earlier assign: Horizontal glyph = left|right panes.
                     glyph: Icon::SplitSquareHorizontal,
-                    label: "Split Right · ⌘\\",
+                    command: CommandId::SplitRight,
                     active: false,
                     muted: false,
                     primary: false,
@@ -126,7 +127,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-split-down",
                     glyph: Icon::SplitSquareVertical,
-                    label: "Split Down · ⌘⇧\\",
+                    command: CommandId::SplitDown,
                     active: false,
                     muted: false,
                     primary: false,
@@ -138,7 +139,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-reserve-panel-right",
                     glyph: Icon::PanelRightDashed,
-                    label: "Reserve Panel Right · ⌘⌥\\",
+                    command: CommandId::ReserveEmptyPaneRight,
                     active: false,
                     muted: false,
                     primary: false,
@@ -161,7 +162,7 @@ impl XenonApp {
             ToolButton {
                 id: "tb-new-terminal",
                 glyph: Icon::SquareTerminal,
-                label: "New Terminal · ⌘N",
+                command: CommandId::NewTerminal,
                 active: false,
                 muted: false,
                 primary: false,
@@ -173,7 +174,7 @@ impl XenonApp {
             ToolButton {
                 id: "tb-palette",
                 glyph: Icon::Search,
-                label: "Go to File · ⌘P",
+                command: CommandId::GoToFile,
                 active: false,
                 muted: false,
                 primary: false,
@@ -185,7 +186,7 @@ impl XenonApp {
             ToolButton {
                 id: "tb-close-workspace",
                 glyph: Icon::X,
-                label: "Close Workspace · ⌘⌥W",
+                command: CommandId::CloseWorkspace,
                 active: false,
                 muted: false,
                 primary: false,
@@ -197,7 +198,7 @@ impl XenonApp {
             ToolButton {
                 id: "tb-file-browser",
                 glyph: Icon::FolderTree,
-                label: "File Browser · ⌘E",
+                command: CommandId::ToggleBrowser,
                 active: false,
                 muted: false,
                 primary: false,
@@ -205,11 +206,12 @@ impl XenonApp {
             },
             cx,
         ));
+        row = row.child(self.worklist_buttons(cx));
         row = row.child(tool_button(
             ToolButton {
                 id: "tb-run-task",
                 glyph: Icon::Play,
-                label: "Run Task · ⌘⇧R",
+                command: CommandId::RunTask,
                 active: false,
                 muted: false,
                 primary: true,
@@ -222,7 +224,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-save",
                     glyph: Icon::Save,
-                    label: "Save · ⌘S",
+                    command: CommandId::Save,
                     active: false,
                     muted: false,
                     primary: false,
@@ -235,7 +237,7 @@ impl XenonApp {
             ToolButton {
                 id: "tb-settings",
                 glyph: Icon::Settings,
-                label: "Settings · ⌘,",
+                command: CommandId::ToggleSettings,
                 active: false,
                 muted: false,
                 primary: false,
@@ -243,6 +245,38 @@ impl XenonApp {
             },
             cx,
         ))
+    }
+
+    fn worklist_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .child(toolbar_divider(cx))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-capture-worklist",
+                    glyph: Icon::NotebookPen,
+                    command: CommandId::CaptureWorklist,
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(CaptureWorklist),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-open-worklist",
+                    glyph: Icon::ListTodo,
+                    command: CommandId::OpenWorklist,
+                    active: false,
+                    muted: false,
+                    primary: false,
+                    action: Box::new(OpenWorklist),
+                },
+                cx,
+            ))
     }
 
     fn edit_tools(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -255,7 +289,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-cut",
                     glyph: Icon::Scissors,
-                    label: "Cut · ⌘X",
+                    command: CommandId::Cut,
                     active: false,
                     muted: false,
                     primary: false,
@@ -267,7 +301,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-copy",
                     glyph: Icon::Copy,
-                    label: "Copy · ⌘C",
+                    command: CommandId::Copy,
                     active: false,
                     muted: false,
                     primary: false,
@@ -279,7 +313,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-copy-clean",
                     glyph: Icon::CopyCheck,
-                    label: "Copy Clean · ⌘⇧C",
+                    command: CommandId::CopyClean,
                     active: false,
                     muted: false,
                     primary: false,
@@ -291,7 +325,7 @@ impl XenonApp {
                 ToolButton {
                     id: "tb-paste",
                     glyph: Icon::ClipboardPaste,
-                    label: "Paste · ⌘V",
+                    command: CommandId::Paste,
                     active: false,
                     muted: false,
                     primary: false,
@@ -310,7 +344,7 @@ fn toolbar_divider(cx: &mut Context<XenonApp>) -> impl IntoElement + use<> {
 struct ToolButton {
     id: &'static str,
     glyph: Icon,
-    label: &'static str,
+    command: CommandId,
     active: bool,
     muted: bool,
     primary: bool,
@@ -321,13 +355,21 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     let ToolButton {
         id,
         glyph,
-        label,
+        command,
         active,
         muted,
         primary,
         action: boxed,
     } = button;
     let colors = cx.theme().colors().clone();
+    let command = commands::entry(command);
+    let app = cx.entity();
+    let command_id = command.id;
+    let hint = if command.keys.is_empty() {
+        command.label.to_string()
+    } else {
+        format!("{} · {}", command.label, command.keys)
+    };
     let highlighted = active || primary;
     let paint = list_selection(&colors, highlighted);
     let background = if highlighted {
@@ -349,25 +391,85 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
         .justify_center()
         .w(px(28.))
         .h(px(26.))
+        .relative()
+        .focusable()
+        .tab_index(0)
+        .focus_visible(|s| s.border_1().border_color(colors.border_focused))
         .rounded_sm()
         .bg(background)
         .text_color(fg)
+        .aria_label(hint.clone())
         .cursor_pointer()
         .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
         .child(icon(glyph, px(ICON)))
+        .child(toolbar_focus_hint(id, command, &colors))
         .tooltip({
-            let text = gpui::SharedString::from(label);
+            let label = gpui::SharedString::from(command.label);
+            let keys = (!command.keys.is_empty()).then(|| gpui::SharedString::from(command.keys));
             move |_window: &mut Window, cx: &mut gpui::App| {
-                cx.new(|_| ToolbarTooltip { text: text.clone() }).into()
+                cx.new(|_| ToolbarTooltip {
+                    label: label.clone(),
+                    keys: keys.clone(),
+                })
+                .into()
             }
         })
-        .on_click(move |_, window: &mut Window, cx| {
+        .on_click(move |event, window: &mut Window, cx| {
             window.dispatch_action(boxed.boxed_clone(), cx);
+            if matches!(event, ClickEvent::Mouse(_))
+                && matches!(
+                    command_id,
+                    CommandId::Copy
+                        | CommandId::Cut
+                        | CommandId::Paste
+                        | CommandId::CopyClean
+                        | CommandId::Save
+                )
+            {
+                app.update(cx, |app, cx| app.focus_after_teardown(Some(window), cx));
+            }
         })
 }
 
+fn toolbar_focus_hint(
+    id: &'static str,
+    command: commands::CommandEntry,
+    colors: &theme::ThemeColors,
+) -> impl IntoElement + use<> {
+    div()
+        .id(format!("{id}-focus-hint"))
+        .absolute()
+        .top(px(30.))
+        .right(px(0.))
+        .flex()
+        .items_center()
+        .gap_2()
+        .px_2()
+        .py_1()
+        .rounded_sm()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.elevated_surface_background)
+        .text_color(colors.text)
+        .text_sm()
+        .whitespace_nowrap()
+        .opacity(0.)
+        .focusable()
+        .in_focus(|s| s.opacity(1.))
+        .child(command.label)
+        .children((!command.keys.is_empty()).then(|| {
+            div()
+                .px_1()
+                .rounded_xs()
+                .bg(colors.element_background)
+                .text_color(colors.text_muted)
+                .child(command.keys)
+        }))
+}
+
 struct ToolbarTooltip {
-    text: gpui::SharedString,
+    label: gpui::SharedString,
+    keys: Option<gpui::SharedString>,
 }
 
 impl gpui::Render for ToolbarTooltip {
@@ -382,6 +484,17 @@ impl gpui::Render for ToolbarTooltip {
             .border_color(colors.border)
             .text_color(colors.text)
             .text_sm()
-            .child(self.text.clone())
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(self.label.clone())
+            .children(self.keys.as_ref().map(|keys| {
+                div()
+                    .px_1()
+                    .rounded_xs()
+                    .bg(colors.element_background)
+                    .text_color(colors.text_muted)
+                    .child(keys.clone())
+            }))
     }
 }

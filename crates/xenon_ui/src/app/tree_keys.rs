@@ -129,6 +129,11 @@ impl XenonApp {
             CommandId::NewFolder => self.new_folder_here(cx),
             CommandId::GoToFile => self.open_palette(window, cx),
             CommandId::RunTask => self.open_task_picker(window, cx),
+            CommandId::CaptureWorklist => self.capture_worklist(window, cx),
+            CommandId::OpenWorklist => self.open_worklist(cx),
+            CommandId::Copy => self.clipboard_copy(window, cx),
+            CommandId::Cut => self.clipboard_cut(window, cx),
+            CommandId::Paste => self.clipboard_paste(window, cx),
             CommandId::Save => self.save_active_editor(cx),
             CommandId::SaveAs => self.save_as_dialog(cx),
             CommandId::FindInFile => match self.active_find_surface() {

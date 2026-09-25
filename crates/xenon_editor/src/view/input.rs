@@ -17,6 +17,12 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         let keystroke = &event.keystroke;
+        if self.worklist_document && !self.worklist_raw {
+            if self.on_worklist_key(event, cx) {
+                cx.stop_propagation();
+            }
+            return;
+        }
         // Find bar owns keys when its input is focused.
         if self.find_bar_focused(window) {
             return;

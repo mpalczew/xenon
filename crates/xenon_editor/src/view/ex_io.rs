@@ -63,10 +63,20 @@ impl EditorView {
             return false;
         };
         if let Some(new_path) = path {
+            self.worklist_document = false;
             buffer.set_path(new_path.clone());
             cx.emit(EditorEvent::PathChanged { path: new_path });
         }
-        let result = if force {
+        let result = if self.worklist_document {
+            let root = buffer
+                .path()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            buffer.save_worklist(&root)
+        } else if force {
             buffer.save_force()
         } else {
             buffer.save()
@@ -82,7 +92,11 @@ impl EditorView {
             }
             Err(SaveError::ExternalChange) => {
                 self.disk_alert = super::DiskAlert::Conflict;
-                self.vim.ex_status = Some("File changed on disk (use :w! to override)".into());
+                self.vim.ex_status = Some(if self.worklist_document {
+                    "File changed on disk; worklist edits were kept".into()
+                } else {
+                    "File changed on disk (use :w! to override)".into()
+                });
                 cx.notify();
                 false
             }
@@ -162,10 +176,25 @@ impl EditorView {
 
     /// Write the buffer to disk (no-op for image/unsupported content).
     pub fn save(&mut self, cx: &mut Context<Self>) {
+        if self.worklist_document && !self.is_dirty() && !self.worklist_needs_creation() {
+            return;
+        }
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
-        match buffer.save() {
+        let result = if self.worklist_document {
+            let root = buffer
+                .path()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            buffer.save_worklist(&root)
+        } else {
+            buffer.save()
+        };
+        match result {
             Ok(()) => {
                 self.disk_alert = super::DiskAlert::None;
                 cx.emit(EditorEvent::Saved {
@@ -183,10 +212,25 @@ impl EditorView {
 
     /// Force write (overwrite external changes).
     pub fn save_force(&mut self, cx: &mut Context<Self>) {
+        if self.worklist_document && !self.is_dirty() && !self.worklist_needs_creation() {
+            return;
+        }
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
-        if let Err(error) = buffer.save_force() {
+        let result = if self.worklist_document {
+            let root = buffer
+                .path()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            buffer.save_worklist(&root)
+        } else {
+            buffer.save_force()
+        };
+        if let Err(error) = result {
             log::error!("force save failed: {error}");
         } else {
             self.disk_alert = super::DiskAlert::None;
@@ -199,6 +243,7 @@ impl EditorView {
 
     /// Save As: rebind path and write.
     pub fn save_as(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        self.worklist_document = false;
         let Content::Text(buffer) = &mut self.content else {
             return;
         };

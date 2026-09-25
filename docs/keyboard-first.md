@@ -13,6 +13,7 @@ surface and the non-obvious focus model.
 | Open file | ⌘P (↩ this pane, ⌘↩ / ⌃↩ new pane to the right) |
 | Commands / help / task | ⌘⇧P / ⌘⇧/ / ⌘⇧R |
 | Save / Save As | ⌘S / ⌘⇧S |
+| Capture task / open worklist | ⌘⇧K / ⌘⌥K |
 | Focus terminal / editor / Files | ⌘1 / ⌘2 / ⌘3 (kinds, not pane index) |
 | Next pane (leaves, then Files) | ⌃` |
 | Workspace next / previous / close | ⌘⌥↓ / ⌘⌥↑ / ⌘⌥W |
@@ -33,6 +34,12 @@ path is already open, focus the existing tab (paths stay unique). Terminal
 (or hover-chrome Select text) selects and copies. Copy Clean (⌘⇧C) strips TUI
 chrome from the selection, or from the clipboard if the selection is gone.
 Do not bind hold-⌘ to select mode.
+
+Worklist capture focuses its field on every open: Return saves, Shift-Return
+inserts a line, and Escape keeps the draft. The worklist opens in a closable
+tab. In List view, arrows select, Space completes, Return edits, and Add opens
+an inline field; its Return saves, Shift-Return inserts a line, and Escape
+cancels. An empty virtual worklist can be saved with ⌘S.
 
 The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open
 workspace). Arrow keys and Return choose a row. New workspace accepts the

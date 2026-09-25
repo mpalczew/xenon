@@ -1,13 +1,9 @@
-//! Remote hostname/password inline edit control for Settings.
+//! Remote hostname/password editing in Settings.
 
-use std::time::Duration;
-
-use gpui::{Context, KeyDownEvent, Window};
+use gpui::{AppContext, Context, Entity, KeyDownEvent, Window};
+use xenon_design_system::{TextInputAppearance, TextInputConfig, TextInputView};
 
 use super::SettingsView;
-use super::line_edit::LineEdit;
-
-const CARET_BLINK: Duration = Duration::from_millis(530);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RemoteEditField {
@@ -17,7 +13,7 @@ pub(super) enum RemoteEditField {
 
 pub(super) struct RemoteFieldEdit {
     pub(super) field: RemoteEditField,
-    pub(super) edit: LineEdit,
+    pub(super) input: Entity<TextInputView>,
 }
 
 impl SettingsView {
@@ -28,14 +24,24 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.dismiss_dropdown(cx);
-        self.remote_edit = Some(RemoteFieldEdit {
-            field,
-            edit: LineEdit::new(current),
+        self.dismiss_dropdown(window, cx);
+        let placeholder = match field {
+            RemoteEditField::Password => "Enter password…",
+            RemoteEditField::Hostname => "e.g. macbook.tailnet.ts.net",
+        };
+        let input = cx.new(|cx| {
+            TextInputView::new(
+                TextInputConfig::single_line(placeholder)
+                    .appearance(TextInputAppearance::Inline)
+                    .dialog_field(),
+                cx,
+            )
         });
-        self.caret_on = true;
-        self.focus.focus(window, cx);
-        self.start_remote_edit_caret_blink(cx);
+        input.update(cx, |input, cx| {
+            input.set_text(current, cx);
+            input.open(cx);
+        });
+        self.remote_edit = Some(RemoteFieldEdit { field, input });
         cx.notify();
     }
 
@@ -58,11 +64,10 @@ impl SettingsView {
     }
 
     pub(super) fn commit_remote_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(RemoteFieldEdit { field, edit }) = self.remote_edit.take() else {
+        let Some(RemoteFieldEdit { field, input }) = self.remote_edit.take() else {
             return;
         };
-        self._blink = None;
-        let value = edit.into_text();
+        let value = input.read(cx).text().to_owned();
         match field {
             RemoteEditField::Password => {
                 crate::app::remote::set_remote_password(value, window, cx);
@@ -71,43 +76,18 @@ impl SettingsView {
                 crate::app::remote::set_remote_hostname(value, cx);
             }
         }
+        self.focus.focus(window, cx);
         window.refresh();
         cx.notify();
     }
 
-    pub(super) fn cancel_remote_edit(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn cancel_remote_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.remote_edit = None;
-        self._blink = None;
+        self.focus.focus(window, cx);
         cx.notify();
     }
 
-    fn start_remote_edit_caret_blink(&mut self, cx: &mut Context<Self>) {
-        self.caret_on = true;
-        self._blink = Some(cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(CARET_BLINK).await;
-                let keep = this
-                    .update(cx, |this, cx| {
-                        if this.remote_edit.is_some() {
-                            this.caret_on = !this.caret_on;
-                            cx.notify();
-                            true
-                        } else {
-                            this.caret_on = true;
-                            this._blink = None;
-                            false
-                        }
-                    })
-                    .unwrap_or(false);
-                if !keep {
-                    break;
-                }
-            }
-        }));
-    }
-
-    /// Handle keys while remote hostname/password edit is open.
-    /// Returns true when the event was for remote edit (caller should return).
+    /// Parent-navigation keys bubble from the shared text control.
     pub(super) fn handle_remote_edit_key(
         &mut self,
         event: &KeyDownEvent,
@@ -117,77 +97,12 @@ impl SettingsView {
         if self.remote_edit.is_none() {
             return false;
         }
-        let key = event.keystroke.key.as_str();
-        let mods = &event.keystroke.modifiers;
-        let extend = mods.shift;
-        if (mods.platform || mods.control) && key == "a" {
-            if let Some(re) = self.remote_edit.as_mut() {
-                re.edit.select_all();
-                self.caret_on = true;
-                cx.notify();
-            }
-            cx.stop_propagation();
-            return true;
+        match event.keystroke.key.as_str() {
+            "escape" => self.cancel_remote_edit(window, cx),
+            "enter" => self.commit_remote_edit(window, cx),
+            _ => return false,
         }
-        match key {
-            "escape" => {
-                self.cancel_remote_edit(cx);
-                cx.stop_propagation();
-            }
-            "enter" => {
-                self.commit_remote_edit(window, cx);
-                cx.stop_propagation();
-            }
-            "backspace" => {
-                if let Some(re) = self.remote_edit.as_mut() {
-                    re.edit.backspace();
-                    self.caret_on = true;
-                    cx.notify();
-                }
-                cx.stop_propagation();
-            }
-            "delete" => {
-                if let Some(re) = self.remote_edit.as_mut() {
-                    re.edit.delete_forward();
-                    self.caret_on = true;
-                    cx.notify();
-                }
-                cx.stop_propagation();
-            }
-            "left" => {
-                if let Some(re) = self.remote_edit.as_mut() {
-                    re.edit.move_left(extend);
-                    self.caret_on = true;
-                    cx.notify();
-                }
-                cx.stop_propagation();
-            }
-            "right" => {
-                if let Some(re) = self.remote_edit.as_mut() {
-                    re.edit.move_right(extend);
-                    self.caret_on = true;
-                    cx.notify();
-                }
-                cx.stop_propagation();
-            }
-            "up" | "home" => {
-                if let Some(re) = self.remote_edit.as_mut() {
-                    re.edit.home(extend);
-                    self.caret_on = true;
-                    cx.notify();
-                }
-                cx.stop_propagation();
-            }
-            "down" | "end" => {
-                if let Some(re) = self.remote_edit.as_mut() {
-                    re.edit.end(extend);
-                    self.caret_on = true;
-                    cx.notify();
-                }
-                cx.stop_propagation();
-            }
-            _ => {}
-        }
+        cx.stop_propagation();
         true
     }
 }

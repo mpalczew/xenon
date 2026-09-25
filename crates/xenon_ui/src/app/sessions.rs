@@ -27,6 +27,10 @@ impl XenonApp {
             && prev != id
         {
             self.save_layout(prev);
+            if self.worklist_capture_visible == Some(prev) {
+                self.worklist_capture_visible = None;
+                self.deferred.pending_focus = self.deferred.restore_pane.take();
+            }
         }
         self.active = Some(id);
         self.finder = None;
@@ -136,7 +140,7 @@ impl XenonApp {
                             } else {
                                 root.join(path)
                             };
-                            match EditorView::build(abs.clone(), false, cx) {
+                            match Self::build_workspace_editor(abs.clone(), root, false, cx) {
                                 Ok(view) => {
                                     self.wire_editor_selection(&view, cx);
                                     tabs.push(LiveTab::Editor {

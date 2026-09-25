@@ -2,7 +2,8 @@
 
 use std::ops::Range;
 
-use gpui::{Context, FocusHandle, Window};
+use gpui::{AppContext, Context, Entity, FocusHandle, Subscription, Window};
+use xenon_design_system::{TextInputConfig, TextInputEvent, TextInputView};
 
 use super::{Content, EditorView};
 use crate::find::{self, FindOptions, FindScan};
@@ -15,12 +16,23 @@ pub(super) struct FindSession {
     pub current: Option<usize>,
     pub error: Option<String>,
     pub focus: FocusHandle,
+    pub input: Entity<TextInputView>,
+    _input_subscription: Subscription,
     /// Bar is visible; when false, session still holds last query/options.
     pub open: bool,
 }
 
 impl FindSession {
-    pub fn new(focus: FocusHandle) -> Self {
+    pub fn new(cx: &mut Context<EditorView>) -> Self {
+        let input = cx.new(|cx| {
+            TextInputView::new(TextInputConfig::single_line("Find").parent_navigation(), cx)
+        });
+        let focus = input.read(cx).focus_handle();
+        let input_subscription = cx.subscribe(&input, |this, _, event, cx| {
+            if let TextInputEvent::Changed(query) = event {
+                this.set_find_query(query.clone(), cx);
+            }
+        });
         Self {
             query: String::new(),
             options: FindOptions::default(),
@@ -28,6 +40,8 @@ impl FindSession {
             current: None,
             error: None,
             focus,
+            input,
+            _input_subscription: input_subscription,
             open: false,
         }
     }
@@ -56,18 +70,18 @@ impl EditorView {
             }
             _ => None,
         };
-        let find = self
-            .find
-            .get_or_insert_with(|| FindSession::new(cx.focus_handle()));
+        let find = self.find.get_or_insert_with(|| FindSession::new(cx));
         find.open = true;
         if let Some(seed) = seed {
             find.query = seed;
         }
+        find.input.update(cx, |input, cx| {
+            input.set_text(find.query.clone(), cx);
+            input.open(cx);
+        });
         self.rescan_find();
         self.jump_to_current_match();
-        if let Some(find) = &self.find {
-            find.focus.focus(window, cx);
-        }
+        let _ = window;
         cx.notify();
     }
 
@@ -150,22 +164,9 @@ impl EditorView {
         self.last_cursor = None;
     }
 
-    pub(super) fn append_find_query(&mut self, text: &str, cx: &mut Context<Self>) {
-        let clean: String = text.chars().filter(|c| !c.is_control()).collect();
-        if clean.is_empty() {
-            return;
-        }
+    pub(super) fn set_find_query(&mut self, query: String, cx: &mut Context<Self>) {
         if let Some(find) = &mut self.find {
-            find.query.push_str(&clean);
-        }
-        self.rescan_find();
-        self.jump_to_current_match();
-        cx.notify();
-    }
-
-    pub(super) fn find_backspace(&mut self, cx: &mut Context<Self>) {
-        if let Some(find) = &mut self.find {
-            find.query.pop();
+            find.query = query;
         }
         self.rescan_find();
         self.jump_to_current_match();

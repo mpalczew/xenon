@@ -5,6 +5,7 @@ use gpui::{
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
+use xenon_design_system::TextInputView;
 
 use super::SettingsView;
 use crate::dropdown::{DropdownId, DropdownProps, SizeTarget, dropdown_row, size_row};
@@ -13,8 +14,8 @@ use crate::dropdown::{DropdownId, DropdownProps, SizeTarget, dropdown_row, size_
 pub(super) struct OpenState<'a> {
     pub open: Option<DropdownId>,
     pub filter: &'a str,
+    pub filter_input: &'a gpui::Entity<TextInputView>,
     pub highlight: usize,
-    pub caret_on: bool,
     pub viewport_height: Pixels,
 }
 
@@ -182,8 +183,8 @@ pub(super) fn font_section(
                 filterable: true,
                 open: state.open == Some(family_id),
                 filter: state.filter,
+                filter_input: state.filter_input,
                 highlight: state.highlight,
-                caret_on: state.caret_on,
                 viewport_height: state.viewport_height,
             },
             cx,
@@ -252,8 +253,8 @@ pub(super) fn terminal_section(
             filterable: false,
             open: state.open == Some(DropdownId::TerminalAutoClose),
             filter: state.filter,
+            filter_input: state.filter_input,
             highlight: state.highlight,
-            caret_on: state.caret_on,
             viewport_height: state.viewport_height,
         },
         cx,

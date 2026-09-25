@@ -2,17 +2,17 @@
 //! terminal tab and injects; cmd-enter injects into the current terminal.
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
     Render, ScrollHandle, StatefulInteractiveElement, Window,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
 use xenon_core::ShellTask;
+use xenon_design_system::{PaletteOverlay, palette_overlay};
 
-use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, fuzzy_index_order, hint_row,
-    panel, query_row, reveal_selected, scrim, scroll_results, simple_row, step_selection,
+    PaletteLayout, ScrollResults, fuzzy_index_order, hint_row, reveal_selected, scroll_results,
+    simple_row, step_selection,
 };
 
 pub enum TaskPickerEvent {
@@ -29,7 +29,8 @@ pub struct TaskPickerView {
     results: Vec<usize>,
     selected: usize,
     focus: FocusHandle,
-    focused_once: bool,
+    input: gpui::Entity<xenon_design_system::TextInputView>,
+    _input_sub: gpui::Subscription,
     matcher: Matcher,
     empty_message: Option<String>,
     scroll: ScrollHandle,
@@ -39,13 +40,31 @@ impl EventEmitter<TaskPickerEvent> for TaskPickerView {}
 
 impl TaskPickerView {
     pub fn new(tasks: Vec<ShellTask>, error: Option<String>, cx: &mut Context<Self>) -> Self {
+        let input = cx.new(|cx| {
+            xenon_design_system::TextInputView::new(
+                xenon_design_system::TextInputConfig::single_line(
+                    error.as_deref().unwrap_or("Run task…"),
+                )
+                .parent_navigation()
+                .appearance(xenon_design_system::TextInputAppearance::Palette),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.open(cx));
+        let focus = input.read(cx).focus_handle();
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let xenon_design_system::TextInputEvent::Changed(query) = event {
+                this.set_query(query.clone(), cx);
+            }
+        });
         let mut view = Self {
             tasks,
             query: String::new(),
             results: Vec::new(),
             selected: 0,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
+            input,
+            _input_sub: input_sub,
             matcher: Matcher::new(Config::DEFAULT),
             empty_message: error,
             scroll: ScrollHandle::new(),
@@ -95,22 +114,9 @@ impl TaskPickerView {
             }
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
-            "backspace" => {
-                let mut query = self.query.clone();
-                query.pop();
-                self.set_query(query, cx);
-            }
             _ => return,
         }
         cx.stop_propagation();
-    }
-
-    fn placeholder(&self) -> String {
-        if let Some(msg) = &self.empty_message {
-            msg.clone()
-        } else {
-            "Run task…".into()
-        }
     }
 
     fn empty_message(&self) -> &'static str {
@@ -131,11 +137,7 @@ impl Focusable for TaskPickerView {
 }
 
 impl Render for TaskPickerView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
         let rows: Vec<_> = self
@@ -158,39 +160,33 @@ impl Render for TaskPickerView {
             })
             .collect();
 
-        scrim("task-picker-scrim", layout)
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(TaskPickerEvent::Dismissed)))
-            .child(
-                bind_query_chrome(
-                    QueryChrome {
-                        panel: panel(layout, &colors),
-                        focus: self.focus.clone(),
-                        key_context: "TaskPicker",
-                        view: cx.entity(),
-                    },
-                    cx,
-                    Self::on_key,
-                )
-                .child(
-                    query_row(&self.query, &self.placeholder(), true, &colors).into_any_element(),
-                )
-                .child(scroll_results(ScrollResults {
-                    list_id: "task-picker-results",
-                    empty_message: self.empty_message(),
-                    rows,
-                    selected: self.selected,
-                    scroll: &self.scroll,
-                    colors: &colors,
-                }))
-                .child(
+        palette_overlay(
+            PaletteOverlay {
+                id: "task-picker-scrim",
+                layout,
+                colors: &colors,
+                focus: self.focus.clone(),
+                key_context: "TaskPicker",
+                on_key: Self::on_key,
+                on_dismiss: |_, _, _, cx| cx.emit(TaskPickerEvent::Dismissed),
+                children: vec![
+                    self.input.clone().into_any_element(),
+                    scroll_results(ScrollResults {
+                        list_id: "task-picker-results",
+                        empty_message: self.empty_message(),
+                        rows,
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    }),
                     hint_row(
                         "↵ new terminal  ·  ⌘↵ current  ·  esc dismiss  ·  open ⌘⇧R",
                         &colors,
                     )
                     .into_any_element(),
-                ),
-            )
+                ],
+            },
+            cx,
+        )
     }
 }
-
-impl_palette_query_input!(TaskPickerView);

@@ -176,7 +176,7 @@ impl XenonApp {
     }
 
     /// Teardown always transfers focus to a live surface or the shell.
-    pub(super) fn focus_after_teardown(
+    pub(crate) fn focus_after_teardown(
         &mut self,
         window: Option<&mut Window>,
         cx: &mut Context<Self>,
@@ -328,6 +328,7 @@ impl XenonApp {
             || self.workspace_create.is_some()
             || self.command_palette.is_some()
             || self.theme_picker.is_some()
+            || self.worklist_capture_visible.is_some()
             || self.renaming.is_some()
     }
 

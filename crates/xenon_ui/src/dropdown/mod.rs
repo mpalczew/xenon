@@ -15,6 +15,7 @@ use gpui::{
     relative,
 };
 use theme::ActiveTheme;
+use xenon_design_system::TextInputView;
 
 use crate::settings::SettingsView;
 
@@ -48,8 +49,8 @@ pub(crate) struct DropdownProps<'a> {
     pub filterable: bool,
     pub open: bool,
     pub filter: &'a str,
+    pub filter_input: &'a gpui::Entity<TextInputView>,
     pub highlight: usize,
-    pub caret_on: bool,
     pub viewport_height: Pixels,
 }
 
@@ -77,9 +78,8 @@ pub(crate) fn dropdown_row(
                     options: &filtered,
                     selected: props.selected,
                     filterable: props.filterable,
-                    filter: props.filter,
+                    filter_input: props.filter_input,
                     highlight: props.highlight,
-                    caret_on: props.caret_on,
                     max_h,
                 },
                 cx,
@@ -246,9 +246,8 @@ struct ListProps<'a> {
     options: &'a [SharedString],
     selected: &'a str,
     filterable: bool,
-    filter: &'a str,
+    filter_input: &'a gpui::Entity<TextInputView>,
     highlight: usize,
-    caret_on: bool,
     max_h: Pixels,
 }
 
@@ -272,7 +271,7 @@ fn option_list(props: ListProps<'_>, cx: &mut gpui::Context<SettingsView>) -> im
         .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()));
 
     if props.filterable {
-        list = list.child(filter_banner(props.filter, props.caret_on, cx));
+        list = list.child(filter_banner(props.filter_input.clone(), cx));
     }
     if props.options.is_empty() {
         list = list.child(
@@ -298,31 +297,19 @@ fn option_list(props: ListProps<'_>, cx: &mut gpui::Context<SettingsView>) -> im
 }
 
 fn filter_banner(
-    filter: &str,
-    caret_on: bool,
+    input: gpui::Entity<TextInputView>,
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
-    let empty = filter.is_empty();
-    let mut row = div()
+    div()
         .flex()
         .items_center()
         .px_2()
         .py_1()
         .border_b_1()
         .border_color(colors.border)
-        .text_xs();
-    row = row.child(div().w(px(1.)).h(px(12.)).mr_0p5().bg(if caret_on {
-        colors.text
-    } else {
-        gpui::transparent_black()
-    }));
-    if empty {
-        row = row.child(div().text_color(colors.text_muted).child("Type to filter…"));
-    } else {
-        row = row.child(div().text_color(colors.text).child(filter.to_string()));
-    }
-    row
+        .text_xs()
+        .child(input)
 }
 
 fn option_row(

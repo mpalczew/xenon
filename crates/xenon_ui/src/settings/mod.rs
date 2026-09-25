@@ -1,26 +1,22 @@
 //! Settings as a dedicated window. Appearance + decoupled editor/terminal fonts.
 
-mod input;
-mod line_edit;
 mod remote_edit;
 mod remote_section;
 mod sections;
 mod skill_section;
 
-use std::time::Duration;
-
 use gpui::{
-    AnyElement, App, Context, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Task,
-    Window, div,
+    AnyElement, App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement,
+    Styled, Subscription, Window, div,
 };
 use theme::ActiveTheme;
+use xenon_design_system::{FocusOnOpen, TextInputConfig, TextInputEvent, TextInputView};
 
 use crate::ToggleSettings;
 use crate::dropdown::{
     DropdownId, SizeTarget, filter_options, mono_font_families, ui_font_families,
 };
-use crate::palette::input_registrar;
 use remote_section::remote_section;
 use sections::{
     OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
@@ -28,26 +24,37 @@ use sections::{
 };
 use skill_section::skill_section;
 
-const CARET_BLINK: Duration = Duration::from_millis(530);
-
 use remote_edit::RemoteFieldEdit;
 
 pub struct SettingsView {
     focus: FocusHandle,
+    focus_on_open: FocusOnOpen,
     open: Option<DropdownId>,
     filter: String,
+    filter_input: Entity<TextInputView>,
+    _filter_sub: Subscription,
     highlight: usize,
-    caret_on: bool,
-    focused_once: bool,
     /// Keyboard highlight among toggles: 0 line numbers, 1 vim, 2 mobile remote.
     toggle_focus: usize,
     /// Inline edit for remote password/hostname (None = not editing).
     remote_edit: Option<RemoteFieldEdit>,
-    _blink: Option<Task<()>>,
 }
 
 impl SettingsView {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        let filter_input = cx.new(|cx| {
+            TextInputView::new(
+                TextInputConfig::single_line("Type to filter…").parent_navigation(),
+                cx,
+            )
+        });
+        let filter_sub = cx.subscribe(&filter_input, |this, _, event, cx| {
+            if let TextInputEvent::Changed(filter) = event {
+                this.filter = filter.clone();
+                this.highlight = 0;
+                cx.notify();
+            }
+        });
         // Full system font scans are deferred and never run on paint / key path.
         cx.spawn(async move |this, cx| {
             this.update(cx, |_this, cx| {
@@ -58,16 +65,19 @@ impl SettingsView {
             .ok();
         })
         .detach();
+        let focus = cx.focus_handle();
+        let mut focus_on_open = FocusOnOpen::new(focus.clone());
+        focus_on_open.open();
         Self {
-            focus: cx.focus_handle(),
+            focus,
+            focus_on_open,
             open: None,
             filter: String::new(),
+            filter_input,
+            _filter_sub: filter_sub,
             highlight: 0,
-            caret_on: true,
-            focused_once: false,
             toggle_focus: 0,
             remote_edit: None,
-            _blink: None,
         }
     }
 
@@ -78,17 +88,18 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) {
         if self.open == Some(id) {
-            self.close_dropdown(cx);
+            self.close_dropdown(window, cx);
         } else {
             self.open = Some(id);
             self.filter.clear();
             self.highlight = 0;
-            self.caret_on = true;
-            self.focus.focus(window, cx);
             if is_filterable(id) {
-                self.start_caret_blink(cx);
+                self.filter_input.update(cx, |input, cx| {
+                    input.set_text("", cx);
+                    input.open(cx);
+                });
             } else {
-                self._blink = None;
+                self.focus.focus(window, cx);
             }
         }
         cx.notify();
@@ -98,11 +109,11 @@ impl SettingsView {
         &mut self,
         id: DropdownId,
         value: String,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         apply_dropdown_pick(id, value, cx);
-        self.close_dropdown(cx);
+        self.close_dropdown(window, cx);
         cx.notify();
     }
 
@@ -116,44 +127,18 @@ impl SettingsView {
         cx.notify();
     }
 
-    pub(crate) fn dismiss_dropdown(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn dismiss_dropdown(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.open.is_some() {
-            self.close_dropdown(cx);
+            self.close_dropdown(window, cx);
             cx.notify();
         }
     }
 
-    fn close_dropdown(&mut self, _cx: &mut Context<Self>) {
+    fn close_dropdown(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.open = None;
         self.filter.clear();
         self.highlight = 0;
-        self.caret_on = true;
-        self._blink = None;
-    }
-
-    fn start_caret_blink(&mut self, cx: &mut Context<Self>) {
-        self.caret_on = true;
-        self._blink = Some(cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(CARET_BLINK).await;
-                let keep = this
-                    .update(cx, |this, cx| {
-                        if this.open.is_some_and(is_filterable) {
-                            this.caret_on = !this.caret_on;
-                            cx.notify();
-                            true
-                        } else {
-                            this.caret_on = true;
-                            this._blink = None;
-                            false
-                        }
-                    })
-                    .unwrap_or(false);
-                if !keep {
-                    break;
-                }
-            }
-        }));
+        self.focus.focus(window, cx);
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -186,7 +171,7 @@ impl SettingsView {
         };
         match event.keystroke.key.as_str() {
             "escape" => {
-                self.close_dropdown(cx);
+                self.close_dropdown(window, cx);
                 cx.notify();
                 cx.stop_propagation();
             }
@@ -202,13 +187,6 @@ impl SettingsView {
             }
             "down" => {
                 self.move_highlight(id, 1, cx);
-                cx.stop_propagation();
-            }
-            "backspace" if is_filterable(id) => {
-                self.filter.pop();
-                self.highlight = 0;
-                self.caret_on = true;
-                cx.notify();
                 cx.stop_propagation();
             }
             _ => {}
@@ -255,8 +233,8 @@ impl SettingsView {
         let state = OpenState {
             open: self.open,
             filter: self.filter.as_str(),
+            filter_input: &self.filter_input,
             highlight: self.highlight,
-            caret_on: self.caret_on,
             viewport_height: window.viewport_size().height,
         };
         div()
@@ -266,8 +244,8 @@ impl SettingsView {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.dismiss_dropdown(cx);
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.dismiss_dropdown(window, cx);
             }))
             .child(appearance_section(&settings, cx))
             .child(skill_section(self.toggle_focus == 3, cx))
@@ -306,14 +284,9 @@ impl SettingsView {
             .child(remote_section(
                 &crate::app::remote::mobile_remote_info(cx),
                 self.toggle_focus == 2,
-                self.remote_edit.as_ref().map(|re| {
-                    (
-                        re.field,
-                        re.edit.split_for_paint(),
-                        re.edit.text().is_empty(),
-                    )
-                }),
-                self.caret_on,
+                self.remote_edit
+                    .as_ref()
+                    .map(|re| (re.field, re.input.clone())),
                 cx,
             ))
             .into_any_element()
@@ -329,10 +302,7 @@ impl Focusable for SettingsView {
 impl Render for SettingsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_window_title("Settings");
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-        }
+        self.focus_on_open.focus_after_open(window, cx);
         let ui = xenon_settings::ui_font(cx);
         window.set_rem_size(gpui::px(ui.size));
         let colors = cx.theme().colors().clone();
@@ -359,7 +329,6 @@ impl Render for SettingsView {
                     .child(div().text_lg().child("Settings")),
             )
             .child(body)
-            .child(input_registrar(cx.entity(), self.focus.clone()))
     }
 }
 

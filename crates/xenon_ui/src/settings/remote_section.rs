@@ -5,19 +5,18 @@ use gpui::{
     StatefulInteractiveElement, Styled, div, prelude::FluentBuilder, px,
 };
 use theme::ActiveTheme;
+use xenon_design_system::TextInputView;
 
 use super::SettingsView;
 use super::remote_edit::RemoteEditField;
 use super::sections::{group_card, row_divider};
 
-/// Active remote field edit for paint: (field, before|selected|after, empty).
-type RemoteEditPaint = (RemoteEditField, (String, String, String), bool);
+type RemoteEditPaint = (RemoteEditField, gpui::Entity<TextInputView>);
 
 pub(super) fn remote_section(
     info: &crate::app::remote::MobileRemoteInfo,
     focused: bool,
     remote_edit: Option<RemoteEditPaint>,
-    caret_on: bool,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
@@ -32,12 +31,12 @@ pub(super) fn remote_section(
     let hostname = info.hostname.clone();
     let urls = info.urls.clone();
     let editing = remote_edit.is_some();
-    let password_paint = remote_edit
+    let password_input = remote_edit
         .as_ref()
-        .and_then(|(f, parts, empty)| (*f == RemoteEditField::Password).then_some((parts, *empty)));
-    let hostname_paint = remote_edit
+        .and_then(|(f, input)| (*f == RemoteEditField::Password).then(|| input.clone()));
+    let hostname_input = remote_edit
         .as_ref()
-        .and_then(|(f, parts, empty)| (*f == RemoteEditField::Hostname).then_some((parts, *empty)));
+        .and_then(|(f, input)| (*f == RemoteEditField::Hostname).then(|| input.clone()));
     let body = div()
         .flex()
         .flex_col()
@@ -48,13 +47,8 @@ pub(super) fn remote_section(
             cx,
         ))
         .child(row_divider(cx))
-        .child(remote_hostname_block(
-            &hostname,
-            hostname_paint,
-            caret_on,
-            cx,
-        ))
-        .child(remote_password_block(&token, password_paint, caret_on, cx))
+        .child(remote_hostname_block(&hostname, hostname_input, cx))
+        .child(remote_password_block(&token, password_input, cx))
         .child(
             div()
                 .px_3()
@@ -94,37 +88,18 @@ pub(super) fn remote_section(
     group_card("Remote", body, cx)
 }
 
-struct FieldEditPaint<'a> {
+struct FieldEditPaint {
     id: &'static str,
     label: &'static str,
-    parts: &'a (String, String, String),
-    empty: bool,
-    placeholder: &'static str,
-    caret_on: bool,
+    input: gpui::Entity<TextInputView>,
 }
 
 fn remote_field_edit_row(
-    paint: FieldEditPaint<'_>,
+    paint: FieldEditPaint,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    let FieldEditPaint {
-        id,
-        label,
-        parts,
-        empty,
-        placeholder,
-        caret_on,
-    } = paint;
+    let FieldEditPaint { id, label, input } = paint;
     let colors = cx.theme().colors().clone();
-    let (before, selected, after) = parts;
-    // Caret between before and after (or after selected when range is non-empty).
-    // Always reserve a 2px slot so blink doesn't reflow.
-    let caret_color = if caret_on {
-        colors.text
-    } else {
-        gpui::transparent_black()
-    };
-    let sel_bg = colors.element_selected;
     div()
         .flex()
         .flex_col()
@@ -150,29 +125,11 @@ fn remote_field_edit_row(
                 .bg(colors.elevated_surface_background)
                 .child(
                     div()
-                        .flex()
-                        .items_center()
                         .flex_1()
                         .min_w_0()
-                        .h_full()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
                         .text_sm()
                         .font_family("Menlo")
-                        .text_color(if empty {
-                            colors.text_muted
-                        } else {
-                            colors.text
-                        })
-                        .when(empty, |d| d.child(placeholder))
-                        .when(!empty, |d| {
-                            d.child(before.clone())
-                                .when(!selected.is_empty(), |d| {
-                                    d.child(div().bg(sel_bg).child(selected.clone()))
-                                })
-                                .child(div().flex_none().w(px(2.)).h(px(14.)).bg(caret_color))
-                                .child(after.clone())
-                        }),
+                        .child(input),
                 ),
         )
 }
@@ -255,19 +212,15 @@ fn remote_field_static_row(
 
 fn remote_hostname_block(
     current: &str,
-    edit: Option<(&(String, String, String), bool)>,
-    caret_on: bool,
+    edit: Option<gpui::Entity<TextInputView>>,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    if let Some((parts, empty)) = edit {
+    if let Some(input) = edit {
         return remote_field_edit_row(
             FieldEditPaint {
                 id: "remote-hostname-edit",
                 label: "Hostname",
-                parts,
-                empty,
-                placeholder: "e.g. macbook.tailnet.ts.net",
-                caret_on,
+                input,
             },
             cx,
         )
@@ -291,19 +244,15 @@ fn remote_hostname_block(
 
 fn remote_password_block(
     current: &str,
-    edit: Option<(&(String, String, String), bool)>,
-    caret_on: bool,
+    edit: Option<gpui::Entity<TextInputView>>,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    if let Some((parts, empty)) = edit {
+    if let Some(input) = edit {
         return remote_field_edit_row(
             FieldEditPaint {
                 id: "remote-password-edit",
                 label: "Password",
-                parts,
-                empty,
-                placeholder: "Enter password…",
-                caret_on,
+                input,
             },
             cx,
         )

@@ -2,19 +2,18 @@
 //! Shell chrome lives in `crate::palette`; this file owns catalog + routing.
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
     Render, ScrollHandle, StatefulInteractiveElement, Window,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
+use xenon_design_system::{PaletteOverlay, palette_overlay};
 
 use crate::commands::{CommandEntry, CommandId, catalog};
-use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
-    fuzzy_index_order, hint_row, optional_title, panel, query_row, reveal_selected, scrim,
-    scroll_results, step_selection,
+    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
+    optional_title, reveal_selected, scroll_results, step_selection,
 };
 
 #[derive(Clone, Debug)]
@@ -65,7 +64,8 @@ pub struct CommandPaletteView {
     results: Vec<usize>,
     selected: usize,
     focus: FocusHandle,
-    focused_once: bool,
+    input: gpui::Entity<xenon_design_system::TextInputView>,
+    _input_sub: gpui::Subscription,
     matcher: Matcher,
     scroll: ScrollHandle,
 }
@@ -91,26 +91,40 @@ impl CommandPaletteView {
                 }
             }
         }
+        let placeholder = if mode == PaletteMode::Commands {
+            "Run command or jump…"
+        } else {
+            "Filter shortcuts…"
+        };
+        let input = cx.new(|cx| {
+            xenon_design_system::TextInputView::new(
+                xenon_design_system::TextInputConfig::single_line(placeholder)
+                    .parent_navigation()
+                    .appearance(xenon_design_system::TextInputAppearance::Palette),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.open(cx));
+        let focus = input.read(cx).focus_handle();
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let xenon_design_system::TextInputEvent::Changed(query) = event {
+                this.set_query(query.clone(), cx);
+            }
+        });
         let mut view = Self {
             mode,
             items,
             query: String::new(),
             results: Vec::new(),
             selected: 0,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
+            input,
+            _input_sub: input_sub,
             matcher: Matcher::new(Config::DEFAULT),
             scroll: ScrollHandle::new(),
         };
         view.refilter();
         view
-    }
-
-    fn placeholder(&self) -> &'static str {
-        match self.mode {
-            PaletteMode::Commands => "Run command or jump…",
-            PaletteMode::Help => "Filter shortcuts…",
-        }
     }
 
     fn title(&self) -> &'static str {
@@ -159,11 +173,6 @@ impl CommandPaletteView {
             "enter" => self.confirm(cx),
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
-            "backspace" => {
-                let mut q = self.query.clone();
-                q.pop();
-                self.set_query(q, cx);
-            }
             _ => return,
         }
         cx.stop_propagation();
@@ -177,11 +186,7 @@ impl Focusable for CommandPaletteView {
 }
 
 impl Render for CommandPaletteView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::tall();
         let rows: Vec<_> = self
@@ -209,35 +214,31 @@ impl Render for CommandPaletteView {
             })
             .collect();
 
-        scrim("command-palette-scrim", layout)
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(CommandPaletteEvent::Dismissed)))
-            .child(
-                bind_query_chrome(
-                    QueryChrome {
-                        panel: panel(layout, &colors),
-                        focus: self.focus.clone(),
-                        key_context: "CommandPalette",
-                        view: cx.entity(),
-                    },
-                    cx,
-                    Self::on_key,
-                )
-                .child(optional_title(self.title(), &colors).into_any_element())
-                .child(query_row(&self.query, self.placeholder(), true, &colors).into_any_element())
-                .child(scroll_results(ScrollResults {
-                    list_id: "command-palette-results",
-                    empty_message: "No matches",
-                    rows,
-                    selected: self.selected,
-                    scroll: &self.scroll,
-                    colors: &colors,
-                }))
-                .child(
+        palette_overlay(
+            PaletteOverlay {
+                id: "command-palette-scrim",
+                layout,
+                colors: &colors,
+                focus: self.focus.clone(),
+                key_context: "CommandPalette",
+                on_key: Self::on_key,
+                on_dismiss: |_, _, _, cx| cx.emit(CommandPaletteEvent::Dismissed),
+                children: vec![
+                    optional_title(self.title(), &colors).into_any_element(),
+                    self.input.clone().into_any_element(),
+                    scroll_results(ScrollResults {
+                        list_id: "command-palette-results",
+                        empty_message: "No matches",
+                        rows,
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    }),
                     hint_row("↵ run  ·  esc dismiss  ·  type to filter", &colors)
                         .into_any_element(),
-                ),
-            )
+                ],
+            },
+            cx,
+        )
     }
 }
-
-impl_palette_query_input!(CommandPaletteView);

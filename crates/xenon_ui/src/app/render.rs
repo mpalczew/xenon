@@ -1,4 +1,5 @@
 use super::*;
+mod leaf;
 use crate::resize::ResizeEdge;
 use crate::{
     CloseWorkspace, CommandPalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal,
@@ -19,6 +20,38 @@ impl Render for XenonApp {
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
+        let worklist_capture = self
+            .active
+            .filter(|workspace| self.worklist_capture_visible == Some(*workspace))
+            .and_then(|workspace| self.worklist_captures.get(&workspace).cloned());
+        let worklist_notice = self.worklist_notice.message().map(|message| {
+            xenon_design_system::notice_panel(message, &colors)
+                .children(
+                    self.worklist_undo
+                        .as_ref()
+                        .filter(|(id, _)| Some(*id) == self.active)
+                        .map(|_| {
+                            div()
+                                .id("worklist-undo-capture")
+                                .text_color(colors.text_accent)
+                                .cursor_pointer()
+                                .child("Undo")
+                                .on_click(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.undo_last_worklist_capture(cx)
+                                    }),
+                                )
+                        }),
+                )
+                .child(
+                    div()
+                        .id("worklist-dismiss-notice")
+                        .text_color(colors.text_muted)
+                        .cursor_pointer()
+                        .child("×")
+                        .on_click(cx.listener(|this, _, _, cx| this.dismiss_worklist_notice(cx))),
+                )
+        });
         let task_picker = self.task_picker.clone();
         let workspace_picker = self.workspace_picker.clone();
         let workspace_create = self.workspace_create.clone();
@@ -56,6 +89,8 @@ impl Render for XenonApp {
             .font_family(ui.family)
             .child(body)
             .children(finder)
+            .children(worklist_capture)
+            .children(worklist_notice)
             .children(task_picker)
             .children(workspace_picker)
             .children(workspace_create)
@@ -129,6 +164,7 @@ impl XenonApp {
 
     fn bind_app_actions(&self, root: gpui::Div, cx: &mut Context<Self>) -> gpui::Div {
         let root = self.bind_core_actions(root, cx);
+        let root = self.bind_worklist_actions(root, cx);
         let root = self.bind_path_actions(root, cx);
         let root = self.bind_clipboard_actions(root, cx);
         self.bind_nav_actions(root, cx)
@@ -422,73 +458,5 @@ impl XenonApp {
                 }
             }
         }
-    }
-
-    fn render_leaf(&self, leaf: &LiveLeaf, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let colors = cx.theme().colors().clone();
-        let pane_id = leaf.id;
-        let has_active_tab = leaf.active_tab().is_some();
-        let focused = leaf
-            .active_tab()
-            .is_some_and(|tab| super::keyboard::tab_has_gpui_focus(tab, window, cx));
-        let tabs = self.render_mixed_tabs(leaf, focused, cx);
-        let body_content = match leaf.active_tab() {
-            Some(LiveTab::Terminal { view, .. }) => div()
-                .size_full()
-                .min_h_0()
-                .min_w_0()
-                .child(view.clone())
-                .into_any_element(),
-            Some(LiveTab::Editor { view, .. }) => div()
-                .size_full()
-                .min_h_0()
-                .min_w_0()
-                .overflow_hidden()
-                .child(view.clone())
-                .into_any_element(),
-            None => self
-                .render_empty_state(colors.clone(), Some(pane_id), cx)
-                .into_any_element(),
-        };
-
-        let ws = self.active;
-        let dragging = cx.has_active_drag();
-        let drop_line = colors.drop_target_border;
-
-        // While a tab is dragged, overlay hit-targets so terminal/editor content
-        // does not swallow the drop. Center = move; edges = split.
-        let drop_overlay = dragging.then(|| self.tab_drop_overlay(pane_id, ws, drop_line, cx));
-        let body = div()
-            .relative()
-            .flex_1()
-            .min_h_0()
-            .min_w_0()
-            .child(body_content)
-            .children(drop_overlay);
-        div()
-            .id(("leaf", leaf.id.0))
-            .relative()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .size_full()
-            .min_w_0()
-            .min_h_0()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, window, cx| {
-                    // Tab strip is not track_focus; without this the root
-                    // XenonApp handle steals GPUI and the pane ring goes away.
-                    window.prevent_default();
-                    if has_active_tab {
-                        this.focus_leaf_active(pane_id, window, cx);
-                    } else {
-                        this.adopt_focused_pane(pane_id, cx);
-                    }
-                }),
-            )
-            .child(tabs)
-            .child(body)
-            .into_any_element()
     }
 }

@@ -14,6 +14,8 @@ mod selection;
 mod undo;
 mod view;
 mod vim;
+pub mod worklist_file;
+pub use xenon_design_system::MultilineText;
 
 pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
 // Buffer::create_new / empty / save_force used by shell (New File, Save As).

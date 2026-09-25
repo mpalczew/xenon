@@ -14,3 +14,4 @@ visual-tests = ["gpui/test-support"]
 [dependencies]
 gpui.workspace = true
 theme.workspace = true
+xenon_settings.workspace = true

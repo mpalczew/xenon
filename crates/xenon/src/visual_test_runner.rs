@@ -157,6 +157,16 @@ fn run_scene(
     if scene.needs_terminal() {
         wait_for_terminal(cx, window)?;
     }
+    if scene == xenon_ui::Scene::WorklistToolbarTooltip {
+        cx.simulate_mouse_move(
+            window.into(),
+            gpui::point(px(1162.0), px(21.0)),
+            None,
+            Modifiers::none(),
+        );
+        cx.advance_clock(Duration::from_millis(700));
+        cx.run_until_parked();
+    }
     if scene == xenon_ui::Scene::TabTooltip {
         cx.simulate_mouse_move(
             window.into(),

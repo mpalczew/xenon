@@ -51,6 +51,8 @@ pub struct Buffer {
     /// `version` at last open/save/reload. Dirty when these differ.
     saved_version: u64,
     disk_mtime: Option<SystemTime>,
+    disk_snapshot: Option<Vec<u8>>,
+    never_created: bool,
     undo: UndoStack,
 }
 

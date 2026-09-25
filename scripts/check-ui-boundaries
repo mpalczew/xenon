@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+# Ordinary controls own macOS text input. The editor and terminal canvases are
+# specialized surfaces and remain explicit exceptions.
+mapfile -t owners < <(rg -l 'impl EntityInputHandler for|\.handle_input\(' \
+    crates/xenon_ui/src crates/xenon_editor/src crates/xenon_terminal/src \
+    --glob '*.rs' || true)
+for path in "${owners[@]}"; do
+    case "$path" in
+        crates/xenon_editor/src/view/entity_input.rs|\
+        crates/xenon_editor/src/view/layout.rs|\
+        crates/xenon_terminal/src/view/input.rs|\
+        crates/xenon_terminal/src/view/render.rs) ;;
+        *) printf 'UI input belongs in xenon_design_system: %s\n' "$path" >&2; exit 1 ;;
+    esac
+done
+
+if rg -l 'focused_once\s*[:=]|!self\.focused_once|\.focused_once\s*=' crates/xenon_ui/src --glob '*.rs'; then
+    printf 'Reusable UI views must use an open/focus lifecycle, not focused_once\n' >&2
+    exit 1
+fi
+palette_views=(
+    crates/xenon_ui/src/finder.rs
+    crates/xenon_ui/src/command_palette/mod.rs
+    crates/xenon_ui/src/task_picker.rs
+    crates/xenon_ui/src/theme_picker.rs
+    crates/xenon_ui/src/workspace_create.rs
+    crates/xenon_ui/src/workspace_picker/mod.rs
+)
+if rg -n 'dismissible_scrim|overlay_scrim|overlay_panel|\.on_key_down\(' "${palette_views[@]}"; then
+    printf 'Palette dismissal and key routing belong in palette_overlay\n' >&2
+    exit 1
+fi
+for path in "${palette_views[@]}"; do
+    if ! rg -q 'palette_overlay\(' "$path"; then
+        printf 'Palette must use palette_overlay: %s\n' "$path" >&2
+        exit 1
+    fi
+done
+printf 'UI control boundaries: ok\n'

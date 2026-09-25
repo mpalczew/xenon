@@ -1,6 +1,7 @@
 //! In-app "Install the Xenon skill?" dialog. Keyboard: Return / Escape / arrows.
 
 use super::*;
+use xenon_design_system::FocusOnOpen;
 use xenon_store::{decline_skill, install_skill, should_prompt_skill};
 
 const BTN_NEVER: usize = 0;
@@ -9,8 +10,7 @@ const BTN_INSTALL: usize = 2;
 
 pub(crate) struct SkillPrompt {
     pub button: usize,
-    focus: FocusHandle,
-    focused_once: bool,
+    focus: FocusOnOpen,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,10 +58,11 @@ impl XenonApp {
     }
 
     fn begin_skill_prompt(&mut self, cx: &mut Context<Self>) {
+        let mut focus = FocusOnOpen::new(cx.focus_handle());
+        focus.open();
         self.skill_prompt = Some(SkillPrompt {
             button: BTN_INSTALL,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
         });
     }
 
@@ -69,11 +70,7 @@ impl XenonApp {
         let Some(prompt) = self.skill_prompt.as_mut() else {
             return;
         };
-        if prompt.focused_once {
-            return;
-        }
-        prompt.focus.focus(window, cx);
-        prompt.focused_once = true;
+        prompt.focus.focus_after_open(window, cx);
     }
 
     pub(crate) fn on_skill_prompt_key(
@@ -152,7 +149,7 @@ impl XenonApp {
         let focus = self
             .skill_prompt
             .as_ref()
-            .map(|p| p.focus.clone())
+            .map(|p| p.focus.handle())
             .unwrap_or_else(|| cx.focus_handle());
         let dialog = div()
             .id("skill-prompt-dialog")

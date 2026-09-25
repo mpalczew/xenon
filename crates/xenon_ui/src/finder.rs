@@ -10,21 +10,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
     Render, ScrollHandle, StatefulInteractiveElement, Task, Window,
 };
 use theme::ActiveTheme;
+use xenon_design_system::{PaletteOverlay, palette_overlay};
 use xenon_finder::{FileIndex, FileMatch};
 
-use crate::impl_palette_query_input;
 use crate::palette::{
-    PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, hint_row, panel, query_row,
-    reveal_selected, scrim, scroll_results, simple_row, step_selection,
+    PaletteLayout, ScrollResults, hint_row, reveal_selected, scroll_results, simple_row,
+    step_selection,
 };
 
 /// Debounce before scoring a large index (keeps keystrokes snappy).
 const QUERY_DEBOUNCE: Duration = Duration::from_millis(40);
-const CARET_BLINK: Duration = Duration::from_millis(530);
 
 pub enum FinderEvent {
     Selected(PathBuf),
@@ -45,13 +44,12 @@ pub struct FinderView {
     results: Vec<FileMatch>,
     selected: usize,
     focus: FocusHandle,
-    focused_once: bool,
+    input: gpui::Entity<xenon_design_system::TextInputView>,
+    _input_sub: gpui::Subscription,
     scroll: ScrollHandle,
     query_gen: u64,
     searching: bool,
-    caret_on: bool,
     _query_task: Option<Task<()>>,
-    _blink: Option<Task<()>>,
 }
 
 impl EventEmitter<FinderEvent> for FinderView {}
@@ -63,6 +61,28 @@ impl FinderView {
         recents: Vec<PathBuf>,
         cx: &mut Context<Self>,
     ) -> Self {
+        let input = cx.new(|cx| {
+            xenon_design_system::TextInputView::new(
+                xenon_design_system::TextInputConfig::single_line(if index.is_some() {
+                    "Search files…"
+                } else {
+                    "Indexing…"
+                })
+                .parent_navigation()
+                .appearance(xenon_design_system::TextInputAppearance::Palette),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| {
+            input.set_text(initial_query.clone(), cx);
+            input.open(cx);
+        });
+        let focus = input.read(cx).focus_handle();
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let xenon_design_system::TextInputEvent::Changed(query) = event {
+                this.set_query(query.clone(), cx);
+            }
+        });
         let mut view = Self {
             index,
             recents,
@@ -70,14 +90,13 @@ impl FinderView {
             results_for: String::new(),
             results: Vec::new(),
             selected: 0,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
+            input,
+            _input_sub: input_sub,
             scroll: ScrollHandle::new(),
             query_gen: 0,
             searching: false,
-            caret_on: true,
             _query_task: None,
-            _blink: None,
         };
         view.kick_query(cx);
         view
@@ -85,6 +104,8 @@ impl FinderView {
 
     pub fn set_index(&mut self, index: Arc<FileIndex>, cx: &mut Context<Self>) {
         self.index = Some(index);
+        self.input
+            .update(cx, |input, cx| input.set_placeholder("Search files…", cx));
         self.kick_query(cx);
         cx.notify();
     }
@@ -92,28 +113,8 @@ impl FinderView {
     fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
         self.query = query;
         self.selected = 0;
-        self.caret_on = true;
         self.kick_query(cx);
         cx.notify();
-    }
-
-    fn start_caret_blink(&mut self, cx: &mut Context<Self>) {
-        self.caret_on = true;
-        self._blink = Some(cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(CARET_BLINK).await;
-                let keep = this
-                    .update(cx, |this, cx| {
-                        this.caret_on = !this.caret_on;
-                        cx.notify();
-                        true
-                    })
-                    .unwrap_or(false);
-                if !keep {
-                    break;
-                }
-            }
-        }));
     }
 
     /// Debounce, then score on a background thread; apply only if still current.
@@ -205,22 +206,9 @@ impl FinderView {
             }
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
-            "backspace" => {
-                let mut query = self.query.clone();
-                query.pop();
-                self.set_query(query, cx);
-            }
             _ => return,
         }
         cx.stop_propagation();
-    }
-
-    fn placeholder(&self) -> &'static str {
-        if self.index.is_none() {
-            "Indexing…"
-        } else {
-            "Search files…"
-        }
     }
 
     fn empty_label(&self) -> &'static str {
@@ -246,12 +234,7 @@ impl Focusable for FinderView {
 }
 
 impl Render for FinderView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-            self.start_caret_blink(cx);
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
         let empty = self.empty_label();
@@ -276,34 +259,29 @@ impl Render for FinderView {
             })
             .collect();
 
-        scrim("finder-scrim", layout)
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(FinderEvent::Dismissed)))
-            .child(
-                bind_query_chrome(
-                    QueryChrome {
-                        panel: panel(layout, &colors),
-                        focus: self.focus.clone(),
-                        key_context: "Finder",
-                        view: cx.entity(),
-                    },
-                    cx,
-                    Self::on_key,
-                )
-                .child(
-                    query_row(&self.query, self.placeholder(), self.caret_on, &colors)
-                        .into_any_element(),
-                )
-                .child(scroll_results(ScrollResults {
-                    list_id: "finder-results",
-                    empty_message: empty,
-                    rows,
-                    selected: self.selected,
-                    scroll: &self.scroll,
-                    colors: &colors,
-                }))
-                .child(hint_row("↩ open  ·  ⌘↩ beside", &colors)),
-            )
+        palette_overlay(
+            PaletteOverlay {
+                id: "finder-scrim",
+                layout,
+                colors: &colors,
+                focus: self.focus.clone(),
+                key_context: "Finder",
+                on_key: Self::on_key,
+                on_dismiss: |_, _, _, cx| cx.emit(FinderEvent::Dismissed),
+                children: vec![
+                    self.input.clone().into_any_element(),
+                    scroll_results(ScrollResults {
+                        list_id: "finder-results",
+                        empty_message: empty,
+                        rows,
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    }),
+                    hint_row("↩ open  ·  ⌘↩ beside", &colors).into_any_element(),
+                ],
+            },
+            cx,
+        )
     }
 }
-
-impl_palette_query_input!(FinderView);

@@ -14,6 +14,7 @@ mod lsp;
 mod menu;
 #[cfg(feature = "visual-tests")]
 mod visual;
+mod worklist;
 
 use std::ops::Range;
 use std::path::PathBuf;
@@ -59,6 +60,13 @@ pub struct EditorView {
     focused_once: bool,
     /// Render the markdown preview instead of the source (markdown files only).
     preview: bool,
+    worklist_document: bool,
+    worklist_raw: bool,
+    worklist_selection: usize,
+    worklist_edit: Option<worklist::ItemEdit>,
+    worklist_capture: Option<Entity<xenon_design_system::TextInputView>>,
+    worklist_input_sub: Option<Subscription>,
+    worklist_error: Option<String>,
     /// Selection host for markdown preview (plain blocks + carets).
     preview_state: Entity<PreviewState>,
     _preview_sel_sub: Subscription,
@@ -115,6 +123,7 @@ pub enum EditorEvent {
     },
     /// Mouse (or other user action) claimed keyboard focus on this view.
     Focused,
+    RequestWorklistUndo,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -139,6 +148,22 @@ pub(super) enum Content {
 }
 
 impl EditorView {
+    /// Open or initialize the virtual worklist document without creating its file.
+    pub fn build_worklist(path: PathBuf, autofocus: bool, cx: &mut App) -> Result<Entity<Self>> {
+        let exists = path.exists();
+        let buffer = if exists {
+            Buffer::open(&path)?
+        } else {
+            Buffer::empty(&path)
+        };
+        Ok(cx.new(|cx| {
+            let mut view = Self::from_content(Content::Text(buffer), autofocus, cx);
+            view.worklist_document = true;
+            view.start_disk_poll(cx);
+            view
+        }))
+    }
+
     /// Open `path` and wrap it in an entity. `autofocus` grabs keyboard focus on
     /// first render (true for user-opened files, false for agent-opened ones so
     /// the terminal keeps focus).
@@ -179,6 +204,13 @@ impl EditorView {
             autofocus,
             focused_once: false,
             preview: false,
+            worklist_document: false,
+            worklist_raw: false,
+            worklist_selection: 0,
+            worklist_edit: None,
+            worklist_capture: None,
+            worklist_input_sub: None,
+            worklist_error: None,
             preview_state,
             _preview_sel_sub,
             click_layout: None,
@@ -258,8 +290,7 @@ impl EditorView {
         }
     }
 
-    /// Whether this file can show a markdown preview.
-    pub fn is_markdown(&self) -> bool {
+    fn is_markdown(&self) -> bool {
         matches!(
             self.path().extension().and_then(|e| e.to_str()),
             Some("md" | "markdown" | "mdx")
@@ -377,6 +408,9 @@ impl Render for EditorView {
             }
             Content::Text(_) => {}
         }
+        if self.worklist_document && !self.worklist_raw {
+            return self.render_worklist(cx).into_any_element();
+        }
         let alert = self.disk_alert_bar(cx);
         if self.preview {
             return self.render_preview(alert, &colors, cx);
@@ -434,6 +468,10 @@ impl Render for EditorView {
             .flex_col()
             .bg(colors.editor_background)
             .children(alert)
+            .children(
+                self.worklist_document
+                    .then(|| self.render_worklist_raw_header(&colors, cx)),
+            )
             .children(lsp_status)
             .children(find_bar)
             .child(

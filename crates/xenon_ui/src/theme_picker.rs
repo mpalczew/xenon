@@ -2,19 +2,16 @@
 //! Separate from Settings. Type to filter, arrows, Return, Escape.
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled, Window,
-    div, px,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement,
+    Styled, Window, div, px,
 };
 use nucleo::{Config, Matcher};
 use theme::{ActiveTheme, Appearance, Theme, ThemeColors, ThemeRegistry};
+use xenon_design_system::{PaletteOverlay, palette_overlay};
 use xenon_store::ThemeMode;
 
-use crate::impl_palette_query_input;
-use crate::palette::{
-    PaletteLayout, QueryChrome, bind_query_chrome, fuzzy_index_order, hint_row, optional_title,
-    panel, query_row, scrim,
-};
+use crate::palette::{PaletteLayout, fuzzy_index_order, hint_row, optional_title};
 
 const COLS: usize = 3;
 const CARD_PREVIEW_H: f32 = 88.;
@@ -35,7 +32,8 @@ pub struct ThemePickerView {
     selected: usize,
     current: String,
     focus: FocusHandle,
-    focused_once: bool,
+    input: gpui::Entity<xenon_design_system::TextInputView>,
+    _input_sub: gpui::Subscription,
     matcher: Matcher,
     scroll: ScrollHandle,
 }
@@ -54,14 +52,30 @@ impl ThemePickerView {
             })
             .collect();
         items.sort_by(|a, b| a.name.cmp(&b.name));
+        let input = cx.new(|cx| {
+            xenon_design_system::TextInputView::new(
+                xenon_design_system::TextInputConfig::single_line("Filter themes…")
+                    .parent_navigation()
+                    .appearance(xenon_design_system::TextInputAppearance::Palette),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.open(cx));
+        let focus = input.read(cx).focus_handle();
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let xenon_design_system::TextInputEvent::Changed(query) = event {
+                this.set_query(query.clone(), cx);
+            }
+        });
         let mut view = Self {
             items,
             query: String::new(),
             results: Vec::new(),
             selected: 0,
             current,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
+            input,
+            _input_sub: input_sub,
             matcher: Matcher::new(Config::DEFAULT),
             scroll: ScrollHandle::new(),
         };
@@ -113,11 +127,6 @@ impl ThemePickerView {
             "escape" => cx.emit(ThemePickerEvent::Dismissed),
             "enter" => self.confirm(cx),
             "left" | "up" | "right" | "down" => self.move_grid(event.keystroke.key.as_str(), cx),
-            "backspace" => {
-                let mut q = self.query.clone();
-                q.pop();
-                self.set_query(q, cx);
-            }
             _ => return,
         }
         cx.stop_propagation();
@@ -313,11 +322,7 @@ impl ThemePickerView {
 }
 
 impl Render for ThemePickerView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout {
             width: 780.,
@@ -326,22 +331,18 @@ impl Render for ThemePickerView {
         };
         let cards = self.cards(&colors, cx);
 
-        scrim("theme-picker-scrim", layout)
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(ThemePickerEvent::Dismissed)))
-            .child(
-                bind_query_chrome(
-                    QueryChrome {
-                        panel: panel(layout, &colors),
-                        focus: self.focus.clone(),
-                        key_context: "ThemePicker",
-                        view: cx.entity(),
-                    },
-                    cx,
-                    Self::on_key,
-                )
-                .child(optional_title("Themes", &colors).into_any_element())
-                .child(query_row(&self.query, "Filter themes…", true, &colors).into_any_element())
-                .child(
+        palette_overlay(
+            PaletteOverlay {
+                id: "theme-picker-scrim",
+                layout,
+                colors: &colors,
+                focus: self.focus.clone(),
+                key_context: "ThemePicker",
+                on_key: Self::on_key,
+                on_dismiss: |_, _, _, cx| cx.emit(ThemePickerEvent::Dismissed),
+                children: vec![
+                    optional_title("Themes", &colors).into_any_element(),
+                    self.input.clone().into_any_element(),
                     div()
                         .id("theme-picker-grid")
                         .flex_1()
@@ -353,16 +354,17 @@ impl Render for ThemePickerView {
                         .flex_row()
                         .flex_wrap()
                         .gap_3()
-                        .children(cards),
-                )
-                .child(
+                        .children(cards)
+                        .into_any_element(),
                     hint_row(
                         "↵ apply (stays open)  ·  esc dismiss  ·  arrows move  ·  type to filter",
                         &colors,
                     )
                     .into_any_element(),
-                ),
-            )
+                ],
+            },
+            cx,
+        )
     }
 }
 
@@ -398,8 +400,6 @@ fn apply_named_theme(name: &str, appearance: Appearance, cx: &mut App) {
         xenon_terminal::refresh_windows(cx);
     }
 }
-
-impl_palette_query_input!(ThemePickerView);
 
 #[cfg(test)]
 mod tests {

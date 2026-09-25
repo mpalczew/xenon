@@ -83,9 +83,11 @@ Crates under `crates/`:
 
 Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
 an `EntityInputHandler` registered during paint (`window.handle_input`), NOT
-through `on_key_down` — which only carries control/navigation keys. The terminal,
-editor, and finder all follow this split. GPUI repaints on explicit `cx.notify()`;
-the terminal subscribes to `terminal::Event::Wakeup` to repaint on PTY output.
+through `on_key_down` — which only carries control/navigation keys. Routine
+fields use the complete control in `xenon_design_system`; only the editor and
+terminal canvases own direct input handlers. `scripts/check-ui-boundaries`
+enforces that split. GPUI repaints on explicit `cx.notify()`; the terminal
+subscribes to `terminal::Event::Wakeup` to repaint on PTY output.
 
 Any source copied/adapted from another project (e.g. zed's terminal_view) must
 get a provenance entry in `ATTRIBUTION.md` plus a file-header marker — this

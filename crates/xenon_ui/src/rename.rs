@@ -1,22 +1,11 @@
-//! `RenameView`: a one-line inline text field for renaming a workspace or
-//! workspace. Emits `RenameEvent` back to `XenonApp`. Same `EntityInputHandler`
-//! + registrar-canvas pattern as the finder/editor/terminal.
-
-use std::ops::Range;
-use std::time::Duration;
+//! Workspace rename composes the shared single-line text control.
 
 use gpui::{
-    App, Context, EntityInputHandler, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, KeyDownEvent, ParentElement, Render, Styled, Subscription, Task, UTF16Selection,
-    Window, div, px,
+    App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
+    ParentElement, Render, Styled, Subscription, Window, div,
 };
 use theme::ActiveTheme;
-
-use crate::entity_input_noop_geometry;
-use crate::palette::{QueryBuffer, copy_query, cut_query, input_registrar, paste_query};
-use xenon_settings::{Copy, Cut, Paste};
-
-const CARET_BLINK: Duration = Duration::from_millis(530);
+use xenon_design_system::{TextInputAppearance, TextInputConfig, TextInputEvent, TextInputView};
 
 pub enum RenameEvent {
     Committed(String),
@@ -24,28 +13,36 @@ pub enum RenameEvent {
 }
 
 pub struct RenameView {
-    text: String,
-    focus: FocusHandle,
-    focused_once: bool,
-    caret_on: bool,
-    /// Prevent double-emit when blur fires after Escape/Enter already finished.
+    input: Entity<TextInputView>,
     finished: bool,
+    _input_sub: Subscription,
     _blur: Option<Subscription>,
-    _blink: Option<Task<()>>,
 }
 
 impl EventEmitter<RenameEvent> for RenameView {}
 
 impl RenameView {
     pub fn new(initial: String, cx: &mut Context<Self>) -> Self {
+        let input = cx.new(|cx| {
+            TextInputView::new(
+                TextInputConfig::single_line("Name").appearance(TextInputAppearance::Inline),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| {
+            input.set_text(initial, cx);
+            input.open(cx);
+        });
+        let subscription = cx.subscribe(&input, |this, _, event, cx| match event {
+            TextInputEvent::Changed(_) => {}
+            TextInputEvent::Submit(_) => this.commit_or_cancel(cx),
+            TextInputEvent::Cancel => this.finish(RenameEvent::Cancelled, cx),
+        });
         Self {
-            text: initial,
-            focus: cx.focus_handle(),
-            focused_once: false,
-            caret_on: true,
+            input,
             finished: false,
+            _input_sub: subscription,
             _blur: None,
-            _blink: None,
         }
     }
 
@@ -54,91 +51,35 @@ impl RenameView {
             return;
         }
         self.finished = true;
-        self._blink = None;
         cx.emit(event);
     }
 
     fn commit_or_cancel(&mut self, cx: &mut Context<Self>) {
-        let name = self.text.trim().to_string();
+        let name = self.input.read(cx).text().trim().to_string();
         if name.is_empty() {
             self.finish(RenameEvent::Cancelled, cx);
         } else {
             self.finish(RenameEvent::Committed(name), cx);
         }
     }
-
-    fn start_caret_blink(&mut self, cx: &mut Context<Self>) {
-        self.caret_on = true;
-        self._blink = Some(cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(CARET_BLINK).await;
-                let keep = this
-                    .update(cx, |this, cx| {
-                        if this.finished {
-                            this._blink = None;
-                            return false;
-                        }
-                        this.caret_on = !this.caret_on;
-                        cx.notify();
-                        true
-                    })
-                    .unwrap_or(false);
-                if !keep {
-                    break;
-                }
-            }
-        }));
-    }
-
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
-            "escape" => self.finish(RenameEvent::Cancelled, cx),
-            "enter" => self.commit_or_cancel(cx),
-            "backspace" => {
-                self.text.pop();
-                self.caret_on = true;
-                cx.notify();
-                cx.stop_propagation();
-                return;
-            }
-            _ => return,
-        }
-        cx.stop_propagation();
-    }
 }
 
 impl Focusable for RenameView {
-    fn focus_handle(&self, _cx: &App) -> FocusHandle {
-        self.focus.clone()
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.input.read(cx).focus_handle()
     }
 }
 
 impl Render for RenameView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-            self.start_caret_blink(cx);
-        }
-        // Click-away (or focus move to terminal/editor) must leave edit mode.
         if self._blur.is_none() {
-            let focus = self.focus.clone();
-            self._blur = Some(cx.on_blur(&focus, window, |this, _window, cx| {
+            let focus = self.input.read(cx).focus_handle();
+            self._blur = Some(cx.on_blur(&focus, window, |this, _, cx| {
                 this.commit_or_cancel(cx);
             }));
         }
         let colors = cx.theme().colors().clone();
-        let caret = self
-            .caret_on
-            .then(|| div().w(px(1.)).h(px(14.)).flex_none().bg(colors.text));
         div()
-            .track_focus(&self.focus)
-            .key_context("Rename")
-            .on_key_down(cx.listener(Self::on_key))
-            .on_action(cx.listener(|this, _: &Paste, _, cx| paste_query(this, cx)))
-            .on_action(cx.listener(|this, _: &Cut, _, cx| cut_query(this, cx)))
-            .on_action(cx.listener(|this, _: &Copy, _, cx| copy_query(this, cx)))
-            .relative()
             .w_full()
             .px_1()
             .text_sm()
@@ -146,79 +87,6 @@ impl Render for RenameView {
             .bg(colors.editor_background)
             .border_1()
             .border_color(colors.border_focused)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .min_h(px(18.))
-                    .child(div().truncate().child(self.text.clone()))
-                    .children(caret),
-            )
-            .child(input_registrar(cx.entity(), self.focus.clone()))
+            .child(self.input.clone())
     }
-}
-
-impl QueryBuffer for RenameView {
-    fn query_text(&self) -> &str {
-        &self.text
-    }
-
-    fn replace_query(&mut self, query: String, cx: &mut Context<Self>) {
-        self.text = query;
-        self.caret_on = true;
-        cx.notify();
-    }
-}
-
-impl EntityInputHandler for RenameView {
-    fn replace_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        text: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.text.push_str(text);
-        self.caret_on = true;
-        cx.notify();
-    }
-
-    fn replace_and_mark_text_in_range(
-        &mut self,
-        _range: Option<Range<usize>>,
-        new_text: &str,
-        _new_selected_range: Option<Range<usize>>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.text.push_str(new_text);
-        self.caret_on = true;
-        cx.notify();
-    }
-
-    fn selected_text_range(
-        &mut self,
-        _ignore_disabled_input: bool,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<UTF16Selection> {
-        // Caret at end of text (UTF-16 offsets for the platform input system).
-        let n = self.text.encode_utf16().count();
-        Some(UTF16Selection {
-            range: n..n,
-            reversed: false,
-        })
-    }
-
-    fn text_for_range(
-        &mut self,
-        _range: Range<usize>,
-        _adjusted: &mut Option<Range<usize>>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> Option<String> {
-        None
-    }
-
-    entity_input_noop_geometry!();
 }

@@ -4,16 +4,11 @@
 //! Domain ranking and confirm stay in each view; chrome, scroll, and query
 //! input live here so scroll/selection fixes apply once.
 
-mod input;
 mod layout;
 mod rows;
 
-pub(crate) use input::{
-    QueryBuffer, QueryChrome, bind_query_chrome, copy_query, cut_query, input_registrar,
-    paste_query,
-};
 pub(crate) use layout::{
     PaletteLayout, ScrollResults, fuzzy_index_order, hint_row, hint_row_with_action,
-    optional_title, panel, query_row, reveal_selected, scrim, scroll_results, step_selection,
+    optional_title, reveal_selected, scroll_results, step_selection,
 };
 pub(crate) use rows::{DetailRow, detail_row, simple_row};

@@ -47,7 +47,18 @@ impl EditorView {
     /// Image tabs silently reload (no local edits to conflict with).
     pub fn sync_from_disk(&mut self, cx: &mut Context<Self>) {
         match &mut self.content {
-            Content::Text(buffer) => match buffer.check_external() {
+            Content::Text(buffer) => match if self.worklist_document {
+                let root = buffer
+                    .path()
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .to_path_buf();
+                buffer.check_worklist_external(&root)
+            } else {
+                buffer.check_external()
+            } {
                 Ok(ExternalState::Reloaded) => {
                     self.disk_alert = DiskAlert::None;
                     self.recompute_highlights();
@@ -105,12 +116,33 @@ impl EditorView {
 
     /// Keep local edits and adopt current disk mtime (user chose buffer).
     pub fn keep_local_edits(&mut self, cx: &mut Context<Self>) {
+        if self.worklist_document {
+            self.disk_alert = DiskAlert::Conflict;
+            self.vim.ex_status = Some(
+                "Copy your draft or load disk; worklist saves cannot overwrite agent edits".into(),
+            );
+            cx.notify();
+            return;
+        }
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
         buffer.adopt_disk_mtime();
         self.disk_alert = DiskAlert::None;
         cx.notify();
+    }
+
+    pub fn refresh_worklist_after_capture(&mut self, cx: &mut Context<Self>) {
+        if self.worklist_document && !self.path().exists() {
+            let path = self.path().to_path_buf();
+            self.content = Content::Text(crate::Buffer::empty(path));
+            self.disk_alert = DiskAlert::None;
+            self.recompute_highlights();
+            self.emit_buffer_changed(cx);
+            cx.notify();
+        } else {
+            self.sync_from_disk(cx);
+        }
     }
 
     pub(super) fn disk_alert_bar(

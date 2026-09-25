@@ -4,6 +4,34 @@ use super::*;
 use xenon_core::{DEFAULT_SPLIT_RATIO, MAX_NEST_DEPTH, SplitAxis, TabId};
 
 impl XenonApp {
+    pub(super) fn build_workspace_editor(
+        path: PathBuf,
+        root: &Path,
+        autofocus: bool,
+        cx: &mut gpui::App,
+    ) -> anyhow::Result<Entity<EditorView>> {
+        if path == root.join(".xenon/worklist.md") {
+            EditorView::build_worklist(path, autofocus, cx)
+        } else {
+            Ok(EditorView::build(path, autofocus, cx)?)
+        }
+    }
+
+    pub(crate) fn open_worklist(&mut self, cx: &mut Context<Self>) {
+        let Some(workspace) = self.active else {
+            self.show_worklist_notice("Open a workspace first", cx);
+            return;
+        };
+        self.worklist_capture_visible = None;
+        let Some(root) = self.workspace_root(workspace) else {
+            return;
+        };
+        let path = root.join(".xenon/worklist.md");
+        if let Err(error) = self.open_editor_at(path, true, None, cx) {
+            log::error!("worklist open failed: {error}");
+        }
+    }
+
     pub(crate) fn open_editor(&mut self, path: PathBuf, focus: bool, cx: &mut Context<Self>) {
         if let Err(error) = self.open_editor_at(path, focus, None, cx) {
             log::error!("open failed: {error}");
@@ -42,7 +70,11 @@ impl XenonApp {
             self.open_editor(path, true, cx);
             return;
         }
-        match EditorView::build(path.clone(), true, cx) {
+        let built = self
+            .workspace_root(id)
+            .ok_or_else(|| anyhow::anyhow!("workspace root unavailable"))
+            .and_then(|root| Self::build_workspace_editor(path.clone(), &root, true, cx));
+        match built {
             Ok(view) => {
                 self.wire_editor_selection(&view, cx);
                 self.lsp_attach_editor(id, &view, cx);
@@ -86,6 +118,9 @@ impl XenonApp {
         let Some(id) = self.active else {
             anyhow::bail!("no active workspace for {}", path.display());
         };
+        let is_worklist = self
+            .workspace_root(id)
+            .is_some_and(|root| path == root.join(".xenon/worklist.md"));
         if focus {
             self.nav_sync_active(id, cx);
         }
@@ -126,14 +161,18 @@ impl XenonApp {
                     self.nav_visit(tab_id, cx);
                 }
             }
-            if self.file_browser.is_open() {
+            if self.file_browser.is_open() && !is_worklist {
                 self.reveal_active_file(cx);
             }
             cx.notify();
             return Ok(());
         }
 
-        match EditorView::build(path.clone(), focus, cx) {
+        let built = self
+            .workspace_root(id)
+            .ok_or_else(|| anyhow::anyhow!("workspace root unavailable"))
+            .and_then(|root| Self::build_workspace_editor(path.clone(), &root, focus, cx));
+        match built {
             Ok(view) => {
                 if let Some((row, col)) = at {
                     view.update(cx, |editor, cx| {
@@ -179,7 +218,7 @@ impl XenonApp {
                     self.deferred.pending_focus = Some(FocusOwner::Editor);
                     self.nav_visit(tab_id, cx);
                 }
-                if self.file_browser.is_open() {
+                if self.file_browser.is_open() && !is_worklist {
                     self.reveal_active_file(cx);
                 }
                 cx.notify();

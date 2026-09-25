@@ -26,6 +26,7 @@ use crate::finder::{FinderEvent, FinderView};
 use crate::rename::{RenameEvent, RenameView};
 use crate::settings::SettingsView;
 use crate::task_picker::TaskPickerView;
+use crate::worklist_capture::WorklistCaptureView;
 use crate::workspace_create::WorkspaceCreateView;
 use crate::workspace_picker::WorkspacePickerView;
 use crate::{
@@ -72,6 +73,7 @@ mod themes;
 mod tree_keys;
 #[cfg(feature = "visual-tests")]
 pub(crate) mod visual;
+mod worklist;
 mod workspace_create_ops;
 mod workspaces;
 
@@ -129,6 +131,11 @@ pub struct XenonApp {
     pub(crate) active: Option<WorkspaceId>,
     finder: Option<Entity<FinderView>>,
     task_picker: Option<Entity<TaskPickerView>>,
+    worklist_captures: HashMap<WorkspaceId, Entity<WorklistCaptureView>>,
+    worklist_capture_subs: Vec<Subscription>,
+    worklist_capture_visible: Option<WorkspaceId>,
+    worklist_undo: Option<(WorkspaceId, xenon_editor::worklist_file::WorklistUndo)>,
+    worklist_notice: xenon_design_system::TimedNotice,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
     workspace_create: Option<Entity<WorkspaceCreateView>>,
     command_palette: Option<Entity<crate::command_palette::CommandPaletteView>>,

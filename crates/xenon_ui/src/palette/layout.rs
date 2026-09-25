@@ -6,109 +6,19 @@
 
 use gpui::{
     AnyElement, Div, InteractiveElement, IntoElement, ParentElement, Pixels, ScrollHandle,
-    Stateful, StatefulInteractiveElement, Styled, div, px,
+    StatefulInteractiveElement, Styled, div, px,
 };
 use nucleo::Matcher;
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use theme::ThemeColors;
+use xenon_design_system::OverlayLayout;
 
 /// Height of [`crate::palette::simple_row`] (py_1 + text_sm). Used only when
 /// GPUI has not yet measured children for this scroll handle.
 pub(crate) const PALETTE_ROW_H: f32 = 32.;
 
 /// Default palette panel geometry.
-#[derive(Clone, Copy)]
-pub(crate) struct PaletteLayout {
-    pub width: f32,
-    pub max_h: f32,
-    pub top: f32,
-}
-
-impl Default for PaletteLayout {
-    fn default() -> Self {
-        Self {
-            width: 640.,
-            max_h: 420.,
-            top: 80.,
-        }
-    }
-}
-
-impl PaletteLayout {
-    pub(crate) fn tall() -> Self {
-        Self {
-            max_h: 480.,
-            top: 72.,
-            ..Self::default()
-        }
-    }
-}
-
-/// Outer dismiss scrim (caller attaches `.on_click` for dismiss).
-pub(crate) fn scrim(scrim_id: &'static str, layout: PaletteLayout) -> Stateful<Div> {
-    div()
-        .id(scrim_id)
-        .absolute()
-        .inset_0()
-        .flex()
-        .flex_col()
-        .items_center()
-        .pt(px(layout.top))
-}
-
-/// Elevated panel shell (caller attaches focus, key_context, on_key_down).
-/// Returns plain `Div` so `.track_focus` / `.key_context` chain cleanly.
-pub(crate) fn panel(layout: PaletteLayout, colors: &ThemeColors) -> Div {
-    div()
-        .occlude()
-        .relative()
-        .w(px(layout.width))
-        .max_h(px(layout.max_h))
-        .flex()
-        .flex_col()
-        .min_h_0()
-        .rounded_md()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.elevated_surface_background)
-}
-
-/// Query field with a caret (`caret_on` toggles blink).
-/// Empty: caret at the start, then muted placeholder. Typed: text then caret.
-pub(crate) fn query_row(
-    query: &str,
-    placeholder: &str,
-    caret_on: bool,
-    colors: &ThemeColors,
-) -> Div {
-    let empty = query.is_empty();
-    let caret = div().w(px(1.)).h(px(14.)).flex_none().bg(if caret_on {
-        colors.text
-    } else {
-        gpui::transparent_black()
-    });
-    let mut row = div()
-        .flex_none()
-        .px_3()
-        .py_2()
-        .border_b_1()
-        .border_color(colors.border)
-        .flex()
-        .items_center();
-    if empty {
-        row = row.child(caret).child(
-            div()
-                .ml_0p5()
-                .text_color(colors.text_placeholder)
-                .child(placeholder.to_string()),
-        );
-    } else {
-        row = row
-            .child(div().text_color(colors.text).child(query.to_string()))
-            .child(caret);
-    }
-    row
-}
+pub(crate) type PaletteLayout = OverlayLayout;
 
 pub(crate) fn optional_title(title: &str, colors: &ThemeColors) -> Div {
     div()
@@ -279,16 +189,21 @@ pub(crate) fn fuzzy_index_order(
         return (0..haystacks.len()).collect();
     }
     let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
-    let labels: Vec<&str> = haystacks.iter().map(|s| s.as_str()).collect();
+    struct IndexedLabel<'a>(usize, &'a str);
+    impl AsRef<str> for IndexedLabel<'_> {
+        fn as_ref(&self) -> &str {
+            self.1
+        }
+    }
+    let labels: Vec<_> = haystacks
+        .iter()
+        .enumerate()
+        .map(|(i, s)| IndexedLabel(i, s))
+        .collect();
     let mut scored: Vec<(usize, u32)> = pattern
-        .match_list(labels.iter().copied(), matcher)
+        .match_list(labels, matcher)
         .into_iter()
-        .filter_map(|(label, score)| {
-            haystacks
-                .iter()
-                .position(|h| h.as_str() == label)
-                .map(|i| (i, score))
-        })
+        .map(|(label, score)| (label.0, score))
         .collect();
     scored.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     scored.into_iter().map(|(i, _)| i).collect()
@@ -298,6 +213,13 @@ pub(crate) fn fuzzy_index_order(
 mod reveal_tests {
     use super::*;
     use gpui::point;
+
+    #[test]
+    fn fuzzy_order_keeps_duplicate_labels_distinct() {
+        let labels = vec!["same".to_string(), "other".to_string(), "same".to_string()];
+        let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
+        assert_eq!(fuzzy_index_order(&labels, "same", &mut matcher), vec![0, 2]);
+    }
 
     #[test]
     fn offset_scrolls_up_when_item_above() {

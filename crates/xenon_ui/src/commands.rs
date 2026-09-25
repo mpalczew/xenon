@@ -66,6 +66,11 @@ pub enum CommandId {
     ZoomIn,
     ZoomOut,
     ZoomReset,
+    CaptureWorklist,
+    OpenWorklist,
+    Copy,
+    Cut,
+    Paste,
 }
 
 macro_rules! cmd {
@@ -79,7 +84,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 53] {
+const fn all_commands() -> [CommandEntry; 58] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -139,12 +144,17 @@ const fn all_commands() -> [CommandEntry; 53] {
         cmd!(ZoomIn, "Zoom In", "⌘=", "View"),
         cmd!(ZoomOut, "Zoom Out", "⌘-", "View"),
         cmd!(ZoomReset, "Reset Zoom", "⌘0", "View"),
+        cmd!(CaptureWorklist, "Add to Worklist", "⌘⇧K", "Create"),
+        cmd!(OpenWorklist, "Open Worklist", "⌘⌥K", "Navigate"),
+        cmd!(Copy, "Copy", "⌘C", "Edit"),
+        cmd!(Cut, "Cut", "⌘X", "Edit"),
+        cmd!(Paste, "Paste", "⌘V", "Edit"),
     ]
 }
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 53] = all_commands();
+    static ENTRIES: [CommandEntry; 58] = all_commands();
     &ENTRIES
 }
 
@@ -198,5 +208,11 @@ mod tests {
             assert!(!entry(id).keys.is_empty(), "{id:?} needs a shortcut");
             let _ = shortcut(id);
         }
+    }
+
+    #[test]
+    fn worklist_shortcuts_match_the_approved_pair() {
+        assert_eq!(entry(CommandId::CaptureWorklist).keys, "⌘⇧K");
+        assert_eq!(entry(CommandId::OpenWorklist).keys, "⌘⌥K");
     }
 }

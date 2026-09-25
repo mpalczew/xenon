@@ -60,6 +60,16 @@ pub enum Scene {
     SkillPromptDark,
     SkillPromptLight,
     SettingsAgentsInstalled,
+    WorklistCapture,
+    WorklistCaptureFilled,
+    WorklistTab,
+    WorklistItemEdit,
+    WorklistMarkdown,
+    WorklistEmpty,
+    WorklistEmptyVirtual,
+    WorklistInlineCapture,
+    WorklistInlineLight,
+    WorklistToolbarTooltip,
 }
 
 pub const SCENES: &[Scene] = &[
@@ -111,6 +121,16 @@ pub const SCENES: &[Scene] = &[
     Scene::SkillPromptDark,
     Scene::SkillPromptLight,
     Scene::SettingsAgentsInstalled,
+    Scene::WorklistCapture,
+    Scene::WorklistCaptureFilled,
+    Scene::WorklistTab,
+    Scene::WorklistItemEdit,
+    Scene::WorklistMarkdown,
+    Scene::WorklistEmpty,
+    Scene::WorklistEmptyVirtual,
+    Scene::WorklistInlineCapture,
+    Scene::WorklistInlineLight,
+    Scene::WorklistToolbarTooltip,
 ];
 
 const REMOTE_SURFACES: &[&str] = &["remote_auth", "remote_session"];
@@ -172,6 +192,16 @@ impl Scene {
             Self::SkillPromptDark => "overlay_skill_prompt_dark",
             Self::SkillPromptLight => "overlay_skill_prompt_light",
             Self::SettingsAgentsInstalled => "settings_agents_installed",
+            Self::WorklistCapture => "overlay_worklist_capture",
+            Self::WorklistCaptureFilled => "overlay_worklist_capture_filled",
+            Self::WorklistTab => "content_worklist_tab",
+            Self::WorklistItemEdit => "content_worklist_item_edit",
+            Self::WorklistMarkdown => "content_worklist_markdown",
+            Self::WorklistEmpty => "content_worklist_empty",
+            Self::WorklistEmptyVirtual => "content_worklist_empty_virtual",
+            Self::WorklistInlineCapture => "content_worklist_inline_capture",
+            Self::WorklistInlineLight => "content_worklist_inline_light",
+            Self::WorklistToolbarTooltip => "overlay_worklist_toolbar_tooltip",
         }
     }
 
@@ -244,6 +274,60 @@ pub fn apply_scene(
             overlays::skill_prompt(app, scene, window, cx)
         }
         Scene::SettingsAgentsInstalled => overlays::settings_agents_installed(app, cx),
+        Scene::WorklistCapture | Scene::WorklistCaptureFilled => {
+            chrome::populated(app, scene, window, cx);
+            app.capture_worklist(window, cx);
+            if scene == Scene::WorklistCaptureFilled
+                && let Some(workspace) = app.active
+                && let Some(capture) = app.worklist_captures.get(&workspace)
+            {
+                capture.update(cx, |view, cx| {
+                    view.visual_set_text(
+                        "Fix focus after closing a split\nHappens in the right pane.",
+                        cx,
+                    )
+                });
+            }
+        }
+        Scene::WorklistTab
+        | Scene::WorklistItemEdit
+        | Scene::WorklistMarkdown
+        | Scene::WorklistEmpty
+        | Scene::WorklistEmptyVirtual
+        | Scene::WorklistInlineCapture
+        | Scene::WorklistInlineLight => {
+            chrome::populated(app, scene, window, cx);
+            if let Some(root) = workspace_root(app) {
+                let path = root.join(".xenon/worklist.md");
+                if scene == Scene::WorklistEmptyVirtual {
+                    let _ = std::fs::remove_file(&path);
+                } else {
+                    if let Some(parent) = path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(
+                        path,
+                        if scene == Scene::WorklistEmpty {
+                            "# Worklist\n"
+                        } else {
+                            "# Worklist\n\n- [ ] Fix focus after closing a split\n  Happens when the right pane owns the active terminal.\n\nMaybe recently used workspaces should appear first.\n"
+                        },
+                    );
+                }
+            }
+            app.open_worklist(cx);
+            if let Some(editor) = app.active_editor() {
+                editor.update(cx, |editor, cx| match scene {
+                    Scene::WorklistItemEdit => editor.visual_worklist_edit(cx),
+                    Scene::WorklistMarkdown => editor.visual_worklist_markdown(cx),
+                    Scene::WorklistInlineCapture | Scene::WorklistInlineLight => {
+                        editor.visual_worklist_capture(window, cx)
+                    }
+                    _ => {}
+                });
+            }
+        }
+        Scene::WorklistToolbarTooltip => chrome::populated(app, scene, window, cx),
     }
 }
 
@@ -273,7 +357,8 @@ fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
         Scene::EmptyNoWorkspaceLight
         | Scene::EmptyWithWorkspaceLight
         | Scene::PopulatedLight
-        | Scene::SkillPromptLight => {
+        | Scene::SkillPromptLight
+        | Scene::WorklistInlineLight => {
             set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
         }
         Scene::EmptyNoWorkspaceTrueBlack

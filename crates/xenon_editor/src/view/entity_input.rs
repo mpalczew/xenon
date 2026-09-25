@@ -12,14 +12,13 @@ impl EntityInputHandler for EditorView {
         &mut self,
         _range: Option<Range<usize>>,
         text: &str,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if text.is_empty() {
+        if self.worklist_document && !self.worklist_raw {
             return;
         }
-        if self.find_bar_focused(window) {
-            self.append_find_query(text, cx);
+        if text.is_empty() {
             return;
         }
         if xenon_settings::vim_mode(cx) && self.handle_vim_char(text, cx) {
@@ -46,14 +45,13 @@ impl EntityInputHandler for EditorView {
         _range: Option<Range<usize>>,
         new_text: &str,
         _new_selected_range: Option<Range<usize>>,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if new_text.is_empty() {
+        if self.worklist_document && !self.worklist_raw {
             return;
         }
-        if self.find_bar_focused(window) {
-            self.append_find_query(new_text, cx);
+        if new_text.is_empty() {
             return;
         }
         if xenon_settings::vim_mode(cx) && self.handle_vim_char(new_text, cx) {

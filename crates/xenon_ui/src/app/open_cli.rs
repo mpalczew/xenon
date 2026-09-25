@@ -112,7 +112,10 @@ impl XenonApp {
         if !can_split {
             return false;
         }
-        let Ok(view) = EditorView::build(spec.path.clone(), false, cx) else {
+        let Some(root) = self.workspace_root(id) else {
+            return false;
+        };
+        let Ok(view) = Self::build_workspace_editor(spec.path.clone(), &root, false, cx) else {
             return false;
         };
         apply_location_to_view(&view, spec, cx);

@@ -19,13 +19,9 @@ impl EntityInputHandler for TerminalView {
         &mut self,
         _range: Option<Range<usize>>,
         text: &str,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.find_bar_focused(window) {
-            self.append_find_query(text, cx);
-            return;
-        }
         self.send_text(text, cx);
     }
 
@@ -34,13 +30,9 @@ impl EntityInputHandler for TerminalView {
         _range: Option<Range<usize>>,
         new_text: &str,
         _new_selected_range: Option<Range<usize>>,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.find_bar_focused(window) {
-            self.append_find_query(new_text, cx);
-            return;
-        }
         self.send_text(new_text, cx);
     }
 

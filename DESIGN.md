@@ -9,10 +9,14 @@ Product UI. Familiar IDE bones; signature is multi-stream anti-IDE chrome.
 
 ## Shared library
 
-Reusable chrome primitives live in `crates/xenon_design_system` and are consumed
-by `xenon_ui`. Its public vocabulary is `SelectionPaint`, `list_selection`,
-`tab_selection`, `accent_surface`, and theme-semantic status
-colors. Feature composition remains in `xenon_ui`.
+Reusable controls live in `crates/xenon_design_system` and are consumed by
+`xenon_ui`, `xenon_editor`, and `xenon_terminal`. A routine control owns its
+input registration, focus lifecycle, keyboard editing, clipboard, IME,
+appearance, and dismissal where applicable. Feature views provide state and
+handle semantic events; they do not recreate those GPUI mechanisms. The editor
+and terminal canvases remain specialized direct-GPUI surfaces. The boundary is
+checked by `scripts/check-ui-boundaries`. Theme-semantic selection and status
+helpers remain part of the shared vocabulary.
 
 The workspace rail uses a compact two-line row: folder icon and workspace name
 on the first line, with the shortened root path (`$HOME` rendered as `~`) below
@@ -58,7 +62,9 @@ Helpers: `chrome::tab_selection`, `chrome::list_selection`.
 
 ## Elevated palettes (cmd-p family)
 
-One shell: `crates/xenon_ui/src/palette/`. Surfaces that type-to-filter over a
+One shell: `xenon_design_system::palette_overlay` owns panel, scrim,
+dismissal, and key routing; `crates/xenon_ui/src/palette/` owns shared result
+rows and scrolling. Surfaces that type-to-filter over a
 scrollable list **must** use it (finder, workspace open, run task, command /
 stream / help). Geometry: width 640, max-height 420 (480 tall), elevation-2
 panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +

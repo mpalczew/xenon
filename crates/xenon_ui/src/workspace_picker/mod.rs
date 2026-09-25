@@ -15,17 +15,17 @@ pub use candidate::{WorkspaceCandidate, WorkspacePickerEvent};
 use std::time::Duration;
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled, Task,
-    Window, div,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement,
+    Styled, Task, Window, div,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
+use xenon_design_system::{PaletteOverlay, palette_overlay};
 
-use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
-    hint_row_with_action, panel, query_row, reveal_selected, scrim, scroll_results,
+    DetailRow, PaletteLayout, ScrollResults, detail_row, hint_row_with_action, reveal_selected,
+    scroll_results,
 };
 use crate::workspace_discover::{
     DiscoverQuery, FoundRoot, discover, expand_user_path, parse_discover_query, ranking_needle,
@@ -44,7 +44,8 @@ pub struct WorkspacePickerView {
     discovered: Vec<FoundRoot>,
     selected: usize,
     focus: FocusHandle,
-    focused_once: bool,
+    input: gpui::Entity<xenon_design_system::TextInputView>,
+    _input_sub: gpui::Subscription,
     matcher: Matcher,
     scroll: ScrollHandle,
     discover_gen: u64,
@@ -55,14 +56,30 @@ impl EventEmitter<WorkspacePickerEvent> for WorkspacePickerView {}
 
 impl WorkspacePickerView {
     pub fn new(known: Vec<WorkspaceCandidate>, cx: &mut Context<Self>) -> Self {
+        let input = cx.new(|cx| {
+            xenon_design_system::TextInputView::new(
+                xenon_design_system::TextInputConfig::single_line("Open workspace…")
+                    .parent_navigation()
+                    .appearance(xenon_design_system::TextInputAppearance::Palette),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.open(cx));
+        let focus = input.read(cx).focus_handle();
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let xenon_design_system::TextInputEvent::Changed(query) = event {
+                this.set_query(query.clone(), cx);
+            }
+        });
         let mut view = Self {
             known,
             query: String::new(),
             results: Vec::new(),
             discovered: Vec::new(),
             selected: 0,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
+            input,
+            _input_sub: input_sub,
             matcher: Matcher::new(Config::DEFAULT),
             scroll: ScrollHandle::new(),
             discover_gen: 0,
@@ -280,11 +297,6 @@ impl WorkspacePickerView {
             "down" => self.move_selection(1, cx),
             "delete" => self.forget_selected(cx),
             "backspace" if event.keystroke.modifiers.platform => self.forget_selected(cx),
-            "backspace" => {
-                let mut query = self.query.clone();
-                query.pop();
-                self.set_query(query, cx);
-            }
             _ => return,
         }
         cx.stop_propagation();
@@ -298,11 +310,7 @@ impl Focusable for WorkspacePickerView {
 }
 
 impl Render for WorkspacePickerView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
         let empty = if self.query.is_empty() {
@@ -353,38 +361,34 @@ impl Render for WorkspacePickerView {
             .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Browse)))
             .into_any_element();
 
-        scrim("workspace-picker-scrim", layout)
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Dismissed)))
-            .child(
-                bind_query_chrome(
-                    QueryChrome {
-                        panel: panel(layout, &colors),
-                        focus: self.focus.clone(),
-                        key_context: "WorkspacePicker",
-                        view: cx.entity(),
-                    },
-                    cx,
-                    Self::on_key,
-                )
-                .child(query_row(&self.query, "Open workspace…", true, &colors).into_any_element())
-                .child(scroll_results(ScrollResults {
-                    list_id: "workspace-picker-results",
-                    empty_message: empty,
-                    rows,
-                    selected: self.selected,
-                    scroll: &self.scroll,
-                    colors: &colors,
-                }))
-                .child(
+        palette_overlay(
+            PaletteOverlay {
+                id: "workspace-picker-scrim",
+                layout,
+                colors: &colors,
+                focus: self.focus.clone(),
+                key_context: "WorkspacePicker",
+                on_key: Self::on_key,
+                on_dismiss: |_, _, _, cx| cx.emit(WorkspacePickerEvent::Dismissed),
+                children: vec![
+                    self.input.clone().into_any_element(),
+                    scroll_results(ScrollResults {
+                        list_id: "workspace-picker-results",
+                        empty_message: empty,
+                        rows,
+                        selected: self.selected,
+                        scroll: &self.scroll,
+                        colors: &colors,
+                    }),
                     hint_row_with_action(
                         "↵ open  ·  ⌘⌫ forget closed  ·  ~/src name  ·  esc",
                         browse,
                         &colors,
                     )
                     .into_any_element(),
-                ),
-            )
+                ],
+            },
+            cx,
+        )
     }
 }
-
-impl_palette_query_input!(WorkspacePickerView);

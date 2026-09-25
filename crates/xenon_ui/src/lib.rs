@@ -19,6 +19,7 @@ mod tabs;
 mod task_picker;
 mod theme_picker;
 mod toolbar;
+mod worklist_capture;
 mod workspace_create;
 mod workspace_discover;
 mod workspace_picker;
@@ -89,6 +90,8 @@ actions!(
         PreviousDiagnostic,
         CommandPalette,
         KeyboardHelp,
+        CaptureWorklist,
+        OpenWorklist,
     ]
 );
 
@@ -105,6 +108,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-p", FilePalette, None),
         KeyBinding::new("cmd-shift-o", AddWorkspace, None),
         KeyBinding::new("cmd-shift-r", RunTask, None),
+        KeyBinding::new("cmd-shift-k", CaptureWorklist, None),
+        KeyBinding::new("cmd-alt-k", OpenWorklist, None),
         KeyBinding::new("cmd-shift-p", CommandPalette, None),
         // macOS delivers Shift+/ as `?` (same as Zed's `cmd-?` bindings).
         KeyBinding::new("cmd-?", KeyboardHelp, None),

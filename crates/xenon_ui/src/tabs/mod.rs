@@ -249,7 +249,15 @@ impl XenonApp {
         let show = leaf
             .active_tab()
             .and_then(|t| t.as_editor())
-            .is_some_and(|v| v.read(cx).is_markdown());
+            .is_some_and(|view| {
+                matches!(
+                    view.read(cx)
+                        .path()
+                        .extension()
+                        .and_then(|extension| extension.to_str()),
+                    Some("md" | "markdown" | "mdx")
+                )
+            });
         if !show {
             return None;
         }

@@ -4,16 +4,16 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent, ParentElement,
-    Render, ScrollHandle, StatefulInteractiveElement, Styled, Task, Window, div,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
+    ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled, Task, Window, div,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
+use xenon_design_system::{PaletteOverlay, palette_overlay};
 
-use crate::impl_palette_query_input;
 use crate::palette::{
-    DetailRow, PaletteLayout, QueryChrome, ScrollResults, bind_query_chrome, detail_row,
-    fuzzy_index_order, hint_row, panel, query_row, reveal_selected, scrim, scroll_results,
+    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
+    reveal_selected, scroll_results,
 };
 use crate::workspace_discover::{
     discover_parent_dirs, expand_user_path, list_parent_candidates, path_is_dir,
@@ -43,7 +43,8 @@ pub struct WorkspaceCreateView {
     results: Vec<PathBuf>,
     selected: usize,
     focus: FocusHandle,
-    focused_once: bool,
+    input: gpui::Entity<xenon_design_system::TextInputView>,
+    _input_sub: gpui::Subscription,
     matcher: Matcher,
     scroll: ScrollHandle,
     /// Path-scoped listing (`~/src`); `None` means fuzzy-filter `parents`.
@@ -57,6 +58,21 @@ impl EventEmitter<WorkspaceCreateEvent> for WorkspaceCreateView {}
 
 impl WorkspaceCreateView {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        let input = cx.new(|cx| {
+            xenon_design_system::TextInputView::new(
+                xenon_design_system::TextInputConfig::single_line("e.g. api-redesign")
+                    .parent_navigation()
+                    .appearance(xenon_design_system::TextInputAppearance::Palette),
+                cx,
+            )
+        });
+        input.update(cx, |input, cx| input.open(cx));
+        let focus = input.read(cx).focus_handle();
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
+            if let xenon_design_system::TextInputEvent::Changed(query) = event {
+                this.set_query(query.clone(), cx);
+            }
+        });
         let mut view = Self {
             step: Step::Name,
             name: String::new(),
@@ -64,8 +80,9 @@ impl WorkspaceCreateView {
             parents: Vec::new(),
             results: Vec::new(),
             selected: 0,
-            focus: cx.focus_handle(),
-            focused_once: false,
+            focus,
+            input,
+            _input_sub: input_sub,
             matcher: Matcher::new(Config::DEFAULT),
             scroll: ScrollHandle::new(),
             scoped: None,
@@ -197,6 +214,10 @@ impl WorkspaceCreateView {
             self.name = self.query.trim().to_string();
             self.step = Step::Parent;
             self.query.clear();
+            self.input.update(cx, |input, cx| {
+                input.set_text("", cx);
+                input.set_placeholder("e.g. ~/src", cx);
+            });
             self.scoped = None;
             self.selected = 0;
             self.refilter();
@@ -236,6 +257,10 @@ impl WorkspaceCreateView {
             "escape" if self.step == Step::Parent => {
                 self.step = Step::Name;
                 self.query.clear();
+                self.input.update(cx, |input, cx| {
+                    input.set_text("", cx);
+                    input.set_placeholder("e.g. api-redesign", cx);
+                });
                 cx.notify();
             }
             "escape" => cx.emit(WorkspaceCreateEvent::Dismissed),
@@ -243,16 +268,6 @@ impl WorkspaceCreateView {
             "tab" if self.step == Step::Name => self.advance(cx),
             "up" if self.step == Step::Parent => self.move_selection(-1, cx),
             "down" if self.step == Step::Parent => self.move_selection(1, cx),
-            "backspace" => {
-                let mut query = self.query.clone();
-                query.pop();
-                if self.step == Step::Name {
-                    self.query = query;
-                    cx.notify();
-                } else {
-                    self.set_query(query, cx);
-                }
-            }
             _ => return,
         }
         cx.stop_propagation();
@@ -309,11 +324,7 @@ impl Focusable for WorkspaceCreateView {
 }
 
 impl Render for WorkspaceCreateView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.focused_once {
-            self.focus.focus(window, cx);
-            self.focused_once = true;
-        }
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
         let title = match self.step {
@@ -347,35 +358,29 @@ impl Render for WorkspaceCreateView {
                 .child(self.render_parent_results(&colors, cx))
                 .into_any_element(),
         };
-        let query = &self.query;
-        let placeholder = if self.step == Step::Name {
-            "e.g. api-redesign"
-        } else {
-            "e.g. ~/src"
-        };
         let hint = if self.step == Step::Name {
             "↵ next  ·  tab next  ·  esc cancel"
         } else {
             "↑↓ choose  ·  ↵ create  ·  esc back"
         };
-        scrim("workspace-create-scrim", layout)
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspaceCreateEvent::Dismissed)))
-            .child(
-                bind_query_chrome(
-                    QueryChrome {
-                        panel: panel(layout, &colors),
-                        focus: self.focus.clone(),
-                        key_context: "WorkspaceCreate",
-                        view: cx.entity(),
-                    },
-                    cx,
-                    Self::on_key,
-                )
-                .child(crate::palette::optional_title(title, &colors))
-                .child(query_row(query, placeholder, true, &colors).into_any_element())
-                .child(body)
-                .child(hint_row(hint, &colors)),
-            )
+        palette_overlay(
+            PaletteOverlay {
+                id: "workspace-create-scrim",
+                layout,
+                colors: &colors,
+                focus: self.focus.clone(),
+                key_context: "WorkspaceCreate",
+                on_key: Self::on_key,
+                on_dismiss: |_, _, _, cx| cx.emit(WorkspaceCreateEvent::Dismissed),
+                children: vec![
+                    crate::palette::optional_title(title, &colors).into_any_element(),
+                    self.input.clone().into_any_element(),
+                    body.into_any_element(),
+                    hint_row(hint, &colors).into_any_element(),
+                ],
+            },
+            cx,
+        )
     }
 }
 
@@ -396,8 +401,6 @@ fn is_valid_workspace_name(name: &str) -> bool {
     let name = name.trim();
     !name.is_empty() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')
 }
-
-impl_palette_query_input!(WorkspaceCreateView);
 
 #[cfg(test)]
 mod tests {
