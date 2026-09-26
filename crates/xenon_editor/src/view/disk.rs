@@ -1,11 +1,9 @@
 //! External file change detection and dirty/disk conflict banner.
 
 use std::time::Duration;
+use xenon_design_system::{TypeRole, Typography};
 
-use gpui::{
-    Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement, Styled,
-    Task, div,
-};
+use gpui::{Context, IntoElement, ParentElement, Styled, Task, div};
 use theme::ActiveTheme;
 
 use super::{Content, EditorView};
@@ -160,7 +158,6 @@ impl EditorView {
                 false,
             ),
         };
-        let colors = cx.theme().colors().clone();
         let status = cx.theme().status().clone();
         let mut bar = div()
             .flex()
@@ -168,7 +165,7 @@ impl EditorView {
             .gap_2()
             .px_2()
             .py_1()
-            .text_xs()
+            .type_role(TypeRole::ControlLabel, cx)
             .bg(status.warning_background)
             .text_color(status.warning)
             .border_b_1()
@@ -176,28 +173,18 @@ impl EditorView {
             .child(div().flex_1().child(msg));
         if show_actions {
             bar = bar
-                .child(
-                    div()
-                        .id("disk-keep")
-                        .px_2()
-                        .py_px()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .hover(|s| s.bg(colors.element_hover))
-                        .child("Keep mine")
-                        .on_click(cx.listener(|this, _, _, cx| this.keep_local_edits(cx))),
-                )
-                .child(
-                    div()
-                        .id("disk-reload")
-                        .px_2()
-                        .py_px()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .hover(|s| s.bg(colors.element_hover))
-                        .child("Load disk")
-                        .on_click(cx.listener(|this, _, _, cx| this.reload_from_disk(cx))),
-                );
+                .child(xenon_design_system::action_button(
+                    "disk-keep",
+                    xenon_design_system::ActionButton::quiet("Keep mine"),
+                    cx,
+                    cx.listener(|this, _, _, cx| this.keep_local_edits(cx)),
+                ))
+                .child(xenon_design_system::action_button(
+                    "disk-reload",
+                    xenon_design_system::ActionButton::quiet("Load disk"),
+                    cx,
+                    cx.listener(|this, _, _, cx| this.reload_from_disk(cx)),
+                ));
         }
         Some(bar)
     }

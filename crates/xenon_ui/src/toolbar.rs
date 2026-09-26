@@ -1,12 +1,5 @@
 //! The top toolbar: navigation, split actions, contextual status, quick actions.
 
-use gpui::{
-    Action, AppContext, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement,
-    StatefulInteractiveElement, Styled, Window, div, px,
-};
-use lucide_icons::Icon;
-use theme::ActiveTheme;
-
 use crate::app::XenonApp;
 use crate::chrome::list_selection;
 use crate::commands::{self, CommandId};
@@ -16,6 +9,13 @@ use crate::{
     NewTerminal, NextWorkspace, OpenWorklist, Paste, PrevWorkspace, ReserveEmptyPaneRight, RunTask,
     Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
 };
+use gpui::{
+    Action, AppContext, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement,
+    StatefulInteractiveElement, Styled, Window, div, px,
+};
+use lucide_icons::Icon;
+use theme::ActiveTheme;
+use xenon_design_system::{ActionButton, TypeRole, Typography, action_button};
 
 const ICON: f32 = 16.;
 
@@ -384,37 +384,11 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     } else {
         colors.icon
     };
-    div()
-        .id(id)
-        .flex()
-        .items_center()
-        .justify_center()
-        .w(px(28.))
-        .h(px(26.))
-        .relative()
-        .focusable()
-        .tab_index(0)
-        .focus_visible(|s| s.border_1().border_color(colors.border_focused))
-        .rounded_sm()
-        .bg(background)
-        .text_color(fg)
-        .aria_label(hint.clone())
-        .cursor_pointer()
-        .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
-        .child(icon(glyph, px(ICON)))
-        .child(toolbar_focus_hint(id, command, &colors))
-        .tooltip({
-            let label = gpui::SharedString::from(command.label);
-            let keys = (!command.keys.is_empty()).then(|| gpui::SharedString::from(command.keys));
-            move |_window: &mut Window, cx: &mut gpui::App| {
-                cx.new(|_| ToolbarTooltip {
-                    label: label.clone(),
-                    keys: keys.clone(),
-                })
-                .into()
-            }
-        })
-        .on_click(move |event, window: &mut Window, cx| {
+    action_button(
+        id,
+        ActionButton::icon(icon(glyph, px(ICON))),
+        cx,
+        move |event, window: &mut Window, cx| {
             window.dispatch_action(boxed.boxed_clone(), cx);
             if matches!(event, ClickEvent::Mouse(_))
                 && matches!(
@@ -428,7 +402,33 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
             {
                 app.update(cx, |app, cx| app.focus_after_teardown(Some(window), cx));
             }
-        })
+        },
+    )
+    .w(px(28.))
+    .h(px(26.))
+    .relative()
+    .bg(background)
+    .text_color(fg)
+    .aria_label(hint.clone())
+    .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+    // Pointer press must not focus the button. Focus is what keeps the keyboard
+    // hint on screen after the hover tooltip dismisses, including when the
+    // click is cancelled by releasing outside the button.
+    .capture_any_mouse_down(|_, window, _| {
+        window.prevent_default();
+    })
+    .child(toolbar_focus_hint(id, command, &colors))
+    .tooltip({
+        let label = gpui::SharedString::from(command.label);
+        let keys = (!command.keys.is_empty()).then(|| gpui::SharedString::from(command.keys));
+        move |_window: &mut Window, cx: &mut gpui::App| {
+            cx.new(|_| ToolbarTooltip {
+                label: label.clone(),
+                keys: keys.clone(),
+            })
+            .into()
+        }
+    })
 }
 
 fn toolbar_focus_hint(
@@ -483,7 +483,7 @@ impl gpui::Render for ToolbarTooltip {
             .border_1()
             .border_color(colors.border)
             .text_color(colors.text)
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .flex()
             .items_center()
             .gap_2()

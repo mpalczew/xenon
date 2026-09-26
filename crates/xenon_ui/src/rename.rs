@@ -6,6 +6,7 @@ use gpui::{
 };
 use theme::ActiveTheme;
 use xenon_design_system::{TextInputAppearance, TextInputConfig, TextInputEvent, TextInputView};
+use xenon_design_system::{TypeRole, Typography};
 
 pub enum RenameEvent {
     Committed(String),
@@ -34,7 +35,7 @@ impl RenameView {
             input.open(cx);
         });
         let subscription = cx.subscribe(&input, |this, _, event, cx| match event {
-            TextInputEvent::Changed(_) => {}
+            TextInputEvent::Changed(_) | TextInputEvent::ParentKey { .. } => {}
             TextInputEvent::Submit(_) => this.commit_or_cancel(cx),
             TextInputEvent::Cancel => this.finish(RenameEvent::Cancelled, cx),
         });
@@ -82,7 +83,7 @@ impl Render for RenameView {
         div()
             .w_full()
             .px_1()
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .rounded_sm()
             .bg(colors.editor_background)
             .border_1()

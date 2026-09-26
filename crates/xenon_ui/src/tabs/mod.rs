@@ -269,24 +269,26 @@ impl XenonApp {
         });
         let colors = colors.clone();
         Some(
-            div()
-                .id(("md-preview", pane.0))
-                .w(px(30.))
-                .h_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .flex_none()
-                .text_color(if previewing {
-                    colors.text
-                } else {
-                    colors.text_muted
-                })
-                .cursor_pointer()
-                .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
-                .tooltip(tip_tooltip(tip))
-                .child(preview_icon(previewing))
-                .on_click(cx.listener(|this, _, _, cx| this.toggle_preview(cx))),
+            xenon_design_system::action_button(
+                ("md-preview", pane.0),
+                xenon_design_system::ActionButton::icon(preview_icon(previewing)),
+                cx,
+                cx.listener(|this, _, _, cx| this.toggle_preview(cx)),
+            )
+            .w(px(30.))
+            .h_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_none()
+            .text_color(if previewing {
+                colors.text
+            } else {
+                colors.text_muted
+            })
+            .cursor_pointer()
+            .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+            .tooltip(tip_tooltip(tip)),
         )
     }
 
@@ -297,20 +299,11 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = colors.clone();
-        div()
-            .id(("term-add", pane.0))
-            .px_2()
-            .h_full()
-            .flex()
-            .items_center()
-            .flex_none()
-            .text_sm()
-            .text_color(colors.text_muted)
-            .cursor_pointer()
-            .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
-            .tooltip(tip_tooltip(SharedString::from("New Terminal · ⌘N")))
-            .child(icon(Icon::Plus, px(13.)))
-            .on_click(cx.listener(move |this, _, window, cx| {
+        xenon_design_system::action_button(
+            ("term-add", pane.0),
+            xenon_design_system::ActionButton::icon(icon(Icon::Plus, px(13.))),
+            cx,
+            cx.listener(move |this, _, window, cx| {
                 if let Some(content) = this.active.and_then(|id| this.contents.get_mut(&id)) {
                     content.focused = Some(pane);
                 }
@@ -318,6 +311,12 @@ impl XenonApp {
                 if let Some(t) = this.active_terminal() {
                     t.read(cx).focus_handle(cx).focus(window, cx);
                 }
-            }))
+            }),
+        )
+        .h_full()
+        .flex_none()
+        .text_color(colors.text_muted)
+        .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+        .tooltip(tip_tooltip(SharedString::from("New Terminal · ⌘N")))
     }
 }

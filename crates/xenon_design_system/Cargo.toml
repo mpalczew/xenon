@@ -14,4 +14,8 @@ visual-tests = ["gpui/test-support"]
 [dependencies]
 gpui.workspace = true
 theme.workspace = true
+lucide-icons.workspace = true
 xenon_settings.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.2.2", features = ["NSAccessibility", "NSWorkspace"] }

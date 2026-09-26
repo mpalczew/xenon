@@ -35,9 +35,38 @@ impl MultilineText {
     pub fn selection(&self) -> Range<usize> {
         self.anchor.min(self.caret)..self.anchor.max(self.caret)
     }
+
+    pub(crate) fn is_caret_at_start(&self) -> bool {
+        let selection = self.selection();
+        selection.is_empty() && selection.start == 0
+    }
+
+    /// Drop the selection and everything after it. The caret stays on the kept prefix.
+    pub(crate) fn split_off_suffix(&mut self) -> String {
+        let range = self.selection();
+        let end = char_byte(&self.text, range.end);
+        let suffix = self.text[end..].to_owned();
+        self.text.truncate(char_byte(&self.text, range.start));
+        let caret = self.text.chars().count();
+        self.caret = caret;
+        self.anchor = caret;
+        self.marked = None;
+        suffix
+    }
+
+    pub(crate) fn set_caret(&mut self, index: usize) {
+        let index = index.min(self.text.chars().count());
+        self.caret = index;
+        self.anchor = index;
+        self.marked = None;
+    }
     pub fn selected_text(&self) -> &str {
         let range = self.selection();
         &self.text[char_byte(&self.text, range.start)..char_byte(&self.text, range.end)]
+    }
+    pub(crate) fn selected_byte_range(&self) -> Range<usize> {
+        let range = self.selection();
+        char_byte(&self.text, range.start)..char_byte(&self.text, range.end)
     }
 }
 

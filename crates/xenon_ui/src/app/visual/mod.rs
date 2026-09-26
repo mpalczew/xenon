@@ -310,7 +310,7 @@ pub fn apply_scene(
                         if scene == Scene::WorklistEmpty {
                             "# Worklist\n"
                         } else {
-                            "# Worklist\n\n- [ ] Fix focus after closing a split\n  Happens when the right pane owns the active terminal.\n\nMaybe recently used workspaces should appear first.\n"
+                            "# Worklist\n\n- [ ] Fix focus after closing a split\n  - Happens when the right pane owns the active terminal.\n\n- Workspace search idea\n  - Show recently used workspaces first.\n"
                         },
                     );
                 }

@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::time::Duration;
+use xenon_design_system::{TypeRole, Typography};
 
 use gpui::{
     App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
@@ -337,7 +338,7 @@ impl Render for WorkspaceCreateView {
                 .min_h_0()
                 .px_3()
                 .py_3()
-                .text_sm()
+                .type_role(TypeRole::Body, cx)
                 .text_color(colors.text_muted)
                 .child("This becomes the new folder and workspace name.")
                 .into_any_element(),
@@ -351,7 +352,7 @@ impl Render for WorkspaceCreateView {
                         .flex_none()
                         .px_3()
                         .py_2()
-                        .text_sm()
+                        .type_role(TypeRole::Body, cx)
                         .text_color(colors.text)
                         .child(format!("New folder: {}/", self.name)),
                 )

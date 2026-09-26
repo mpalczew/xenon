@@ -134,6 +134,7 @@ pub struct TerminalView {
     state: State,
     focus: FocusHandle,
     focused_once: bool,
+    cursor_blink: xenon_design_system::CursorBlink,
     /// Basename of the dir the terminal was spawned in; the title's cwd prefix is
     /// dropped when it still equals this (redundant with the sidebar).
     root_name: String,
@@ -206,6 +207,7 @@ impl TerminalView {
             state: State::Pending,
             focus: cx.focus_handle(),
             focused_once: false,
+            cursor_blink: xenon_design_system::CursorBlink::default(),
             root_name,
             exited: false,
             auto_close: xenon_settings::terminal_auto_close(cx),
@@ -444,9 +446,18 @@ impl TerminalView {
     /// finish detector, so their own keystroke echo can't be mistaken for an
     /// agent working (only output that arrives without interaction counts).
     fn note_interaction(&mut self, cx: &mut Context<Self>) {
+        self.cursor_blink.reset(cx, Self::blink_tick);
         self.working = false;
         self.wakeups = 0;
         cx.emit(TerminalEvent::Interacted);
+    }
+
+    fn blink_tick(&mut self, generation: u64, cx: &mut Context<Self>) -> bool {
+        let active = self.cursor_blink.tick(generation);
+        if active {
+            cx.notify();
+        }
+        active
     }
 
     /// Write UTF-8 text straight to the PTY (used by the input handler).
@@ -903,7 +914,6 @@ impl TerminalView {
                     "Left-drag goes to the TUI (default when Grok/etc. want the mouse). ⌘-click still opens paths and URLs.",
                     to_app,
                     true,
-                    &colors,
                     cx,
                 ))
                 .child(self.mouse_policy_option(
@@ -911,7 +921,6 @@ impl TerminalView {
                     "Left-drag selects text to copy. Option-drag is also available without changing this setting.",
                     !to_app,
                     false,
-                    &colors,
                     cx,
                 ))
         });
@@ -937,28 +946,22 @@ impl TerminalView {
             )
             .children(mouse_modes)
             .child(
-                div()
-                    .id("term-auto-close")
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .px_1p5()
-                    .py_0p5()
-                    .rounded_sm()
-                    .text_xs()
-                    .text_color(colors.text)
-                    .bg(colors.element_hover)
-                    .cursor_pointer()
-                    .hover(|s| s.bg(colors.element_selected))
-                    .tooltip(move |_window: &mut Window, cx: &mut App| {
-                        cx.new(|_| MouseChipTooltip { text: tip.clone() }).into()
-                    })
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(|this, _, _, cx| {
+                xenon_design_system::action_button(
+                    "term-auto-close",
+                    xenon_design_system::ActionButton::quiet(format!(
+                        "On exit: {} ▾",
+                        mode.short_label()
+                    )),
+                    cx,
+                    cx.listener(|this, _, _, cx| {
                         cx.stop_propagation();
                         this.cycle_auto_close(cx);
-                    }))
-                    .child(format!("On exit: {} ▾", mode.short_label())),
+                    }),
+                )
+                .tooltip(move |_window: &mut Window, cx: &mut App| {
+                    cx.new(|_| MouseChipTooltip { text: tip.clone() }).into()
+                })
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()),
             )
             .into_any_element()
     }
@@ -969,42 +972,27 @@ impl TerminalView {
         tip: &'static str,
         active: bool,
         set_mouse_to_app: bool,
-        colors: &theme::ThemeColors,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let tip = SharedString::from(tip);
-        div()
-            .id(label)
-            .px_2()
-            .rounded_sm()
-            .text_xs()
-            .font_weight(if active {
-                gpui::FontWeight::MEDIUM
+        xenon_design_system::action_button(
+            label,
+            if active {
+                xenon_design_system::ActionButton::primary(label)
             } else {
-                gpui::FontWeight::NORMAL
-            })
-            .bg(if active {
-                colors.element_selected
-            } else {
-                gpui::transparent_black()
-            })
-            .text_color(if active {
-                colors.text
-            } else {
-                colors.text_muted
-            })
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-            .tooltip(move |_window: &mut Window, cx: &mut App| {
-                cx.new(|_| MouseChipTooltip { text: tip.clone() }).into()
-            })
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_click(cx.listener(move |this, _, _, cx| {
+                xenon_design_system::ActionButton::quiet(label)
+            },
+            cx,
+            cx.listener(move |this, _, _, cx| {
                 cx.stop_propagation();
                 this.mouse_to_app = set_mouse_to_app;
                 cx.notify();
-            }))
-            .child(label)
+            }),
+        )
+        .tooltip(move |_window: &mut Window, cx: &mut App| {
+            cx.new(|_| MouseChipTooltip { text: tip.clone() }).into()
+        })
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
     }
 
     fn on_scroll(

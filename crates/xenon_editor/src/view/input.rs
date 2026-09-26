@@ -27,6 +27,7 @@ impl EditorView {
         if self.find_bar_focused(window) {
             return;
         }
+        self.cursor_blink.reset(cx, Self::blink_tick);
         // Esc closes find when editor body is focused.
         if keystroke.key == "escape" && self.find_is_open() {
             self.close_find(window, cx);
@@ -285,6 +286,7 @@ impl EditorView {
         if !mouse::is_primary_down(event) {
             return;
         }
+        self.cursor_blink.reset(cx, Self::blink_tick);
         self.dismiss_menu(cx);
         let Content::Text(buffer) = &mut self.content else {
             self.claim_keyboard(window, cx);

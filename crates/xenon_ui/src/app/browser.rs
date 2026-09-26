@@ -1,4 +1,5 @@
 use super::*;
+use xenon_design_system::{TypeRole, Typography};
 
 impl XenonApp {
     /// Whether the file tree is shown in the workspace panel (⌘E).
@@ -126,30 +127,25 @@ impl XenonApp {
         } else {
             colors.border
         };
-        div()
-            .id("files-section-header")
-            .flex()
-            .items_center()
-            .h(px(52.))
-            .px_4()
-            .border_t_1()
-            .border_color(border)
-            .cursor_pointer()
-            .hover(|s| s.text_color(colors.text))
-            .on_click(cx.listener(|this, _, _, cx| this.toggle_browser(cx)))
-            .on_mouse_down(
-                gpui::MouseButton::Right,
-                cx.listener(|this, event: &gpui::MouseDownEvent, _, cx| {
-                    this.open_browser_menu(None, true, event.position, cx);
-                }),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .text_color(colors.text_muted)
-                    .child("FILES"),
-            )
+        xenon_design_system::action_button(
+            "files-section-header",
+            xenon_design_system::ActionButton::quiet("FILES"),
+            cx,
+            cx.listener(|this, _, _, cx| this.toggle_browser(cx)),
+        )
+        .justify_start()
+        .h(px(52.))
+        .px_4()
+        .border_t_1()
+        .border_color(border)
+        .text_color(colors.text_muted)
+        .hover(|s| s.text_color(colors.text))
+        .on_mouse_down(
+            gpui::MouseButton::Right,
+            cx.listener(|this, event: &gpui::MouseDownEvent, _, cx| {
+                this.open_browser_menu(None, true, event.position, cx);
+            }),
+        )
     }
 
     fn tree_row(&self, index: usize, row: TreeRow, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -158,7 +154,6 @@ impl XenonApp {
         let marker = dir_marker(row.is_dir, row.expanded);
         let glyph = file_icon(&row);
         let kb = self.browser_focused && self.file_browser.cursor() == Some(index);
-        let paint = crate::chrome::list_selection(&colors, row.is_open || kb);
         let id = SharedString::from(row.path.to_string_lossy().into_owned());
         const ICON: f32 = 14.;
         let chevron = div()
@@ -172,27 +167,18 @@ impl XenonApp {
         let is_dir = row.is_dir;
         let rename_field = self.rename_file_field(&row.path);
         let is_renaming = rename_field.is_some();
-        div()
-            .id(id)
-            .flex()
-            .items_center()
+        xenon_design_system::selectable_row(id, row.is_open || kb, &colors)
             .gap_1()
             .pl(indent)
             .pr_2()
             .py(px(2.))
             .min_w_0()
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .font_weight(if row.is_open || kb {
                 gpui::FontWeight::MEDIUM
             } else {
                 gpui::FontWeight::NORMAL
             })
-            .text_color(paint.foreground)
-            .bg(paint.background)
-            .border_l_2()
-            .border_color(paint.accent)
-            .cursor_pointer()
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
             .child(chevron)
             .child(
                 div()

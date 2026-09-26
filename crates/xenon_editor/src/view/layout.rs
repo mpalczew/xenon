@@ -41,7 +41,9 @@ pub(super) fn editor_canvas(
         },
         move |bounds, editor_layout, window, cx| {
             let cursor_color = cx.theme().players().local().cursor;
-            element::paint(&editor_layout, cursor_color, window, cx);
+            let focused = focus.is_focused(window) && window.is_window_active();
+            let show_cursor = !focused || view.read(cx).cursor_blink.visible();
+            element::paint(&editor_layout, cursor_color, show_cursor, window, cx);
             window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
         },
     )

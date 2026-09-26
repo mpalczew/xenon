@@ -7,6 +7,7 @@ use gpui::{
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::{PaneId, TabId};
+use xenon_design_system::{TypeRole, Typography};
 
 use crate::{
     app::{LiveLeaf, LiveTab, TabOverflowMenu, WorkspaceDot, XenonApp, workspace_dot},
@@ -273,31 +274,37 @@ impl XenonApp {
                 this.dismiss_overflow_menu(cx);
             }))
             .child(overflow_row_pip(status, cx))
-            .child(div().flex_1().min_w_0().text_sm().truncate().child(title));
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .type_role(TypeRole::Body, cx)
+                    .truncate()
+                    .child(title),
+            );
         if selected {
             row = row.border_l_2().border_color(paint.accent);
         }
         row.child(
-            div()
-                .id(SharedString::from(format!(
-                    "overflow-close-{}-{index}",
-                    pane.0
-                )))
-                .w(px(22.))
-                .h(px(22.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded_sm()
-                .text_color(colors.text_muted)
-                .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
-                .tooltip(tip_tooltip(SharedString::from("Close")))
-                .child(icon(Icon::X, px(12.)))
-                .on_click(cx.listener(move |this, _, window, cx| {
+            xenon_design_system::action_button(
+                SharedString::from(format!("overflow-close-{}-{index}", pane.0)),
+                xenon_design_system::ActionButton::icon(icon(Icon::X, px(12.))),
+                cx,
+                cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     this.close_tab_id(tab_id, window, cx);
                     this.clamp_overflow_selected(pane, cx);
-                })),
+                }),
+            )
+            .w(px(22.))
+            .h(px(22.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded_sm()
+            .text_color(colors.text_muted)
+            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+            .tooltip(tip_tooltip(SharedString::from("Close"))),
         )
     }
 }
@@ -385,7 +392,7 @@ pub(crate) fn overflow_trigger(
         .w(px(OVERFLOW_BTN))
         .h_full()
         .flex_none()
-        .text_sm()
+        .type_role(TypeRole::Body, cx)
         .text_color(fg)
         .bg(if open {
             colors.element_hover

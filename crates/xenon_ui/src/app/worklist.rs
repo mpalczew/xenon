@@ -77,7 +77,7 @@ impl XenonApp {
                 self.worklist_capture_visible = None;
                 self.deferred.pending_focus = self.deferred.restore_pane.take();
             }
-            CaptureEvent::Submit { text } => {
+            CaptureEvent::Submit { item } => {
                 let Some(root) = self.workspace_root(workspace) else {
                     return;
                 };
@@ -114,7 +114,7 @@ impl XenonApp {
                     });
                     return;
                 }
-                match WorklistFile::new(&root).and_then(|file| file.append_with_undo(text, true)) {
+                match WorklistFile::new(&root).and_then(|file| file.append_item_with_undo(item)) {
                     Ok((_, undo)) => {
                         capture.update(cx, |view, cx| view.saved(cx));
                         self.worklist_undo = Some((workspace, undo));

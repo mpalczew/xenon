@@ -1,5 +1,6 @@
 //! Settings as a dedicated window. Appearance + decoupled editor/terminal fonts.
 
+use xenon_design_system::{TypeRole, Typography};
 mod remote_edit;
 mod remote_section;
 mod sections;
@@ -326,7 +327,7 @@ impl Render for SettingsView {
                     .py_3()
                     .border_b_1()
                     .border_color(colors.border)
-                    .child(div().text_lg().child("Settings")),
+                    .child(div().type_role(TypeRole::ScreenTitle, cx).child("Settings")),
             )
             .child(body)
     }

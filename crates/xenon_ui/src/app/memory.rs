@@ -1,5 +1,6 @@
 use super::*;
 use serde::Serialize;
+use xenon_design_system::{TypeRole, Typography};
 use xenon_memory::ProcessMemory;
 
 const MEMORY_REFRESH: Duration = Duration::from_secs(2);
@@ -142,13 +143,13 @@ impl XenonApp {
                     .items_center()
                     .child(
                         div()
-                            .text_sm()
+                            .type_role(TypeRole::Body, cx)
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child("Memory"),
                     )
                     .child(
                         div()
-                            .text_xs()
+                            .type_role(TypeRole::ControlLabel, cx)
                             .text_color(colors.text_muted)
                             .child(snapshot.captured_at.clone()),
                     ),
@@ -157,10 +158,10 @@ impl XenonApp {
             .child(memory_metric("Peak", process.peak_footprint_bytes, colors.text_muted))
             .child(memory_metric("Resident", process.resident_bytes, colors.text_muted))
             .child(memory_metric("Compressed", process.compressed_bytes, colors.text_muted))
-            .child(div().pt_2().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child("Tracked terminals"))
-            .child(div().text_sm().text_color(colors.text_muted).child(format!("{} terminals, {} estimated grid memory", snapshot.terminals.len(), format_bytes(snapshot.terminal_estimate_bytes))))
+            .child(div().pt_2().type_role(TypeRole::Body, cx).font_weight(gpui::FontWeight::SEMIBOLD).child("Tracked terminals"))
+            .child(div().type_role(TypeRole::Body, cx).text_color(colors.text_muted).child(format!("{} terminals, {} estimated grid memory", snapshot.terminals.len(), format_bytes(snapshot.terminal_estimate_bytes))))
             .child(rows)
-            .child(div().pt_2().text_xs().text_color(colors.text_muted).child("Terminal estimates cover visible grids only. Process footprint includes native and GPU allocations. AI tools can read ~/.xenon/memory.json."))
+            .child(div().pt_2().type_role(TypeRole::ControlLabel, cx).text_color(colors.text_muted).child("Terminal estimates cover visible grids only. Process footprint includes native and GPU allocations. AI tools can read ~/.xenon/memory.json."))
             .into_any_element()
     }
 }

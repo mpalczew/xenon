@@ -9,6 +9,7 @@ use gpui::{
 use nucleo::{Config, Matcher};
 use theme::{ActiveTheme, Appearance, Theme, ThemeColors, ThemeRegistry};
 use xenon_design_system::{PaletteOverlay, palette_overlay};
+use xenon_design_system::{TypeRole, Typography};
 use xenon_store::ThemeMode;
 
 use crate::palette::{PaletteLayout, fuzzy_index_order, hint_row, optional_title};
@@ -293,7 +294,7 @@ impl ThemePickerView {
                         .child(
                             div()
                                 .px(px(2.))
-                                .text_sm()
+                                .type_role(TypeRole::Body, cx)
                                 .font_weight(if selected || current {
                                     gpui::FontWeight::MEDIUM
                                 } else {
@@ -310,7 +311,7 @@ impl ThemePickerView {
                         .child(
                             div()
                                 .px(px(2.))
-                                .text_xs()
+                                .type_role(TypeRole::ControlLabel, cx)
                                 .text_color(colors.text_muted)
                                 .child(caption),
                         )

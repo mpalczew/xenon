@@ -6,6 +6,7 @@ use gpui::{
 };
 use theme::ActiveTheme;
 use xenon_design_system::TextInputView;
+use xenon_design_system::{TypeRole, Typography};
 
 use super::SettingsView;
 use super::remote_edit::RemoteEditField;
@@ -53,14 +54,14 @@ pub(super) fn remote_section(
             div()
                 .px_3()
                 .pb_2()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .child(format!("Port {port} (stable across restarts)")),
         )
         .when(enabled || !token.is_empty(), |col| {
             let mut details = div().flex().flex_col().gap_1().px_3().py_2().child(
                 div()
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
                     .child("URL — click to copy (includes password)"),
             );
@@ -108,7 +109,7 @@ fn remote_field_edit_row(
         .py_2()
         .child(
             div()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .child(format!("{label} — ←→ · ↵ save · Esc cancel")),
         )
@@ -127,7 +128,7 @@ fn remote_field_edit_row(
                     div()
                         .flex_1()
                         .min_w_0()
-                        .text_sm()
+                        .type_role(TypeRole::Body, cx)
                         .font_family("Menlo")
                         .child(input),
                 ),
@@ -166,7 +167,7 @@ fn remote_field_static_row(
         .py_2()
         .child(
             div()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .child(format!("{label} — click to edit")),
         )
@@ -191,7 +192,7 @@ fn remote_field_static_row(
                         .min_w_0()
                         .overflow_hidden()
                         .whitespace_nowrap()
-                        .text_sm()
+                        .type_role(TypeRole::Body, cx)
                         .font_family("Menlo")
                         .text_color(if empty {
                             colors.text_muted
@@ -203,7 +204,7 @@ fn remote_field_static_row(
                 .child(
                     div()
                         .flex_none()
-                        .text_xs()
+                        .type_role(TypeRole::ControlLabel, cx)
                         .text_color(colors.text_muted)
                         .child("Edit"),
                 ),
@@ -306,7 +307,7 @@ fn copyable_mono_row(
                 .min_w_0()
                 .overflow_hidden()
                 .whitespace_nowrap()
-                .text_sm()
+                .type_role(TypeRole::Body, cx)
                 .font_family("Menlo")
                 .text_color(colors.text)
                 .child(value),
@@ -314,7 +315,7 @@ fn copyable_mono_row(
         .child(
             div()
                 .flex_none()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .child("Copy"),
         )
@@ -362,14 +363,14 @@ fn remote_toggle_row(
                 .min_w_0()
                 .child(
                     div()
-                        .text_sm()
+                        .type_role(TypeRole::Body, cx)
                         .overflow_hidden()
                         .whitespace_nowrap()
                         .child("Mobile remote"),
                 )
                 .child(
                     div()
-                        .text_xs()
+                        .type_role(TypeRole::ControlLabel, cx)
                         .text_color(colors.text_muted)
                         .overflow_hidden()
                         .whitespace_nowrap()
@@ -388,7 +389,7 @@ fn remote_toggle_row(
                 .border_1()
                 .border_color(colors.border)
                 .bg(background)
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .children(enabled.then_some("x")),
         )
 }

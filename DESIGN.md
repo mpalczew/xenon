@@ -81,8 +81,34 @@ the aggregate of its terminals. Not hard-coded hex.
 
 ## Typography
 
-System UI for chrome labels. Medium weight on active chips/rows. Mono only in
-editor/terminal content (settings-controlled faces).
+`xenon_design_system::Typography` owns eight semantic roles across native
+chrome: screen title (24/1.2, semibold), section title (18/1.35, semibold),
+body (14/1.5), list primary (14/1.35, semibold), supporting text (14/1.6,
+muted), control label (12/1.35, semibold, muted), button (12/1.35, semibold),
+and code (13/1.55, mono).
+Sizes scale with the UI font size setting; UI roles use the selected UI face,
+and code uses the selected editor face. Theme colors provide text and muted
+text rather than fixed light-theme values. The editor and terminal canvases
+retain their own settings-controlled faces and rendering.
+
+## Action controls
+
+`xenon_design_system::action_button` owns the primary, secondary, quiet, and
+icon action targets, including the label and the button type role. Callers
+pass the action. They do not set the button's font, size, or weight. The
+variant's foreground replaces the role's text color. Each control is
+focusable and activates from pointer, Enter, or Space through GPUI's click
+event. Disabled actions leave the tab order and do not register a click
+handler. `xenon_design_system::checkbox` owns the 18px
+checked/unchecked control and its accessible label. Checking pops the box and
+expands a brief accent ring; unchecking settles back. The macOS Reduce Motion
+setting makes state changes instant. Feature views supply the action and state;
+they do not draw checkbox glyphs or wire keyboard activation.
+`selectable_row` owns selection fill, the left accent edge, and hover. Callers
+supply the row content. `bullet_list` renders indented supporting lines at
+22px per level. `OutlineView` edits one title and indented points: Enter
+splits a point, Tab and Shift-Tab change depth, and Backspace at the start
+outdents or joins. The caller validates and saves the text.
 
 ## Motion
 

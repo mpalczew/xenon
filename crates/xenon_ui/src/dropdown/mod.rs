@@ -1,6 +1,7 @@
 //! Filterable / plain dropdown + size stepper for the Settings window.
 //! Open lists are deferred window-anchored popovers under the trigger.
 
+use xenon_design_system::{TypeRole, Typography};
 mod fonts;
 
 use fonts::{family_option_label, format_size};
@@ -112,7 +113,12 @@ pub(crate) fn dropdown_row(
         .gap_3()
         .px_3()
         .py_2()
-        .child(div().text_sm().text_color(colors.text).child(props.title))
+        .child(
+            div()
+                .type_role(TypeRole::Body, cx)
+                .text_color(colors.text)
+                .child(props.title),
+        )
         .child(panel)
 }
 
@@ -139,7 +145,12 @@ pub(crate) fn size_row(
         .px_3()
         .py_2()
         .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()))
-        .child(div().text_sm().text_color(colors.text).child(title))
+        .child(
+            div()
+                .type_role(TypeRole::Body, cx)
+                .text_color(colors.text)
+                .child(title),
+        )
         .child(size_stepper(target, size, cx))
 }
 
@@ -164,7 +175,7 @@ fn size_stepper(
                 .border_1()
                 .border_color(colors.border)
                 .bg(colors.elevated_surface_background)
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -179,26 +190,16 @@ fn step_btn(
     label: &'static str,
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    div()
-        .id(SharedString::from(format!("size-{target:?}-{delta}")))
-        .w(px(28.))
-        .h(px(24.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_sm()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.elevated_surface_background)
-        .text_xs()
-        .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .child(label)
-        .on_click(cx.listener(move |this, _, _, cx| {
+    xenon_design_system::action_button(
+        SharedString::from(format!("size-{target:?}-{delta}")),
+        xenon_design_system::ActionButton::secondary(label),
+        cx,
+        cx.listener(move |this, _, _, cx| {
             cx.stop_propagation();
             this.nudge_font_size(target, delta, cx);
-        }))
+        }),
+    )
+    .w(px(28.))
 }
 
 fn trigger(
@@ -210,35 +211,28 @@ fn trigger(
     let colors = cx.theme().colors().clone();
     let label = family_option_label(id, selected);
     let chevron = if open { "▴" } else { "▾" };
-    div()
-        .id(SharedString::from(format!("dd-trigger-{id:?}")))
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_2()
-        .w_full()
-        .px_2()
-        .py_1()
-        .rounded_sm()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.elevated_surface_background)
-        .text_xs()
-        .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .child(
+    xenon_design_system::action_button(
+        SharedString::from(format!("dd-trigger-{id:?}")),
+        xenon_design_system::ActionButton::secondary(
             div()
                 .flex_1()
                 .min_w_0()
                 .overflow_hidden()
                 .whitespace_nowrap()
                 .child(label),
-        )
-        .child(div().text_color(colors.text_muted).child(chevron))
-        .on_click(cx.listener(move |this, _, window, cx| {
+        ),
+        cx,
+        cx.listener(move |this, _, window, cx| {
             cx.stop_propagation();
             this.toggle_dropdown(id, window, cx);
-        }))
+        }),
+    )
+    .flex()
+    .items_center()
+    .justify_between()
+    .gap_2()
+    .w_full()
+    .child(div().text_color(colors.text_muted).child(chevron))
 }
 
 struct ListProps<'a> {
@@ -278,7 +272,7 @@ fn option_list(props: ListProps<'_>, cx: &mut gpui::Context<SettingsView>) -> im
             div()
                 .px_2()
                 .py_2()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .child("No matches"),
         );
@@ -308,7 +302,7 @@ fn filter_banner(
         .py_1()
         .border_b_1()
         .border_color(colors.border)
-        .text_xs()
+        .type_role(TypeRole::ControlLabel, cx)
         .child(input)
 }
 
@@ -340,7 +334,7 @@ fn option_row(
         .id(SharedString::from(format!("dd-opt-{id:?}-{option}")))
         .px_2()
         .py_1()
-        .text_xs()
+        .type_role(TypeRole::ControlLabel, cx)
         .bg(background)
         .text_color(foreground)
         .cursor_pointer()

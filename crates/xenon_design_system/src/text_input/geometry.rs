@@ -10,6 +10,7 @@ struct TextLine {
 }
 
 pub(super) struct TextGeometry {
+    bounds: Bounds<Pixels>,
     origin: Point<Pixels>,
     line_height: Pixels,
     lines: Vec<TextLine>,
@@ -68,6 +69,7 @@ impl TextInputView {
             });
         }
         TextGeometry {
+            bounds,
             origin: point(bounds.left() + horizontal, bounds.top() + vertical),
             line_height,
             lines,
@@ -76,6 +78,17 @@ impl TextInputView {
 }
 
 impl TextGeometry {
+    pub(super) fn bounds(&self) -> Bounds<Pixels> {
+        self.bounds
+    }
+
+    pub(super) fn caret_offset(&self, text: &str, utf16: usize) -> Point<Pixels> {
+        let rect = self.bounds_for_utf16_range(text, utf16..utf16);
+        point(
+            rect.left() - self.bounds.left(),
+            rect.top() - self.bounds.top(),
+        )
+    }
     pub(super) fn index_for_point(&self, position: Point<Pixels>) -> usize {
         let x = position.x - self.origin.x;
         let y = position.y - self.origin.y;

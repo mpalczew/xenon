@@ -6,6 +6,11 @@ impl Render for TerminalView {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
+        let cursor_focused = self.focus.is_focused(window)
+            && window.is_window_active()
+            && !self.find_bar_focused(window);
+        self.cursor_blink
+            .update_focus(cursor_focused, cx, Self::blink_tick);
         let colors = cx.theme().colors().clone();
         let find_bar = self.render_find_bar(&colors, cx);
         let base = div()
@@ -278,7 +283,9 @@ fn grid_canvas(
         move |bounds, grid_layout, window, cx| {
             let size = px(xenon_settings::terminal_font(cx).size);
             let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
-            grid::paint(&grid_layout, line_height, window, cx);
+            let focused = focus.is_focused(window) && window.is_window_active();
+            let show_cursor = !focused || view.read(cx).cursor_blink.visible();
+            grid::paint(&grid_layout, line_height, show_cursor, window, cx);
             window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
         },
     )

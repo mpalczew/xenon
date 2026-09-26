@@ -1,9 +1,7 @@
 use super::{Content, EditorView, ItemEdit, entries, source::replacement};
 use crate::EditorEvent;
 use gpui::Context;
-use gpui::px;
 use std::ops::Range;
-use xenon_design_system::TextInputConfig;
 
 impl EditorView {
     fn worklist_source(&self) -> Option<String> {
@@ -71,7 +69,7 @@ impl EditorView {
 
     pub(super) fn worklist_start_edit(&mut self, index: usize, cx: &mut Context<Self>) {
         self.worklist_capture = None;
-        self.worklist_input_sub = None;
+        self.worklist_input_sub.clear();
         let Some(entry) = entries(&self.text()).get(index).cloned() else {
             return;
         };
@@ -79,12 +77,9 @@ impl EditorView {
             return;
         }
         self.worklist_selection = index;
-        let input = self.worklist_new_input(
-            TextInputConfig::multiline("Edit item", px(180.)),
-            &entry.text,
-            cx,
-        );
-        self.worklist_edit = Some(ItemEdit { input, entry });
+        let form =
+            self.worklist_new_form(&entry.title, &entry.details, entry.checked.is_some(), cx);
+        self.worklist_edit = Some(ItemEdit { form, entry });
         cx.notify();
     }
 
@@ -92,19 +87,25 @@ impl EditorView {
         let Some(edit) = self.worklist_edit.as_ref() else {
             return;
         };
-        let text = edit.input.read(cx).text().to_owned();
-        self.worklist_save_edit_text(&text, cx);
+        let item = match edit.form.item(cx) {
+            Ok(item) => item,
+            Err(error) => {
+                self.worklist_error = Some(error.to_string());
+                cx.notify();
+                return;
+            }
+        };
+        self.worklist_save_edit_item(item, cx);
     }
 
-    pub(super) fn worklist_save_edit_text(&mut self, text: &str, cx: &mut Context<Self>) {
+    fn worklist_save_edit_item(
+        &mut self,
+        item: crate::worklist_file::WorkItem,
+        cx: &mut Context<Self>,
+    ) {
         let Some(edit) = self.worklist_edit.take() else {
             return;
         };
-        let text = text.trim();
-        if text.is_empty() {
-            self.worklist_edit = Some(edit);
-            return;
-        }
         let newline = if self.text().contains("\r\n") {
             "\r\n"
         } else {
@@ -113,17 +114,17 @@ impl EditorView {
         let source = self.text();
         let old = &source[edit.entry.range.clone()];
         let suffix = &old[old.trim_end_matches(['\r', '\n']).len()..];
-        let changed = format!("{}{}", replacement(&edit.entry, text, newline), suffix);
+        let changed = format!("{}{}", replacement(&edit.entry, &item, newline), suffix);
         if !self.worklist_mutate(edit.entry.range.clone(), &changed, cx) {
             self.worklist_edit = Some(edit);
         } else {
-            self.worklist_input_sub = None;
+            self.worklist_input_sub.clear();
         }
     }
 
     pub(super) fn worklist_cancel_edit(&mut self, cx: &mut Context<Self>) {
         self.worklist_edit = None;
-        self.worklist_input_sub = None;
+        self.worklist_input_sub.clear();
         cx.notify();
     }
 
@@ -134,7 +135,7 @@ impl EditorView {
         if !self.worklist_mutate(edit.entry.range.clone(), "", cx) {
             self.worklist_edit = Some(edit);
         } else {
-            self.worklist_input_sub = None;
+            self.worklist_input_sub.clear();
         }
     }
 
@@ -169,13 +170,10 @@ impl EditorView {
         }
         self.worklist_selection = other;
         if let Some(entry) = entries(&self.text()).get(other).cloned() {
-            self.worklist_input_sub = None;
-            let input = self.worklist_new_input(
-                TextInputConfig::multiline("Edit item", px(180.)),
-                &entry.text,
-                cx,
-            );
-            self.worklist_edit = Some(ItemEdit { input, entry });
+            self.worklist_input_sub.clear();
+            let form =
+                self.worklist_new_form(&entry.title, &entry.details, entry.checked.is_some(), cx);
+            self.worklist_edit = Some(ItemEdit { form, entry });
         }
     }
 

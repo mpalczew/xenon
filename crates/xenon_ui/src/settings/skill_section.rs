@@ -2,9 +2,10 @@
 
 use gpui::{
     App, Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement,
-    Styled, div, px,
+    Styled, div,
 };
 use theme::ActiveTheme;
+use xenon_design_system::{TypeRole, Typography};
 use xenon_store::{SkillStatus, install_skill, remove_skill, skill_status};
 
 use super::SettingsView;
@@ -34,11 +35,6 @@ pub(super) fn skill_section(focused: bool, cx: &mut Context<SettingsView>) -> im
     } else {
         gpui::transparent_black()
     };
-    let check_bg = if checked {
-        colors.element_selected
-    } else {
-        colors.elevated_surface_background
-    };
     let body = div()
         .flex()
         .flex_col()
@@ -62,35 +58,36 @@ pub(super) fn skill_section(focused: bool, cx: &mut Context<SettingsView>) -> im
                         .flex()
                         .flex_col()
                         .gap_1()
-                        .child(div().text_sm().child("Agent skill"))
+                        .child(div().type_role(TypeRole::Body, cx).child("Agent skill"))
                         .child(
                             div()
-                                .text_xs()
+                                .type_role(TypeRole::ControlLabel, cx)
                                 .text_color(colors.text_muted)
                                 .child(subtitle),
                         ),
                 )
-                .child(
-                    div()
-                        .w(px(18.))
-                        .h(px(18.))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .border_1()
-                        .border_color(colors.border)
-                        .bg(check_bg)
-                        .text_xs()
-                        .children(checked.then_some("x")),
-                ),
+                .child(xenon_design_system::checkbox(
+                    "agent-skill-checkbox",
+                    xenon_design_system::CheckboxState {
+                        checked,
+                        disabled: false,
+                    },
+                    "Agent skill",
+                    cx,
+                    cx.listener(|_, _, window, cx| {
+                        cx.stop_propagation();
+                        toggle_skill(cx);
+                        window.refresh();
+                        cx.notify();
+                    }),
+                )),
         )
         .child(row_divider(cx))
         .child(
             div()
                 .px_3()
                 .py_2()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .font_family("ui-monospace")
                 .child(homes),
@@ -161,34 +158,20 @@ fn action_btn(
     cx: &mut Context<SettingsView>,
     on_click: impl Fn(&mut App) + 'static,
 ) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    let bg = if primary {
-        colors.text_accent
-    } else {
-        colors.background
-    };
-    let fg = if primary {
-        colors.background
-    } else {
-        colors.text
-    };
-    div()
-        .id(label)
-        .px_2()
-        .py_1()
-        .rounded_md()
-        .border_1()
-        .border_color(colors.border)
-        .bg(bg)
-        .text_color(fg)
-        .text_xs()
-        .cursor_pointer()
-        .on_click(cx.listener(move |_, _, window, cx| {
+    xenon_design_system::action_button(
+        label,
+        if primary {
+            xenon_design_system::ActionButton::primary(label)
+        } else {
+            xenon_design_system::ActionButton::secondary(label)
+        },
+        cx,
+        cx.listener(move |_, _, window, cx| {
             on_click(cx);
             window.refresh();
             cx.notify();
-        }))
-        .child(label)
+        }),
+    )
 }
 
 pub(super) fn toggle_skill_from_keys(cx: &mut App) {

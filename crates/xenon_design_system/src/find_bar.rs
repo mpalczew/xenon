@@ -1,5 +1,7 @@
 //! Shared in-pane find bar chrome and controls.
 
+use crate::{TypeRole, Typography};
+
 use gpui::{
     App, AppContext, Context, Div, Entity, FocusHandle, InteractiveElement, IntoElement,
     KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window,
@@ -38,7 +40,7 @@ pub struct FindBarConfig<'a, V> {
     pub on_action: fn(&mut V, FindBarAction, &mut Window, &mut Context<V>),
 }
 
-fn find_query_field<V>(config: &FindBarConfig<'_, V>) -> impl IntoElement + use<V> {
+fn find_query_field<V>(config: &FindBarConfig<'_, V>, cx: &App) -> impl IntoElement + use<V> {
     let focus = config.focus.clone();
     div()
         .id("find-query-field")
@@ -50,7 +52,7 @@ fn find_query_field<V>(config: &FindBarConfig<'_, V>) -> impl IntoElement + use<
         .border_1()
         .border_color(config.colors.border)
         .bg(config.background)
-        .text_sm()
+        .type_role(TypeRole::Body, cx)
         .child(config.input.clone())
         .on_click(move |_, window, cx| focus.focus(window, cx))
 }
@@ -71,10 +73,10 @@ pub fn find_bar<V: 'static>(config: FindBarConfig<'_, V>, cx: &mut Context<V>) -
         .track_focus(&config.focus)
         .key_context(config.key_context)
         .on_key_down(cx.listener(config.on_key))
-        .child(find_query_field(&config))
+        .child(find_query_field(&config, cx))
         .child(
             div()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .min_w(px(72.))
                 .child(config.status.clone()),
@@ -181,7 +183,7 @@ fn control<V: 'static>(
         .py_0p5()
         .rounded_sm()
         .bg(bg)
-        .text_xs()
+        .type_role(TypeRole::ControlLabel, cx)
         .text_color(fg)
         .cursor_pointer()
         .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
@@ -207,7 +209,7 @@ impl Render for FindTooltip {
             .border_1()
             .border_color(colors.border)
             .text_color(colors.text)
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .child(self.text.clone())
     }
 }

@@ -1,4 +1,4 @@
-//! Compact keyboard-first capture surface for a workspace worklist.
+//! Compact title-and-bullets capture for a workspace worklist.
 
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
@@ -6,21 +6,24 @@ use gpui::{
     div, px,
 };
 use theme::ActiveTheme;
-use xenon_design_system::{TextInputConfig, TextInputEvent, TextInputView};
+use xenon_design_system::{
+    ActionButton, OutlineEvent, OutlineView, TypeRole, Typography, action_button,
+};
+use xenon_editor::worklist_file::{TITLE_LIMIT, WorkItem, title_length};
 
 #[cfg(feature = "visual-tests")]
 mod visual;
 
 pub enum CaptureEvent {
-    Submit { text: String },
+    Submit { item: WorkItem },
     Dismissed,
 }
 
 pub struct WorklistCaptureView {
-    input: Entity<TextInputView>,
-    draft: String,
+    outline: Entity<OutlineView>,
+    task: bool,
     focus: FocusHandle,
-    _input_subscription: Subscription,
+    _subscriptions: Vec<Subscription>,
     error: Option<String>,
     submitting: bool,
     workspace_name: String,
@@ -30,27 +33,21 @@ impl EventEmitter<CaptureEvent> for WorklistCaptureView {}
 
 impl WorklistCaptureView {
     pub fn new(workspace_name: String, cx: &mut Context<Self>) -> Self {
-        let input = cx.new(|cx| {
-            TextInputView::new(
-                TextInputConfig::multiline("What needs doing?", px(72.)).submit_on_plain_enter(),
-                cx,
-            )
-        });
-        let focus = input.read(cx).focus_handle();
-        let input_subscription = cx.subscribe(&input, |this, _, event, cx| match event {
-            TextInputEvent::Changed(text) => {
-                this.draft = text.clone();
+        let outline = cx.new(|cx| OutlineView::new("", "", cx));
+        let focus = outline.read(cx).focus_handle(cx);
+        let subscriptions = vec![cx.subscribe(&outline, |this, _, event, cx| match event {
+            OutlineEvent::Changed => {
                 this.error = None;
                 cx.notify();
             }
-            TextInputEvent::Submit(text) => this.submit(text, cx),
-            TextInputEvent::Cancel => cx.emit(CaptureEvent::Dismissed),
-        });
+            OutlineEvent::Submit => this.submit(cx),
+            OutlineEvent::Cancel => cx.emit(CaptureEvent::Dismissed),
+        })];
         Self {
-            input,
-            draft: String::new(),
+            outline,
+            task: true,
             focus,
-            _input_subscription: input_subscription,
+            _subscriptions: subscriptions,
             error: None,
             submitting: false,
             workspace_name,
@@ -58,8 +55,8 @@ impl WorklistCaptureView {
     }
 
     pub fn saved(&mut self, cx: &mut Context<Self>) {
-        self.input.update(cx, |input, cx| input.set_text("", cx));
-        self.draft.clear();
+        self.outline.update(cx, |outline, cx| outline.clear(cx));
+        self.task = true;
         self.submitting = false;
         self.error = None;
         cx.notify();
@@ -72,44 +69,66 @@ impl WorklistCaptureView {
     }
 
     pub fn open(&mut self, cx: &mut Context<Self>) {
-        self.input.update(cx, |input, cx| input.open(cx));
+        self.outline
+            .update(cx, |outline, cx| outline.open_title(cx));
         cx.notify();
     }
 
-    fn submit(&mut self, text: &str, cx: &mut Context<Self>) {
-        let text = text.trim();
-        if !text.is_empty() && !self.submitting {
-            self.submitting = true;
-            cx.emit(CaptureEvent::Submit {
-                text: text.to_owned(),
-            });
+    fn item(&self, cx: &Context<Self>) -> anyhow::Result<WorkItem> {
+        WorkItem::new(
+            &self.outline.read(cx).title(cx),
+            &self.outline.read(cx).details(cx),
+            self.task,
+        )
+    }
+
+    fn submit(&mut self, cx: &mut Context<Self>) {
+        if self.submitting {
+            return;
+        }
+        match self.item(cx) {
+            Ok(item) => {
+                self.submitting = true;
+                cx.emit(CaptureEvent::Submit { item });
+            }
+            Err(error) => {
+                self.error = Some(error.to_string());
+                cx.notify();
+            }
         }
     }
 
-    fn save_button(
-        &mut self,
-        colors: &theme::ThemeColors,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let text = self.draft.clone();
-        let active = !text.trim().is_empty();
-        div().mt_2().flex().justify_end().child(
-            div()
-                .id("worklist-capture-save")
-                .px_3()
-                .py_1()
-                .rounded_md()
-                .bg(if active {
-                    colors.element_active
+    fn kind_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        div()
+            .mt_2()
+            .flex()
+            .gap_2()
+            .child(action_button(
+                "capture-task",
+                if self.task {
+                    ActionButton::primary("Task")
                 } else {
-                    colors.element_background
-                })
-                .text_color(colors.text)
-                .text_sm()
-                .cursor_pointer()
-                .child("Save")
-                .on_click(cx.listener(move |this, _, _, cx| this.submit(&text, cx))),
-        )
+                    ActionButton::secondary("Task")
+                },
+                cx,
+                cx.listener(|this, _, _, cx| {
+                    this.task = true;
+                    cx.notify();
+                }),
+            ))
+            .child(action_button(
+                "capture-note",
+                if self.task {
+                    ActionButton::secondary("Note")
+                } else {
+                    ActionButton::primary("Note")
+                },
+                cx,
+                cx.listener(|this, _, _, cx| {
+                    this.task = false;
+                    cx.notify();
+                }),
+            ))
     }
 }
 
@@ -122,11 +141,13 @@ impl Focusable for WorklistCaptureView {
 impl Render for WorklistCaptureView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
+        let count = title_length(&self.outline.read(cx).title(cx));
+        let can_save = self.item(cx).is_ok();
         let panel = div()
             .absolute()
             .top(px(48.))
             .right(px(12.))
-            .w(px(360.))
+            .w(px(430.))
             .p_3()
             .rounded_lg()
             .border_1()
@@ -136,29 +157,42 @@ impl Render for WorklistCaptureView {
             .shadow_lg()
             .child(
                 div()
-                    .text_sm()
+                    .type_role(TypeRole::Body, cx)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Add a Task"),
+                    .child("Quick capture"),
             )
             .child(
                 div()
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
                     .child(self.workspace_name.clone()),
             )
-            .child(div().mt_2().child(self.input.clone()))
+            .child(self.kind_buttons(cx))
             .child(
                 div()
                     .mt_2()
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
-                    .child("Enter to save  ·  ⇧Enter for a new line  ·  Esc to keep draft"),
+                    .child(format!("Title · {count}/{TITLE_LIMIT}")),
             )
-            .child(self.save_button(&colors, cx))
+            .child(self.outline.clone())
+            .child(
+                div()
+                    .mt_2()
+                    .type_role(TypeRole::ControlLabel, cx)
+                    .text_color(colors.text_muted)
+                    .child("Enter adds a point · Tab indents · ⌘Enter saves · Esc keeps draft"),
+            )
+            .child(div().mt_2().flex().justify_end().child(action_button(
+                "worklist-capture-save",
+                ActionButton::primary("Save").disabled(!can_save),
+                cx,
+                cx.listener(|this, _, _, cx| this.submit(cx)),
+            )))
             .children(self.error.as_ref().map(|error| {
                 div()
                     .mt_2()
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.version_control_deleted)
                     .child(error.clone())
             }))

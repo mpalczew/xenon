@@ -1,11 +1,11 @@
 //! Image zoom / pan handlers and non-text editor chrome for `EditorView`.
 
 use std::path::PathBuf;
+use xenon_design_system::{TypeRole, Typography};
 
 use gpui::{
     Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    ParentElement, PinchEvent, ScrollWheelEvent, StatefulInteractiveElement, Styled, Window, div,
-    point,
+    ParentElement, PinchEvent, ScrollWheelEvent, Styled, Window, div, point,
 };
 use theme::ActiveTheme;
 
@@ -171,7 +171,7 @@ impl EditorView {
                             .text_color(colors.text_muted)
                             .child(
                                 div()
-                                    .text_lg()
+                                    .type_role(TypeRole::SectionTitle, cx)
                                     .text_color(colors.text)
                                     .child(file_title(&path)),
                             )
@@ -200,7 +200,7 @@ fn file_header(path: PathBuf, title: String, cx: &mut Context<EditorView>) -> im
         .py_2()
         .child(
             div()
-                .text_sm()
+                .type_role(TypeRole::Body, cx)
                 .text_color(colors.text)
                 .truncate()
                 .child(title),
@@ -210,28 +210,33 @@ fn file_header(path: PathBuf, title: String, cx: &mut Context<EditorView>) -> im
                 .flex()
                 .items_center()
                 .gap_2()
-                .child(native_button(path.clone()))
-                .child(reveal_button(path)),
+                .child(native_button(path.clone(), cx))
+                .child(reveal_button(path, cx)),
         )
 }
 
-fn native_button(path: PathBuf) -> impl IntoElement {
-    small_button("native-open", "Open in Default App")
-        .on_click(move |_, _, cx| cx.open_with_system(&path))
+fn native_button(path: PathBuf, cx: &gpui::App) -> impl IntoElement {
+    small_button("native-open", "Open in Default App", cx, move |_, _, cx| {
+        cx.open_with_system(&path)
+    })
 }
 
-fn reveal_button(path: PathBuf) -> impl IntoElement {
-    small_button("native-reveal", "Reveal").on_click(move |_, _, cx| cx.reveal_path(&path))
+fn reveal_button(path: PathBuf, cx: &gpui::App) -> impl IntoElement {
+    small_button("native-reveal", "Reveal", cx, move |_, _, cx| {
+        cx.reveal_path(&path)
+    })
 }
 
-fn small_button(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .px_2()
-        .py_1()
-        .text_xs()
-        .rounded_sm()
-        .border_1()
-        .cursor_pointer()
-        .child(label)
+fn small_button(
+    id: &'static str,
+    label: &'static str,
+    cx: &gpui::App,
+    on_activate: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> gpui::Stateful<gpui::Div> {
+    xenon_design_system::action_button(
+        id,
+        xenon_design_system::ActionButton::secondary(label),
+        cx,
+        on_activate,
+    )
 }

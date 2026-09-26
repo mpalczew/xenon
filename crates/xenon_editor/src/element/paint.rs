@@ -5,7 +5,13 @@ use gpui::{ContentMask, Hsla, Pixels, TextAlign, Window, fill, point, px};
 use super::{EditorLayout, GUTTER_PAD_LEFT};
 
 /// Paint search highlights, selection, cursor, then the visible shaped lines.
-pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx: &mut gpui::App) {
+pub fn paint(
+    layout: &EditorLayout,
+    cursor_color: Hsla,
+    show_cursor: bool,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
     window.with_content_mask(
         Some(ContentMask {
             bounds: layout.viewport,
@@ -23,7 +29,9 @@ pub fn paint(layout: &EditorLayout, cursor_color: Hsla, window: &mut Window, cx:
             for rect in &layout.selection {
                 window.paint_quad(fill(*rect, layout.selection_color));
             }
-            window.paint_quad(fill(layout.cursor, cursor_color));
+            if show_cursor {
+                window.paint_quad(fill(layout.cursor, cursor_color));
+            }
             for (row, line) in &layout.lines {
                 let y = layout.origin.y + layout.line_height * (*row as f32) - layout.scroll_top;
                 let _ = line.paint(

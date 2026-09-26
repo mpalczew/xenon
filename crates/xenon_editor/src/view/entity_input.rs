@@ -21,6 +21,7 @@ impl EntityInputHandler for EditorView {
         if text.is_empty() {
             return;
         }
+        self.cursor_blink.reset(cx, Self::blink_tick);
         if xenon_settings::vim_mode(cx) && self.handle_vim_char(text, cx) {
             cx.notify();
             return;
@@ -54,6 +55,7 @@ impl EntityInputHandler for EditorView {
         if new_text.is_empty() {
             return;
         }
+        self.cursor_blink.reset(cx, Self::blink_tick);
         if xenon_settings::vim_mode(cx) && self.handle_vim_char(new_text, cx) {
             cx.notify();
             return;

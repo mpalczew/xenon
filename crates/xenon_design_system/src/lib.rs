@@ -13,23 +13,39 @@ use gpui::{
 };
 use theme::ThemeColors;
 
+mod action_button;
+mod bullet_list;
+mod checkbox;
+mod cursor_blink;
 mod find_bar;
 mod focus;
 mod menu;
 mod notice;
+mod outline;
+mod outline_text;
 mod overlay;
+mod selectable_row;
 mod text_field;
 mod text_input;
+mod typography;
+pub use action_button::{ActionButton, ActionButtonVariant, action_button};
+pub use bullet_list::{BulletLine, bullet_list};
+pub use checkbox::{CheckboxState, checkbox};
+pub use cursor_blink::CursorBlink;
 pub use find_bar::{FindBarAction, FindBarConfig, FindBarOptions, find_bar};
 pub use focus::FocusOnOpen;
 pub use notice::{TimedNotice, notice_panel};
+pub use outline::{OutlineEvent, OutlineView};
+pub use outline_text::{OutlinePoint, details_from_points, points_from_details};
 pub use overlay::{OverlayLayout, PaletteOverlay, palette_overlay};
+pub use selectable_row::selectable_row;
 pub use text_input::{
     TextInputAppearance, TextInputConfig, TextInputEvent, TextInputKeyBehavior, TextInputView,
 };
 mod multiline_text;
 pub use menu::{Shortcut, menu_item};
 pub use multiline_text::MultilineText;
+pub use typography::{TypeRole, Typography};
 
 /// How a selectable chrome row or chip should paint.
 #[derive(Clone, Copy)]

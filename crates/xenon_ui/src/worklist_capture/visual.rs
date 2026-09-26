@@ -4,8 +4,11 @@ use super::WorklistCaptureView;
 
 impl WorklistCaptureView {
     pub fn visual_set_text(&mut self, text: &str, cx: &mut Context<Self>) {
-        self.draft = text.to_owned();
-        self.input.update(cx, |input, cx| input.set_text(text, cx));
+        let mut lines = text.lines();
+        let title = lines.next().unwrap_or("").to_owned();
+        let details = lines.collect::<Vec<_>>().join("\n");
+        self.outline
+            .update(cx, |outline, cx| outline.replace(&title, &details, cx));
         cx.notify();
     }
 }

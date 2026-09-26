@@ -16,8 +16,8 @@ use std::time::Duration;
 
 use gpui::{
     App, AppContext, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, KeyDownEvent, ParentElement, Render, ScrollHandle, StatefulInteractiveElement,
-    Styled, Task, Window, div,
+    IntoElement, KeyDownEvent, Render, ScrollHandle, StatefulInteractiveElement, Styled, Task,
+    Window,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
@@ -353,13 +353,14 @@ impl Render for WorkspacePickerView {
                 row.into_any_element()
             })
             .collect();
-        let browse = div()
-            .id("workspace-picker-browse-btn")
-            .cursor_pointer()
-            .hover(|s| s.text_color(colors.text))
-            .child("Browse… ⌘⇧O")
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Browse)))
-            .into_any_element();
+        let browse = xenon_design_system::action_button(
+            "workspace-picker-browse-btn",
+            xenon_design_system::ActionButton::quiet("Browse… ⌘⇧O"),
+            cx,
+            cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Browse)),
+        )
+        .hover(|s| s.text_color(colors.text))
+        .into_any_element();
 
         palette_overlay(
             PaletteOverlay {

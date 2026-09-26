@@ -2,14 +2,14 @@
 
 use gpui::{
     App, ClipboardItem, Context, ElementInputHandler, Entity, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, canvas, div,
+    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Render, Styled, Window, canvas,
+    div, point, px,
 };
 use theme::ActiveTheme;
 use xenon_settings::{Copy, Cut, Paste};
 
-use crate::text_field::{FieldChrome, multiline_field_with_caret};
-use crate::{FocusOnOpen, MultilineText};
+use crate::text_field::{FieldChrome, text_field};
+use crate::{CursorBlink, FocusOnOpen, MultilineText};
 
 mod config;
 mod geometry;
@@ -20,6 +20,12 @@ pub enum TextInputEvent {
     Changed(String),
     Submit(String),
     Cancel,
+    /// A navigation key the field did not edit, for a parent such as an outline.
+    ParentKey {
+        key: String,
+        shift: bool,
+        platform: bool,
+    },
 }
 
 pub struct TextInputView {
@@ -28,6 +34,7 @@ pub struct TextInputView {
     focus: FocusHandle,
     focus_on_open: FocusOnOpen,
     geometry: Option<geometry::TextGeometry>,
+    blink: CursorBlink,
 }
 
 impl EventEmitter<TextInputEvent> for TextInputView {}
@@ -41,6 +48,7 @@ impl TextInputView {
             focus_on_open: FocusOnOpen::new(focus.clone()),
             focus,
             geometry: None,
+            blink: CursorBlink::default(),
         }
     }
 
@@ -75,12 +83,24 @@ impl TextInputView {
         self.focus.clone()
     }
 
+    pub(crate) fn split_off_suffix(&mut self, cx: &mut Context<Self>) -> String {
+        let suffix = self.value.split_off_suffix();
+        self.changed(cx);
+        suffix
+    }
+
+    pub(crate) fn place_caret(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.value.set_caret(index);
+        cx.notify();
+    }
+
     fn changed(&mut self, cx: &mut Context<Self>) {
         cx.emit(TextInputEvent::Changed(self.value.text().to_owned()));
         cx.notify();
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.blink.reset(cx, Self::blink_tick);
         let key = event.keystroke.key.as_str();
         let modifiers = event.keystroke.modifiers;
         if key == "enter" && self.value.marked_utf16().is_some() {
@@ -92,8 +112,15 @@ impl TextInputView {
         if matches!(
             self.config.key_behavior,
             TextInputKeyBehavior::ParentNavigation
-        ) && matches!(key, "enter" | "escape" | "tab" | "up" | "down")
+        ) && (matches!(key, "enter" | "escape" | "tab" | "up" | "down")
+            || (key == "backspace" && self.value.is_caret_at_start()))
         {
+            cx.emit(TextInputEvent::ParentKey {
+                key: key.to_owned(),
+                shift: modifiers.shift,
+                platform: modifiers.platform,
+            });
+            cx.stop_propagation();
             return;
         }
         if matches!(self.config.key_behavior, TextInputKeyBehavior::DialogField)
@@ -210,6 +237,7 @@ impl TextInputView {
             cx.write_to_clipboard(ClipboardItem::new_string(selected));
             self.value.replace(None, "", false);
             self.changed(cx);
+            self.blink.reset(cx, Self::blink_tick);
         }
     }
 
@@ -222,6 +250,7 @@ impl TextInputView {
             };
             self.value.replace(None, &text, false);
             self.changed(cx);
+            self.blink.reset(cx, Self::blink_tick);
         }
     }
 
@@ -235,6 +264,7 @@ impl TextInputView {
             return;
         }
         self.focus.focus(window, cx);
+        self.blink.reset(cx, Self::blink_tick);
         if let Some(geometry) = &self.geometry {
             self.value.place_caret(
                 geometry.index_for_point(event.position),
@@ -242,6 +272,14 @@ impl TextInputView {
             );
             cx.notify();
         }
+    }
+
+    fn blink_tick(&mut self, generation: u64, cx: &mut Context<Self>) -> bool {
+        let active = self.blink.tick(generation);
+        if active {
+            cx.notify();
+        }
+        active
     }
 }
 
@@ -254,61 +292,35 @@ impl Focusable for TextInputView {
 impl Render for TextInputView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.focus_on_open.focus_after_open(window, cx);
+        let focused = self.focus.is_focused(window)
+            && (window.is_window_active() || crate::motion_frozen(cx));
+        self.blink.update_focus(focused, cx, Self::blink_tick);
+        if let Some(bounds) = self.geometry.as_ref().map(geometry::TextGeometry::bounds) {
+            self.geometry = Some(self.geometry_for_bounds(bounds, window));
+        }
         let colors = cx.theme().colors().clone();
-        let field = match self.config.appearance {
-            TextInputAppearance::Bordered => multiline_field_with_caret(FieldChrome {
-                value: &self.value,
-                placeholder: &self.config.placeholder,
-                height: self.config.min_height,
-                colors: &colors,
-                focus: self.focus.clone(),
-                focused: self.focus.is_focused(window),
-            })
-            .into_any_element(),
-            TextInputAppearance::Inline | TextInputAppearance::Palette => {
-                let content = if self.value.text().is_empty() {
-                    div()
-                        .flex()
-                        .items_baseline()
-                        .text_color(colors.text_muted)
-                        .children(
-                            self.focus
-                                .is_focused(window)
-                                .then(|| div().text_color(colors.text).child("│")),
-                        )
-                        .child(self.config.placeholder.clone())
-                } else {
-                    let (before, selected, after) = self.value.split_at_caret();
-                    div()
-                        .text_color(colors.text)
-                        .child(before)
-                        .children(
-                            (!selected.is_empty())
-                                .then(|| div().bg(colors.element_selected).child(selected)),
-                        )
-                        .children(self.focus.is_focused(window).then_some("│"))
-                        .child(after)
-                };
-                let field = div()
-                    .id("text-input-inline")
-                    .min_h(self.config.min_height)
-                    .child(content)
-                    .on_click({
-                        let focus = self.focus.clone();
-                        move |_, window, cx| focus.focus(window, cx)
-                    });
-                if matches!(self.config.appearance, TextInputAppearance::Palette) {
-                    field
-                        .px_3()
-                        .py_2()
-                        .border_b_1()
-                        .border_color(colors.border)
-                        .into_any_element()
-                } else {
-                    field.into_any_element()
-                }
-            }
-        };
+        let caret =
+            (focused && self.blink.visible() && self.value.selection().is_empty()).then(|| {
+                let utf16 = self.value.selected_utf16().end;
+                self.geometry.as_ref().map_or_else(
+                    || match self.config.appearance {
+                        TextInputAppearance::Bordered => point(px(8.), px(8.)),
+                        TextInputAppearance::Palette => point(px(12.), px(8.)),
+                        TextInputAppearance::Inline => point(px(0.), px(0.)),
+                    },
+                    |geometry| geometry.caret_offset(self.value.text(), utf16),
+                )
+            });
+        let field = text_field(FieldChrome {
+            value: &self.value,
+            placeholder: &self.config.placeholder,
+            height: self.config.min_height,
+            colors: &colors,
+            focus: self.focus.clone(),
+            caret,
+            line_height: window.line_height(),
+            appearance: self.config.appearance,
+        });
         div()
             .id("text-input")
             .relative()

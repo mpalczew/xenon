@@ -7,6 +7,7 @@ use gpui::{
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
+use xenon_design_system::{TypeRole, Typography};
 
 use crate::app::XenonApp;
 use crate::icons::icon;
@@ -23,7 +24,7 @@ impl Render for DragChip {
         div()
             .px_2()
             .py_1()
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .rounded_sm()
             .bg(colors.elevated_surface_background)
             .border_1()
@@ -49,7 +50,7 @@ impl Render for PathTooltip {
             .border_1()
             .border_color(colors.border)
             .text_color(colors.text)
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .child(self.text.clone())
     }
 }

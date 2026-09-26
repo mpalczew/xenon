@@ -379,7 +379,13 @@ impl Row {
 }
 
 /// Paint cell backgrounds, search matches, selection, cursor, then glyphs.
-pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: &mut gpui::App) {
+pub fn paint(
+    layout: &GridLayout,
+    line_height: Pixels,
+    show_cursor: bool,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
     let players = cx.theme().players().local();
     let (cursor_color, selection_color) = (players.cursor, players.selection);
     let match_color = cx.theme().colors().search_match_background;
@@ -394,7 +400,7 @@ pub fn paint(layout: &GridLayout, line_height: Pixels, window: &mut Window, cx: 
     for rect in &layout.selection {
         window.paint_quad(fill(*rect, selection_color));
     }
-    if let Some(cursor) = layout.cursor {
+    if let Some(cursor) = layout.cursor.filter(|_| show_cursor) {
         window.paint_quad(fill(cursor, cursor_color));
     }
     for grid_line in &layout.lines {

@@ -11,6 +11,7 @@ use crate::commands::{CommandEntry, CommandId, catalog};
 use xenon_core::PaneId;
 
 use super::XenonApp;
+use xenon_design_system::{ActionButton, action_button};
 
 fn xenon_icon() -> Arc<Image> {
     Arc::new(Image::from_bytes(
@@ -39,85 +40,49 @@ impl XenonApp {
             "Xenon keeps your agent work organized across workspaces."
         };
         let primary = if has_workspace {
-            let hover = colors.element_hover;
             let target_pane = remove_pane;
-            div()
-                .id("empty-new-terminal")
-                .px_4()
-                .py_2()
-                .rounded_sm()
-                .bg(colors.text_accent)
-                .text_color(colors.background)
-                .font_weight(gpui::FontWeight::MEDIUM)
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover))
-                .tooltip(crate::tabs::tip_tooltip("New Terminal · ⌘N".into()))
-                .child("New Terminal")
-                .on_click(cx.listener(move |this, _, window, cx| {
+            action_button(
+                "empty-new-terminal",
+                ActionButton::primary("New Terminal"),
+                cx,
+                cx.listener(move |this, _, window, cx| {
                     if let Some(pane) = target_pane {
                         this.new_terminal_in_pane(pane, window, cx);
                     } else {
                         this.new_terminal(window, cx);
                     }
-                }))
-                .into_any_element()
+                }),
+            )
+            .tooltip(crate::tabs::tip_tooltip("New Terminal · ⌘N".into()))
+            .into_any_element()
         } else {
-            let hover = colors.element_hover;
-            div()
-                .id("empty-open-workspace")
-                .px_3()
-                .py_2()
-                .rounded_sm()
-                .bg(colors.element_selected)
-                .text_color(colors.text)
-                .font_weight(gpui::FontWeight::MEDIUM)
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover))
-                .child("Open Workspace  ⌘⇧O")
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.add_workspace(window, cx);
-                }))
-                .into_any_element()
+            action_button(
+                "empty-open-workspace",
+                ActionButton::primary("Open Workspace  ⌘⇧O"),
+                cx,
+                cx.listener(|this, _, window, cx| this.add_workspace(window, cx)),
+            )
+            .into_any_element()
         };
         let secondary = has_workspace.then(|| {
-            let hover = colors.element_hover;
-            let text = colors.text;
-            div()
-                .id("empty-open-file")
-                .px_3()
-                .py_2()
-                .rounded_sm()
-                .border_1()
-                .border_color(colors.border)
-                .text_color(colors.text_muted)
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover).text_color(text))
-                .tooltip(crate::tabs::tip_tooltip("Open File · ⌘O".into()))
-                .child("Open File")
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.open_palette(window, cx);
-                }))
-                .into_any_element()
+            action_button(
+                "empty-open-file",
+                ActionButton::secondary("Open File"),
+                cx,
+                cx.listener(|this, _, window, cx| this.open_palette(window, cx)),
+            )
+            .tooltip(crate::tabs::tip_tooltip("Open File · ⌘O".into()))
+            .into_any_element()
         });
         let close_workspace = has_workspace.then(|| {
-            let hover = colors.element_hover;
-            let text = colors.text;
-            div()
-                .id("empty-close-workspace")
-                .px_3()
-                .py_2()
-                .rounded_sm()
-                .border_1()
-                .border_color(colors.border)
-                .text_color(colors.text_muted)
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover).text_color(text))
-                .tooltip(crate::tabs::tip_tooltip("Close Workspace · ⌘⌥W".into()))
-                .child("Close Workspace")
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.close_active_workspace(window, cx);
-                }))
-                .into_any_element()
+            action_button(
+                "empty-close-workspace",
+                ActionButton::secondary("Close Workspace"),
+                cx,
+                cx.listener(|this, _, window, cx| this.close_active_workspace(window, cx)),
+            )
+            .tooltip(crate::tabs::tip_tooltip("Close Workspace · ⌘⌥W".into()))
+            .into_any_element()
         });
         let remove_empty_pane = remove_pane.filter(|pane| {
             self.active_content()
@@ -132,27 +97,22 @@ impl XenonApp {
         let remove_empty_pane = remove_empty_pane.map(|pane| {
             let hover = colors.element_hover;
             let muted = colors.text_muted;
-            div()
-                .id(("remove-empty-pane", pane.0))
-                .absolute()
-                .top_2()
-                .right_2()
-                .flex()
-                .items_center()
-                .justify_center()
-                .w(px(24.))
-                .h(px(24.))
-                .rounded_sm()
-                .text_color(muted)
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover).text_color(colors.text))
-                .tooltip(crate::tabs::tip_tooltip("Remove empty pane".into()))
-                .child(crate::icons::icon(Icon::X, px(14.)))
-                .on_click(cx.listener(move |this, _, window, cx| {
+            action_button(
+                ("remove-empty-pane", pane.0),
+                ActionButton::icon(crate::icons::icon(Icon::X, px(14.))),
+                cx,
+                cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     this.remove_empty_pane(pane, window, cx);
-                }))
-                .into_any_element()
+                }),
+            )
+            .absolute()
+            .top_2()
+            .right_2()
+            .text_color(muted)
+            .hover(move |s| s.bg(hover).text_color(colors.text))
+            .tooltip(crate::tabs::tip_tooltip("Remove empty pane".into()))
+            .into_any_element()
         });
         let shortcuts = shortcut_entries(has_workspace)
             .iter()

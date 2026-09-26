@@ -2,6 +2,7 @@
 
 use super::*;
 use xenon_design_system::FocusOnOpen;
+use xenon_design_system::{TypeRole, Typography};
 use xenon_store::{decline_skill, install_skill, should_prompt_skill};
 
 const BTN_NEVER: usize = 0;
@@ -173,13 +174,13 @@ impl XenonApp {
             .gap_2()
             .child(
                 div()
-                    .text_sm()
+                    .type_role(TypeRole::Body, cx)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("Install the Xenon skill?"),
             )
             .child(
                 div()
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
                     .child("An agent is running here. A short skill teaches agents xenon open so they can show a file beside this terminal instead of dumping it in chat."),
             )
@@ -192,7 +193,7 @@ impl XenonApp {
                     .bg(colors.background)
                     .border_1()
                     .border_color(colors.border)
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
                     .font_family("ui-monospace")
                     .child("~/.agents/skills/xenon\n~/.claude/skills/xenon"),
@@ -209,7 +210,7 @@ impl XenonApp {
             )
             .child(
                 div()
-                    .text_xs()
+                    .type_role(TypeRole::ControlLabel, cx)
                     .text_color(cx.theme().colors().text_muted)
                     .child("Return installs · Escape is Not now"),
             );
@@ -231,40 +232,20 @@ impl XenonApp {
         primary: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
         let on = self
             .skill_prompt
             .as_ref()
             .is_some_and(|p| p.button == index);
-        let bg = if primary {
-            colors.text_accent
-        } else if on {
-            colors.element_selected
-        } else {
-            colors.background
-        };
-        let fg = if primary {
-            colors.background
-        } else {
-            colors.text
-        };
-        div()
-            .id(label)
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .border_1()
-            .border_color(if on {
-                colors.border_focused
+        xenon_design_system::action_button(
+            label,
+            if on || primary {
+                xenon_design_system::ActionButton::primary(label)
             } else {
-                colors.border
-            })
-            .bg(bg)
-            .text_color(fg)
-            .text_xs()
-            .cursor_pointer()
-            .on_click(cx.listener(move |this, _, _, cx| this.pick_skill_button(index, cx)))
-            .child(label)
+                xenon_design_system::ActionButton::secondary(label)
+            },
+            cx,
+            cx.listener(move |this, _, _, cx| this.pick_skill_button(index, cx)),
+        )
     }
 }
 

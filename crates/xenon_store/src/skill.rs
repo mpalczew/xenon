@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 const BUNDLED: &str = include_str!("skill.md");
-const SKILL_VERSION: u32 = 1;
+const SKILL_VERSION: u32 = 6;
 const STATE_NAME: &str = ".xenon-skill.json";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -193,14 +193,17 @@ mod tests {
     fn older_managed_rewrites() {
         with_home(|| {
             install_skill().unwrap();
-            let stale = BUNDLED.replace("xenon_skill_version: 1", "xenon_skill_version: 0");
+            let stale = BUNDLED.replace(
+                &format!("xenon_skill_version: {SKILL_VERSION}"),
+                "xenon_skill_version: 0",
+            );
             fs::write(skill_dirs(&skill_home())[0].join("SKILL.md"), stale).unwrap();
             assert!(matches!(
                 skill_status(),
                 SkillStatus::UpdateAvailable { installed: 0 }
             ));
             refresh_on_launch().unwrap();
-            assert!(read_canonical().contains("xenon_skill_version: 1"));
+            assert!(read_canonical().contains(&format!("xenon_skill_version: {SKILL_VERSION}")));
             assert_eq!(
                 skill_status(),
                 SkillStatus::Installed {

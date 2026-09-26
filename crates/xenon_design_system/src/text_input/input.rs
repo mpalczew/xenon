@@ -17,6 +17,7 @@ impl EntityInputHandler for TextInputView {
         };
         self.value.replace(range, &text, false);
         self.changed(cx);
+        self.blink.reset(cx, Self::blink_tick);
     }
     fn replace_and_mark_text_in_range(
         &mut self,
@@ -36,6 +37,7 @@ impl EntityInputHandler for TextInputView {
             self.value.select_marked_range(selected_range);
         }
         self.changed(cx);
+        self.blink.reset(cx, Self::blink_tick);
     }
     fn selected_text_range(
         &mut self,

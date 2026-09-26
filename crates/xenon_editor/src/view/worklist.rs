@@ -6,14 +6,24 @@ use gpui::{
     StatefulInteractiveElement, Styled, div, px,
 };
 use theme::ActiveTheme;
+use xenon_design_system::{
+    ActionButton, CheckboxState, TypeRole, Typography, action_button, checkbox,
+};
 
 use super::{Content, EditorView};
 mod capture;
 mod edit;
 mod edit_view;
 mod source;
+use gpui::Entity;
 pub(super) use source::ItemEdit;
 use source::{Entry, entries};
+use xenon_design_system::{BulletLine, bullet_list, selectable_row};
+
+pub(super) struct ItemForm {
+    pub(super) outline: Entity<xenon_design_system::OutlineView>,
+    task: bool,
+}
 
 struct RowState {
     index: usize,
@@ -31,16 +41,11 @@ impl EditorView {
         colors: &theme::ThemeColors,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        div()
-            .id("worklist-back-to-list")
-            .px_4()
-            .py_2()
-            .border_b_1()
-            .border_color(colors.border)
-            .text_color(colors.text_accent)
-            .cursor_pointer()
-            .child("← Worklist    Markdown")
-            .on_click(cx.listener(|this, _, _, cx| {
+        action_button(
+            "worklist-back-to-list",
+            ActionButton::quiet("← Worklist    Markdown"),
+            cx,
+            cx.listener(|this, _, _, cx| {
                 if !this.is_dirty() {
                     this.worklist_raw = false;
                     cx.notify();
@@ -49,7 +54,14 @@ impl EditorView {
                         Some("Save or undo Markdown edits before switching views".into());
                     cx.notify();
                 }
-            }))
+            }),
+        )
+        .justify_start()
+        .w_full()
+        .px_4()
+        .py_2()
+        .border_b_1()
+        .border_color(colors.border)
     }
 
     #[cfg(feature = "visual-tests")]
@@ -103,34 +115,23 @@ impl EditorView {
                         div()
                             .flex()
                             .flex_col()
+                            .child(div().type_role(TypeRole::ScreenTitle, cx).child("Worklist"))
                             .child(
                                 div()
-                                    .text_lg()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child("Worklist"),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
+                                    .type_role(TypeRole::Code, cx)
                                     .text_color(colors.text_muted)
                                     .child(".xenon/worklist.md"),
                             ),
                     )
-                    .child(
-                        div()
-                            .id("worklist-markdown")
-                            .px_2()
-                            .py_1()
-                            .rounded_sm()
-                            .border_1()
-                            .border_color(colors.border)
-                            .cursor_pointer()
-                            .child("Markdown")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.worklist_raw = true;
-                                cx.notify();
-                            })),
-                    ),
+                    .child(action_button(
+                        "worklist-markdown",
+                        ActionButton::secondary("Markdown"),
+                        cx,
+                        cx.listener(|this, _, _, cx| {
+                            this.worklist_raw = true;
+                            cx.notify();
+                        }),
+                    )),
             )
             .child(body)
             .child(self.render_worklist_footer(&colors, cx))
@@ -146,7 +147,7 @@ impl EditorView {
             .py_2()
             .border_t_1()
             .border_color(colors.border)
-            .text_xs()
+            .type_role(TypeRole::ControlLabel, cx)
             .text_color(colors.text_muted)
             .flex()
             .justify_between()
@@ -156,21 +157,19 @@ impl EditorView {
                 "Saved to .xenon/worklist.md · ↑↓ select · Space complete · Enter edit"
             })
             .children(self.worklist_needs_creation().then(|| {
-                div()
-                    .id("worklist-save-empty")
-                    .text_color(colors.text_accent)
-                    .cursor_pointer()
-                    .child("Save worklist")
-                    .on_click(cx.listener(|this, _, _, cx| this.save(cx)))
+                action_button(
+                    "worklist-save-empty",
+                    ActionButton::quiet("Save worklist"),
+                    cx,
+                    cx.listener(|this, _, _, cx| this.save(cx)),
+                )
             }))
-            .child(
-                div()
-                    .id("worklist-undo")
-                    .text_color(colors.text_accent)
-                    .cursor_pointer()
-                    .child("Undo")
-                    .on_click(cx.listener(|this, _, _, cx| this.worklist_undo(false, cx))),
-            )
+            .child(action_button(
+                "worklist-undo",
+                ActionButton::quiet("Undo"),
+                cx,
+                cx.listener(|this, _, _, cx| this.worklist_undo(false, cx)),
+            ))
     }
 
     fn render_worklist_body(
@@ -181,31 +180,28 @@ impl EditorView {
         let source = self.text();
         let rows = entries(&source);
         let selected = self.worklist_selection.min(rows.len().saturating_sub(1));
-        if self.worklist_edit.is_some() {
-            self.render_worklist_edit(colors, cx).into_any_element()
-        } else {
-            div()
-                .id("worklist-scroll")
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .px_4()
-                .py_3()
-                .child(
-                    div()
-                        .id("worklist-add")
-                        .mb_3()
-                        .text_color(colors.text_accent)
-                        .cursor_pointer()
-                        .child("+ Add a task")
-                        .on_click(cx.listener(|this, _, _, cx| this.worklist_start_capture(cx))),
-                )
-                .children(
-                    self.worklist_capture
-                        .is_some()
-                        .then(|| self.render_worklist_capture(cx)),
-                )
-                .children(rows.iter().enumerate().map(|(index, entry)| {
+        div()
+            .id("worklist-scroll")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .px_4()
+            .py_3()
+            .child(div().flex().mb_3().child(action_button(
+                "worklist-add",
+                ActionButton::quiet("+ Add a task or note"),
+                cx,
+                cx.listener(|this, _, _, cx| this.worklist_start_capture(cx)),
+            )))
+            .children(
+                self.worklist_capture
+                    .is_some()
+                    .then(|| self.render_worklist_capture(cx)),
+            )
+            .children(rows.iter().enumerate().map(|(index, entry)| {
+                if self.worklist_edit.is_some() && index == selected {
+                    self.render_worklist_edit(colors, cx).into_any_element()
+                } else {
                     self.render_worklist_row(
                         RowState {
                             index,
@@ -215,22 +211,24 @@ impl EditorView {
                         colors,
                         cx,
                     )
-                }))
-                .when(rows.is_empty(), |view| {
-                    view.child(
-                        div().py_8().text_color(colors.text_muted).child(
-                            "Room for the next thought. Add a task or leave yourself a note.",
-                        ),
-                    )
-                })
-                .into_any_element()
-        }
+                    .into_any_element()
+                }
+            }))
+            .when(rows.is_empty(), |view| {
+                view.child(
+                    div()
+                        .py_8()
+                        .text_color(colors.text_muted)
+                        .child("Room for the next thought. Add a task or leave yourself a note."),
+                )
+            })
+            .into_any_element()
     }
 
     pub(super) fn on_worklist_key(&mut self, event: &KeyDownEvent, cx: &mut Context<Self>) -> bool {
         let key = event.keystroke.key.as_str();
         let extend = event.keystroke.modifiers.shift;
-        if self.worklist_input().is_some() {
+        if self.worklist_input_open() {
             return false;
         }
         let count = entries(&self.text()).len();
@@ -263,41 +261,37 @@ impl EditorView {
             entry,
             selected,
         } = row;
-        let paint = if selected {
-            colors.element_selected
-        } else {
-            colors.editor_background
-        };
         let checked = entry.checked;
         let editable = entry.editable;
-        let title = entry.text.clone();
-        div()
-            .id(format!("worklist-row-{index}"))
-            .flex()
+        let title = entry.title.clone();
+        let lines = xenon_design_system::points_from_details(&entry.details)
+            .into_iter()
+            .map(|point| BulletLine {
+                depth: point.depth,
+                text: point.text.into(),
+            })
+            .collect();
+        selectable_row(format!("worklist-row-{index}"), selected, colors)
             .items_start()
-            .gap_2()
-            .px_3()
-            .py_2()
             .mb_1()
-            .rounded_sm()
-            .bg(paint)
-            .child(
-                div()
-                    .id(format!("worklist-check-{index}"))
-                    .w(px(22.))
-                    .text_color(colors.text_accent)
-                    .child(match checked {
-                        Some(true) => "☑",
-                        Some(false) => "☐",
-                        None => "✎",
-                    })
-                    .on_click(cx.listener(move |this, _, _, cx| {
+            .child(if let Some(done) = checked {
+                checkbox(
+                    format!("worklist-check-{index}"),
+                    CheckboxState {
+                        checked: done,
+                        disabled: false,
+                    },
+                    format!("Complete {title}"),
+                    cx,
+                    cx.listener(move |this, _, _, cx| {
                         this.worklist_selection = index;
-                        if checked.is_some() {
-                            this.worklist_toggle(index, cx);
-                        }
-                    })),
-            )
+                        this.worklist_toggle(index, cx);
+                    }),
+                )
+                .into_any_element()
+            } else {
+                div().w(px(18.)).child("•").into_any_element()
+            })
             .child(
                 div()
                     .id(format!("worklist-text-{index}"))
@@ -308,7 +302,13 @@ impl EditorView {
                     } else {
                         colors.text
                     })
-                    .child(title)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .child(div().type_role(TypeRole::ListPrimary, cx).child(title))
+                            .child(bullet_list(lines, cx)),
+                    )
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.worklist_selection = index;
                         if editable {
@@ -316,11 +316,14 @@ impl EditorView {
                         }
                     })),
             )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(colors.text_muted)
-                    .child(if checked.is_none() { "Note" } else { "Edit" }),
-            )
+            .child(action_button(
+                format!("worklist-edit-{index}"),
+                ActionButton::quiet("Edit").disabled(!editable),
+                cx,
+                cx.listener(move |this, _, _, cx| {
+                    this.worklist_selection = index;
+                    this.worklist_start_edit(index, cx);
+                }),
+            ))
     }
 }

@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail, ensure};
+mod item;
+pub use item::{TITLE_LIMIT, WorkItem, title_length};
 
 /// The source bytes are the revision. Worklists are intentionally small text files.
 pub struct WorklistFile {
@@ -80,17 +82,13 @@ impl WorklistFile {
         }
     }
 
-    pub fn append(&self, text: &str, task: bool) -> Result<PathBuf> {
-        self.append_with_undo(text, task).map(|(path, _)| path)
-    }
-
-    pub fn append_with_undo(&self, text: &str, task: bool) -> Result<(PathBuf, WorklistUndo)> {
+    pub fn append_item_with_undo(&self, item: &WorkItem) -> Result<(PathBuf, WorklistUndo)> {
         let old = self.read()?;
         let source = match old.as_ref() {
             Some(bytes) => std::str::from_utf8(bytes).context("worklist is not UTF-8")?,
             None => "",
         };
-        let updated = prepare_append(source, text, task)?;
+        let updated = append_item(source, item)?;
         self.write(old.as_deref(), updated.as_bytes())?;
         Ok((
             self.path.clone(),
@@ -144,15 +142,15 @@ impl WorklistFile {
     }
 }
 
-pub(crate) fn prepare_append(source: &str, text: &str, task: bool) -> Result<String> {
+pub fn append_item(source: &str, item: &WorkItem) -> Result<String> {
     ensure!(
         safe_append_boundary(source),
         "Worklist ends inside an unfinished Markdown block; edit Markdown before capturing"
     );
-    Ok(append_entry(source, text, task))
+    Ok(append_entry(source, item))
 }
 
-fn append_entry(source: &str, text: &str, task: bool) -> String {
+fn append_entry(source: &str, item: &WorkItem) -> String {
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {
@@ -164,18 +162,7 @@ fn append_entry(source: &str, text: &str, task: bool) -> String {
     }
     out.push_str(newline);
     out.push_str(newline);
-    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    for (index, line) in normalized.lines().enumerate() {
-        if index > 0 {
-            out.push_str(newline);
-            if task {
-                out.push_str("  ");
-            }
-        } else if task {
-            out.push_str("- [ ] ");
-        }
-        out.push_str(line);
-    }
+    out.push_str(&item.markdown(false, newline));
     out.push_str(newline);
     out
 }
@@ -219,16 +206,28 @@ mod tests {
     #[test]
     fn inline_append_rejects_unclosed_fence_without_changing_source() {
         let source = "# Worklist\n\n```md\n";
-        assert!(prepare_append(source, "Next", true).is_err());
+        assert!(append_item(source, &WorkItem::new("Next", "", true).unwrap()).is_err());
         assert_eq!(source, "# Worklist\n\n```md\n");
     }
 
     #[test]
     fn append_keeps_multiline_and_crlf() {
         assert_eq!(
-            append_entry("# Worklist\r\n", "Next\nDetail", true),
-            "# Worklist\r\n\r\n- [ ] Next\r\n  Detail\r\n"
+            append_entry(
+                "# Worklist\r\n",
+                &WorkItem::new("Next", "Detail", true).unwrap()
+            ),
+            "# Worklist\r\n\r\n- [ ] Next\r\n  - Detail\r\n"
         );
+    }
+
+    #[test]
+    fn title_limit_uses_graphemes_and_rejects_multiline_titles() {
+        assert!(WorkItem::new(&"a".repeat(80), "", true).is_ok());
+        assert!(WorkItem::new(&"a".repeat(81), "", true).is_err());
+        assert!(WorkItem::new("one\ntwo", "", true).is_err());
+        assert!(WorkItem::new("", "detail", true).is_err());
+        assert!(WorkItem::new(&"e\u{301}".repeat(80), "", true).is_ok());
     }
 
     #[test]
@@ -252,10 +251,14 @@ mod tests {
     fn capture_undo_restores_only_the_revision_it_created() {
         let root = tempfile::tempdir().unwrap();
         let file = WorklistFile::new(root.path()).unwrap();
-        let (_, undo) = file.append_with_undo("First", true).unwrap();
+        let (_, undo) = file
+            .append_item_with_undo(&WorkItem::new("First", "", true).unwrap())
+            .unwrap();
         undo.undo().unwrap();
         assert!(!file.path().exists());
-        let (_, undo) = file.append_with_undo("Second", false).unwrap();
+        let (_, undo) = file
+            .append_item_with_undo(&WorkItem::new("Second", "", false).unwrap())
+            .unwrap();
         fs::write(file.path(), "agent wrote this").unwrap();
         assert!(undo.undo().is_err());
         assert_eq!(fs::read_to_string(file.path()).unwrap(), "agent wrote this");

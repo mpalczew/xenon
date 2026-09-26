@@ -9,6 +9,7 @@ use gpui::{
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::PaneId;
+use xenon_design_system::{TypeRole, Typography};
 
 use super::tip_tooltip;
 use super::tooltips::{DragGhost, TabTooltip};
@@ -81,20 +82,22 @@ fn term_chip_paint(
 fn tab_close(
     id: impl Into<gpui::ElementId>,
     group: &str,
-    colors: &theme::ThemeColors,
     always: bool,
+    cx: &gpui::App,
     on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
+    let colors = cx.theme().colors();
     let group = group.to_string();
     let hover = colors.text;
-    let mut close = div()
-        .id(id)
-        .text_xs()
-        .text_color(colors.text_muted)
-        .hover(move |s| s.text_color(hover))
-        .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")))
-        .child(icon(Icon::X, px(12.)))
-        .on_click(on_click);
+    let mut close = xenon_design_system::action_button(
+        id,
+        xenon_design_system::ActionButton::icon(icon(Icon::X, px(12.))),
+        cx,
+        on_click,
+    )
+    .text_color(colors.text_muted)
+    .hover(move |s| s.text_color(hover))
+    .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")));
     if !always {
         close = close.invisible().group_hover(group, |s| s.visible());
     }
@@ -192,7 +195,7 @@ impl XenonApp {
             })
             .child(
                 div()
-                    .text_sm()
+                    .type_role(TypeRole::Body, cx)
                     .font_weight(if is_focused {
                         gpui::FontWeight::MEDIUM
                     } else {
@@ -208,8 +211,8 @@ impl XenonApp {
             .child(tab_close(
                 SharedString::from(format!("tab-close-{}-{}", pane.0, index)),
                 &group,
-                &colors,
                 is_active,
+                cx,
                 {
                     cx.listener(move |this, _, window, cx| {
                         cx.stop_propagation();
@@ -300,7 +303,7 @@ impl XenonApp {
             })
             .child(
                 div()
-                    .text_sm()
+                    .type_role(TypeRole::Body, cx)
                     .font_weight(if is_focused {
                         gpui::FontWeight::MEDIUM
                     } else {
@@ -314,8 +317,8 @@ impl XenonApp {
             .child(tab_close(
                 SharedString::from(format!("etab-close-{}-{}", pane.0, index)),
                 &group,
-                &colors,
                 is_active,
+                cx,
                 cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
                     this.close_tab_id(tab_id, window, cx);

@@ -4,6 +4,7 @@ use gpui::{
     App, Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point,
     StatefulInteractiveElement, Styled, anchored, deferred, div, px,
 };
+use xenon_design_system::{TypeRole, Typography};
 
 use super::EditorView;
 
@@ -56,7 +57,7 @@ impl EditorView {
             div()
                 .px_2()
                 .py_1()
-                .text_xs()
+                .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
                 .border_t_1()
                 .border_color(colors.border)

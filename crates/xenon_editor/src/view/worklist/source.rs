@@ -1,12 +1,12 @@
-use gpui::Entity;
+use crate::worklist_file::WorkItem;
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
-use xenon_design_system::TextInputView;
 
 #[derive(Clone, Debug)]
 pub(super) struct Entry {
     pub(super) range: Range<usize>,
-    pub(super) text: String,
+    pub(super) title: String,
+    pub(super) details: String,
     pub(super) checked: Option<bool>,
     pub(super) section: usize,
     pub(super) editable: bool,
@@ -14,7 +14,7 @@ pub(super) struct Entry {
 
 pub(in crate::view) struct ItemEdit {
     pub(super) entry: Entry,
-    pub input: Entity<TextInputView>,
+    pub form: super::ItemForm,
 }
 
 pub(super) fn entries(source: &str) -> Vec<Entry> {
@@ -30,25 +30,19 @@ pub(super) fn entries(source: &str) -> Vec<Entry> {
     for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { .. }) => section += 1,
-            Event::Start(Tag::List(_)) => {
-                list_depth += 1;
-                if list_depth > 1
-                    && let Some(item) = &mut item
-                {
-                    item.editable = false;
-                }
-            }
+            Event::Start(Tag::List(_)) => list_depth += 1,
             Event::End(TagEnd::List(_)) => list_depth -= 1,
             Event::Start(Tag::Item) if list_depth == 1 => {
                 item = Some(Entry {
                     range: range.clone(),
-                    text: String::new(),
+                    title: String::new(),
+                    details: String::new(),
                     checked: None,
                     section,
                     editable: true,
                 })
             }
-            Event::TaskListMarker(checked) if item.is_some() => {
+            Event::TaskListMarker(checked) if item.is_some() && list_depth == 1 => {
                 if let Some(item) = &mut item {
                     item.checked = Some(checked);
                 }
@@ -56,17 +50,19 @@ pub(super) fn entries(source: &str) -> Vec<Entry> {
             Event::End(TagEnd::Item) if list_depth == 1 => {
                 if let Some(mut item) = item.take() {
                     item.range.end = range.end;
-                    if item.checked.is_some() {
-                        let raw = &source[item.range.clone()];
-                        item.text = task_text(raw);
-                        found.push(item);
-                    }
+                    let raw = &source[item.range.clone()];
+                    let (title, details, editable) = item_text(raw);
+                    item.title = title;
+                    item.details = details;
+                    item.editable &= editable;
+                    found.push(item);
                 }
             }
             Event::Start(Tag::Paragraph) if list_depth == 0 => {
                 paragraph = Some(Entry {
                     range: range.clone(),
-                    text: String::new(),
+                    title: String::new(),
+                    details: String::new(),
                     checked: None,
                     section,
                     editable: true,
@@ -75,7 +71,9 @@ pub(super) fn entries(source: &str) -> Vec<Entry> {
             Event::End(TagEnd::Paragraph) if list_depth == 0 => {
                 if let Some(mut note) = paragraph.take() {
                     note.range.end = range.end;
-                    note.text = source[note.range.clone()].trim().to_string();
+                    let mut lines = source[note.range.clone()].trim().lines();
+                    note.title = lines.next().unwrap_or("").to_owned();
+                    note.details = lines.collect::<Vec<_>>().join("\n");
                     found.push(note);
                 }
             }
@@ -90,34 +88,45 @@ pub(super) fn entries(source: &str) -> Vec<Entry> {
     found
 }
 
-fn task_text(raw: &str) -> String {
+fn item_text(raw: &str) -> (String, String, bool) {
     let mut lines = raw.trim_end().lines();
     let first = lines.next().unwrap_or("");
-    let first = first.find("] ").map_or(first, |i| &first[i + 2..]);
-    std::iter::once(first)
-        .chain(lines.map(|line| line.strip_prefix("  ").unwrap_or(line)))
-        .collect::<Vec<_>>()
-        .join("\n")
+    let title = first
+        .strip_prefix("- [ ] ")
+        .or_else(|| first.strip_prefix("- [x] "))
+        .or_else(|| first.strip_prefix("- [X] "))
+        .or_else(|| first.strip_prefix("- "))
+        .unwrap_or(first)
         .trim()
-        .to_string()
+        .to_owned();
+    let mut editable = true;
+    let details = lines
+        .filter_map(|line| {
+            if line.trim().is_empty() {
+                return None;
+            }
+            let spaces = line
+                .chars()
+                .take_while(|character| *character == ' ')
+                .count();
+            let body = line.trim_start();
+            if body.starts_with("- [") || body.starts_with("* [") {
+                editable = false;
+            }
+            let text = body
+                .strip_prefix("- ")
+                .or_else(|| body.strip_prefix("* "))
+                .unwrap_or(body)
+                .trim();
+            Some(format!("{}{text}", " ".repeat(spaces.saturating_sub(2))))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    (title, details, editable)
 }
 
-pub(super) fn replacement(entry: &Entry, text: &str, newline: &str) -> String {
-    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    match entry.checked {
-        None => normalized.replace('\n', newline),
-        Some(done) => {
-            let marker = if done { "- [x] " } else { "- [ ] " };
-            let mut lines = normalized.lines();
-            let mut out = format!("{marker}{}", lines.next().unwrap_or(""));
-            for line in lines {
-                out.push_str(newline);
-                out.push_str("  ");
-                out.push_str(line);
-            }
-            out
-        }
-    }
+pub(super) fn replacement(entry: &Entry, item: &WorkItem, newline: &str) -> String {
+    item.markdown(entry.checked == Some(true), newline)
 }
 
 #[cfg(test)]
@@ -128,8 +137,9 @@ mod tests {
         let source = "# Worklist\n\n- [ ] First\n  detail\n\nA note.\n\n```md\n- [ ] not a task\n```\n\n- [x] Done\n";
         let rows = entries(source);
         assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0].text, "First\ndetail");
-        assert_eq!(rows[1].text, "A note.");
+        assert_eq!(rows[0].title, "First");
+        assert_eq!(rows[0].details, "detail");
+        assert_eq!(rows[1].title, "A note.");
         assert_eq!(rows[2].checked, Some(true));
         assert_eq!(&source[rows[0].range.clone()], "- [ ] First\n  detail\n\n");
         assert_eq!(&source[rows[1].range.clone()], "A note.\n");
@@ -147,15 +157,33 @@ mod tests {
 
     #[test]
     fn item_replacement_keeps_task_shape_and_crlf() {
-        let source = "- [x] First\r\n  Detail\r\n\r\nNext note.\r\n";
+        let source = "- [x] First\r\n  - Detail\r\n\r\nNext note.\r\n";
         let rows = entries(source);
         assert_eq!(rows.len(), 2);
         let old = &source[rows[0].range.clone()];
         let suffix = &old[old.trim_end_matches(['\r', '\n']).len()..];
         let updated = source.replace(
             old,
-            &(replacement(&rows[0], "Revised\nMore", "\r\n") + suffix),
+            &(replacement(
+                &rows[0],
+                &WorkItem::new("Revised", "More", true).unwrap(),
+                "\r\n",
+            ) + suffix),
         );
-        assert_eq!(updated, "- [x] Revised\r\n  More\r\n\r\nNext note.\r\n");
+        assert_eq!(updated, "- [x] Revised\r\n  - More\r\n\r\nNext note.\r\n");
+    }
+
+    #[test]
+    fn title_and_bullets_are_separate_for_tasks_and_notes() {
+        let rows = entries(
+            "# Worklist\n\n- [ ] Task title\n  - First point\n  - Second point\n\n- Note title\n  - Context\n",
+        );
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].title, "Task title");
+        assert_eq!(rows[0].details, "First point\nSecond point");
+        assert!(rows[0].editable);
+        assert_eq!(rows[1].title, "Note title");
+        assert_eq!(rows[1].details, "Context");
+        assert!(rows[1].editable);
     }
 }

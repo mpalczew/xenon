@@ -1,6 +1,7 @@
 use gpui::{Context, Hsla, IntoElement, ParentElement, Render, SharedString, Styled, div, px};
 use lucide_icons::Icon;
 use theme::ActiveTheme;
+use xenon_design_system::{TypeRole, Typography};
 
 use crate::icons::icon;
 
@@ -19,7 +20,7 @@ impl Render for TabTooltip {
             .border_1()
             .border_color(colors.border)
             .text_color(colors.text)
-            .text_sm()
+            .type_role(TypeRole::Body, cx)
             .child(self.text.clone())
     }
 }
@@ -51,7 +52,7 @@ impl Render for DragGhost {
             .opacity(0.4)
             .child(
                 div()
-                    .text_sm()
+                    .type_role(TypeRole::Body, cx)
                     .font_weight(if self.focused {
                         gpui::FontWeight::MEDIUM
                     } else {

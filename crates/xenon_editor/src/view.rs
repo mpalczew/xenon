@@ -36,6 +36,7 @@ use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use find_session::FindSession;
 use menu::is_supported_image;
+use xenon_design_system::CursorBlink;
 use xenon_settings::{Copy, Cut, Paste, SelectAll};
 
 actions!(xenon_editor, [Find, FindNext, FindPrevious]);
@@ -58,14 +59,15 @@ pub struct EditorView {
     focus: FocusHandle,
     autofocus: bool,
     focused_once: bool,
+    cursor_blink: CursorBlink,
     /// Render the markdown preview instead of the source (markdown files only).
     preview: bool,
     worklist_document: bool,
     worklist_raw: bool,
     worklist_selection: usize,
     worklist_edit: Option<worklist::ItemEdit>,
-    worklist_capture: Option<Entity<xenon_design_system::TextInputView>>,
-    worklist_input_sub: Option<Subscription>,
+    worklist_capture: Option<worklist::ItemForm>,
+    worklist_input_sub: Vec<Subscription>,
     worklist_error: Option<String>,
     /// Selection host for markdown preview (plain blocks + carets).
     preview_state: Entity<PreviewState>,
@@ -203,13 +205,14 @@ impl EditorView {
             focus: cx.focus_handle(),
             autofocus,
             focused_once: false,
+            cursor_blink: CursorBlink::default(),
             preview: false,
             worklist_document: false,
             worklist_raw: false,
             worklist_selection: 0,
             worklist_edit: None,
             worklist_capture: None,
-            worklist_input_sub: None,
+            worklist_input_sub: Vec::new(),
             worklist_error: None,
             preview_state,
             _preview_sel_sub,
@@ -224,6 +227,14 @@ impl EditorView {
         };
         view.recompute_highlights();
         view
+    }
+
+    fn blink_tick(&mut self, generation: u64, cx: &mut Context<Self>) -> bool {
+        let active = self.cursor_blink.tick(generation);
+        if active {
+            cx.notify();
+        }
+        active
     }
 
     /// Emit current selection to listeners (Claude IDE bridge).
@@ -398,6 +409,13 @@ impl Render for EditorView {
         }
         // Catch disk changes when this view paints (focus/tab switch).
         self.sync_from_disk(cx);
+        let cursor_focused = self.focus.is_focused(window)
+            && window.is_window_active()
+            && matches!(self.content, Content::Text(_))
+            && (!self.worklist_document || self.worklist_raw)
+            && !self.preview;
+        self.cursor_blink
+            .update_focus(cursor_focused, cx, Self::blink_tick);
         let colors = cx.theme().colors().clone();
         match &self.content {
             Content::Image(_) => return self.render_image(cx).into_any_element(),

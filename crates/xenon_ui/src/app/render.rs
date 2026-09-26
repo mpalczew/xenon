@@ -31,25 +31,22 @@ impl Render for XenonApp {
                         .as_ref()
                         .filter(|(id, _)| Some(*id) == self.active)
                         .map(|_| {
-                            div()
-                                .id("worklist-undo-capture")
-                                .text_color(colors.text_accent)
-                                .cursor_pointer()
-                                .child("Undo")
-                                .on_click(
-                                    cx.listener(|this, _, _, cx| {
-                                        this.undo_last_worklist_capture(cx)
-                                    }),
-                                )
+                            xenon_design_system::action_button(
+                                "worklist-undo-capture",
+                                xenon_design_system::ActionButton::quiet("Undo"),
+                                cx,
+                                cx.listener(|this, _, _, cx| this.undo_last_worklist_capture(cx)),
+                            )
                         }),
                 )
                 .child(
-                    div()
-                        .id("worklist-dismiss-notice")
-                        .text_color(colors.text_muted)
-                        .cursor_pointer()
-                        .child("×")
-                        .on_click(cx.listener(|this, _, _, cx| this.dismiss_worklist_notice(cx))),
+                    xenon_design_system::action_button(
+                        "worklist-dismiss-notice",
+                        xenon_design_system::ActionButton::icon("×"),
+                        cx,
+                        cx.listener(|this, _, _, cx| this.dismiss_worklist_notice(cx)),
+                    )
+                    .text_color(colors.text_muted),
                 )
         });
         let task_picker = self.task_picker.clone();

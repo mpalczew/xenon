@@ -1,83 +1,69 @@
-//! Inline capture in the worklist tab. The file remains the only data store.
+//! One title-and-bullets form shared by inline capture and editing.
 
-use gpui::{
-    AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
-};
+use super::{EditorView, ItemForm};
+use crate::worklist_file::{TITLE_LIMIT, WorkItem, append_item, title_length};
+use gpui::{AppContext, Context, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 use theme::ActiveTheme;
-use xenon_design_system::{TextInputConfig, TextInputEvent, TextInputView};
-
-use super::EditorView;
+use xenon_design_system::{OutlineEvent, OutlineView, TypeRole, Typography};
 
 impl EditorView {
-    pub(in crate::view) fn worklist_input(&self) -> Option<&Entity<TextInputView>> {
-        self.worklist_capture
-            .as_ref()
-            .or_else(|| self.worklist_edit.as_ref().map(|edit| &edit.input))
+    pub(in crate::view) fn worklist_input_open(&self) -> bool {
+        self.worklist_capture.is_some() || self.worklist_edit.is_some()
     }
 
-    pub(super) fn worklist_new_input(
+    pub(super) fn worklist_new_form(
         &mut self,
-        config: TextInputConfig,
-        initial: &str,
+        title: &str,
+        details: &str,
+        task: bool,
         cx: &mut Context<Self>,
-    ) -> Entity<TextInputView> {
-        let input = cx.new(|cx| TextInputView::new(config, cx));
-        input.update(cx, |input, cx| {
-            input.set_text(initial, cx);
-            input.open(cx);
-        });
-        self.worklist_input_sub = Some(cx.subscribe(&input, |this, _, event, cx| match event {
-            TextInputEvent::Changed(_) => cx.notify(),
-            TextInputEvent::Submit(text) if this.worklist_capture.is_some() => {
-                this.worklist_save_capture_text(text, cx)
-            }
-            TextInputEvent::Submit(text) if this.worklist_edit.is_some() => {
-                this.worklist_save_edit_text(text, cx)
-            }
-            TextInputEvent::Cancel if this.worklist_capture.is_some() => {
-                this.worklist_cancel_capture(cx)
-            }
-            TextInputEvent::Cancel if this.worklist_edit.is_some() => this.worklist_cancel_edit(cx),
-            _ => {}
-        }));
-        input
+    ) -> ItemForm {
+        self.worklist_input_sub.clear();
+        let outline = cx.new(|cx| OutlineView::new(title, details, cx));
+        outline.update(cx, |outline, cx| outline.open_title(cx));
+        self.worklist_input_sub
+            .push(cx.subscribe(&outline, |this, _, event, cx| match event {
+                OutlineEvent::Changed => cx.notify(),
+                OutlineEvent::Submit if this.worklist_capture.is_some() => {
+                    this.worklist_save_capture(cx)
+                }
+                OutlineEvent::Submit => this.worklist_save_edit(cx),
+                OutlineEvent::Cancel if this.worklist_capture.is_some() => {
+                    this.worklist_cancel_capture(cx)
+                }
+                OutlineEvent::Cancel => this.worklist_cancel_edit(cx),
+            }));
+        ItemForm { outline, task }
     }
 
     pub(super) fn worklist_start_capture(&mut self, cx: &mut Context<Self>) {
         self.worklist_edit = None;
-        self.worklist_input_sub = None;
-        let input = self.worklist_new_input(
-            TextInputConfig::multiline("What needs doing?", px(92.)).submit_on_plain_enter(),
-            "",
-            cx,
-        );
-        self.worklist_capture = Some(input);
+        let form = self.worklist_new_form("", "", true, cx);
+        self.worklist_capture = Some(form);
         self.worklist_error = None;
         cx.notify();
     }
 
     pub(super) fn worklist_cancel_capture(&mut self, cx: &mut Context<Self>) {
         self.worklist_capture = None;
-        self.worklist_input_sub = None;
+        self.worklist_input_sub.clear();
         cx.notify();
     }
 
     pub(super) fn worklist_save_capture(&mut self, cx: &mut Context<Self>) {
-        let Some(input) = self.worklist_capture.as_ref() else {
+        let Some(form) = &self.worklist_capture else {
             return;
         };
-        let text = input.read(cx).text().to_owned();
-        self.worklist_save_capture_text(&text, cx);
-    }
-
-    fn worklist_save_capture_text(&mut self, text: &str, cx: &mut Context<Self>) {
-        let text = text.trim();
-        if text.is_empty() {
-            return;
-        }
+        let item = match form.item(cx) {
+            Ok(item) => item,
+            Err(error) => {
+                self.worklist_error = Some(error.to_string());
+                cx.notify();
+                return;
+            }
+        };
         let source = self.text();
-        let updated = match crate::worklist_file::prepare_append(&source, text, true) {
+        let updated = match append_item(&source, &item) {
             Ok(updated) => updated,
             Err(error) => {
                 self.worklist_error = Some(error.to_string());
@@ -88,7 +74,7 @@ impl EditorView {
         if self.worklist_mutate(0..source.len(), &updated, cx) {
             self.worklist_selection = super::entries(&updated).len().saturating_sub(1);
             self.worklist_capture = None;
-            self.worklist_input_sub = None;
+            self.worklist_input_sub.clear();
         }
     }
 
@@ -97,14 +83,14 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
-        let input = self.worklist_capture.as_ref().unwrap();
-        let can_save = !input.read(cx).text().trim().is_empty();
+        let form = self.worklist_capture.as_ref().unwrap();
+        let can_save = form.item(cx).is_ok();
         div()
             .id("worklist-inline-capture")
             .mb_3()
             .p_3()
             .w_full()
-            .max_w(px(760.))
+            .max_w(px(850.))
             .rounded_md()
             .border_1()
             .border_color(colors.border_focused)
@@ -114,58 +100,102 @@ impl EditorView {
             .gap_2()
             .child(
                 div()
-                    .text_sm()
+                    .type_role(TypeRole::Body, cx)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Add a task"),
+                    .child("Add a task or note"),
             )
-            .child(input.clone())
-            .child(self.render_capture_actions(can_save, &colors, cx))
+            .child(self.render_worklist_kind(form.task, false, cx))
+            .child(form.render_fields(&colors, cx))
+            .child(
+                div()
+                    .flex()
+                    .justify_end()
+                    .gap_2()
+                    .child(xenon_design_system::action_button(
+                        "worklist-inline-cancel",
+                        xenon_design_system::ActionButton::secondary("Cancel"),
+                        cx,
+                        cx.listener(|this, _, _, cx| this.worklist_cancel_capture(cx)),
+                    ))
+                    .child(xenon_design_system::action_button(
+                        "worklist-inline-save",
+                        xenon_design_system::ActionButton::primary("Save").disabled(!can_save),
+                        cx,
+                        cx.listener(|this, _, _, cx| this.worklist_save_capture(cx)),
+                    )),
+            )
+    }
+}
+
+impl ItemForm {
+    pub(super) fn item(&self, cx: &Context<EditorView>) -> anyhow::Result<WorkItem> {
+        WorkItem::new(
+            &self.outline.read(cx).title(cx),
+            &self.outline.read(cx).details(cx),
+            self.task,
+        )
     }
 
-    fn render_capture_actions(
+    pub(super) fn render_fields(
         &self,
-        can_save: bool,
         colors: &theme::ThemeColors,
+        cx: &Context<EditorView>,
+    ) -> impl IntoElement + use<> {
+        let count = title_length(&self.outline.read(cx).title(cx));
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(
+                div()
+                    .type_role(TypeRole::ControlLabel, cx)
+                    .text_color(colors.text_muted)
+                    .child(format!("Title · {count}/{TITLE_LIMIT}")),
+            )
+            .child(self.outline.clone())
+    }
+}
+
+impl EditorView {
+    pub(super) fn render_worklist_kind(
+        &self,
+        task: bool,
+        editing: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         div()
             .flex()
-            .items_center()
-            .justify_between()
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(colors.text_muted)
-                    .child("Enter save · ⇧Enter line · Esc cancel"),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(
-                        div()
-                            .id("worklist-inline-cancel")
-                            .px_2()
-                            .py_1()
-                            .child("Cancel")
-                            .on_click(
-                                cx.listener(|this, _, _, cx| this.worklist_cancel_capture(cx)),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .id("worklist-inline-save")
-                            .px_3()
-                            .py_1()
-                            .rounded_sm()
-                            .bg(if can_save {
-                                colors.element_active
-                            } else {
-                                colors.element_background
-                            })
-                            .child("Save")
-                            .on_click(cx.listener(|this, _, _, cx| this.worklist_save_capture(cx))),
-                    ),
-            )
+            .gap_2()
+            .child(xenon_design_system::action_button(
+                "worklist-kind-task",
+                if task {
+                    xenon_design_system::ActionButton::primary("Task")
+                } else {
+                    xenon_design_system::ActionButton::secondary("Task")
+                },
+                cx,
+                cx.listener(move |this, _, _, cx| this.worklist_set_kind(true, editing, cx)),
+            ))
+            .child(xenon_design_system::action_button(
+                "worklist-kind-note",
+                if task {
+                    xenon_design_system::ActionButton::secondary("Note")
+                } else {
+                    xenon_design_system::ActionButton::primary("Note")
+                },
+                cx,
+                cx.listener(move |this, _, _, cx| this.worklist_set_kind(false, editing, cx)),
+            ))
+    }
+
+    fn worklist_set_kind(&mut self, task: bool, editing: bool, cx: &mut Context<Self>) {
+        if editing {
+            if let Some(edit) = &mut self.worklist_edit {
+                edit.form.task = task;
+            }
+        } else if let Some(form) = &mut self.worklist_capture {
+            form.task = task;
+        }
+        cx.notify();
     }
 }

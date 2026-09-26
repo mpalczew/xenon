@@ -9144,6 +9144,8 @@ name = "xenon_design_system"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "lucide-icons",
+ "objc2-app-kit 0.2.2",
  "theme",
  "xenon_settings",
 ]
@@ -9206,6 +9208,7 @@ dependencies = [
  "tree-sitter-xml",
  "tree-sitter-yaml",
  "tree-sitter-zig",
+ "unicode-segmentation",
  "xenon_design_system",
  "xenon_settings",
 ]

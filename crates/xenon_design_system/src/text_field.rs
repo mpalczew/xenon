@@ -1,12 +1,13 @@
-//! Reusable multiline field chrome and macOS input registration.
+//! Paint one text run, selection, and an overlaid caret without changing text flow.
 
 use gpui::{
-    FocusHandle, InteractiveElement, IntoElement, ParentElement, Pixels,
-    StatefulInteractiveElement, Styled, div,
+    FocusHandle, HighlightStyle, InteractiveElement, IntoElement, ParentElement, Pixels, Point,
+    StatefulInteractiveElement, Styled, StyledText, div, px,
 };
 use theme::ThemeColors;
 
 use crate::MultilineText;
+use crate::text_input::TextInputAppearance;
 
 pub(crate) struct FieldChrome<'a> {
     pub value: &'a MultilineText,
@@ -14,44 +15,75 @@ pub(crate) struct FieldChrome<'a> {
     pub height: Pixels,
     pub colors: &'a ThemeColors,
     pub focus: FocusHandle,
-    pub focused: bool,
+    pub caret: Option<Point<Pixels>>,
+    pub line_height: Pixels,
+    pub appearance: TextInputAppearance,
 }
 
-pub(crate) fn multiline_field_with_caret(field: FieldChrome<'_>) -> impl IntoElement + use<> {
+pub(crate) fn text_field(field: FieldChrome<'_>) -> impl IntoElement + use<> {
     let FieldChrome {
         value,
         placeholder,
         height,
         colors,
         focus,
-        focused,
+        caret,
+        line_height,
+        appearance,
     } = field;
-    let content = if value.text().is_empty() {
+    let text = if value.text().is_empty() {
         div()
-            .flex()
-            .items_baseline()
             .text_color(colors.text_muted)
-            .children(focused.then(|| div().text_color(colors.text).child("│")))
-            .child(placeholder.to_string())
+            .child(placeholder.to_owned())
+            .into_any_element()
     } else {
-        let (before, selected, after) = value.split_at_caret();
+        let selection = value.selected_byte_range();
+        let styled = StyledText::new(value.text().to_owned());
+        let styled = if selection.is_empty() {
+            styled
+        } else {
+            styled.with_highlights([(
+                selection,
+                HighlightStyle {
+                    background_color: Some(colors.element_selected),
+                    ..Default::default()
+                },
+            )])
+        };
         div()
             .text_color(colors.text)
-            .child(before)
-            .children(
-                (!selected.is_empty()).then(|| div().bg(colors.element_selected).child(selected)),
-            )
-            .children(focused.then_some("│"))
-            .child(after)
+            .child(styled)
+            .into_any_element()
     };
-    div()
-        .id("multiline-field")
+    let base = div()
+        .id("text-input-field")
+        .relative()
         .min_h(height)
-        .p_2()
-        .rounded_md()
-        .border_1()
-        .border_color(colors.border_focused)
-        .bg(colors.editor_background)
-        .child(content)
-        .on_click(move |_, window, cx| focus.focus(window, cx))
+        .child(text)
+        .children(caret.map(|point| {
+            div()
+                .absolute()
+                .left(point.x)
+                .top(point.y)
+                .w(px(1.))
+                .h(line_height)
+                .bg(colors.text)
+        }))
+        .on_click(move |_, window, cx| focus.focus(window, cx));
+    match appearance {
+        TextInputAppearance::Bordered => base
+            .p_2()
+            .rounded_md()
+            .border_1()
+            .border_color(colors.border_focused)
+            .bg(colors.editor_background)
+            .into_any_element(),
+        TextInputAppearance::Palette => base
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(colors.border)
+            .into_any_element(),
+        TextInputAppearance::Inline => base.into_any_element(),
+    }
 }

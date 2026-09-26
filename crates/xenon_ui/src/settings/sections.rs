@@ -6,6 +6,7 @@ use gpui::{
 };
 use theme::ActiveTheme;
 use xenon_design_system::TextInputView;
+use xenon_design_system::{TypeRole, Typography};
 
 use super::SettingsView;
 use crate::dropdown::{DropdownId, DropdownProps, SizeTarget, dropdown_row, size_row};
@@ -44,7 +45,12 @@ fn mode_segments(
         .gap_1()
         .px_3()
         .py_2()
-        .child(div().text_sm().text_color(colors.text_muted).child("Mode"))
+        .child(
+            div()
+                .type_role(TypeRole::Body, cx)
+                .text_color(colors.text_muted)
+                .child("Mode"),
+        )
         .child(
             div()
                 .flex()
@@ -61,38 +67,23 @@ fn mode_seg(
     selected: xenon_settings::ThemeMode,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
     let on = mode == selected;
-    div()
-        .id(label)
-        .flex_1()
-        .px_2()
-        .py_1()
-        .rounded_sm()
-        .flex()
-        .items_center()
-        .justify_center()
-        .bg(if on {
-            colors.element_selected
+    xenon_design_system::action_button(
+        label,
+        if on {
+            xenon_design_system::ActionButton::primary(label)
         } else {
-            gpui::transparent_black()
-        })
-        .text_sm()
-        .font_weight(if on {
-            gpui::FontWeight::MEDIUM
-        } else {
-            gpui::FontWeight::NORMAL
-        })
-        .text_color(if on { colors.text } else { colors.text_muted })
-        .cursor_pointer()
-        .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
-        .on_click(cx.listener(move |_, _, window, cx| {
+            xenon_design_system::ActionButton::quiet(label)
+        },
+        cx,
+        cx.listener(move |_, _, window, cx| {
             cx.stop_propagation();
             apply_mode(mode, cx);
             window.refresh();
             cx.notify();
-        }))
-        .child(label)
+        }),
+    )
+    .flex_1()
 }
 
 fn current_theme_row(
@@ -114,14 +105,24 @@ fn current_theme_row(
             cx.stop_propagation();
             open_theme_gallery(window, cx);
         }))
-        .child(div().text_sm().text_color(colors.text_muted).child("Theme"))
+        .child(
+            div()
+                .type_role(TypeRole::Body, cx)
+                .text_color(colors.text_muted)
+                .child("Theme"),
+        )
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap_2()
-                .child(div().text_sm().child(name))
-                .child(div().text_xs().text_color(colors.text_muted).child("⌘⌥T")),
+                .child(div().type_role(TypeRole::Body, cx).child(name))
+                .child(
+                    div()
+                        .type_role(TypeRole::ControlLabel, cx)
+                        .text_color(colors.text_muted)
+                        .child("⌘⌥T"),
+                ),
         )
 }
 
@@ -313,7 +314,7 @@ pub(super) fn group_card(
         .pb_1()
         .child(
             div()
-                .text_sm()
+                .type_role(TypeRole::Body, cx)
                 .text_color(colors.text_muted)
                 .mb_1()
                 .child(title),
@@ -349,11 +350,8 @@ fn settings_toggle(
     on_toggle: impl Fn(&mut App) + 'static,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
-    let background = if row.checked {
-        colors.element_selected
-    } else {
-        colors.elevated_surface_background
-    };
+    let on_toggle = std::rc::Rc::new(on_toggle);
+    let on_toggle_checkbox = on_toggle.clone();
     let row_bg = if row.focused {
         colors.element_hover
     } else {
@@ -380,28 +378,29 @@ fn settings_toggle(
                 .flex()
                 .flex_col()
                 .gap_1()
-                .child(div().text_sm().child(row.title))
+                .child(div().type_role(TypeRole::Body, cx).child(row.title))
                 .child(
                     div()
-                        .text_xs()
+                        .type_role(TypeRole::ControlLabel, cx)
                         .text_color(colors.text_muted)
                         .child(row.subtitle),
                 ),
         )
-        .child(
-            div()
-                .w(px(18.))
-                .h(px(18.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded_sm()
-                .border_1()
-                .border_color(colors.border)
-                .bg(background)
-                .text_xs()
-                .children(row.checked.then_some("x")),
-        )
+        .child(xenon_design_system::checkbox(
+            format!("{}-checkbox", row.id),
+            xenon_design_system::CheckboxState {
+                checked: row.checked,
+                disabled: false,
+            },
+            row.title,
+            cx,
+            cx.listener(move |_, _, window, cx| {
+                cx.stop_propagation();
+                on_toggle_checkbox(cx);
+                window.refresh();
+                cx.notify();
+            }),
+        ))
 }
 
 fn parse_auto_close(label: &str) -> xenon_settings::TerminalAutoClose {
