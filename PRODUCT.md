@@ -144,7 +144,7 @@ Xenon inverts that:
 - **IDE is optional garnish** for harnesses that speak Claude’s IDE bridge
   (`~/.claude/ide/*.lock` WebSocket MCP): open file, workspace roots, etc.
 - Other harnesses still work without that bridge; Claude gets the bridge when
-  useful. Skills / CLAUDE.md / resume paths stay the harness’s own.
+  useful. Skills / AGENTS.md / resume paths stay the harness’s own.
 
 Market this: **anti-IDE shell where the agent is free to leave.**
 
@@ -222,7 +222,7 @@ product surface: trust defaults, screenshot identity, and personality.
 8. **Keyboard-first (mouseless).** Every complete flow is operable without a
    mouse. Design actions + keybindings + focus + Escape first; mouse is additive.
    Prefer in-app palettes for frequent power-user work; native pickers are Browse…
-   escape hatches, not the only path. Agent rule: `CLAUDE.md` § Keyboard-first.
+   escape hatches, not the only path. Agent rule: `AGENTS.md` § Keyboard-first.
 
 ## Accessibility
 

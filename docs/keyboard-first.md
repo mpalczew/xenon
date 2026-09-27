@@ -1,7 +1,7 @@
 # Keyboard-first behavior
 
 Mouse input is additive. Every daily flow needs a complete keyboard path.
-`CLAUDE.md` contains the implementation rule; this document records the current
+`AGENTS.md` contains the implementation rule; this document records the current
 surface and the non-obvious focus model.
 
 ## Daily keys
