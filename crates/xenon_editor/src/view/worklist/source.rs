@@ -14,7 +14,8 @@ pub(super) struct Entry {
 }
 
 pub(in crate::view) struct ItemEdit {
-    pub(super) entry: Entry,
+    /// None until the first valid title is written.
+    pub(super) entry: Option<Entry>,
     pub form: super::ItemForm,
 }
 

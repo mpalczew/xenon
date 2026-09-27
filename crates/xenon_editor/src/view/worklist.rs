@@ -134,42 +134,6 @@ impl EditorView {
                     )),
             )
             .child(body)
-            .child(self.render_worklist_footer(&colors, cx))
-    }
-
-    fn render_worklist_footer(
-        &mut self,
-        colors: &theme::ThemeColors,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        div()
-            .px_4()
-            .py_2()
-            .border_t_1()
-            .border_color(colors.border)
-            .type_role(TypeRole::ControlLabel, cx)
-            .text_color(colors.text_muted)
-            .flex()
-            .justify_between()
-            .child(if self.worklist_needs_creation() {
-                "Empty worklist · ready to save · ↑↓ select · Space complete · Enter edit"
-            } else {
-                "Saved to .xenon/worklist.md · ↑↓ select · Space complete · Enter edit"
-            })
-            .children(self.worklist_needs_creation().then(|| {
-                action_button(
-                    "worklist-save-empty",
-                    ActionButton::quiet("Save worklist"),
-                    cx,
-                    cx.listener(|this, _, _, cx| this.save(cx)),
-                )
-            }))
-            .child(action_button(
-                "worklist-undo",
-                ActionButton::quiet("Undo"),
-                cx,
-                cx.listener(|this, _, _, cx| this.worklist_undo(false, cx)),
-            ))
     }
 
     fn render_worklist_body(
@@ -180,6 +144,14 @@ impl EditorView {
         let source = self.text();
         let rows = entries(&source);
         let selected = self.worklist_selection.min(rows.len().saturating_sub(1));
+        let pending = self
+            .worklist_edit
+            .as_ref()
+            .is_some_and(|edit| edit.entry.is_none());
+        let editing = self
+            .worklist_edit
+            .as_ref()
+            .is_some_and(|edit| edit.entry.is_some());
         div()
             .id("worklist-scroll")
             .flex_1()
@@ -193,13 +165,9 @@ impl EditorView {
                 cx,
                 cx.listener(|this, _, _, cx| this.worklist_start_capture(cx)),
             )))
-            .children(
-                self.worklist_capture
-                    .is_some()
-                    .then(|| self.render_worklist_capture(cx)),
-            )
+            .children(pending.then(|| self.render_worklist_edit(colors, cx).into_any_element()))
             .children(rows.iter().enumerate().map(|(index, entry)| {
-                if self.worklist_edit.is_some() && index == selected {
+                if editing && index == selected {
                     self.render_worklist_edit(colors, cx).into_any_element()
                 } else {
                     self.render_worklist_row(
@@ -227,15 +195,10 @@ impl EditorView {
 
     pub(super) fn on_worklist_key(&mut self, event: &KeyDownEvent, cx: &mut Context<Self>) -> bool {
         let key = event.keystroke.key.as_str();
-        let extend = event.keystroke.modifiers.shift;
         if self.worklist_input_open() {
             return false;
         }
         let count = entries(&self.text()).len();
-        if event.keystroke.modifiers.platform && key == "z" {
-            self.worklist_undo(extend, cx);
-            return true;
-        }
         match key {
             "up" => self.worklist_selection = self.worklist_selection.saturating_sub(1),
             "down" => {

@@ -24,13 +24,27 @@ impl EditorView {
             .gap_3()
             .child(edit.form.render_fields())
             .child(
-                action_button(
-                    "worklist-delete",
-                    ActionButton::destructive("Delete"),
-                    cx,
-                    cx.listener(|this, _, _, cx| this.worklist_delete(cx)),
-                )
-                .self_start(),
+                div()
+                    .flex()
+                    .gap_2()
+                    .child(
+                        action_button(
+                            "worklist-close",
+                            ActionButton::secondary("Close"),
+                            cx,
+                            cx.listener(|this, _, _, cx| this.worklist_close_edit(cx)),
+                        )
+                        .self_start(),
+                    )
+                    .child(
+                        action_button(
+                            "worklist-delete",
+                            ActionButton::destructive("Delete"),
+                            cx,
+                            cx.listener(|this, _, _, cx| this.worklist_delete(cx)),
+                        )
+                        .self_start(),
+                    ),
             )
     }
 }

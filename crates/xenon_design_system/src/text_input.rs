@@ -13,6 +13,7 @@ use crate::{CursorBlink, FocusOnOpen, MultilineText};
 
 mod config;
 mod geometry;
+mod history;
 mod input;
 pub use config::{TextInputAppearance, TextInputConfig, TextInputKeyBehavior};
 
@@ -35,6 +36,7 @@ pub struct TextInputView {
     focus_on_open: FocusOnOpen,
     geometry: Option<geometry::TextGeometry>,
     blink: CursorBlink,
+    history: history::History,
 }
 
 impl EventEmitter<TextInputEvent> for TextInputView {}
@@ -49,6 +51,7 @@ impl TextInputView {
             focus,
             geometry: None,
             blink: CursorBlink::default(),
+            history: history::History::default(),
         }
     }
 
@@ -62,6 +65,7 @@ impl TextInputView {
             return;
         }
         self.value = MultilineText::new(text);
+        self.history.clear();
         cx.notify();
     }
 
@@ -84,7 +88,11 @@ impl TextInputView {
     }
 
     pub(crate) fn split_off_suffix(&mut self, cx: &mut Context<Self>) -> String {
+        let before = self.value.points();
         let suffix = self.value.split_off_suffix();
+        if before.0 != self.value.text() {
+            self.history.record(before);
+        }
         self.changed(cx);
         suffix
     }
@@ -136,6 +144,20 @@ impl TextInputView {
         self.blink.reset(cx, Self::blink_tick);
         let key = event.keystroke.key.as_str();
         let modifiers = event.keystroke.modifiers;
+        if modifiers.platform && !modifiers.control && key == "z" {
+            let restored = if modifiers.shift {
+                self.history.redo(&mut self.value)
+            } else {
+                self.history.undo(&mut self.value)
+            };
+            if restored {
+                self.changed(cx);
+            } else {
+                cx.notify();
+            }
+            cx.stop_propagation();
+            return;
+        }
         if key == "enter" && self.value.marked_utf16().is_some() {
             self.value.unmark();
             cx.notify();
@@ -167,6 +189,7 @@ impl TextInputView {
             cx.stop_propagation();
             return;
         }
+        let before = self.value.points();
         let changed = match key {
             "escape" => {
                 cx.emit(TextInputEvent::Cancel);
@@ -204,6 +227,9 @@ impl TextInputView {
             },
         };
         if changed {
+            if before.0 != self.value.text() {
+                self.history.record(before);
+            }
             self.changed(cx);
         } else {
             cx.notify();
@@ -268,7 +294,9 @@ impl TextInputView {
         let selected = self.value.selected_text().to_owned();
         if !selected.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(selected));
+            let before = self.value.points();
             self.value.replace(None, "", false);
+            self.history.record(before);
             self.changed(cx);
             self.blink.reset(cx, Self::blink_tick);
         }
@@ -281,7 +309,11 @@ impl TextInputView {
             } else {
                 text.replace(['\n', '\r'], " ")
             };
+            let before = self.value.points();
             self.value.replace(None, &text, false);
+            if before.0 != self.value.text() {
+                self.history.record(before);
+            }
             self.changed(cx);
             self.blink.reset(cx, Self::blink_tick);
         }

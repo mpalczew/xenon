@@ -1,5 +1,4 @@
 use super::{Content, EditorView, ItemEdit, entries, source::replacement};
-use crate::EditorEvent;
 use gpui::Context;
 use std::ops::Range;
 
@@ -78,7 +77,10 @@ impl EditorView {
         }
         self.worklist_selection = index;
         let form = self.worklist_new_form(&entry.title, &entry.details, entry.checked, cx);
-        self.worklist_edit = Some(ItemEdit { form, entry });
+        self.worklist_edit = Some(ItemEdit {
+            form,
+            entry: Some(entry),
+        });
         cx.notify();
     }
 
@@ -89,16 +91,34 @@ impl EditorView {
         let Ok(item) = edit.form.item(cx) else {
             return;
         };
+        if edit.entry.is_none() {
+            let source = self.text();
+            let Ok(updated) = crate::worklist_file::append_item(&source, &item) else {
+                return;
+            };
+            if self.worklist_mutate(0..source.len(), &updated, cx) {
+                let rows = entries(&self.text());
+                let index = rows.len().saturating_sub(1);
+                self.worklist_selection = index;
+                if let Some(edit) = &mut self.worklist_edit {
+                    edit.entry = rows.get(index).cloned();
+                }
+            }
+            return;
+        }
         let newline = if self.text().contains("\r\n") {
             "\r\n"
         } else {
             "\n"
         };
+        let Some(entry) = edit.entry.clone() else {
+            return;
+        };
         let source = self.text();
-        let range = edit.entry.range.clone();
+        let range = entry.range.clone();
         let old = &source[range.clone()];
         let suffix = &old[old.trim_end_matches(['\r', '\n']).len()..];
-        let changed = format!("{}{}", replacement(&edit.entry, &item, newline), suffix);
+        let changed = format!("{}{}", replacement(&entry, &item, newline), suffix);
         if changed == old {
             return;
         }
@@ -107,7 +127,7 @@ impl EditorView {
             && let Some(entry) = entries(&self.text()).get(index).cloned()
             && let Some(edit) = &mut self.worklist_edit
         {
-            edit.entry = entry;
+            edit.entry = Some(entry);
         }
     }
 
@@ -122,43 +142,14 @@ impl EditorView {
         let Some(edit) = self.worklist_edit.take() else {
             return;
         };
-        if !self.worklist_mutate(edit.entry.range.clone(), "", cx) {
+        let Some(entry) = edit.entry.clone() else {
+            self.worklist_input_sub.clear();
+            return;
+        };
+        if !self.worklist_mutate(entry.range.clone(), "", cx) {
             self.worklist_edit = Some(edit);
         } else {
             self.worklist_input_sub.clear();
         }
-    }
-
-    pub(super) fn worklist_undo(&mut self, redo: bool, cx: &mut Context<Self>) {
-        let Content::Text(buffer) = &mut self.content else {
-            return;
-        };
-        let changed = if redo { buffer.redo() } else { buffer.undo() };
-        if !changed {
-            if !redo {
-                cx.emit(EditorEvent::RequestWorklistUndo);
-            }
-            return;
-        }
-        let root = buffer
-            .path()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .to_path_buf();
-        if let Err(error) = buffer.save_worklist(&root) {
-            if redo {
-                buffer.undo();
-            } else {
-                buffer.redo();
-            }
-            self.worklist_error = Some(format!("Undo was not saved: {error}"));
-        } else {
-            self.worklist_error = None;
-            self.recompute_highlights();
-            self.emit_buffer_changed(cx);
-        }
-        cx.notify();
     }
 }

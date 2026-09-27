@@ -15,7 +15,11 @@ impl EntityInputHandler for TextInputView {
         } else {
             text.replace(['\n', '\r'], " ")
         };
+        let before = self.value.points();
         self.value.replace(range, &text, false);
+        if before.0 != self.value.text() {
+            self.history.record(before);
+        }
         self.changed(cx);
         self.blink.reset(cx, Self::blink_tick);
     }
@@ -32,7 +36,11 @@ impl EntityInputHandler for TextInputView {
         } else {
             text.replace(['\n', '\r'], " ")
         };
+        let before = self.value.points();
         self.value.replace(range, &text, true);
+        if before.0 != self.value.text() {
+            self.history.record(before);
+        }
         if let Some(selected_range) = selected_range {
             self.value.select_marked_range(selected_range);
         }

@@ -54,6 +54,18 @@ impl MultilineText {
         suffix
     }
 
+    pub(crate) fn points(&self) -> (String, usize, usize) {
+        (self.text.clone(), self.caret, self.anchor)
+    }
+
+    pub(crate) fn restore(&mut self, text: String, caret: usize, anchor: usize) {
+        let len = text.chars().count();
+        self.text = text;
+        self.caret = caret.min(len);
+        self.anchor = anchor.min(len);
+        self.marked = None;
+    }
+
     pub(crate) fn set_caret(&mut self, index: usize) {
         let index = index.min(self.text.chars().count());
         self.caret = index;
