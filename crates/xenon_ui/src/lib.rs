@@ -19,6 +19,7 @@ mod tabs;
 mod task_picker;
 mod theme_picker;
 mod toolbar;
+mod toolbar_tooltip;
 mod worklist_capture;
 mod workspace_create;
 mod workspace_discover;
@@ -72,6 +73,7 @@ actions!(
         ToggleThemes,
         ToggleMobileRemote,
         TogglePreview,
+        ToggleSoftWrap,
         ToggleMemory,
         // Keyboard-first navigation
         FocusTerminal,
@@ -186,6 +188,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-,", ToggleSettings, None),
         KeyBinding::new("cmd-alt-t", ToggleThemes, None),
         KeyBinding::new("cmd-shift-v", TogglePreview, None),
+        KeyBinding::new("alt-z", ToggleSoftWrap, None),
         KeyBinding::new("cmd-alt-m", ToggleMemory, None),
         KeyBinding::new("cmd-=", IncreaseFontSize, None),
         KeyBinding::new("cmd-+", IncreaseFontSize, None),

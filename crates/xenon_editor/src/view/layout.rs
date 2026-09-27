@@ -59,12 +59,18 @@ fn layout(
     let face = xenon_settings::editor_font(cx);
     let size = px(face.size);
     let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
+    let soft_wrap = text_wraps(view, cx);
     let lines = match &view.read(cx).content {
         Content::Text(buffer) => buffer.rope().len_lines(),
         Content::Image(_) | Content::Unsupported { .. } => 0,
     };
     let content_height = line_height * (lines as f32);
-    let max_scroll = (content_height - bounds.size.height).max(px(0.));
+    // Wrapped height is known only after layout. Don't clamp to buffer lines first.
+    let max_scroll = if soft_wrap {
+        px(f32::MAX / 4.)
+    } else {
+        (content_height - bounds.size.height).max(px(0.))
+    };
     let (follow_cursor, center_cursor) = scroll_intent(view, max_scroll, cx);
 
     let show_line_numbers = xenon_settings::show_line_numbers(cx);
@@ -126,6 +132,7 @@ fn layout(
                 show_line_numbers,
                 follow_cursor,
                 center_cursor,
+                soft_wrap,
             },
             element::TextMetrics {
                 font: &element::editor_font(&face.family),
@@ -143,6 +150,7 @@ fn layout(
             line_height: editor_layout.line_height,
             scroll_top: editor_layout.scroll_top,
             cell_width: editor_layout.cell_width,
+            wrap_rows: editor_layout.wrap_rows.clone(),
         });
     });
     editor_layout
@@ -172,6 +180,14 @@ fn scroll_intent(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) ->
         };
         (follow, false)
     })
+}
+
+fn text_wraps(view: &Entity<EditorView>, cx: &App) -> bool {
+    let view = view.read(cx);
+    match &view.content {
+        Content::Text(_) => xenon_settings::editor_wraps(view.path(), cx),
+        Content::Image(_) | Content::Unsupported { .. } => false,
+    }
 }
 
 fn diagnostic_ranges(view: &EditorView, theme: &theme::Theme) -> Vec<DiagnosticRange> {

@@ -13,8 +13,8 @@ use xenon_ui::{
     DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack,
     GoForward, IncreaseFontSize, KeyboardHelp, NewTerminal, NewWorkspace, NextTab, NextWorkspace,
     OpenFile, Paste, PrevTab, PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll,
-    ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleTerminal, ToggleThemes,
-    XenonApp,
+    ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleSoftWrap, ToggleTerminal,
+    ToggleThemes, XenonApp,
 };
 
 actions!(xenon, [Quit]);
@@ -206,6 +206,7 @@ fn wire_menus(cx: &mut App) {
         Menu::new("View").items([
             MenuItem::action("Toggle Sidebar", ToggleSidebar),
             MenuItem::action("Toggle File Browser", ToggleBrowser),
+            MenuItem::action("Wrap Lines", ToggleSoftWrap),
             MenuItem::action("Toggle Terminal", ToggleTerminal),
             MenuItem::action("Toggle Editor", ToggleEditor),
             MenuItem::separator(),

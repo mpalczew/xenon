@@ -2,7 +2,7 @@
 
 use gpui::{ContentMask, Hsla, Pixels, TextAlign, Window, fill, point, px};
 
-use super::{EditorLayout, GUTTER_PAD_LEFT};
+use super::{EditorLayout, GUTTER_PAD_LEFT, GUTTER_PAD_RIGHT};
 
 /// Paint search highlights, selection, cursor, then the visible shaped lines.
 pub fn paint(
@@ -51,8 +51,17 @@ pub fn paint(
             }
             for (row, line) in &layout.line_numbers {
                 let y = layout.origin.y + layout.line_height * (*row as f32) - layout.scroll_top;
+                let x = if layout.continuation_rows.contains(row) {
+                    let right = layout
+                        .gutter
+                        .map(|gutter| gutter.right())
+                        .unwrap_or(layout.origin.x);
+                    right - px(GUTTER_PAD_RIGHT) - line.width()
+                } else {
+                    layout.origin.x + px(GUTTER_PAD_LEFT)
+                };
                 let _ = line.paint(
-                    point(layout.origin.x + px(GUTTER_PAD_LEFT), y),
+                    point(x, y),
                     layout.line_height,
                     TextAlign::Left,
                     None,

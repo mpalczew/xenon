@@ -38,11 +38,15 @@ pub(super) fn layout_decorations(
                 diagnostic.color,
             ));
         }
+        let visual = hits
+            .wrap_rows
+            .and_then(|rows| rows.iter().position(|wrap| wrap.line == row))
+            .unwrap_or(row);
         if let Some(gutter) = gutter
-            && row >= hits.first_row
-            && row < hits.last_row
+            && visual >= hits.first_row
+            && visual < hits.last_row
         {
-            let y = hits.origin_y + hits.line_height * (row as f32) - hits.scroll_top;
+            let y = hits.origin_y + hits.line_height * (visual as f32) - hits.scroll_top;
             marks.push((
                 Bounds::new(
                     point(gutter.origin.x + px(2.), y + px(2.)),

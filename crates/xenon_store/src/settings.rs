@@ -84,6 +84,12 @@ pub struct AppSettings {
     pub ui_font_family: String,
     #[serde(default = "default_true")]
     pub show_line_numbers: bool,
+    /// Soft wrap for markdown and other prose. The file is not rewritten.
+    #[serde(default = "default_true")]
+    pub wrap_prose: bool,
+    /// Soft wrap for every other text file.
+    #[serde(default)]
+    pub wrap_code: bool,
     #[serde(default)]
     pub vim_mode: bool,
     /// System / Light / Dark: which appearance to apply (like Zed "Mode").
@@ -137,6 +143,8 @@ impl Default for AppSettings {
             terminal_font_family: default_font_family(),
             ui_font_family: default_ui_font_family(),
             show_line_numbers: true,
+            wrap_prose: true,
+            wrap_code: false,
             vim_mode: false,
             theme: ThemeMode::System,
             light_theme: default_light_theme(),

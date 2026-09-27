@@ -34,6 +34,10 @@ pub fn build() -> Result<Fixture> {
         demo_root.join("NOTES.md"),
         "# Notes\n\n- terminal first\n- `cmd-p` opens files\n\n```rust\nfn ok() {}\n```\n",
     )?;
+    fs::write(
+        demo_root.join("WRAP.md"),
+        "# Wrap\n\nThe preview already wraps prose. Source does not. A wrap toggle folds this paragraph to the pane and leaves the file as a single line.\n\nNext paragraph stays short.\n",
+    )?;
     for (name, body) in [
         ("src/settings.rs", "pub struct Settings;\n"),
         ("src/boot.rs", "pub fn boot() {}\n"),

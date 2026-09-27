@@ -5,6 +5,7 @@
 mod faces;
 mod fonts;
 mod mono_font;
+mod wrap;
 
 use gpui::{App, Global, actions};
 use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
@@ -66,6 +67,7 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
     );
     faces::set_faces(editor, terminal, ui, cx);
     set_show_line_numbers(cx, settings.show_line_numbers);
+    wrap::apply(settings, cx);
     set_vim_mode(cx, settings.vim_mode);
     set_terminal_auto_close(cx, settings.terminal_auto_close);
     cx.set_global(ThemePreference {
@@ -96,6 +98,7 @@ pub fn snapshot(cx: &App) -> AppSettings {
     settings.ui_font_size = ui.size;
     settings.ui_font_family = ui.family;
     settings.show_line_numbers = show_line_numbers(cx);
+    wrap::write(&mut settings, cx);
     settings.vim_mode = vim_mode(cx);
     settings.theme = theme.mode;
     settings.light_theme = theme.light;
@@ -129,6 +132,8 @@ pub fn save(cx: &App) {
         settings.ui_font_size = snapshot.ui_font_size;
         settings.ui_font_family.clone_from(&snapshot.ui_font_family);
         settings.show_line_numbers = snapshot.show_line_numbers;
+        settings.wrap_prose = snapshot.wrap_prose;
+        settings.wrap_code = snapshot.wrap_code;
         settings.vim_mode = snapshot.vim_mode;
         settings.theme = snapshot.theme;
         settings.light_theme.clone_from(&snapshot.light_theme);
@@ -152,6 +157,8 @@ fn set_show_line_numbers(cx: &mut App, show: bool) {
 pub fn toggle_line_numbers(cx: &mut App) {
     set_show_line_numbers(cx, !show_line_numbers(cx));
 }
+
+pub use wrap::{editor_wraps, toggle_editor_wrap};
 
 pub fn vim_mode(cx: &App) -> bool {
     cx.try_global::<VimMode>()

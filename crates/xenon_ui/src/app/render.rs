@@ -234,6 +234,9 @@ impl XenonApp {
             .on_action(cx.listener(|this, _: &crate::TogglePreview, _, cx| {
                 this.toggle_preview(cx);
             }))
+            .on_action(cx.listener(|this, _: &crate::ToggleSoftWrap, _, cx| {
+                this.toggle_soft_wrap(cx);
+            }))
             .on_action(cx.listener(|this, _: &CloseEditor, window, cx| {
                 this.close_focused_tab(window, cx);
             }))

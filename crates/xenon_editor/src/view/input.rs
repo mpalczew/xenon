@@ -293,7 +293,7 @@ impl EditorView {
             cx.notify();
             return;
         };
-        let Some(layout) = self.click_layout else {
+        let Some(layout) = self.click_layout.clone() else {
             self.claim_keyboard(window, cx);
             cx.notify();
             return;
@@ -358,7 +358,7 @@ impl EditorView {
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
-        let Some(layout) = self.click_layout else {
+        let Some(layout) = self.click_layout.clone() else {
             return;
         };
         let (row, col) = mouse::position_at(layout, event.position);

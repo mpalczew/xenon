@@ -37,6 +37,12 @@ pub(super) fn editor_highlight(
     cx.notify();
 }
 
+pub(super) fn editor_wrap(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
+    populate(app, window, cx);
+    open_rel(app, "WRAP.md", window, cx);
+    cx.notify();
+}
+
 pub(super) fn markdown_preview(
     app: &mut XenonApp,
     window: &mut Window,

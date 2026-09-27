@@ -111,6 +111,8 @@ fn settings_round_trip() {
             terminal_font_family: "Menlo".into(),
             ui_font_family: ".SystemUIFont".into(),
             show_line_numbers: false,
+            wrap_prose: false,
+            wrap_code: true,
             vim_mode: true,
             theme: crate::ThemeMode::Dark,
             light_theme: "Ayu Light".into(),

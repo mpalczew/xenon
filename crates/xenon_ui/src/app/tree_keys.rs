@@ -187,6 +187,7 @@ impl XenonApp {
             CommandId::ToggleThemes => self.open_theme_picker(window, cx),
             CommandId::ToggleMobileRemote => self.toggle_mobile_remote(window, cx),
             CommandId::TogglePreview => self.toggle_preview(cx),
+            CommandId::ToggleSoftWrap => self.toggle_soft_wrap(cx),
             CommandId::ToggleMemory => self.toggle_memory(cx),
             CommandId::CommandPalette => self.open_command_palette(window, cx),
             CommandId::KeyboardHelp => self.open_keyboard_help(window, cx),
@@ -194,6 +195,28 @@ impl XenonApp {
             CommandId::ZoomOut => self.nudge_font_size(-1.0, window, cx),
             CommandId::ZoomReset => self.reset_font_size(window, cx),
         }
+    }
+
+    pub(crate) fn soft_wrap_button_on(&self, cx: &gpui::App) -> bool {
+        let Some(view) = self
+            .active_content()
+            .and_then(|content| content.active_tab())
+            .and_then(|tab| tab.as_editor())
+        else {
+            return false;
+        };
+        xenon_settings::editor_wraps(view.read(cx).path(), cx)
+    }
+
+    pub(crate) fn toggle_soft_wrap(&mut self, cx: &mut Context<Self>) {
+        let path = self
+            .active_content()
+            .and_then(|content| content.active_tab())
+            .and_then(|tab| tab.as_editor())
+            .map(|view| view.read(cx).path().to_path_buf());
+        xenon_settings::toggle_editor_wrap(path.as_deref(), cx);
+        xenon_settings::save(cx);
+        cx.notify();
     }
 
     pub(crate) fn new_folder_here(&mut self, cx: &mut Context<Self>) {

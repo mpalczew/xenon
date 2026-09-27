@@ -6,23 +6,28 @@ use gpui::{MouseButton, MouseDownEvent, Pixels, Point};
 
 const MULTI_CLICK: Duration = Duration::from_millis(500);
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ClickLayout {
     pub text_origin: Point<Pixels>,
     pub line_height: Pixels,
     pub scroll_top: Pixels,
     pub cell_width: Pixels,
+    /// Visual rows when soft wrap is on. Empty means one buffer line per row.
+    pub wrap_rows: Option<std::sync::Arc<Vec<crate::element::WrapRow>>>,
 }
 
 /// Map a window position to a zero-based (row, col) in the buffer.
 pub fn position_at(layout: ClickLayout, position: Point<Pixels>) -> (usize, usize) {
-    let row = ((position.y - layout.text_origin.y + layout.scroll_top) / layout.line_height)
+    let visual = ((position.y - layout.text_origin.y + layout.scroll_top) / layout.line_height)
         .floor()
         .max(0.) as usize;
-    let col = ((position.x - layout.text_origin.x) / layout.cell_width + 0.5)
+    let local = ((position.x - layout.text_origin.x) / layout.cell_width + 0.5)
         .floor()
         .max(0.) as usize;
-    (row, col)
+    if let Some(rows) = layout.wrap_rows.as_deref() {
+        return crate::element::buffer_at(rows, visual, local);
+    }
+    (visual, local)
 }
 
 #[derive(Default)]

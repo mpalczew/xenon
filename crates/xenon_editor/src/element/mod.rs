@@ -1,23 +1,23 @@
-//! Editor rendering: shape each line of the buffer with syntax colors and place
-//! the cursor. Highlight spans arrive pre-resolved to colors (and optional font
-//! weight/style) over the whole rope; gaps fall back to the default text color.
+//! Editor canvas: shaped lines, cursor, and soft wrap.
 
 use gpui::{
     Bounds, Font, FontFeatures, FontStyle, FontWeight, Hsla, Pixels, Point as GpuiPoint,
-    ShapedLine, SharedString, Size, TextRun, Window, point, px, size,
+    ShapedLine, SharedString, Size, TextRun, Window, point, px,
 };
 use ropey::Rope;
 
 mod decorations;
 mod layout_scroll;
 mod paint;
+mod wrap;
 use decorations::layout_decorations;
 pub use decorations::{DiagnosticRange, PaintRect};
-use layout_scroll::{LayoutSizes, scroll_offsets};
+
 pub use paint::{line_height, paint};
+pub use wrap::{WrapRow, buffer_at};
 
 pub(super) const GUTTER_PAD_LEFT: f32 = 8.;
-const GUTTER_PAD_RIGHT: f32 = 8.;
+pub(super) const GUTTER_PAD_RIGHT: f32 = 8.;
 
 /// A styled byte range `[start, end)` over the whole buffer.
 pub struct ColoredSpan {
@@ -56,6 +56,8 @@ pub struct EditorLayout {
     pub gutter_color: Hsla,
     pub scrollbars: Vec<Bounds<Pixels>>,
     pub scrollbar_color: Hsla,
+    pub wrap_rows: Option<std::sync::Arc<Vec<WrapRow>>>,
+    pub continuation_rows: Vec<usize>,
 }
 
 pub struct LayoutInput<'a> {
@@ -87,6 +89,7 @@ pub struct LayoutInput<'a> {
     pub follow_cursor: bool,
     /// When true, center the cursor line (`zz`); wins over `follow_cursor`.
     pub center_cursor: bool,
+    pub soft_wrap: bool,
 }
 
 pub struct TextMetrics<'a> {
@@ -111,107 +114,15 @@ fn cell_width(window: &Window, font: &Font, font_size: Pixels) -> Pixels {
         .unwrap_or(font_size * 0.6)
 }
 
-/// Shape every line with its highlight colors and compute the cursor rectangle.
 pub fn layout(
     input: LayoutInput<'_>,
     metrics: TextMetrics<'_>,
     window: &mut Window,
 ) -> EditorLayout {
-    let cell_w = cell_width(window, metrics.font, metrics.font_size);
-    let gutter_width = gutter_width(input.rope.len_lines(), cell_w, input.show_line_numbers);
-    let text_width = (input.viewport_width - gutter_width).max(px(0.));
-    let content_width = content_width(input.rope, cell_w);
-    let content_height = metrics.line_height * (input.rope.len_lines() as f32);
-    let (row, col) = input.cursor;
-    let sizes = LayoutSizes {
-        cell: cell_w,
-        text_width,
-        content_width,
-        content_height,
-    };
-    let (scroll_top, scroll_left) = scroll_offsets(&input, &metrics, &sizes);
-    let text_origin = point(input.origin.x + gutter_width - scroll_left, input.origin.y);
-    let gutter = input
-        .show_line_numbers
-        .then(|| Bounds::new(input.origin, size(gutter_width, input.viewport_height)));
-    let scrollbars = crate::scroll::scrollbars(crate::scroll::ScrollbarInput {
-        origin: input.origin,
-        viewport_width: input.viewport_width,
-        viewport_height: input.viewport_height,
-        gutter_width,
-        text_width,
-        content_width,
-        content_height,
-        scroll_top,
-        scroll_left,
-    });
-    let total = input.rope.len_lines();
-    let first = (f32::from(scroll_top) / f32::from(metrics.line_height))
-        .floor()
-        .max(0.) as usize;
-    let visible =
-        (f32::from(input.viewport_height) / f32::from(metrics.line_height)).ceil() as usize + 1;
-    let last = (first + visible).min(total);
-    let (lines, line_numbers) =
-        shape_visible_lines(&input, &metrics, VisibleRows { first, last, total }, window);
-
-    let cursor_origin = point(
-        text_origin.x + cell_w * (col as f32),
-        input.origin.y + metrics.line_height * (row as f32) - scroll_top,
-    );
-    let cursor = Bounds::new(
-        cursor_origin,
-        Size {
-            width: cell_w,
-            height: metrics.line_height,
-        },
-    );
-    let hits = HitLayout {
-        rope: input.rope,
-        text_origin,
-        origin_y: input.origin.y,
-        cell_w,
-        line_height: metrics.line_height,
-        scroll_top,
-        first_row: first,
-        last_row: last,
-    };
-    let mut selection = Vec::new();
-    for range in input.selection_ranges {
-        selection.extend(hits.rects(Some(range)));
-    }
-    let search_current = hits.rects(input.search_current.as_ref());
-    let search_matches =
-        hits.other_search_rects(input.search_matches, input.search_current.as_ref());
-    let decorations = layout_decorations(&hits, &input, gutter.as_ref());
-    EditorLayout {
-        lines,
-        line_numbers,
-        viewport: Bounds::new(
-            input.origin,
-            size(input.viewport_width, input.viewport_height),
-        ),
-        origin: input.origin,
-        text_origin,
-        line_height: metrics.line_height,
-        scroll_top,
-        scroll_left,
-        cursor,
-        selection,
-        selection_color: input.selection_color,
-        search_matches,
-        search_match_color: input.search_match_color,
-        search_current,
-        search_current_color: input.search_current_color,
-        occurrences: decorations.occurrences,
-        occurrence_color: input.occurrence_color,
-        diagnostic_underlines: decorations.underlines,
-        diagnostic_marks: decorations.marks,
-        cell_width: cell_w,
-        gutter,
-        gutter_color: input.gutter_color,
-        scrollbars,
-        scrollbar_color: input.scrollbar_color,
+    if input.soft_wrap {
+        wrap::layout(input, metrics, window)
+    } else {
+        layout_scroll::layout_plain(input, metrics, window)
     }
 }
 
@@ -276,6 +187,7 @@ struct HitLayout<'a> {
     scroll_top: Pixels,
     first_row: usize,
     last_row: usize,
+    wrap_rows: Option<&'a [WrapRow]>,
 }
 
 impl HitLayout<'_> {
@@ -299,11 +211,13 @@ impl HitLayout<'_> {
     }
 }
 
-/// One highlight rect per display row covered by the selection.
 fn selection_rects(
     input: &HitLayout<'_>,
     selection: Option<&std::ops::Range<usize>>,
 ) -> Vec<Bounds<Pixels>> {
+    if let Some(rows) = input.wrap_rows {
+        return wrap::paint_ranges(input, rows, selection);
+    }
     let Some(range) = selection else {
         return Vec::new();
     };

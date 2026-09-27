@@ -4,10 +4,11 @@ use crate::app::XenonApp;
 use crate::chrome::list_selection;
 use crate::commands::{self, CommandId};
 use crate::icons::icon;
+use crate::toolbar_tooltip::ToolbarTooltip;
 use crate::{
     CaptureWorklist, CloseWorkspace, Copy, CopyClean, Cut, FilePalette, GoBack, GoForward,
     NewTerminal, NextWorkspace, OpenWorklist, Paste, PrevWorkspace, ReserveEmptyPaneRight, RunTask,
-    Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
+    Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar, ToggleSoftWrap,
 };
 use gpui::{
     Action, AppContext, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement,
@@ -15,7 +16,7 @@ use gpui::{
 };
 use lucide_icons::Icon;
 use theme::ActiveTheme;
-use xenon_design_system::{ActionButton, TypeRole, Typography, action_button};
+use xenon_design_system::{ActionButton, action_button};
 
 const ICON: f32 = 16.;
 
@@ -49,6 +50,18 @@ impl XenonApp {
                     muted: false,
                     primary: false,
                     action: Box::new(ToggleSidebar),
+                },
+                cx,
+            ))
+            .child(tool_button(
+                ToolButton {
+                    id: "tb-wrap",
+                    glyph: Icon::TextWrap,
+                    command: CommandId::ToggleSoftWrap,
+                    active: self.soft_wrap_button_on(cx),
+                    muted: false,
+                    primary: false,
+                    action: Box::new(ToggleSoftWrap),
                 },
                 cx,
             ))
@@ -465,36 +478,4 @@ fn toolbar_focus_hint(
                 .text_color(colors.text_muted)
                 .child(command.keys)
         }))
-}
-
-struct ToolbarTooltip {
-    label: gpui::SharedString,
-    keys: Option<gpui::SharedString>,
-}
-
-impl gpui::Render for ToolbarTooltip {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        div()
-            .px_2()
-            .py_1()
-            .rounded_sm()
-            .bg(colors.elevated_surface_background)
-            .border_1()
-            .border_color(colors.border)
-            .text_color(colors.text)
-            .type_role(TypeRole::Body, cx)
-            .flex()
-            .items_center()
-            .gap_2()
-            .child(self.label.clone())
-            .children(self.keys.as_ref().map(|keys| {
-                div()
-                    .px_1()
-                    .rounded_xs()
-                    .bg(colors.element_background)
-                    .text_color(colors.text_muted)
-                    .child(keys.clone())
-            }))
-    }
 }
