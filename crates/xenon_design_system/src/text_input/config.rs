@@ -63,4 +63,9 @@ impl TextInputConfig {
         self.key_behavior = TextInputKeyBehavior::SubmitOnPlainEnter;
         self
     }
+
+    pub fn min_height(mut self, min_height: Pixels) -> Self {
+        self.min_height = min_height;
+        self
+    }
 }

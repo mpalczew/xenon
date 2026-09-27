@@ -33,9 +33,10 @@ impl EventEmitter<CaptureEvent> for WorklistCaptureView {}
 
 impl WorklistCaptureView {
     pub fn new(workspace_name: String, cx: &mut Context<Self>) -> Self {
-        let outline = cx.new(|cx| OutlineView::new("", "", cx));
+        let outline = cx.new(|cx| OutlineView::new("", "", None, cx));
         let focus = outline.read(cx).focus_handle(cx);
         let subscriptions = vec![cx.subscribe(&outline, |this, _, event, cx| match event {
+            OutlineEvent::Checked(_) => {}
             OutlineEvent::Changed => {
                 this.error = None;
                 cx.notify();
@@ -97,39 +98,6 @@ impl WorklistCaptureView {
             }
         }
     }
-
-    fn kind_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        div()
-            .mt_2()
-            .flex()
-            .gap_2()
-            .child(action_button(
-                "capture-task",
-                if self.task {
-                    ActionButton::primary("Task")
-                } else {
-                    ActionButton::secondary("Task")
-                },
-                cx,
-                cx.listener(|this, _, _, cx| {
-                    this.task = true;
-                    cx.notify();
-                }),
-            ))
-            .child(action_button(
-                "capture-note",
-                if self.task {
-                    ActionButton::secondary("Note")
-                } else {
-                    ActionButton::primary("Note")
-                },
-                cx,
-                cx.listener(|this, _, _, cx| {
-                    this.task = false;
-                    cx.notify();
-                }),
-            ))
-    }
 }
 
 impl Focusable for WorklistCaptureView {
@@ -167,7 +135,6 @@ impl Render for WorklistCaptureView {
                     .text_color(colors.text_muted)
                     .child(self.workspace_name.clone()),
             )
-            .child(self.kind_buttons(cx))
             .child(
                 div()
                     .mt_2()

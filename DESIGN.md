@@ -96,7 +96,8 @@ retain their own settings-controlled faces and rendering.
 `xenon_design_system::action_button` owns the primary, secondary, quiet, and
 icon action targets, including the label and the button type role. Callers
 pass the action. They do not set the button's font, size, or weight. The
-variant's foreground replaces the role's text color. Each control is
+variant's foreground replaces the role's text color. Destructive is a
+filled danger action, sized to its label. Button type is 12px semibold. Each control is
 focusable and activates from pointer, Enter, or Space through GPUI's click
 event. Disabled actions leave the tab order and do not register a click
 handler. `xenon_design_system::checkbox` owns the 18px

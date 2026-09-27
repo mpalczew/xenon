@@ -22,7 +22,7 @@ use xenon_design_system::{BulletLine, bullet_list, selectable_row};
 
 pub(super) struct ItemForm {
     pub(super) outline: Entity<xenon_design_system::OutlineView>,
-    task: bool,
+    pub(super) checked: Option<bool>,
 }
 
 struct RowState {
@@ -189,7 +189,7 @@ impl EditorView {
             .py_3()
             .child(div().flex().mb_3().child(action_button(
                 "worklist-add",
-                ActionButton::quiet("+ Add a task or note"),
+                ActionButton::quiet("+ Add an item"),
                 cx,
                 cx.listener(|this, _, _, cx| this.worklist_start_capture(cx)),
             )))

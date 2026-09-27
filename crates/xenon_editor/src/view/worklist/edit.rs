@@ -77,33 +77,16 @@ impl EditorView {
             return;
         }
         self.worklist_selection = index;
-        let form =
-            self.worklist_new_form(&entry.title, &entry.details, entry.checked.is_some(), cx);
+        let form = self.worklist_new_form(&entry.title, &entry.details, entry.checked, cx);
         self.worklist_edit = Some(ItemEdit { form, entry });
         cx.notify();
     }
 
-    pub(super) fn worklist_save_edit(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn worklist_autosave_edit(&mut self, cx: &mut Context<Self>) {
         let Some(edit) = self.worklist_edit.as_ref() else {
             return;
         };
-        let item = match edit.form.item(cx) {
-            Ok(item) => item,
-            Err(error) => {
-                self.worklist_error = Some(error.to_string());
-                cx.notify();
-                return;
-            }
-        };
-        self.worklist_save_edit_item(item, cx);
-    }
-
-    fn worklist_save_edit_item(
-        &mut self,
-        item: crate::worklist_file::WorkItem,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(edit) = self.worklist_edit.take() else {
+        let Ok(item) = edit.form.item(cx) else {
             return;
         };
         let newline = if self.text().contains("\r\n") {
@@ -112,19 +95,26 @@ impl EditorView {
             "\n"
         };
         let source = self.text();
-        let old = &source[edit.entry.range.clone()];
+        let range = edit.entry.range.clone();
+        let old = &source[range.clone()];
         let suffix = &old[old.trim_end_matches(['\r', '\n']).len()..];
         let changed = format!("{}{}", replacement(&edit.entry, &item, newline), suffix);
-        if !self.worklist_mutate(edit.entry.range.clone(), &changed, cx) {
-            self.worklist_edit = Some(edit);
-        } else {
-            self.worklist_input_sub.clear();
+        if changed == old {
+            return;
+        }
+        let index = self.worklist_selection;
+        if self.worklist_mutate(range, &changed, cx)
+            && let Some(entry) = entries(&self.text()).get(index).cloned()
+            && let Some(edit) = &mut self.worklist_edit
+        {
+            edit.entry = entry;
         }
     }
 
-    pub(super) fn worklist_cancel_edit(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn worklist_close_edit(&mut self, cx: &mut Context<Self>) {
         self.worklist_edit = None;
         self.worklist_input_sub.clear();
+        self.worklist_error = None;
         cx.notify();
     }
 
@@ -136,44 +126,6 @@ impl EditorView {
             self.worklist_edit = Some(edit);
         } else {
             self.worklist_input_sub.clear();
-        }
-    }
-
-    pub(super) fn worklist_move(&mut self, direction: isize, cx: &mut Context<Self>) {
-        if self.worklist_edit.is_none() {
-            return;
-        }
-        let source = self.text();
-        let rows = entries(&source);
-        let at = self.worklist_selection;
-        let Some(other) = at.checked_add_signed(direction).filter(|i| *i < rows.len()) else {
-            return;
-        };
-        let (a, b) = if at < other {
-            (&rows[at], &rows[other])
-        } else {
-            (&rows[other], &rows[at])
-        };
-        if a.section != b.section || !source[a.range.end..b.range.start].trim().is_empty() {
-            return;
-        }
-        let gap = &source[a.range.end..b.range.start];
-        let changed = format!(
-            "{}{}{}",
-            &source[b.range.clone()],
-            gap,
-            &source[a.range.clone()]
-        );
-        let span = a.range.start..b.range.end;
-        if !self.worklist_mutate(span, &changed, cx) {
-            return;
-        }
-        self.worklist_selection = other;
-        if let Some(entry) = entries(&self.text()).get(other).cloned() {
-            self.worklist_input_sub.clear();
-            let form =
-                self.worklist_new_form(&entry.title, &entry.details, entry.checked.is_some(), cx);
-            self.worklist_edit = Some(ItemEdit { form, entry });
         }
     }
 

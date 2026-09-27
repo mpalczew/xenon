@@ -1,8 +1,9 @@
 //! Title plus indented points. The caller stores and validates the text.
 
 use gpui::{
-    App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
-    ParentElement, Render, Styled, Subscription, Window, div, px,
+    App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels, Render, Styled, Subscription,
+    Window, div, px,
 };
 use theme::ActiveTheme;
 
@@ -14,6 +15,7 @@ pub enum OutlineEvent {
     Changed,
     Submit,
     Cancel,
+    Checked(bool),
 }
 
 struct PointField {
@@ -25,13 +27,14 @@ struct PointField {
 pub struct OutlineView {
     title: Entity<TextInputView>,
     points: Vec<PointField>,
+    title_check: Option<bool>,
     _title_subscription: Subscription,
 }
 
 impl EventEmitter<OutlineEvent> for OutlineView {}
 
 impl OutlineView {
-    pub fn new(title: &str, details: &str, cx: &mut Context<Self>) -> Self {
+    pub fn new(title: &str, details: &str, checked: Option<bool>, cx: &mut Context<Self>) -> Self {
         let title = field("Name the work item", title, cx);
         let _title_subscription = subscribe(&title, cx);
         let points = points_from_details(details)
@@ -41,6 +44,7 @@ impl OutlineView {
         Self {
             title,
             points,
+            title_check: checked,
             _title_subscription,
         }
     }
@@ -188,6 +192,29 @@ impl OutlineView {
         };
         self.on_point_key(index, key, cx);
     }
+
+    fn place_click(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let target = self.nearest_field(event.position.y, cx);
+        let extend = event.modifiers.shift;
+        target.update(cx, |input, cx| {
+            input.place_at(event.position, extend, window, cx);
+        });
+    }
+
+    fn nearest_field(&self, y: Pixels, cx: &App) -> Entity<TextInputView> {
+        let mut best = self.title.clone();
+        let mut best_distance = px(f32::MAX);
+        for input in
+            std::iter::once(&self.title).chain(self.points.iter().map(|point| &point.input))
+        {
+            let distance = input.read(cx).vertical_distance(y);
+            if distance < best_distance {
+                best_distance = distance;
+                best = input.clone();
+            }
+        }
+        best
+    }
 }
 
 struct FieldKey<'a> {
@@ -211,42 +238,95 @@ impl Render for OutlineView {
             .map(|point| (point.depth, point.input.clone()))
             .collect::<Vec<_>>();
         div()
+            .id("outline-body")
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, event: &MouseDownEvent, window, cx| {
+                    this.place_click(event, window, cx);
+                }),
+            )
             .flex()
             .flex_col()
-            .p_2()
+            .px_3()
+            .py_2()
             .rounded_md()
             .border_1()
             .border_color(colors.border)
             .bg(colors.editor_background)
-            .child(line(TypeRole::ListPrimary, 0, "☐", self.title.clone(), cx))
-            .children(points.into_iter().map(|(depth, input)| {
-                let mark = if depth == 0 { "•" } else { "◦" };
-                line(TypeRole::Body, depth, mark, input, cx)
-            }))
+            .child(title_line(self.title_check, self.title.clone(), cx))
+            .children({
+                let mut rows = Vec::new();
+                for (depth, input) in points {
+                    rows.push(point_line(depth, input, cx).into_any_element());
+                }
+                rows
+            })
     }
 }
 
-fn line(
-    role: TypeRole,
-    depth: u8,
-    mark: &'static str,
+fn title_line(
+    checked: Option<bool>,
     input: Entity<TextInputView>,
-    cx: &App,
+    cx: &mut Context<OutlineView>,
 ) -> impl IntoElement {
-    let accent = cx.theme().colors().text_accent;
     div()
         .flex()
         .items_center()
         .gap_2()
-        .min_h(px(32.))
+        .h(px(28.))
+        .type_role(TypeRole::ListPrimary, cx)
+        .children(checked.map(|checked| {
+            div()
+                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                    cx.stop_propagation();
+                })
+                .child(crate::checkbox(
+                    "outline-title-check",
+                    crate::CheckboxState {
+                        checked,
+                        disabled: false,
+                    },
+                    "Complete item",
+                    cx,
+                    cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
+                        this.title_check = Some(!checked);
+                        cx.emit(OutlineEvent::Checked(!checked));
+                        cx.notify();
+                    }),
+                ))
+        }))
+        .child(div().flex_1().min_w_0().child(input))
+}
+
+fn point_line(
+    depth: u8,
+    input: Entity<TextInputView>,
+    cx: &mut Context<OutlineView>,
+) -> impl IntoElement {
+    let color = cx.theme().colors().text_accent;
+    let size = if depth == 0 { px(5.) } else { px(4.) };
+    div()
+        .flex()
+        .items_center()
+        .gap_2()
+        .h(px(28.))
         .pl(px(f32::from(depth) * 22.))
-        .type_role(role, cx)
-        .child(div().w(px(17.)).text_color(accent).child(mark))
-        .child(input)
+        .type_role(TypeRole::Body, cx)
+        .child(
+            div()
+                .w(px(16.))
+                .h(px(16.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(div().w(size).h(size).rounded_full().bg(color)),
+        )
+        .child(div().flex_1().min_w_0().child(input))
 }
 
 fn point_field(text: &str, depth: u8, cx: &mut Context<OutlineView>) -> PointField {
-    let input = field("One short point", text, cx);
+    let input = field("", text, cx);
     let subscription = subscribe(&input, cx);
     PointField {
         depth,
@@ -260,7 +340,8 @@ fn field(placeholder: &str, text: &str, cx: &mut Context<OutlineView>) -> Entity
         TextInputView::new(
             TextInputConfig::single_line(placeholder)
                 .appearance(TextInputAppearance::Inline)
-                .parent_navigation(),
+                .parent_navigation()
+                .min_height(px(22.)),
             cx,
         )
     });

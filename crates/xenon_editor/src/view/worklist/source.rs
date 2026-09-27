@@ -8,6 +8,7 @@ pub(super) struct Entry {
     pub(super) title: String,
     pub(super) details: String,
     pub(super) checked: Option<bool>,
+    #[allow(dead_code)]
     pub(super) section: usize,
     pub(super) editable: bool,
 }

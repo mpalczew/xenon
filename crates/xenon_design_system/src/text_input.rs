@@ -2,8 +2,8 @@
 
 use gpui::{
     App, ClipboardItem, Context, ElementInputHandler, Entity, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Render, Styled, Window, canvas,
-    div, point, px,
+    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled,
+    Window, canvas, div, point, px,
 };
 use theme::ActiveTheme;
 use xenon_settings::{Copy, Cut, Paste};
@@ -92,6 +92,39 @@ impl TextInputView {
     pub(crate) fn place_caret(&mut self, index: usize, cx: &mut Context<Self>) {
         self.value.set_caret(index);
         cx.notify();
+    }
+
+    /// Focus this field and put the caret on the character closest to a window point,
+    /// including clicks in the gutter or past the end of the line.
+    pub(crate) fn place_at(
+        &mut self,
+        position: Point<Pixels>,
+        extend: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus.focus(window, cx);
+        self.blink.reset(cx, Self::blink_tick);
+        let index = self
+            .geometry
+            .as_ref()
+            .map(|geometry| geometry.index_for_point(position))
+            .unwrap_or(0);
+        self.value.place_caret(index, extend);
+        cx.notify();
+    }
+
+    pub(crate) fn vertical_distance(&self, y: Pixels) -> Pixels {
+        let Some(bounds) = self.geometry.as_ref().map(geometry::TextGeometry::bounds) else {
+            return px(f32::MAX);
+        };
+        if y < bounds.top() {
+            bounds.top() - y
+        } else if y > bounds.bottom() {
+            y - bounds.bottom()
+        } else {
+            px(0.)
+        }
     }
 
     fn changed(&mut self, cx: &mut Context<Self>) {

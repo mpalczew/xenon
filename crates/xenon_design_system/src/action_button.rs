@@ -16,6 +16,7 @@ pub enum ActionButtonVariant {
     Primary,
     Secondary,
     Quiet,
+    Destructive,
     Icon,
 }
 
@@ -39,11 +40,15 @@ impl<L> ActionButton<L> {
         Self::new(ActionButtonVariant::Quiet, label)
     }
 
+    pub fn destructive(label: L) -> Self {
+        Self::new(ActionButtonVariant::Destructive, label)
+    }
+
     pub fn icon(label: L) -> Self {
         Self::new(ActionButtonVariant::Icon, label)
     }
 
-    pub fn new(variant: ActionButtonVariant, label: L) -> Self {
+    fn new(variant: ActionButtonVariant, label: L) -> Self {
         Self {
             variant,
             label,
@@ -78,13 +83,19 @@ pub fn action_button<L: IntoElement>(
         ActionButtonVariant::Quiet => {
             (gpui::transparent_black(), accent, gpui::transparent_black())
         }
+        ActionButtonVariant::Destructive => {
+            let ink = colors.version_control_deleted;
+            (ink.opacity(0.14), ink, ink.opacity(0.4))
+        }
         ActionButtonVariant::Icon => (
             gpui::transparent_black(),
             colors.icon,
             gpui::transparent_black(),
         ),
     };
-    let hover = if variant == ActionButtonVariant::Primary {
+    let hover = if variant == ActionButtonVariant::Destructive {
+        colors.version_control_deleted.opacity(0.22)
+    } else if variant == ActionButtonVariant::Primary {
         background.blend(accent.opacity(0.12))
     } else {
         colors.element_hover
@@ -111,7 +122,9 @@ pub fn action_button<L: IntoElement>(
         .text_color(foreground);
     let button = if matches!(
         variant,
-        ActionButtonVariant::Primary | ActionButtonVariant::Secondary
+        ActionButtonVariant::Primary
+            | ActionButtonVariant::Secondary
+            | ActionButtonVariant::Destructive
     ) {
         button.border_1().border_color(border)
     } else {
