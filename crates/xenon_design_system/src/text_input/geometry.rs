@@ -2,6 +2,16 @@ use gpui::{Bounds, Pixels, Point, TextRun, Window, WrappedLine, point, px, size}
 
 use super::{TextInputAppearance, TextInputView};
 
+/// Matches the padding on the field chrome. `px_3` is 0.75rem and `py_2` / `p_2`
+/// are 0.5rem, and the window rem is the UI font size, not 16px.
+pub(super) fn field_insets(appearance: TextInputAppearance, rem: Pixels) -> (Pixels, Pixels) {
+    match appearance {
+        TextInputAppearance::Bordered => (rem * 0.5, rem * 0.5),
+        TextInputAppearance::Palette => (rem * 0.75, rem * 0.5),
+        TextInputAppearance::Inline => (px(0.), px(0.)),
+    }
+}
+
 struct TextLine {
     text: String,
     first_char: usize,
@@ -22,11 +32,7 @@ impl TextInputView {
         bounds: Bounds<Pixels>,
         window: &mut Window,
     ) -> TextGeometry {
-        let (horizontal, vertical) = match self.config.appearance {
-            TextInputAppearance::Bordered => (px(8.), px(8.)),
-            TextInputAppearance::Palette => (px(12.), px(8.)),
-            TextInputAppearance::Inline => (px(0.), px(0.)),
-        };
+        let (horizontal, vertical) = field_insets(self.config.appearance, window.rem_size());
         let style = window.text_style();
         let font_size = style.font_size.to_pixels(window.rem_size());
         let line_height = window.line_height();
@@ -152,5 +158,17 @@ impl TextGeometry {
             point(self.origin.x + start.x, self.origin.y + start.y),
             size(width, self.line_height),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn palette_insets_follow_the_ui_rem() {
+        let (x, y) = field_insets(TextInputAppearance::Palette, px(14.));
+        assert_eq!(x, px(10.5));
+        assert_eq!(y, px(7.));
     }
 }

@@ -227,7 +227,7 @@ impl EditorView {
         let checked = entry.checked;
         let editable = entry.editable;
         let title = entry.title.clone();
-        let lines = xenon_design_system::points_from_details(&entry.details)
+        let lines: Vec<_> = xenon_design_system::points_from_details(&entry.details)
             .into_iter()
             .map(|point| BulletLine {
                 depth: point.depth,
@@ -269,7 +269,15 @@ impl EditorView {
                         div()
                             .flex()
                             .flex_col()
-                            .child(div().type_role(TypeRole::ListPrimary, cx).child(title))
+                            .child({
+                                let title_line = div().type_role(TypeRole::ListPrimary, cx);
+                                let title_line = if lines.is_empty() {
+                                    title_line
+                                } else {
+                                    title_line.mb_3()
+                                };
+                                title_line.child(title)
+                            })
                             .child(bullet_list(lines, cx)),
                     )
                     .on_click(cx.listener(move |this, _, _, cx| {

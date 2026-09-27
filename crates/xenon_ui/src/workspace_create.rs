@@ -1,20 +1,20 @@
 //! Keyboard-first creator for a new directory-backed workspace.
 
-use std::path::PathBuf;
-use std::time::Duration;
-use xenon_design_system::{TypeRole, Typography};
-
 use gpui::{
     App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
     ParentElement, Render, ScrollHandle, StatefulInteractiveElement, Styled, Task, Window, div,
 };
 use nucleo::{Config, Matcher};
+use std::path::PathBuf;
+use std::time::Duration;
 use theme::ActiveTheme;
-use xenon_design_system::{PaletteOverlay, palette_overlay};
+use xenon_design_system::{
+    PaletteInput, PaletteOverlay, QueryRow, TypeRole, Typography, palette_input, palette_overlay,
+    query_hint, query_label, query_row,
+};
 
 use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
-    reveal_selected, scroll_results,
+    PaletteLayout, ScrollResults, fuzzy_index_order, match_hits, reveal_selected, scroll_results,
 };
 use crate::workspace_discover::{
     discover_parent_dirs, expand_user_path, list_parent_candidates, path_is_dir,
@@ -69,10 +69,14 @@ impl WorkspaceCreateView {
         });
         input.update(cx, |input, cx| input.open(cx));
         let focus = input.read(cx).focus_handle();
-        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
-            if let xenon_design_system::TextInputEvent::Changed(query) = event {
-                this.set_query(query.clone(), cx);
-            }
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| match palette_input(event) {
+            PaletteInput::Query(query) => this.set_query(query, cx),
+            PaletteInput::Navigate {
+                key,
+                shift,
+                platform,
+            } => this.on_nav(&key, shift, platform, cx),
+            PaletteInput::Ignore => {}
         });
         let mut view = Self {
             step: Step::Name,
@@ -253,8 +257,8 @@ impl WorkspaceCreateView {
         cx.notify();
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
+    fn on_nav(&mut self, key: &str, _shift: bool, _platform: bool, cx: &mut Context<Self>) {
+        match key {
             "escape" if self.step == Step::Parent => {
                 self.step = Step::Name;
                 self.query.clear();
@@ -274,31 +278,43 @@ impl WorkspaceCreateView {
         cx.stop_propagation();
     }
 
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.on_nav(
+            event.keystroke.key.as_str(),
+            event.keystroke.modifiers.shift,
+            event.keystroke.modifiers.platform,
+            cx,
+        );
+    }
+
     fn render_parent_results(
         &self,
         colors: &theme::ThemeColors,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
+        let mut ranker = Matcher::new(Config::DEFAULT);
         let rows: Vec<_> = self
             .results
             .iter()
             .enumerate()
             .map(|(i, path)| {
-                let selected = i == self.selected;
-                detail_row(
+                let title = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy())
+                    .unwrap_or_default()
+                    .to_string();
+                let hits = match_hits(&title, &self.query, &mut ranker);
+                query_row(
                     ("workspace-parent", i),
-                    DetailRow {
-                        title: path
-                            .file_name()
-                            .map(|n| n.to_string_lossy())
-                            .unwrap_or_default()
-                            .to_string(),
-                        detail: "folder".to_string(),
-                        selected,
-                        selectable: true,
+                    QueryRow {
+                        title,
+                        detail: Some("folder".to_string()),
                         subtitle: Some(display_path(path)),
+                        selected: i == self.selected,
+                        enabled: true,
+                        hits,
                     },
-                    colors,
+                    cx,
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.selected = i;
@@ -374,10 +390,10 @@ impl Render for WorkspaceCreateView {
                 on_key: Self::on_key,
                 on_dismiss: |_, _, _, cx| cx.emit(WorkspaceCreateEvent::Dismissed),
                 children: vec![
-                    crate::palette::optional_title(title, &colors).into_any_element(),
+                    query_label(title, cx).into_any_element(),
                     self.input.clone().into_any_element(),
                     body.into_any_element(),
-                    hint_row(hint, &colors).into_any_element(),
+                    query_hint(hint, cx).into_any_element(),
                 ],
             },
             cx,

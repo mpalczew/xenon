@@ -117,6 +117,7 @@ building, Rule of 7, never amend/rebase/force-push, bash not zsh.
 - When implementation work is done, offer to commit and push. Do not commit or
   push without the user's explicit request (except when an explicit goal
   requires landing public docs on `origin/main`).
+- Commit `.xenon/worklist.md` whenever it has changes. Do not leave it untracked.
 - Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
   chrome or UX work. Keep them aligned with settled decisions; do not invent a
   competing vision in chat only. Cross-cutting current decisions live in

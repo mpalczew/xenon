@@ -42,7 +42,7 @@ impl WorklistCaptureView {
                 cx.notify();
             }
             OutlineEvent::Submit => this.submit(cx),
-            OutlineEvent::Cancel => cx.emit(CaptureEvent::Dismissed),
+            OutlineEvent::Cancel | OutlineEvent::Delete => cx.emit(CaptureEvent::Dismissed),
         })];
         Self {
             outline,

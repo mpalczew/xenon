@@ -62,13 +62,19 @@ Helpers: `chrome::tab_selection`, `chrome::list_selection`.
 
 ## Elevated palettes (cmd-p family)
 
-One shell: `xenon_design_system::palette_overlay` owns panel, scrim,
-dismissal, and key routing; `crates/xenon_ui/src/palette/` owns shared result
-rows and scrolling. Surfaces that type-to-filter over a
-scrollable list **must** use it (finder, workspace open, run task, command /
-stream / help). Geometry: width 640, max-height 420 (480 tall), elevation-2
-panel, `list_selection` rows, scrollable results (`flex_1` + `min_h_0` +
-`overflow_y_scroll`). Do not clone scrim/panel/input/list per feature.
+One shell. `palette_overlay` owns the panel, scrim, and dismissal.
+`query_row` owns the row: List primary when selected, Body muted when idle,
+Control label for the path and hint, Code for the trailing chip, an accent
+left edge, and accent runs on the matched letters. Hover does not replace the
+selected fill. `palette_input` is the only navigation path: the field stops
+Enter, Escape, Tab, Up, and Down, and the palette matches `PaletteInput::Navigate`.
+
+Surfaces: file finder (⌘P), workspace open (⌘⇧O), run task (⌘⇧R), command
+palette (⌘⇧P), keyboard help (⌘⇧/), and the parent step of new workspace.
+The theme gallery uses the same shell and key path; its cards are not query
+rows. Geometry: width 640, max-height 420 (480 tall), elevation 2, scrollable
+results (`flex_1` + `min_h_0` + `overflow_y_scroll`). Do not clone the scrim,
+panel, input, or list per feature.
 
 ## Attention
 

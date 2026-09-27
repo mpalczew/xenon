@@ -50,7 +50,9 @@ fn walk_includes_hidden_files() {
 fn query_ranks_matches_first() {
     let dir = fixture();
     let results = finder(&dir).query("main", &[]);
-    assert_eq!(results.first().unwrap().path, PathBuf::from("src/main.rs"));
+    let first = results.first().unwrap();
+    assert_eq!(first.path, PathBuf::from("src/main.rs"));
+    assert!(!first.hits.is_empty());
 }
 
 #[test]

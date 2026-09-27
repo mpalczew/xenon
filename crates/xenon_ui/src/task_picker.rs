@@ -8,11 +8,13 @@ use gpui::{
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
 use xenon_core::ShellTask;
-use xenon_design_system::{PaletteOverlay, palette_overlay};
+use xenon_design_system::{
+    PaletteInput, PaletteOverlay, QueryRow, palette_input, palette_overlay, query_hint, query_row,
+};
 
 use crate::palette::{
-    PaletteLayout, ScrollResults, fuzzy_index_order, hint_row, reveal_selected, scroll_results,
-    simple_row, step_selection,
+    PaletteLayout, ScrollResults, fuzzy_index_order, match_hits, reveal_selected, scroll_results,
+    step_selection,
 };
 
 pub enum TaskPickerEvent {
@@ -52,10 +54,14 @@ impl TaskPickerView {
         });
         input.update(cx, |input, cx| input.open(cx));
         let focus = input.read(cx).focus_handle();
-        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
-            if let xenon_design_system::TextInputEvent::Changed(query) = event {
-                this.set_query(query.clone(), cx);
-            }
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| match palette_input(event) {
+            PaletteInput::Query(query) => this.set_query(query, cx),
+            PaletteInput::Navigate {
+                key,
+                shift,
+                platform,
+            } => this.on_nav(&key, shift, platform, cx),
+            PaletteInput::Ignore => {}
         });
         let mut view = Self {
             tasks,
@@ -105,18 +111,24 @@ impl TaskPickerView {
         }
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
+    fn on_nav(&mut self, key: &str, _shift: bool, platform: bool, cx: &mut Context<Self>) {
+        match key {
             "escape" => cx.emit(TaskPickerEvent::Dismissed),
-            "enter" => {
-                let current = event.keystroke.modifiers.platform;
-                self.confirm(!current, cx);
-            }
+            "enter" => self.confirm(!platform, cx),
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
             _ => return,
         }
         cx.stop_propagation();
+    }
+
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.on_nav(
+            event.keystroke.key.as_str(),
+            event.keystroke.modifiers.shift,
+            event.keystroke.modifiers.platform,
+            cx,
+        );
     }
 
     fn empty_message(&self) -> &'static str {
@@ -140,23 +152,31 @@ impl Render for TaskPickerView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
+        let mut ranker = Matcher::new(Config::DEFAULT);
         let rows: Vec<_> = self
             .results
             .iter()
             .enumerate()
             .map(|(i, &task_i)| {
                 let task = &self.tasks[task_i];
-                let label = if let Some(detail) = &task.detail {
-                    format!("{}  —  {}", task.label, detail)
-                } else {
-                    task.label.clone()
-                };
-                simple_row(("task-row", i), label, i == self.selected, &colors)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.selected = i;
-                        this.confirm(true, cx);
-                    }))
-                    .into_any_element()
+                let hits = match_hits(&task.label, &self.query, &mut ranker);
+                query_row(
+                    ("task-row", i),
+                    QueryRow {
+                        title: task.label.clone(),
+                        detail: task.detail.clone(),
+                        subtitle: None,
+                        selected: i == self.selected,
+                        enabled: true,
+                        hits,
+                    },
+                    cx,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.selected = i;
+                    this.confirm(true, cx);
+                }))
+                .into_any_element()
             })
             .collect();
 
@@ -179,9 +199,9 @@ impl Render for TaskPickerView {
                         scroll: &self.scroll,
                         colors: &colors,
                     }),
-                    hint_row(
-                        "↵ new terminal  ·  ⌘↵ current  ·  esc dismiss  ·  open ⌘⇧R",
-                        &colors,
+                    query_hint(
+                        "return runs in a new terminal  ·  ⌘return current  ·  esc closes",
+                        cx,
                     )
                     .into_any_element(),
                 ],

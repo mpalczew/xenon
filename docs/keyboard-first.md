@@ -23,6 +23,7 @@ surface and the non-obvious focus model.
 | Copy Clean | ⌘⇧C |
 | Agent skill prompt | Return install · Escape not now · ←/→ buttons |
 | Markdown preview | ⌘⇧V |
+| Wrap lines | ⌥Z |
 | Themes | ⌘⌥T |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
 
@@ -38,8 +39,8 @@ Do not bind hold-⌘ to select mode.
 Worklist capture focuses its field on every open: Return saves, Shift-Return
 inserts a line, and Escape keeps the draft. The worklist opens in a closable
 tab. In List view, arrows select, Space completes, Return edits, and Add opens
-an inline field; its Return saves, Shift-Return inserts a line, and Escape
-cancels. An empty virtual worklist can be saved with ⌘S.
+an inline field. Item editing saves as you type. Escape closes it. ⌘⌫ deletes
+the item. An empty virtual worklist can be saved with ⌘S.
 
 The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open
 workspace). Arrow keys and Return choose a row. New workspace accepts the

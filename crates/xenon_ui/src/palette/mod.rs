@@ -5,10 +5,8 @@
 //! input live here so scroll/selection fixes apply once.
 
 mod layout;
-mod rows;
 
 pub(crate) use layout::{
-    PaletteLayout, ScrollResults, fuzzy_index_order, hint_row, hint_row_with_action,
-    optional_title, reveal_selected, scroll_results, step_selection,
+    PaletteLayout, ScrollResults, fuzzy_index_order, match_hits, reveal_selected, scroll_results,
+    step_selection,
 };
-pub(crate) use rows::{DetailRow, detail_row, simple_row};

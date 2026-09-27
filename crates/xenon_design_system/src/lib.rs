@@ -24,6 +24,8 @@ mod notice;
 mod outline;
 mod outline_text;
 mod overlay;
+mod palette_input;
+mod query_row;
 mod selectable_row;
 mod text_field;
 mod text_input;
@@ -38,6 +40,8 @@ pub use notice::{TimedNotice, notice_panel};
 pub use outline::{OutlineEvent, OutlineView};
 pub use outline_text::{OutlinePoint, details_from_points, points_from_details};
 pub use overlay::{OverlayLayout, PaletteOverlay, palette_overlay};
+pub use palette_input::{PaletteInput, palette_input};
+pub use query_row::{QueryRow, query_hint, query_hint_action, query_label, query_row};
 pub use selectable_row::selectable_row;
 pub use text_input::{
     TextInputAppearance, TextInputConfig, TextInputEvent, TextInputKeyBehavior, TextInputView,

@@ -14,12 +14,13 @@ use gpui::{
     Render, ScrollHandle, StatefulInteractiveElement, Task, Window,
 };
 use theme::ActiveTheme;
-use xenon_design_system::{PaletteOverlay, palette_overlay};
+use xenon_design_system::{
+    PaletteInput, PaletteOverlay, QueryRow, palette_input, palette_overlay, query_hint, query_row,
+};
 use xenon_finder::{FileIndex, FileMatch};
 
 use crate::palette::{
-    PaletteLayout, ScrollResults, hint_row, reveal_selected, scroll_results, simple_row,
-    step_selection,
+    PaletteLayout, ScrollResults, reveal_selected, scroll_results, step_selection,
 };
 
 /// Debounce before scoring a large index (keeps keystrokes snappy).
@@ -78,10 +79,14 @@ impl FinderView {
             input.open(cx);
         });
         let focus = input.read(cx).focus_handle();
-        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
-            if let xenon_design_system::TextInputEvent::Changed(query) = event {
-                this.set_query(query.clone(), cx);
-            }
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| match palette_input(event) {
+            PaletteInput::Query(query) => this.set_query(query, cx),
+            PaletteInput::Navigate {
+                key,
+                shift,
+                platform,
+            } => this.on_nav(&key, shift, platform, cx),
+            PaletteInput::Ignore => {}
         });
         let mut view = Self {
             index,
@@ -196,19 +201,21 @@ impl FinderView {
         self.confirm(beside, cx);
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
+    fn on_nav(&mut self, key: &str, _shift: bool, platform: bool, cx: &mut Context<Self>) {
+        match key {
             "escape" => cx.emit(FinderEvent::Dismissed),
-            "enter" => {
-                let beside =
-                    event.keystroke.modifiers.platform || event.keystroke.modifiers.control;
-                self.confirm(beside, cx);
-            }
+            "enter" => self.confirm(platform, cx),
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
             _ => return,
         }
         cx.stop_propagation();
+    }
+
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let key = event.keystroke.key.as_str();
+        let platform = event.keystroke.modifiers.platform || event.keystroke.modifiers.control;
+        self.on_nav(key, event.keystroke.modifiers.shift, platform, cx);
     }
 
     fn empty_label(&self) -> &'static str {
@@ -250,12 +257,23 @@ impl Render for FinderView {
                 } else {
                     m.path.to_string_lossy().into_owned()
                 };
-                simple_row(("finder-row", i), label, i == self.selected, &colors)
-                    .on_click(cx.listener(move |this, event: &gpui::ClickEvent, _, cx| {
-                        let beside = event.modifiers().platform || event.modifiers().control;
-                        this.click_result(i, beside, cx);
-                    }))
-                    .into_any_element()
+                query_row(
+                    ("finder-row", i),
+                    QueryRow {
+                        title: label,
+                        detail: None,
+                        subtitle: None,
+                        selected: i == self.selected,
+                        enabled: true,
+                        hits: m.hits.clone(),
+                    },
+                    cx,
+                )
+                .on_click(cx.listener(move |this, event: &gpui::ClickEvent, _, cx| {
+                    let beside = event.modifiers().platform || event.modifiers().control;
+                    this.click_result(i, beside, cx);
+                }))
+                .into_any_element()
             })
             .collect();
 
@@ -278,7 +296,7 @@ impl Render for FinderView {
                         scroll: &self.scroll,
                         colors: &colors,
                     }),
-                    hint_row("↩ open  ·  ⌘↩ beside", &colors).into_any_element(),
+                    query_hint("return opens  ·  ⌘return beside", cx).into_any_element(),
                 ],
             },
             cx,

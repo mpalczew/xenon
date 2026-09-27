@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
-use nucleo::{Config, Matcher};
+use nucleo::{Config, Matcher, Utf32Str};
 
 mod walk;
 
@@ -24,6 +24,8 @@ pub struct FileMatch {
     pub path: PathBuf,
     pub is_dir: bool,
     pub score: u32,
+    /// Char indexes into the relative path where the query matched.
+    pub hits: Vec<u32>,
 }
 
 /// A matchable entry; nucleo ranks against its relative path.
@@ -92,13 +94,23 @@ impl FileIndex {
 
         let mut matcher = Matcher::new(Config::DEFAULT);
         let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
+        let mut utf32 = Vec::new();
+        let mut hit_buf = Vec::new();
         let mut matches: Vec<FileMatch> = pattern
             .match_list(self.entries.iter(), &mut matcher)
             .into_iter()
-            .map(|(entry, score)| FileMatch {
-                path: PathBuf::from(&entry.path),
-                is_dir: entry.is_dir,
-                score,
+            .map(|(entry, score)| {
+                hit_buf.clear();
+                let haystack = Utf32Str::new(&entry.path, &mut utf32);
+                pattern.indices(haystack, &mut matcher, &mut hit_buf);
+                hit_buf.sort_unstable();
+                hit_buf.dedup();
+                FileMatch {
+                    path: PathBuf::from(&entry.path),
+                    is_dir: entry.is_dir,
+                    score,
+                    hits: hit_buf.clone(),
+                }
             })
             .collect();
         matches.sort_by(|a, b| compare_matches(a, b, query, &recent_rank));
@@ -129,6 +141,7 @@ impl FileIndex {
                 path: PathBuf::from(&entry.path),
                 is_dir: entry.is_dir,
                 score: 0,
+                hits: Vec::new(),
             });
         }
 
@@ -143,6 +156,7 @@ impl FileIndex {
                 path: PathBuf::from(&entry.path),
                 is_dir: entry.is_dir,
                 score: 0,
+                hits: Vec::new(),
             });
         }
         out

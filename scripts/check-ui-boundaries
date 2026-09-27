@@ -39,5 +39,9 @@ for path in "${palette_views[@]}"; do
         printf 'Palette must use palette_overlay: %s\n' "$path" >&2
         exit 1
     fi
+    if ! rg -q 'PaletteInput::Navigate' "$path"; then
+        printf 'Palette must handle PaletteInput::Navigate: %s\n' "$path" >&2
+        exit 1
+    fi
 done
 printf 'UI control boundaries: ok\n'

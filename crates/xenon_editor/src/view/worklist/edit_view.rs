@@ -1,5 +1,7 @@
 use super::*;
-use xenon_design_system::{ActionButton, action_button};
+use gpui::{App, AppContext, IntoElement, ParentElement, Render, SharedString, Styled, Window};
+use theme::ActiveTheme;
+use xenon_design_system::{ActionButton, TypeRole, Typography, action_button};
 
 impl EditorView {
     pub(super) fn render_worklist_edit(
@@ -34,7 +36,8 @@ impl EditorView {
                             cx,
                             cx.listener(|this, _, _, cx| this.worklist_close_edit(cx)),
                         )
-                        .self_start(),
+                        .self_start()
+                        .tooltip(action_hint("Close", "Esc")),
                     )
                     .child(
                         action_button(
@@ -43,8 +46,53 @@ impl EditorView {
                             cx,
                             cx.listener(|this, _, _, cx| this.worklist_delete(cx)),
                         )
-                        .self_start(),
+                        .self_start()
+                        .tooltip(action_hint("Delete", "⌘⌫")),
                     ),
+            )
+    }
+}
+
+fn action_hint(
+    label: &'static str,
+    keys: &'static str,
+) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static {
+    move |_window, cx| {
+        cx.new(|_| ActionHint {
+            label: label.into(),
+            keys: keys.into(),
+        })
+        .into()
+    }
+}
+
+struct ActionHint {
+    label: SharedString,
+    keys: SharedString,
+}
+
+impl Render for ActionHint {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        div()
+            .px_2()
+            .py_1()
+            .rounded_sm()
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.elevated_surface_background)
+            .flex()
+            .items_center()
+            .gap_2()
+            .type_role(TypeRole::Body, cx)
+            .child(self.label.clone())
+            .child(
+                div()
+                    .px_1()
+                    .rounded_xs()
+                    .bg(colors.element_background)
+                    .type_role(TypeRole::ControlLabel, cx)
+                    .child(self.keys.clone()),
             )
     }
 }

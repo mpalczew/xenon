@@ -36,6 +36,7 @@ impl EditorView {
                 }
                 OutlineEvent::Changed | OutlineEvent::Checked(_) => cx.notify(),
                 OutlineEvent::Submit | OutlineEvent::Cancel => this.worklist_close_edit(cx),
+                OutlineEvent::Delete => this.worklist_delete(cx),
             }));
         ItemForm { outline, checked }
     }

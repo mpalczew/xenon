@@ -5,58 +5,19 @@
 //! `step_selection`). Do not reimplement per palette.
 
 use gpui::{
-    AnyElement, Div, InteractiveElement, IntoElement, ParentElement, Pixels, ScrollHandle,
+    AnyElement, InteractiveElement, IntoElement, ParentElement, Pixels, ScrollHandle,
     StatefulInteractiveElement, Styled, div, px,
 };
-use nucleo::Matcher;
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo::{Matcher, Utf32Str};
 use theme::ThemeColors;
 use xenon_design_system::OverlayLayout;
 
-/// Height of [`crate::palette::simple_row`] (py_1 + text_sm). Used only when
-/// GPUI has not yet measured children for this scroll handle.
+/// Estimated row height before GPUI has measured the list.
 pub(crate) const PALETTE_ROW_H: f32 = 32.;
 
 /// Default palette panel geometry.
 pub(crate) type PaletteLayout = OverlayLayout;
-
-pub(crate) fn optional_title(title: &str, colors: &ThemeColors) -> Div {
-    div()
-        .flex_none()
-        .px_3()
-        .pt_2()
-        .text_xs()
-        .text_color(colors.text_muted)
-        .child(title.to_string())
-}
-
-pub(crate) fn hint_row(text: &str, colors: &ThemeColors) -> Div {
-    div()
-        .flex_none()
-        .px_3()
-        .py_1()
-        .border_t_1()
-        .border_color(colors.border)
-        .text_xs()
-        .text_color(colors.text_muted)
-        .child(text.to_string())
-}
-
-/// Hint bar with a trailing action (e.g. Browse…).
-pub(crate) fn hint_row_with_action(text: &str, action: AnyElement, colors: &ThemeColors) -> Div {
-    div()
-        .flex_none()
-        .px_3()
-        .py_1()
-        .border_t_1()
-        .border_color(colors.border)
-        .flex()
-        .justify_between()
-        .text_xs()
-        .text_color(colors.text_muted)
-        .child(text.to_string())
-        .child(action)
-}
 
 /// Scrollable result list inputs (keeps arg count under the clippy limit).
 pub(crate) struct ScrollResults<'a> {
@@ -143,7 +104,7 @@ pub(crate) fn reveal_selected(scroll: &ScrollHandle, selected: usize) {
         return;
     }
 
-    // No child metrics yet (first open / empty handle): estimate from simple_row.
+    // No child metrics yet (first open / empty handle): estimate from a row.
     let row = px(PALETTE_ROW_H);
     let view_h = if viewport.size.height > px(0.) {
         viewport.size.height
@@ -209,6 +170,23 @@ pub(crate) fn fuzzy_index_order(
     scored.into_iter().map(|(i, _)| i).collect()
 }
 
+/// Char indexes where `query` matches `text`. Empty when there is no query.
+pub(crate) fn match_hits(text: &str, query: &str, matcher: &mut Matcher) -> Vec<u32> {
+    if query.is_empty() || text.is_empty() {
+        return Vec::new();
+    }
+    let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
+    let mut buf = Vec::new();
+    let mut hits = Vec::new();
+    let haystack = Utf32Str::new(text, &mut buf);
+    if pattern.indices(haystack, matcher, &mut hits).is_none() {
+        return Vec::new();
+    }
+    hits.sort_unstable();
+    hits.dedup();
+    hits
+}
+
 #[cfg(test)]
 mod reveal_tests {
     use super::*;
@@ -219,6 +197,14 @@ mod reveal_tests {
         let labels = vec!["same".to_string(), "other".to_string(), "same".to_string()];
         let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
         assert_eq!(fuzzy_index_order(&labels, "same", &mut matcher), vec![0, 2]);
+    }
+
+    #[test]
+    fn match_hits_marks_the_query_in_the_title() {
+        let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
+        let hits = match_hits("Open Workspace…", "open", &mut matcher);
+        assert!(hits.contains(&0));
+        assert!(hits.contains(&1));
     }
 
     #[test]

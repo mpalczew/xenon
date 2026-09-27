@@ -8,12 +8,15 @@ use gpui::{
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
-use xenon_design_system::{PaletteOverlay, palette_overlay};
+use xenon_design_system::{
+    PaletteInput, PaletteOverlay, QueryRow, palette_input, palette_overlay, query_hint,
+    query_label, query_row,
+};
 
 use crate::commands::{CommandEntry, CommandId, catalog};
 use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, detail_row, fuzzy_index_order, hint_row,
-    optional_title, reveal_selected, scroll_results, step_selection,
+    PaletteLayout, ScrollResults, fuzzy_index_order, match_hits, reveal_selected, scroll_results,
+    step_selection,
 };
 
 #[derive(Clone, Debug)]
@@ -106,10 +109,14 @@ impl CommandPaletteView {
         });
         input.update(cx, |input, cx| input.open(cx));
         let focus = input.read(cx).focus_handle();
-        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
-            if let xenon_design_system::TextInputEvent::Changed(query) = event {
-                this.set_query(query.clone(), cx);
-            }
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| match palette_input(event) {
+            PaletteInput::Query(query) => this.set_query(query, cx),
+            PaletteInput::Navigate {
+                key,
+                shift,
+                platform,
+            } => this.on_nav(&key, shift, platform, cx),
+            PaletteInput::Ignore => {}
         });
         let mut view = Self {
             mode,
@@ -167,8 +174,8 @@ impl CommandPaletteView {
         }
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
+    fn on_nav(&mut self, key: &str, _shift: bool, _platform: bool, cx: &mut Context<Self>) {
+        match key {
             "escape" => cx.emit(CommandPaletteEvent::Dismissed),
             "enter" => self.confirm(cx),
             "up" => self.move_selection(-1, cx),
@@ -176,6 +183,15 @@ impl CommandPaletteView {
             _ => return,
         }
         cx.stop_propagation();
+    }
+
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.on_nav(
+            event.keystroke.key.as_str(),
+            event.keystroke.modifiers.shift,
+            event.keystroke.modifiers.platform,
+            cx,
+        );
     }
 }
 
@@ -189,22 +205,26 @@ impl Render for CommandPaletteView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::tall();
+        let mut ranker = Matcher::new(Config::DEFAULT);
         let rows: Vec<_> = self
             .results
             .iter()
             .enumerate()
             .map(|(i, &item_i)| {
                 let item = &self.items[item_i];
-                detail_row(
+                let title = item.title();
+                let hits = match_hits(&title, &self.query, &mut ranker);
+                query_row(
                     ("cmd-row", i),
-                    DetailRow {
-                        title: item.title(),
-                        detail: item.detail(),
-                        selected: i == self.selected,
-                        selectable: true,
+                    QueryRow {
+                        title,
+                        detail: Some(item.detail()),
                         subtitle: None,
+                        selected: i == self.selected,
+                        enabled: true,
+                        hits,
                     },
-                    &colors,
+                    cx,
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.selected = i;
@@ -224,7 +244,7 @@ impl Render for CommandPaletteView {
                 on_key: Self::on_key,
                 on_dismiss: |_, _, _, cx| cx.emit(CommandPaletteEvent::Dismissed),
                 children: vec![
-                    optional_title(self.title(), &colors).into_any_element(),
+                    query_label(self.title(), cx).into_any_element(),
                     self.input.clone().into_any_element(),
                     scroll_results(ScrollResults {
                         list_id: "command-palette-results",
@@ -234,8 +254,7 @@ impl Render for CommandPaletteView {
                         scroll: &self.scroll,
                         colors: &colors,
                     }),
-                    hint_row("↵ run  ·  esc dismiss  ·  type to filter", &colors)
-                        .into_any_element(),
+                    query_hint("return runs  ·  esc closes", cx).into_any_element(),
                 ],
             },
             cx,

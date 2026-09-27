@@ -15,6 +15,8 @@ pub enum OutlineEvent {
     Changed,
     Submit,
     Cancel,
+    /// ⌘⌫ while a field is focused.
+    Delete,
     Checked(bool),
 }
 
@@ -175,6 +177,10 @@ impl OutlineView {
             cx.emit(OutlineEvent::Cancel);
             return;
         }
+        if key.key == "backspace" && platform {
+            cx.emit(OutlineEvent::Delete);
+            return;
+        }
         if key.key == "enter" && platform {
             cx.emit(OutlineEvent::Submit);
             return;
@@ -253,7 +259,12 @@ impl Render for OutlineView {
             .border_1()
             .border_color(colors.border)
             .bg(colors.editor_background)
-            .child(title_line(self.title_check, self.title.clone(), cx))
+            .child(title_line(
+                self.title_check,
+                self.title.clone(),
+                !self.points.is_empty(),
+                cx,
+            ))
             .children({
                 let mut rows = Vec::new();
                 for (depth, input) in points {
@@ -267,14 +278,12 @@ impl Render for OutlineView {
 fn title_line(
     checked: Option<bool>,
     input: Entity<TextInputView>,
+    spaced: bool,
     cx: &mut Context<OutlineView>,
 ) -> impl IntoElement {
-    div()
-        .flex()
-        .items_center()
-        .gap_2()
-        .h(px(28.))
-        .type_role(TypeRole::ListPrimary, cx)
+    let row = div().flex().items_center().gap_2().h(px(28.));
+    let row = if spaced { row.mb_3() } else { row };
+    row.type_role(TypeRole::ListPrimary, cx)
         .children(checked.map(|checked| {
             div()
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {

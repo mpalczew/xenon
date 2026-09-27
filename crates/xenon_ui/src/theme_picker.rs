@@ -8,11 +8,13 @@ use gpui::{
 };
 use nucleo::{Config, Matcher};
 use theme::{ActiveTheme, Appearance, Theme, ThemeColors, ThemeRegistry};
-use xenon_design_system::{PaletteOverlay, palette_overlay};
-use xenon_design_system::{TypeRole, Typography};
+use xenon_design_system::{
+    PaletteInput, PaletteOverlay, TypeRole, Typography, palette_input, palette_overlay, query_hint,
+    query_label,
+};
 use xenon_store::ThemeMode;
 
-use crate::palette::{PaletteLayout, fuzzy_index_order, hint_row, optional_title};
+use crate::palette::{PaletteLayout, fuzzy_index_order};
 
 const COLS: usize = 3;
 const CARD_PREVIEW_H: f32 = 88.;
@@ -63,10 +65,14 @@ impl ThemePickerView {
         });
         input.update(cx, |input, cx| input.open(cx));
         let focus = input.read(cx).focus_handle();
-        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
-            if let xenon_design_system::TextInputEvent::Changed(query) = event {
-                this.set_query(query.clone(), cx);
-            }
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| match palette_input(event) {
+            PaletteInput::Query(query) => this.set_query(query, cx),
+            PaletteInput::Navigate {
+                key,
+                shift,
+                platform,
+            } => this.on_nav(&key, shift, platform, cx),
+            PaletteInput::Ignore => {}
         });
         let mut view = Self {
             items,
@@ -123,14 +129,23 @@ impl ThemePickerView {
         cx.notify();
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
+    fn on_nav(&mut self, key: &str, _shift: bool, _platform: bool, cx: &mut Context<Self>) {
+        match key {
             "escape" => cx.emit(ThemePickerEvent::Dismissed),
             "enter" => self.confirm(cx),
-            "left" | "up" | "right" | "down" => self.move_grid(event.keystroke.key.as_str(), cx),
+            "left" | "up" | "right" | "down" => self.move_grid(key, cx),
             _ => return,
         }
         cx.stop_propagation();
+    }
+
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.on_nav(
+            event.keystroke.key.as_str(),
+            event.keystroke.modifiers.shift,
+            event.keystroke.modifiers.platform,
+            cx,
+        );
     }
 }
 
@@ -342,7 +357,7 @@ impl Render for ThemePickerView {
                 on_key: Self::on_key,
                 on_dismiss: |_, _, _, cx| cx.emit(ThemePickerEvent::Dismissed),
                 children: vec![
-                    optional_title("Themes", &colors).into_any_element(),
+                    query_label("Themes", cx).into_any_element(),
                     self.input.clone().into_any_element(),
                     div()
                         .id("theme-picker-grid")
@@ -357,11 +372,8 @@ impl Render for ThemePickerView {
                         .gap_3()
                         .children(cards)
                         .into_any_element(),
-                    hint_row(
-                        "↵ apply (stays open)  ·  esc dismiss  ·  arrows move  ·  type to filter",
-                        &colors,
-                    )
-                    .into_any_element(),
+                    query_hint("return applies  ·  esc closes  ·  arrows move", cx)
+                        .into_any_element(),
                 ],
             },
             cx,

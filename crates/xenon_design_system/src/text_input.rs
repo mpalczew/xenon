@@ -168,7 +168,7 @@ impl TextInputView {
             self.config.key_behavior,
             TextInputKeyBehavior::ParentNavigation
         ) && (matches!(key, "enter" | "escape" | "tab" | "up" | "down")
-            || (key == "backspace" && self.value.is_caret_at_start()))
+            || (key == "backspace" && (modifiers.platform || self.value.is_caret_at_start())))
         {
             cx.emit(TextInputEvent::ParentKey {
                 key: key.to_owned(),
@@ -368,10 +368,10 @@ impl Render for TextInputView {
             (focused && self.blink.visible() && self.value.selection().is_empty()).then(|| {
                 let utf16 = self.value.selected_utf16().end;
                 self.geometry.as_ref().map_or_else(
-                    || match self.config.appearance {
-                        TextInputAppearance::Bordered => point(px(8.), px(8.)),
-                        TextInputAppearance::Palette => point(px(12.), px(8.)),
-                        TextInputAppearance::Inline => point(px(0.), px(0.)),
+                    || {
+                        let (x, y) =
+                            geometry::field_insets(self.config.appearance, window.rem_size());
+                        point(x, y)
                     },
                     |geometry| geometry.caret_offset(self.value.text(), utf16),
                 )

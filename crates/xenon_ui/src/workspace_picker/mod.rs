@@ -21,12 +21,12 @@ use gpui::{
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
-use xenon_design_system::{PaletteOverlay, palette_overlay};
-
-use crate::palette::{
-    DetailRow, PaletteLayout, ScrollResults, detail_row, hint_row_with_action, reveal_selected,
-    scroll_results,
+use xenon_design_system::{
+    PaletteInput, PaletteOverlay, QueryRow, palette_input, palette_overlay, query_hint_action,
+    query_row,
 };
+
+use crate::palette::{PaletteLayout, ScrollResults, match_hits, reveal_selected, scroll_results};
 use crate::workspace_discover::{
     DiscoverQuery, FoundRoot, discover, expand_user_path, parse_discover_query, ranking_needle,
     resolve_existing_dir, same_root,
@@ -66,10 +66,14 @@ impl WorkspacePickerView {
         });
         input.update(cx, |input, cx| input.open(cx));
         let focus = input.read(cx).focus_handle();
-        let input_sub = cx.subscribe(&input, |this, _, event, cx| {
-            if let xenon_design_system::TextInputEvent::Changed(query) = event {
-                this.set_query(query.clone(), cx);
-            }
+        let input_sub = cx.subscribe(&input, |this, _, event, cx| match palette_input(event) {
+            PaletteInput::Query(query) => this.set_query(query, cx),
+            PaletteInput::Navigate {
+                key,
+                shift,
+                platform,
+            } => this.on_nav(&key, shift, platform, cx),
+            PaletteInput::Ignore => {}
         });
         let mut view = Self {
             known,
@@ -289,17 +293,31 @@ impl WorkspacePickerView {
         cx.notify();
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        match event.keystroke.key.as_str() {
+    fn on_nav(&mut self, key: &str, _shift: bool, platform: bool, cx: &mut Context<Self>) {
+        match key {
             "escape" => cx.emit(WorkspacePickerEvent::Dismissed),
             "enter" => self.confirm(cx),
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
-            "delete" => self.forget_selected(cx),
-            "backspace" if event.keystroke.modifiers.platform => self.forget_selected(cx),
+            "backspace" if platform => self.forget_selected(cx),
             _ => return,
         }
         cx.stop_propagation();
+    }
+
+    fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let key = event.keystroke.key.as_str();
+        if key == "delete" {
+            self.forget_selected(cx);
+            cx.stop_propagation();
+            return;
+        }
+        self.on_nav(
+            key,
+            event.keystroke.modifiers.shift,
+            event.keystroke.modifiers.platform,
+            cx,
+        );
     }
 }
 
@@ -318,26 +336,27 @@ impl Render for WorkspacePickerView {
         } else {
             "No match — try ~/src name or Browse…"
         };
+        let mut ranker = nucleo::Matcher::new(nucleo::Config::DEFAULT);
         let rows: Vec<_> = self
             .results
             .iter()
             .enumerate()
             .map(|(i, cand)| {
                 let selectable = cand.selectable();
-                let selected = i == self.selected && selectable;
-                // Missing rows are not selectable for open, but can still be
-                // focused for ⌘⌫ forget — highlight when selected index matches.
-                let selected = selected || (i == self.selected && cand.is_closed());
-                let mut row = detail_row(
+                let selected = i == self.selected && (selectable || cand.is_closed());
+                let title = cand.name();
+                let hits = match_hits(&title, &self.query, &mut ranker);
+                let mut row = query_row(
                     ("workspace-row", i),
-                    DetailRow {
-                        title: cand.name(),
-                        detail: cand.badge().to_string(),
-                        selected,
-                        selectable: selectable || cand.is_closed(),
+                    QueryRow {
+                        title,
+                        detail: Some(cand.badge().to_string()),
                         subtitle: Some(cand.root().display().to_string()),
+                        selected,
+                        enabled: selectable || cand.is_closed(),
+                        hits,
                     },
-                    &colors,
+                    cx,
                 );
                 if selectable {
                     row = row.on_click(cx.listener(move |this, _, _, cx| {
@@ -381,10 +400,10 @@ impl Render for WorkspacePickerView {
                         scroll: &self.scroll,
                         colors: &colors,
                     }),
-                    hint_row_with_action(
-                        "↵ open  ·  ⌘⌫ forget closed  ·  ~/src name  ·  esc",
+                    query_hint_action(
+                        "return opens  ·  ⌘⌫ forgets a closed workspace  ·  esc closes",
                         browse,
-                        &colors,
+                        cx,
                     )
                     .into_any_element(),
                 ],
