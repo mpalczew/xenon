@@ -412,13 +412,12 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     .text_color(fg)
     .aria_label(hint.clone())
     .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
-    // Pointer press must not focus the button. Focus is what keeps the keyboard
-    // hint on screen after the hover tooltip dismisses, including when the
-    // click is cancelled by releasing outside the button.
+    // Chrome is not a tab stop and a click must not pull focus off the terminal
+    // or editor: shortcuts are the keyboard path, the tooltip makes them discoverable.
+    .tab_stop(false)
     .capture_any_mouse_down(|_, window, _| {
         window.prevent_default();
     })
-    .child(toolbar_focus_hint(id, command, &colors))
     .tooltip({
         let label = gpui::SharedString::from(command.label);
         let keys = (!command.keys.is_empty()).then(|| gpui::SharedString::from(command.keys));
@@ -430,42 +429,4 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
             .into()
         }
     })
-}
-
-fn toolbar_focus_hint(
-    id: &'static str,
-    command: commands::CommandEntry,
-    colors: &theme::ThemeColors,
-) -> impl IntoElement + use<> {
-    div()
-        .id(format!("{id}-focus-hint"))
-        .absolute()
-        .top(px(30.))
-        .right(px(0.))
-        .flex()
-        .items_center()
-        .gap_2()
-        .px_2()
-        .py_1()
-        .rounded_sm()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.elevated_surface_background)
-        .text_color(colors.text)
-        .text_sm()
-        .whitespace_nowrap()
-        // Hidden, not transparent: a hidden element registers no mouse listeners,
-        // so the hint cannot steal clicks from the chrome it overhangs.
-        .invisible()
-        .focusable()
-        .in_focus(|s| s.visible())
-        .child(command.label)
-        .children((!command.keys.is_empty()).then(|| {
-            div()
-                .px_1()
-                .rounded_xs()
-                .bg(colors.element_background)
-                .text_color(colors.text_muted)
-                .child(command.keys)
-        }))
 }

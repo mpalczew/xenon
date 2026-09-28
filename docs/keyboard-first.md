@@ -4,6 +4,10 @@ Mouse input is additive. Every daily flow needs a complete keyboard path.
 `AGENTS.md` contains the implementation rule; this document records the current
 surface and the non-obvious focus model.
 
+The keyboard path is shortcuts, not Tab-walking the chrome. Toolbar buttons are
+not tab stops; their hover tooltips exist to make the shortcut discoverable.
+Tab order is for fields and buttons inside dialogs and forms.
+
 ## Daily keys
 
 | Area | Keys |
