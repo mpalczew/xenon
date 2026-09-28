@@ -107,14 +107,21 @@ impl XenonApp {
             .unwrap_or(BTN_INSTALL);
         match button {
             BTN_NEVER => {
-                let _ = decline_skill();
+                if let Err(error) = decline_skill() {
+                    self.show_toast(
+                        super::toasts::failed("Couldn’t save that choice", error),
+                        cx,
+                    );
+                }
                 self.close_skill_prompt(true, cx);
             }
             BTN_LATER => self.dismiss_skill_later(cx),
             _ => {
-                if let Err(error) = install_skill() {
-                    log::error!("skill install: {error}");
-                }
+                let toast = match install_skill() {
+                    Ok(()) => xenon_design_system::Toast::success("🧩", "Xenon skill installed"),
+                    Err(error) => super::toasts::failed("Couldn’t install the skill", error),
+                };
+                self.show_toast(toast, cx);
                 self.close_skill_prompt(true, cx);
             }
         }

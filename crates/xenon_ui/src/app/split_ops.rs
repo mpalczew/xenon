@@ -32,6 +32,7 @@ impl XenonApp {
                 .and_then(|r| r.nest_depth(src_pane))
                 .unwrap_or(0);
             if depth >= MAX_NEST_DEPTH {
+                xenon_design_system::show_toast(super::toasts::split_limit(), cx);
                 return;
             }
             let Some(leaf) = content
@@ -363,7 +364,6 @@ impl XenonApp {
                         this.adopt_tab_as_focused(workspace, tab, cx);
                     }
                 }
-                EditorEvent::RequestWorklistUndo => this.undo_last_worklist_capture(cx),
             }));
     }
 

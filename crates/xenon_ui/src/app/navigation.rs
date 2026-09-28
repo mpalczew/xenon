@@ -280,8 +280,8 @@ impl XenonApp {
         .on_action(cx.listener(|this, _: &crate::CopyRelativePath, _, cx| {
             this.copy_focused_path(true, cx);
         }))
-        .on_action(cx.listener(|this, _: &crate::RevealInFinder, _, _cx| {
-            this.reveal_focused_path();
+        .on_action(cx.listener(|this, _: &crate::RevealInFinder, _, cx| {
+            this.reveal_focused_path(cx);
         }))
         .on_action(cx.listener(|this, _: &crate::OpenInDefaultApp, _, cx| {
             this.open_focused_in_default_app(cx);
@@ -386,10 +386,12 @@ impl XenonApp {
                         cx.notify();
                     });
                 } else {
-                    window.play_system_bell();
+                    self.show_toast(super::toasts::nothing_to_copy(), cx);
                 }
             }
-            FocusOwner::Browser | FocusOwner::Shell => window.play_system_bell(),
+            FocusOwner::Browser | FocusOwner::Shell => {
+                self.show_toast(super::toasts::nothing_to_copy(), cx);
+            }
         }
     }
 

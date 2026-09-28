@@ -39,6 +39,8 @@ pub struct SettingsView {
     toggle_focus: usize,
     /// Inline edit for remote password/hostname (None = not editing).
     remote_edit: Option<RemoteFieldEdit>,
+    /// This window's toast host, created on first render (it needs the window).
+    toast: Option<Entity<xenon_design_system::ToastView>>,
 }
 
 impl SettingsView {
@@ -79,6 +81,7 @@ impl SettingsView {
             highlight: 0,
             toggle_focus: 0,
             remote_edit: None,
+            toast: None,
         }
     }
 
@@ -205,7 +208,7 @@ impl SettingsView {
                 xenon_settings::save(cx);
             }
             2 => remote_section::activate_mobile_remote(window, cx),
-            _ => skill_section::toggle_skill_from_keys(cx),
+            _ => skill_section::toggle_skill(window, cx),
         }
         window.refresh();
         cx.notify();
@@ -308,6 +311,10 @@ impl Render for SettingsView {
         window.set_rem_size(gpui::px(ui.size));
         let colors = cx.theme().colors().clone();
         let body = self.body(window, cx);
+        let toast = self
+            .toast
+            .get_or_insert_with(|| xenon_design_system::toast_host(gpui::px(0.), window, cx))
+            .clone();
         div()
             .track_focus(&self.focus)
             .key_context("Settings")
@@ -315,6 +322,7 @@ impl Render for SettingsView {
                 window.remove_window();
             }))
             .on_key_down(cx.listener(Self::on_key))
+            .relative()
             .flex()
             .flex_col()
             .size_full()
@@ -330,6 +338,7 @@ impl Render for SettingsView {
                     .child(div().type_role(TypeRole::ScreenTitle, cx).child("Settings")),
             )
             .child(body)
+            .child(toast)
     }
 }
 

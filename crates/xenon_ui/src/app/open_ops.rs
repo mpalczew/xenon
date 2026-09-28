@@ -19,7 +19,7 @@ impl XenonApp {
 
     pub(crate) fn open_worklist(&mut self, cx: &mut Context<Self>) {
         let Some(workspace) = self.active else {
-            self.show_worklist_notice("Open a workspace first", cx);
+            self.show_toast(super::toasts::no_workspace(), cx);
             return;
         };
         self.hide_worklist_capture(cx);
@@ -28,13 +28,16 @@ impl XenonApp {
         };
         let path = root.join(".xenon/worklist.md");
         if let Err(error) = self.open_editor_at(path, true, None, cx) {
-            log::error!("worklist open failed: {error}");
+            self.show_toast(
+                super::toasts::failed("Couldn’t open the worklist", error),
+                cx,
+            );
         }
     }
 
     pub(crate) fn open_editor(&mut self, path: PathBuf, focus: bool, cx: &mut Context<Self>) {
         if let Err(error) = self.open_editor_at(path, focus, None, cx) {
-            log::error!("open failed: {error}");
+            self.show_toast(super::toasts::failed("Couldn’t open that file", error), cx);
         }
     }
 
@@ -91,7 +94,8 @@ impl XenonApp {
                     view,
                 };
                 if !self.split_right_with_tab(tab, true) {
-                    log::error!("open beside failed for {}", path.display());
+                    let error = format!("No room beside {}", file_name(&path));
+                    self.show_toast(super::toasts::failed("Couldn’t open beside", error), cx);
                     return;
                 }
                 self.touch_recent_file(id, &path);
@@ -103,7 +107,9 @@ impl XenonApp {
                 }
                 cx.notify();
             }
-            Err(error) => log::error!("open failed: {error}"),
+            Err(error) => {
+                self.show_toast(super::toasts::failed("Couldn’t open that file", error), cx);
+            }
         }
     }
 

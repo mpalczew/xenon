@@ -132,7 +132,7 @@ impl XenonApp {
             }
             TabMenuAction::RevealInFinder => {
                 if let Some(path) = self.tab_editor_path(tab) {
-                    Self::reveal_in_finder(&path);
+                    Self::reveal_in_finder(&path, cx);
                 }
             }
             TabMenuAction::OpenInDefaultApp => {

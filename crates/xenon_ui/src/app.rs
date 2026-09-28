@@ -70,6 +70,7 @@ mod tab_drop;
 mod tasks;
 mod terminals;
 mod themes;
+pub(crate) mod toasts;
 mod tree_keys;
 #[cfg(feature = "visual-tests")]
 pub(crate) mod visual;
@@ -135,7 +136,7 @@ pub struct XenonApp {
     worklist_capture_subs: Vec<Subscription>,
     worklist_capture_visible: Option<WorkspaceId>,
     worklist_undo: Option<(WorkspaceId, xenon_editor::worklist_file::ItemDraft)>,
-    worklist_notice: xenon_design_system::TimedNotice,
+    toast: Entity<xenon_design_system::ToastView>,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
     workspace_create: Option<Entity<WorkspaceCreateView>>,
     command_palette: Option<Entity<crate::command_palette::CommandPaletteView>>,
@@ -210,8 +211,8 @@ pub struct XenonApp {
 }
 
 impl XenonApp {
-    pub fn new(cx: &mut Context<Self>) -> Self {
-        Self::boot(cx, boot::BootKind::Normal)
+    pub fn new(window: &Window, cx: &mut Context<Self>) -> Self {
+        Self::boot(window, cx, boot::BootKind::Normal)
     }
 
     /// Persist position/size (and maximized/fullscreen) after move/resize settles.

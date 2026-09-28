@@ -2,10 +2,10 @@
 
 use gpui::{
     App, Context, InteractiveElement, IntoElement, ParentElement, StatefulInteractiveElement,
-    Styled, div,
+    Styled, Window, div,
 };
 use theme::ActiveTheme;
-use xenon_design_system::{TypeRole, Typography};
+use xenon_design_system::{Toast, TypeRole, Typography, show_toast_in};
 use xenon_store::{SkillStatus, install_skill, remove_skill, skill_status};
 
 use super::SettingsView;
@@ -49,7 +49,7 @@ pub(super) fn skill_section(focused: bool, cx: &mut Context<SettingsView>) -> im
                 .bg(row_bg)
                 .cursor_pointer()
                 .on_click(cx.listener(|_, _, window, cx| {
-                    toggle_skill(cx);
+                    toggle_skill(window, cx);
                     window.refresh();
                     cx.notify();
                 }))
@@ -76,7 +76,7 @@ pub(super) fn skill_section(focused: bool, cx: &mut Context<SettingsView>) -> im
                     cx,
                     cx.listener(|_, _, window, cx| {
                         cx.stop_propagation();
-                        toggle_skill(cx);
+                        toggle_skill(window, cx);
                         window.refresh();
                         cx.notify();
                     }),
@@ -121,32 +121,20 @@ fn action_row(status: SkillStatus, cx: &mut Context<SettingsView>) -> impl IntoE
     let mut row = div().flex().justify_end().gap_2().px_3().py_2();
     match status {
         SkillStatus::Missing => {
-            row = row.child(action_btn("Install skill", true, cx, |_| {
-                let _ = install_skill();
-            }));
+            row = row.child(action_btn("Install skill", true, cx, install));
         }
         SkillStatus::Installed { .. } => {
-            row = row.child(action_btn("Remove", false, cx, |_| {
-                let _ = remove_skill();
-            }));
+            row = row.child(action_btn("Remove", false, cx, remove));
         }
         SkillStatus::UpdateAvailable { .. } => {
             row = row
-                .child(action_btn("Update to bundled", true, cx, |_| {
-                    let _ = install_skill();
-                }))
-                .child(action_btn("Remove", false, cx, |_| {
-                    let _ = remove_skill();
-                }));
+                .child(action_btn("Update to bundled", true, cx, install))
+                .child(action_btn("Remove", false, cx, remove));
         }
         SkillStatus::UserEdited => {
             row = row
-                .child(action_btn("Reset to bundled", true, cx, |_| {
-                    let _ = install_skill();
-                }))
-                .child(action_btn("Remove", false, cx, |_| {
-                    let _ = remove_skill();
-                }));
+                .child(action_btn("Reset to bundled", true, cx, install))
+                .child(action_btn("Remove", false, cx, remove));
         }
     }
     row
@@ -156,7 +144,7 @@ fn action_btn(
     label: &'static str,
     primary: bool,
     cx: &mut Context<SettingsView>,
-    on_click: impl Fn(&mut App) + 'static,
+    on_click: fn(&Window, &mut App),
 ) -> impl IntoElement {
     xenon_design_system::action_button(
         label,
@@ -167,24 +155,32 @@ fn action_btn(
         },
         cx,
         cx.listener(move |_, _, window, cx| {
-            on_click(cx);
+            on_click(window, cx);
             window.refresh();
             cx.notify();
         }),
     )
 }
 
-pub(super) fn toggle_skill_from_keys(cx: &mut App) {
-    toggle_skill(cx);
+pub(super) fn toggle_skill(window: &Window, cx: &mut App) {
+    match skill_status() {
+        SkillStatus::Missing => install(window, cx),
+        _ => remove(window, cx),
+    }
 }
 
-fn toggle_skill(_cx: &mut App) {
-    match skill_status() {
-        SkillStatus::Missing => {
-            let _ = install_skill();
-        }
-        _ => {
-            let _ = remove_skill();
-        }
-    }
+fn install(window: &Window, cx: &mut App) {
+    let toast = match install_skill() {
+        Ok(()) => Toast::success("🧩", "Xenon skill installed"),
+        Err(error) => Toast::error("🙈", "Couldn’t install the skill").detail(error.to_string()),
+    };
+    show_toast_in(window, toast, cx);
+}
+
+fn remove(window: &Window, cx: &mut App) {
+    let toast = match remove_skill() {
+        Ok(()) => Toast::info("🧹", "Xenon skill removed"),
+        Err(error) => Toast::error("🙈", "Couldn’t remove the skill").detail(error.to_string()),
+    };
+    show_toast_in(window, toast, cx);
 }

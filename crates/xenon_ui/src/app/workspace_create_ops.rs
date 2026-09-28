@@ -72,7 +72,10 @@ impl XenonApp {
                         self.deferred.restore_pane = None;
                         self.register_workspace(root, cx);
                     }
-                    Err(error) => log::error!("create workspace {}: {error}", root.display()),
+                    Err(error) => {
+                        let toast = super::toasts::failed("Couldn’t create that folder", error);
+                        self.show_toast(toast, cx);
+                    }
                 }
             }
             WorkspaceCreateEvent::Dismissed => {

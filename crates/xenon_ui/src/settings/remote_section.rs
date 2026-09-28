@@ -298,6 +298,11 @@ fn copyable_mono_row(
         .on_click(cx.listener(move |_, _, window, cx| {
             cx.stop_propagation();
             cx.write_to_clipboard(gpui::ClipboardItem::new_string(value_for_copy.to_string()));
+            xenon_design_system::show_toast_in(
+                window,
+                crate::app::toasts::copied("to the clipboard"),
+                cx,
+            );
             window.refresh();
             cx.notify();
         }))

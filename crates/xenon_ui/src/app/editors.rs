@@ -22,6 +22,7 @@ impl XenonApp {
     /// Create a new empty file (path prompt under workspace root).
     pub(super) fn new_file_dialog(&mut self, cx: &mut Context<Self>) {
         let Some(id) = self.active else {
+            self.show_toast(super::toasts::no_workspace(), cx);
             return;
         };
         let Some(root) = self.workspace_root(id) else {
@@ -39,7 +40,7 @@ impl XenonApp {
             index += 1;
         }
         if let Err(error) = std::fs::File::create(&path) {
-            log::error!("new file create failed: {error}");
+            self.show_toast(super::toasts::failed("Couldn’t create a file", error), cx);
             return;
         }
         self.file_browser.reveal_dir(&dir, &dir);
@@ -61,7 +62,10 @@ impl XenonApp {
             if let Ok(Ok(Some(path))) = rx.await {
                 this.update(cx, |this, cx| {
                     if let Err(error) = std::fs::create_dir_all(&path) {
-                        log::error!("new folder failed: {error}");
+                        this.show_toast(
+                            super::toasts::failed("Couldn’t create that folder", error),
+                            cx,
+                        );
                         return;
                     }
                     if let Some(id) = this.active

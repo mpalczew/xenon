@@ -51,6 +51,7 @@ impl XenonApp {
             return;
         };
         if depth >= MAX_NEST_DEPTH {
+            xenon_design_system::show_toast(super::toasts::split_limit(), cx);
             return;
         }
         source_leaf.parked = false;

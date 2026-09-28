@@ -124,7 +124,6 @@ pub enum EditorEvent {
     },
     /// Mouse (or other user action) claimed keyboard focus on this view.
     Focused,
-    RequestWorklistUndo,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}

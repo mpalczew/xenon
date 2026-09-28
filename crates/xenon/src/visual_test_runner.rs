@@ -223,8 +223,8 @@ fn open_window(
     cx: &mut gpui::VisualTestAppContext,
 ) -> anyhow::Result<gpui::WindowHandle<xenon_ui::XenonApp>> {
     use gpui::{AppContext as _, px, size};
-    cx.open_offscreen_window(size(px(1280.0), px(800.0)), |_window, cx| {
-        cx.new(xenon_ui::XenonApp::new_visual)
+    cx.open_offscreen_window(size(px(1280.0), px(800.0)), |window, cx| {
+        cx.new(|cx| xenon_ui::XenonApp::new_visual(window, cx))
     })
 }
 

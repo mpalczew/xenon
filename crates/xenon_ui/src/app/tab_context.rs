@@ -129,12 +129,14 @@ impl XenonApp {
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.to_string_lossy().into_owned());
         cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+        xenon_design_system::show_toast(super::toasts::copied("relative path"), cx);
     }
 
     pub(crate) fn copy_path_abs(path: &Path, cx: &mut App) {
         cx.write_to_clipboard(gpui::ClipboardItem::new_string(
             path.to_string_lossy().into_owned(),
         ));
+        xenon_design_system::show_toast(super::toasts::copied("path"), cx);
     }
 
     fn focused_tab_id(&self) -> Option<TabId> {
@@ -168,6 +170,7 @@ impl XenonApp {
 
     pub(crate) fn copy_focused_path(&self, relative: bool, cx: &mut Context<Self>) {
         let Some(path) = self.focused_editor_path() else {
+            self.show_toast(super::toasts::nothing_to_copy(), cx);
             return;
         };
         if relative {
@@ -177,9 +180,9 @@ impl XenonApp {
         }
     }
 
-    pub(crate) fn reveal_focused_path(&self) {
+    pub(crate) fn reveal_focused_path(&self, cx: &mut App) {
         if let Some(path) = self.focused_editor_path() {
-            Self::reveal_in_finder(&path);
+            Self::reveal_in_finder(&path, cx);
         }
     }
 
@@ -190,10 +193,14 @@ impl XenonApp {
     }
 
     /// macOS: `open -R` selects the file in Finder.
-    pub(crate) fn reveal_in_finder(path: &Path) {
-        let _ = std::process::Command::new("open")
+    pub(crate) fn reveal_in_finder(path: &Path, cx: &mut App) {
+        let spawned = std::process::Command::new("open")
             .arg("-R")
             .arg(path)
             .spawn();
+        if let Err(error) = spawned {
+            let toast = super::toasts::failed("Couldn’t reveal that in Finder", error);
+            xenon_design_system::show_toast(toast, cx);
+        }
     }
 }

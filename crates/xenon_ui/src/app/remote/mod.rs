@@ -94,7 +94,8 @@ pub(crate) fn set_remote_password(password: String, window: &mut Window, cx: &mu
     if let Err(e) = xenon_store::update_settings(|settings| {
         settings.remote_password = password.clone();
     }) {
-        log::error!("save remote password failed: {e}");
+        let toast = crate::app::toasts::failed("Couldn’t save the password", e);
+        xenon_design_system::show_toast_in(window, toast, cx);
         return;
     }
     if let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) {
@@ -112,12 +113,13 @@ pub(crate) fn set_remote_password(password: String, window: &mut Window, cx: &mu
 }
 
 /// Persist hostname for copyable URLs (server bind unchanged — no restart).
-pub(crate) fn set_remote_hostname(hostname: String, cx: &mut App) {
+pub(crate) fn set_remote_hostname(hostname: String, window: &Window, cx: &mut App) {
     let hostname = normalize_hostname(&hostname);
     if let Err(e) = xenon_store::update_settings(|settings| {
         settings.remote_hostname = hostname.clone();
     }) {
-        log::error!("save remote hostname failed: {e}");
+        let toast = crate::app::toasts::failed("Couldn’t save the hostname", e);
+        xenon_design_system::show_toast_in(window, toast, cx);
         return;
     }
     if let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) {
@@ -252,17 +254,8 @@ impl XenonApp {
         if self.services.remote.is_some() {
             self.stop_mobile_remote(cx);
             if announce {
-                let answer = window.prompt(
-                    PromptLevel::Info,
-                    "Mobile remote stopped",
-                    None,
-                    &["OK"],
-                    cx,
-                );
-                cx.spawn(async move |_, _| {
-                    let _ = answer.await;
-                })
-                .detach();
+                let toast = xenon_design_system::Toast::info("📴", "Mobile remote off");
+                self.show_toast(toast, cx);
             }
         } else {
             self.start_mobile_remote(window, cx, announce);
@@ -314,12 +307,8 @@ impl XenonApp {
             }
             Err(e) => {
                 log::error!("mobile remote failed to start: {e:#}");
-                let msg = format!("Mobile remote failed: {e}");
-                let answer = window.prompt(PromptLevel::Critical, &msg, None, &["OK"], cx);
-                cx.spawn(async move |_, _| {
-                    let _ = answer.await;
-                })
-                .detach();
+                let toast = crate::app::toasts::failed("Mobile remote didn’t start", e);
+                xenon_design_system::show_toast_in(window, toast, cx);
             }
         }
         publish_remote_info(self.snapshot_remote_info(), cx);

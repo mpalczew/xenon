@@ -94,6 +94,8 @@ actions!(
         KeyboardHelp,
         CaptureWorklist,
         OpenWorklist,
+        UndoToast,
+        DismissToast,
     ]
 );
 
@@ -112,6 +114,9 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-r", RunTask, None),
         KeyBinding::new("cmd-shift-k", CaptureWorklist, None),
         KeyBinding::new("cmd-alt-k", OpenWorklist, None),
+        // Toast: handlers pass the key on when no toast claims it.
+        KeyBinding::new("cmd-z", UndoToast, None),
+        KeyBinding::new("cmd-.", DismissToast, None),
         KeyBinding::new("cmd-shift-p", CommandPalette, None),
         // macOS delivers Shift+/ as `?` (same as Zed's `cmd-?` bindings).
         KeyBinding::new("cmd-?", KeyboardHelp, None),

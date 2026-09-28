@@ -73,7 +73,7 @@ impl SettingsView {
                 crate::app::remote::set_remote_password(value, window, cx);
             }
             RemoteEditField::Hostname => {
-                crate::app::remote::set_remote_hostname(value, cx);
+                crate::app::remote::set_remote_hostname(value, window, cx);
             }
         }
         self.focus.focus(window, cx);

@@ -24,6 +24,7 @@ pub(crate) use input::pty_input_bytes;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Duration;
+use xenon_design_system::{Toast, show_toast};
 
 use anyhow::Result;
 use attention::{IDLE_AFTER, agent_busy_signal};
@@ -626,10 +627,11 @@ impl TerminalView {
             .live_selection_text(window, cx)
             .or_else(|| clipboard_plain_text(cx));
         let Some(text) = text.filter(|text| !text.trim().is_empty()) else {
-            window.play_system_bell();
+            show_toast(Toast::info("🫙", "Nothing to copy"), cx);
             return;
         };
         cx.write_to_clipboard(ClipboardItem::new_string(clean_agent_output(&text)));
+        show_toast(Toast::success("🧼", "Copied clean output"), cx);
     }
 
     fn live_selection_text(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<String> {
@@ -651,6 +653,9 @@ impl TerminalView {
             && let Some(text) = terminal.read(cx).last_content().selection_text.clone()
         {
             cx.write_to_clipboard(ClipboardItem::new_string(extract_code(&text)));
+            show_toast(Toast::success("📋", "Copied code"), cx);
+        } else {
+            show_toast(Toast::info("🫙", "Nothing to copy"), cx);
         }
     }
 

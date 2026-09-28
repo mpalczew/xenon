@@ -20,7 +20,6 @@ mod cursor_blink;
 mod find_bar;
 mod focus;
 mod menu;
-mod notice;
 mod outline;
 mod outline_text;
 mod overlay;
@@ -29,6 +28,7 @@ mod query_row;
 mod selectable_row;
 mod text_field;
 mod text_input;
+mod toast;
 mod typography;
 pub use action_button::{ActionButton, ActionButtonVariant, action_button};
 pub use bullet_list::{BulletLine, bullet_list};
@@ -36,7 +36,6 @@ pub use checkbox::{CheckboxState, checkbox};
 pub use cursor_blink::CursorBlink;
 pub use find_bar::{FindBarAction, FindBarConfig, FindBarOptions, find_bar};
 pub use focus::FocusOnOpen;
-pub use notice::{TimedNotice, notice_panel};
 pub use outline::{OutlineEvent, OutlineView};
 pub use outline_text::{OutlinePoint, details_from_points, points_from_details};
 pub use overlay::{OverlayLayout, PaletteOverlay, palette_overlay};
@@ -49,6 +48,7 @@ pub use text_input::{
 mod multiline_text;
 pub use menu::{Shortcut, menu_item};
 pub use multiline_text::MultilineText;
+pub use toast::{Toast, ToastAction, ToastKind, ToastView, show_toast, show_toast_in, toast_host};
 pub use typography::{TypeRole, Typography};
 
 /// How a selectable chrome row or chip should paint.
@@ -134,6 +134,18 @@ fn motion_frozen(cx: &App) -> bool {
         let _ = cx;
         false
     }
+}
+
+/// The macOS Reduce Motion setting, read live so changes apply without a restart.
+#[cfg(target_os = "macos")]
+fn reduce_motion() -> bool {
+    use objc2_app_kit::NSWorkspace;
+    unsafe { NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn reduce_motion() -> bool {
+    false
 }
 
 /// Fade content into an expanding shell section without delaying interaction.

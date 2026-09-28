@@ -26,7 +26,7 @@ pub fn checkbox(
     let id = id.into();
     let colors = cx.theme().colors();
     let accent = colors.text_accent;
-    let animate = !state.disabled && !super::motion_frozen(cx) && !reduce_motion();
+    let animate = !state.disabled && !super::motion_frozen(cx) && !super::reduce_motion();
     let control = div()
         .id(id.clone())
         .relative()
@@ -142,18 +142,6 @@ fn pop_scale(t: f32, checking: bool) -> f32 {
     } else {
         0.88 + 0.12 * ((t - 0.6) / 0.4)
     }
-}
-
-#[cfg(target_os = "macos")]
-fn reduce_motion() -> bool {
-    use objc2_app_kit::NSWorkspace;
-    // AppKit reads the live accessibility setting, so changes apply without a restart.
-    unsafe { NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion() }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn reduce_motion() -> bool {
-    false
 }
 
 #[cfg(test)]

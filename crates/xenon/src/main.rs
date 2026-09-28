@@ -54,7 +54,7 @@ fn main() {
             move |window, cx| {
                 xenon_terminal::observe_appearance(window, cx).detach();
                 cx.new(move |cx| {
-                    let mut app = XenonApp::new(cx);
+                    let mut app = XenonApp::new(window, cx);
                     app.track_window_bounds(window, cx);
                     if let Some(listener) = listener {
                         start_ipc(listener, cx);

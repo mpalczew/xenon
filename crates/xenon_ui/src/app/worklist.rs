@@ -1,3 +1,4 @@
+use super::toasts;
 use super::*;
 use crate::worklist_capture::{CaptureEvent, WorklistCaptureView};
 use anyhow::Context as _;
@@ -9,24 +10,6 @@ enum DraftEdit {
 }
 
 impl XenonApp {
-    pub(super) fn show_worklist_notice(
-        &mut self,
-        message: impl Into<String>,
-        cx: &mut Context<Self>,
-    ) {
-        self.worklist_notice
-            .show(message, cx, |app, generation, cx| {
-                if app.worklist_notice.expire(generation) {
-                    cx.notify();
-                }
-            });
-    }
-
-    pub(super) fn dismiss_worklist_notice(&mut self, cx: &mut Context<Self>) {
-        self.worklist_notice.dismiss();
-        cx.notify();
-    }
-
     pub(super) fn bind_worklist_actions(
         &self,
         root: gpui::Div,
@@ -38,11 +21,17 @@ impl XenonApp {
         .on_action(cx.listener(|this, _: &crate::OpenWorklist, _, cx| {
             this.open_worklist(cx);
         }))
+        .on_action(cx.listener(|this, _: &crate::UndoToast, _, cx| {
+            this.undo_from_toast(cx);
+        }))
+        .on_action(cx.listener(|this, _: &crate::DismissToast, _, cx| {
+            this.dismiss_toast(cx);
+        }))
     }
 
     pub(crate) fn capture_worklist(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(workspace) = self.active else {
-            self.show_worklist_notice("Open a workspace first", cx);
+            self.show_toast(toasts::no_workspace(), cx);
             return;
         };
         if self.worklist_capture_visible == Some(workspace) {
@@ -81,8 +70,8 @@ impl XenonApp {
             return;
         };
         if let Some(draft) = capture.update(cx, |view, cx| view.finish(cx)) {
+            self.show_toast(toasts::task_added(draft.title()), cx);
             self.worklist_undo = Some((workspace, draft));
-            self.show_worklist_notice("Task added", cx);
         }
     }
 
@@ -105,7 +94,10 @@ impl XenonApp {
                 if let Err(error) =
                     self.write_worklist_draft(workspace, &mut draft, DraftEdit::Remove, cx)
                 {
-                    self.show_worklist_notice(format!("Delete paused: {error}"), cx);
+                    self.show_toast(
+                        toasts::worklist_error("Couldn’t delete that task", error),
+                        cx,
+                    );
                 }
                 self.worklist_capture_visible = None;
                 self.deferred.pending_focus = self.deferred.restore_pane.take();
@@ -127,8 +119,8 @@ impl XenonApp {
             return;
         };
         match self.write_worklist_draft(workspace, &mut draft, DraftEdit::Remove, cx) {
-            Ok(()) => self.show_worklist_notice("Capture undone", cx),
-            Err(error) => self.show_worklist_notice(format!("Undo paused: {error}"), cx),
+            Ok(()) => self.show_toast(toasts::capture_undone(), cx),
+            Err(error) => self.show_toast(toasts::worklist_error("Can’t undo just yet", error), cx),
         }
         cx.notify();
     }

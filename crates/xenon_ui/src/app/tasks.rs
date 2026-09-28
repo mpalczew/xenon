@@ -8,6 +8,7 @@ use xenon_core::{ShellTask, load_shell_tasks};
 impl XenonApp {
     pub(super) fn open_task_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
+            self.show_toast(super::toasts::no_workspace(), cx);
             return;
         };
         self.dismiss_palettes();

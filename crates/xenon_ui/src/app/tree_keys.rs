@@ -131,6 +131,9 @@ impl XenonApp {
             CommandId::RunTask => self.open_task_picker(window, cx),
             CommandId::CaptureWorklist => self.capture_worklist(window, cx),
             CommandId::OpenWorklist => self.open_worklist(cx),
+            CommandId::DismissToast => {
+                self.toast.update(cx, |toast, cx| toast.dismiss(cx));
+            }
             CommandId::Copy => self.clipboard_copy(window, cx),
             CommandId::Cut => self.clipboard_cut(window, cx),
             CommandId::Paste => self.clipboard_paste(window, cx),
@@ -158,7 +161,7 @@ impl XenonApp {
             CommandId::CopyRelativePath => self.copy_focused_path(true, cx),
             CommandId::CopyClean => self.clipboard_copy_clean(window, cx),
             CommandId::CopyCode => self.clipboard_copy_code(window, cx),
-            CommandId::RevealInFinder => self.reveal_focused_path(),
+            CommandId::RevealInFinder => self.reveal_focused_path(cx),
             CommandId::OpenInDefaultApp => self.open_focused_in_default_app(cx),
             CommandId::FocusTerminal => self.focus_terminal(window, cx),
             CommandId::FocusEditor => self.focus_editor(window, cx),

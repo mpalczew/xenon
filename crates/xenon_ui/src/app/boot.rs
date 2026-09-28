@@ -6,14 +6,31 @@ pub(super) enum BootKind {
     Visual,
 }
 
+/// What boot loads before the app exists.
+pub(super) struct Loaded {
+    registry: Registry,
+    settings: xenon_store::AppSettings,
+    lsp: LspState,
+    toast: Entity<xenon_design_system::ToastView>,
+}
+
 impl XenonApp {
-    pub(super) fn boot(cx: &mut Context<Self>, kind: BootKind) -> Self {
+    pub(super) fn boot(window: &Window, cx: &mut Context<Self>, kind: BootKind) -> Self {
         let registry = xenon_store::load_registry().unwrap_or_default();
         let settings = xenon_store::load_settings().unwrap_or_default();
         let (lsp, lsp_events) = LspState::new(settings.lsp.clone());
         xenon_settings::apply(&settings, cx);
         xenon_terminal::apply_theme(cx);
-        let mut app = Self::from_loaded(registry, settings, lsp, cx);
+        let toast = xenon_design_system::toast_host(px(crate::toolbar::TOOLBAR_HEIGHT), window, cx);
+        let mut app = Self::from_loaded(
+            Loaded {
+                registry,
+                settings,
+                lsp,
+                toast,
+            },
+            cx,
+        );
         app.load_sessions();
         match kind {
             BootKind::Normal => {
@@ -46,16 +63,17 @@ impl XenonApp {
     }
 
     #[cfg(feature = "visual-tests")]
-    pub fn new_visual(cx: &mut Context<Self>) -> Self {
-        Self::boot(cx, BootKind::Visual)
+    pub fn new_visual(window: &Window, cx: &mut Context<Self>) -> Self {
+        Self::boot(window, cx, BootKind::Visual)
     }
 
-    fn from_loaded(
-        registry: Registry,
-        settings: xenon_store::AppSettings,
-        lsp: LspState,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn from_loaded(loaded: Loaded, cx: &mut Context<Self>) -> Self {
+        let Loaded {
+            registry,
+            settings,
+            lsp,
+            toast,
+        } = loaded;
         Self {
             registry,
             sessions: HashMap::new(),
@@ -67,7 +85,7 @@ impl XenonApp {
             worklist_capture_subs: Vec::new(),
             worklist_capture_visible: None,
             worklist_undo: None,
-            worklist_notice: xenon_design_system::TimedNotice::default(),
+            toast,
             workspace_picker: None,
             workspace_create: None,
             command_palette: None,

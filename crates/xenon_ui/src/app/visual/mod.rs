@@ -72,6 +72,10 @@ pub enum Scene {
     WorklistInlineCapture,
     WorklistInlineLight,
     WorklistToolbarTooltip,
+    ToastSuccess,
+    ToastInfo,
+    ToastError,
+    ToastErrorLight,
 }
 
 pub const SCENES: &[Scene] = &[
@@ -135,6 +139,10 @@ pub const SCENES: &[Scene] = &[
     Scene::WorklistInlineCapture,
     Scene::WorklistInlineLight,
     Scene::WorklistToolbarTooltip,
+    Scene::ToastSuccess,
+    Scene::ToastInfo,
+    Scene::ToastError,
+    Scene::ToastErrorLight,
 ];
 
 const REMOTE_SURFACES: &[&str] = &["remote_auth", "remote_session"];
@@ -208,6 +216,10 @@ impl Scene {
             Self::WorklistInlineCapture => "content_worklist_inline_capture",
             Self::WorklistInlineLight => "content_worklist_inline_light",
             Self::WorklistToolbarTooltip => "overlay_worklist_toolbar_tooltip",
+            Self::ToastSuccess => "overlay_toast_success",
+            Self::ToastInfo => "overlay_toast_info",
+            Self::ToastError => "overlay_toast_error",
+            Self::ToastErrorLight => "overlay_toast_error_light",
         }
     }
 
@@ -339,6 +351,20 @@ pub fn apply_scene(
             }
         }
         Scene::WorklistToolbarTooltip => chrome::populated(app, scene, window, cx),
+        Scene::ToastSuccess | Scene::ToastInfo | Scene::ToastError | Scene::ToastErrorLight => {
+            chrome::populated(app, scene, window, cx);
+            let toast = match scene {
+                Scene::ToastSuccess => {
+                    super::toasts::task_added(Some("Fix focus after closing a split"))
+                }
+                Scene::ToastInfo => super::toasts::no_workspace(),
+                _ => super::toasts::worklist_error(
+                    "Can’t undo just yet",
+                    "Save or undo the worklist Markdown edits first",
+                ),
+            };
+            app.show_toast(toast, cx);
+        }
     }
 }
 
@@ -369,7 +395,8 @@ fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
         | Scene::EmptyWithWorkspaceLight
         | Scene::PopulatedLight
         | Scene::SkillPromptLight
-        | Scene::WorklistInlineLight => {
+        | Scene::WorklistInlineLight
+        | Scene::ToastErrorLight => {
             set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
         }
         Scene::EmptyNoWorkspaceTrueBlack

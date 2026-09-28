@@ -133,11 +133,12 @@ impl XenonApp {
                         .map(|n| n.to_string_lossy().into_owned())
                         .unwrap_or_else(|| p.to_string_lossy().into_owned());
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(name));
+                    self.show_toast(super::toasts::copied("name"), cx);
                 }
             }
             BrowserMenuAction::RevealInFinder => {
                 if let Some(p) = target {
-                    Self::reveal_in_finder(&p);
+                    Self::reveal_in_finder(&p, cx);
                 }
             }
             BrowserMenuAction::OpenInDefaultApp => {
@@ -190,9 +191,13 @@ impl XenonApp {
 
     fn delete_path(&mut self, path: PathBuf, is_dir: bool, cx: &mut Context<Self>) {
         if let Err(error) = trash::delete(&path) {
-            log::error!("move to trash failed for {}: {error}", path.display());
+            self.show_toast(
+                super::toasts::failed("Couldn’t move that to the Trash", error),
+                cx,
+            );
             return;
         }
+        self.show_toast(super::toasts::trashed(&file_name(&path)), cx);
         if let Some(id) = self.active {
             let tabs = self.editor_tabs_under(id, &path, is_dir);
             if !tabs.is_empty() {

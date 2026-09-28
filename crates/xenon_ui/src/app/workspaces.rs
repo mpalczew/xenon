@@ -208,32 +208,24 @@ impl XenonApp {
     }
 
     fn apply_workspace_pick(&mut self, candidate: &WorkspaceCandidate, cx: &mut Context<Self>) {
+        let root = match candidate {
+            WorkspaceCandidate::Open { root, .. }
+            | WorkspaceCandidate::Closed { root, .. }
+            | WorkspaceCandidate::Path { root, .. } => root,
+        };
+        let missing = matches!(candidate, WorkspaceCandidate::Closed { missing: true, .. });
+        if missing || !crate::workspace_discover::path_is_dir(root) {
+            self.show_toast(super::toasts::folder_missing(root), cx);
+            return;
+        }
         match candidate {
-            WorkspaceCandidate::Open { id, root, .. } => {
-                if !crate::workspace_discover::path_is_dir(root) {
-                    return;
-                }
+            WorkspaceCandidate::Open { id, .. } => {
                 if self.registry.workspace(*id).is_some() {
                     self.activate_workspace(*id, cx);
                 }
             }
-            WorkspaceCandidate::Closed {
-                id, missing: true, ..
-            } => {
-                let _ = id; // never reopen missing
-            }
-            WorkspaceCandidate::Closed { id, root, .. } => {
-                if !crate::workspace_discover::path_is_dir(root) {
-                    return;
-                }
-                self.reopen_workspace(*id, cx);
-            }
-            WorkspaceCandidate::Path { root, .. } => {
-                if !crate::workspace_discover::path_is_dir(root) {
-                    return;
-                }
-                self.register_workspace(root.clone(), cx);
-            }
+            WorkspaceCandidate::Closed { id, .. } => self.reopen_workspace(*id, cx),
+            WorkspaceCandidate::Path { root, .. } => self.register_workspace(root.clone(), cx),
         }
     }
 
@@ -258,6 +250,7 @@ impl XenonApp {
 
     pub(crate) fn register_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         let Some(root) = crate::workspace_discover::resolve_existing_dir(&root) else {
+            self.show_toast(super::toasts::folder_missing(&root), cx);
             return;
         };
         if let Some(record) = self

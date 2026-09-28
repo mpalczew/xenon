@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::app::toasts;
 use gpui::{Context, PromptLevel};
 use lsp_types::Position;
 use xenon_lsp::{Location, char_col_to_utf16};
@@ -36,6 +37,7 @@ impl XenonApp {
             return;
         };
         let Some((root, family)) = self.lsp_context(&path) else {
+            self.show_toast(toasts::no_language_server(), cx);
             return;
         };
         let Some(view) = self.editor_for_path(&path) else {
@@ -53,8 +55,12 @@ impl XenonApp {
             },
         };
         let position = Position::new(row, char_col_to_utf16(&line, col as usize));
-        let Ok(request) = self.lsp.host.definition(&root, family, &path, position) else {
-            return;
+        let request = match self.lsp.host.definition(&root, family, &path, position) {
+            Ok(request) => request,
+            Err(error) => {
+                self.show_toast(toasts::failed("Go to Definition failed", error), cx);
+                return;
+            }
         };
         cx.spawn(async move |app, cx| {
             let result = cx
@@ -65,10 +71,14 @@ impl XenonApp {
                         .and_then(xenon_lsp::LspHost::decode_definition)
                 })
                 .await;
-            let Ok(locations) = result else {
-                return;
-            };
             app.update_in(cx, |app, window, cx| {
+                let locations = match result {
+                    Ok(locations) => locations,
+                    Err(error) => {
+                        app.show_toast(toasts::failed("Go to Definition failed", error), cx);
+                        return;
+                    }
+                };
                 app.choose_definition(origin, locations, window, cx);
             })
             .ok();
@@ -83,6 +93,7 @@ impl XenonApp {
         let path = view.read(cx).path().to_path_buf();
         let current = view.read(cx).cursor_position().unwrap_or_default();
         let Some(document) = self.lsp.documents.get(&path) else {
+            self.show_toast(toasts::no_diagnostics(), cx);
             return;
         };
         let diagnostics = &document.diagnostics;
@@ -115,8 +126,11 @@ impl XenonApp {
                 .find(|position| *position < current)
                 .or_else(|| positions.last().copied())
         };
-        if let Some((row, col)) = target {
-            view.update(cx, |editor, cx| editor.set_cursor_position(row, col, cx));
+        match target {
+            Some((row, col)) => {
+                view.update(cx, |editor, cx| editor.set_cursor_position(row, col, cx));
+            }
+            None => self.show_toast(toasts::no_diagnostics(), cx),
         }
     }
 
@@ -128,7 +142,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         match locations.len() {
-            0 => {}
+            0 => self.show_toast(toasts::no_definition(), cx),
             1 => self.apply_definition(origin, locations[0].clone(), cx),
             _ => {
                 let labels = locations

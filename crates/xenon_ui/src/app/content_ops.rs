@@ -106,6 +106,7 @@ impl XenonApp {
 
     fn add_terminal_to_pane(&mut self, target: Option<PaneId>, cx: &mut Context<Self>) {
         let Some(id) = self.active else {
+            self.show_toast(super::toasts::no_workspace(), cx);
             return;
         };
         let Some(root) = self.workspace_root(id) else {

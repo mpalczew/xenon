@@ -1,6 +1,7 @@
 //! External file change detection and dirty/disk conflict banner.
 
 use std::time::Duration;
+use xenon_design_system::{Toast, show_toast};
 use xenon_design_system::{TypeRole, Typography};
 
 use gpui::{Context, IntoElement, ParentElement, Styled, Task, div};
@@ -103,7 +104,9 @@ impl EditorView {
             return;
         };
         if let Err(error) = buffer.reload() {
-            log::warn!("reload failed for {}: {error}", buffer.path().display());
+            let toast =
+                Toast::error("🙈", "Couldn’t load the disk version").detail(error.to_string());
+            show_toast(toast, cx);
             return;
         }
         self.disk_alert = DiskAlert::None;
@@ -116,9 +119,9 @@ impl EditorView {
     pub fn keep_local_edits(&mut self, cx: &mut Context<Self>) {
         if self.worklist_document {
             self.disk_alert = DiskAlert::Conflict;
-            self.vim.ex_status = Some(
-                "Copy your draft or load disk; worklist saves cannot overwrite agent edits".into(),
-            );
+            let toast = Toast::error("✋", "The worklist can’t overwrite agent edits")
+                .detail("Copy your draft, then load the disk version.");
+            show_toast(toast, cx);
             cx.notify();
             return;
         }

@@ -116,6 +116,23 @@ supply the row content. `bullet_list` renders indented supporting lines at
 splits a point, Tab and Shift-Tab change depth, and Backspace at the start
 outdents or joins. The caller validates and saves the text.
 
+## Toasts
+
+`xenon_design_system::ToastView` is the one transient notice. Each window has a
+host (`toast_host`); `show_toast` targets the main window and `show_toast_in`
+a specific one, so any crate can report a result without reaching the app.
+The island hangs from the toolbar's bottom edge, centered over the main panel
+(the Settings window hangs it from the top). It carries a glyph, a List-primary
+title, an optional Control-label detail, and at most one action chip. The chip
+shows the action's shortcut inside a ring that drains over the four-second
+lifetime; hovering refills and holds it. Success and info expire; errors tint
+with the theme's error color, keep a full ring, add a dismiss button, and stay
+until dismissed, replaced, or their action runs. One toast shows at a time; a
+new one replaces it. It drops in with a small overshoot and errors shake once;
+Reduce Motion makes both instant. Copy lives with the feature
+(`xenon_ui::app::toasts` for the shell) and is short, plain, and a little warm.
+Form and dialog errors stay inline; toasts report results of commands.
+
 ## Motion
 
 Selection is instant paint. Sidebar section open/close uses a 180ms spatial

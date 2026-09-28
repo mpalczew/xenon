@@ -358,13 +358,16 @@ impl XenonApp {
             RenameTarget::File { path, .. } => {
                 let Some(parent) = path.parent() else { return };
                 let destination = parent.join(&name);
-                if destination != *path
-                    && !destination.exists()
-                    && std::fs::rename(path, &destination).is_ok()
-                    && let Some(id) = self.active
-                    && let Some(root) = self.workspace_root(id)
-                {
-                    self.reindex(root, true, cx);
+                if destination != *path {
+                    match rename_file(&path, &destination) {
+                        Ok(()) => {
+                            if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
+                                self.reindex(root, true, cx);
+                            }
+                        }
+                        Err(error) => self
+                            .show_toast(super::toasts::failed("Couldn’t rename that", error), cx),
+                    }
                 }
             }
         }
@@ -387,6 +390,14 @@ impl XenonApp {
         self._rename_sub = None;
         cx.notify();
     }
+}
+
+fn rename_file(from: &Path, to: &Path) -> anyhow::Result<()> {
+    if to.exists() {
+        anyhow::bail!("{} already exists", file_name(to));
+    }
+    std::fs::rename(from, to)?;
+    Ok(())
 }
 
 #[cfg(test)]

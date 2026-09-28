@@ -69,6 +69,7 @@ pub enum CommandId {
     ZoomReset,
     CaptureWorklist,
     OpenWorklist,
+    DismissToast,
     Copy,
     Cut,
     Paste,
@@ -85,7 +86,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 59] {
+const fn all_commands() -> [CommandEntry; 60] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -148,6 +149,7 @@ const fn all_commands() -> [CommandEntry; 59] {
         cmd!(ZoomReset, "Reset Zoom", "⌘0", "View"),
         cmd!(CaptureWorklist, "Add to Worklist", "⌘⇧K", "Create"),
         cmd!(OpenWorklist, "Open Worklist", "⌘⌥K", "Navigate"),
+        cmd!(DismissToast, "Dismiss Notice", "⌘.", "View"),
         cmd!(Copy, "Copy", "⌘C", "Edit"),
         cmd!(Cut, "Cut", "⌘X", "Edit"),
         cmd!(Paste, "Paste", "⌘V", "Edit"),
@@ -156,7 +158,7 @@ const fn all_commands() -> [CommandEntry; 59] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 59] = all_commands();
+    static ENTRIES: [CommandEntry; 60] = all_commands();
     &ENTRIES
 }
 

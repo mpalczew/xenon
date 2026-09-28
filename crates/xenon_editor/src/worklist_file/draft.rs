@@ -50,6 +50,17 @@ impl ItemDraft {
         self.saved.is_some()
     }
 
+    /// The saved item's title, as its first Markdown line shows it.
+    pub fn title(&self) -> Option<&str> {
+        let line = self.saved.as_ref()?.raw.lines().next()?;
+        let title = ["- [x] ", "- [X] ", "- [ ] ", "- "]
+            .iter()
+            .find_map(|marker| line.strip_prefix(marker))
+            .unwrap_or(line)
+            .trim();
+        (!title.is_empty()).then_some(title)
+    }
+
     pub(crate) fn set_checked(&mut self, checked: bool) {
         self.checked = checked;
     }
@@ -169,6 +180,14 @@ mod tests {
         let updated = change.apply(source);
         draft.commit(&updated, &change);
         updated
+    }
+
+    #[test]
+    fn title_reads_the_saved_first_line() {
+        let mut draft = ItemDraft::default();
+        assert_eq!(draft.title(), None);
+        land(&mut draft, "# Worklist\n", &item("Fix focus", "Right pane"));
+        assert_eq!(draft.title(), Some("Fix focus"));
     }
 
     #[test]

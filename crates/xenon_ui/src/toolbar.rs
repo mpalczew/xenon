@@ -19,6 +19,8 @@ use theme::ActiveTheme;
 use xenon_design_system::{ActionButton, action_button};
 
 const ICON: f32 = 16.;
+/// The toolbar's height; the toast island hangs from its bottom edge.
+pub(crate) const TOOLBAR_HEIGHT: f32 = 44.;
 
 impl XenonApp {
     pub(crate) fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -26,7 +28,7 @@ impl XenonApp {
         div()
             .flex()
             .items_center()
-            .h(px(44.))
+            .h(px(TOOLBAR_HEIGHT))
             .px_2()
             .border_b_1()
             .border_color(colors.border)

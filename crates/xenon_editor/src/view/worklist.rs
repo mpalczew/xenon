@@ -42,9 +42,9 @@ impl EditorView {
                     this.worklist_raw = false;
                     cx.notify();
                 } else {
-                    this.vim.ex_status =
-                        Some("Save or undo Markdown edits before switching views".into());
-                    cx.notify();
+                    let toast = xenon_design_system::Toast::info("✋", "Save or undo first")
+                        .detail("Markdown edits need to land before the list view.");
+                    xenon_design_system::show_toast(toast, cx);
                 }
             }),
         )

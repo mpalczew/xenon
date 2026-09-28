@@ -50,7 +50,9 @@ impl XenonApp {
             },
         ) {
             Ok(handle) => self.settings_window = Some(handle),
-            Err(error) => log::error!("failed to open settings window: {error}"),
+            Err(error) => {
+                self.show_toast(super::toasts::failed("Couldn’t open Settings", error), cx);
+            }
         }
     }
 }

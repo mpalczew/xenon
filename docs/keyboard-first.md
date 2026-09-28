@@ -17,6 +17,7 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 | Commands / help / task | ⌘⇧P / ⌘⇧/ / ⌘⇧R |
 | Save / Save As | ⌘S / ⌘⇧S |
 | Capture task / open worklist | ⌘⇧K / ⌘⌥K |
+| Toast: undo capture / dismiss | ⌘Z / ⌘. |
 | Focus terminal / editor / Files | ⌘1 / ⌘2 / ⌘3 (kinds, not pane index) |
 | Next pane (leaves, then Files) | ⌃` |
 | Workspace next / previous / close | ⌘⌥↓ / ⌘⌥↑ / ⌘⌥W |
@@ -29,6 +30,11 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 | Wrap lines | ⌥Z |
 | Themes | ⌘⌥T |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
+
+Toasts never take focus or Escape. A toast's action shows its shortcut and
+that shortcut runs it from anywhere while the toast is visible. ⌘Z undoes a
+worklist capture while its toast is showing; otherwise ⌘Z passes through to the
+focused surface. ⌘. dismisses the toast (and passes through when none shows).
 
 Find strips use ⌘F, Return/Shift-Return, ⌥C/W/R, and Escape. Elevated
 palettes support type-to-filter, arrows, Return, and Escape. ⌘P also takes

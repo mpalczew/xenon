@@ -1,6 +1,7 @@
 //! Ex / save-as disk side effects for the editor view.
 
 use std::path::PathBuf;
+use xenon_design_system::{Toast, show_toast};
 
 use gpui::{ClipboardItem, Context};
 
@@ -205,7 +206,7 @@ impl EditorView {
                 self.disk_alert = super::DiskAlert::Conflict;
                 log::warn!("save refused: file changed on disk");
             }
-            Err(error) => log::error!("save failed: {error}"),
+            Err(error) => save_failed(buffer.path(), error, cx),
         }
         cx.notify();
     }
@@ -231,7 +232,7 @@ impl EditorView {
             buffer.save_force()
         };
         if let Err(error) = result {
-            log::error!("force save failed: {error}");
+            save_failed(buffer.path(), error, cx);
         } else {
             self.disk_alert = super::DiskAlert::None;
             cx.emit(EditorEvent::Saved {
@@ -249,7 +250,7 @@ impl EditorView {
         };
         buffer.set_path(path.clone());
         if let Err(error) = buffer.save_force() {
-            log::error!("save as failed: {error}");
+            save_failed(&path, error, cx);
             return;
         }
         self.disk_alert = super::DiskAlert::None;
@@ -257,4 +258,13 @@ impl EditorView {
         cx.emit(EditorEvent::PathChanged { path });
         cx.notify();
     }
+}
+
+fn save_failed(path: &std::path::Path, error: impl std::fmt::Display, cx: &mut gpui::App) {
+    let name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    );
+    let toast = Toast::error("🙈", format!("Couldn’t save {name}")).detail(error.to_string());
+    show_toast(toast, cx);
 }

@@ -24,31 +24,17 @@ impl Render for XenonApp {
             .active
             .filter(|workspace| self.worklist_capture_visible == Some(*workspace))
             .and_then(|workspace| self.worklist_captures.get(&workspace).cloned());
-        let worklist_notice = self.worklist_notice.message().map(|message| {
-            xenon_design_system::notice_panel(message, &colors)
-                .children(
-                    self.worklist_undo
-                        .as_ref()
-                        .filter(|(id, _)| Some(*id) == self.active)
-                        .map(|_| {
-                            xenon_design_system::action_button(
-                                "worklist-undo-capture",
-                                xenon_design_system::ActionButton::quiet("Undo"),
-                                cx,
-                                cx.listener(|this, _, _, cx| this.undo_last_worklist_capture(cx)),
-                            )
-                        }),
-                )
-                .child(
-                    xenon_design_system::action_button(
-                        "worklist-dismiss-notice",
-                        xenon_design_system::ActionButton::icon("×"),
-                        cx,
-                        cx.listener(|this, _, _, cx| this.dismiss_worklist_notice(cx)),
-                    )
-                    .text_color(colors.text_muted),
-                )
-        });
+        let toast_layer = div()
+            .absolute()
+            .top_0()
+            .bottom_0()
+            .right_0()
+            .left(px(if self.sidebar_visible() {
+                self.sidebar_width
+            } else {
+                0.
+            }))
+            .child(self.toast.clone());
         let task_picker = self.task_picker.clone();
         let workspace_picker = self.workspace_picker.clone();
         let workspace_create = self.workspace_create.clone();
@@ -87,7 +73,6 @@ impl Render for XenonApp {
             .child(body)
             .children(finder)
             .children(worklist_capture)
-            .children(worklist_notice)
             .children(task_picker)
             .children(workspace_picker)
             .children(workspace_create)
@@ -98,6 +83,7 @@ impl Render for XenonApp {
             .children(tab_menu)
             .children(overflow_menu)
             .children(browser_menu)
+            .child(toast_layer)
     }
 }
 
