@@ -114,9 +114,10 @@ building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   `./scripts/release/install` (README). Do not install mid-way through a
   multi-step change; batch it as the final step. During work, use cargo /
   `scripts/health` directly — not `project` wrappers.
-- When implementation work is done, offer to commit and push. Do not commit or
-  push without the user's explicit request (except when an explicit goal
-  requires landing public docs on `origin/main`).
+- Land finished work without asking: once `scripts/health` passes and
+  `project install` has run, commit and push this session's paths (harvest
+  step 6: leave unrelated WIP, stop on conflicts). End the handoff by listing
+  any dirty paths left behind and whose they are.
 - Commit `.xenon/worklist.md` whenever it has changes. Do not leave it untracked.
 - Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
   chrome or UX work. Keep them aligned with settled decisions; do not invent a
