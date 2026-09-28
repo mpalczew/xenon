@@ -17,6 +17,11 @@ mod fixtures {
 }
 
 #[cfg(target_os = "macos")]
+mod keyboard {
+    include!("visual_test_runner/keyboard.rs");
+}
+
+#[cfg(target_os = "macos")]
 mod remote {
     include!("visual_test_runner/remote.rs");
 }
@@ -57,7 +62,12 @@ fn run_tests() -> anyhow::Result<()> {
     });
 
     let mut captured = Vec::new();
-    let mut failed = Vec::new();
+    let mut failed: Vec<String> = Vec::new();
+    // Dev loop: VISUAL_TEST_ONLY=keyboard runs just the keyboard checks.
+    if std::env::var("VISUAL_TEST_ONLY").as_deref() == Ok("keyboard") {
+        return keyboard::shortcuts_survive_worklist_escape(&mut cx);
+    }
+
     for scene in xenon_ui::SCENES {
         match run_scene(*scene, &mut cx, &output_dir, &baseline_dir, update) {
             Ok(name) => {
@@ -68,6 +78,15 @@ fn run_tests() -> anyhow::Result<()> {
                 eprintln!("FAIL {}: {error:#}", scene.name());
                 failed.push(scene.name().to_string());
             }
+        }
+    }
+
+    // After the scenes: it writes .xenon/worklist.md into the shared fixture.
+    match keyboard::shortcuts_survive_worklist_escape(&mut cx) {
+        Ok(()) => println!("ok keyboard_worklist_escape"),
+        Err(error) => {
+            eprintln!("FAIL keyboard_worklist_escape: {error:#}");
+            failed.push("keyboard_worklist_escape".into());
         }
     }
 

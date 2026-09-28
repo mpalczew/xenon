@@ -15,7 +15,7 @@ pub(super) struct Loaded {
 }
 
 impl XenonApp {
-    pub(super) fn boot(window: &Window, cx: &mut Context<Self>, kind: BootKind) -> Self {
+    pub(super) fn boot(window: &mut Window, cx: &mut Context<Self>, kind: BootKind) -> Self {
         let registry = xenon_store::load_registry().unwrap_or_default();
         let settings = xenon_store::load_settings().unwrap_or_default();
         let (lsp, lsp_events) = LspState::new(settings.lsp.clone());
@@ -50,6 +50,7 @@ impl XenonApp {
             }
         }
         Self::register_main_handle(cx);
+        app.keep_window_focused(window, cx);
         let active = app
             .registry
             .active
@@ -62,8 +63,20 @@ impl XenonApp {
         app
     }
 
+    /// Keys dispatch from the focused element; with none, nothing in the app
+    /// hears them. Whenever a focused surface leaves the tree without handing
+    /// focus on (an inline editor closing, a view dropped), GPUI reports focus
+    /// lost and the active workspace's leaf takes it back.
+    pub(super) fn keep_window_focused(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.services.focus_lost_subscription =
+            Some(cx.on_focus_lost(window, |this, window, cx| {
+                log::info!("focus lost; restoring the active workspace leaf");
+                this.focus_workspace_leaf(Some(window), cx);
+            }));
+    }
+
     #[cfg(feature = "visual-tests")]
-    pub fn new_visual(window: &Window, cx: &mut Context<Self>) -> Self {
+    pub fn new_visual(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self::boot(window, cx, BootKind::Visual)
     }
 

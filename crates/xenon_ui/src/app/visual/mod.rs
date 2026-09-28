@@ -8,6 +8,7 @@ use crate::settings::SettingsView;
 
 mod chrome;
 mod content;
+mod keyboard;
 mod overlays;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

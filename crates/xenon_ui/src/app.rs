@@ -211,7 +211,7 @@ pub struct XenonApp {
 }
 
 impl XenonApp {
-    pub fn new(window: &Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self::boot(window, cx, boot::BootKind::Normal)
     }
 

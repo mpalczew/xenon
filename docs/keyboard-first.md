@@ -79,9 +79,16 @@ a logical focus owner:
 - the shell itself when no content exists.
 
 The logical owner is resolved as a non-optional `FocusOwner`; with no live
-surface, it is the shell. GPUI can report no focused element while the window
-is inactive. In that case GPUI dispatches actions from the root node. OS-level
-window blur is separate from Xenon's logical focus owner.
+surface, it is the shell. OS-level window blur is separate from Xenon's
+logical focus owner.
+
+No focused element is not a safe state. GPUI then dispatches from the root
+dispatch node, which is the view wrapper *above* the `XenonApp` key context,
+so every app binding misses. Xenon holds one `on_focus_lost` subscription
+(`keep_window_focused`): whenever the focused element leaves the tree without
+handing focus on, the active workspace's leaf takes it back. Explicit
+transfers below are still preferred (they pick the right target); the guard
+makes a forgotten one recoverable instead of a dead keyboard.
 
 Two layers must not disagree:
 
@@ -100,9 +107,8 @@ Closing a focused surface is a focus transfer, not just removal. Overlay
 dismiss and confirm paths must set the next focus target before destroying the
 overlay. Switching workspace (⌘⇧O, sidebar, ⌘⌥↓/↑, command palette) is the
 same transfer: land on that workspace's focused leaf, not the overlay or the
-previous workspace. A dead or off-tree `FocusId` is recovered through the
-logical owner; GPUI falls back to the root dispatch node when no focused
-element exists.
+previous workspace. A dead or off-tree `FocusId` is recovered by the
+focus-lost guard above.
 
 Teardown routes through one focus-transfer helper. It targets the remaining
 editor/terminal when available and otherwise focuses the shell, including

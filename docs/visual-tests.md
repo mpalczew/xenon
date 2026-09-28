@@ -18,6 +18,10 @@ server. Do not add this to GitHub macOS runners unless asked.
 Remote HTML shots (`remote_auth`, `remote_session`) need Google Chrome at
 `/Applications/Google Chrome.app`. Missing Chrome fails those two surfaces.
 
+The suite also runs keyboard regressions that need a real window
+(`visual_test_runner/keyboard.rs`). `VISUAL_TEST_ONLY=keyboard
+scripts/visual-tests` runs just those.
+
 ## Update baselines
 
 After an intentional visual change:
