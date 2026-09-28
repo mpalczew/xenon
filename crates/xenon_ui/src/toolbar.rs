@@ -412,9 +412,7 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     .text_color(fg)
     .aria_label(hint.clone())
     .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
-    // Chrome is not a tab stop and a click must not pull focus off the terminal
-    // or editor: shortcuts are the keyboard path, the tooltip makes them discoverable.
-    .tab_stop(false)
+    // A click must not pull focus off the terminal or editor.
     .capture_any_mouse_down(|_, window, _| {
         window.prevent_default();
     })

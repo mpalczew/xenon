@@ -35,12 +35,10 @@ pub fn checkbox(
         .flex_none()
         .aria_label(label)
         .focusable()
-        .tab_index(0)
-        .focus_visible(|style| style.border_1().border_color(colors.border_focused))
         .children((state.checked && animate).then(|| check_ring(&id, accent)))
         .child(check_face(&id, state.checked, colors, animate));
     if state.disabled {
-        control.opacity(0.45).tab_index(-1)
+        control.opacity(0.45)
     } else {
         control.cursor_pointer().on_click(on_toggle)
     }

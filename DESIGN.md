@@ -103,10 +103,9 @@ retain their own settings-controlled faces and rendering.
 icon action targets, including the label and the button type role. Callers
 pass the action. They do not set the button's font, size, or weight. The
 variant's foreground replaces the role's text color. Destructive is a
-filled danger action, sized to its label. Button type is 12px semibold. Each control is
-focusable and activates from pointer, Enter, or Space through GPUI's click
-event. Disabled actions leave the tab order and do not register a click
-handler. `xenon_design_system::checkbox` owns the 18px
+filled danger action, sized to its label. Button type is 12px semibold. Controls are
+not tab stops (see `docs/keyboard-first.md`); they activate through GPUI's
+click event. Disabled actions do not register a click handler. `xenon_design_system::checkbox` owns the 18px
 checked/unchecked control and its accessible label. Checking pops the box and
 expands a brief accent ring; unchecking settles back. The macOS Reduce Motion
 setting makes state changes instant. Feature views supply the action and state;

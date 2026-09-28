@@ -116,8 +116,6 @@ pub fn action_button<L: IntoElement>(
         .rounded_sm()
         .bg(background)
         .focusable()
-        .tab_index(0)
-        .focus_visible(|style| style.border_1().border_color(colors.border_focused))
         .type_role(TypeRole::Button, cx)
         .text_color(foreground);
     let button = if matches!(
@@ -136,7 +134,7 @@ pub fn action_button<L: IntoElement>(
         button
     };
     if disabled {
-        button.opacity(0.45).tab_index(-1).child(label)
+        button.opacity(0.45).child(label)
     } else {
         button
             .cursor_pointer()
