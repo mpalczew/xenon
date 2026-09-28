@@ -1,25 +1,20 @@
-use crate::worklist_file::WorkItem;
+//! Top-level worklist items located in the Markdown source.
+
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
 #[derive(Clone, Debug)]
-pub(super) struct Entry {
-    pub(super) range: Range<usize>,
-    pub(super) title: String,
-    pub(super) details: String,
-    pub(super) checked: Option<bool>,
+pub(crate) struct Entry {
+    pub(crate) range: Range<usize>,
+    pub(crate) title: String,
+    pub(crate) details: String,
+    pub(crate) checked: Option<bool>,
     #[allow(dead_code)]
-    pub(super) section: usize,
-    pub(super) editable: bool,
+    pub(crate) section: usize,
+    pub(crate) editable: bool,
 }
 
-pub(in crate::view) struct ItemEdit {
-    /// None until the first valid title is written.
-    pub(super) entry: Option<Entry>,
-    pub form: super::ItemForm,
-}
-
-pub(super) fn entries(source: &str) -> Vec<Entry> {
+pub(crate) fn entries(source: &str) -> Vec<Entry> {
     let parser = Parser::new_ext(
         source,
         Options::ENABLE_TASKLISTS | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS,
@@ -127,10 +122,6 @@ fn item_text(raw: &str) -> (String, String, bool) {
     (title, details, editable)
 }
 
-pub(super) fn replacement(entry: &Entry, item: &WorkItem, newline: &str) -> String {
-    item.markdown(entry.checked == Some(true), newline)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,24 +146,6 @@ mod tests {
         assert!(!rows[0].editable);
         assert!(rows[1].editable);
         assert_ne!(rows[0].section, rows[1].section);
-    }
-
-    #[test]
-    fn item_replacement_keeps_task_shape_and_crlf() {
-        let source = "- [x] First\r\n  - Detail\r\n\r\nNext note.\r\n";
-        let rows = entries(source);
-        assert_eq!(rows.len(), 2);
-        let old = &source[rows[0].range.clone()];
-        let suffix = &old[old.trim_end_matches(['\r', '\n']).len()..];
-        let updated = source.replace(
-            old,
-            &(replacement(
-                &rows[0],
-                &WorkItem::new("Revised", "More", true).unwrap(),
-                "\r\n",
-            ) + suffix),
-        );
-        assert_eq!(updated, "- [x] Revised\r\n  - More\r\n\r\nNext note.\r\n");
     }
 
     #[test]

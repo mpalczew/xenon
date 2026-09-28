@@ -59,6 +59,11 @@ impl OutlineView {
         details_from_points(&self.points(cx))
     }
 
+    pub fn set_title_placeholder(&self, placeholder: impl Into<String>, cx: &mut App) {
+        self.title
+            .update(cx, |input, cx| input.set_placeholder(placeholder, cx));
+    }
+
     pub fn open_title(&self, cx: &mut App) {
         self.title.update(cx, |input, cx| input.open(cx));
     }
@@ -69,13 +74,6 @@ impl OutlineView {
             .into_iter()
             .map(|point| point_field(&point.text, point.depth, cx))
             .collect();
-        cx.emit(OutlineEvent::Changed);
-        cx.notify();
-    }
-
-    pub fn clear(&mut self, cx: &mut Context<Self>) {
-        self.title.update(cx, |input, cx| input.set_text("", cx));
-        self.points.clear();
         cx.emit(OutlineEvent::Changed);
         cx.notify();
     }

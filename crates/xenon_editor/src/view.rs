@@ -65,8 +65,7 @@ pub struct EditorView {
     worklist_document: bool,
     worklist_raw: bool,
     worklist_selection: usize,
-    worklist_edit: Option<worklist::ItemEdit>,
-    worklist_capture: Option<worklist::ItemForm>,
+    worklist_edit: Option<Entity<crate::item_editor::ItemEditor>>,
     worklist_input_sub: Vec<Subscription>,
     worklist_error: Option<String>,
     /// Selection host for markdown preview (plain blocks + carets).
@@ -211,7 +210,6 @@ impl EditorView {
             worklist_raw: false,
             worklist_selection: 0,
             worklist_edit: None,
-            worklist_capture: None,
             worklist_input_sub: Vec::new(),
             worklist_error: None,
             preview_state,

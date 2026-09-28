@@ -14,16 +14,8 @@ use super::{Content, EditorView};
 mod capture;
 mod edit;
 mod edit_view;
-mod source;
-use gpui::Entity;
-pub(super) use source::ItemEdit;
-use source::{Entry, entries};
+use crate::worklist_file::entries::{Entry, entries};
 use xenon_design_system::{BulletLine, bullet_list, selectable_row};
-
-pub(super) struct ItemForm {
-    pub(super) outline: Entity<xenon_design_system::OutlineView>,
-    pub(super) checked: Option<bool>,
-}
 
 struct RowState {
     index: usize,
@@ -147,11 +139,11 @@ impl EditorView {
         let pending = self
             .worklist_edit
             .as_ref()
-            .is_some_and(|edit| edit.entry.is_none());
+            .is_some_and(|edit| !edit.read(cx).draft().is_saved());
         let editing = self
             .worklist_edit
             .as_ref()
-            .is_some_and(|edit| edit.entry.is_some());
+            .is_some_and(|edit| edit.read(cx).draft().is_saved());
         div()
             .id("worklist-scroll")
             .flex_1()

@@ -1,9 +1,12 @@
-use super::{Content, EditorView, ItemEdit, entries, source::replacement};
-use gpui::Context;
+use super::{Content, EditorView, entries};
+use crate::item_editor::ItemEditor;
+use crate::worklist_file::{Change, WorkItem};
+use anyhow::{Result, anyhow};
+use gpui::{AppContext, Context};
 use std::ops::Range;
 
 impl EditorView {
-    fn worklist_source(&self) -> Option<String> {
+    pub fn worklist_source(&self) -> Option<String> {
         match &self.content {
             Content::Text(buffer) => Some(buffer.text()),
             _ => None,
@@ -49,6 +52,22 @@ impl EditorView {
         saved
     }
 
+    /// Lands a change made outside this view through this buffer, so an open
+    /// worklist has one writer. Returns the source after the change.
+    pub fn worklist_apply(&mut self, change: &Change, cx: &mut Context<Self>) -> Result<String> {
+        if self.is_dirty() {
+            return Err(anyhow!("Save or undo the worklist Markdown edits first"));
+        }
+        if !self.worklist_mutate(change.range.clone(), &change.text, cx) {
+            let error = self.worklist_error.take();
+            cx.notify();
+            return Err(anyhow!(
+                error.unwrap_or_else(|| "Worklist is not editable".into())
+            ));
+        }
+        Ok(self.text())
+    }
+
     pub(super) fn worklist_toggle(&mut self, index: usize, cx: &mut Context<Self>) {
         let source = self.text();
         let Some(entry) = entries(&source).get(index).cloned() else {
@@ -67,67 +86,37 @@ impl EditorView {
     }
 
     pub(super) fn worklist_start_edit(&mut self, index: usize, cx: &mut Context<Self>) {
-        self.worklist_capture = None;
-        self.worklist_input_sub.clear();
-        let Some(entry) = entries(&self.text()).get(index).cloned() else {
+        let source = self.text();
+        let Some(entry) = entries(&source).get(index).cloned() else {
             return;
         };
         if !entry.editable {
             return;
         }
         self.worklist_selection = index;
-        let form = self.worklist_new_form(&entry.title, &entry.details, entry.checked, cx);
-        self.worklist_edit = Some(ItemEdit {
-            form,
-            entry: Some(entry),
-        });
-        cx.notify();
+        let editor = cx.new(|cx| ItemEditor::existing(&source, &entry, cx));
+        self.worklist_host(editor, cx);
     }
 
-    pub(super) fn worklist_autosave_edit(&mut self, cx: &mut Context<Self>) {
-        let Some(edit) = self.worklist_edit.as_ref() else {
+    pub(super) fn worklist_land(&mut self, item: &WorkItem, cx: &mut Context<Self>) {
+        let Some(editor) = self.worklist_edit.clone() else {
             return;
         };
-        let Ok(item) = edit.form.item(cx) else {
-            return;
-        };
-        if edit.entry.is_none() {
-            let source = self.text();
-            let Ok(updated) = crate::worklist_file::append_item(&source, &item) else {
+        let mut draft = editor.read(cx).draft();
+        let change = match draft.save(&self.text(), item) {
+            Ok(Some(change)) => change,
+            Ok(None) => return,
+            Err(error) => {
+                self.worklist_error = Some(error.to_string());
+                cx.notify();
                 return;
-            };
-            if self.worklist_mutate(0..source.len(), &updated, cx) {
-                let rows = entries(&self.text());
-                let index = rows.len().saturating_sub(1);
-                self.worklist_selection = index;
-                if let Some(edit) = &mut self.worklist_edit {
-                    edit.entry = rows.get(index).cloned();
-                }
             }
-            return;
-        }
-        let newline = if self.text().contains("\r\n") {
-            "\r\n"
-        } else {
-            "\n"
         };
-        let Some(entry) = edit.entry.clone() else {
-            return;
-        };
-        let source = self.text();
-        let range = entry.range.clone();
-        let old = &source[range.clone()];
-        let suffix = &old[old.trim_end_matches(['\r', '\n']).len()..];
-        let changed = format!("{}{}", replacement(&entry, &item, newline), suffix);
-        if changed == old {
-            return;
-        }
-        let index = self.worklist_selection;
-        if self.worklist_mutate(range, &changed, cx)
-            && let Some(entry) = entries(&self.text()).get(index).cloned()
-            && let Some(edit) = &mut self.worklist_edit
-        {
-            edit.entry = Some(entry);
+        if self.worklist_mutate(change.range.clone(), &change.text, cx) {
+            if let Some(index) = draft.commit(&self.text(), &change) {
+                self.worklist_selection = index;
+            }
+            editor.update(cx, |editor, cx| editor.landed(draft, item.clone(), cx));
         }
     }
 
@@ -139,17 +128,20 @@ impl EditorView {
     }
 
     pub(super) fn worklist_delete(&mut self, cx: &mut Context<Self>) {
-        let Some(edit) = self.worklist_edit.take() else {
+        let Some(editor) = self.worklist_edit.clone() else {
             return;
         };
-        let Some(entry) = edit.entry.clone() else {
-            self.worklist_input_sub.clear();
-            return;
+        let change = match editor.read(cx).draft().remove(&self.text()) {
+            Ok(Some(change)) => change,
+            Ok(None) => return self.worklist_close_edit(cx),
+            Err(error) => {
+                self.worklist_error = Some(error.to_string());
+                cx.notify();
+                return;
+            }
         };
-        if !self.worklist_mutate(entry.range.clone(), "", cx) {
-            self.worklist_edit = Some(edit);
-        } else {
-            self.worklist_input_sub.clear();
+        if self.worklist_mutate(change.range.clone(), &change.text, cx) {
+            self.worklist_close_edit(cx);
         }
     }
 }

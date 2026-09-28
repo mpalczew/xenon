@@ -6,36 +6,16 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail, ensure};
+mod draft;
+pub(crate) mod entries;
 mod item;
+pub use draft::{Change, ItemDraft};
 pub use item::{TITLE_LIMIT, WorkItem, title_length};
 
 /// The source bytes are the revision. Worklists are intentionally small text files.
 pub struct WorklistFile {
     root: PathBuf,
     path: PathBuf,
-}
-
-#[derive(Clone)]
-pub struct WorklistUndo {
-    root: PathBuf,
-    before: Option<Vec<u8>>,
-    after: Vec<u8>,
-}
-
-impl WorklistUndo {
-    pub fn undo(&self) -> Result<()> {
-        let file = WorklistFile::new(&self.root)?;
-        ensure!(
-            file.read()?.as_deref() == Some(self.after.as_slice()),
-            "worklist changed since capture; undo was not applied"
-        );
-        if let Some(before) = &self.before {
-            file.write(Some(&self.after), before)
-        } else {
-            fs::remove_file(file.path())?;
-            Ok(())
-        }
-    }
 }
 
 impl WorklistFile {
@@ -82,24 +62,6 @@ impl WorklistFile {
         }
     }
 
-    pub fn append_item_with_undo(&self, item: &WorkItem) -> Result<(PathBuf, WorklistUndo)> {
-        let old = self.read()?;
-        let source = match old.as_ref() {
-            Some(bytes) => std::str::from_utf8(bytes).context("worklist is not UTF-8")?,
-            None => "",
-        };
-        let updated = append_item(source, item)?;
-        self.write(old.as_deref(), updated.as_bytes())?;
-        Ok((
-            self.path.clone(),
-            WorklistUndo {
-                root: self.root.clone(),
-                before: old,
-                after: updated.into_bytes(),
-            },
-        ))
-    }
-
     pub fn write(&self, expected: Option<&[u8]>, updated: &[u8]) -> Result<()> {
         // Re-resolve before mutation; a replaced symlink cannot redirect the write.
         let current = Self::new(&self.root)?;
@@ -142,15 +104,15 @@ impl WorklistFile {
     }
 }
 
-pub fn append_item(source: &str, item: &WorkItem) -> Result<String> {
+pub(crate) fn append_item(source: &str, item: &WorkItem, checked: bool) -> Result<String> {
     ensure!(
         safe_append_boundary(source),
         "Worklist ends inside an unfinished Markdown block; edit Markdown before capturing"
     );
-    Ok(append_entry(source, item))
+    Ok(append_entry(source, item, checked))
 }
 
-fn append_entry(source: &str, item: &WorkItem) -> String {
+fn append_entry(source: &str, item: &WorkItem, checked: bool) -> String {
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {
@@ -162,7 +124,7 @@ fn append_entry(source: &str, item: &WorkItem) -> String {
     }
     out.push_str(newline);
     out.push_str(newline);
-    out.push_str(&item.markdown(false, newline));
+    out.push_str(&item.markdown(checked, newline));
     out.push_str(newline);
     out
 }
@@ -206,7 +168,7 @@ mod tests {
     #[test]
     fn inline_append_rejects_unclosed_fence_without_changing_source() {
         let source = "# Worklist\n\n```md\n";
-        assert!(append_item(source, &WorkItem::new("Next", "", true).unwrap()).is_err());
+        assert!(append_item(source, &WorkItem::new("Next", "", true).unwrap(), false).is_err());
         assert_eq!(source, "# Worklist\n\n```md\n");
     }
 
@@ -215,7 +177,8 @@ mod tests {
         assert_eq!(
             append_entry(
                 "# Worklist\r\n",
-                &WorkItem::new("Next", "Detail", true).unwrap()
+                &WorkItem::new("Next", "Detail", true).unwrap(),
+                false
             ),
             "# Worklist\r\n\r\n- [ ] Next\r\n  - Detail\r\n"
         );
@@ -245,23 +208,6 @@ mod tests {
         fs::write(file.path(), "agent edit").unwrap();
         assert!(file.write(Some(&old), b"my edit").is_err());
         assert_eq!(fs::read_to_string(file.path()).unwrap(), "agent edit");
-    }
-
-    #[test]
-    fn capture_undo_restores_only_the_revision_it_created() {
-        let root = tempfile::tempdir().unwrap();
-        let file = WorklistFile::new(root.path()).unwrap();
-        let (_, undo) = file
-            .append_item_with_undo(&WorkItem::new("First", "", true).unwrap())
-            .unwrap();
-        undo.undo().unwrap();
-        assert!(!file.path().exists());
-        let (_, undo) = file
-            .append_item_with_undo(&WorkItem::new("Second", "", false).unwrap())
-            .unwrap();
-        fs::write(file.path(), "agent wrote this").unwrap();
-        assert!(undo.undo().is_err());
-        assert_eq!(fs::read_to_string(file.path()).unwrap(), "agent wrote this");
     }
 
     #[cfg(unix)]

@@ -7,6 +7,7 @@ mod element;
 mod find;
 mod highlight;
 mod image_viewer;
+pub mod item_editor;
 mod markdown;
 mod mouse;
 mod scroll;

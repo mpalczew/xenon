@@ -134,7 +134,7 @@ pub struct XenonApp {
     worklist_captures: HashMap<WorkspaceId, Entity<WorklistCaptureView>>,
     worklist_capture_subs: Vec<Subscription>,
     worklist_capture_visible: Option<WorkspaceId>,
-    worklist_undo: Option<(WorkspaceId, xenon_editor::worklist_file::WorklistUndo)>,
+    worklist_undo: Option<(WorkspaceId, xenon_editor::worklist_file::ItemDraft)>,
     worklist_notice: xenon_design_system::TimedNotice,
     workspace_picker: Option<Entity<WorkspacePickerView>>,
     workspace_create: Option<Entity<WorkspaceCreateView>>,

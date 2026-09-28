@@ -7,8 +7,8 @@ impl WorklistCaptureView {
         let mut lines = text.lines();
         let title = lines.next().unwrap_or("").to_owned();
         let details = lines.collect::<Vec<_>>().join("\n");
-        self.outline
-            .update(cx, |outline, cx| outline.replace(&title, &details, cx));
+        self.editor
+            .update(cx, |editor, cx| editor.visual_replace(&title, &details, cx));
         cx.notify();
     }
 }

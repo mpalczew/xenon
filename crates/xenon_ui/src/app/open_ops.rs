@@ -22,7 +22,7 @@ impl XenonApp {
             self.show_worklist_notice("Open a workspace first", cx);
             return;
         };
-        self.worklist_capture_visible = None;
+        self.hide_worklist_capture(cx);
         let Some(root) = self.workspace_root(workspace) else {
             return;
         };

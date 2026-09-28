@@ -130,19 +130,6 @@ impl EditorView {
         cx.notify();
     }
 
-    pub fn refresh_worklist_after_capture(&mut self, cx: &mut Context<Self>) {
-        if self.worklist_document && !self.path().exists() {
-            let path = self.path().to_path_buf();
-            self.content = Content::Text(crate::Buffer::empty(path));
-            self.disk_alert = DiskAlert::None;
-            self.recompute_highlights();
-            self.emit_buffer_changed(cx);
-            cx.notify();
-        } else {
-            self.sync_from_disk(cx);
-        }
-    }
-
     pub(super) fn disk_alert_bar(
         &self,
         cx: &mut Context<Self>,

@@ -28,7 +28,7 @@ impl XenonApp {
         {
             self.save_layout(prev);
             if self.worklist_capture_visible == Some(prev) {
-                self.worklist_capture_visible = None;
+                self.hide_worklist_capture(cx);
                 self.deferred.pending_focus = self.deferred.restore_pane.take();
             }
         }

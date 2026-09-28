@@ -9,7 +9,7 @@ impl EditorView {
         colors: &theme::ThemeColors,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let edit = self.worklist_edit.as_ref().unwrap();
+        let editor = self.worklist_edit.clone().unwrap();
         div()
             .id("worklist-item-edit")
             .mb_3()
@@ -24,7 +24,7 @@ impl EditorView {
             .flex()
             .flex_col()
             .gap_3()
-            .child(edit.form.render_fields())
+            .child(editor)
             .child(
                 div()
                     .flex()

@@ -1,4 +1,4 @@
-//! Compact title-and-bullets capture for a workspace worklist.
+//! Compact title-and-bullets capture for a workspace worklist. Saves as you type.
 
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
@@ -6,111 +6,98 @@ use gpui::{
     div, px,
 };
 use theme::ActiveTheme;
-use xenon_design_system::{
-    ActionButton, OutlineEvent, OutlineView, TypeRole, Typography, action_button,
-};
-use xenon_editor::worklist_file::{TITLE_LIMIT, WorkItem, title_length};
+use xenon_design_system::{TypeRole, Typography};
+use xenon_editor::item_editor::{ItemEditor, ItemEditorEvent};
+use xenon_editor::worklist_file::{ItemDraft, WorkItem};
 
 #[cfg(feature = "visual-tests")]
 mod visual;
 
 pub enum CaptureEvent {
-    Submit { item: WorkItem },
-    Dismissed,
+    Save {
+        item: WorkItem,
+    },
+    /// ⌘⌫: drop the item and close.
+    Discard,
+    Close,
 }
 
 pub struct WorklistCaptureView {
-    outline: Entity<OutlineView>,
-    task: bool,
-    focus: FocusHandle,
-    _subscriptions: Vec<Subscription>,
+    editor: Entity<ItemEditor>,
+    /// Why the last save failed.
     error: Option<String>,
-    submitting: bool,
-    workspace_name: String,
+    _subscription: Subscription,
 }
 
 impl EventEmitter<CaptureEvent> for WorklistCaptureView {}
 
 impl WorklistCaptureView {
     pub fn new(workspace_name: String, cx: &mut Context<Self>) -> Self {
-        let outline = cx.new(|cx| OutlineView::new("", "", None, cx));
-        let focus = outline.read(cx).focus_handle(cx);
-        let subscriptions = vec![cx.subscribe(&outline, |this, _, event, cx| match event {
-            OutlineEvent::Checked(_) => {}
-            OutlineEvent::Changed => {
-                this.error = None;
-                cx.notify();
-            }
-            OutlineEvent::Submit => this.submit(cx),
-            OutlineEvent::Cancel | OutlineEvent::Delete => cx.emit(CaptureEvent::Dismissed),
-        })];
+        let editor = cx.new(|cx| {
+            let mut editor = ItemEditor::new(cx);
+            editor.set_placeholder(format!("Task for {workspace_name}"), cx);
+            editor
+        });
+        let _subscription = cx.subscribe(&editor, |this, _, event, cx| {
+            this.error = None;
+            cx.emit(match event {
+                ItemEditorEvent::Save(item) => CaptureEvent::Save { item: item.clone() },
+                ItemEditorEvent::Close => CaptureEvent::Close,
+                ItemEditorEvent::Delete => CaptureEvent::Discard,
+            });
+            cx.notify();
+        });
         Self {
-            outline,
-            task: true,
-            focus,
-            _subscriptions: subscriptions,
+            editor,
             error: None,
-            submitting: false,
-            workspace_name,
+            _subscription,
         }
     }
 
-    pub fn saved(&mut self, cx: &mut Context<Self>) {
-        self.outline.update(cx, |outline, cx| outline.clear(cx));
-        self.task = true;
-        self.submitting = false;
-        self.error = None;
-        cx.notify();
+    pub fn draft(&self, cx: &App) -> ItemDraft {
+        self.editor.read(cx).draft()
+    }
+
+    pub fn landed(&mut self, draft: ItemDraft, item: WorkItem, cx: &mut Context<Self>) {
+        self.editor
+            .update(cx, |editor, cx| editor.landed(draft, item, cx));
     }
 
     pub fn failed(&mut self, error: String, cx: &mut Context<Self>) {
         self.error = Some(error);
-        self.submitting = false;
         cx.notify();
     }
 
     pub fn open(&mut self, cx: &mut Context<Self>) {
-        self.outline
-            .update(cx, |outline, cx| outline.open_title(cx));
+        self.editor.update(cx, |editor, cx| editor.open(cx));
         cx.notify();
     }
 
-    fn item(&self, cx: &Context<Self>) -> anyhow::Result<WorkItem> {
-        WorkItem::new(
-            &self.outline.read(cx).title(cx),
-            &self.outline.read(cx).details(cx),
-            self.task,
-        )
+    /// Starts fresh when everything typed is saved and returns the saved item.
+    /// Keeps unsaved text for the next open.
+    pub fn finish(&mut self, cx: &mut Context<Self>) -> Option<ItemDraft> {
+        if !self.editor.read(cx).settled(cx) {
+            return None;
+        }
+        let draft = self.reset(cx);
+        draft.is_saved().then_some(draft)
     }
 
-    fn submit(&mut self, cx: &mut Context<Self>) {
-        if self.submitting {
-            return;
-        }
-        match self.item(cx) {
-            Ok(item) => {
-                self.submitting = true;
-                cx.emit(CaptureEvent::Submit { item });
-            }
-            Err(error) => {
-                self.error = Some(error.to_string());
-                cx.notify();
-            }
-        }
+    pub fn reset(&mut self, cx: &mut Context<Self>) -> ItemDraft {
+        self.error = None;
+        self.editor.update(cx, |editor, cx| editor.reset(cx))
     }
 }
 
 impl Focusable for WorklistCaptureView {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus.clone()
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.editor.read(cx).focus_handle(cx)
     }
 }
 
 impl Render for WorklistCaptureView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
-        let count = title_length(&self.outline.read(cx).title(cx));
-        let can_save = self.item(cx).is_ok();
         let panel = div()
             .absolute()
             .top(px(48.))
@@ -123,45 +110,13 @@ impl Render for WorklistCaptureView {
             .bg(colors.elevated_surface_background)
             .text_color(colors.text)
             .shadow_lg()
-            .child(
-                div()
-                    .type_role(TypeRole::Body, cx)
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Quick capture"),
-            )
-            .child(
-                div()
-                    .type_role(TypeRole::ControlLabel, cx)
-                    .text_color(colors.text_muted)
-                    .child(self.workspace_name.clone()),
-            )
-            .child(
-                div()
-                    .mt_2()
-                    .type_role(TypeRole::ControlLabel, cx)
-                    .text_color(colors.text_muted)
-                    .child(format!("Title · {count}/{TITLE_LIMIT}")),
-            )
-            .child(self.outline.clone())
-            .child(
-                div()
-                    .mt_2()
-                    .type_role(TypeRole::ControlLabel, cx)
-                    .text_color(colors.text_muted)
-                    .child("Enter adds a point · Tab indents · ⌘Enter saves · Esc keeps draft"),
-            )
-            .child(div().mt_2().flex().justify_end().child(action_button(
-                "worklist-capture-save",
-                ActionButton::primary("Save").disabled(!can_save),
-                cx,
-                cx.listener(|this, _, _, cx| this.submit(cx)),
-            )))
-            .children(self.error.as_ref().map(|error| {
+            .child(self.editor.clone())
+            .children(self.error.clone().map(|error| {
                 div()
                     .mt_2()
                     .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.version_control_deleted)
-                    .child(error.clone())
+                    .child(error)
             }))
             .id("worklist-capture-panel")
             .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()));
@@ -169,7 +124,7 @@ impl Render for WorklistCaptureView {
             .absolute()
             .inset_0()
             .id("worklist-capture-scrim")
-            .on_click(cx.listener(|_, _, _, cx| cx.emit(CaptureEvent::Dismissed)))
+            .on_click(cx.listener(|_, _, _, cx| cx.emit(CaptureEvent::Close)))
             .child(panel)
     }
 }
