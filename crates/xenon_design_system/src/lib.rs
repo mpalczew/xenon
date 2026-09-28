@@ -14,6 +14,7 @@ use gpui::{
 use theme::ThemeColors;
 
 mod action_button;
+mod all_clear;
 mod bullet_list;
 mod checkbox;
 mod cursor_blink;
@@ -31,6 +32,7 @@ mod text_input;
 mod toast;
 mod typography;
 pub use action_button::{ActionButton, ActionButtonVariant, action_button};
+pub use all_clear::{AllClear, all_clear, key_chip};
 pub use bullet_list::{BulletLine, bullet_list};
 pub use checkbox::{CheckboxState, checkbox};
 pub use cursor_blink::CursorBlink;

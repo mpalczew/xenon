@@ -217,6 +217,10 @@ mod tests {
     #[test]
     fn worklist_shortcuts_match_the_approved_pair() {
         assert_eq!(entry(CommandId::CaptureWorklist).keys, "⌘⇧K");
+        assert_eq!(
+            entry(CommandId::CaptureWorklist).keys,
+            xenon_editor::worklist_file::CAPTURE_KEYS
+        );
         assert_eq!(entry(CommandId::OpenWorklist).keys, "⌘⌥K");
     }
 }

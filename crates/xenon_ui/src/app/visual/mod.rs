@@ -69,6 +69,7 @@ pub enum Scene {
     WorklistItemEdit,
     WorklistMarkdown,
     WorklistEmpty,
+    WorklistEmptyLight,
     WorklistEmptyVirtual,
     WorklistInlineCapture,
     WorklistInlineLight,
@@ -137,6 +138,7 @@ pub const SCENES: &[Scene] = &[
     Scene::WorklistItemEdit,
     Scene::WorklistMarkdown,
     Scene::WorklistEmpty,
+    Scene::WorklistEmptyLight,
     Scene::WorklistEmptyVirtual,
     Scene::WorklistInlineCapture,
     Scene::WorklistInlineLight,
@@ -215,6 +217,7 @@ impl Scene {
             Self::WorklistItemEdit => "content_worklist_item_edit",
             Self::WorklistMarkdown => "content_worklist_markdown",
             Self::WorklistEmpty => "content_worklist_empty",
+            Self::WorklistEmptyLight => "content_worklist_empty_light",
             Self::WorklistEmptyVirtual => "content_worklist_empty_virtual",
             Self::WorklistInlineCapture => "content_worklist_inline_capture",
             Self::WorklistInlineLight => "content_worklist_inline_light",
@@ -320,6 +323,7 @@ pub fn apply_scene(
         | Scene::WorklistItemEdit
         | Scene::WorklistMarkdown
         | Scene::WorklistEmpty
+        | Scene::WorklistEmptyLight
         | Scene::WorklistEmptyVirtual
         | Scene::WorklistInlineCapture
         | Scene::WorklistInlineLight => {
@@ -334,7 +338,7 @@ pub fn apply_scene(
                     }
                     let _ = std::fs::write(
                         path,
-                        if scene == Scene::WorklistEmpty {
+                        if matches!(scene, Scene::WorklistEmpty | Scene::WorklistEmptyLight) {
                             "# Worklist\n"
                         } else {
                             "# Worklist\n\n- [ ] Fix focus after closing a split\n  - Happens when the right pane owns the active terminal.\n\n- Workspace search idea\n  - Show recently used workspaces first.\n"
@@ -400,6 +404,7 @@ fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
         | Scene::PopulatedLight
         | Scene::SkillPromptLight
         | Scene::WorklistInlineLight
+        | Scene::WorklistEmptyLight
         | Scene::ToastErrorLight => {
             set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
         }

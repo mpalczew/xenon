@@ -116,6 +116,15 @@ supply the row content. `bullet_list` renders indented supporting lines at
 splits a point, Tab and Shift-Tab change depth, and Backspace at the start
 outdents or joins. The caller validates and saves the text.
 
+## Empty states
+
+`xenon_design_system::all_clear` fills an empty pane with a centered column: a
+64px accent-framed check, a Screen title, and a Supporting line. Callers append
+`key_chip` pills (keycap plus Control label; clickable when it acts). On mount
+the check wipes in over 700ms after a 300ms rest, then a ring expands for
+900ms; an accent glow behind it breathes on a 5s loop. Reduce Motion and
+visual captures show the finished state. The worklist uses it when empty.
+
 ## Markdown preview
 
 Prose reads in a centered column about 72 characters wide (46× the editor font

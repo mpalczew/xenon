@@ -48,7 +48,7 @@ Do not bind hold-⌘ to select mode.
 Worklist capture focuses its title on every open and saves as you type.
 Return adds a point, Escape or ⌘Return closes, and ⌘⌫ deletes the item. The worklist opens in a closable
 tab. In List view, arrows select, Space completes, Return edits, and Add opens
-an inline field. Item editing saves as you type. Escape closes it. ⌘⌫ deletes
+an inline field. On an empty list, Return adds the first item. Item editing saves as you type. Escape closes it. ⌘⌫ deletes
 the item. An empty virtual worklist can be saved with ⌘S.
 
 The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open

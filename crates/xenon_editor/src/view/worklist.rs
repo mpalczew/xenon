@@ -1,13 +1,13 @@
 //! Source-preserving worklist presentation over the editor's Markdown buffer.
 
-use gpui::prelude::FluentBuilder;
 use gpui::{
     Context, InteractiveElement, IntoElement, KeyDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, div, px,
 };
 use theme::ActiveTheme;
 use xenon_design_system::{
-    ActionButton, CheckboxState, TypeRole, Typography, action_button, checkbox,
+    ActionButton, AllClear, CheckboxState, TypeRole, Typography, action_button, all_clear,
+    checkbox, key_chip,
 };
 
 use super::{Content, EditorView};
@@ -144,6 +144,9 @@ impl EditorView {
             .worklist_edit
             .as_ref()
             .is_some_and(|edit| edit.read(cx).draft().is_saved());
+        if rows.is_empty() && !pending {
+            return self.render_worklist_all_clear(cx);
+        }
         div()
             .id("worklist-scroll")
             .flex_1()
@@ -174,14 +177,35 @@ impl EditorView {
                     .into_any_element()
                 }
             }))
-            .when(rows.is_empty(), |view| {
-                view.child(
-                    div()
-                        .py_8()
-                        .text_color(colors.text_muted)
-                        .child("Room for the next thought. Add a task or leave yourself a note."),
-                )
-            })
+            .into_any_element()
+    }
+
+    fn render_worklist_all_clear(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let copy = AllClear {
+            title: "All clear.".into(),
+            detail: "Nothing's waiting on you here.".into(),
+        };
+        let hover = cx.theme().colors().element_hover;
+        let hints = div()
+            .flex()
+            .gap_2p5()
+            .mt_2()
+            .child(
+                key_chip("worklist-add", "↵", "add an item", cx)
+                    .cursor_pointer()
+                    .hover(move |style| style.bg(hover))
+                    .on_click(cx.listener(|this, _, _, cx| this.worklist_start_capture(cx))),
+            )
+            .child(key_chip(
+                "worklist-capture-hint",
+                crate::worklist_file::CAPTURE_KEYS,
+                "from anywhere",
+                cx,
+            ));
+        div()
+            .flex_1()
+            .min_h_0()
+            .child(all_clear("worklist-all-clear", copy, cx).child(hints))
             .into_any_element()
     }
 
@@ -198,6 +222,7 @@ impl EditorView {
             }
             "space" if count > 0 => self.worklist_toggle(self.worklist_selection, cx),
             "enter" if count > 0 => self.worklist_start_edit(self.worklist_selection, cx),
+            "enter" => self.worklist_start_capture(cx),
             "delete" if count > 0 => self.worklist_start_edit(self.worklist_selection, cx),
             _ => return false,
         }
