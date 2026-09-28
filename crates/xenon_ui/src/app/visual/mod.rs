@@ -63,6 +63,7 @@ pub enum Scene {
     SettingsAgentsInstalled,
     WorklistCapture,
     WorklistCaptureFilled,
+    WorklistCaptureLong,
     WorklistTab,
     WorklistItemEdit,
     WorklistMarkdown,
@@ -125,6 +126,7 @@ pub const SCENES: &[Scene] = &[
     Scene::SettingsAgentsInstalled,
     Scene::WorklistCapture,
     Scene::WorklistCaptureFilled,
+    Scene::WorklistCaptureLong,
     Scene::WorklistTab,
     Scene::WorklistItemEdit,
     Scene::WorklistMarkdown,
@@ -197,6 +199,7 @@ impl Scene {
             Self::SettingsAgentsInstalled => "settings_agents_installed",
             Self::WorklistCapture => "overlay_worklist_capture",
             Self::WorklistCaptureFilled => "overlay_worklist_capture_filled",
+            Self::WorklistCaptureLong => "overlay_worklist_capture_long",
             Self::WorklistTab => "content_worklist_tab",
             Self::WorklistItemEdit => "content_worklist_item_edit",
             Self::WorklistMarkdown => "content_worklist_markdown",
@@ -278,19 +281,23 @@ pub fn apply_scene(
             overlays::skill_prompt(app, scene, window, cx)
         }
         Scene::SettingsAgentsInstalled => overlays::settings_agents_installed(app, cx),
-        Scene::WorklistCapture | Scene::WorklistCaptureFilled => {
+        Scene::WorklistCapture | Scene::WorklistCaptureFilled | Scene::WorklistCaptureLong => {
             chrome::populated(app, scene, window, cx);
             app.capture_worklist(window, cx);
-            if scene == Scene::WorklistCaptureFilled
+            let text = match scene {
+                Scene::WorklistCaptureFilled => {
+                    Some("Fix focus after closing a split\nHappens in the right pane.")
+                }
+                Scene::WorklistCaptureLong => Some(
+                    "Fix focus after closing a split when the right pane owns the active terminal and a prompt is open\nHappens in the right pane.",
+                ),
+                _ => None,
+            };
+            if let Some(text) = text
                 && let Some(workspace) = app.active
                 && let Some(capture) = app.worklist_captures.get(&workspace)
             {
-                capture.update(cx, |view, cx| {
-                    view.visual_set_text(
-                        "Fix focus after closing a split\nHappens in the right pane.",
-                        cx,
-                    )
-                });
+                capture.update(cx, |view, cx| view.visual_set_text(text, cx));
             }
         }
         Scene::WorklistTab

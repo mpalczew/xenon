@@ -2,7 +2,7 @@
 //! tab and quick capture. It saves as you type by asking its host to land each change.
 
 use crate::worklist_file::entries::Entry;
-use crate::worklist_file::{ItemDraft, WorkItem};
+use crate::worklist_file::{ItemDraft, TITLE_LIMIT, WorkItem, title_length};
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
     ParentElement, Render, SharedString, Styled, Subscription, Window, div,
@@ -12,6 +12,14 @@ use xenon_design_system::{OutlineEvent, OutlineView, TypeRole, Typography};
 
 #[cfg(feature = "visual-tests")]
 mod visual;
+
+/// Characters left at which the countdown appears.
+const NEAR_LIMIT: isize = 12;
+
+struct LengthHint {
+    left: isize,
+    note: Option<&'static str>,
+}
 
 pub enum ItemEditorEvent {
     /// The text reads as an item that is not written yet. Land it, then call `landed`.
@@ -77,15 +85,6 @@ impl ItemEditor {
         !typed || (self.item(cx).is_ok() && self.pending(cx).is_none())
     }
 
-    /// Why a titled item cannot be written yet.
-    fn problem(&self, cx: &App) -> Option<String> {
-        let titled = !self.outline.read(cx).title(cx).trim().is_empty();
-        self.item(cx)
-            .err()
-            .filter(|_| titled)
-            .map(|error| error.to_string())
-    }
-
     /// Starts a fresh task and returns the draft of the item just edited.
     pub fn reset(&mut self, cx: &mut Context<Self>) -> ItemDraft {
         let draft = std::mem::take(&mut self.draft);
@@ -99,7 +98,11 @@ impl ItemEditor {
     }
 
     fn build(title: &str, details: &str, checked: Option<bool>, cx: &mut Context<Self>) -> Self {
-        let outline = cx.new(|cx| OutlineView::new(title, details, checked, cx));
+        let outline = cx.new(|cx| {
+            let outline = OutlineView::new(title, details, checked, cx);
+            outline.limit_title(TITLE_LIMIT, cx);
+            outline
+        });
         let _subscription = cx.subscribe(&outline, |this, _, event, cx| match event {
             OutlineEvent::Changed => this.changed(cx),
             OutlineEvent::Checked(checked) => {
@@ -145,6 +148,23 @@ impl ItemEditor {
         )
     }
 
+    /// Countdown near the soft title limit, and a note once past it.
+    fn length_hint(&self, cx: &App) -> Option<LengthHint> {
+        let left =
+            TITLE_LIMIT as isize - title_length(self.outline.read(cx).title(cx).trim()) as isize;
+        if left > NEAR_LIMIT {
+            return None;
+        }
+        let note = (left < 0).then(|| {
+            if self.draft.is_saved() && self.settled(cx) {
+                "Saved · long titles wrap in the list"
+            } else {
+                "Long titles wrap in the list"
+            }
+        });
+        Some(LengthHint { left, note })
+    }
+
     fn done(&self) -> bool {
         self.checked == Some(true)
     }
@@ -158,13 +178,22 @@ impl Focusable for ItemEditor {
 
 impl Render for ItemEditor {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let problem = self.problem(cx).map(|problem| {
+        let hint = self.length_hint(cx).map(|hint| {
+            let muted = cx.theme().colors().text_muted;
+            let count = if hint.left < 0 {
+                cx.theme().status().warning
+            } else {
+                muted
+            };
             div()
                 .mt_2()
+                .flex()
+                .justify_between()
                 .type_role(TypeRole::ControlLabel, cx)
-                .text_color(cx.theme().colors().version_control_deleted)
-                .child(problem)
+                .text_color(muted)
+                .child(div().children(hint.note))
+                .child(div().text_color(count).child(hint.left.to_string()))
         });
-        div().child(self.outline.clone()).children(problem)
+        div().child(self.outline.clone()).children(hint)
     }
 }

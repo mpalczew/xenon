@@ -1,5 +1,8 @@
 use super::TextInputView;
-use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, Window};
+use gpui::{
+    Bounds, Context, ElementInputHandler, Entity, EntityInputHandler, FocusHandle, IntoElement,
+    Pixels, Point, Styled, UTF16Selection, Window, canvas,
+};
 use std::ops::Range;
 
 impl EntityInputHandler for TextInputView {
@@ -101,4 +104,17 @@ impl EntityInputHandler for TextInputView {
                 .sum()
         })
     }
+}
+
+pub(super) fn input_host(view: Entity<TextInputView>, focus: FocusHandle) -> impl IntoElement {
+    canvas(
+        move |_, _, _| {},
+        move |bounds, _, window, cx| {
+            let geometry = view.read(cx).geometry_for_bounds(bounds, window);
+            view.update(cx, |input, _| input.geometry = Some(geometry));
+            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
+        },
+    )
+    .absolute()
+    .size_full()
 }

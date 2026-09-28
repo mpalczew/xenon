@@ -1,9 +1,9 @@
 //! A complete native text control: input, focus, editing, and presentation.
 
 use gpui::{
-    App, ClipboardItem, Context, ElementInputHandler, Entity, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled,
-    Window, canvas, div, point, px,
+    App, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled, Window, div, point,
+    px,
 };
 use theme::ActiveTheme;
 use xenon_settings::{Copy, Cut, Paste};
@@ -37,6 +37,8 @@ pub struct TextInputView {
     geometry: Option<geometry::TextGeometry>,
     blink: CursorBlink,
     history: history::History,
+    /// Graphemes past this count paint with an overflow tint.
+    soft_limit: Option<usize>,
 }
 
 impl EventEmitter<TextInputEvent> for TextInputView {}
@@ -52,6 +54,7 @@ impl TextInputView {
             geometry: None,
             blink: CursorBlink::default(),
             history: history::History::default(),
+            soft_limit: None,
         }
     }
 
@@ -75,6 +78,11 @@ impl TextInputView {
             return;
         }
         self.config.placeholder = placeholder;
+        cx.notify();
+    }
+
+    pub fn set_soft_limit(&mut self, limit: Option<usize>, cx: &mut Context<Self>) {
+        self.soft_limit = limit;
         cx.notify();
     }
 
@@ -385,12 +393,15 @@ impl Render for TextInputView {
             caret,
             line_height: window.line_height(),
             appearance: self.config.appearance,
+            overflow: self
+                .soft_limit
+                .map(|limit| (limit, cx.theme().status().warning)),
         });
         div()
             .id("text-input")
             .relative()
             .child(field)
-            .child(input_host(cx.entity(), self.focus.clone()))
+            .child(input::input_host(cx.entity(), self.focus.clone()))
             .track_focus(&self.focus)
             .on_mouse_down(gpui::MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_key_down(cx.listener(Self::on_key))
@@ -398,17 +409,4 @@ impl Render for TextInputView {
             .on_action(cx.listener(|this, _: &Cut, _, cx| this.cut(cx)))
             .on_action(cx.listener(|this, _: &Paste, _, cx| this.paste(cx)))
     }
-}
-
-fn input_host(view: Entity<TextInputView>, focus: FocusHandle) -> impl IntoElement {
-    canvas(
-        move |_, _, _| {},
-        move |bounds, _, window, cx| {
-            let geometry = view.read(cx).geometry_for_bounds(bounds, window);
-            view.update(cx, |input, _| input.geometry = Some(geometry));
-            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
-        },
-    )
-    .absolute()
-    .size_full()
 }

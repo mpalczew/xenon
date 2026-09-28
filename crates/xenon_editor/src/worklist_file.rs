@@ -185,12 +185,11 @@ mod tests {
     }
 
     #[test]
-    fn title_limit_uses_graphemes_and_rejects_multiline_titles() {
-        assert!(WorkItem::new(&"a".repeat(80), "", true).is_ok());
-        assert!(WorkItem::new(&"a".repeat(81), "", true).is_err());
+    fn long_titles_save_but_multiline_and_empty_titles_do_not() {
+        assert!(WorkItem::new(&"a".repeat(200), "", true).is_ok());
         assert!(WorkItem::new("one\ntwo", "", true).is_err());
         assert!(WorkItem::new("", "detail", true).is_err());
-        assert!(WorkItem::new(&"e\u{301}".repeat(80), "", true).is_ok());
+        assert_eq!(title_length(&"e\u{301}".repeat(80)), TITLE_LIMIT);
     }
 
     #[test]

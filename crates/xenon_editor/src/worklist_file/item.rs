@@ -4,6 +4,7 @@ use anyhow::{Result, ensure};
 use unicode_segmentation::UnicodeSegmentation;
 use xenon_design_system::{OutlinePoint, points_from_details};
 
+/// A soft limit: longer titles save, and the editor points out the overflow.
 pub const TITLE_LIMIT: usize = 80;
 
 pub fn title_length(title: &str) -> usize {
@@ -22,10 +23,6 @@ impl WorkItem {
         let title = title.trim();
         ensure!(!title.is_empty(), "Enter a title");
         ensure!(!title.contains(['\r', '\n']), "Title must be one line");
-        ensure!(
-            title_length(title) <= TITLE_LIMIT,
-            "Title must be 80 characters or fewer"
-        );
         let details = points_from_details(details);
         Ok(Self {
             title: title.to_owned(),
