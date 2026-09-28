@@ -27,6 +27,9 @@ the agent in the IDE and breaks that interop; we do not follow that path.
 ## Transport
 - WebSocket at `ws://127.0.0.1:<port>`.
 - Auth: request header `x-claude-code-ide-authorization: <authToken>`.
+- Subprotocol: Claude Code >= 2.1.283 requests `Sec-WebSocket-Protocol: mcp`
+  and drops the socket (`/ide`: "Failed to connect") unless the handshake
+  response echoes `mcp`.
 - Messages: MCP (JSON-RPC 2.0), one JSON object per WS text frame.
 
 ## Handshake

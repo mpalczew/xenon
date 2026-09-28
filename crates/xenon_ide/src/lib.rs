@@ -346,6 +346,25 @@ fn accept_loop(
     }
 }
 
+/// Claude Code (>= 2.1.283) requests the `mcp` subprotocol and drops the
+/// socket unless the handshake echoes it back.
+fn with_mcp_subprotocol(req: &Request, mut res: Response) -> Response {
+    let requested = req
+        .headers()
+        .get_all("sec-websocket-protocol")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(','))
+        .any(|p| p.trim() == "mcp");
+    if requested {
+        res.headers_mut().insert(
+            "sec-websocket-protocol",
+            tungstenite::http::HeaderValue::from_static("mcp"),
+        );
+    }
+    res
+}
+
 fn serve_connection(
     stream: std::net::TcpStream,
     token: &str,
@@ -362,7 +381,7 @@ fn serve_connection(
                 .get("x-claude-code-ide-authorization")
                 .and_then(|v| v.to_str().ok());
             if presented == Some(expected.as_str()) {
-                Ok(res)
+                Ok(with_mcp_subprotocol(req, res))
             } else {
                 Err(ErrorResponse::new(Some("unauthorized".into())))
             }
@@ -401,5 +420,37 @@ fn serve_connection(
             }
             Err(error) => return Err(error.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn request(protocol: Option<&str>) -> Request {
+        let mut builder = Request::builder().uri("ws://127.0.0.1/");
+        if let Some(protocol) = protocol {
+            builder = builder.header("sec-websocket-protocol", protocol);
+        }
+        builder.body(()).unwrap()
+    }
+
+    fn echoed(protocol: Option<&str>) -> Option<String> {
+        with_mcp_subprotocol(&request(protocol), Response::new(()))
+            .headers()
+            .get("sec-websocket-protocol")
+            .map(|v| v.to_str().unwrap().to_string())
+    }
+
+    #[test]
+    fn echoes_requested_mcp_subprotocol() {
+        assert_eq!(echoed(Some("mcp")).as_deref(), Some("mcp"));
+        assert_eq!(echoed(Some("other, mcp")).as_deref(), Some("mcp"));
+    }
+
+    #[test]
+    fn omits_subprotocol_when_not_requested() {
+        assert_eq!(echoed(None), None);
+        assert_eq!(echoed(Some("other")), None);
     }
 }
