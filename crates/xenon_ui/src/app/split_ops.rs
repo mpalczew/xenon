@@ -329,17 +329,26 @@ impl XenonApp {
                     end_line,
                     end_character,
                 } => {
+                    let Some(root) = this
+                        .locate_editor(&view)
+                        .and_then(|(workspace, _)| this.workspace_root(workspace))
+                    else {
+                        return;
+                    };
                     let Some(ide) = this.services.ide.as_ref() else {
                         return;
                     };
-                    ide.notify_selection(&SelectionSnapshot {
-                        path: path.clone(),
-                        text: text.clone(),
-                        start_line: *start_line,
-                        start_character: *start_character,
-                        end_line: *end_line,
-                        end_character: *end_character,
-                    });
+                    ide.notify_selection(
+                        &root,
+                        &SelectionSnapshot {
+                            path: path.clone(),
+                            text: text.clone(),
+                            start_line: *start_line,
+                            start_character: *start_character,
+                            end_line: *end_line,
+                            end_character: *end_character,
+                        },
+                    );
                 }
                 EditorEvent::RequestClose { force } => {
                     this.handle_editor_request_close(&view, *force, cx);

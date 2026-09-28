@@ -21,6 +21,10 @@ the agent in the IDE and breaks that interop; we do not follow that path.
   ```
 - The IDE injects `CLAUDE_CODE_SSE_PORT=<port>` into its integrated terminal's
   environment. That (plus the matching lock file) is how the CLI finds the IDE.
+- Xenon runs one port + lock file **per workspace** (`workspaceFolders` holds
+  just that root) and injects each workspace's port into its own terminals.
+  `selection_changed` is a push with no client targeting, so a shared port
+  would leak one workspace's selection into every other workspace's agent.
 - Neovim docs also set `ENABLE_IDE_INTEGRATION=true`; VS Code live capture did
   not require it. Harmless to set; Xenon should inject both for compatibility.
 

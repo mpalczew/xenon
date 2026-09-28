@@ -3,23 +3,21 @@
 
 #[cfg(unix)]
 mod codex_protocol;
+mod endpoint;
 mod lock;
 mod protocol;
 
 use std::collections::HashMap;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::sync::mpsc::{self, Sender as MpscSender};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
+#[cfg(unix)]
 use std::thread;
-use std::time::Duration;
 
 use anyhow::Result;
 use async_channel::Sender;
 use serde_json::json;
-use tungstenite::handshake::server::{ErrorResponse, Request, Response};
-use tungstenite::{Message, accept_hdr};
-use uuid::Uuid;
+
+use endpoint::Endpoint;
 
 #[cfg(unix)]
 use codex_protocol::{
@@ -42,87 +40,77 @@ pub struct SelectionSnapshot {
     pub end_character: u32,
 }
 
-/// A running IDE server. Dropping it removes the discovery lock file.
+/// A running IDE server: one endpoint per workspace root, so each agent only
+/// sees its own workspace. Dropping it removes the discovery lock files.
 pub struct IdeServer {
-    port: u16,
-    token: String,
-    lock_path: PathBuf,
+    endpoints: HashMap<PathBuf, Endpoint>,
+    commands: Sender<IdeCommand>,
+    /// All workspace roots, for the Codex context server.
     roots: Arc<RwLock<Vec<PathBuf>>>,
-    /// Outbound notify queues for connected CLI clients (selection, etc.).
-    clients: Arc<Mutex<Vec<MpscSender<String>>>>,
     #[cfg(unix)]
     codex: Option<CodexIdeServer>,
 }
 
 impl IdeServer {
-    /// Bind a localhost port, write the lock file, and start accepting agents.
+    /// Start an endpoint per workspace root and the Codex context server.
     pub fn start(roots: Vec<PathBuf>, commands: Sender<IdeCommand>) -> Result<IdeServer> {
-        let listener = TcpListener::bind(("127.0.0.1", 0))?;
-        let port = listener.local_addr()?.port();
-        let token = Uuid::new_v4().to_string();
-        let lock_path = lock::write(port, &token, &roots)?;
-        let roots = Arc::new(RwLock::new(roots));
-        let clients: Arc<Mutex<Vec<MpscSender<String>>>> = Arc::new(Mutex::new(Vec::new()));
+        let shared_roots = Arc::new(RwLock::new(roots.clone()));
         #[cfg(unix)]
-        let codex = match CodexIdeServer::start(roots.clone()) {
+        let codex = match CodexIdeServer::start(shared_roots.clone()) {
             Ok(server) => Some(server),
             Err(error) => {
                 log::warn!("Codex IDE context server unavailable: {error}");
                 None
             }
         };
-        log::info!("xenon IDE server on 127.0.0.1:{port}");
-
-        let server_roots = roots.clone();
-        let server_token = token.clone();
-        let server_clients = clients.clone();
-        thread::Builder::new()
-            .name("xenon-ide".into())
-            .spawn(move || {
-                accept_loop(
-                    listener,
-                    server_token,
-                    server_roots,
-                    server_clients,
-                    commands,
-                )
-            })?;
-
-        Ok(IdeServer {
-            port,
-            token,
-            lock_path,
-            roots,
-            clients,
+        let mut server = IdeServer {
+            endpoints: HashMap::new(),
+            commands,
+            roots: shared_roots,
             #[cfg(unix)]
             codex,
-        })
+        };
+        server.update_roots(roots)?;
+        Ok(server)
     }
 
-    /// Environment for the integrated terminal so Claude Code finds this server.
-    pub fn env(&self) -> Vec<(String, String)> {
+    /// Environment for a terminal in `root` so Claude Code finds that
+    /// workspace's endpoint.
+    pub fn env(&self, root: &Path) -> Vec<(String, String)> {
+        let Some(endpoint) = self.endpoints.get(root) else {
+            return Vec::new();
+        };
         vec![
-            ("CLAUDE_CODE_SSE_PORT".to_string(), self.port.to_string()),
+            (
+                "CLAUDE_CODE_SSE_PORT".to_string(),
+                endpoint.port().to_string(),
+            ),
             ("ENABLE_IDE_INTEGRATION".to_string(), "true".to_string()),
         ]
     }
 
-    /// Replace the advertised workspace folders without changing the server port.
+    /// Start endpoints for new roots and close those for removed roots.
     pub fn update_roots(&mut self, roots: Vec<PathBuf>) -> Result<()> {
-        {
-            let mut current = self.roots.write().expect("IDE roots lock poisoned");
-            *current = roots.clone();
+        self.endpoints.retain(|root, _| roots.contains(root));
+        for root in &roots {
+            if !self.endpoints.contains_key(root) {
+                let endpoint = Endpoint::start(root.clone(), self.commands.clone())?;
+                self.endpoints.insert(root.clone(), endpoint);
+            }
         }
-        self.lock_path = lock::write(self.port, &self.token, &roots)?;
+        *self.roots.write().expect("IDE roots lock poisoned") = roots;
         Ok(())
     }
 
-    /// Push current editor selection to connected Claude CLI clients.
-    pub fn notify_selection(&self, snap: &SelectionSnapshot) {
+    /// Push an editor selection to the agents connected from `root` only.
+    pub fn notify_selection(&self, root: &Path, snap: &SelectionSnapshot) {
         #[cfg(unix)]
         if let Some(codex) = &self.codex {
             codex.set_selection(snap.clone());
         }
+        let Some(endpoint) = self.endpoints.get(root) else {
+            return;
+        };
         let is_empty = snap.text.is_empty();
         let msg = json!({
             "jsonrpc": "2.0",
@@ -139,8 +127,7 @@ impl IdeServer {
             }
         })
         .to_string();
-        let mut clients = self.clients.lock().expect("IDE clients lock poisoned");
-        clients.retain(|tx| tx.send(msg.clone()).is_ok());
+        endpoint.broadcast(&msg);
     }
 }
 
@@ -320,137 +307,44 @@ impl Drop for CodexIdeServer {
     }
 }
 
-impl Drop for IdeServer {
-    fn drop(&mut self) {
-        lock::remove(&self.lock_path);
-    }
-}
-
-fn accept_loop(
-    listener: TcpListener,
-    token: String,
-    roots: Arc<RwLock<Vec<PathBuf>>>,
-    clients: Arc<Mutex<Vec<MpscSender<String>>>>,
-    commands: Sender<IdeCommand>,
-) {
-    for stream in listener.incoming().flatten() {
-        let token = token.clone();
-        let roots = roots.clone();
-        let clients = clients.clone();
-        let commands = commands.clone();
-        thread::spawn(move || {
-            if let Err(error) = serve_connection(stream, &token, &roots, &clients, &commands) {
-                log::debug!("xenon IDE connection ended: {error}");
-            }
-        });
-    }
-}
-
-/// Claude Code (>= 2.1.283) requests the `mcp` subprotocol and drops the
-/// socket unless the handshake echoes it back.
-fn with_mcp_subprotocol(req: &Request, mut res: Response) -> Response {
-    let requested = req
-        .headers()
-        .get_all("sec-websocket-protocol")
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .flat_map(|v| v.split(','))
-        .any(|p| p.trim() == "mcp");
-    if requested {
-        res.headers_mut().insert(
-            "sec-websocket-protocol",
-            tungstenite::http::HeaderValue::from_static("mcp"),
-        );
-    }
-    res
-}
-
-fn serve_connection(
-    stream: std::net::TcpStream,
-    token: &str,
-    roots: &Arc<RwLock<Vec<PathBuf>>>,
-    clients: &Arc<Mutex<Vec<MpscSender<String>>>>,
-    commands: &Sender<IdeCommand>,
-) -> Result<()> {
-    let expected = token.to_string();
-    #[allow(clippy::result_large_err)]
-    let auth =
-        move |req: &Request, res: Response| -> std::result::Result<Response, ErrorResponse> {
-            let presented = req
-                .headers()
-                .get("x-claude-code-ide-authorization")
-                .and_then(|v| v.to_str().ok());
-            if presented == Some(expected.as_str()) {
-                Ok(with_mcp_subprotocol(req, res))
-            } else {
-                Err(ErrorResponse::new(Some("unauthorized".into())))
-            }
-        };
-
-    let mut ws = accept_hdr(stream, auth)?;
-    let (tx, rx) = mpsc::channel::<String>();
-    {
-        let mut list = clients.lock().expect("IDE clients lock poisoned");
-        list.push(tx);
-    }
-    // Non-blocking so we can interleave outbound selection notifications.
-    ws.get_mut().set_nonblocking(true)?;
-    loop {
-        match ws.read() {
-            Ok(Message::Text(text)) => {
-                let current_roots = roots.read().expect("IDE roots lock poisoned").clone();
-                if let Some(reply) = protocol::handle(&text, &current_roots, commands) {
-                    ws.get_mut().set_nonblocking(false)?;
-                    ws.send(Message::Text(reply))?;
-                    ws.get_mut().set_nonblocking(true)?;
-                }
-            }
-            Ok(Message::Close(_)) => return Ok(()),
-            Ok(_) => {}
-            Err(tungstenite::Error::Io(ref e))
-                if e.kind() == std::io::ErrorKind::WouldBlock
-                    || e.kind() == std::io::ErrorKind::TimedOut =>
-            {
-                while let Ok(msg) = rx.try_recv() {
-                    ws.get_mut().set_nonblocking(false)?;
-                    ws.send(Message::Text(msg))?;
-                    ws.get_mut().set_nonblocking(true)?;
-                }
-                thread::sleep(Duration::from_millis(40));
-            }
-            Err(error) => return Err(error.into()),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn request(protocol: Option<&str>) -> Request {
-        let mut builder = Request::builder().uri("ws://127.0.0.1/");
-        if let Some(protocol) = protocol {
-            builder = builder.header("sec-websocket-protocol", protocol);
+    fn snapshot(path: &str) -> SelectionSnapshot {
+        SelectionSnapshot {
+            path: PathBuf::from(path),
+            text: "picked".into(),
+            start_line: 1,
+            start_character: 0,
+            end_line: 1,
+            end_character: 6,
         }
-        builder.body(()).unwrap()
-    }
-
-    fn echoed(protocol: Option<&str>) -> Option<String> {
-        with_mcp_subprotocol(&request(protocol), Response::new(()))
-            .headers()
-            .get("sec-websocket-protocol")
-            .map(|v| v.to_str().unwrap().to_string())
     }
 
     #[test]
-    fn echoes_requested_mcp_subprotocol() {
-        assert_eq!(echoed(Some("mcp")).as_deref(), Some("mcp"));
-        assert_eq!(echoed(Some("other, mcp")).as_deref(), Some("mcp"));
-    }
+    fn selection_reaches_only_its_workspace() {
+        let (tx, _rx) = async_channel::unbounded();
+        let a = PathBuf::from("/xenon-test/a");
+        let b = PathBuf::from("/xenon-test/b");
+        // Built by hand: `start` would also join the live Codex IPC socket.
+        let mut server = IdeServer {
+            endpoints: HashMap::new(),
+            commands: tx,
+            roots: Arc::new(RwLock::new(Vec::new())),
+            #[cfg(unix)]
+            codex: None,
+        };
+        server
+            .update_roots(vec![a.clone(), b.clone()])
+            .expect("roots");
+        let from_a = server.endpoints[&a].subscribe();
+        let from_b = server.endpoints[&b].subscribe();
 
-    #[test]
-    fn omits_subprotocol_when_not_requested() {
-        assert_eq!(echoed(None), None);
-        assert_eq!(echoed(Some("other")), None);
+        server.notify_selection(&a, &snapshot("/xenon-test/a/main.rs"));
+
+        assert!(from_a.try_recv().expect("a notified").contains("picked"));
+        assert!(from_b.try_recv().is_err());
+        assert_ne!(server.env(&a), server.env(&b));
     }
 }

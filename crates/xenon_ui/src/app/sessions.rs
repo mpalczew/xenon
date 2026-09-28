@@ -191,7 +191,7 @@ impl XenonApp {
         _workspace: WorkspaceId,
         cx: &mut Context<Self>,
     ) -> Entity<TerminalView> {
-        let env = self.terminal_env();
+        let env = self.terminal_env(&root);
         let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
         self._bell_subs
             .push(cx.subscribe(&terminal, move |this, view, event, cx| {

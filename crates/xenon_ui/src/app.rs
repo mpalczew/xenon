@@ -291,13 +291,14 @@ impl XenonApp {
         }
     }
 
-    /// Environment injected into every terminal so agents find the IDE server.
-    fn terminal_env(&self) -> Vec<(String, String)> {
+    /// Environment injected into every terminal so agents find their
+    /// workspace's IDE endpoint.
+    fn terminal_env(&self, root: &Path) -> Vec<(String, String)> {
         let mut env = self
             .services
             .ide
             .as_ref()
-            .map(|server| server.env())
+            .map(|server| server.env(root))
             .unwrap_or_default();
         env.push((
             "XENON_DATA_DIR".into(),

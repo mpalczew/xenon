@@ -4,8 +4,8 @@
 fn main() {
     let (tx, rx) = async_channel::unbounded();
     let root = std::env::current_dir().unwrap();
-    let server = xenon_ide::IdeServer::start(vec![root], tx).expect("start");
-    for (key, value) in server.env() {
+    let server = xenon_ide::IdeServer::start(vec![root.clone()], tx).expect("start");
+    for (key, value) in server.env(&root) {
         println!("{key}={value}");
     }
     std::thread::spawn(move || {
