@@ -10,11 +10,14 @@ use gpui::{
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use theme::Theme;
 
+use super::nav::OutlineEntry;
+mod definition;
+
 use super::selectable::SelectableBlock;
 use super::state::PreviewState;
 use super::table::{Table, TablePaint, render_table};
 use super::yaml::{MetaPaint, render_metadata};
-use super::{code_block_width, heading_size, wide_block};
+use super::{code_block_width, heading_size, prose_slot, wide_block, wide_slot};
 use crate::highlight;
 
 pub(super) struct Builder {
@@ -48,6 +51,15 @@ pub(super) struct Builder {
     list_stack: Vec<Option<u64>>,
     /// Source ranges for open list items (stack; nested items push).
     item_sources: Vec<Range<usize>>,
+    outline: Vec<OutlineEntry>,
+}
+
+/// Finished preview: blocks plus the parallel selection maps and the outline.
+pub(super) struct Built {
+    pub blocks: Vec<AnyElement>,
+    pub plain: Vec<SharedString>,
+    pub source_ranges: Vec<Range<usize>>,
+    pub outline: Vec<OutlineEntry>,
 }
 
 pub(super) struct BuilderColors {
@@ -93,6 +105,7 @@ impl Builder {
             cell_source: None,
             list_stack: Vec::new(),
             item_sources: Vec::new(),
+            outline: Vec::new(),
         }
     }
 
@@ -126,8 +139,18 @@ impl Builder {
         self.list_stack.push(start);
     }
 
-    pub(super) fn finish(self) -> (Vec<AnyElement>, Vec<SharedString>, Vec<Range<usize>>) {
-        (self.blocks, self.plain, self.source_ranges)
+    pub(super) fn finish(self) -> Built {
+        Built {
+            blocks: self.blocks,
+            plain: self.plain,
+            source_ranges: self.source_ranges,
+            outline: self.outline,
+        }
+    }
+
+    /// Prose-width block centered in the reading column.
+    fn push_block(&mut self, element: impl IntoElement) {
+        self.blocks.push(prose_slot(element, self.base));
     }
     fn push_selectable(
         &mut self,
@@ -189,9 +212,7 @@ impl Builder {
             Event::SoftBreak if self.code.is_none() => self.inline.push(' '),
             Event::HardBreak if self.metadata.is_some() => self.push_meta_nl(),
             Event::HardBreak if self.code.is_none() => self.inline.push('\n'),
-            Event::Rule => self
-                .blocks
-                .push(div().my_3().h(px(1.)).bg(self.rule).into_any_element()),
+            Event::Rule => self.push_block(div().my_3().h(px(1.)).bg(self.rule)),
             _ => {}
         }
     }
@@ -260,7 +281,16 @@ impl Builder {
             }
             TagEnd::Paragraph => {}
             TagEnd::Heading(level) => {
-                self.flush_block(heading_size(self.base, level), true, None, range)
+                let title = SharedString::from(self.inline.trim().to_string());
+                let block = self.blocks.len();
+                self.flush_block(heading_size(self.base, level), true, None, range);
+                if self.blocks.len() > block {
+                    self.outline.push(OutlineEntry {
+                        level: level as u8,
+                        title,
+                        block,
+                    });
+                }
             }
             TagEnd::Item => {
                 let src = self.item_sources.pop().unwrap_or(range);
@@ -351,7 +381,7 @@ impl Builder {
         if let Some(pad) = pad_left {
             block = block.pl(pad);
         }
-        self.blocks.push(block.child(child).into_any_element());
+        self.push_block(block.child(child));
     }
     fn flush_code(&mut self, source_range: Range<usize>) {
         let Some((lang, mut code)) = self.code.take() else {
@@ -360,7 +390,7 @@ impl Builder {
         if code.ends_with('\n') {
             code.pop();
         }
-        let width = code_block_width(&code, self.base);
+        let content = code_block_width(&code, self.base);
         let highlights: Vec<_> = highlight::spans_for_lang(&lang, &code)
             .into_iter()
             .map(|span| {
@@ -372,17 +402,17 @@ impl Builder {
             })
             .collect();
         let child = self.push_selectable(SharedString::from(code), highlights, source_range);
-        self.blocks.push(
-            wide_block(width)
-                .my_2()
-                .p_2()
-                .rounded_md()
-                .bg(self.code_bg)
-                .font_family(self.mono.clone())
-                .text_size(self.base)
-                .child(child)
-                .into_any_element(),
-        );
+        let code_block = wide_block(content, self.base)
+            .my_2()
+            .p_2()
+            .rounded_md()
+            .bg(self.code_bg)
+            .font_family(self.mono.clone())
+            .text_size(self.base)
+            .child(child);
+        let ix = self.blocks.len();
+        self.blocks
+            .push(wide_slot(code_block, content, ix, self.base));
     }
     fn flush_metadata(&mut self, source_range: Range<usize>) {
         let Some(body) = self.metadata.take() else {
@@ -405,42 +435,7 @@ impl Builder {
             render_metadata(body, source_range, &paint, self.plain.len());
         self.plain.extend(plains);
         self.source_ranges.extend(ranges);
-        self.blocks.push(element);
-    }
-
-    fn flush_definition(&mut self, body_source: Range<usize>) {
-        let title = self.def_title.take().unwrap_or_default().trim().to_string();
-        let title_source = self.def_title_source.take();
-        let body = std::mem::take(&mut self.inline);
-        let highlights = std::mem::take(&mut self.highlights);
-        let body_trim = body.trim();
-        if title.is_empty() && body_trim.is_empty() {
-            return;
-        }
-        let mut block = div().my_1().w_full().min_w_0().flex().flex_col().gap_1();
-        if !title.is_empty() {
-            let src = title_source.unwrap_or_else(|| body_source.clone());
-            let title_el = self.push_selectable(SharedString::from(title), Vec::new(), src);
-            block = block.child(
-                div()
-                    .font_weight(FontWeight::BOLD)
-                    .text_size(self.base)
-                    .child(title_el),
-            );
-        }
-        if !body_trim.is_empty() {
-            let body_el = self.push_selectable(SharedString::from(body), highlights, body_source);
-            block = block.child(
-                div()
-                    .w_full()
-                    .min_w_0()
-                    .pl_4()
-                    .whitespace_normal()
-                    .text_size(self.base)
-                    .child(body_el),
-            );
-        }
-        self.blocks.push(block.into_any_element());
+        self.push_block(element);
     }
 
     fn in_table_cell(&self) -> bool {
@@ -471,7 +466,7 @@ impl Builder {
             let (element, plains, ranges) = render_table(table, &paint, self.plain.len());
             self.plain.extend(plains);
             self.source_ranges.extend(ranges);
-            self.blocks.push(element);
+            self.push_block(element);
         }
     }
 

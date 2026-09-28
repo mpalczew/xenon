@@ -116,6 +116,16 @@ supply the row content. `bullet_list` renders indented supporting lines at
 splits a point, Tab and Shift-Tab change depth, and Backspace at the start
 outdents or joins. The caller validates and saves the text.
 
+## Markdown preview
+
+Prose reads in a centered column about 72 characters wide (46× the editor font
+size) with 32px padding; narrower panes shrink it. Code blocks keep their own
+width between the column and 64× the font size, centered, and scroll sideways
+past that. When the pane has room and the document has two or more headings
+(H1–H3), an "On this page" outline sits to the right: `selectable_row` rows in
+the Control label role, the current section selected. Clicking a row or
+pressing `[` / `]` scrolls to that heading.
+
 ## Toasts
 
 `xenon_design_system::ToastView` is the one transient notice. Each window has a

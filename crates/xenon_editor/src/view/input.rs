@@ -71,9 +71,14 @@ impl EditorView {
             return;
         }
         if self.preview {
-            // Preview is read-only: only select-all (above), copy (action), and Esc/menu.
+            // Preview is read-only: select-all (above), copy, heading steps, and Esc/menu.
             if keystroke.modifiers.platform && keystroke.key == "c" {
                 self.copy_selection(cx);
+                cx.stop_propagation();
+            }
+            if let Some(delta) = heading_step(keystroke) {
+                self.preview_state
+                    .update(cx, |state, cx| state.step_heading(delta, cx));
                 cx.stop_propagation();
             }
             return;
@@ -433,4 +438,16 @@ fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand>
         "end" => EditCommand::Move(Motion::LineEnd),
         _ => return None,
     })
+}
+
+/// `[` / `]` with no modifiers: previous / next heading in the preview.
+fn heading_step(keystroke: &gpui::Keystroke) -> Option<i32> {
+    if keystroke.modifiers.modified() {
+        return None;
+    }
+    match keystroke.key.as_str() {
+        "[" => Some(-1),
+        "]" => Some(1),
+        _ => None,
+    }
 }

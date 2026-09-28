@@ -26,7 +26,7 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 | Find next / previous | ⌘G / ⌘⇧G |
 | Copy Clean | ⌘⇧C |
 | Agent skill prompt | Return install · Escape not now · ←/→ buttons |
-| Markdown preview | ⌘⇧V |
+| Markdown preview / previous · next heading | ⌘⇧V / [ · ] |
 | Wrap lines | ⌥Z |
 | Themes | ⌘⌥T |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |

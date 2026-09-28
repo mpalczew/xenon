@@ -359,14 +359,19 @@ impl EditorView {
     fn render_preview(
         &mut self,
         alert: Option<impl IntoElement + 'static>,
-        colors: &theme::ThemeColors,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
         let menu = self
             .context_menu
-            .map(|position| self.render_preview_context_menu(position, colors, cx));
+            .map(|position| self.render_preview_context_menu(position, &colors, cx));
         let rendered = layout::markdown_preview(&self.text(), self.preview_state.clone(), cx);
+        if rendered.needs_layout {
+            window.request_animation_frame();
+        }
         self.preview_state.update(cx, |state, cx| {
+            state.sync_outline(rendered.outline_blocks, rendered.outline_shown);
             state.sync_doc(
                 rendered.source,
                 rendered.plain_blocks,
@@ -428,7 +433,7 @@ impl Render for EditorView {
         }
         let alert = self.disk_alert_bar(cx);
         if self.preview {
-            return self.render_preview(alert, &colors, cx);
+            return self.render_preview(alert, window, cx);
         }
         let mode_bar = self.vim_mode_bar(&colors, cx);
         let menu = self

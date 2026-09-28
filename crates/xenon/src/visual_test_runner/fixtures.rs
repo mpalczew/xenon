@@ -34,6 +34,9 @@ pub fn build() -> Result<Fixture> {
         demo_root.join("NOTES.md"),
         "# Notes\n\n- terminal first\n- `cmd-p` opens files\n\n```rust\nfn ok() {}\n```\n",
     )?;
+    // Outside the demo workspace so the Files tree in other shots is unchanged.
+    fs::create_dir_all(root.join("docs"))?;
+    fs::write(root.join("docs/GUIDE.md"), GUIDE_MD)?;
     fs::write(
         demo_root.join("WRAP.md"),
         "# Wrap\n\nThe preview already wraps prose. Source does not. A wrap toggle folds this paragraph to the pane and leaves the file as a single line.\n\nNext paragraph stays short.\n",
@@ -123,3 +126,31 @@ fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
     fs::write(path, serde_json::to_vec_pretty(value)?)?;
     Ok(())
 }
+
+const GUIDE_MD: &str = "# Agent guide
+
+Xenon is a macOS agent shell for driving coding agents. The left rail lists workspaces; the main panel is a terminal, optionally split with editors, with tabs per workspace.
+
+## Build & run
+
+Run cargo directly. The full gate is `scripts/health`, which runs the format check, clippy, the shape check, and the tests. Run it before committing.
+
+```bash
+cargo clippy --workspace --all-targets -- -D warnings && scripts/health && project install
+```
+
+- Prerequisites: `cmake` and the Xcode Metal Toolchain.
+- Install to `~/Applications`, not `/Applications`.
+
+## Architecture
+
+Each crate owns one layer; views depend on the design system, never the other way round.
+
+### Input pattern
+
+Plain typed text arrives through an input handler registered during paint, not through key-down events.
+
+## Rules
+
+Every surface must work from the keyboard. Mouse is additive, never required for a complete flow.
+";

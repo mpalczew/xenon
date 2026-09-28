@@ -49,8 +49,19 @@ pub(super) fn markdown_preview(
     cx: &mut Context<XenonApp>,
 ) {
     populate(app, window, cx);
-    open_rel(app, "NOTES.md", window, cx);
+    open_rel(app, "../docs/GUIDE.md", window, cx);
     app.toggle_preview(cx);
+    cx.notify();
+}
+
+/// Narrow pane: the outline hides and the column shrinks to fit.
+pub(super) fn markdown_preview_split(
+    app: &mut XenonApp,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+) {
+    markdown_preview(app, window, cx);
+    app.split_right(window, cx);
     cx.notify();
 }
 

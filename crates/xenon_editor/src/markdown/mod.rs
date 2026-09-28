@@ -7,8 +7,13 @@
 //! setext heading) and shown as a compact key/value panel.
 //!
 //! Preview text is selectable (drag / double-click / ⌘A) via [`PreviewState`].
+//!
+//! Prose sits in a centered reading column; code blocks may run wider. When the
+//! pane has room, an outline of headings sits to the right (`[` / `]` step).
 
 mod builder;
+mod nav;
+mod outline;
 mod select;
 mod selectable;
 mod state;
@@ -18,13 +23,20 @@ mod yaml;
 pub use state::{PreviewEvent, PreviewState};
 
 use gpui::{
-    AnyElement, App, Entity, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels,
+    AnyElement, App, Entity, InteractiveElement, IntoElement, ParentElement, Pixels, ScrollHandle,
     SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 use pulldown_cmark::{HeadingLevel, Options, Parser};
 use theme::ActiveTheme;
 
-use self::builder::Builder;
+use self::builder::{Builder, Built};
+use self::outline::{OUTLINE_W, Outline};
+
+/// Reading column width in multiples of the base font size (~72 characters).
+const MEASURE_EMS: f32 = 46.;
+/// Code blocks may widen to this before they scroll sideways.
+const WIDE_EMS: f32 = 64.;
+const PAD: Pixels = px(32.);
 
 /// Parsed preview: UI tree + plain texts + source ranges for selection/copy.
 pub struct PreviewRender {
@@ -33,6 +45,11 @@ pub struct PreviewRender {
     /// Byte ranges in the original markdown, parallel to `plain_blocks`.
     pub source_ranges: Vec<std::ops::Range<usize>>,
     pub source: SharedString,
+    /// Outline shown beside the column (block index per heading).
+    pub outline_blocks: Vec<usize>,
+    pub outline_shown: bool,
+    /// The pane has not been laid out yet; render again next frame.
+    pub needs_layout: bool,
 }
 
 /// Render markdown `source` into a scrollable column of selectable blocks.
@@ -56,17 +73,46 @@ pub fn render(
         },
         base,
         mono_family,
-        host,
+        host.clone(),
     );
     for (event, range) in Parser::new_ext(source, markdown_options()).into_offset_iter() {
         builder.event(event, range);
     }
-    let (blocks, plain_blocks, source_ranges) = builder.finish();
+    let Built {
+        blocks,
+        plain,
+        source_ranges,
+        outline,
+    } = builder.finish();
+    let entries = outline::entries(&outline);
+    let nav = host.read(cx).nav();
+    let fits = nav.outline_fits(measure(base) + PAD * 2. + OUTLINE_W, OUTLINE_W);
+    let outline_shown = !entries.is_empty() && fits == Some(true);
+    let outline_blocks: Vec<usize> = entries.iter().map(|entry| entry.block).collect();
+    let column = reading_column(blocks, nav.scroll());
+    let side = outline_shown.then(|| {
+        let active = nav.active(&outline_blocks);
+        outline::panel(&Outline { entries, active }, host.clone(), cx)
+    });
+    let element = div()
+        .size_full()
+        .min_w_0()
+        .min_h_0()
+        .flex()
+        .text_size(base)
+        .text_color(colors.text)
+        .bg(colors.editor_background)
+        .child(column)
+        .children(side)
+        .into_any_element();
     PreviewRender {
-        element: preview_surface(blocks, base, colors.text, colors.editor_background),
-        plain_blocks,
+        element,
+        plain_blocks: plain,
         source_ranges,
         source: SharedString::from(source.to_string()),
+        outline_blocks,
+        outline_shown,
+        needs_layout: fits.is_none(),
     }
 }
 
@@ -79,29 +125,66 @@ pub(super) fn markdown_options() -> Options {
         | Options::ENABLE_DEFINITION_LIST
 }
 
-fn preview_surface(
-    blocks: Vec<AnyElement>,
-    base: Pixels,
-    text: Hsla,
-    background: Hsla,
-) -> AnyElement {
+/// Scrolling column; each child is one block so the outline can find headings.
+fn reading_column(blocks: Vec<AnyElement>, scroll: &ScrollHandle) -> AnyElement {
     div()
         .id("md-preview")
-        .size_full()
+        .flex_1()
+        .h_full()
         .min_w_0()
         .min_h_0()
-        .overflow_x_scroll()
         .overflow_y_scroll()
-        .p_4()
-        .text_size(base)
-        .text_color(text)
-        .bg(background)
+        .track_scroll(scroll)
+        .flex()
+        .flex_col()
+        .px(PAD)
+        .py(PAD)
         .children(blocks)
         .into_any_element()
 }
 
-pub(super) fn wide_block(width: Pixels) -> gpui::Div {
-    div().w(width)
+fn measure(base: Pixels) -> Pixels {
+    base * MEASURE_EMS
+}
+
+/// Center `element` at reading width (narrower panes shrink it).
+pub(super) fn prose_slot(element: impl IntoElement, base: Pixels) -> AnyElement {
+    centered(div().w(measure(base)).max_w_full().min_w_0().child(element))
+}
+
+/// Center a code block at its own width, between reading and wide width;
+/// anything wider scrolls sideways inside the block.
+pub(super) fn wide_slot(
+    element: impl IntoElement,
+    content: Pixels,
+    ix: usize,
+    base: Pixels,
+) -> AnyElement {
+    let width = content.clamp(measure(base), base * WIDE_EMS);
+    centered(
+        div()
+            .id(("md-wide", ix))
+            .w(width)
+            .max_w_full()
+            .min_w_0()
+            .overflow_x_scroll()
+            .child(element),
+    )
+}
+
+fn centered(inner: impl IntoElement) -> AnyElement {
+    div()
+        .w_full()
+        .min_w_0()
+        .flex()
+        .justify_center()
+        .child(inner)
+        .into_any_element()
+}
+
+/// Code block box: its content width, but never narrower than the column.
+pub(super) fn wide_block(content: Pixels, base: Pixels) -> gpui::Div {
+    div().w(content.max(measure(base)))
 }
 
 pub(super) fn code_block_width(code: &str, base: Pixels) -> Pixels {

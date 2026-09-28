@@ -4,14 +4,16 @@ use std::ops::Range;
 
 use gpui::{Context, EventEmitter, SharedString};
 
+use super::nav::HeadingNav;
 use super::select::{
     Caret, PreviewSel, SelectMode, clamp_caret, line_range_at, select_all_carets,
     selected_markdown, word_range_at,
 };
 
-/// Fired when selection changes so the parent editor can re-render.
+/// Fired when selection or scroll changes so the parent editor can re-render.
 pub enum PreviewEvent {
     SelectionChanged,
+    Scrolled,
 }
 
 #[derive(Default)]
@@ -23,6 +25,7 @@ pub struct PreviewState {
     /// Byte range of each block in `source` (copy markdown).
     source_ranges: Vec<Range<usize>>,
     sel: PreviewSel,
+    nav: HeadingNav,
 }
 
 /// Left-click payload for preview selection.
@@ -38,6 +41,28 @@ impl EventEmitter<PreviewEvent> for PreviewState {}
 impl PreviewState {
     pub(crate) fn sel(&self) -> &PreviewSel {
         &self.sel
+    }
+
+    pub(crate) fn nav(&self) -> &HeadingNav {
+        &self.nav
+    }
+
+    /// Record the outline the last render showed (block index per heading).
+    pub(crate) fn sync_outline(&mut self, blocks: Vec<usize>, outline_shown: bool) {
+        self.nav.sync(blocks, outline_shown);
+    }
+
+    pub(crate) fn jump_to_heading(&mut self, ix: usize, cx: &mut Context<Self>) {
+        self.nav.jump(ix);
+        cx.emit(PreviewEvent::Scrolled);
+        cx.notify();
+    }
+
+    /// `[` / `]`: previous or next heading.
+    pub(crate) fn step_heading(&mut self, delta: i32, cx: &mut Context<Self>) {
+        self.nav.step(delta);
+        cx.emit(PreviewEvent::Scrolled);
+        cx.notify();
     }
 
     /// Replace source + block map when the preview re-parses; clear selection if shape changes.
