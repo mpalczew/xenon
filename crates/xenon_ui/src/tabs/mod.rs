@@ -43,6 +43,7 @@ impl XenonApp {
         let pane = leaf.id;
         let packed = self.packed_tabs(leaf, cx);
         let chips = self.mixed_tab_chips(leaf, &packed.visible, focused, cx);
+        let wrap = self.wrap_lines_btn(leaf, pane, &colors, cx);
         let preview = self.md_preview_btn(leaf, pane, &colors, cx);
         let overflow_open = self
             .overflow_menu
@@ -58,8 +59,8 @@ impl XenonApp {
             )
         });
         let entity = cx.entity();
-        // Pin trailing chrome (+, md preview). Overflow count sits in the chip
-        // row so + stays visible.
+        // Pin trailing chrome (+, wrap, md preview). Overflow count sits in the
+        // chip row so + stays visible.
         div()
             .flex()
             .items_center()
@@ -115,6 +116,7 @@ impl XenonApp {
                     .flex_none()
                     .h_full()
                     .child(self.term_add_btn(pane, &colors, cx))
+                    .children(wrap)
                     .children(preview),
             )
     }
@@ -237,6 +239,49 @@ impl XenonApp {
             slot(TabDropSide::Before).into_any_element(),
             slot(TabDropSide::After).into_any_element(),
         ]
+    }
+
+    fn wrap_lines_btn(
+        &self,
+        leaf: &LiveLeaf,
+        pane: PaneId,
+        colors: &theme::ThemeColors,
+        cx: &mut Context<Self>,
+    ) -> Option<impl IntoElement + use<>> {
+        let editor = leaf.active_tab().and_then(|tab| tab.as_editor())?;
+        let path = {
+            let view = editor.read(cx);
+            if !view.is_text() {
+                return None;
+            }
+            view.path().to_path_buf()
+        };
+        let wrapping = xenon_settings::editor_wraps(&path, cx);
+        let colors = colors.clone();
+        Some(
+            xenon_design_system::action_button(
+                ("wrap-lines", pane.0),
+                xenon_design_system::ActionButton::icon(icon(Icon::TextWrap, px(15.))),
+                cx,
+                cx.listener(move |this, _, _, cx| {
+                    this.toggle_soft_wrap_for(Some(&path), cx);
+                }),
+            )
+            .w(px(30.))
+            .h_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_none()
+            .text_color(if wrapping {
+                colors.text
+            } else {
+                colors.text_muted
+            })
+            .cursor_pointer()
+            .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
+            .tooltip(tip_tooltip(SharedString::from("Wrap Lines · ⌥Z"))),
+        )
     }
 
     fn md_preview_btn(

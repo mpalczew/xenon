@@ -8,7 +8,7 @@ use crate::toolbar_tooltip::ToolbarTooltip;
 use crate::{
     CaptureWorklist, CloseWorkspace, Copy, CopyClean, Cut, FilePalette, GoBack, GoForward,
     NewTerminal, NextWorkspace, OpenWorklist, Paste, PrevWorkspace, ReserveEmptyPaneRight, RunTask,
-    Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar, ToggleSoftWrap,
+    Save, SplitDown, SplitRight, ToggleBrowser, ToggleSettings, ToggleSidebar,
 };
 use gpui::{
     Action, AppContext, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement,
@@ -50,18 +50,6 @@ impl XenonApp {
                     muted: false,
                     primary: false,
                     action: Box::new(ToggleSidebar),
-                },
-                cx,
-            ))
-            .child(tool_button(
-                ToolButton {
-                    id: "tb-wrap",
-                    glyph: Icon::TextWrap,
-                    command: CommandId::ToggleSoftWrap,
-                    active: self.soft_wrap_button_on(cx),
-                    muted: false,
-                    primary: false,
-                    action: Box::new(ToggleSoftWrap),
                 },
                 cx,
             ))

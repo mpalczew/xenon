@@ -197,24 +197,21 @@ impl XenonApp {
         }
     }
 
-    pub(crate) fn soft_wrap_button_on(&self, cx: &gpui::App) -> bool {
-        let Some(view) = self
-            .active_content()
-            .and_then(|content| content.active_tab())
-            .and_then(|tab| tab.as_editor())
-        else {
-            return false;
-        };
-        xenon_settings::editor_wraps(view.read(cx).path(), cx)
-    }
-
     pub(crate) fn toggle_soft_wrap(&mut self, cx: &mut Context<Self>) {
         let path = self
             .active_content()
             .and_then(|content| content.active_tab())
             .and_then(|tab| tab.as_editor())
             .map(|view| view.read(cx).path().to_path_buf());
-        xenon_settings::toggle_editor_wrap(path.as_deref(), cx);
+        self.toggle_soft_wrap_for(path.as_deref(), cx);
+    }
+
+    pub(crate) fn toggle_soft_wrap_for(
+        &mut self,
+        path: Option<&std::path::Path>,
+        cx: &mut Context<Self>,
+    ) {
+        xenon_settings::toggle_editor_wrap(path, cx);
         xenon_settings::save(cx);
         cx.notify();
     }

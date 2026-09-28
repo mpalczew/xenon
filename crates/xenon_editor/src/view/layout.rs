@@ -19,6 +19,11 @@ impl super::EditorView {
             _ => false,
         }
     }
+
+    /// True when the surface is a text buffer that can soft-wrap.
+    pub fn is_text(&self) -> bool {
+        matches!(self.content, super::Content::Text(_))
+    }
 }
 
 use gpui::{
