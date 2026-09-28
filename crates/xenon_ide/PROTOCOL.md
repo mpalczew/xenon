@@ -49,7 +49,9 @@ the agent in the IDE and breaks that interop; we do not follow that path.
   selectToEndOfLine, makeFrontmost) - open a file, optionally select a range.
 - `openDiff` (required: old_file_path, new_file_path, new_file_contents,
   tab_name) - show a diff.
-- `getDiagnostics` (opt: uri) - LSP diagnostics.
+- `getDiagnostics` (opt: uri) - LSP diagnostics. Xenon does not list it (the
+  model would see an always-clean tool) but answers `[]`: the CLI calls it
+  directly around edits.
 - `getCurrentSelection` / `getLatestSelection` () - active editor selection.
 - `getOpenEditors` () - list open editors.
 - `getWorkspaceFolders` () - workspace roots.

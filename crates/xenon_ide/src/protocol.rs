@@ -53,9 +53,6 @@ fn tool_list() -> Value {
           "inputSchema": obj() },
         { "name": "getOpenEditors", "description": "List open editors",
           "inputSchema": obj() },
-        { "name": "getDiagnostics", "description": "Language diagnostics",
-          "inputSchema": { "type": "object",
-            "properties": { "uri": { "type": "string" } } } },
     ])
 }
 
@@ -85,6 +82,8 @@ fn call_tool(message: &Value, roots: &[PathBuf], commands: &Sender<IdeCommand>) 
             text_result(&serde_json::to_string(&folders).unwrap_or_default())
         }
         // Stubs: valid empty responses keep the CLI happy in the MVP.
+        // getDiagnostics is unlisted so the model never sees an always-clean
+        // tool; the CLI still calls it directly around edits.
         "getCurrentSelection" | "getOpenEditors" | "getDiagnostics" => text_result("[]"),
         other => text_result(&format!("unsupported tool: {other}")),
     }
@@ -130,6 +129,7 @@ mod tests {
         let tools = value["result"]["tools"].as_array().expect("tools");
 
         assert!(tools.iter().any(|tool| tool["name"] == "openFile"));
+        assert!(!tools.iter().any(|tool| tool["name"] == "getDiagnostics"));
     }
 
     #[test]
