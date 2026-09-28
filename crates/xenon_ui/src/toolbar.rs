@@ -454,9 +454,11 @@ fn toolbar_focus_hint(
         .text_color(colors.text)
         .text_sm()
         .whitespace_nowrap()
-        .opacity(0.)
+        // Hidden, not transparent: a hidden element registers no mouse listeners,
+        // so the hint cannot steal clicks from the chrome it overhangs.
+        .invisible()
         .focusable()
-        .in_focus(|s| s.opacity(1.))
+        .in_focus(|s| s.visible())
         .child(command.label)
         .children((!command.keys.is_empty()).then(|| {
             div()

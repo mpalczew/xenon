@@ -229,6 +229,13 @@ impl EditorView {
         selectable_row(format!("worklist-row-{index}"), selected, colors)
             .items_start()
             .mb_1()
+            // Whole row, not just the text: the row padding looks and hovers clickable.
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.worklist_selection = index;
+                if editable {
+                    this.worklist_start_edit(index, cx);
+                }
+            }))
             .child(if let Some(done) = checked {
                 checkbox(
                     format!("worklist-check-{index}"),
@@ -239,6 +246,7 @@ impl EditorView {
                     format!("Complete {title}"),
                     cx,
                     cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
                         this.worklist_selection = index;
                         this.worklist_toggle(index, cx);
                     }),
@@ -249,7 +257,6 @@ impl EditorView {
             })
             .child(
                 div()
-                    .id(format!("worklist-text-{index}"))
                     .flex_1()
                     .min_w_0()
                     .text_color(if checked == Some(true) {
@@ -271,19 +278,14 @@ impl EditorView {
                                 title_line.child(title)
                             })
                             .child(bullet_list(lines, cx)),
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.worklist_selection = index;
-                        if editable {
-                            this.worklist_start_edit(index, cx);
-                        }
-                    })),
+                    ),
             )
             .child(action_button(
                 format!("worklist-edit-{index}"),
                 ActionButton::quiet("Edit").disabled(!editable),
                 cx,
                 cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
                     this.worklist_selection = index;
                     this.worklist_start_edit(index, cx);
                 }),
