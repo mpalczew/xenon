@@ -32,7 +32,9 @@ mod grid;
 )]
 mod view;
 
-pub use init::{apply_theme, init, observe_appearance, refresh_windows, theme_names};
+pub use init::{
+    apply_theme, init, observe_appearance, preview_theme, refresh_windows, theme_names,
+};
 pub use terminal;
 pub use view::{
     CellAttrs, Find, FindNext, FindPrevious, LOCAL_QUIET, PhoneFit, ScreenCell, ScreenCursor,

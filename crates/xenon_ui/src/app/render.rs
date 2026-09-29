@@ -39,7 +39,7 @@ impl Render for XenonApp {
         let workspace_picker = self.workspace_picker.clone();
         let workspace_create = self.workspace_create.clone();
         let command_palette = self.command_palette.clone();
-        let theme_picker = self.theme_picker.clone();
+        let theme_picker = self.render_theme_panel();
         let memory_panel = if self.memory_panel {
             Some(self.render_memory_panel(cx))
         } else {

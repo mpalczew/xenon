@@ -53,6 +53,21 @@ pub(super) fn theme_gallery(app: &mut XenonApp, window: &mut Window, cx: &mut Co
     app.open_theme_picker(window, cx);
 }
 
+/// Panel open with Imperial Light previewed over a dark app.
+pub(super) fn theme_panel_preview(
+    app: &mut XenonApp,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+) {
+    populate(app, window, cx);
+    app.open_theme_picker(window, cx);
+    if let Some(picker) = app.theme_picker.clone() {
+        picker.update(cx, |picker, cx| {
+            picker.visual_select(7, theme::Appearance::Light, cx);
+        });
+    }
+}
+
 pub(super) fn tab_menu(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
     if let Some((pane, tab)) = focused_tab(app) {

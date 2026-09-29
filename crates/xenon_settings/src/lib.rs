@@ -8,7 +8,8 @@ mod mono_font;
 mod wrap;
 
 use gpui::{App, Global, actions};
-use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
+use xenon_store::AppSettings;
+pub use xenon_store::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
 // Shared edit actions (app menu, keybindings, context menus).
 actions!(

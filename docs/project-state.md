@@ -68,9 +68,10 @@ rediscover.
 - Settings geometry and chrome preferences share `settings.json`; partial
   saves use the locked load-mutate-save boundary and preserve fields they do
   not own.
-- Theme gallery (⌘⌥T) is a separate overlay from Settings. Picking a card
-  writes that appearance slot only. It does not switch Mode, so a dark pick
-  while in light stays in light. The gallery stays open until Escape.
+- Themes: ten families (see DESIGN.md), picked in the ⌘⌥T side panel.
+  Browsing previews live without saving; Keep writes that appearance slot
+  only (Mode unchanged), and every other way of closing restores the saved
+  theme. Terminals are not resized: the panel overlays the right edge.
   Settings is a sidebar of seven pages (Appearance, Fonts, Editor, Terminal,
   Agents, Phone Remote, Language Servers) with search across every row.
   Appearance, Fonts, and Editor lead with a live preview of the shell;

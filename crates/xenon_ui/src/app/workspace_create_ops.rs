@@ -40,7 +40,7 @@ impl XenonApp {
     }
 
     pub(crate) fn open_workspace_creator(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.dismiss_palettes();
+        self.dismiss_palettes(cx);
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let creator = cx.new(WorkspaceCreateView::new);
         self._workspace_create_sub = Some(cx.subscribe(&creator, Self::on_workspace_create_event));

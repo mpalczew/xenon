@@ -34,7 +34,7 @@ impl XenonApp {
         }
         self.active = Some(id);
         self.finder = None;
-        self.theme_picker = None;
+        self.close_theme_picker(cx);
 
         let session = self.ensure_live_content(id, &root, cx);
         self.apply_sidebar(&session);

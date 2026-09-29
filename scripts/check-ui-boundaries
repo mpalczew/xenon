@@ -26,7 +26,6 @@ palette_views=(
     crates/xenon_ui/src/finder.rs
     crates/xenon_ui/src/command_palette/mod.rs
     crates/xenon_ui/src/task_picker.rs
-    crates/xenon_ui/src/theme_picker.rs
     crates/xenon_ui/src/workspace_create.rs
     crates/xenon_ui/src/workspace_picker/mod.rs
 )

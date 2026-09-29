@@ -9,34 +9,19 @@ use settings::Settings;
 use xenon_settings::ThemeMode;
 
 /// Bundled theme families. Zed-derived ones: see ATTRIBUTION.md.
+/// Hot Dog Stand is loaded but kept out of the picker: it exposes hard-coded
+/// chrome colors when set by hand.
 const THEME_FILES: &[&[u8]] = &[
-    // Classic / zed-derived
     include_bytes!("../assets/one.json"),
-    include_bytes!("../assets/ayu.json"),
-    include_bytes!("../assets/gruvbox.json"),
-    include_bytes!("../assets/solarized.json"),
     include_bytes!("../assets/nord.json"),
-    // IDE familiarity
-    include_bytes!("../assets/vscode.json"),
-    include_bytes!("../assets/intellij.json"),
-    include_bytes!("../assets/xcode.json"),
-    // Defaults / a11y
+    include_bytes!("../assets/solarized.json"),
     include_bytes!("../assets/high_contrast.json"),
-    include_bytes!("../assets/true_black.json"),
-    // Brand pack
     include_bytes!("../assets/neon.json"),
-    include_bytes!("../assets/abyss.json"),
     include_bytes!("../assets/tokyo.json"),
-    include_bytes!("../assets/runner.json"),
-    include_bytes!("../assets/aurora.json"),
-    include_bytes!("../assets/ember.json"),
-    // Culture
-    include_bytes!("../assets/ink.json"),
-    // Personality / fun
-    include_bytes!("../assets/imperial.json"),
     include_bytes!("../assets/mithril.json"),
-    include_bytes!("../assets/synthwave.json"),
-    include_bytes!("../assets/radioactive.json"),
+    include_bytes!("../assets/imperial.json"),
+    include_bytes!("../assets/gruvbox.json"),
+    include_bytes!("../assets/true_black.json"),
     include_bytes!("../assets/hotdog.json"),
 ];
 
@@ -69,6 +54,7 @@ fn load_themes(cx: &mut App) {
 /// Point the global theme at the light or dark theme name from preference.
 /// System follows the OS appearance; Light/Dark force a fixed appearance.
 pub fn apply_theme(cx: &mut App) {
+    heal_missing_themes(cx);
     let name = active_theme_name(cx);
     match theme::ThemeRegistry::global(cx).get(&name) {
         Ok(theme) => {
@@ -76,6 +62,39 @@ pub fn apply_theme(cx: &mut App) {
             refresh_windows(cx);
         }
         Err(error) => log::error!("theme {name} unavailable: {error}"),
+    }
+}
+
+/// Show a theme without saving it; `apply_theme` puts the saved one back.
+pub fn preview_theme(name: &str, cx: &mut App) {
+    if let Ok(theme) = theme::ThemeRegistry::global(cx).get(name) {
+        theme::GlobalTheme::update_theme(cx, theme);
+        refresh_windows(cx);
+    }
+}
+
+/// A saved theme that is no longer bundled falls back to the default for its
+/// slot, and the fix is persisted.
+fn heal_missing_themes(cx: &mut App) {
+    let registry = theme::ThemeRegistry::global(cx);
+    let mut settings = xenon_settings::snapshot(cx);
+    let mut healed = false;
+    for (slot, default) in [
+        (&mut settings.dark_theme, xenon_settings::DEFAULT_DARK_THEME),
+        (
+            &mut settings.light_theme,
+            xenon_settings::DEFAULT_LIGHT_THEME,
+        ),
+    ] {
+        if registry.get(slot).is_err() {
+            log::info!("theme {slot} is no longer bundled; using {default}");
+            *slot = default.to_string();
+            healed = true;
+        }
+    }
+    if healed {
+        xenon_settings::apply(&settings, cx);
+        xenon_settings::save(cx);
     }
 }
 

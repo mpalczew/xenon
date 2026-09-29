@@ -218,7 +218,7 @@ impl XenonApp {
     }
 
     pub(super) fn open_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.dismiss_palettes();
+        self.dismiss_palettes(cx);
         self.open_palette_with_query(String::new(), window, cx);
     }
 
@@ -235,7 +235,7 @@ impl XenonApp {
         let Some(root) = self.active.and_then(|id| self.workspace_root(id)) else {
             return;
         };
-        self.dismiss_palettes();
+        self.dismiss_palettes(cx);
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         // Cache first (instant open); force=true re-walks in the background.
         // A synchronous rebuild on every open would stall large roots ($HOME).

@@ -327,7 +327,6 @@ impl XenonApp {
             || self.workspace_picker.is_some()
             || self.workspace_create.is_some()
             || self.command_palette.is_some()
-            || self.theme_picker.is_some()
             || self.worklist_capture_visible.is_some()
             || self.renaming.is_some()
     }

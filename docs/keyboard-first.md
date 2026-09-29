@@ -28,7 +28,7 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 | Agent skill prompt | Return install · Escape not now · ←/→ buttons |
 | Markdown preview / previous · next heading | ⌘⇧V / [ · ] |
 | Wrap lines | ⌥Z |
-| Themes | ⌘⌥T |
+| Themes panel · browse · keep · revert | ⌘⌥T · ↑/↓ family, ←/→ dark/light (live) · Return · Escape |
 | Settings: page · row · value · toggle | ⌘1–⌘7 · ↑/↓ · ←/→ (segments, sizes, theme swatches) · Space/Return |
 | Settings: search · back out | ⌘F or just type · Escape (dropdown, then search, then window) |
 | Connect Phone sheet · copy link · close | ⌘⇧M · ⌘C · Escape / Return |

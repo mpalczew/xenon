@@ -19,7 +19,7 @@ impl XenonApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.dismiss_palettes();
+        self.dismiss_palettes(cx);
         self.browser_focused = false;
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let workspaces = self.workspace_palette_rows();

@@ -84,7 +84,7 @@ impl XenonApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.dismiss_palettes();
+        self.dismiss_palettes(cx);
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let current = self.active;
         let mut known = Vec::new();

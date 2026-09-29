@@ -15,7 +15,7 @@ const LIGHT_PICKS: [&str; 5] = [
     "Solarized Light",
     "Nord Light",
     "Tokyo Day",
-    "Xcode Light",
+    "High Contrast Light",
 ];
 const MODES: [ThemeMode; 3] = [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark];
 
@@ -109,12 +109,12 @@ pub(super) fn step_swatch(swatches: &[Swatch], forward: bool, cx: &mut App) {
     };
     if next != current {
         let pick = &swatches[next];
-        crate::theme_picker::apply_named_theme(&pick.name, pick.appearance, cx);
+        crate::app::apply_named_theme(&pick.name, pick.appearance, cx);
     }
 }
 
 pub(super) fn pick_swatch(swatch: &Swatch, cx: &mut App) {
-    crate::theme_picker::apply_named_theme(&swatch.name, swatch.appearance, cx);
+    crate::app::apply_named_theme(&swatch.name, swatch.appearance, cx);
 }
 
 fn slot_theme(settings: &xenon_store::AppSettings, appearance: Appearance) -> String {

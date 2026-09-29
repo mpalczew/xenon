@@ -11,7 +11,7 @@ impl XenonApp {
             self.show_toast(super::toasts::no_workspace(), cx);
             return;
         };
-        self.dismiss_palettes();
+        self.dismiss_palettes(cx);
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let (tasks, error) = match load_shell_tasks(&root) {
             Ok(tasks) if tasks.is_empty() => (

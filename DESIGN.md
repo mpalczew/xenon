@@ -71,8 +71,7 @@ Enter, Escape, Tab, Up, and Down, and the palette matches `PaletteInput::Navigat
 
 Surfaces: file finder (⌘P), workspace open (⌘⇧O), run task (⌘⇧R), command
 palette (⌘⇧P), keyboard help (⌘⇧/), and the parent step of new workspace.
-The theme gallery uses the same shell and key path; its cards are not query
-rows. Geometry: width 640, max-height 420 (480 tall), elevation 2, scrollable
+The theme picker is not a palette (see Themes). Geometry: width 640, max-height 420 (480 tall), elevation 2, scrollable
 results (`flex_1` + `min_h_0` + `overflow_y_scroll`). Do not clone the scrim,
 panel, input, or list per feature.
 
@@ -177,23 +176,33 @@ workspace and tab rails do not carry status.
 
 ## Themes
 
-Bundled families under `crates/xenon_terminal/assets/`. Default dark: **One Dark**.
-Default light: **One Light** (white canvas, not a gray slab). Opt-in void: **True Black**.
-Theme gallery: ⌘⌥T, separate from Settings. Picking a card fills that
-appearance slot; it does not switch Mode.
+Ten bundled families under `crates/xenon_terminal/assets/`, one dark and one
+light each (True Black is dark-only). Default dark: **One Dark**. Default
+light: **One Light** (white canvas; every text color at least 4.5:1, which
+suits presbyopic eyes: dark-on-light reads better for all ages, see
+Piepenbrock et al. 2013, *Ergonomics*). A saved theme that is no longer
+bundled falls back to the default for its slot.
 
-| Job | Families |
-|-----|----------|
-| Trust / defaults | One, Nord, Solarized, VS Code, IntelliJ, Xcode, High Contrast |
-| Brand / screenshots | Neon, Abyss, Tokyo, Runner |
-| Warm breadth | Ember, Gruvbox, Ayu |
-| Personality | Imperial, Mithril, Synthwave, Radioactive, Hot Dog Stand |
+| Group | Families |
+|-------|----------|
+| Everyday | One, Nord, Solarized, High Contrast |
+| Signature | Neon (hero), Tokyo, Mithril, Imperial |
+| Warm | Gruvbox |
+| OLED | True Black |
 
-Neon Noir is the hero theme; Abyss/Nord are the restrained professional
-alternatives; Runner/Tokyo Night are cinematic. Hot Dog Stand intentionally
-stays light-only and doubles as a detector for hard-coded, unthemed chrome.
-Daily dogfood favors cool blues/cyans/violets; Neon Noir, Mithril, and Imperial
-are proven dark daily-driver choices.
+Neon Noir, Mithril, and Imperial are proven dark daily drivers. Hot Dog Stand is
+still bundled but hidden from the picker: set it by hand to catch hard-coded,
+unthemed chrome. New families must earn a slot against these; do not add
+variants (Soft/Hard/Storm) or look-alikes of other editors.
+
+**Theme panel (⌘⌥T).** A 340px panel docked on the right under the toolbar,
+no scrim, so the app itself is the preview. One row per family with dark and
+light snippet tiles painted in each theme's own colors; the current family
+carries an "in use" pill. ↑/↓ and ←/→ (or a click) re-theme the whole app
+live; Return or Keep stores that half in its slot (Mode does not change),
+Escape, Revert, ⌘⌥T, or any palette opening puts back the saved theme.
+Settings › Appearance shows five swatches for the on-screen slot and opens
+this panel for the rest.
 
 ## Anti-patterns
 

@@ -89,6 +89,7 @@ pub enum Scene {
     SettingsLanguageServers,
     SettingsSearch,
     SettingsLight,
+    ThemePanelPreview,
 }
 
 pub const SCENES: &[Scene] = &[
@@ -166,6 +167,7 @@ pub const SCENES: &[Scene] = &[
     Scene::SettingsLanguageServers,
     Scene::SettingsSearch,
     Scene::SettingsLight,
+    Scene::ThemePanelPreview,
 ];
 
 const REMOTE_SURFACES: &[&str] = &[
@@ -260,6 +262,7 @@ impl Scene {
             Self::SettingsLanguageServers => "settings_language_servers",
             Self::SettingsSearch => "settings_search",
             Self::SettingsLight => "settings_window_light",
+            Self::ThemePanelPreview => "overlay_theme_panel_preview",
         }
     }
 
@@ -321,6 +324,7 @@ pub fn apply_scene(
         Scene::WorkspacePicker => overlays::workspace_picker(app, window, cx),
         Scene::WorkspaceCreate => overlays::workspace_create(app, window, cx),
         Scene::ThemeGallery => overlays::theme_gallery(app, window, cx),
+        Scene::ThemePanelPreview => overlays::theme_panel_preview(app, window, cx),
         Scene::TabMenu => overlays::tab_menu(app, window, cx),
         Scene::BrowserMenu => overlays::browser_menu(app, window, cx),
         Scene::WorkspaceMenu => overlays::workspace_menu(app, window, cx),
