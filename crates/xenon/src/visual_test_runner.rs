@@ -17,6 +17,11 @@ mod fixtures {
 }
 
 #[cfg(target_os = "macos")]
+mod display {
+    include!("visual_test_runner/display.rs");
+}
+
+#[cfg(target_os = "macos")]
 mod keyboard {
     include!("visual_test_runner/keyboard.rs");
 }
@@ -54,6 +59,7 @@ fn run_tests() -> anyhow::Result<()> {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_fixtures/visual_tests");
     std::fs::create_dir_all(&baseline_dir)?;
 
+    display::pin_scale_factor()?;
     let _fixture = fixtures::build()?;
     let mut cx = gpui::VisualTestAppContext::new(gpui_platform::current_platform(false));
     cx.update(|cx| {

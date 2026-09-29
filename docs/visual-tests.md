@@ -12,6 +12,10 @@ scripts/visual-tests
 Writes current PNGs to `target/visual_tests/` and compares them to
 `crates/xenon/test_fixtures/visual_tests/`. The suite fails on pixel divergence.
 
+Results do not depend on the attached display: scenes fix window size, and the
+runner pins `NSScreen.backingScaleFactor` to 2.0 for its process
+(`visual_test_runner/display.rs`), so a 1x monitor renders Retina baselines.
+
 Not part of `scripts/health` / `cargo test`: Metal capture needs a macOS window
 server. Do not add this to GitHub macOS runners unless asked.
 
