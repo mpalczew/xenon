@@ -34,7 +34,10 @@ impl XenonApp {
         if self.settings_window.is_some() {
             return;
         }
-        let bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
+        let mut bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
+        // A half-point origin (odd display height) makes AppKit grow the
+        // frame a point to land on whole points: 481pt content, not 480.
+        bounds.origin = bounds.origin.map(|coord| coord.round());
         match cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
