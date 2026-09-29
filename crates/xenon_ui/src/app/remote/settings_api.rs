@@ -80,6 +80,7 @@ impl XenonApp {
                 std::mem::replace(&mut r.devices, DeviceBook::from_devices(Default::default()))
             })
             .unwrap_or_else(DeviceBook::load);
+        book.reload();
         match id {
             Some(id) => {
                 book.revoke(id);

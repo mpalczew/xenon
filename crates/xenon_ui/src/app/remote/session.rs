@@ -7,7 +7,7 @@ use xenon_remote::{
 };
 use xenon_terminal::PhoneFit;
 
-use super::devices::device_short_name;
+use super::labels::device_short_name;
 use super::wire::wire_screen;
 
 /// Frame coalescing window (≤ 30 fps while output streams).

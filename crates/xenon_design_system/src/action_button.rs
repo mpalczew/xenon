@@ -4,7 +4,7 @@
 //! covers pointer and keyboard input.
 
 use gpui::{
-    App, ClickEvent, ElementId, InteractiveElement, IntoElement, ParentElement, Stateful,
+    App, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement, Stateful,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 use theme::ActiveTheme;
@@ -25,6 +25,8 @@ pub struct ActionButton<L> {
     variant: ActionButtonVariant,
     label: L,
     disabled: bool,
+    pub(crate) hover_text: Option<Hsla>,
+    pub(crate) hover_background: Option<Hsla>,
 }
 
 impl<L> ActionButton<L> {
@@ -53,6 +55,8 @@ impl<L> ActionButton<L> {
             variant,
             label,
             disabled: false,
+            hover_text: None,
+            hover_background: None,
         }
     }
 
@@ -72,6 +76,8 @@ pub fn action_button<L: IntoElement>(
         variant,
         label,
         disabled,
+        hover_text,
+        hover_background,
     } = button;
     let colors = cx.theme().colors();
     let accent = colors.text_accent;
@@ -93,13 +99,13 @@ pub fn action_button<L: IntoElement>(
             gpui::transparent_black(),
         ),
     };
-    let hover = if variant == ActionButtonVariant::Destructive {
+    let hover = hover_background.unwrap_or(if variant == ActionButtonVariant::Destructive {
         colors.version_control_deleted.opacity(0.22)
     } else if variant == ActionButtonVariant::Primary {
         background.blend(accent.opacity(0.12))
     } else {
         colors.element_hover
-    };
+    });
     let pressed = if variant == ActionButtonVariant::Primary {
         background.blend(accent.opacity(0.28))
     } else {
@@ -138,7 +144,13 @@ pub fn action_button<L: IntoElement>(
     } else {
         button
             .cursor_pointer()
-            .hover(move |style| style.bg(hover))
+            .hover(move |style| {
+                let style = style.bg(hover);
+                match hover_text {
+                    Some(color) => style.text_color(color),
+                    None => style,
+                }
+            })
             .active(move |style| style.bg(pressed).top(px(2.)))
             .on_click(on_activate)
             .child(label)

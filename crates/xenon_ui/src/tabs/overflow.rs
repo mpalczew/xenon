@@ -288,7 +288,9 @@ impl XenonApp {
         row.child(
             xenon_design_system::action_button(
                 SharedString::from(format!("overflow-close-{}-{index}", pane.0)),
-                xenon_design_system::ActionButton::icon(icon(Icon::X, px(12.))),
+                xenon_design_system::ActionButton::icon(icon(Icon::X, px(12.)))
+                    .hover_background(colors.element_hover)
+                    .hover_text(colors.text),
                 cx,
                 cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();
@@ -303,7 +305,6 @@ impl XenonApp {
             .justify_center()
             .rounded_sm()
             .text_color(colors.text_muted)
-            .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
             .tooltip(tip_tooltip(SharedString::from("Close"))),
         )
     }

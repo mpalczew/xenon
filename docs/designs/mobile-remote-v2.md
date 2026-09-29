@@ -312,3 +312,8 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
   `{"t":"pong"}`. The page treats 5s of silence after a ping as a dead socket.
 - Tab chip shows `title · iPhone` while a phone fit is active (no icon).
 - The page picks light/dark chrome from the Mac terminal theme's background.
+- a/b slots: the second instance waits for the port and takes over within
+  5s of the first releasing it; devices are shared via `~/.xenon-shared`
+  (`XENON_SHARED_DIR` from `scripts/xenon`, else inferred from the slot dir).
+- Opening a closed workspace from the phone loads its terminals without
+  activating it (`ensure_live_content` / `restore_closed_workspace`).

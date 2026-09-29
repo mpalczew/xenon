@@ -6,6 +6,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use xenon_remote::{PairingCode, ct_eq, hash_token, new_device_token};
 use xenon_store::{RemoteDevice, RemoteDevices};
 
+use super::labels::clean_label;
+
 /// `last_seen_at` is persisted at most this often per device.
 const TOUCH_PERSIST_SECS: u64 = 60 * 60;
 
@@ -33,6 +35,15 @@ impl DeviceBook {
         Self {
             devices,
             pairing: None,
+        }
+    }
+
+    /// Re-read the shared file (another Xenon may have changed it). Keeps the
+    /// pairing code; a read failure keeps the current list.
+    pub(crate) fn reload(&mut self) {
+        match xenon_store::load_remote_devices() {
+            Ok(devices) => self.devices = devices,
+            Err(e) => log::warn!("remote devices reload: {e}"),
         }
     }
 
@@ -128,21 +139,6 @@ impl DeviceBook {
     }
 }
 
-/// "iPhone · Home Screen" → "iPhone" for the terminal banner.
-pub(crate) fn device_short_name(label: &str) -> &str {
-    label.split(" · ").next().unwrap_or(label).trim()
-}
-
-fn clean_label(label: &str) -> String {
-    let label: String = label.chars().filter(|c| !c.is_control()).take(40).collect();
-    let label = label.trim();
-    if label.is_empty() {
-        "Phone".to_string()
-    } else {
-        label.to_string()
-    }
-}
-
 fn uuid_simple() -> String {
     // Token generator shape without its length: a fresh id, not a secret.
     new_device_token()[..32].to_string()
@@ -193,11 +189,5 @@ mod tests {
         assert!(book.authenticate(&device.token).is_none());
         // Old codes die with it: a fresh one is issued on next use.
         assert!(book.pair("000000", "x", now).is_none());
-    }
-
-    #[test]
-    fn short_name_takes_the_device_part() {
-        assert_eq!(device_short_name("iPhone · Home Screen"), "iPhone");
-        assert_eq!(device_short_name("Pixel"), "Pixel");
     }
 }

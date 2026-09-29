@@ -14,6 +14,7 @@ use gpui::{
 use theme::ThemeColors;
 
 mod action_button;
+mod action_button_hover;
 mod all_clear;
 mod bullet_list;
 mod checkbox;

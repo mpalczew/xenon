@@ -264,7 +264,9 @@ impl XenonApp {
         Some(
             xenon_design_system::action_button(
                 ("wrap-lines", pane.0),
-                xenon_design_system::ActionButton::icon(icon(Icon::TextWrap, px(15.))),
+                xenon_design_system::ActionButton::icon(icon(Icon::TextWrap, px(15.)))
+                    .hover_background(colors.element_hover)
+                    .hover_text(colors.text),
                 cx,
                 cx.listener(move |this, _, _, cx| {
                     this.toggle_soft_wrap_for(Some(&path), cx);
@@ -282,7 +284,6 @@ impl XenonApp {
                 colors.text_muted
             })
             .cursor_pointer()
-            .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
             .tooltip(tip_tooltip(SharedString::from("Wrap Lines · ⌥Z"))),
         )
     }
@@ -319,7 +320,9 @@ impl XenonApp {
         Some(
             xenon_design_system::action_button(
                 ("md-preview", pane.0),
-                xenon_design_system::ActionButton::icon(preview_icon(previewing)),
+                xenon_design_system::ActionButton::icon(preview_icon(previewing))
+                    .hover_text(colors.text)
+                    .hover_background(colors.element_hover),
                 cx,
                 cx.listener(|this, _, _, cx| this.toggle_preview(cx)),
             )
@@ -335,7 +338,6 @@ impl XenonApp {
                 colors.text_muted
             })
             .cursor_pointer()
-            .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
             .tooltip(tip_tooltip(tip)),
         )
     }
@@ -349,7 +351,9 @@ impl XenonApp {
         let colors = colors.clone();
         xenon_design_system::action_button(
             ("term-add", pane.0),
-            xenon_design_system::ActionButton::icon(icon(Icon::Plus, px(13.))),
+            xenon_design_system::ActionButton::icon(icon(Icon::Plus, px(13.)))
+                .hover_background(colors.element_hover)
+                .hover_text(colors.text),
             cx,
             cx.listener(move |this, _, window, cx| {
                 if let Some(content) = this.active.and_then(|id| this.contents.get_mut(&id)) {
@@ -364,7 +368,6 @@ impl XenonApp {
         .h_full()
         .flex_none()
         .text_color(colors.text_muted)
-        .hover(move |s| s.bg(colors.element_hover).text_color(colors.text))
         .tooltip(tip_tooltip(SharedString::from("New Terminal · ⌘N")))
     }
 }

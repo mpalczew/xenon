@@ -66,7 +66,7 @@ pub(super) fn remote_section(
                 id: "phone-remote-toggle",
                 title: "Phone remote",
                 subtitle: remote_subtitle(info).into(),
-                checked: info.enabled,
+                checked: info.enabled || info.waiting,
                 focused: focus == FOCUS_REMOTE,
             },
             cx,
@@ -98,6 +98,9 @@ pub(super) fn remote_section(
 }
 
 fn remote_subtitle(info: &MobileRemoteInfo) -> String {
+    if info.waiting {
+        return "On — the other Xenon has the phone remote until it quits".into();
+    }
     match (&info.base_url, info.reachable) {
         (Some(url), true) => format!("On — reachable at {}", url.trim_start_matches("http://")),
         (Some(_), false) => {

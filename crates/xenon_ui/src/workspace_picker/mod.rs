@@ -15,9 +15,8 @@ pub use candidate::{WorkspaceCandidate, WorkspacePickerEvent};
 use std::time::Duration;
 
 use gpui::{
-    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, KeyDownEvent, Render, ScrollHandle, StatefulInteractiveElement, Styled, Task,
-    Window,
+    App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
+    Render, ScrollHandle, StatefulInteractiveElement, Task, Window,
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
@@ -374,11 +373,12 @@ impl Render for WorkspacePickerView {
             .collect();
         let browse = xenon_design_system::action_button(
             "workspace-picker-browse-btn",
-            xenon_design_system::ActionButton::quiet("Browse… ⌘⇧O"),
+            xenon_design_system::ActionButton::quiet("Browse… ⌘⇧O")
+                .hover_text(colors.text)
+                .hover_background(gpui::transparent_black()),
             cx,
             cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Browse)),
         )
-        .hover(|s| s.text_color(colors.text))
         .into_any_element();
 
         palette_overlay(

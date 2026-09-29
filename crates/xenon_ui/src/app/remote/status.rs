@@ -1,15 +1,22 @@
 //! Status the phone and the sidebar show: workspace/tab dots and the footer.
 
-use super::devices::device_short_name;
+use super::labels::device_short_name;
 use super::*;
 use xenon_remote::{Dot, ServerMsg};
 
 /// What the sidebar footer shows while the remote is on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum RemoteFooter {
+    /// On, but the other Xenon (a/b slot) serves the phone for now.
+    Waiting,
     Listening,
-    Connected { device: String },
-    Driving { device: String, workspace: String },
+    Connected {
+        device: String,
+    },
+    Driving {
+        device: String,
+        workspace: String,
+    },
 }
 
 impl XenonApp {
@@ -66,6 +73,9 @@ impl XenonApp {
 
     /// Sidebar footer state (None while the remote is off).
     pub(crate) fn remote_footer(&self, cx: &App) -> Option<RemoteFooter> {
+        if self.remote_waiting() {
+            return Some(RemoteFooter::Waiting);
+        }
         let runtime = self.services.remote.as_ref()?;
         let driving = runtime.conns.values().find_map(|c| {
             let a = c.attach.as_ref()?;

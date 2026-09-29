@@ -36,6 +36,22 @@ impl XenonApp {
         self.finder = None;
         self.theme_picker = None;
 
+        let session = self.ensure_live_content(id, &root, cx);
+        self.apply_sidebar(&session);
+        self.reindex(root, false, cx);
+        self.persist_active();
+        self.nav_seed_active(id, cx);
+        cx.notify();
+    }
+
+    /// Build the workspace's live tabs (terminals spawn) if this process has
+    /// not yet, without switching to it. Returns its session layout.
+    pub(crate) fn ensure_live_content(
+        &mut self,
+        id: WorkspaceId,
+        root: &Path,
+        cx: &mut Context<Self>,
+    ) -> SessionState {
         let session = self.sessions.get(&id).cloned().unwrap_or_else(|| {
             let session = SessionState {
                 sidebar_visible: !self.sidebar_collapsed,
@@ -46,18 +62,12 @@ impl XenonApp {
             save_session(id, &session, "activate_workspace default");
             session
         });
-        self.apply_sidebar(&session);
-
-        // Rebuild live content if missing (first activate this process).
         if !self.contents.contains_key(&id) {
-            let live = self.build_live_from_session(&session, &root, id, cx);
+            let live = self.build_live_from_session(&session, root, id, cx);
             self.seed_recent_from_content(id, &live);
             self.contents.insert(id, live);
         }
-        self.reindex(root, false, cx);
-        self.persist_active();
-        self.nav_seed_active(id, cx);
-        cx.notify();
+        session
     }
 
     /// Seed MRU from restored tabs so cmd-p ranks open files before cold ones.

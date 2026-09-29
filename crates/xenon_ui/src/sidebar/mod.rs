@@ -172,7 +172,9 @@ impl XenonApp {
             .child(
                 xenon_design_system::action_button(
                     "workspaces-toggle",
-                    xenon_design_system::ActionButton::quiet("WORKSPACES"),
+                    xenon_design_system::ActionButton::quiet("WORKSPACES")
+                        .hover_text(colors.text)
+                        .hover_background(gpui::transparent_black()),
                     cx,
                     cx.listener(|this, _, _, cx| this.toggle_workspaces_section(cx)),
                 )
@@ -180,8 +182,7 @@ impl XenonApp {
                 .px_0()
                 .min_w_0()
                 .flex_1()
-                .text_color(colors.text_muted)
-                .hover(|s| s.text_color(colors.text)),
+                .text_color(colors.text_muted),
             )
             .child(icon_button(
                 "add-workspace",
@@ -501,7 +502,9 @@ pub(super) fn icon_button(
                 .justify_center()
                 .size(px(ICON_MD))
                 .child(icon(glyph, px(ICON_MD))),
-        ),
+        )
+        .hover_text(hover_foreground)
+        .hover_background(hover_background),
         cx,
         on_click,
     )
@@ -518,8 +521,7 @@ pub(super) fn icon_button(
     } else {
         colors.text_muted
     })
-    .cursor_pointer()
-    .hover(move |s| s.bg(hover_background).text_color(hover_foreground));
+    .cursor_pointer();
     if danger && let Some(text) = tip.clone() {
         btn = btn.group("workspace-close-action").child(
             div()

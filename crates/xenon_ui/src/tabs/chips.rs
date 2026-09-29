@@ -91,12 +91,13 @@ fn tab_close(
     let hover = colors.text;
     let mut close = xenon_design_system::action_button(
         id,
-        xenon_design_system::ActionButton::icon(icon(Icon::X, px(12.))),
+        xenon_design_system::ActionButton::icon(icon(Icon::X, px(12.)))
+            .hover_text(hover)
+            .hover_background(gpui::transparent_black()),
         cx,
         on_click,
     )
     .text_color(colors.text_muted)
-    .hover(move |s| s.text_color(hover))
     .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")));
     if !always {
         close = close.invisible().group_hover(group, |s| s.visible());

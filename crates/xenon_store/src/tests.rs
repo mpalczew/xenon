@@ -11,26 +11,31 @@ use crate::{
 /// Point `data_dir()` at a temp directory for the duration of a closure.
 /// Serialized via a mutex since env vars are process-global.
 fn with_data_dir<R>(body: impl FnOnce() -> R) -> R {
+    let dir = TempDir::new().unwrap();
+    with_data_dir_at(dir.path(), body)
+}
+
+/// Point the store at `dir` with no inherited shared dir (a shell inside a
+/// Xenon slot exports XENON_SHARED_DIR; tests must never write there).
+fn with_data_dir_at<R>(dir: &std::path::Path, body: impl FnOnce() -> R) -> R {
     let _guard = crate::DATA_DIR_TEST_LOCK
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    let dir = TempDir::new().unwrap();
-    // Prefer XENON_DATA_DIR (checked first by data_dir); clear both on exit.
-    let prev_xenon = std::env::var_os("XENON_DATA_DIR");
-    let prev_xero = std::env::var_os("XERO_DATA_DIR");
+    const VARS: [&str; 3] = ["XENON_DATA_DIR", "XERO_DATA_DIR", "XENON_SHARED_DIR"];
+    let prev: Vec<_> = VARS.iter().map(std::env::var_os).collect();
+    // SAFETY: DATA_DIR_TEST_LOCK serializes every env mutation in these tests.
     unsafe {
-        std::env::set_var("XENON_DATA_DIR", dir.path());
+        std::env::set_var("XENON_DATA_DIR", dir);
         std::env::remove_var("XERO_DATA_DIR");
+        std::env::remove_var("XENON_SHARED_DIR");
     }
     let result = body();
     unsafe {
-        match prev_xenon {
-            Some(v) => std::env::set_var("XENON_DATA_DIR", v),
-            None => std::env::remove_var("XENON_DATA_DIR"),
-        }
-        match prev_xero {
-            Some(v) => std::env::set_var("XERO_DATA_DIR", v),
-            None => std::env::remove_var("XERO_DATA_DIR"),
+        for (var, value) in VARS.iter().zip(prev) {
+            match value {
+                Some(v) => std::env::set_var(var, v),
+                None => std::env::remove_var(var),
+            }
         }
     }
     result
@@ -324,5 +329,41 @@ fn legacy_remote_password_is_ignored() {
         assert!(!settings.remote_enabled);
         assert!(settings.remote_keep_awake);
         assert_eq!(settings.remote_network, crate::RemoteNetwork::Tailscale);
+    });
+}
+
+#[test]
+fn slot_dirs_share_remote_devices() {
+    let home = tempfile::tempdir().unwrap();
+    let devices = crate::RemoteDevices {
+        devices: vec![crate::RemoteDevice {
+            id: "d1".into(),
+            label: "iPhone".into(),
+            token_sha256: "ab".into(),
+            created_at: 1,
+            last_seen_at: 1,
+        }],
+    };
+    with_data_dir_at(&home.path().join(".xenon-a"), || {
+        assert_eq!(crate::shared_dir(), home.path().join(".xenon-shared"));
+        crate::save_remote_devices(&devices).unwrap();
+    });
+    with_data_dir_at(&home.path().join(".xenon-b"), || {
+        assert_eq!(crate::load_remote_devices().unwrap(), devices);
+    });
+}
+
+#[test]
+fn per_slot_devices_file_migrates_to_shared() {
+    let home = tempfile::tempdir().unwrap();
+    let slot_a = home.path().join(".xenon-a");
+    fs::create_dir_all(&slot_a).unwrap();
+    fs::write(
+        slot_a.join("remote_devices.json"),
+        r#"{"devices":[{"id":"old","label":"iPhone","token_sha256":"x","created_at":1,"last_seen_at":1}]}"#,
+    )
+    .unwrap();
+    with_data_dir_at(&slot_a, || {
+        assert_eq!(crate::load_remote_devices().unwrap().devices[0].id, "old");
     });
 }

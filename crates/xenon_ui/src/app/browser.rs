@@ -129,7 +129,9 @@ impl XenonApp {
         };
         xenon_design_system::action_button(
             "files-section-header",
-            xenon_design_system::ActionButton::quiet("FILES"),
+            xenon_design_system::ActionButton::quiet("FILES")
+                .hover_text(colors.text)
+                .hover_background(gpui::transparent_black()),
             cx,
             cx.listener(|this, _, _, cx| this.toggle_browser(cx)),
         )
@@ -139,7 +141,6 @@ impl XenonApp {
         .border_t_1()
         .border_color(border)
         .text_color(colors.text_muted)
-        .hover(|s| s.text_color(colors.text))
         .on_mouse_down(
             gpui::MouseButton::Right,
             cx.listener(|this, event: &gpui::MouseDownEvent, _, cx| {

@@ -30,9 +30,17 @@ struct SheetModel {
 impl XenonApp {
     /// Turn the remote on if needed and show the sheet.
     pub(crate) fn open_connect_phone(&mut self, cx: &mut Context<Self>) {
-        if !self.remote_running() {
+        if !self.remote_running() && !self.remote_waiting() {
             self.start_mobile_remote(cx);
-            persist_enabled(self.remote_running());
+            persist_enabled(self.remote_running() || self.remote_waiting());
+        }
+        if self.remote_waiting() {
+            let toast = xenon_design_system::Toast::info(
+                "📱",
+                "The other Xenon has the phone remote — ⌘⇧M there, or quit it",
+            );
+            self.show_toast(toast, cx);
+            return;
         }
         let Some(runtime) = self.services.remote.as_mut() else {
             return;

@@ -7,6 +7,7 @@ use super::*;
 mod devices;
 mod host;
 mod keep_awake;
+mod labels;
 mod network;
 pub(crate) mod pairing_sheet;
 mod session;
@@ -20,7 +21,7 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use gpui::{Global, WeakEntity};
-use xenon_remote::{ConnId, HostRequest, PairError, PairResponse, RemoteServer};
+use xenon_remote::{ConnId, HostRequest, PairError, PairResponse, RemoteServer, StartError};
 use xenon_store::RemoteNetwork;
 
 use devices::DeviceBook;
@@ -35,6 +36,8 @@ pub(crate) use status::RemoteFooter;
 const TICK: Duration = Duration::from_secs(1);
 /// Network re-probe cadence, in ticks.
 const NETWORK_EVERY: u32 = 15;
+/// While the other a/b slot holds the port, try to take it over this often.
+const PORT_RETRY: Duration = Duration::from_secs(5);
 
 /// Weak handle to the main shell so Settings (separate window) can reach it.
 pub(crate) struct MainApp(pub WeakEntity<XenonApp>);
@@ -55,6 +58,8 @@ pub(crate) struct DeviceRow {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct MobileRemoteInfo {
     pub enabled: bool,
+    /// On, but another Xenon (the other a/b slot) holds the port for now.
+    pub waiting: bool,
     pub network: RemoteNetwork,
     pub keep_awake: bool,
     /// User override for the phone URL host (empty = automatic).
@@ -110,21 +115,50 @@ impl XenonApp {
         self.services.remote.is_some()
     }
 
+    /// On but queued behind another Xenon that holds the port.
+    pub(crate) fn remote_waiting(&self) -> bool {
+        self.services.remote_port_wait.is_some()
+    }
+
     /// Palette / menu toggle. Remembers the choice for the next launch.
     pub(crate) fn toggle_mobile_remote(&mut self, cx: &mut Context<Self>) {
-        let on = !self.remote_running();
-        if on {
-            self.start_mobile_remote(cx);
-        } else {
+        if self.remote_running() || self.remote_waiting() {
             self.stop_mobile_remote(cx);
-        }
-        persist_enabled(self.remote_running());
-        let toast = if self.remote_running() {
-            xenon_design_system::Toast::info("📱", "Phone remote on")
         } else {
-            xenon_design_system::Toast::info("📴", "Phone remote off")
+            self.start_mobile_remote(cx);
+        }
+        let on = self.remote_running() || self.remote_waiting();
+        persist_enabled(on);
+        let toast = match (self.remote_running(), on) {
+            (true, _) => xenon_design_system::Toast::info("📱", "Phone remote on"),
+            (false, true) => xenon_design_system::Toast::info(
+                "📱",
+                "Phone remote on — the other Xenon has it until it quits",
+            ),
+            (false, false) => xenon_design_system::Toast::info("📴", "Phone remote off"),
         };
         self.show_toast(toast, cx);
+    }
+
+    /// Another Xenon (the other a/b slot) owns the port: take over when it
+    /// lets go (quits or turns its remote off). Silent: this is normal.
+    fn wait_for_remote_port(&mut self, cx: &mut Context<Self>) {
+        if self.remote_waiting() {
+            return;
+        }
+        if !self.services.remote_port_busy_logged {
+            log::info!("phone remote: port busy, waiting for the other Xenon");
+            self.services.remote_port_busy_logged = true;
+        }
+        // One attempt per task: a still-busy retry re-enters here and re-arms.
+        self.services.remote_port_wait = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(PORT_RETRY).await;
+            this.update(cx, |app, cx| {
+                app.services.remote_port_wait = None;
+                app.start_mobile_remote(cx);
+            })
+            .ok();
+        }));
     }
 
     pub(crate) fn start_mobile_remote(&mut self, cx: &mut Context<Self>) {
@@ -137,6 +171,11 @@ impl XenonApp {
         let port = effective_port(settings.remote_port);
         let server = match RemoteServer::start(&reach.bind_ips(settings.remote_network), port, tx) {
             Ok(server) => server,
+            Err(StartError::PortBusy) => {
+                self.wait_for_remote_port(cx);
+                self.publish_remote_info(cx);
+                return;
+            }
             Err(e) => {
                 log::error!("phone remote failed to start: {e:#}");
                 self.show_toast(toasts::failed("Phone remote didn’t start", e), cx);
@@ -144,6 +183,7 @@ impl XenonApp {
             }
         };
         log::info!("phone remote on: {:?}", server.binds);
+        self.services.remote_port_busy_logged = false;
         self.services.remote = Some(RemoteRuntime {
             port: server.port,
             _server: server,
@@ -165,6 +205,9 @@ impl XenonApp {
     }
 
     pub(crate) fn stop_mobile_remote(&mut self, cx: &mut Context<Self>) {
+        if self.services.remote_port_wait.take().is_some() {
+            self.publish_remote_info(cx);
+        }
         let Some(runtime) = self.services.remote.take() else {
             return;
         };
@@ -202,6 +245,7 @@ impl XenonApp {
         let hostname = normalize_hostname(&settings.remote_hostname);
         let mut info = MobileRemoteInfo {
             enabled: self.remote_running(),
+            waiting: self.remote_waiting(),
             network: settings.remote_network,
             keep_awake: settings.remote_keep_awake,
             hostname: hostname.clone(),
@@ -352,6 +396,8 @@ impl XenonApp {
 
     fn authenticate_remote(&mut self, token: &str) -> Option<String> {
         let runtime = self.services.remote.as_mut()?;
+        // The other a/b slot may have revoked or paired devices meanwhile.
+        runtime.devices.reload();
         let id = runtime.devices.authenticate(token)?;
         if runtime.devices.touch(&id)
             && let Err(e) = runtime.devices.save()
@@ -368,6 +414,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> Result<PairResponse, PairError> {
         let runtime = self.services.remote.as_mut().ok_or(PairError::Rejected)?;
+        runtime.devices.reload();
         let device = runtime
             .devices
             .pair(code, label, Instant::now())

@@ -1,5 +1,9 @@
 //! Paired phone-remote devices (`remote_devices.json`, mode 0600). Only a
 //! SHA-256 of each device token is stored.
+//!
+//! Lives in `shared_dir()`, not the slot data dir: the a/b slot launcher runs
+//! two instances that copy state at flip time, and a phone paired in one slot
+//! must stay paired when the other slot takes over the remote port.
 
 use std::path::PathBuf;
 
@@ -24,13 +28,39 @@ pub struct RemoteDevices {
     pub devices: Vec<RemoteDevice>,
 }
 
-fn devices_path() -> PathBuf {
-    data_dir().join("remote_devices.json")
+const FILE: &str = "remote_devices.json";
+/// Slot data dirs the launcher uses; their shared sibling is `.xenon-shared`.
+const SLOT_DIRS: &[&str] = &[".xenon-a", ".xenon-b"];
+
+/// State every instance of this user shares: `XENON_SHARED_DIR`, else the
+/// `.xenon-shared` sibling of an a/b slot dir, else the data dir.
+pub fn shared_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("XENON_SHARED_DIR") {
+        return PathBuf::from(dir);
+    }
+    let data = data_dir();
+    let is_slot = data
+        .file_name()
+        .is_some_and(|name| SLOT_DIRS.iter().any(|slot| name == *slot));
+    match (is_slot, data.parent()) {
+        (true, Some(parent)) => parent.join(".xenon-shared"),
+        _ => data,
+    }
 }
 
-/// Paired devices, or none if the file is missing or corrupt.
+fn devices_path() -> PathBuf {
+    shared_dir().join(FILE)
+}
+
+/// Paired devices, or none if the file is missing or corrupt. Falls back to
+/// this slot's own file once, from before devices were shared.
 pub fn load_remote_devices() -> Result<RemoteDevices, StoreError> {
-    load_or_default(&devices_path())
+    let shared = devices_path();
+    let legacy = data_dir().join(FILE);
+    if !shared.exists() && legacy.exists() {
+        return load_or_default(&legacy);
+    }
+    load_or_default(&shared)
 }
 
 pub fn save_remote_devices(devices: &RemoteDevices) -> Result<(), StoreError> {

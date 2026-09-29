@@ -20,6 +20,7 @@ impl XenonApp {
         let status = self.remote_footer(cx)?;
         let colors = cx.theme().colors().clone();
         let (label, active) = match &status {
+            RemoteFooter::Waiting => ("Phone remote · other Xenon has it".to_string(), false),
             RemoteFooter::Listening => ("Phone remote · listening".to_string(), false),
             RemoteFooter::Connected { device } => (format!("{device} connected"), true),
             RemoteFooter::Driving { device, workspace } => {

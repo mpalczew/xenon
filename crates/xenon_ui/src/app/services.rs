@@ -15,6 +15,10 @@ pub(super) struct AppServices {
     pub ide_task: Option<Task<()>>,
     /// Phone remote while on (server, sessions, devices).
     pub remote: Option<RemoteRuntime>,
+    /// Retry while the other a/b slot holds the remote port.
+    pub remote_port_wait: Option<Task<()>>,
+    /// "Port busy" was logged for this wait (log once, not every retry).
+    pub remote_port_busy_logged: bool,
     /// The shell window; remote work that needs a `Window` runs against it.
     pub main_window: Option<AnyWindowHandle>,
     pub git_dirt: HashMap<WorkspaceId, GitDirt>,

@@ -8,6 +8,8 @@ if [[ ! -x "$APP_BIN" ]]; then
 fi
 APP="$APP_BIN"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
+# State both slots must see (phone-remote paired devices): not copied per slot.
+SHARED_DIR="$HOME/.xenon-shared"
 # Prefer modern active file; fall back to legacy.
 if [[ ! -f "$ACTIVE_FILE" && -f "$HOME/.xero-active-slot" ]]; then
     ACTIVE_FILE="$HOME/.xero-active-slot"
@@ -315,7 +317,7 @@ launch_slot() {
     mkdir -p "$dir"
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
-    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" \
+    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
         XERO_DATA_DIR="$dir" XERO_SLOT="$upper" \
         "$APP" "$@" >>"$log" 2>&1 &
     pid=$!
@@ -396,7 +398,7 @@ activate_slot() {
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
     # Empty argv → try_handoff(Activate) then exit. Bound wait so a failed handoff
     # cannot leave a third long-lived primary in the foreground of this shell.
-    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" \
+    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
         XERO_DATA_DIR="$dir" XERO_SLOT="$upper" \
         "$APP" >>"$log" 2>&1 &
     handoff=$!
@@ -512,7 +514,7 @@ main() {
                 seed_legacy_state "$slot"
                 dir="$(slot_data_dir "$slot")"
                 upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
-                export XENON_DATA_DIR="$dir" XENON_SLOT="$upper"
+                export XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR"
                 export XERO_DATA_DIR="$dir" XERO_SLOT="$upper"
             fi
             exec "$APP" "$@"

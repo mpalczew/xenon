@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 
 use crate::host::{ConnId, HostRequest, HostTx, PairError};
 use crate::http;
@@ -28,8 +28,6 @@ const HOST_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_CONNECTIONS: usize = 32;
 /// How often a listener checks for shutdown between accepts.
 const ACCEPT_POLL: Duration = Duration::from_millis(50);
-/// Rebind retries while a just-stopped listener releases the port.
-const BIND_RETRIES: u32 = 20;
 
 /// State shared by every connection thread.
 pub(crate) struct Shared {
@@ -76,18 +74,39 @@ impl Shared {
     }
 }
 
-/// Running mobile remote server. Drop stops accepting.
+/// Why the server did not start.
+#[derive(Debug)]
+pub enum StartError {
+    /// Another process (typically the other a/b Xenon slot) holds the port.
+    PortBusy,
+    Other(anyhow::Error),
+}
+
+impl std::fmt::Display for StartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PortBusy => write!(f, "the port is in use by another app"),
+            Self::Other(e) => write!(f, "{e:#}"),
+        }
+    }
+}
+
+/// Running mobile remote server. Drop stops accepting and waits until every
+/// port is released, so a restart (or the other slot) can bind it at once.
 pub struct RemoteServer {
     pub port: u16,
     /// Addresses actually bound (e.g. Tailscale IP + loopback).
     pub binds: Vec<SocketAddr>,
     shared: Arc<Shared>,
+    accepts: Vec<thread::JoinHandle<()>>,
 }
 
 impl RemoteServer {
     /// Listen on `port` at each of `ips` (port 0 = ephemeral; use one ip then).
-    /// Fails only when no address could be bound.
-    pub fn start(ips: &[IpAddr], port: u16, host: HostTx) -> Result<Self> {
+    /// All-or-nothing on a busy port; other per-address failures are skipped
+    /// (e.g. an interface that just went away) as long as one address binds.
+    pub fn start(ips: &[IpAddr], port: u16, host: HostTx) -> Result<Self, StartError> {
+        let listeners = bind_all(ips, port)?;
         let shared = Arc::new(Shared {
             host,
             enabled: AtomicBool::new(true),
@@ -96,19 +115,17 @@ impl RemoteServer {
             active: AtomicUsize::new(0),
         });
         let mut binds = Vec::new();
-        for ip in ips {
-            match bind(*ip, port, &shared) {
-                Ok(addr) => binds.push(addr),
-                Err(e) => log::warn!("xenon remote: {e:#}"),
-            }
+        let mut accepts = Vec::new();
+        for listener in listeners {
+            let (addr, handle) = spawn_accept(listener, &shared).map_err(StartError::Other)?;
+            binds.push(addr);
+            accepts.push(handle);
         }
-        let first = binds
-            .first()
-            .ok_or_else(|| anyhow!("could not listen on port {port}"))?;
         Ok(Self {
-            port: first.port(),
+            port: binds[0].port(),
             binds,
             shared,
+            accepts,
         })
     }
 
@@ -121,34 +138,43 @@ impl RemoteServer {
 impl Drop for RemoteServer {
     fn drop(&mut self) {
         self.stop();
+        for handle in self.accepts.drain(..) {
+            let _ = handle.join();
+        }
     }
 }
 
-fn bind(ip: IpAddr, port: u16, shared: &Arc<Shared>) -> Result<SocketAddr> {
-    let listener = bind_with_retry(ip, port)?;
+fn bind_all(ips: &[IpAddr], port: u16) -> Result<Vec<TcpListener>, StartError> {
+    let mut listeners = Vec::new();
+    for ip in ips {
+        match TcpListener::bind((*ip, port)) {
+            Ok(listener) => listeners.push(listener),
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                return Err(StartError::PortBusy);
+            }
+            Err(e) => log::warn!("xenon remote: bind {ip}:{port}: {e}"),
+        }
+    }
+    if listeners.is_empty() {
+        return Err(StartError::Other(anyhow!(
+            "could not listen on port {port}"
+        )));
+    }
+    Ok(listeners)
+}
+
+fn spawn_accept(
+    listener: TcpListener,
+    shared: &Arc<Shared>,
+) -> Result<(SocketAddr, thread::JoinHandle<()>)> {
     listener.set_nonblocking(true)?;
     let addr = listener.local_addr()?;
     let shared = shared.clone();
-    thread::Builder::new()
+    let handle = thread::Builder::new()
         .name(format!("xenon-remote-{addr}"))
         .spawn(move || accept_loop(listener, shared))?;
     log::info!("xenon remote listening on {addr}");
-    Ok(addr)
-}
-
-/// A restart can race the previous listener's shutdown for the same port.
-fn bind_with_retry(ip: IpAddr, port: u16) -> Result<TcpListener> {
-    let mut attempt = 0;
-    loop {
-        match TcpListener::bind((ip, port)) {
-            Ok(listener) => return Ok(listener),
-            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse && attempt < BIND_RETRIES => {
-                attempt += 1;
-                thread::sleep(ACCEPT_POLL);
-            }
-            Err(e) => return Err(e).with_context(|| format!("bind remote on {ip}:{port}")),
-        }
-    }
+    Ok((addr, handle))
 }
 
 fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {

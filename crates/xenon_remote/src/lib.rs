@@ -19,4 +19,4 @@ pub use protocol::{
     ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, NamedKey, PairRequest, PairResponse,
     ServerMsg, StyleWire, TerminalInfo, ThemeWire, WorkspaceInfo, style_flags,
 };
-pub use server::RemoteServer;
+pub use server::{RemoteServer, StartError};

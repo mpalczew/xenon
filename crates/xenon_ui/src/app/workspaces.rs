@@ -399,17 +399,29 @@ impl XenonApp {
     }
 
     pub(crate) fn reopen_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {
+        if self.restore_closed_workspace(id, cx) {
+            self.activate_workspace(id, cx);
+        }
+    }
+
+    /// Move a closed workspace back into the open list (no activation).
+    /// False when it is unknown or its root is gone.
+    pub(crate) fn restore_closed_workspace(
+        &mut self,
+        id: WorkspaceId,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let Some(index) = self
             .registry
             .closed_workspaces
             .iter()
             .position(|workspace| workspace.id == id)
         else {
-            return;
+            return false;
         };
         // Never reopen a root that no longer exists on disk.
         if !crate::workspace_discover::path_is_dir(&self.registry.closed_workspaces[index].root) {
-            return;
+            return false;
         }
         let record = self.registry.closed_workspaces.remove(index);
         let session = xenon_store::load_session(record.id).unwrap_or_else(|_| SessionState {
@@ -422,7 +434,8 @@ impl XenonApp {
         save_registry(&self.registry, "reopen_workspace");
         self.update_ide_roots();
         self.restart_git_dirt_watch(cx);
-        self.activate_workspace(id, cx);
+        cx.notify();
+        true
     }
 }
 

@@ -105,8 +105,8 @@ impl XenonApp {
         n
     }
 
-    /// Load a workspace's terminals without taking over the Mac's screen:
-    /// activation (needed to spawn content) is undone right after.
+    /// Load a workspace's terminals without touching the Mac's screen: no
+    /// activation, so the Mac's workspace, pickers, and focus stay put.
     pub(super) fn ensure_workspace_live(
         &mut self,
         wid: WorkspaceId,
@@ -115,22 +115,15 @@ impl XenonApp {
         if self.contents.contains_key(&wid) {
             return Ok(());
         }
-        let previous = self.active;
-        if self.registry.workspace(wid).is_some() {
-            self.activate_workspace(wid, cx);
-        } else if self.registry.closed_workspaces.iter().any(|w| w.id == wid) {
-            self.reopen_workspace(wid, cx);
-        } else {
-            return Err("unknown workspace".into());
+        let closed = self.registry.closed_workspaces.iter().any(|w| w.id == wid);
+        if closed && !self.restore_closed_workspace(wid, cx) {
+            return Err("could not reopen workspace".into());
         }
-        if let Some(previous) = previous.filter(|p| *p != wid) {
-            self.activate_workspace(previous, cx);
-        }
-        if self.contents.contains_key(&wid) {
-            Ok(())
-        } else {
-            Err("could not open workspace".into())
-        }
+        let root = self
+            .workspace_root(wid)
+            .ok_or_else(|| "unknown workspace".to_string())?;
+        self.ensure_live_content(wid, &root, cx);
+        Ok(())
     }
 
     /// Best grid size from any laid-out terminal, else a comfortable default.

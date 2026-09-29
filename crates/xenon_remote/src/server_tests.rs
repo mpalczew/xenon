@@ -293,3 +293,16 @@ fn oversized_body_is_refused() {
     let _ = stream.read_to_string(&mut out);
     assert!(!out.contains("200"), "{out}");
 }
+
+#[test]
+fn busy_port_is_reported_and_freed_on_drop() {
+    let (server, _mock) = start_mock();
+    let port = server.port;
+    let (tx, _rx) = async_channel::unbounded::<HostRequest>();
+    let second = RemoteServer::start(&["127.0.0.1".parse().unwrap()], port, tx.clone());
+    assert!(matches!(second, Err(StartError::PortBusy)));
+    drop(server);
+    // Drop joined the listener: the port is free immediately.
+    let third = RemoteServer::start(&["127.0.0.1".parse().unwrap()], port, tx);
+    assert!(third.is_ok());
+}

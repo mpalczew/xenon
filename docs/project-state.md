@@ -94,6 +94,13 @@ rediscover.
   remote tasks run against `services.main_window`, never the caller's window
   (Settings is a separate window). Mac keyboard input suspends a phone fit for
   30s (`TerminalView::note_local_input`); remote input must not call it.
+- a/b slots: only one instance can own the phone-remote port; the other waits
+  (`StartError::PortBusy`) and takes over when it is released. Paired devices
+  live in `xenon_store::shared_dir()` (`~/.xenon-shared`), not the slot dir, so
+  a phone stays paired across a slot flip.
+- GPUI allows one `.hover` per element and asserts in debug builds. Design
+  system controls own theirs: pass `ActionButton::hover_text` /
+  `hover_background` instead of chaining `.hover` after `action_button`.
 - Markdown YAML metadata requires the pulldown-cmark metadata option; otherwise
   the closing fence can become a setext heading.
 - Markdown emphasis highlighting depends on `injection.include-children` and

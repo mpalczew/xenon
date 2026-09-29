@@ -1,8 +1,10 @@
 // Keyboard regressions that need a real window: focus must survive transient
 // surfaces closing, or every app shortcut goes dead.
 
+type Check = fn(&mut gpui::VisualTestAppContext) -> anyhow::Result<()>;
+
 pub(crate) fn run_all(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
-    let checks: [(&str, fn(&mut gpui::VisualTestAppContext) -> anyhow::Result<()>); 3] = [
+    let checks: [(&str, Check); 3] = [
         ("keyboard_worklist_escape", shortcuts_survive_worklist_escape),
         ("keyboard_offscreen_focus", shortcuts_survive_offscreen_focus),
         ("keyboard_stranded_key_replay", stranded_key_is_replayed),
