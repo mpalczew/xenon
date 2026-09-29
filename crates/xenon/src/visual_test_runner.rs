@@ -65,7 +65,7 @@ fn run_tests() -> anyhow::Result<()> {
     let mut failed: Vec<String> = Vec::new();
     // Dev loop: VISUAL_TEST_ONLY=keyboard runs just the keyboard checks.
     if std::env::var("VISUAL_TEST_ONLY").as_deref() == Ok("keyboard") {
-        return keyboard::shortcuts_survive_worklist_escape(&mut cx);
+        return keyboard::run_all(&mut cx);
     }
 
     for scene in xenon_ui::SCENES {
@@ -82,12 +82,9 @@ fn run_tests() -> anyhow::Result<()> {
     }
 
     // After the scenes: it writes .xenon/worklist.md into the shared fixture.
-    match keyboard::shortcuts_survive_worklist_escape(&mut cx) {
-        Ok(()) => println!("ok keyboard_worklist_escape"),
-        Err(error) => {
-            eprintln!("FAIL keyboard_worklist_escape: {error:#}");
-            failed.push("keyboard_worklist_escape".into());
-        }
+    if let Err(error) = keyboard::run_all(&mut cx) {
+        eprintln!("FAIL keyboard: {error:#}");
+        failed.push("keyboard".into());
     }
 
     match remote::capture(&output_dir) {

@@ -82,13 +82,15 @@ The logical owner is resolved as a non-optional `FocusOwner`; with no live
 surface, it is the shell. OS-level window blur is separate from Xenon's
 logical focus owner.
 
-No focused element is not a safe state. GPUI then dispatches from the root
-dispatch node, which is the view wrapper *above* the `XenonApp` key context,
-so every app binding misses. Xenon holds one `on_focus_lost` subscription
-(`keep_window_focused`): whenever the focused element leaves the tree without
-handing focus on, the active workspace's leaf takes it back. Explicit
-transfers below are still preferred (they pick the right target); the guard
-makes a forgotten one recoverable instead of a dead keyboard.
+Unreachable focus is not a safe state. GPUI dispatches from the focused
+element's node in the last rendered frame; when the focused handle is dropped
+or alive but unrendered, it falls back to the root dispatch node, the view
+wrapper *above* the `XenonApp` key context, so every app binding misses.
+`app/focus_guard.rs` enforces "the app root contains focus": on GPUI's
+focus-lost signal, and as a last resort on any keystroke that finds focus
+unreachable (then that key is replayed). Repair targets the active
+workspace's leaf, else the shell. Explicit transfers below are still preferred
+(they pick the right target); the guard makes a forgotten one recoverable.
 
 Two layers must not disagree:
 

@@ -45,6 +45,7 @@ pub(crate) mod dirty_close;
 mod editors;
 mod empty_pane_ops;
 mod empty_state;
+mod focus_guard;
 mod git_dirt;
 mod key_events;
 mod keyboard;

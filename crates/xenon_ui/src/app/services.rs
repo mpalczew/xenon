@@ -23,5 +23,5 @@ pub(super) struct AppServices {
     pub bounds_save_task: Option<Task<()>>,
     pub bounds_save_generation: u64,
     pub window_bounds_subscription: Option<Subscription>,
-    pub focus_lost_subscription: Option<Subscription>,
+    pub focus_guard: Vec<Subscription>,
 }
