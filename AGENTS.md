@@ -69,9 +69,10 @@ Crates under `crates/`:
   `EditorView` with tree-sitter highlighting.
 - `xenon_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
 - `xenon_settings` — app settings + font size actions.
-- `xenon_ide` — Claude Code IDE integration: a localhost WebSocket MCP server
-  (`~/.claude/ide/<port>.lock` + `CLAUDE_CODE_SSE_PORT` injected into terminals)
-  that lets agents open files in Xenon. Protocol captured in
+- `xenon_ide` — Claude Code IDE integration: one localhost WebSocket MCP
+  endpoint per workspace (`~/.claude/ide/<port>.lock` + that workspace's
+  `CLAUDE_CODE_SSE_PORT` injected into its terminals) that lets agents open
+  files in Xenon and receive that workspace's editor selection. Protocol captured in
   `crates/xenon_ide/PROTOCOL.md`.
 - `xenon_lsp` — runtime-neutral stdio JSON-RPC client/host for Rust and
   TypeScript navigation, highlights, and diagnostics.

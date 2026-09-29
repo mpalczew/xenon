@@ -86,6 +86,8 @@ rediscover.
 - App-level Cut/Copy/Paste no-op while a query overlay or rename field is open.
   Palettes bind those actions through `bind_query_chrome`.
 - Palette and content teardown must route focus to a live surface or the shell.
+  `app/focus_guard.rs` backstops a missed transfer (keys must always reach the
+  `XenonApp` key context); it is a safety net, not the transfer.
 - A fresh PTY grid is tiny before first paint. Remote-only reopen must call
   `ensure_grid_size`.
 - Markdown YAML metadata requires the pulldown-cmark metadata option; otherwise
