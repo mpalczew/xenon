@@ -1,4 +1,4 @@
-//! Phone remote scenes: Connect Phone sheet and Settings › Phone Remote.
+//! Phone remote scenes: the Connect Phone sheet.
 
 use gpui::{Context, Window};
 
@@ -13,9 +13,4 @@ pub(super) fn connect_phone(
     populate(app, window, cx);
     app.visual_remote_listening(reachable, cx);
     app.open_connect_phone(cx);
-}
-
-pub(super) fn settings_remote(app: &mut XenonApp, cx: &mut Context<XenonApp>) {
-    app.visual_remote(true, cx);
-    app.open_settings_window_now(cx);
 }

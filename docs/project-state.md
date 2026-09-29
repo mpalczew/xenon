@@ -71,8 +71,13 @@ rediscover.
 - Theme gallery (⌘⌥T) is a separate overlay from Settings. Picking a card
   writes that appearance slot only. It does not switch Mode, so a dark pick
   while in light stays in light. The gallery stays open until Escape.
-  Settings Appearance is Mode segments plus the live theme name (opens the
-  gallery). Window is 640×480.
+  Settings is a sidebar of seven pages (Appearance, Fonts, Editor, Terminal,
+  Agents, Phone Remote, Language Servers) with search across every row.
+  Appearance, Fonts, and Editor lead with a live preview of the shell;
+  Appearance picks the on-screen slot's theme from five swatches. Window is
+  820×560. Rows are data (`settings/row.rs`): paint, keys, and search read the
+  same list. Remote port is shown read-only (changing it would orphan paired
+  phones); LSP on/off and server commands apply live.
 - Sidebar paints `editor_background` (canvas). Toolbar stays `panel_background`.
 - Lilex is bundled and the default mono. GPUI still lists `.ZedMono` /
   `.ZedSans` aliases; the pickers hide those unless the files exist.

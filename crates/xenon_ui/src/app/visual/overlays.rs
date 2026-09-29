@@ -9,7 +9,6 @@ use super::content::menu_point;
 use super::{XenonApp, ensure_terminal, open_rel, populate, workspace_root};
 use crate::app::memory::{MemorySample, MemorySnapshot, MemoryTerminal};
 use crate::app::workspaces::WorkspacePickerMode;
-use crate::dropdown::DropdownId;
 
 pub(super) fn finder(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
@@ -110,32 +109,8 @@ pub(super) fn memory(app: &mut XenonApp, window: &mut Window, cx: &mut Context<X
     cx.notify();
 }
 
-pub(super) fn settings_dropdown(
-    app: &mut XenonApp,
-    window: &mut Window,
-    cx: &mut Context<XenonApp>,
-) {
-    populate(app, window, cx);
-    let _ = window;
-    app.open_settings_window_now(cx);
-    if let Some(handle) = app.settings_window {
-        let _ = handle.update(cx, |settings, window, cx| {
-            settings.toggle_dropdown(DropdownId::EditorFamily, window, cx);
-        });
-    }
-}
-
 pub(super) fn tab_tooltip(app: &mut XenonApp, _window: &mut Window, _cx: &mut Context<XenonApp>) {
     populate(app, _window, _cx);
-}
-
-pub(super) fn settings_window(app: &mut XenonApp, cx: &mut Context<XenonApp>) {
-    app.open_settings_window_now(cx);
-}
-
-pub(super) fn settings_agents_installed(app: &mut XenonApp, cx: &mut Context<XenonApp>) {
-    let _ = xenon_store::install_skill();
-    app.open_settings_window_now(cx);
 }
 
 pub(super) fn skill_prompt(

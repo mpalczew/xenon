@@ -110,11 +110,27 @@ checked/unchecked control and its accessible label. Checking pops the box and
 expands a brief accent ring; unchecking settles back. The macOS Reduce Motion
 setting makes state changes instant. Feature views supply the action and state;
 they do not draw checkbox glyphs or wire keyboard activation.
+`xenon_design_system::switch` is the 30×18 on/off control for settings that
+apply immediately; checkboxes stay for picking items. The knob travels in
+180ms with a small overshoot while the track crossfades; Reduce Motion makes
+it instant.
 `selectable_row` owns selection fill, the left accent edge, and hover. Callers
 supply the row content. `bullet_list` renders indented supporting lines at
 22px per level. `OutlineView` edits one title and indented points: Enter
 splits a point, Tab and Shift-Tab change depth, and Backspace at the start
 outdents or joins. The caller validates and saves the text.
+
+## Settings window
+
+A 200px sidebar (panel → background gradient) holds search and seven pages;
+nav rows use `selectable_row`, with an accent "On" pill on Phone Remote while
+the remote runs. The pane shows the page's rows as one card: Body name,
+Control-label detail, control on the right. The focused row gets a hover fill
+and a 2px accent edge only once the keyboard is driving. Appearance, Fonts,
+and Editor lead with a 168px live preview (rail · editor · terminal at 11/14
+of real sizes) with a soft accent glow and a LIVE pill. Theme swatches show
+editor background, accent, and keyword color; the current one carries an
+accent ring.
 
 ## Empty states
 

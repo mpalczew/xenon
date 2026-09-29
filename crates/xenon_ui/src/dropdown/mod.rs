@@ -20,13 +20,12 @@ use xenon_design_system::TextInputView;
 
 use crate::settings::SettingsView;
 
-/// Which settings dropdown is open (at most one).
+/// Which font family list is open (at most one).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DropdownId {
-    UiFamily,
-    EditorFamily,
-    TerminalFamily,
-    TerminalAutoClose,
+    Ui,
+    Editor,
+    Terminal,
 }
 
 /// Which surface a size stepper adjusts.
@@ -44,7 +43,6 @@ const LIST_MIN: f32 = 96.;
 
 pub(crate) struct DropdownProps<'a> {
     pub id: DropdownId,
-    pub title: &'static str,
     pub selected: &'a str,
     pub options: &'a [SharedString],
     pub filterable: bool,
@@ -55,16 +53,15 @@ pub(crate) struct DropdownProps<'a> {
     pub viewport_height: Pixels,
 }
 
-/// Compact label + trigger; open list is a deferred popover that flips to stay on screen.
-pub(crate) fn dropdown_row(
+/// Trigger; the open list is a deferred popover that flips to stay on screen.
+pub(crate) fn dropdown_control(
     props: DropdownProps<'_>,
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
     let filtered = filter_options(props.options, props.filterable, props.filter);
     let max_h = popup_max_height(props.viewport_height);
 
-    let panel = div()
+    div()
         .id(SharedString::from(format!("dd-panel-{:?}", props.id)))
         .relative()
         .w(px(PANEL_WIDTH))
@@ -104,22 +101,7 @@ pub(crate) fn dropdown_row(
                         .with_priority(100),
                     ),
             )
-        });
-
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_3()
-        .px_3()
-        .py_2()
-        .child(
-            div()
-                .type_role(TypeRole::Body, cx)
-                .text_color(colors.text)
-                .child(props.title),
-        )
-        .child(panel)
+        })
 }
 
 fn popup_max_height(viewport_height: Pixels) -> Pixels {
@@ -128,33 +110,8 @@ fn popup_max_height(viewport_height: Pixels) -> Pixels {
     half.max(px(LIST_MIN)).min(px(LIST_MAX))
 }
 
-/// Label + `[−] 14 [+]` size control (not a per-point dropdown).
-pub(crate) fn size_row(
-    title: &'static str,
-    target: SizeTarget,
-    size: f32,
-    cx: &mut gpui::Context<SettingsView>,
-) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    div()
-        .id(SharedString::from(format!("size-row-{target:?}")))
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_3()
-        .px_3()
-        .py_2()
-        .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()))
-        .child(
-            div()
-                .type_role(TypeRole::Body, cx)
-                .text_color(colors.text)
-                .child(title),
-        )
-        .child(size_stepper(target, size, cx))
-}
-
-fn size_stepper(
+/// `[−] 14 [+]` size control (not a per-point dropdown).
+pub(crate) fn size_stepper(
     target: SizeTarget,
     size: f32,
     cx: &mut gpui::Context<SettingsView>,

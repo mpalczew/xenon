@@ -11,6 +11,7 @@ mod content;
 mod keyboard;
 mod overlays;
 mod remote;
+mod settings;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scene {
@@ -84,6 +85,10 @@ pub enum Scene {
     ConnectPhoneOffline,
     PhoneDriving,
     SettingsRemote,
+    SettingsEditor,
+    SettingsLanguageServers,
+    SettingsSearch,
+    SettingsLight,
 }
 
 pub const SCENES: &[Scene] = &[
@@ -157,6 +162,10 @@ pub const SCENES: &[Scene] = &[
     Scene::ConnectPhoneOffline,
     Scene::PhoneDriving,
     Scene::SettingsRemote,
+    Scene::SettingsEditor,
+    Scene::SettingsLanguageServers,
+    Scene::SettingsSearch,
+    Scene::SettingsLight,
 ];
 
 const REMOTE_SURFACES: &[&str] = &[
@@ -247,6 +256,10 @@ impl Scene {
             Self::ConnectPhoneOffline => "overlay_connect_phone_no_tailscale",
             Self::PhoneDriving => "content_terminal_phone_fit",
             Self::SettingsRemote => "settings_remote",
+            Self::SettingsEditor => "settings_editor",
+            Self::SettingsLanguageServers => "settings_language_servers",
+            Self::SettingsSearch => "settings_search",
+            Self::SettingsLight => "settings_window_light",
         }
     }
 
@@ -315,17 +328,21 @@ pub fn apply_scene(
         Scene::EditorMenu => overlays::editor_menu(app, window, cx),
         Scene::Rename => overlays::rename(app, window, cx),
         Scene::Memory => overlays::memory(app, window, cx),
-        Scene::SettingsDropdown => overlays::settings_dropdown(app, window, cx),
+        Scene::SettingsDropdown => settings::dropdown(app, window, cx),
         Scene::TabTooltip => overlays::tab_tooltip(app, window, cx),
-        Scene::SettingsWindow => overlays::settings_window(app, cx),
+        Scene::SettingsWindow
+        | Scene::SettingsEditor
+        | Scene::SettingsLanguageServers
+        | Scene::SettingsSearch
+        | Scene::SettingsLight => settings::page(app, scene, cx),
         Scene::SkillPromptDark | Scene::SkillPromptLight => {
             overlays::skill_prompt(app, scene, window, cx)
         }
-        Scene::SettingsAgentsInstalled => overlays::settings_agents_installed(app, cx),
+        Scene::SettingsAgentsInstalled => settings::agents_installed(app, cx),
         Scene::ConnectPhone => remote::connect_phone(app, true, window, cx),
         Scene::ConnectPhoneOffline => remote::connect_phone(app, false, window, cx),
         Scene::PhoneDriving => content::phone_driving(app, window, cx),
-        Scene::SettingsRemote => remote::settings_remote(app, cx),
+        Scene::SettingsRemote => settings::remote(app, cx),
         Scene::WorklistCapture | Scene::WorklistCaptureFilled | Scene::WorklistCaptureLong => {
             chrome::populated(app, scene, window, cx);
             app.capture_worklist(window, cx);
@@ -420,7 +437,7 @@ impl XenonApp {
     }
 }
 
-fn set_theme(mode: ThemeMode, dark: &str, light: &str, cx: &mut Context<XenonApp>) {
+pub(super) fn set_theme(mode: ThemeMode, dark: &str, light: &str, cx: &mut Context<XenonApp>) {
     let mut settings = xenon_settings::snapshot(cx);
     settings.theme = mode;
     settings.dark_theme = dark.to_string();

@@ -4,8 +4,9 @@
 type Check = fn(&mut gpui::VisualTestAppContext) -> anyhow::Result<()>;
 
 pub(crate) fn run_all(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
-    let checks: [(&str, Check); 3] = [
+    let checks: [(&str, Check); 4] = [
         ("keyboard_worklist_escape", shortcuts_survive_worklist_escape),
+        ("keyboard_settings_rows", settings_keys_reach_rows),
         ("keyboard_offscreen_focus", shortcuts_survive_offscreen_focus),
         ("keyboard_stranded_key_replay", stranded_key_is_replayed),
     ];
@@ -42,6 +43,30 @@ pub(crate) fn shortcuts_survive_worklist_escape(cx: &mut gpui::VisualTestAppCont
     }
     let open = window.update(cx, |app, _, _| app.visual_command_palette_open())?;
     ensure!(open, "{}", anyhow!("⌘⇧P did nothing after closing the worklist editor"));
+    Ok(())
+}
+
+/// Settings: ⌘3 opens Editor, arrows reach Wrap prose, Space flips it.
+fn settings_keys_reach_rows(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
+    let window = crate::open_window(cx)?;
+    window.update(cx, |app, window, cx| {
+        xenon_ui::apply_scene(app, xenon_ui::Scene::SettingsWindow, window, cx);
+    })?;
+    cx.run_until_parked();
+    let settings = window
+        .update(cx, |app, _, _| app.visual_settings_window())?
+        .ok_or_else(|| anyhow::anyhow!("settings window missing"))?;
+    let before = cx.update(|cx| xenon_settings::wrap_prose(cx));
+    for keys in ["cmd-3", "down", "down", "space"] {
+        cx.simulate_keystrokes(settings.into(), keys);
+        cx.update_window(settings.into(), |_, window, _| window.refresh())?;
+        cx.run_until_parked();
+    }
+    let after = cx.update(|cx| xenon_settings::wrap_prose(cx));
+    // Put it back for anything that runs later.
+    cx.simulate_keystrokes(settings.into(), "space");
+    cx.run_until_parked();
+    anyhow::ensure!(after != before, "⌘3 ↓ ↓ Space did not toggle Wrap prose");
     Ok(())
 }
 

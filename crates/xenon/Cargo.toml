@@ -39,6 +39,7 @@ gpui_platform.workspace = true
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 xenon_core.workspace = true
+xenon_settings.workspace = true
 xenon_store.workspace = true
 xenon_terminal.workspace = true
 xenon_ui.workspace = true

@@ -59,3 +59,29 @@ pub fn toggle_editor_wrap(path: Option<&Path>, cx: &mut App) {
     }
     cx.set_global(mode);
 }
+
+/// Soft wrap default for Markdown and other prose.
+pub fn wrap_prose(cx: &App) -> bool {
+    current(cx).prose
+}
+
+/// Soft wrap default for every other text file.
+pub fn wrap_code(cx: &App) -> bool {
+    current(cx).code
+}
+
+pub fn toggle_wrap_prose(cx: &mut App) {
+    let mode = current(cx);
+    cx.set_global(WrapMode {
+        prose: !mode.prose,
+        ..mode
+    });
+}
+
+pub fn toggle_wrap_code(cx: &mut App) {
+    let mode = current(cx);
+    cx.set_global(WrapMode {
+        code: !mode.code,
+        ..mode
+    });
+}

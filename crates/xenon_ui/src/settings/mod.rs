@@ -1,65 +1,78 @@
-//! Settings as a dedicated window. Appearance + decoupled editor/terminal fonts.
+//! Settings window: a page sidebar with search, and one page of rows at a time.
+//! Appearance, Fonts, and Editor lead with a live preview of the shell.
 
-use xenon_design_system::{TypeRole, Typography};
-mod remote_edit;
-mod remote_section;
-mod sections;
-mod skill_section;
+mod agents;
+mod appearance;
+mod controls;
+mod dropdowns;
+mod field_edit;
+mod keys;
+mod nav;
+mod page;
+mod pages;
+mod pane;
+mod preview;
+mod remote_page;
+mod row;
+mod row_view;
 
 use gpui::{
-    AnyElement, App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement,
-    Styled, Subscription, Window, div,
+    App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
+    ParentElement, Render, Styled, Subscription, Window, div, point, px,
 };
 use theme::ActiveTheme;
-use xenon_design_system::{FocusOnOpen, TextInputConfig, TextInputEvent, TextInputView};
+use xenon_design_system::{
+    FocusOnOpen, TextInputAppearance, TextInputConfig, TextInputEvent, TextInputView,
+};
 
 use crate::ToggleSettings;
-use crate::dropdown::{
-    DropdownId, SizeTarget, filter_options, mono_font_families, ui_font_families,
-};
-use remote_section::remote_section;
-use sections::{
-    OpenState, appearance_section, apply_dropdown_pick, apply_size_nudge, editor_toggles,
-    font_section, terminal_section,
-};
-use skill_section::skill_section;
-
-use remote_edit::RemoteFieldEdit;
+use crate::dropdown::DropdownId;
+use field_edit::FieldEdit;
+pub(crate) use page::SettingsPage;
+use row::visible_rows;
 
 pub struct SettingsView {
     focus: FocusHandle,
     focus_on_open: FocusOnOpen,
+    page: SettingsPage,
+    /// Keyboard row among `visible_rows` (the page, or search results).
+    row: usize,
+    /// Paint the row focus edge only once the keyboard is driving.
+    keyboard: bool,
+    query: String,
+    search: Entity<TextInputView>,
+    /// Pane child index for each keyboard row, refreshed every paint.
+    row_children: Vec<usize>,
     open: Option<DropdownId>,
     filter: String,
     filter_input: Entity<TextInputView>,
-    _filter_sub: Subscription,
     highlight: usize,
-    /// Keyboard highlight among rows: 0 line numbers, 1 vim, 2 phone remote,
-    /// 3 agent skill, 4+ phone remote rows (see `remote_section`).
-    toggle_focus: usize,
-    /// Inline edit for the phone address override (None = not editing).
-    remote_edit: Option<RemoteFieldEdit>,
+    field_edit: Option<FieldEdit>,
     /// This window's toast host, created on first render (it needs the window).
     toast: Option<Entity<xenon_design_system::ToastView>>,
     scroll: gpui::ScrollHandle,
+    _subscriptions: [Subscription; 2],
 }
 
 impl SettingsView {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let filter_input = cx.new(|cx| {
             TextInputView::new(
                 TextInputConfig::single_line("Type to filter…").parent_navigation(),
                 cx,
             )
         });
-        let filter_sub = cx.subscribe(&filter_input, |this, _, event, cx| {
-            if let TextInputEvent::Changed(filter) = event {
-                this.filter = filter.clone();
-                this.highlight = 0;
-                cx.notify();
-            }
+        let search = cx.new(|cx| {
+            TextInputView::new(
+                TextInputConfig::single_line("Search settings")
+                    .appearance(TextInputAppearance::Inline)
+                    .min_height(px(18.))
+                    .parent_navigation(),
+                cx,
+            )
         });
+        let filter_sub = cx.subscribe_in(&filter_input, window, Self::on_filter_event);
+        let search_sub = cx.subscribe_in(&search, window, Self::on_search_event);
         // Full system font scans are deferred and never run on paint / key path.
         cx.spawn(async move |this, cx| {
             this.update(cx, |_this, cx| {
@@ -76,244 +89,141 @@ impl SettingsView {
         Self {
             focus,
             focus_on_open,
+            page: SettingsPage::Appearance,
+            row: 0,
+            keyboard: false,
+            query: String::new(),
+            search,
+            row_children: Vec::new(),
             open: None,
             filter: String::new(),
             filter_input,
-            _filter_sub: filter_sub,
             highlight: 0,
-            toggle_focus: 0,
-            remote_edit: None,
+            field_edit: None,
             toast: None,
             scroll: gpui::ScrollHandle::new(),
+            _subscriptions: [filter_sub, search_sub],
         }
     }
 
-    pub(crate) fn toggle_dropdown(
+    pub(crate) fn show_page(
         &mut self,
-        id: DropdownId,
+        page: SettingsPage,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.open == Some(id) {
-            self.close_dropdown(window, cx);
-        } else {
-            self.open = Some(id);
-            self.filter.clear();
-            self.highlight = 0;
-            if is_filterable(id) {
-                self.filter_input.update(cx, |input, cx| {
-                    input.set_text("", cx);
-                    input.open(cx);
-                });
-            } else {
-                self.focus.focus(window, cx);
-            }
-        }
-        cx.notify();
+        self.reveal(page, 0, window, cx);
     }
 
-    pub(crate) fn pick_dropdown(
+    /// Leave search and put the keyboard on one row of a page.
+    fn reveal(
         &mut self,
-        id: DropdownId,
-        value: String,
+        page: SettingsPage,
+        row: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        apply_dropdown_pick(id, value, cx);
-        self.close_dropdown(window, cx);
+        self.set_query(String::new(), cx);
+        self.dismiss_dropdown(window, cx);
+        if self.page != page {
+            self.scroll.set_offset(point(px(0.), px(0.)));
+        }
+        self.page = page;
+        self.row = row;
+        self.focus.focus(window, cx);
+        self.scroll_to_row();
         cx.notify();
     }
 
-    pub(crate) fn nudge_font_size(
-        &mut self,
-        target: SizeTarget,
-        delta: f32,
-        cx: &mut Context<Self>,
-    ) {
-        apply_size_nudge(target, delta, cx);
+    fn focus_row(&mut self, row: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.row = row;
+        self.keyboard = false;
+        if self.field_edit.is_none() && self.open.is_none() {
+            self.focus.focus(window, cx);
+        }
         cx.notify();
     }
 
-    pub(crate) fn dismiss_dropdown(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.open.is_some() {
-            self.close_dropdown(window, cx);
-            cx.notify();
+    fn scroll_to_row(&self) {
+        if let Some(&child) = self.row_children.get(self.row) {
+            self.scroll.scroll_to_item(child);
         }
     }
 
-    fn close_dropdown(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.open = None;
-        self.filter.clear();
-        self.highlight = 0;
+    fn focus_search(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.search.update(cx, |input, cx| input.open(cx));
+    }
+
+    fn start_search(&mut self, typed: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.search
+            .update(cx, |input, cx| input.set_text(typed, cx));
+        self.set_query(typed.to_string(), cx);
+        self.focus_search(window, cx);
+    }
+
+    fn clear_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_query(String::new(), cx);
         self.focus.focus(window, cx);
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.handle_remote_edit_key(event, window, cx) {
-            return;
+    fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
+        if query.is_empty() {
+            self.search.update(cx, |input, cx| input.set_text("", cx));
         }
-        let Some(id) = self.open else {
-            match event.keystroke.key.as_str() {
-                "escape" => {
-                    window.remove_window();
-                    cx.stop_propagation();
-                }
-                "up" => {
-                    self.toggle_focus = self.toggle_focus.saturating_sub(1);
-                    cx.notify();
-                    cx.stop_propagation();
-                }
-                "down" => {
-                    let last =
-                        remote_section::last_focus(&crate::app::remote::mobile_remote_info(cx));
-                    self.toggle_focus = (self.toggle_focus + 1).min(last);
-                    cx.notify();
-                    cx.stop_propagation();
-                }
-                "enter" | " " => {
-                    self.activate_focused_toggle(window, cx);
-                    cx.stop_propagation();
-                }
-                _ => {}
-            }
-            return;
-        };
-        match event.keystroke.key.as_str() {
-            "escape" => {
-                self.close_dropdown(window, cx);
-                cx.notify();
-                cx.stop_propagation();
-            }
-            "enter" => {
-                if let Some(value) = self.filtered_options(id, cx).get(self.highlight).cloned() {
-                    self.pick_dropdown(id, value.to_string(), window, cx);
-                }
-                cx.stop_propagation();
-            }
-            "up" => {
-                self.move_highlight(id, -1, cx);
-                cx.stop_propagation();
-            }
-            "down" => {
-                self.move_highlight(id, 1, cx);
-                cx.stop_propagation();
-            }
-            _ => {}
+        if self.query != query {
+            self.query = query;
+            self.row = 0;
+            self.scroll.set_offset(point(px(0.), px(0.)));
         }
-    }
-
-    fn activate_focused_toggle(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        match self.toggle_focus {
-            0 => {
-                xenon_settings::toggle_line_numbers(cx);
-                xenon_settings::save(cx);
-            }
-            1 => {
-                xenon_settings::toggle_vim_mode(cx);
-                xenon_settings::save(cx);
-            }
-            3 => skill_section::toggle_skill(window, cx),
-            focus => {
-                let info = crate::app::remote::mobile_remote_info(cx);
-                remote_section::activate(focus, &info, cx);
-                // The device list just changed under the highlight: never
-                // leave it on another destructive row.
-                if focus >= remote_section::FOCUS_FIRST_DEVICE {
-                    self.toggle_focus = remote_section::FOCUS_CONNECT;
-                }
-            }
-        }
-        window.refresh();
         cx.notify();
     }
 
-    fn move_highlight(&mut self, id: DropdownId, delta: isize, cx: &mut Context<Self>) {
-        let len = self.filtered_options(id, cx).len();
-        if len == 0 {
-            self.highlight = 0;
-            return;
+    fn on_search_event(
+        &mut self,
+        _: &Entity<TextInputView>,
+        event: &TextInputEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            TextInputEvent::Changed(query) => self.set_query(query.clone(), cx),
+            TextInputEvent::ParentKey { key, .. } => match key.as_str() {
+                "enter" => {
+                    let hit = visible_rows(self.page, &self.query, cx)
+                        .into_iter()
+                        .nth(self.row);
+                    if let Some(hit) = hit {
+                        self.reveal(hit.page, hit.index, window, cx);
+                    }
+                }
+                "tab" => self.focus.focus(window, cx),
+                "escape" => self.clear_search(window, cx),
+                key => {
+                    self.keyboard |= self.navigate(key, window, cx);
+                }
+            },
+            TextInputEvent::Submit(_) | TextInputEvent::Cancel => {}
         }
-        let next = self.highlight as isize + delta;
-        self.highlight = next.clamp(0, (len - 1) as isize) as usize;
-        cx.notify();
-    }
-
-    fn filtered_options(&self, id: DropdownId, cx: &App) -> Vec<SharedString> {
-        filter_options(&options_for(id, cx), is_filterable(id), &self.filter)
-    }
-
-    fn body(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let settings = xenon_settings::snapshot(cx);
-        // Cache only / seed list — never full system scan during paint.
-        let mono = mono_font_families(cx);
-        let ui = ui_font_families(cx);
-        let state = OpenState {
-            open: self.open,
-            filter: self.filter.as_str(),
-            filter_input: &self.filter_input,
-            highlight: self.highlight,
-            viewport_height: window.viewport_size().height,
-        };
-        div()
-            .id("settings-body")
-            .track_scroll(&self.scroll)
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
-            .on_click(cx.listener(|this, _, window, cx| {
-                this.dismiss_dropdown(window, cx);
-            }))
-            .child(appearance_section(&settings, cx))
-            .child(skill_section(self.toggle_focus == 3, cx))
-            .child(font_section(
-                "UI Font",
-                DropdownId::UiFamily,
-                SizeTarget::Ui,
-                &settings.ui_font_family,
-                settings.ui_font_size,
-                &ui,
-                state,
-                cx,
-            ))
-            .child(font_section(
-                "Editor Font",
-                DropdownId::EditorFamily,
-                SizeTarget::Editor,
-                &settings.editor_font_family,
-                settings.editor_font_size,
-                &mono,
-                state,
-                cx,
-            ))
-            .child(font_section(
-                "Terminal Font",
-                DropdownId::TerminalFamily,
-                SizeTarget::Terminal,
-                &settings.terminal_font_family,
-                settings.terminal_font_size,
-                &mono,
-                state,
-                cx,
-            ))
-            .child(editor_toggles(self.toggle_focus, cx))
-            .child(terminal_section(&settings, state, cx))
-            .child(remote_section(
-                &crate::app::remote::mobile_remote_info(cx),
-                self.toggle_focus,
-                self.remote_edit.as_ref().map(|re| re.input.clone()),
-                cx,
-            ))
-            .into_any_element()
     }
 }
 
 #[cfg(feature = "visual-tests")]
 impl SettingsView {
-    /// Visual tests: show the bottom sections (Phone Remote, devices).
-    pub fn visual_scroll_to_end(&self) {
-        self.scroll.scroll_to_bottom();
+    /// Visual tests: open a page, or search results for `query`.
+    pub fn visual_show(
+        &mut self,
+        page: SettingsPage,
+        query: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.show_page(page, window, cx);
+        self.keyboard = !query.is_empty();
+        if !query.is_empty() {
+            self.search
+                .update(cx, |input, cx| input.set_text(query, cx));
+            self.set_query(query.to_string(), cx);
+        }
     }
 }
 
@@ -330,7 +240,9 @@ impl Render for SettingsView {
         let ui = xenon_settings::ui_font(cx);
         window.set_rem_size(gpui::px(ui.size));
         let colors = cx.theme().colors().clone();
-        let body = self.body(window, cx);
+        let selected = self.query.is_empty().then_some(self.page);
+        let sidebar = nav::sidebar(selected, &self.search, remote_page::is_on(cx), cx);
+        let pane = self.pane(window, cx);
         let toast = self
             .toast
             .get_or_insert_with(|| xenon_design_system::toast_host(gpui::px(0.), window, cx))
@@ -344,41 +256,12 @@ impl Render for SettingsView {
             .on_key_down(cx.listener(Self::on_key))
             .relative()
             .flex()
-            .flex_col()
             .size_full()
             .bg(colors.background)
             .text_color(colors.text)
             .font_family(ui.family)
-            .child(
-                div()
-                    .px_4()
-                    .py_3()
-                    .border_b_1()
-                    .border_color(colors.border)
-                    .child(div().type_role(TypeRole::ScreenTitle, cx).child("Settings")),
-            )
-            .child(body)
+            .child(sidebar)
+            .child(pane)
             .child(toast)
-    }
-}
-
-pub(super) fn is_filterable(id: DropdownId) -> bool {
-    !matches!(id, DropdownId::TerminalAutoClose)
-}
-
-fn options_for(id: DropdownId, cx: &App) -> Vec<SharedString> {
-    match id {
-        DropdownId::UiFamily => ui_font_families(cx),
-        DropdownId::EditorFamily | DropdownId::TerminalFamily => mono_font_families(cx),
-        DropdownId::TerminalAutoClose => [
-            xenon_settings::TerminalAutoClose::Off,
-            xenon_settings::TerminalAutoClose::Immediate,
-            xenon_settings::TerminalAutoClose::After1s,
-            xenon_settings::TerminalAutoClose::After3s,
-            xenon_settings::TerminalAutoClose::After5s,
-        ]
-        .into_iter()
-        .map(|m| SharedString::from(m.label()))
-        .collect(),
     }
 }

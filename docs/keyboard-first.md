@@ -29,6 +29,8 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 | Markdown preview / previous · next heading | ⌘⇧V / [ · ] |
 | Wrap lines | ⌥Z |
 | Themes | ⌘⌥T |
+| Settings: page · row · value · toggle | ⌘1–⌘7 · ↑/↓ · ←/→ (segments, sizes, theme swatches) · Space/Return |
+| Settings: search · back out | ⌘F or just type · Escape (dropdown, then search, then window) |
 | Connect Phone sheet · copy link · close | ⌘⇧M · ⌘C · Escape / Return |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
 

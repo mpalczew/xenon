@@ -8,7 +8,7 @@ use theme::FontFamilyCache;
 use super::DropdownId;
 
 fn is_mono_family_dropdown(id: DropdownId) -> bool {
-    matches!(id, DropdownId::EditorFamily | DropdownId::TerminalFamily)
+    matches!(id, DropdownId::Editor | DropdownId::Terminal)
 }
 
 /// GPUI advertises `.ZedMono` / `.ZedSans` even when those files are not loaded.
@@ -20,7 +20,7 @@ fn is_virtual_family(name: &str) -> bool {
 }
 
 fn is_ui_family_dropdown(id: DropdownId) -> bool {
-    matches!(id, DropdownId::UiFamily)
+    matches!(id, DropdownId::Ui)
 }
 
 pub(super) fn family_option_label(id: DropdownId, name: &str) -> String {

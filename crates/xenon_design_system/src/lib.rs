@@ -28,6 +28,7 @@ mod overlay;
 mod palette_input;
 mod query_row;
 mod selectable_row;
+mod switch;
 mod text_field;
 mod text_input;
 mod toast;
@@ -45,6 +46,7 @@ pub use overlay::{OverlayLayout, PaletteOverlay, palette_overlay};
 pub use palette_input::{PaletteInput, palette_input};
 pub use query_row::{QueryRow, query_hint, query_hint_action, query_label, query_row};
 pub use selectable_row::selectable_row;
+pub use switch::{SwitchState, switch};
 pub use text_input::{
     TextInputAppearance, TextInputConfig, TextInputEvent, TextInputKeyBehavior, TextInputView,
 };

@@ -441,7 +441,7 @@ fn persist_enabled(on: bool) {
     }
 }
 
-fn effective_port(saved: u16) -> u16 {
+pub(crate) fn effective_port(saved: u16) -> u16 {
     std::env::var("XENON_REMOTE_PORT")
         .ok()
         .and_then(|s| s.parse().ok())

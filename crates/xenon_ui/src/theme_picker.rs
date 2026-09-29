@@ -399,7 +399,7 @@ fn live_theme_name(cx: &App) -> String {
 }
 
 /// Store the pick in its light/dark slot. Repaint only when that slot is on screen.
-fn apply_named_theme(name: &str, appearance: Appearance, cx: &mut App) {
+pub(crate) fn apply_named_theme(name: &str, appearance: Appearance, cx: &mut App) {
     let mut settings = xenon_settings::snapshot(cx);
     match appearance {
         Appearance::Light => settings.light_theme = name.to_string(),

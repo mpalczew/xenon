@@ -158,7 +158,9 @@ pub fn toggle_line_numbers(cx: &mut App) {
     set_show_line_numbers(cx, !show_line_numbers(cx));
 }
 
-pub use wrap::{editor_wraps, toggle_editor_wrap};
+pub use wrap::{
+    editor_wraps, toggle_editor_wrap, toggle_wrap_code, toggle_wrap_prose, wrap_code, wrap_prose,
+};
 
 pub fn vim_mode(cx: &App) -> bool {
     cx.try_global::<VimMode>()

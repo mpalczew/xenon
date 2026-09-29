@@ -3,7 +3,7 @@
 
 use super::*;
 
-fn with_main(cx: &mut App, f: impl FnOnce(&mut XenonApp, &mut Context<XenonApp>)) {
+pub(crate) fn with_main(cx: &mut App, f: impl FnOnce(&mut XenonApp, &mut Context<XenonApp>)) {
     let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) else {
         log::warn!("phone remote: main app handle missing");
         return;

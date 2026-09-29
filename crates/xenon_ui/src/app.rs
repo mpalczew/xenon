@@ -51,6 +51,7 @@ mod key_events;
 mod keyboard;
 mod live;
 mod lsp;
+pub(crate) use lsp::settings_set_lsp;
 pub(crate) mod memory;
 mod nav_history;
 mod nav_ops;

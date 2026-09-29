@@ -224,17 +224,24 @@ fn run_scene(
             | xenon_ui::Scene::SettingsDropdown
             | xenon_ui::Scene::SettingsAgentsInstalled
             | xenon_ui::Scene::SettingsRemote
+            | xenon_ui::Scene::SettingsEditor
+            | xenon_ui::Scene::SettingsLanguageServers
+            | xenon_ui::Scene::SettingsSearch
+            | xenon_ui::Scene::SettingsLight
     ) {
         let settings = window
             .update(cx, |app, _, _| app.visual_settings_window())?
             .ok_or_else(|| anyhow!("{name}: settings window missing"))?;
+        // Park the pointer in empty pane space: a leftover position from an
+        // earlier scene would otherwise hover a sidebar row at random.
+        cx.simulate_mouse_move(
+            settings.into(),
+            gpui::point(px(810.0), px(550.0)),
+            None,
+            Modifiers::none(),
+        );
         cx.update_window(settings.into(), |_, window, _| window.refresh())?;
         cx.run_until_parked();
-        if scene == xenon_ui::Scene::SettingsRemote {
-            settings.update(cx, |view, _, _| view.visual_scroll_to_end())?;
-            cx.update_window(settings.into(), |_, window, _| window.refresh())?;
-            cx.run_until_parked();
-        }
         cx.capture_screenshot(settings.into())?
     } else {
         cx.capture_screenshot(window.into())?

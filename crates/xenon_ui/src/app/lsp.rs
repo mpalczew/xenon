@@ -14,8 +14,10 @@ use super::XenonApp;
 
 mod discovery;
 mod navigation;
+mod reload;
 mod state;
 use discovery::{collect_editors, executable_on_path, has_root_marker, language_for_path};
+pub(crate) use reload::settings_set_lsp;
 use state::LspDocumentState;
 pub(super) use state::LspState;
 
