@@ -16,14 +16,19 @@ mod find_bar;
 mod find_session;
 mod input;
 mod paths;
+mod remote;
 mod render;
 #[cfg(feature = "visual-tests")]
 mod visual;
 pub(crate) use input::pty_input_bytes;
+pub use remote::{
+    CellAttrs, LOCAL_QUIET, PhoneFit, ScreenCell, ScreenCursor, ScreenCursorShape, ScreenSnapshot,
+    WIDE_SPACER, remote_theme_colors,
+};
 
 use std::ops::Range;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use xenon_design_system::{Toast, show_toast};
 
 use anyhow::Result;
@@ -181,6 +186,12 @@ pub struct TerminalView {
     working: bool,
     /// Debounce that fires `on_idle` once output has been quiet for `IDLE_AFTER`.
     _idle_check: Task<()>,
+    /// Grid a phone asked for while it drives this tab (see `remote`).
+    phone_fit: Option<PhoneFit>,
+    /// Last Mac keyboard input; suspends the phone fit for `LOCAL_QUIET`.
+    local_input_at: Option<Instant>,
+    /// Re-applies the phone fit once the Mac has been quiet.
+    _phone_fit_timer: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -230,6 +241,9 @@ impl TerminalView {
             wakeups: 0,
             working: false,
             _idle_check: Task::ready(()),
+            phone_fit: None,
+            local_input_at: None,
+            _phone_fit_timer: Task::ready(()),
             _subscriptions: Vec::new(),
         }
     }
@@ -496,6 +510,9 @@ impl TerminalView {
     /// True while the PTY is still on the tiny pre-layout default (~6 rows).
     /// Fresh spawns stay here until the view paints (or `ensure_grid_size` runs).
     pub fn needs_layout_size(&self, cx: &App) -> bool {
+        if self.active_phone_fit().is_some() {
+            return false;
+        }
         match self.grid_size(cx) {
             Some((cols, rows)) => cols < 40 || rows < 12,
             None => false,
@@ -507,14 +524,18 @@ impl TerminalView {
     ///
     /// Preserves cell metrics when they look real; otherwise uses 8×16 px cells.
     pub fn ensure_grid_size(&mut self, cols: u16, rows: u16, cx: &mut Context<Self>) {
+        if self.needs_layout_size(cx) {
+            self.force_grid_size(cols, rows, cx);
+        }
+    }
+
+    /// Set the PTY grid directly, keeping real cell metrics when known.
+    fn force_grid_size(&mut self, cols: u16, rows: u16, cx: &mut Context<Self>) {
         let cols = cols.max(20);
         let rows = rows.max(8);
         let State::Ready(terminal) = &self.state else {
             return;
         };
-        if !self.needs_layout_size(cx) {
-            return;
-        }
         let terminal = terminal.clone();
         terminal.update(cx, |terminal, _| {
             let snap = terminal.last_content();
@@ -605,6 +626,7 @@ impl TerminalView {
         };
         let terminal = terminal.clone();
         self.note_interaction(cx);
+        self.note_local_input(cx);
         let keystroke = &event.keystroke;
         let handled = terminal.update(cx, |terminal, _| terminal.try_keystroke(keystroke, false));
         if handled {

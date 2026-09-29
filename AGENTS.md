@@ -76,8 +76,10 @@ Crates under `crates/`:
   `crates/xenon_ide/PROTOCOL.md`.
 - `xenon_lsp` — runtime-neutral stdio JSON-RPC client/host for Rust and
   TypeScript navigation, highlights, and diagnostics.
-- `xenon_remote` — optional local HTTP service for phone-sized terminal
-  viewport and input over LAN/Tailscale.
+- `xenon_remote` — phone remote: HTTP + WebSocket server (Tailscale +
+  loopback by default), device pairing, cell-grid frame diffs, and the phone
+  PWA (`page.html`). Host side: `xenon_ui/src/app/remote/`. Design:
+  `docs/designs/mobile-remote-v2.md`.
 - Project tasks: only `xenon` and `install` in `.vscode/tasks.json` (Run Task
   palette cmd-shift-r; `project <label>` from any shell). Build/test/fmt/lint
   are plain cargo (or `scripts/health`); do not invent extra `project` labels.

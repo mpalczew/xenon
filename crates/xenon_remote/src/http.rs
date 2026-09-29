@@ -6,8 +6,6 @@ use std::net::TcpStream;
 
 use anyhow::{Result, anyhow};
 
-use crate::host::ViewportSnapshot;
-
 pub(crate) fn split_http(head: &str) -> Result<(&str, HashMap<String, String>, usize)> {
     let header_end = head
         .find("\r\n\r\n")
@@ -38,17 +36,8 @@ pub(crate) fn split_path_query(path_q: &str) -> (&str, &str) {
     }
 }
 
-pub(crate) fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
-    for pair in query.split('&') {
-        let mut it = pair.splitn(2, '=');
-        let k = it.next()?;
-        let v = it.next().unwrap_or("");
-        if k == key {
-            return Some(v);
-        }
-    }
-    None
-}
+/// Largest request body accepted (pairing JSON is tiny).
+const MAX_BODY: usize = 8 * 1024;
 
 pub(crate) fn extract_body(
     first: &[u8],
@@ -60,6 +49,9 @@ pub(crate) fn extract_body(
         .get("content-length")
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(0);
+    if clen > MAX_BODY {
+        return Err(anyhow!("request body too large"));
+    }
     let mut body = Vec::new();
     if body_start < first.len() {
         body.extend_from_slice(&first[body_start..]);
@@ -87,11 +79,14 @@ pub(crate) fn write_http(
         204 => "No Content",
         400 => "Bad Request",
         401 => "Unauthorized",
+        403 => "Forbidden",
         404 => "Not Found",
+        429 => "Too Many Requests",
+        503 => "Service Unavailable",
         _ => "Error",
     };
     let header = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\n\r\n",
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n",
         body.len()
     );
     stream.write_all(header.as_bytes())?;
@@ -99,42 +94,18 @@ pub(crate) fn write_http(
     Ok(())
 }
 
-pub(crate) fn write_http_status(
-    stream: &mut TcpStream,
-    status: u16,
-    reason: &str,
-    extra: &[(&str, &str)],
-) -> Result<()> {
-    let mut header = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Length: 0\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\n"
+/// `101 Switching Protocols` for a WebSocket upgrade.
+pub(crate) fn write_ws_accept(stream: &mut TcpStream, accept_key: &str) -> Result<()> {
+    let header = format!(
+        "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept_key}\r\n\r\n"
     );
-    for (k, v) in extra {
-        header.push_str(k);
-        header.push_str(": ");
-        header.push_str(v);
-        header.push_str("\r\n");
-    }
-    header.push_str("\r\n");
     stream.write_all(header.as_bytes())?;
     Ok(())
 }
 
-pub(crate) fn write_png_frame(
-    stream: &mut TcpStream,
-    snap: &ViewportSnapshot,
-    png: &[u8],
-) -> Result<()> {
-    let header = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nX-Xenon-Seq: {}\r\nX-Xenon-TabId: {}\r\nX-Xenon-Cols: {}\r\nX-Xenon-Rows: {}\r\n\r\n",
-        png.len(),
-        snap.seq,
-        snap.tab_id,
-        snap.cols,
-        snap.rows
-    );
-    stream.write_all(header.as_bytes())?;
-    stream.write_all(png)?;
-    Ok(())
+pub(crate) fn write_json_error(stream: &mut TcpStream, status: u16, msg: &str) -> Result<()> {
+    let body = serde_json::json!({ "error": msg }).to_string();
+    write_http(stream, status, "application/json", body.as_bytes())
 }
 
 pub(crate) fn urlencoding_decode(s: &str) -> String {

@@ -1,34 +1,23 @@
-//! Remote hostname/password editing in Settings.
+//! Phone remote address-override editing in Settings.
 
 use gpui::{AppContext, Context, Entity, KeyDownEvent, Window};
 use xenon_design_system::{TextInputAppearance, TextInputConfig, TextInputView};
 
 use super::SettingsView;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum RemoteEditField {
-    Password,
-    Hostname,
-}
-
 pub(super) struct RemoteFieldEdit {
-    pub(super) field: RemoteEditField,
     pub(super) input: Entity<TextInputView>,
 }
 
 impl SettingsView {
-    pub(super) fn begin_remote_edit(
+    pub(super) fn begin_hostname_edit(
         &mut self,
-        field: RemoteEditField,
         current: String,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.dismiss_dropdown(window, cx);
-        let placeholder = match field {
-            RemoteEditField::Password => "Enter password…",
-            RemoteEditField::Hostname => "e.g. macbook.tailnet.ts.net",
-        };
+        let placeholder = "e.g. macbook.tailnet.ts.net";
         let input = cx.new(|cx| {
             TextInputView::new(
                 TextInputConfig::single_line(placeholder)
@@ -41,41 +30,16 @@ impl SettingsView {
             input.set_text(current, cx);
             input.open(cx);
         });
-        self.remote_edit = Some(RemoteFieldEdit { field, input });
+        self.remote_edit = Some(RemoteFieldEdit { input });
         cx.notify();
     }
 
-    pub(super) fn begin_password_edit(
-        &mut self,
-        current: String,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.begin_remote_edit(RemoteEditField::Password, current, window, cx);
-    }
-
-    pub(super) fn begin_hostname_edit(
-        &mut self,
-        current: String,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.begin_remote_edit(RemoteEditField::Hostname, current, window, cx);
-    }
-
     pub(super) fn commit_remote_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(RemoteFieldEdit { field, input }) = self.remote_edit.take() else {
+        let Some(RemoteFieldEdit { input }) = self.remote_edit.take() else {
             return;
         };
         let value = input.read(cx).text().to_owned();
-        match field {
-            RemoteEditField::Password => {
-                crate::app::remote::set_remote_password(value, window, cx);
-            }
-            RemoteEditField::Hostname => {
-                crate::app::remote::set_remote_hostname(value, window, cx);
-            }
-        }
+        crate::app::remote::set_remote_hostname(value, window, cx);
         self.focus.focus(window, cx);
         window.refresh();
         cx.notify();

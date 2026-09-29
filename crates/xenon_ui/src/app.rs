@@ -84,6 +84,7 @@ use deferred::{DeferredUi, FocusOwner, FontPane};
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use lsp::LspState;
 use nav_history::NavHistory;
+pub(crate) use remote::RemoteFooter;
 use services::AppServices;
 
 /// Open tab context menu (right-click on a tab chip).
@@ -209,6 +210,8 @@ pub struct XenonApp {
     skip_persist: bool,
     skill_prompt: Option<skill_prompt::SkillPrompt>,
     skill_skipped_session: bool,
+    /// Connect Phone sheet (⌘⇧M), while open.
+    pairing_sheet: Option<remote::pairing_sheet::PairingSheet>,
 }
 
 impl XenonApp {

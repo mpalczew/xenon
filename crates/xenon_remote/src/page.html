@@ -1,391 +1,1129 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"/>
-<title>Xenon Remote</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Xenon">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark light">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<title>Xenon</title>
 <style>
-  :root { color-scheme: dark; --bg:#0b0b0c; --fg:#e8e8ea; --muted:#8a8a90; --border:#2a2a2e; --accent:#6c9eff; --err:#f66; --ok:#6c6; }
-  * { box-sizing: border-box; }
-  html, body { margin:0; padding:0; height:100%; max-width:100%; }
-  body {
-    font-family: system-ui, -apple-system, sans-serif;
-    background:var(--bg); color:var(--fg);
-    min-height:100dvh; height:100dvh;
-    display:flex; flex-direction:column; width:100%;
-    overflow:hidden;
-  }
-  #app {
-    flex:1; min-height:0; width:100%;
-    display:flex; flex-direction:column;
-    overflow:hidden;
-  }
-  #app[hidden], #auth[hidden], #status[hidden], #input-bar[hidden], #back[hidden] {
-    display:none !important;
-  }
-  header {
-    flex:0 0 auto;
-    padding:10px 12px; border-bottom:1px solid var(--border);
-    display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%;
-  }
-  header button { background:transparent; border:1px solid var(--border); color:var(--fg); border-radius:8px; padding:6px 10px; font-size:14px; }
-  #crumb { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  main {
-    flex:1 1 auto; min-height:0; width:100%; max-width:100%;
-    overflow-x:hidden; overflow-y:auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  main.session {
-    padding:0;
-    display:block;
-    background:#000;
-  }
-  main.list-pad { padding:12px; }
-  .list button { display:block; width:100%; text-align:left; margin:0 0 8px; padding:12px; border-radius:10px; border:1px solid var(--border); background:#141416; color:var(--fg); font-size:15px; }
-  .list button small { display:block; color:var(--muted); margin-top:4px; font-size:12px; word-break:break-all; }
-  /* Full PNG visible: scale to width, scroll vertically if taller than viewport */
-  #term-img {
-    display:block;
-    width:100%;
-    max-width:100%;
-    height:auto;
-    object-fit:contain;
-    object-position:top left;
-    background:#000;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-  }
-  #status {
-    flex:0 0 auto;
-    font-size:12px; padding:4px 12px; min-height:1.2em; width:100%;
-  }
-  #input-bar {
-    flex:0 0 auto;
-    display:flex; gap:8px; padding:10px 12px;
-    border-top:1px solid var(--border); width:100%; max-width:100%;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-  }
-  #input-bar form { display:flex; gap:8px; flex:1; margin:0; width:100%; min-width:0; }
-  #input-bar input { flex:1; min-width:0; font-size:16px; padding:10px; border-radius:8px; border:1px solid var(--border); background:#141416; color:var(--fg); }
-  #input-bar button { padding:10px 14px; border-radius:8px; border:0; background:var(--accent); color:#000; font-weight:600; flex-shrink:0; }
-  .muted { color:var(--muted); }
-  .err { color:var(--err); }
-  .ok { color:var(--ok); }
-  #auth { max-width:360px; margin:48px auto; padding:20px; width:100%; flex:0 0 auto;
-          border:1px solid var(--border); border-radius:14px; background:#141416; }
-  #auth h1 { letter-spacing:-0.02em; }
-  #auth input { width:100%; font-size:16px; padding:10px; margin:8px 0 12px; border-radius:8px; border:1px solid var(--border); background:#0b0b0c; color:var(--fg); }
-  #auth button { width:100%; padding:12px; border:0; border-radius:8px; background:var(--accent); color:#000; font-weight:600; font-size:16px; }
+/* ===== Tokens: One Dark, as Xenon ships it. Theme bg/fg arrive in `ready`. ===== */
+:root {
+  --canvas:#000; --chrome:#0d0e11; --panel:#1e2128; --panel-2:#252932; --line:#353a44; --hair:#15171c;
+  --text:#dcdfe4; --muted:#9aa2b1; --faint:#5f6776;
+  --accent:#61afef; --accent-dim:#1c3347; --on-accent:#0b1a28;
+  --warn:#e5c07b; --warn-dim:#3d3220; --ok:#98c379; --err:#e06c75;
+  --term-bg:#000; --term-fg:#abb2bf; --cursor:#dcdfe4;
+  --num-bg:#1b2230; --num-line:#2e3a4d; --enter-line:#3f8fd0; --focus-line:#3f6488; --ok-halo:rgba(152,195,121,.18);
+  --glow:rgba(97,175,239,.2); --shadow:rgba(0,0,0,.5); --icon-bg:#000;
+  --mono:"SF Mono", ui-monospace, Menlo, monospace;
+  --ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --sat:env(safe-area-inset-top, 0px); --sab:env(safe-area-inset-bottom, 0px);
+  --sal:env(safe-area-inset-left, 0px); --sar:env(safe-area-inset-right, 0px);
+  color-scheme:dark;
+}
+/* Light chrome: chosen from ready.theme.bg luminance, or prefers-color-scheme before `ready`. */
+:root.light {
+  --canvas:#fff; --chrome:#f3f4f6; --panel:#eef0f3; --panel-2:#fff; --line:#d3d7de; --hair:#eceef2;
+  --text:#1f2329; --muted:#5c6370; --faint:#8a919c;
+  --accent:#2f6fd6; --accent-dim:#dfe9fb; --on-accent:#fff;
+  --warn:#8f5f00; --warn-dim:#fbefd2; --ok:#2e8b3a; --err:#c8323c;
+  --term-bg:#fff; --term-fg:#2a2c33; --cursor:#5c78e2;
+  --num-bg:#e9f0fc; --num-line:#bcd0f3; --enter-line:#2659b0; --focus-line:#8fb0e8; --ok-halo:rgba(46,139,58,.18);
+  --glow:rgba(47,111,214,.15); --shadow:rgba(0,0,0,.15); --icon-bg:#fff;
+  color-scheme:light;
+}
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { margin:0; height:100%; background:var(--canvas); color:var(--text); font-family:var(--ui); line-height:1.4; overflow:hidden; }
+button { font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; cursor:pointer; touch-action:manipulation; }
+button:disabled { cursor:default; }
+[hidden] { display:none !important; }
+
+#app { position:fixed; left:0; right:0; top:var(--app-top, 0px); height:var(--app-h, 100dvh);
+  display:flex; flex-direction:column; padding:var(--sat) var(--sar) 0 var(--sal); }
+.view { flex:1; min-height:0; display:flex; flex-direction:column; }
+
+/* ===== Header ===== */
+.hdr { flex:none; display:flex; align-items:center; gap:8px; min-height:48px; padding:4px 16px 4px; border-bottom:1px solid var(--line); }
+.hdr .back { width:40px; height:40px; margin-left:-12px; color:var(--accent); font-size:28px; line-height:1; display:grid; place-items:center; }
+.hdr .title { font-size:17px; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hdr .crumb { color:var(--muted); font-weight:500; }
+.conn { flex:none; width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px var(--ok-halo); }
+.conn.off { background:var(--faint); box-shadow:none; }
+.scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:var(--sab); }
+
+/* ===== Lists (workspaces, terminals) ===== */
+.sect { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:18px 16px 6px; }
+.ws { width:100%; text-align:left; display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--hair); min-height:64px; }
+.ws:active { background:var(--panel); }
+.rail { width:3px; align-self:stretch; border-radius:2px; flex:none; }
+.rail.attention { background:var(--warn); }
+.rail.working { background:var(--accent); animation:pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity:.35; } }
+.ws .body { flex:1; min-width:0; }
+.ws .name { font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ws .path { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ws .meta { font-size:12px; color:var(--muted); text-align:right; white-space:nowrap; line-height:1.6; }
+.ws .chev { color:var(--faint); font-size:18px; }
+.ws.closed .name { color:var(--muted); font-weight:500; }
+.tag { display:inline-block; padding:1px 7px; border-radius:6px; font-weight:600; font-size:11px; }
+.tag.attention { background:var(--warn-dim); color:var(--warn); }
+.tag.working { background:var(--accent-dim); color:var(--accent); }
+.recent { width:100%; color:var(--muted); padding:14px 16px; min-height:48px; font-size:15px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--line); margin-top:10px; }
+.recent .chev { transition:transform .15s; }
+.recent[aria-expanded="true"] .chev { transform:rotate(90deg); }
+.note { color:var(--muted); font-size:15px; padding:28px 16px; text-align:center; }
+.note.err { color:var(--err); }
+
+/* ===== Session ===== */
+.banner { flex:none; margin:8px 10px 0; padding:9px 12px; border-radius:10px; background:var(--warn-dim); color:var(--warn); font-size:13px; font-weight:600; display:flex; gap:8px; align-items:center; }
+.spin { width:13px; height:13px; flex:none; border-radius:50%; border:2px solid var(--warn); border-right-color:transparent; animation:spin .9s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#termwrap { flex:1; min-height:0; position:relative; background:var(--term-bg); --fs:13px; --lh:18px; }
+#term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding:8px 10px 0; font-family:var(--mono); font-size:var(--fs); line-height:var(--lh); color:var(--term-fg); white-space:pre; }
+#hist .row { opacity:.62; }
+#screen { position:relative; }
+.row { height:var(--lh); overflow:hidden; }
+#cursor { position:absolute; pointer-events:none; height:var(--lh); }
+#cursor.block { background:var(--cursor); color:var(--term-bg); }
+#cursor.bar { background:var(--cursor); width:2px !important; }
+#cursor.underline { background:var(--cursor); height:2px; margin-top:calc(var(--lh) - 2px); }
+#starting { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-family:var(--ui); font-size:15px; }
+#live { position:absolute; right:12px; bottom:10px; min-height:32px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12px; font-weight:600; padding:0 12px; border-radius:16px; }
+#probe { position:absolute; visibility:hidden; white-space:pre; font-family:var(--mono); font-size:13px; left:-9999px; top:0; }
+.stale { opacity:.45; filter:grayscale(.6); }
+
+.keys { flex:none; display:flex; gap:5px; padding:8px 10px; border-top:1px solid var(--line); background:var(--chrome); }
+.kcols { flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
+.krow { display:flex; gap:5px; }
+.k { flex:1; min-width:0; height:40px; border-radius:9px; background:var(--panel-2); border:1px solid var(--line); border-bottom-width:2px;
+  display:grid; place-items:center; font-size:15px; font-weight:600; color:var(--text); user-select:none; -webkit-user-select:none; }
+.k.sm { font-size:13px; }
+.k.num { background:var(--num-bg); border-color:var(--num-line); color:var(--accent); }
+.k.enter { flex:none; width:52px; height:auto; background:var(--accent); color:var(--on-accent); border-color:var(--enter-line); font-size:20px; }
+.k:active:not(:disabled), .k.hot { outline:2px solid var(--accent); outline-offset:1px; }
+
+.input { flex:none; display:flex; gap:8px; align-items:center; padding:6px 10px max(10px, var(--sab)); background:var(--chrome); margin:0; }
+.field { flex:1; min-width:0; height:40px; border-radius:20px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; padding:0 5px 0 14px; gap:6px; }
+.field:focus-within { border-color:var(--focus-line); }
+.field input { flex:1; min-width:0; height:100%; background:none; border:0; outline:0; color:var(--text); font:16px var(--ui); padding:0; }
+.field input::placeholder { color:var(--faint); }
+.ret { flex:none; min-width:40px; height:30px; font-size:12px; font-weight:700; padding:0 8px; border-radius:15px; background:var(--accent-dim); color:var(--accent); white-space:nowrap; }
+.ret[aria-pressed="false"] { background:var(--panel-2); color:var(--muted); text-decoration:line-through; }
+.send { flex:none; width:40px; height:40px; border-radius:50%; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; font-weight:800; font-size:18px; }
+
+/* ===== Pair screens ===== */
+.center { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 32px; text-align:center; overflow-y:auto; }
+.badge { width:72px; height:72px; border-radius:20px; border:2px solid var(--accent); display:grid; place-items:center; color:var(--accent); font-size:34px; font-weight:800; margin-bottom:22px; box-shadow:0 0 40px var(--glow); flex:none; }
+.center h1 { font-size:24px; margin:0 0 8px; }
+.center p { color:var(--muted); font-size:15px; margin:0 0 26px; }
+.center p b { color:var(--text); }
+.kbd { font-family:var(--mono); }
+.digits { position:relative; display:flex; gap:8px; margin-bottom:14px; }
+.digit { width:44px; height:56px; border-radius:10px; background:var(--panel); border:1px solid var(--line); display:grid; place-items:center; font-family:var(--mono); font-size:26px; font-weight:600; }
+.digit.focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+.digit.focus:empty::after { content:""; width:2px; height:28px; background:var(--accent); animation:blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+#code-input { position:absolute; inset:0; width:100%; height:100%; opacity:0; font-size:16px; border:0; color:transparent; background:transparent; caret-color:transparent; }
+.msg { min-height:22px; font-size:14px; color:var(--muted); margin:0 0 8px; }
+.msg.err { color:var(--err); }
+.btn { display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:0 22px; border-radius:12px; font-weight:600; font-size:16px; }
+.btn.pri { background:var(--accent); color:var(--on-accent); width:100%; }
+.btn.ghost { color:var(--accent); }
+.help { font-size:14px; color:var(--muted); margin:6px 0 0; }
+.a2hs { flex:none; margin:0 12px max(12px, var(--sab)); padding:14px; border-radius:14px; background:var(--panel); border:1px solid var(--line); display:flex; gap:12px; align-items:center; text-align:left; }
+.a2hs .ico { width:44px; height:44px; border-radius:11px; background:var(--icon-bg); border:1.5px solid var(--accent); color:var(--accent); display:grid; place-items:center; font-weight:800; flex:none; }
+.a2hs .txt { flex:1; min-width:0; }
+.a2hs b { display:block; font-size:14px; }
+.a2hs span { font-size:13px; color:var(--muted); }
+.a2hs svg { vertical-align:-2px; }
+.a2hs .x { flex:none; width:40px; height:40px; margin-right:-8px; color:var(--faint); font-size:22px; }
+
+#toast { position:fixed; left:50%; transform:translateX(-50%); top:calc(var(--sat) + 56px); z-index:10; max-width:calc(100% - 32px);
+  background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:12px; padding:10px 16px; font-size:14px; font-weight:600; box-shadow:0 10px 30px var(--shadow); }
+
+@media (prefers-reduced-motion: reduce) { .rail.working, .spin, .digit.focus:empty::after { animation:none; } }
+.fixture *, .fixture *::after { animation:none !important; transition:none !important; }
+/* Headless Chrome lays out at >=500px wide; pin fixtures to an iPhone 15 box. */
+.fixture #app { right:auto; width:390px; top:0; height:844px; }
 </style>
 </head>
 <body>
-<div id="auth">
-  <h1 style="font-size:1.2rem;margin:0 0 8px">Xenon remote</h1>
-  <p class="muted">Password from Mac (or open a URL that includes it). Terminals only · no PTY resize.</p>
-  <label for="token">Password</label>
-  <input id="token" type="password" autocomplete="off" autocapitalize="off"/>
-  <button id="auth-btn" type="button">Connect</button>
-  <p id="auth-err" class="err" hidden></p>
-</div>
-<div id="app" hidden>
-  <header>
-    <button type="button" id="back" hidden>Back</button>
-    <span id="crumb" class="muted"></span>
-  </header>
-  <main id="main" class="list-pad"></main>
-  <p id="status" class="muted" hidden></p>
-  <div id="input-bar" hidden>
-    <form id="input-form" action="#" method="get">
-      <input id="stdin" type="text" enterkeyhint="send" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type to PTY…"/>
-      <button type="submit" id="send">Send</button>
+<div id="app">
+
+  <section id="v-paired" class="view" hidden>
+    <div class="center">
+      <div class="badge" aria-hidden="true">Xe</div>
+      <h1>Paired</h1>
+      <p>This browser can now drive Xenon on <b id="paired-host">your Mac</b> over Tailscale.</p>
+      <button type="button" class="btn pri" id="open-ws">Open workspaces</button>
+    </div>
+    <div class="a2hs" id="a2hs" hidden>
+      <div class="ico" aria-hidden="true">Xe</div>
+      <div class="txt"><b>Add to Home Screen</b><span>Share <svg width="13" height="15" viewBox="0 0 13 15" fill="none" stroke="currentColor" stroke-width="1.4" aria-label="Share icon"><path d="M6.5 1v8.5M3.5 4l3-3 3 3M4 6.5H1.5v7.5h10V6.5H9"/></svg> › Add to Home Screen, so Xenon opens in one tap.</span></div>
+      <button type="button" class="x" id="a2hs-x" aria-label="Dismiss">×</button>
+    </div>
+  </section>
+
+  <section id="v-code" class="view" hidden>
+    <div class="center">
+      <div class="badge" aria-hidden="true">Xe</div>
+      <h1>Pair this app</h1>
+      <p>Enter the code shown on your Mac.<br>Xenon › Connect Phone <span class="kbd">⌘⇧M</span></p>
+      <div class="digits" id="digits">
+        <div class="digit"></div><div class="digit"></div><div class="digit"></div>
+        <div class="digit"></div><div class="digit"></div><div class="digit"></div>
+        <input id="code-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="12" aria-label="Pairing code, 6 digits">
+      </div>
+      <div class="msg" id="code-msg" role="status"></div>
+      <button type="button" class="btn ghost" id="code-help-btn" aria-expanded="false">Where do I find the code?</button>
+      <p class="help" id="code-help" hidden>On the Mac, run <b>Connect Phone</b> from the command palette or press <span class="kbd">⌘⇧M</span>. The six digits sit under the QR code and work once, for 10 minutes.</p>
+    </div>
+  </section>
+
+  <section id="v-list" class="view" hidden>
+    <div class="hdr"><div class="title">Xenon <span class="crumb" id="list-host"></span></div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="scroll" id="list"></div>
+  </section>
+
+  <section id="v-terms" class="view" hidden>
+    <div class="hdr"><button type="button" class="back" data-back aria-label="Back to workspaces">‹</button><div class="title" id="terms-title"></div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="scroll" id="terms"></div>
+  </section>
+
+  <section id="v-session" class="view" hidden>
+    <div class="hdr"><button type="button" class="back" data-back aria-label="Back">‹</button><div class="title" id="sess-title"></div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="banner" id="reconnect" role="status" hidden><div class="spin" aria-hidden="true"></div><span id="reconnect-txt">Reconnecting…</span></div>
+    <div id="termwrap">
+      <div id="term" role="log" aria-label="Terminal" aria-live="off"><div id="hist"></div><div id="screen"></div></div>
+      <div id="starting" hidden>Starting…</div>
+      <button type="button" id="live" hidden aria-label="Jump to live output">↓ Live</button>
+    </div>
+    <div class="keys" id="keys">
+      <div class="kcols">
+        <div class="krow">
+          <button type="button" class="k sm" data-key="esc" aria-label="Escape">Esc</button>
+          <button type="button" class="k sm" data-key="ctrl-c" aria-label="Control C">^C</button>
+          <button type="button" class="k sm" data-key="tab" aria-label="Tab">Tab</button>
+          <button type="button" class="k sm" data-key="shift-tab" aria-label="Shift Tab">⇧Tab</button>
+        </div>
+        <div class="krow">
+          <button type="button" class="k" data-key="left" aria-label="Left arrow">←</button>
+          <button type="button" class="k" data-key="up" aria-label="Up arrow">↑</button>
+          <button type="button" class="k" data-key="down" aria-label="Down arrow">↓</button>
+          <button type="button" class="k" data-key="right" aria-label="Right arrow">→</button>
+          <button type="button" class="k num" data-text="1" aria-label="Option 1">1</button>
+          <button type="button" class="k num" data-text="2" aria-label="Option 2">2</button>
+          <button type="button" class="k num" data-text="3" aria-label="Option 3">3</button>
+        </div>
+      </div>
+      <button type="button" class="k enter" data-key="enter" aria-label="Enter">⏎</button>
+    </div>
+    <form class="input" id="input" autocomplete="off">
+      <div class="field">
+        <input id="msg" type="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Message the agent…" aria-label="Text to send">
+        <button type="button" class="ret" id="ret" aria-pressed="true" aria-label="Also press Enter after sending">+ ⏎</button>
+      </div>
+      <button type="submit" class="send" id="send" aria-label="Send">↑</button>
     </form>
-  </div>
+  </section>
 </div>
+<div id="toast" role="status" hidden></div>
+<span id="probe" aria-hidden="true"></span>
+
 <script>
-(function () {
-  var ticket = sessionStorage.getItem("xenon_remote_ticket") || "";
-  var state = { view: "workspaces", workspaceId: null, workspaceName: "", tabId: null, tabLabel: "" };
-  var seq = 0;
-  var pollTimer = null;
-  var sending = false;
-  var frameUrl = null;
+"use strict";
+// <core> — pure helpers; no DOM. Exercised by a node harness.
+const Core = (() => {
+  const COLOR = /^#[0-9a-fA-F]{3,8}$/;
+  const F = { BOLD: 1, ITALIC: 2, UNDERLINE: 4, DIM: 8, STRIKE: 16 };
 
-  function $(id) { return document.getElementById(id); }
-  function showErr(el, msg) { el.hidden = !msg; el.textContent = msg || ""; }
+  function newTerm() { return { cols: 0, rows: 0, lines: [], cursor: null, seq: 0 }; }
 
-  function setStatus(msg, kind) {
-    var el = $("status");
-    if (!msg) { el.hidden = true; el.textContent = ""; return; }
-    el.hidden = false;
-    el.className = kind === "err" ? "err" : (kind === "ok" ? "ok" : "muted");
-    el.textContent = msg;
-  }
-
-  function authHeaders() {
-    return { "Authorization": "Bearer " + ticket, "Content-Type": "application/json" };
-  }
-
-  async function api(path, opts) {
-    opts = opts || {};
-    var r = await fetch(path, {
-      method: opts.method || "GET",
-      headers: authHeaders(),
-      body: opts.body || undefined
-    });
-    if (r.status === 401) throw new Error("unauthorized");
-    var text = await r.text();
-    var data = null;
-    try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
-    if (!r.ok) {
-      var msg = (data && data.error) ? data.error : (text || r.statusText);
-      throw new Error(msg);
+  /** Applies a `frame` message. Returns "all" or the changed row indices. */
+  function applyFrame(term, f) {
+    const reset = f.full || f.cols !== term.cols || f.rows !== term.rows;
+    if (reset) {
+      term.cols = f.cols; term.rows = f.rows;
+      term.lines = Array.from({ length: f.rows }, () => []);
     }
-    return data;
-  }
-
-  async function doAuth() {
-    var token = $("token").value.trim();
-    showErr($("auth-err"), "");
-    try {
-      var r = await fetch("/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token })
-      });
-      if (!r.ok) throw new Error("bad password");
-      var j = await r.json();
-      ticket = j.ticket;
-      sessionStorage.setItem("xenon_remote_ticket", ticket);
-      $("auth").hidden = true;
-      $("app").hidden = false;
-      showWorkspaces();
-    } catch (e) {
-      showErr($("auth-err"), e.message || String(e));
+    const changed = [];
+    for (const [r, spans] of f.lines || []) {
+      if (r < 0 || r >= term.rows) continue;
+      term.lines[r] = spans;
+      changed.push(r);
     }
+    term.cursor = f.cursor || null;
+    term.seq = f.seq;
+    return reset ? "all" : changed;
   }
 
-  function setCrumb(t) { $("crumb").textContent = t; }
-  function showBack(on) { $("back").hidden = !on; }
-  function showInput(on) { $("input-bar").hidden = !on; if (!on) setStatus(""); }
-
-  function stopPoll() {
-    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-    if (frameUrl) { try { URL.revokeObjectURL(frameUrl); } catch (_) {} frameUrl = null; }
+  /** CSS for one interned style; colors are validated so the server can't inject CSS. */
+  function styleRule(id, st) {
+    const d = [];
+    if (st.fg && COLOR.test(st.fg)) d.push("color:" + st.fg);
+    if (st.bg && COLOR.test(st.bg)) d.push("background:" + st.bg);
+    const f = st.f | 0;
+    if (f & F.BOLD) d.push("font-weight:700");
+    if (f & F.ITALIC) d.push("font-style:italic");
+    const deco = [(f & F.UNDERLINE) && "underline", (f & F.STRIKE) && "line-through"].filter(Boolean);
+    if (deco.length) d.push("text-decoration:" + deco.join(" "));
+    if (f & F.DIM) d.push("opacity:.6");
+    return ".s" + (id | 0) + "{" + d.join(";") + "}";
   }
 
-  async function showWorkspaces() {
-    state.view = "workspaces";
-    state.workspaceId = null;
-    state.tabId = null;
-    showBack(false);
-    showInput(false);
-    stopPoll();
-    setCrumb("Workspaces");
-    var main = $("main");
-    main.className = "list-pad";
-    main.innerHTML = "<p class='muted'>Loading…</p>";
-    try {
-      var list = await api("/api/workspaces");
-      if (!list.length) {
-        main.innerHTML = "<p class='muted'>No workspaces. Open one in Xenon first.</p>";
-        return;
+  // East Asian wide / emoji code points occupy two cells; the server's spacer cell adds no text.
+  const WIDE = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6\u{1F300}-\u{1F64F}\u{1F900}-\u{1F9FF}\u{20000}-\u{3FFFD}]/u;
+
+  /** The glyph covering cell `c` (cursor overlay text); positioning itself is `c` in ch units. */
+  function cellAt(spans, c) {
+    let i = 0;
+    for (const [text] of spans || []) {
+      for (const ch of text) {
+        const w = WIDE.test(ch) ? 2 : 1;
+        if (c < i + w) return ch;
+        i += w;
       }
-      var html = "<div class='list'>";
-      list.forEach(function (w) {
-        var badge = w.open ? "open" : "recent · tap to open";
-        html += "<button type='button' data-id='" + esc(w.id) + "' data-name='" + esc(w.name) + "'>" +
-          esc(w.name) + " <span class='muted'>(" + badge + ")</span>" +
-          "<small>" + esc(w.root || w.id) + "</small></button>";
-      });
-      html += "</div>";
-      main.innerHTML = html;
-      main.querySelectorAll("button[data-id]").forEach(function (b) {
-        b.onclick = function () {
-          state.workspaceId = b.getAttribute("data-id");
-          state.workspaceName = b.getAttribute("data-name") || "";
-          showTerminals();
-        };
-      });
-    } catch (e) {
-      if (String(e.message) === "unauthorized") { resetAuth(); return; }
-      main.innerHTML = "<p class='err'>" + esc(e.message) + "</p>";
     }
+    return " ";
   }
 
-  async function showTerminals() {
-    state.view = "terminals";
-    state.tabId = null;
-    showBack(true);
-    showInput(false);
-    stopPoll();
-    setCrumb(state.workspaceName || state.workspaceId);
-    var main = $("main");
-    main.className = "list-pad";
-    main.innerHTML = "<p class='muted'>Opening workspace…</p>";
-    try {
-      var list = await api("/api/workspaces/" + encodeURIComponent(state.workspaceId) + "/terminals");
-      if (!list.length) {
-        main.innerHTML = "<p class='muted'>No terminal tabs in this workspace.</p>";
-        return;
-      }
-      var html = "<div class='list'>";
-      list.forEach(function (t) {
-        var label = t.title || ("tab " + t.tabId);
-        html += "<button type='button' data-tab='" + t.tabId + "' data-label='" + esc(label) + "'>" +
-          esc(label) + (t.active ? " · active" : "") +
-          "<small>" + esc(t.cwd || "") + "</small></button>";
-      });
-      html += "</div>";
-      main.innerHTML = html;
-      main.querySelectorAll("button[data-tab]").forEach(function (b) {
-        b.onclick = function () {
-          state.tabId = Number(b.getAttribute("data-tab"));
-          state.tabLabel = b.getAttribute("data-label") || "";
-          showSession();
-        };
-      });
-    } catch (e) {
-      if (String(e.message) === "unauthorized") { resetAuth(); return; }
-      main.innerHTML = "<p class='err'>" + esc(e.message) + "</p>";
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function fitCells(width, height, charW, lineH) {
+    if (!(charW > 0) || !(lineH > 0)) return null;
+    return { cols: clamp(Math.floor(width / charW), 20, 300), rows: clamp(Math.floor(height / lineH), 8, 200) };
+  }
+
+  function groupWorkspaces(list) {
+    const g = { attention: [], working: [], open: [], recent: [] };
+    for (const w of list) {
+      if (!w.open) g.recent.push(w);
+      else if (w.dot === "attention") g.attention.push(w);
+      else if (w.dot === "working") g.working.push(w);
+      else g.open.push(w);
     }
+    return g;
   }
 
-  function showSession() {
-    state.view = "session";
-    showBack(true);
-    showInput(true);
-    setCrumb((state.workspaceName || "") + " · " + (state.tabLabel || state.tabId));
-    seq = 0;
-    setStatus("Loading…");
-    var main = $("main");
-    main.className = "session";
-    main.innerHTML = "<img id='term-img' alt='terminal viewport' width='100%'/>";
-    stopPoll();
-    pollFrame();
-    setTimeout(function () { try { $("stdin").focus(); } catch (_) {} }, 100);
-  }
-
-  function schedulePoll(ms) {
-    if (pollTimer) clearTimeout(pollTimer);
-    pollTimer = setTimeout(pollFrame, ms);
-  }
-
-  async function pollFrame() {
-    if (state.view !== "session" || !state.workspaceId || state.tabId == null) return;
-    var url = "/api/frame?workspaceId=" + encodeURIComponent(state.workspaceId) +
-      "&tabId=" + encodeURIComponent(String(state.tabId)) +
-      "&since=" + encodeURIComponent(String(seq));
-    try {
-      var r = await fetch(url, { headers: { "Authorization": "Bearer " + ticket } });
-      if (r.status === 401) { resetAuth(); return; }
-      if (r.status === 204) {
-        setStatus("Live");
-        schedulePoll(250);
-        return;
-      }
-      if (!r.ok) {
-        var t = await r.text();
-        var msg = t;
-        try { msg = JSON.parse(t).error || t; } catch (_) {}
-        setStatus(msg || r.statusText, "err");
-        schedulePoll(1000);
-        return;
-      }
-      var newSeq = parseInt(r.headers.get("X-Xenon-Seq") || "0", 10) || 0;
-      if (newSeq) seq = newSeq;
-      var blob = await r.blob();
-      var obj = URL.createObjectURL(blob);
-      var img = $("term-img");
-      if (img) {
-        if (frameUrl) try { URL.revokeObjectURL(frameUrl); } catch (_) {}
-        frameUrl = obj;
-        img.src = obj;
-      } else {
-        URL.revokeObjectURL(obj);
-      }
-      setStatus("Live · " + (r.headers.get("X-Xenon-Cols") || "?") + "×" + (r.headers.get("X-Xenon-Rows") || "?"));
-      schedulePoll(200);
-    } catch (e) {
-      setStatus(e.message || String(e), "err");
-      schedulePoll(1000);
+  /** `dots.workspaces` is a snapshot: ids missing from it have no dot. */
+  function applyDots(items, key, dots) {
+    let changed = false;
+    for (const it of items) {
+      const next = (dots && dots[String(it[key])]) || null;
+      if ((it.dot || null) !== next) { it.dot = next; changed = true; }
     }
+    return changed;
   }
 
-  async function sendInput(ev) {
-    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-    if (sending) return false;
-    var inp = $("stdin");
-    var text = inp.value;
-    if (!text) {
-      setStatus("Type something first", "err");
-      return false;
-    }
-    // PTY Enter is CR (0x0D). LF alone is a character for many TUIs.
-    // inject_text also normalizes \n → \r as a belt-and-suspenders.
-    if (text.slice(-1) !== "\r") text = text.replace(/\r?\n$/, "") + "\r";
-    if (!state.workspaceId || state.tabId == null || isNaN(state.tabId)) {
-      setStatus("No terminal selected", "err");
-      return false;
-    }
-    sending = true;
-    setStatus("Sending…");
-    try {
-      await api("/api/inject", {
-        method: "POST",
-        body: JSON.stringify({
-          workspaceId: state.workspaceId,
-          tabId: state.tabId,
-          text: text
-        })
-      });
-      inp.value = "";
-      setStatus("Sent", "ok");
-      // Refresh frame soon after inject
-      schedulePoll(50);
-    } catch (e) {
-      setStatus(e.message || String(e), "err");
-    }
-    sending = false;
-    try { inp.focus(); } catch (_) {}
-    return false;
+  /** WCAG relative luminance of `#rgb` / `#rrggbb`; null when unparseable. */
+  function luminance(hex) {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return null;
+    const h = m[1].length === 3 ? m[1].replace(/./g, "$&$&") : m[1];
+    const lin = (i) => {
+      const v = parseInt(h.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
   }
 
-  function resetAuth() {
-    ticket = "";
-    sessionStorage.removeItem("xenon_remote_ticket");
-    stopPoll();
-    $("app").hidden = true;
-    $("auth").hidden = false;
-    showErr($("auth-err"), "Session expired — re-enter password");
+  function contrast(a, b) {
+    const la = luminance(a), lb = luminance(b);
+    if (la == null || lb == null) return 0;
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   }
 
-  function esc(s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  /** Chrome scheme for a terminal theme: light chrome when bg is light; accent from the cursor when readable. */
+  function scheme(theme) {
+    const light = (luminance(theme && theme.bg) ?? 0) > 0.5;
+    const accent = light && contrast(theme.cursor, "#ffffff") >= 4.5 ? theme.cursor : null;
+    return { light, accent };
   }
 
-  $("auth-btn").onclick = doAuth;
-  $("token").addEventListener("keydown", function (e) {
-    if (e.key === "Enter") doAuth();
-  });
-  $("back").onclick = function () {
-    if (state.view === "session") showTerminals();
-    else showWorkspaces();
-  };
-  $("input-form").addEventListener("submit", sendInput);
+  function backoff(attempt) { return Math.min(5000, 500 * Math.pow(2, attempt)); }
 
-  if (ticket) {
-    $("auth").hidden = true;
-    $("app").hidden = false;
-    showWorkspaces();
+  function deviceLabel(ua, touchPoints, standalone) {
+    const device = /iPhone/.test(ua) ? "iPhone"
+      : /iPad/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1) ? "iPad"
+      : /Android/.test(ua) ? "Android"
+      : /Macintosh/.test(ua) ? "Mac" : "Browser";
+    if (standalone) return device + " · Home Screen";
+    const browser = /CriOS|Chrome\//.test(ua) && !/Edg/.test(ua) ? "Chrome"
+      : /FxiOS|Firefox\//.test(ua) ? "Firefox"
+      : /EdgiOS|Edg\//.test(ua) ? "Edge"
+      : /Safari\//.test(ua) ? "Safari" : "Browser";
+    return device + " · " + browser;
   }
-  var q = new URLSearchParams(location.search).get("token");
-  if (q && !ticket) {
-    $("token").value = q;
-    doAuth();
+
+  function ago(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
+
+  return { newTerm, applyFrame, styleRule, cellAt, fitCells, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
 })();
+// </core>
+
+// ===== State =====
+const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", enter: "xenon.remote.enter", a2hs: "xenon.remote.a2hsDismissed" };
+const S = {
+  token: store(KEY.token), hostName: store(KEY.host) || "",
+  fixture: false, themed: false, view: null,
+  ws: null, connected: false, attempt: 0, retryTimer: 0, pongTimer: 0,
+  workspaces: [], recentOpen: false,
+  wsSel: null, terminals: [], skippedList: false,
+  want: null, tabTitle: "",
+  term: Core.newTerm(), styles: {}, lastUpdate: 0,
+  follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0,
+  enterOn: store(KEY.enter) !== "0",
+};
+
+function $(id) { return document.getElementById(id); }
+function store(k, v) {
+  try {
+    if (v === undefined) return localStorage.getItem(k);
+    if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v);
+  } catch (_) { return null; }
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+function isStandalone() {
+  return navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+}
+
+// ===== Net: pairing + REST =====
+async function pair(code) {
+  const label = Core.deviceLabel(navigator.userAgent, navigator.maxTouchPoints || 0, isStandalone());
+  let r;
+  try {
+    r = await fetch("/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, label }) });
+  } catch (_) { throw new Error("Can’t reach your Mac. Is Tailscale on?"); }
+  if (r.status === 429) throw new Error("Too many tries — wait a minute");
+  if (!r.ok) throw new Error("That code didn’t work. It may be used or expired.");
+  const j = await r.json();
+  S.token = j.token; S.hostName = j.hostName || "";
+  store(KEY.token, S.token); store(KEY.host, S.hostName);
+  return j;
+}
+
+async function api(path) {
+  const r = await fetch(path, { headers: { Authorization: "Bearer " + S.token } });
+  if (r.status === 401) { unpair("This device was signed out. Enter a new code from your Mac."); throw new Error("unauthorized"); }
+  const text = await r.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+  if (!r.ok) throw new Error((data && data.error) || r.statusText || "Request failed");
+  return data;
+}
+
+function unpair(msg) {
+  S.token = null; store(KEY.token, null);
+  S.want = null;
+  closeSocket();
+  showCode(msg);
+}
+
+// ===== Net: WebSocket (one per app session) =====
+function connect() {
+  if (!S.token || S.fixture || S.ws) return;
+  clearTimeout(S.retryTimer);
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  S.ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({ t: "hello", token: S.token }));
+  ws.onmessage = (e) => {
+    clearTimeout(S.pongTimer);
+    try { onMsg(JSON.parse(e.data)); } catch (err) { console.warn("bad message", err); }
+  };
+  ws.onclose = (e) => {
+    if (S.ws !== ws) return;
+    if (e.code === 4401) { closeSocket(); unpair("This device was signed out. Enter a new code from your Mac."); return; }
+    dropSocket();
+  };
+}
+
+/** Forget the current socket (dead or closed) and retry with backoff. */
+function dropSocket() {
+  const ws = S.ws;
+  S.ws = null;
+  clearTimeout(S.pongTimer);
+  if (ws) { ws.onclose = null; try { ws.close(); } catch (_) {} }
+  setConnected(false);
+  if (S.token && !S.fixture) S.retryTimer = setTimeout(connect, Core.backoff(S.attempt++));
+}
+
+/** Heartbeat: any message within 5s counts as the reply; silence means a dead socket. */
+function ping() {
+  if (!S.ws || S.ws.readyState !== 1 || !S.connected) return;
+  S.ws.send(JSON.stringify({ t: "ping" }));
+  clearTimeout(S.pongTimer);
+  S.pongTimer = setTimeout(dropSocket, 5000);
+}
+
+function closeSocket() {
+  clearTimeout(S.retryTimer);
+  clearTimeout(S.pongTimer);
+  const ws = S.ws; S.ws = null;
+  if (ws) try { ws.close(); } catch (_) {}
+  setConnected(false);
+}
+
+function send(msg) {
+  if (!S.ws || S.ws.readyState !== 1 || !S.connected && msg.t !== "hello") return false;
+  S.ws.send(JSON.stringify(msg));
+  return true;
+}
+
+function onMsg(m) {
+  switch (m.t) {
+    case "ready": return onReady(m);
+    case "styles": return addStyles(m.add);
+    case "frame": S.lastUpdate = Date.now(); return renderFrame(m);
+    case "history": return renderHistory(m.lines || []);
+    case "dots": return onDots(m);
+    case "closed": return onClosed(m.reason);
+    case "error": return toast(m.msg || "Error");
+    case "pong": return;
+  }
+}
+
+function onReady(m) {
+  S.attempt = 0;
+  // Each socket starts a fresh style table on the Mac.
+  S.styles = {};
+  $("term-styles").textContent = "";
+  applyTheme(m.theme);
+  if (m.hostName) { S.hostName = m.hostName; store(KEY.host, S.hostName); renderHost(); }
+  setConnected(true);
+  if (S.want) sendAttach();
+}
+
+function onDots(m) {
+  if (Core.applyDots(S.workspaces, "id", m.workspaces) && S.view === "list") renderWorkspaces();
+  // Tab dots describe the attached workspace only; ignore them for any other list.
+  const forList = m.workspace && S.wsSel && m.workspace === S.wsSel.id;
+  if (forList && Core.applyDots(S.terminals, "tabId", m.tabs) && S.view === "terms") renderTerminals();
+}
+
+function onClosed(reason) {
+  if (reason === "revoked") return unpair("This device was revoked on your Mac. Enter a new code to pair again.");
+  if (reason === "tabClosed") {
+    toast("Terminal closed");
+    if (S.view === "session") leaveSession();
+    return;
+  }
+  if (reason === "serverStopping") toast("Xenon turned the phone remote off");
+}
+
+function onVisible() {
+  if (document.visibilityState !== "visible" || !S.token || S.fixture) return;
+  if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
+}
+
+// ===== Navigation =====
+function show(view) {
+  S.view = view;
+  for (const v of ["paired", "code", "list", "terms", "session"]) $("v-" + v).hidden = v !== view;
+  if (view === "session") scheduleFit(0);
+}
+
+function showCode(msg) {
+  $("code-input").value = "";
+  $("code-input").disabled = false;
+  renderDigits();
+  setCodeMsg(msg || "", !!msg);
+  show("code");
+  setTimeout(() => { try { $("code-input").focus(); } catch (_) {} }, 50);
+}
+
+function showPaired() {
+  $("paired-host").textContent = S.hostName || "your Mac";
+  $("a2hs").hidden = isStandalone() || store(KEY.a2hs) === "1";
+  show("paired");
+}
+
+async function showWorkspaces() {
+  show("list");
+  renderHost();
+  connect();
+  if (!S.workspaces.length) $("list").innerHTML = '<div class="note">Loading…</div>';
+  try {
+    S.workspaces = (await api("/api/workspaces")) || [];
+    renderWorkspaces();
+  } catch (e) {
+    if (e.message !== "unauthorized") $("list").innerHTML = '<div class="note err">' + esc(e.message) + "</div>";
+  }
+}
+
+async function openWorkspace(w) {
+  S.wsSel = w; S.terminals = [];
+  $("terms-title").textContent = w.name;
+  $("terms").innerHTML = '<div class="note">' + (w.open ? "Loading…" : "Opening workspace…") + "</div>";
+  show("terms");
+  try {
+    S.terminals = (await api("/api/workspaces/" + encodeURIComponent(w.id) + "/terminals")) || [];
+  } catch (e) {
+    if (e.message !== "unauthorized") $("terms").innerHTML = '<div class="note err">' + esc(e.message) + "</div>";
+    return;
+  }
+  if (S.terminals.length === 1) { S.skippedList = true; return openSession(S.terminals[0]); }
+  S.skippedList = false;
+  renderTerminals();
+}
+
+function tabLabel(t, i) { return t.title || "Terminal " + (i + 1); }
+
+function openSession(t) {
+  S.tabTitle = tabLabel(t, S.terminals.indexOf(t));
+  $("sess-title").innerHTML = esc(S.wsSel.name) + ' <span class="crumb">› ' + esc(S.tabTitle) + "</span>";
+  S.want = { workspaceId: S.wsSel.id, tabId: t.tabId };
+  resetScreen();
+  show("session");
+  if (S.connected) sendAttach(); else connect();
+}
+
+function sendAttach() {
+  send({ t: "attach", workspaceId: S.want.workspaceId, tabId: S.want.tabId });
+  S.lastFit = null;
+  scheduleFit(0);
+}
+
+function leaveSession() {
+  if (S.want) send({ t: "detach" });
+  S.want = null;
+  if (S.skippedList || !S.wsSel) showWorkspaces(); else { show("terms"); renderTerminals(); }
+}
+
+function goBack() {
+  if (S.view === "session") leaveSession();
+  else if (S.view === "terms") showWorkspaces();
+}
+
+// ===== Render: lists =====
+function renderHost() {
+  $("list-host").textContent = S.hostName ? "· " + S.hostName : "";
+}
+
+function setConnected(on) {
+  S.connected = on;
+  for (const el of document.querySelectorAll(".conn")) {
+    el.classList.toggle("off", !on);
+    el.setAttribute("aria-label", on ? "Connected" : "Disconnected");
+  }
+  renderStale();
+}
+
+function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+
+function tagFor(dot) {
+  if (dot === "attention") return '<span class="tag attention">Waiting</span><br>';
+  if (dot === "working") return '<span class="tag working">Working</span><br>';
+  return "";
+}
+
+function wsRow(w) {
+  const meta = w.open ? tagFor(w.dot) + plural(w.terminals || 0, "terminal") : "Closed";
+  return '<button type="button" class="ws' + (w.open ? "" : " closed") + '" data-id="' + esc(w.id) + '">' +
+    '<div class="rail ' + (w.open && w.dot ? w.dot : "") + '"></div>' +
+    '<div class="body"><div class="name">' + esc(w.name) + '</div><div class="path">' + esc(w.root || "") + "</div></div>" +
+    '<div class="meta">' + meta + '</div><div class="chev" aria-hidden="true">›</div></button>';
+}
+
+function renderWorkspaces() {
+  const g = Core.groupWorkspaces(S.workspaces);
+  const sect = (title, items) => items.length ? '<div class="sect">' + title + "</div>" + items.map(wsRow).join("") : "";
+  let h = sect("Needs you", g.attention) + sect("Working", g.working) + sect("Open", g.open);
+  if (!g.attention.length && !g.working.length && !g.open.length) h += '<div class="note">No open workspaces on your Mac.</div>';
+  if (g.recent.length) {
+    h += '<button type="button" class="recent" id="recent-btn" aria-expanded="' + S.recentOpen + '"><span>Recent · ' +
+      g.recent.length + ' closed</span><span class="chev" aria-hidden="true">›</span></button>';
+    if (S.recentOpen) h += g.recent.map(wsRow).join("");
+  }
+  $("list").innerHTML = h;
+}
+
+function renderTerminals() {
+  if (!S.terminals.length) { $("terms").innerHTML = '<div class="note">No terminal tabs in this workspace.</div>'; return; }
+  $("terms").innerHTML = S.terminals.map((t, i) =>
+    '<button type="button" class="ws" data-tab="' + i + '"><div class="rail ' + (t.dot || "") + '"></div>' +
+    '<div class="body"><div class="name">' + esc(tabLabel(t, i)) + '</div><div class="path">' + esc(t.cwd || "") + "</div></div>" +
+    '<div class="meta">' + tagFor(t.dot) + (t.active ? "Active" : "") + '</div><div class="chev" aria-hidden="true">›</div></button>'
+  ).join("");
+}
+
+// ===== Render: terminal =====
+function setScheme(light, accent) {
+  const root = document.documentElement;
+  root.classList.toggle("light", light);
+  if (accent) root.style.setProperty("--accent", accent); else root.style.removeProperty("--accent");
+}
+
+/** Before `ready`, chrome follows the OS appearance. */
+function followSystemScheme() {
+  const mq = window.matchMedia && matchMedia("(prefers-color-scheme: light)");
+  if (!mq) return;
+  const apply = () => { if (!S.themed) setScheme(mq.matches, null); };
+  apply();
+  if (mq.addEventListener) mq.addEventListener("change", apply);
+}
+
+function applyTheme(th) {
+  if (!th) return;
+  S.themed = true;
+  const sc = Core.scheme(th);
+  setScheme(sc.light, sc.accent);
+  const root = document.documentElement.style;
+  const ok = (c) => /^#[0-9a-fA-F]{3,8}$/.test(c || "");
+  for (const v of ["--term-bg", "--canvas", "--term-fg", "--cursor"]) root.removeProperty(v);
+  if (ok(th.bg)) {
+    root.setProperty("--term-bg", th.bg); root.setProperty("--canvas", th.bg);
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", th.bg);
+  }
+  if (ok(th.fg)) root.setProperty("--term-fg", th.fg);
+  if (ok(th.cursor)) root.setProperty("--cursor", th.cursor);
+}
+
+/** Interned styles can be re-sent with the same id (new socket, reset table): rebuild, never append. */
+function addStyles(add) {
+  for (const id in add || {}) S.styles[id] = add[id];
+  let css = "";
+  for (const id in S.styles) css += "#term " + Core.styleRule(id, S.styles[id]) + "\n";
+  $("term-styles").textContent = css;
+}
+
+function rowHtml(spans) {
+  let h = "";
+  for (const [text, id] of spans || []) h += S.styles[id] ? '<span class="s' + (id | 0) + '">' + esc(text) + "</span>" : esc(text);
+  return h;
+}
+
+function resetScreen() {
+  S.term = Core.newTerm();
+  S.follow = true; S.histAsked = false; S.lastUpdate = 0;
+  $("hist").innerHTML = "";
+  $("screen").innerHTML = "";
+  $("live").hidden = true;
+  $("starting").hidden = false;
+}
+
+function renderFrame(f) {
+  const changed = Core.applyFrame(S.term, f);
+  const screen = $("screen");
+  if (changed === "all") {
+    let h = "";
+    for (const line of S.term.lines) h += '<div class="row">' + rowHtml(line) + "</div>";
+    screen.innerHTML = h + '<div id="cursor" hidden></div>';
+    updateScale();
+  } else {
+    for (const r of changed) screen.children[r].innerHTML = rowHtml(S.term.lines[r]);
+  }
+  $("starting").hidden = true;
+  renderCursor();
+  if (S.follow) scrollToLive();
+}
+
+function renderCursor() {
+  const el = $("cursor");
+  const c = S.term.cursor;
+  if (!el) return;
+  if (!c || c.r >= S.term.rows) { el.hidden = true; return; }
+  const cw = S.cw * S.scale;
+  el.hidden = false;
+  el.className = c.s || "block";
+  el.style.left = c.c * cw + "px";
+  el.style.top = "calc(" + c.r + " * var(--lh))";
+  el.style.width = cw + "px";
+  const ch = Core.cellAt(S.term.lines[c.r], c.c);
+  el.textContent = el.className === "block" ? ch : "";
+}
+
+function renderHistory(lines) {
+  if (!lines.length) return;
+  const term = $("term");
+  const before = term.scrollHeight;
+  $("hist").innerHTML = lines.map((l) => '<div class="row">' + esc(l) + "</div>").join("") + $("hist").innerHTML;
+  term.scrollTop += term.scrollHeight - before;
+}
+
+function scrollToLive() {
+  const term = $("term");
+  term.scrollTop = term.scrollHeight;
+}
+
+function setFollow(on) {
+  S.follow = on;
+  $("live").hidden = on;
+  if (on) scrollToLive();
+}
+
+function requestHistory() {
+  if (S.histAsked || !S.want || !S.term.rows) return;
+  if (send({ t: "history" })) S.histAsked = true;
+}
+
+function onTermScroll() {
+  const t = $("term");
+  const atBottom = t.scrollHeight - t.scrollTop - t.clientHeight < 4;
+  if (!atBottom && S.follow) { S.follow = false; $("live").hidden = false; requestHistory(); }
+  else if (atBottom && !S.follow) { S.follow = true; $("live").hidden = true; }
+}
+
+function renderStale() {
+  const stale = !S.connected && !S.fixtureLive;
+  for (const id of ["termwrap", "keys", "input"]) $(id).classList.toggle("stale", stale);
+  for (const el of document.querySelectorAll("#keys button, #input button, #input input")) el.disabled = stale;
+  $("reconnect").hidden = !stale || !S.token && !S.fixture;
+  renderAgo();
+}
+
+function renderAgo() {
+  const since = S.lastUpdate ? " · last update " + Core.ago(Date.now() - S.lastUpdate) + " ago" : "";
+  $("reconnect-txt").textContent = "Reconnecting…" + since;
+}
+
+// ===== Fit (cells from viewport) =====
+function measureChar() {
+  const p = $("probe");
+  if (!p.textContent) p.textContent = "M".repeat(100);
+  S.cw = p.getBoundingClientRect().width / 100;
+}
+
+function availSize() {
+  const t = $("term");
+  return { w: t.clientWidth - 20, h: t.clientHeight - 8 };
+}
+
+function updateScale() {
+  if (!S.cw) measureChar();
+  const natural = S.term.cols * S.cw;
+  const w = availSize().w;
+  S.scale = natural > w && w > 0 ? w / natural : 1;
+  const wrap = $("termwrap").style;
+  wrap.setProperty("--fs", 13 * S.scale + "px");
+  wrap.setProperty("--lh", 18 * S.scale + "px");
+  renderCursor();
+}
+
+function scheduleFit(delay) {
+  clearTimeout(S.fitTimer);
+  S.fitTimer = setTimeout(sendFit, delay);
+}
+
+function sendFit() {
+  if (S.view !== "session") return;
+  measureChar();
+  const a = availSize();
+  const fit = Core.fitCells(a.w, a.h, S.cw, 18);
+  if (S.term.cols) updateScale();
+  if (!fit || !S.want) return;
+  if (S.lastFit && S.lastFit.cols === fit.cols && S.lastFit.rows === fit.rows) return;
+  if (send({ t: "fit", cols: fit.cols, rows: fit.rows })) S.lastFit = fit;
+}
+
+function onViewport() {
+  const vv = window.visualViewport;
+  if (vv && !S.fixture) {
+    const root = document.documentElement.style;
+    root.setProperty("--app-h", vv.height + "px");
+    root.setProperty("--app-top", vv.offsetTop + "px");
+  }
+  if (S.view === "session") { scheduleFit(250); if (S.follow) scrollToLive(); }
+}
+
+// ===== Input =====
+function sendKeyButton(btn) {
+  if (btn.dataset.key) send({ t: "key", key: btn.dataset.key });
+  else if (btn.dataset.text) send({ t: "text", data: btn.dataset.text });
+}
+
+function onKeyPointer(e) {
+  const btn = e.target.closest("button");
+  if (!btn || btn.disabled) return;
+  e.preventDefault();
+  sendKeyButton(btn);
+}
+
+function onKeyClick(e) {
+  const btn = e.target.closest("button");
+  if (btn && e.detail === 0) sendKeyButton(btn); // keyboard activation only; taps went through pointerdown
+}
+
+function submitText(e) {
+  e.preventDefault();
+  const input = $("msg");
+  const text = input.value;
+  if (!text && !S.enterOn) return;
+  if (text && !send({ t: "text", data: text })) return;
+  if (S.enterOn) send({ t: "key", key: "enter" });
+  input.value = "";
+}
+
+function setEnterOn(on) {
+  S.enterOn = on;
+  store(KEY.enter, on ? "1" : "0");
+  const b = $("ret");
+  b.setAttribute("aria-pressed", String(on));
+  b.textContent = on ? "+ ⏎" : "⏎";
+}
+
+function renderDigits() {
+  const input = $("code-input");
+  const v = input.value;
+  const focused = document.activeElement === input;
+  const boxes = $("digits").querySelectorAll(".digit");
+  boxes.forEach((d, i) => {
+    d.textContent = v[i] || "";
+    d.classList.toggle("focus", focused && i === Math.min(v.length, 5));
+  });
+}
+
+function setCodeMsg(text, isErr) {
+  const el = $("code-msg");
+  el.textContent = text;
+  el.classList.toggle("err", !!isErr);
+}
+
+async function onCodeInput() {
+  const input = $("code-input");
+  input.value = input.value.replace(/\D/g, "").slice(0, 6);
+  renderDigits();
+  if (input.value.length < 6) return;
+  input.disabled = true;
+  setCodeMsg("Pairing…");
+  try {
+    await pair(input.value);
+    showWorkspaces();
+  } catch (e) {
+    showCode(e.message);
+  }
+}
+
+let toastTimer = 0;
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+}
+
+function wireEvents() {
+  $("open-ws").onclick = showWorkspaces;
+  $("a2hs-x").onclick = () => { store(KEY.a2hs, "1"); $("a2hs").hidden = true; };
+  $("code-help-btn").onclick = () => {
+    const help = $("code-help");
+    help.hidden = !help.hidden;
+    $("code-help-btn").setAttribute("aria-expanded", String(!help.hidden));
+  };
+  const ci = $("code-input");
+  ci.addEventListener("input", onCodeInput);
+  ci.addEventListener("focus", renderDigits);
+  ci.addEventListener("blur", renderDigits);
+  for (const b of document.querySelectorAll("[data-back]")) b.onclick = goBack;
+  $("list").addEventListener("click", (e) => {
+    if (e.target.closest("#recent-btn")) { S.recentOpen = !S.recentOpen; return renderWorkspaces(); }
+    const row = e.target.closest("[data-id]");
+    const w = row && S.workspaces.find((x) => x.id === row.dataset.id);
+    if (w) openWorkspace(w);
+  });
+  $("terms").addEventListener("click", (e) => {
+    const row = e.target.closest("[data-tab]");
+    if (row) openSession(S.terminals[+row.dataset.tab]);
+  });
+  const keys = $("keys");
+  keys.addEventListener("pointerdown", onKeyPointer);
+  keys.addEventListener("click", onKeyClick);
+  $("ret").addEventListener("pointerdown", (e) => e.preventDefault());
+  $("ret").addEventListener("click", () => setEnterOn(!S.enterOn));
+  $("send").addEventListener("pointerdown", (e) => e.preventDefault());
+  $("input").addEventListener("submit", submitText);
+  const term = $("term");
+  term.addEventListener("scroll", onTermScroll, { passive: true });
+  let touchY = null;
+  term.addEventListener("touchstart", (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+  term.addEventListener("touchmove", (e) => { if (touchY != null && e.touches[0].clientY - touchY > 12) requestHistory(); }, { passive: true });
+  term.addEventListener("wheel", (e) => { if (e.deltaY < 0) requestHistory(); }, { passive: true });
+  $("live").onclick = () => setFollow(true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.view !== "session") goBack(); });
+  document.addEventListener("visibilitychange", onVisible);
+  window.addEventListener("resize", onViewport);
+  if (window.visualViewport) {
+    visualViewport.addEventListener("resize", onViewport);
+    visualViewport.addEventListener("scroll", onViewport);
+  }
+  setInterval(() => { if (!S.connected && S.view === "session" && !S.fixture) renderAgo(); }, 1000);
+  setInterval(ping, 15000);
+}
+
+// ===== Fixtures (visual tests; no network) =====
+const FX = {
+  styles: {
+    0: {}, 1: { fg: "#98c379" }, 2: { fg: "#dcdfe4", f: 1 }, 3: { fg: "#5c6370" }, 4: { fg: "#d19a66" },
+    5: { fg: "#c678dd", f: 1 }, 6: { fg: "#c678dd" }, 7: { fg: "#61afef" }, 8: { fg: "#e06c75" },
+    9: { fg: "#000000", bg: "#e5c07b", f: 1 },
+  },
+  dark: { bg: "#000000", fg: "#abb2bf", cursor: "#dcdfe4" },
+  light: { bg: "#ffffff", fg: "#2a2c33", cursor: "#5c78e2" },
+  stylesLight: {
+    0: {}, 1: { fg: "#50a14f" }, 2: { fg: "#2a2c33", f: 1 }, 3: { fg: "#a0a1a7" }, 4: { fg: "#c18401" },
+    5: { fg: "#a626a4", f: 1 }, 6: { fg: "#a626a4" }, 7: { fg: "#4078f2" }, 8: { fg: "#e45649" },
+  },
+  workspaces: [
+    { id: "w1", name: "xenon", open: true, root: "~/src/desktop/xenon", dot: "attention", terminals: 3 },
+    { id: "w3", name: "aipm", open: true, root: "~/src/aipm", dot: "working", terminals: 2 },
+    { id: "w2", name: "homelab", open: true, root: "~/src/infra/homelab", dot: "attention", terminals: 1 },
+    { id: "w4", name: "dotfiles", open: true, root: "~/dotfiles", terminals: 1 },
+    { id: "w5", name: "blog", open: true, root: "~/src/web/blog", terminals: 2 },
+  ].concat(Array.from({ length: 14 }, (_, i) => ({ id: "r" + i, name: "old-" + i, open: false, root: "~/src/old-" + i, terminals: 0 }))),
+  permission: [
+    [["> ", 6], ["bind the remote to Tailscale only", 2]],
+    [],
+    [["● ", 1], ["Search", 2], ["(pattern: \"bind\", path: \"crates\")", 0]],
+    [["  ⎿  ", 3], ["Found 3 files", 0]],
+    [],
+    [["● ", 1], ["Read", 2], ["(xenon_remote/src/server.rs)", 0]],
+    [["  ⎿  ", 3], ["Read 374 lines", 0]],
+    [],
+    [["● ", 1], ["I'll bind to the Tailscale address and", 0]],
+    [["  redact the pairing secret in logs.", 0]],
+    [],
+    [["● ", 1], ["Update", 2], ["(xenon_remote/src/server.rs)", 0]],
+    [["  ⎿  ", 3], ["Updated server.rs with ", 0], ["12", 1], [" additions", 0]],
+    [["    117", 3], [" ", 0], ["- let l = bind_all(port)?;", 8]],
+    [["    118", 3], [" ", 0], ["+ let l = bind_tailscale(port)?;", 1]],
+    [["    119", 3], [" ", 0], ["+ log::info!(\"on {}\", redact(&a));", 1]],
+    [],
+    [["● ", 1], ["Bash", 2], ["(cargo test -p xenon_remote)", 0]],
+    [["  ⎿  ", 3], ["test result: ", 0], ["ok", 1], [". 24 passed; 0 failed", 0]],
+    [],
+    [["╭───────────────────────────────────────────╮", 4]],
+    [["│", 4], [" ", 0], ["Bash command", 2], ["                              ", 0], ["│", 4]],
+    [["│", 4], ["                                           ", 0], ["│", 4]],
+    [["│", 4], ["   cargo clippy --workspace -- -D warnings ", 0], ["│", 4]],
+    [["│", 4], ["   ", 0], ["Lint the whole workspace", 3], ["                ", 0], ["│", 4]],
+    [["│", 4], ["                                           ", 0], ["│", 4]],
+    [["│", 4], [" Do you want to proceed?                   ", 0], ["│", 4]],
+    [["│", 4], [" ", 0], ["❯ 1. Yes", 5], ["                                  ", 0], ["│", 4]],
+    [["│", 4], ["   2. Yes, don’t ask again for cargo       ", 0], ["│", 4]],
+    [["│", 4], ["   3. No, tell Claude what to do instead   ", 0], ["│", 4]],
+    [["╰───────────────────────────────────────────╯", 4]],
+    [["  ", 0], ["⏵⏵ accept edits on", 6], [" (shift+tab to cycle)", 3]],
+  ],
+  idle: [
+    [["● ", 1], ["Update", 2], ["(xenon_ui/src/app/remote/host.rs)", 0]],
+    [["  ⎿  ", 3], ["Updated host.rs: ", 0], ["+9", 1], [" ", 0], ["-4", 8]],
+    [["    185", 3], [" ", 0], ["-   *e = e.wrapping_add(1).max(1);", 8]],
+    [["    185", 3], [" ", 0], ["+   if hash != e.hash {", 1]],
+    [["    186", 3], [" ", 0], ["+       e.seq = e.seq.wrapping_add(1);", 1]],
+    [["    187", 3], [" ", 0], ["+       e.hash = hash;", 1]],
+    [["    188", 3], [" ", 0], ["+   }", 1]],
+    [],
+    [["● ", 1], ["The 204 path never fires because ", 0], ["seq", 7]],
+    [["  is bumped on every capture. It now only", 0]],
+    [["  advances when the grid hash changes.", 0]],
+    [],
+    [["● ", 1], ["Bash", 2], ["(cargo test -p xenon_ui remote)", 0]],
+    [["  ⎿  ", 3], ["test result: ", 0], ["ok", 1], [". 61 passed; 0 failed", 0]],
+    [],
+    [["● ", 1], ["All green. Summary:", 0]],
+    [["  • seq only advances on grid change", 0]],
+    [["  • idle terminals send nothing", 0]],
+    [["  • added ", 0], ["frame_seq_stable_when_idle", 7]],
+    [],
+    [["╭───────────────────────────────────────────╮", 3]],
+    [["│", 3], [" > ", 6], ["                                        ", 0], ["│", 3]],
+    [["╰───────────────────────────────────────────╯", 3]],
+    [["  ", 0], ["⏵⏵ accept edits on", 6], [" (shift+tab to cycle)", 3]],
+  ],
+};
+
+function fixtureSession(content, cursor, styles) {
+  S.workspaces = FX.workspaces;
+  S.wsSel = FX.workspaces[0];
+  S.terminals = [{ tabId: 7, title: "claude", cwd: "~/src/desktop/xenon", active: true, dot: "attention" }];
+  S.skippedList = false;
+  openSession(S.terminals[0]);
+  addStyles(styles || FX.styles);
+  measureChar();
+  const a = availSize();
+  const fit = Core.fitCells(a.w, a.h, S.cw, 18);
+  const pad = Math.max(0, fit.rows - content.length - 1);
+  const lines = content.slice(-fit.rows).map((spans, i) => [pad + i, spans]);
+  renderFrame({ t: "frame", seq: 1, cols: fit.cols, rows: fit.rows, full: true, cursor: cursor && { r: pad + cursor.r, c: cursor.c, s: "block" }, lines });
+}
+
+window.xenonFixture = function (name) {
+  S.fixture = true;
+  closeSocket();
+  document.documentElement.classList.add("fixture");
+  S.hostName = "MacBook Pro";
+  S.token = "fixture";
+  applyTheme(name === "session_light" ? FX.light : FX.dark);
+  const live = (on) => { S.fixtureLive = on; setConnected(on); };
+  switch (name) {
+    case "pair":
+      showPaired();
+      $("a2hs").hidden = false;
+      break;
+    case "code":
+      showCode();
+      $("code-input").value = "482";
+      $("code-input").focus();
+      renderDigits();
+      break;
+    case "workspaces":
+      live(true);
+      S.workspaces = FX.workspaces;
+      show("list"); renderHost(); renderWorkspaces();
+      break;
+    case "session":
+      live(true);
+      fixtureSession(FX.permission, null);
+      break;
+    case "session_light":
+      live(true);
+      fixtureSession(FX.permission, null, FX.stylesLight);
+      break;
+    case "reconnecting":
+      live(true);
+      fixtureSession(FX.idle, { r: FX.idle.length - 3, c: 4 });
+      live(false);
+      S.lastUpdate = Date.now() - 14000;
+      renderAgo();
+      break;
+  }
+};
+
+// ===== Boot =====
+function boot() {
+  const style = document.createElement("style");
+  style.id = "term-styles";
+  document.head.appendChild(style);
+  wireEvents();
+  setEnterOn(S.enterOn);
+  followSystemScheme();
+  onViewport();
+  const secret = location.pathname === "/pair" && location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "";
+  if (secret) {
+    history.replaceState(null, "", "/");
+    setCodeMsg("Pairing…");
+    show("code");
+    pair(secret).then(() => { showPaired(); connect(); }, (e) => showCode(e.message));
+  } else if (S.token) {
+    showWorkspaces();
+  } else {
+    showCode();
+  }
+}
+boot();
 </script>
 </body>
 </html>

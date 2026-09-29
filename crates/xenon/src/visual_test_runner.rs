@@ -119,8 +119,7 @@ fn run_tests() -> anyhow::Result<()> {
         }
         Err(error) => {
             eprintln!("FAIL remote html: {error:#}");
-            failed.push("remote_auth".into());
-            failed.push("remote_session".into());
+            failed.extend(remote::FIXTURES.iter().map(|f| format!("remote_{f}")));
         }
     }
 
@@ -178,6 +177,10 @@ fn run_scene(
     cx.run_until_parked();
     if scene.needs_terminal() {
         wait_for_terminal(cx, window)?;
+        std::thread::sleep(Duration::from_millis(200));
+        cx.run_until_parked();
+        window.update(cx, |app, _, cx| app.visual_after_terminal_ready(scene, cx))?;
+        cx.run_until_parked();
     }
     if scene == xenon_ui::Scene::WorklistToolbarTooltip {
         cx.simulate_mouse_move(
@@ -220,12 +223,18 @@ fn run_scene(
         xenon_ui::Scene::SettingsWindow
             | xenon_ui::Scene::SettingsDropdown
             | xenon_ui::Scene::SettingsAgentsInstalled
+            | xenon_ui::Scene::SettingsRemote
     ) {
         let settings = window
             .update(cx, |app, _, _| app.visual_settings_window())?
             .ok_or_else(|| anyhow!("{name}: settings window missing"))?;
         cx.update_window(settings.into(), |_, window, _| window.refresh())?;
         cx.run_until_parked();
+        if scene == xenon_ui::Scene::SettingsRemote {
+            settings.update(cx, |view, _, _| view.visual_scroll_to_end())?;
+            cx.update_window(settings.into(), |_, window, _| window.refresh())?;
+            cx.run_until_parked();
+        }
         cx.capture_screenshot(settings.into())?
     } else {
         cx.capture_screenshot(window.into())?

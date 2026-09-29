@@ -5,33 +5,31 @@ use std::process::Command;
 
 const PAGE: &str = include_str!("../../../xenon_remote/src/page.html");
 
+/// Phone page states, rendered offline through the page's `xenonFixture` hook.
+pub const FIXTURES: &[&str] = &[
+    "pair",
+    "code",
+    "workspaces",
+    "session",
+    "session_light",
+    "reconnecting",
+];
+
 pub fn capture(output_dir: &Path) -> Result<Vec<String>> {
     fs::create_dir_all(output_dir)?;
-    let auth = output_dir.join("remote_auth.html");
-    fs::write(&auth, PAGE)?;
-    let session = output_dir.join("remote_session.html");
-    fs::write(&session, session_html())?;
     let mut names = Vec::new();
-    screenshot(&auth, &output_dir.join("remote_auth.png"), 390, 844)?;
-    names.push("remote_auth".into());
-    screenshot(&session, &output_dir.join("remote_session.png"), 390, 844)?;
-    names.push("remote_session".into());
+    for fixture in FIXTURES {
+        let name = format!("remote_{fixture}");
+        let html = output_dir.join(format!("{name}.html"));
+        fs::write(&html, fixture_html(fixture))?;
+        screenshot(&html, &output_dir.join(format!("{name}.png")), 390, 844)?;
+        names.push(name);
+    }
     Ok(names)
 }
 
-fn session_html() -> String {
-    format!(
-        "{PAGE}\n<script>\n\
-         document.getElementById('auth').hidden = true;\n\
-         document.getElementById('app').hidden = false;\n\
-         document.getElementById('crumb').textContent = 'demo / terminal';\n\
-         document.getElementById('main').className = 'session';\n\
-         document.getElementById('main').innerHTML = '<pre id=\"term-img\" style=\"margin:0;padding:12px;color:#c8c8cc;font:14px ui-monospace,monospace\">xenon visual fixture\\n$ </pre>';\n\
-         document.getElementById('input-bar').hidden = false;\n\
-         document.getElementById('status').hidden = false;\n\
-         document.getElementById('status').textContent = 'connected';\n\
-         </script>\n"
-    )
+fn fixture_html(fixture: &str) -> String {
+    format!("{PAGE}\n<script>xenonFixture('{fixture}')</script>\n")
 }
 
 fn screenshot(html: &Path, png: &Path, width: u32, height: u32) -> Result<()> {

@@ -22,6 +22,7 @@ impl EntityInputHandler for TerminalView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.note_local_input(cx);
         self.send_text(text, cx);
     }
 
@@ -33,6 +34,7 @@ impl EntityInputHandler for TerminalView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.note_local_input(cx);
         self.send_text(new_text, cx);
     }
 

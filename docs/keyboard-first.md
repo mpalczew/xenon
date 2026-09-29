@@ -29,6 +29,7 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 | Markdown preview / previous · next heading | ⌘⇧V / [ · ] |
 | Wrap lines | ⌥Z |
 | Themes | ⌘⌥T |
+| Connect Phone sheet · copy link · close | ⌘⇧M · ⌘C · Escape / Return |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
 
 Toasts never take focus or Escape. A toast's action shows its shortcut and

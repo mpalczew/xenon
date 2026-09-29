@@ -14,6 +14,7 @@ use xenon_core::{Registry, SessionState, WorkspaceId};
 
 mod cli;
 mod ipc;
+mod remote_devices;
 mod settings;
 mod skill;
 mod terminal;
@@ -22,9 +23,11 @@ pub use ipc::{
     IpcRequest, IpcResponse, OpenFileSpec, OpenPane, bind_server, parse_cli_paths, send_request,
     serve_forever, socket_path, try_handoff, try_handoff_request,
 };
+pub use remote_devices::{RemoteDevice, RemoteDevices, load_remote_devices, save_remote_devices};
 pub use settings::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME, DEFAULT_REMOTE_PORT,
-    DEFAULT_UI_FONT_FAMILY, LspCommand, LspSettings, ThemeMode, WindowGeometry, WindowState,
+    DEFAULT_UI_FONT_FAMILY, LspCommand, LspSettings, RemoteNetwork, ThemeMode, WindowGeometry,
+    WindowState,
 };
 pub use skill::{
     SkillStatus, decline_skill, install_skill, refresh_on_launch, remove_skill,

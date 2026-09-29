@@ -49,7 +49,7 @@ impl XenonApp {
                 drop(lsp_events);
             }
         }
-        Self::register_main_handle(cx);
+        app.register_main_handle(window, cx);
         app.keep_window_focused(window, cx);
         let active = app
             .registry
@@ -136,6 +136,7 @@ impl XenonApp {
             skip_persist: false,
             skill_prompt: None,
             skill_skipped_session: false,
+            pairing_sheet: None,
         }
     }
 }

@@ -35,12 +35,14 @@ pub struct SettingsView {
     filter_input: Entity<TextInputView>,
     _filter_sub: Subscription,
     highlight: usize,
-    /// Keyboard highlight among toggles: 0 line numbers, 1 vim, 2 mobile remote.
+    /// Keyboard highlight among rows: 0 line numbers, 1 vim, 2 phone remote,
+    /// 3 agent skill, 4+ phone remote rows (see `remote_section`).
     toggle_focus: usize,
-    /// Inline edit for remote password/hostname (None = not editing).
+    /// Inline edit for the phone address override (None = not editing).
     remote_edit: Option<RemoteFieldEdit>,
     /// This window's toast host, created on first render (it needs the window).
     toast: Option<Entity<xenon_design_system::ToastView>>,
+    scroll: gpui::ScrollHandle,
 }
 
 impl SettingsView {
@@ -82,6 +84,7 @@ impl SettingsView {
             toggle_focus: 0,
             remote_edit: None,
             toast: None,
+            scroll: gpui::ScrollHandle::new(),
         }
     }
 
@@ -161,7 +164,9 @@ impl SettingsView {
                     cx.stop_propagation();
                 }
                 "down" => {
-                    self.toggle_focus = (self.toggle_focus + 1).min(3);
+                    let last =
+                        remote_section::last_focus(&crate::app::remote::mobile_remote_info(cx));
+                    self.toggle_focus = (self.toggle_focus + 1).min(last);
                     cx.notify();
                     cx.stop_propagation();
                 }
@@ -207,8 +212,16 @@ impl SettingsView {
                 xenon_settings::toggle_vim_mode(cx);
                 xenon_settings::save(cx);
             }
-            2 => remote_section::activate_mobile_remote(window, cx),
-            _ => skill_section::toggle_skill(window, cx),
+            3 => skill_section::toggle_skill(window, cx),
+            focus => {
+                let info = crate::app::remote::mobile_remote_info(cx);
+                remote_section::activate(focus, &info, cx);
+                // The device list just changed under the highlight: never
+                // leave it on another destructive row.
+                if focus >= remote_section::FOCUS_FIRST_DEVICE {
+                    self.toggle_focus = remote_section::FOCUS_CONNECT;
+                }
+            }
         }
         window.refresh();
         cx.notify();
@@ -243,6 +256,7 @@ impl SettingsView {
         };
         div()
             .id("settings-body")
+            .track_scroll(&self.scroll)
             .flex()
             .flex_col()
             .flex_1()
@@ -287,13 +301,19 @@ impl SettingsView {
             .child(terminal_section(&settings, state, cx))
             .child(remote_section(
                 &crate::app::remote::mobile_remote_info(cx),
-                self.toggle_focus == 2,
-                self.remote_edit
-                    .as_ref()
-                    .map(|re| (re.field, re.input.clone())),
+                self.toggle_focus,
+                self.remote_edit.as_ref().map(|re| re.input.clone()),
                 cx,
             ))
             .into_any_element()
+    }
+}
+
+#[cfg(feature = "visual-tests")]
+impl SettingsView {
+    /// Visual tests: show the bottom sections (Phone Remote, devices).
+    pub fn visual_scroll_to_end(&self) {
+        self.scroll.scroll_to_bottom();
     }
 }
 

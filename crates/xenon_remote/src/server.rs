@@ -1,99 +1,120 @@
-//! Local HTTP-only server for mobile PTY remote (lean stack).
+//! HTTP + WebSocket server for the mobile remote. One OS thread per
+//! connection; everything stateful lives in the host behind `HostRequest`.
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow};
-use uuid::Uuid;
 
-use crate::auth::token_ok;
-use crate::host::{HostRequest, HostTx, ViewportSnapshot};
+use crate::host::{ConnId, HostRequest, HostTx, PairError};
 use crate::http;
-use crate::png_frame::viewport_png;
-use crate::protocol::{AuthRequest, AuthResponse, InjectRequest, TerminalInfo, WorkspaceInfo};
+use crate::protocol::{PairRequest, PairResponse, TerminalInfo, WorkspaceInfo};
+use crate::rate_limit::RateLimiter;
+use crate::ws;
 
 const PAGE: &str = include_str!("page.html");
-const TICKET_TTL_SECS: u64 = 60 * 60 * 12;
+const MANIFEST: &str = include_str!("../assets/manifest.webmanifest");
+const ICON_180: &[u8] = include_bytes!("../assets/icon-180.png");
+const ICON_192: &[u8] = include_bytes!("../assets/icon-192.png");
+const ICON_512: &[u8] = include_bytes!("../assets/icon-512.png");
+const HOST_TIMEOUT: Duration = Duration::from_secs(5);
+/// Concurrent connections (phones hold one socket; the rest are short requests).
+const MAX_CONNECTIONS: usize = 32;
+/// How often a listener checks for shutdown between accepts.
+const ACCEPT_POLL: Duration = Duration::from_millis(50);
+/// Rebind retries while a just-stopped listener releases the port.
+const BIND_RETRIES: u32 = 20;
 
-struct TicketStore {
-    map: Mutex<HashMap<String, u64>>,
+/// State shared by every connection thread.
+pub(crate) struct Shared {
+    pub(crate) host: HostTx,
+    pub(crate) enabled: AtomicBool,
+    pub(crate) limiter: Mutex<RateLimiter>,
+    next_conn: AtomicU64,
+    active: AtomicUsize,
 }
 
-impl TicketStore {
-    fn new() -> Self {
-        Self {
-            map: Mutex::new(HashMap::new()),
+impl Shared {
+    pub(crate) fn next_conn(&self) -> ConnId {
+        ConnId(self.next_conn.fetch_add(1, Ordering::Relaxed))
+    }
+
+    pub(crate) fn running(&self) -> bool {
+        self.enabled.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn allow(&self, ip: IpAddr) -> bool {
+        self.limiter
+            .lock()
+            .expect("limiter lock")
+            .allow(ip, Instant::now())
+    }
+
+    pub(crate) fn fail(&self, ip: IpAddr) {
+        self.limiter
+            .lock()
+            .expect("limiter lock")
+            .record_failure(ip, Instant::now());
+    }
+
+    /// Device token → device id via the host. `Err` = the host is busy or
+    /// gone (not a verdict on the token: callers must not sign the phone out).
+    pub(crate) fn authenticate(&self, token: &str) -> Result<Option<String>, String> {
+        if token.is_empty() {
+            return Ok(None);
         }
+        ask(&self.host, |reply| HostRequest::Authenticate {
+            token: token.to_string(),
+            reply,
+        })
     }
-
-    fn issue(&self) -> String {
-        let t = Uuid::new_v4().to_string();
-        let exp = now_secs() + TICKET_TTL_SECS;
-        self.map.lock().expect("ticket lock").insert(t.clone(), exp);
-        t
-    }
-
-    fn valid(&self, ticket: &str) -> bool {
-        let mut map = self.map.lock().expect("ticket lock");
-        let now = now_secs();
-        map.retain(|_, exp| *exp > now);
-        map.contains_key(ticket)
-    }
-}
-
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 /// Running mobile remote server. Drop stops accepting.
 pub struct RemoteServer {
     pub port: u16,
-    pub token: String,
-    pub bind: SocketAddr,
-    enabled: Arc<AtomicBool>,
-    _join: Option<thread::JoinHandle<()>>,
+    /// Addresses actually bound (e.g. Tailscale IP + loopback).
+    pub binds: Vec<SocketAddr>,
+    shared: Arc<Shared>,
 }
 
 impl RemoteServer {
-    /// Bind `0.0.0.0:port` (port 0 = ephemeral). Host fulfills list/frame/inject.
-    /// `token` is the shared password; empty is rejected.
-    pub fn start(port: u16, token: String, host: HostTx) -> Result<Self> {
-        if token.is_empty() {
-            anyhow::bail!("remote password must not be empty");
+    /// Listen on `port` at each of `ips` (port 0 = ephemeral; use one ip then).
+    /// Fails only when no address could be bound.
+    pub fn start(ips: &[IpAddr], port: u16, host: HostTx) -> Result<Self> {
+        let shared = Arc::new(Shared {
+            host,
+            enabled: AtomicBool::new(true),
+            limiter: Mutex::new(RateLimiter::new()),
+            next_conn: AtomicU64::new(1),
+            active: AtomicUsize::new(0),
+        });
+        let mut binds = Vec::new();
+        for ip in ips {
+            match bind(*ip, port, &shared) {
+                Ok(addr) => binds.push(addr),
+                Err(e) => log::warn!("xenon remote: {e:#}"),
+            }
         }
-        let listener = TcpListener::bind(("0.0.0.0", port))
-            .with_context(|| format!("bind remote on 0.0.0.0:{port}"))?;
-        listener.set_nonblocking(false)?;
-        let addr = listener.local_addr()?;
-        let enabled = Arc::new(AtomicBool::new(true));
-        let tickets = Arc::new(TicketStore::new());
-        let token_arc = Arc::new(token.clone());
-        let en = enabled.clone();
-        let join = thread::Builder::new()
-            .name("xenon-remote".into())
-            .spawn(move || accept_loop(listener, en, token_arc, tickets, host))?;
-        log::info!("xenon remote listening on http://{addr}/");
+        let first = binds
+            .first()
+            .ok_or_else(|| anyhow!("could not listen on port {port}"))?;
         Ok(Self {
-            port: addr.port(),
-            token,
-            bind: addr,
-            enabled,
-            _join: Some(join),
+            port: first.port(),
+            binds,
+            shared,
         })
     }
 
+    /// Listeners notice within `ACCEPT_POLL` and release their ports.
     pub fn stop(&self) {
-        self.enabled.store(false, Ordering::SeqCst);
-        let _ = TcpStream::connect(self.bind);
+        self.shared.enabled.store(false, Ordering::SeqCst);
     }
 }
 
@@ -103,270 +124,206 @@ impl Drop for RemoteServer {
     }
 }
 
-fn accept_loop(
-    listener: TcpListener,
-    enabled: Arc<AtomicBool>,
-    token: Arc<String>,
-    tickets: Arc<TicketStore>,
-    host: HostTx,
-) {
-    for stream in listener.incoming() {
-        if !enabled.load(Ordering::SeqCst) {
-            break;
-        }
-        let Ok(stream) = stream else { continue };
-        let token = token.clone();
-        let tickets = tickets.clone();
-        let host = host.clone();
-        let enabled = enabled.clone();
-        thread::spawn(move || {
-            if !enabled.load(Ordering::SeqCst) {
-                return;
+fn bind(ip: IpAddr, port: u16, shared: &Arc<Shared>) -> Result<SocketAddr> {
+    let listener = bind_with_retry(ip, port)?;
+    listener.set_nonblocking(true)?;
+    let addr = listener.local_addr()?;
+    let shared = shared.clone();
+    thread::Builder::new()
+        .name(format!("xenon-remote-{addr}"))
+        .spawn(move || accept_loop(listener, shared))?;
+    log::info!("xenon remote listening on {addr}");
+    Ok(addr)
+}
+
+/// A restart can race the previous listener's shutdown for the same port.
+fn bind_with_retry(ip: IpAddr, port: u16) -> Result<TcpListener> {
+    let mut attempt = 0;
+    loop {
+        match TcpListener::bind((ip, port)) {
+            Ok(listener) => return Ok(listener),
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse && attempt < BIND_RETRIES => {
+                attempt += 1;
+                thread::sleep(ACCEPT_POLL);
             }
-            if let Err(e) = handle_connection(stream, &token, &tickets, &host) {
+            Err(e) => return Err(e).with_context(|| format!("bind remote on {ip}:{port}")),
+        }
+    }
+}
+
+fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
+    while shared.running() {
+        let stream = match listener.accept() {
+            Ok((stream, _)) => stream,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                thread::sleep(ACCEPT_POLL);
+                continue;
+            }
+            Err(_) => continue,
+        };
+        if shared.active.fetch_add(1, Ordering::SeqCst) >= MAX_CONNECTIONS {
+            shared.active.fetch_sub(1, Ordering::SeqCst);
+            continue; // Dropped: too many open connections.
+        }
+        let shared = shared.clone();
+        thread::spawn(move || {
+            let _ = stream.set_nonblocking(false);
+            if let Err(e) = handle_connection(stream, &shared) {
                 log::debug!("xenon remote connection: {e:#}");
             }
+            shared.active.fetch_sub(1, Ordering::SeqCst);
         });
     }
 }
 
-#[allow(clippy::too_many_lines)]
-fn handle_connection(
-    mut stream: TcpStream,
-    token: &str,
-    tickets: &TicketStore,
-    host: &HostTx,
-) -> Result<()> {
+/// A parsed request head plus body.
+pub(crate) struct Request {
+    pub(crate) method: String,
+    pub(crate) path: String,
+    pub(crate) headers: HashMap<String, String>,
+    pub(crate) body: Vec<u8>,
+    pub(crate) peer: IpAddr,
+}
+
+fn read_request(stream: &mut TcpStream) -> Result<Option<Request>> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
-
+    let peer = stream.peer_addr()?.ip();
     let mut buf = vec![0u8; 16 * 1024];
     let n = stream.read(&mut buf)?;
     if n == 0 {
-        return Ok(());
+        return Ok(None);
     }
-    let head = String::from_utf8_lossy(&buf[..n]);
+    let head = String::from_utf8_lossy(&buf[..n]).into_owned();
     let (req_line, headers, body_start) = http::split_http(&head)?;
     let mut parts = req_line.split_whitespace();
-    let method = parts.next().unwrap_or("");
-    let path_q = parts.next().unwrap_or("/");
-    let (path, query) = http::split_path_query(path_q);
-
-    let body = http::extract_body(&buf[..n], body_start, &headers, &mut stream)?;
-
-    match (method, path) {
-        ("GET", "/") | ("GET", "/index.html") => {
-            http::write_http(
-                &mut stream,
-                200,
-                "text/html; charset=utf-8",
-                PAGE.as_bytes(),
-            )?;
-        }
-        ("POST", "/auth") => {
-            let req: AuthRequest = serde_json::from_slice(&body).unwrap_or(AuthRequest {
-                token: String::new(),
-            });
-            if token_ok(token, &req.token) {
-                let ticket = tickets.issue();
-                let resp = AuthResponse { ticket };
-                let bytes = serde_json::to_vec(&resp)?;
-                http::write_http(&mut stream, 200, "application/json", &bytes)?;
-            } else {
-                http::write_http(
-                    &mut stream,
-                    401,
-                    "application/json",
-                    br#"{"error":"unauthorized"}"#,
-                )?;
-            }
-        }
-        ("GET", "/api/workspaces") => {
-            if !authorize_bearer(&headers, tickets) {
-                http::write_http(
-                    &mut stream,
-                    401,
-                    "application/json",
-                    br#"{"error":"unauthorized"}"#,
-                )?;
-                return Ok(());
-            }
-            let list = ask_list_workspaces(host)?;
-            let bytes = serde_json::to_vec(&list)?;
-            http::write_http(&mut stream, 200, "application/json", &bytes)?;
-        }
-        (m, p) if m == "GET" && p.starts_with("/api/workspaces/") && p.ends_with("/terminals") => {
-            if !authorize_bearer(&headers, tickets) {
-                http::write_http(
-                    &mut stream,
-                    401,
-                    "application/json",
-                    br#"{"error":"unauthorized"}"#,
-                )?;
-                return Ok(());
-            }
-            let rest = p
-                .strip_prefix("/api/workspaces/")
-                .and_then(|s| s.strip_suffix("/terminals"))
-                .unwrap_or("");
-            let id = http::urlencoding_decode(rest);
-            match ask_list_terminals(host, &id) {
-                Ok(list) => {
-                    let bytes = serde_json::to_vec(&list)?;
-                    http::write_http(&mut stream, 200, "application/json", &bytes)?;
-                }
-                Err(e) => {
-                    let body = serde_json::json!({"error": e}).to_string();
-                    http::write_http(&mut stream, 404, "application/json", body.as_bytes())?;
-                }
-            }
-        }
-        ("GET", "/api/frame") => {
-            if !authorize_bearer(&headers, tickets) {
-                http::write_http(
-                    &mut stream,
-                    401,
-                    "application/json",
-                    br#"{"error":"unauthorized"}"#,
-                )?;
-                return Ok(());
-            }
-            let ws_id = http::query_param(query, "workspaceId").unwrap_or("");
-            let tab_s = http::query_param(query, "tabId").unwrap_or("0");
-            let since: u64 = http::query_param(query, "since")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
-            let tab_id: u64 = match tab_s.parse() {
-                Ok(t) => t,
-                Err(_) => {
-                    http::write_http(
-                        &mut stream,
-                        400,
-                        "application/json",
-                        br#"{"error":"invalid tabId"}"#,
-                    )?;
-                    return Ok(());
-                }
-            };
-            if ws_id.is_empty() {
-                http::write_http(
-                    &mut stream,
-                    400,
-                    "application/json",
-                    br#"{"error":"workspaceId required"}"#,
-                )?;
-                return Ok(());
-            }
-            match ask_frame(host, ws_id, tab_id) {
-                Ok(snap) => {
-                    if snap.seq == since && since != 0 {
-                        http::write_http_status(&mut stream, 204, "No Content", &[])?;
-                        return Ok(());
-                    }
-                    let png = viewport_png(&snap.lines, snap.cols, snap.rows)?;
-                    http::write_png_frame(&mut stream, &snap, &png)?;
-                }
-                Err(e) => {
-                    let body = serde_json::json!({"error": e}).to_string();
-                    http::write_http(&mut stream, 404, "application/json", body.as_bytes())?;
-                }
-            }
-        }
-        ("POST", "/api/inject") => {
-            if !authorize_bearer(&headers, tickets) {
-                http::write_http(
-                    &mut stream,
-                    401,
-                    "application/json",
-                    br#"{"error":"unauthorized"}"#,
-                )?;
-                return Ok(());
-            }
-            let req: InjectRequest = match serde_json::from_slice(&body) {
-                Ok(r) => r,
-                Err(e) => {
-                    let body = serde_json::json!({"error": format!("bad body: {e}")}).to_string();
-                    http::write_http(&mut stream, 400, "application/json", body.as_bytes())?;
-                    return Ok(());
-                }
-            };
-            match ask_inject(host, &req.workspace_id, req.tab_id, req.text) {
-                Ok(()) => {
-                    http::write_http(&mut stream, 200, "application/json", br#"{"ok":true}"#)?;
-                }
-                Err(e) => {
-                    let body = serde_json::json!({"error": e}).to_string();
-                    http::write_http(&mut stream, 400, "application/json", body.as_bytes())?;
-                }
-            }
-        }
-        _ => {
-            http::write_http(&mut stream, 404, "text/plain", b"not found")?;
-        }
-    }
-    Ok(())
+    let method = parts.next().unwrap_or("").to_string();
+    let (path, _query) = http::split_path_query(parts.next().unwrap_or("/"));
+    let path = path.to_string();
+    let body = http::extract_body(&buf[..n], body_start, &headers, stream)?;
+    Ok(Some(Request {
+        method,
+        path,
+        headers,
+        body,
+        peer,
+    }))
 }
 
-fn authorize_bearer(headers: &HashMap<String, String>, tickets: &TicketStore) -> bool {
-    let Some(auth) = headers.get("authorization") else {
-        return false;
+fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
+    let Some(req) = read_request(&mut stream)? else {
+        return Ok(());
     };
-    let ticket = auth
-        .strip_prefix("Bearer ")
-        .or_else(|| auth.strip_prefix("bearer "))
+    match (req.method.as_str(), req.path.as_str()) {
+        ("GET", "/" | "/index.html" | "/pair") => http::write_http(
+            &mut stream,
+            200,
+            "text/html; charset=utf-8",
+            PAGE.as_bytes(),
+        ),
+        ("GET", "/manifest.webmanifest") => http::write_http(
+            &mut stream,
+            200,
+            "application/manifest+json",
+            MANIFEST.as_bytes(),
+        ),
+        ("GET", "/icon-180.png") => http::write_http(&mut stream, 200, "image/png", ICON_180),
+        ("GET", "/icon-192.png") => http::write_http(&mut stream, 200, "image/png", ICON_192),
+        ("GET", "/icon-512.png") => http::write_http(&mut stream, 200, "image/png", ICON_512),
+        ("POST", "/pair") => pair(&mut stream, &req, shared),
+        ("GET", "/ws") => ws::serve(stream, &req, shared),
+        ("GET", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
+        _ => http::write_http(&mut stream, 404, "text/plain", b"not found"),
+    }
+}
+
+fn pair(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
+    if !shared.allow(req.peer) {
+        return http::write_json_error(stream, 429, "too many attempts");
+    }
+    let Ok(body) = serde_json::from_slice::<PairRequest>(&req.body) else {
+        return http::write_json_error(stream, 400, "bad body");
+    };
+    let result: Result<PairResponse, PairError> = ask(&shared.host, |reply| HostRequest::Pair {
+        code: body.code,
+        label: body.label,
+        reply,
+    })
+    .unwrap_or_else(|e| Err(PairError::Storage(e)));
+    match result {
+        Ok(resp) => {
+            let bytes = serde_json::to_vec(&resp)?;
+            http::write_http(stream, 200, "application/json", &bytes)
+        }
+        Err(PairError::Rejected) => {
+            shared.fail(req.peer);
+            http::write_json_error(stream, 401, "code not recognized")
+        }
+        Err(PairError::Storage(e)) => http::write_json_error(stream, 500, &e),
+    }
+}
+
+/// Device tokens are 256-bit: no throttle here, so a stranger's bad guesses
+/// can never lock out paired phones.
+fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
+    match shared.authenticate(bearer(&req.headers)) {
+        Ok(Some(_)) => {}
+        Ok(None) => return http::write_json_error(stream, 401, "unauthorized"),
+        Err(e) => return http::write_json_error(stream, 503, &e),
+    }
+    if req.path == "/api/workspaces" {
+        let list: Vec<WorkspaceInfo> =
+            ask(&shared.host, |reply| HostRequest::ListWorkspaces { reply })
+                .map_err(|e| anyhow!(e))?;
+        return write_json(stream, &list);
+    }
+    let workspace = req
+        .path
+        .strip_prefix("/api/workspaces/")
+        .and_then(|s| s.strip_suffix("/terminals"))
+        .map(http::urlencoding_decode);
+    let Some(workspace_id) = workspace else {
+        return http::write_json_error(stream, 404, "not found");
+    };
+    let terminals: Result<Vec<TerminalInfo>, String> =
+        ask(&shared.host, |reply| HostRequest::ListTerminals {
+            workspace_id,
+            reply,
+        })
+        .and_then(|r| r);
+    match terminals {
+        Ok(list) => write_json(stream, &list),
+        Err(e) => http::write_json_error(stream, 404, &e),
+    }
+}
+
+fn write_json<T: serde::Serialize>(stream: &mut TcpStream, value: &T) -> Result<()> {
+    let bytes = serde_json::to_vec(value)?;
+    http::write_http(stream, 200, "application/json", &bytes)
+}
+
+fn bearer(headers: &HashMap<String, String>) -> &str {
+    headers
+        .get("authorization")
+        .map(String::as_str)
+        .and_then(|a| {
+            a.strip_prefix("Bearer ")
+                .or_else(|| a.strip_prefix("bearer "))
+        })
         .unwrap_or("")
-        .trim();
-    tickets.valid(ticket)
+        .trim()
 }
 
-fn ask_list_workspaces(host: &HostTx) -> Result<Vec<WorkspaceInfo>> {
+/// Send one request to the host and wait for its reply.
+pub(crate) fn ask<T>(
+    host: &HostTx,
+    make: impl FnOnce(mpsc::SyncSender<T>) -> HostRequest,
+) -> Result<T, String> {
     let (tx, rx) = mpsc::sync_channel(1);
-    host.send_blocking(HostRequest::ListWorkspaces { reply: tx })
-        .map_err(|_| anyhow!("host gone"))?;
-    rx.recv_timeout(Duration::from_secs(5))
-        .map_err(|_| anyhow!("host timeout"))
-}
-
-fn ask_list_terminals(host: &HostTx, workspace_id: &str) -> Result<Vec<TerminalInfo>, String> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    host.send_blocking(HostRequest::ListTerminals {
-        workspace_id: workspace_id.to_string(),
-        reply: tx,
-    })
-    .map_err(|_| "host gone".to_string())?;
-    rx.recv_timeout(Duration::from_secs(5))
-        .map_err(|_| "host timeout".to_string())?
-}
-
-fn ask_frame(host: &HostTx, workspace_id: &str, tab_id: u64) -> Result<ViewportSnapshot, String> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    host.send_blocking(HostRequest::CaptureFrame {
-        workspace_id: workspace_id.to_string(),
-        tab_id,
-        reply: tx,
-    })
-    .map_err(|_| "host gone".to_string())?;
-    rx.recv_timeout(Duration::from_secs(5))
-        .map_err(|_| "host timeout".to_string())?
-}
-
-fn ask_inject(host: &HostTx, workspace_id: &str, tab_id: u64, text: String) -> Result<(), String> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    host.send_blocking(HostRequest::Inject {
-        workspace_id: workspace_id.to_string(),
-        tab_id,
-        text,
-        reply: tx,
-    })
-    .map_err(|_| "host gone".to_string())?;
-    rx.recv_timeout(Duration::from_secs(5))
-        .map_err(|_| "host timeout".to_string())?
-}
-
-/// Shared monotonic frame sequence (host may also track per-tab).
-pub fn next_global_seq() -> u64 {
-    static SEQ: AtomicU64 = AtomicU64::new(1);
-    SEQ.fetch_add(1, Ordering::Relaxed)
+    host.send_blocking(make(tx))
+        .map_err(|_| "host gone".to_string())?;
+    rx.recv_timeout(HOST_TIMEOUT)
+        .map_err(|_| "host timeout".to_string())
 }
 
 #[cfg(test)]

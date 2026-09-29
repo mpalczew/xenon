@@ -59,6 +59,9 @@ Market this honestly: **anti-IDE shell where the agent is free to leave.**
 - **Cmd-p family** — file finder, command palette, task runner
 - **Keyboard-first** — every daily flow works without a mouse
 - **Claude Code IDE bridge** — optional open-file / workspace hooks via local MCP
+- **Phone remote** — ⌘⇧M shows a QR code; drive your agents' terminals from
+  your phone over [Tailscale](https://tailscale.com) (installable web app,
+  special-key row, terminal re-wraps to phone width)
 - **Themes** — dense dark defaults; True Black opt-in
 - **Native** — Rust on GPUI (Zed’s UI stack). Instant feel is a product requirement
 
@@ -153,6 +156,7 @@ Bundle only (no copy to Applications):
 | Workspace next / previous | ⌘⌥↓ / ⌘⌥↑ |
 | Tab next / previous / close | ⌃⇥ / ⌃⇧⇥ / ⌘W |
 | Save | ⌘S |
+| Connect phone (QR) | ⌘⇧M |
 
 Full map: [`docs/keyboard-first.md`](docs/keyboard-first.md).
 

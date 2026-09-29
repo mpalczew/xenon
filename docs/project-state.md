@@ -90,6 +90,10 @@ rediscover.
   `XenonApp` key context); it is a safety net, not the transfer.
 - A fresh PTY grid is tiny before first paint. Remote-only reopen must call
   `ensure_grid_size`.
+- Phone remote needs a `Window` for terminal snapshots (`Terminal::sync`);
+  remote tasks run against `services.main_window`, never the caller's window
+  (Settings is a separate window). Mac keyboard input suspends a phone fit for
+  30s (`TerminalView::note_local_input`); remote input must not call it.
 - Markdown YAML metadata requires the pulldown-cmark metadata option; otherwise
   the closing fence can become a setext heading.
 - Markdown emphasis highlighting depends on `injection.include-children` and

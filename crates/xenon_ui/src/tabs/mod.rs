@@ -140,7 +140,10 @@ impl XenonApp {
             let chip = match tab {
                 LiveTab::Terminal { id, view } => {
                     let term = view.read(cx);
-                    let title = term.title(cx);
+                    let title = match term.active_phone_fit() {
+                        Some(fit) => format!("{} · {}", term.title(cx), fit.device),
+                        None => term.title(cx),
+                    };
                     let exited = term.is_exited();
                     let tab_id = *id;
                     let attention = ws.and_then(|id| self.tab_attention(id, tab_id));

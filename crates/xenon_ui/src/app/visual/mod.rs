@@ -10,6 +10,7 @@ mod chrome;
 mod content;
 mod keyboard;
 mod overlays;
+mod remote;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scene {
@@ -79,6 +80,10 @@ pub enum Scene {
     ToastInfo,
     ToastError,
     ToastErrorLight,
+    ConnectPhone,
+    ConnectPhoneOffline,
+    PhoneDriving,
+    SettingsRemote,
 }
 
 pub const SCENES: &[Scene] = &[
@@ -148,9 +153,20 @@ pub const SCENES: &[Scene] = &[
     Scene::ToastInfo,
     Scene::ToastError,
     Scene::ToastErrorLight,
+    Scene::ConnectPhone,
+    Scene::ConnectPhoneOffline,
+    Scene::PhoneDriving,
+    Scene::SettingsRemote,
 ];
 
-const REMOTE_SURFACES: &[&str] = &["remote_auth", "remote_session"];
+const REMOTE_SURFACES: &[&str] = &[
+    "remote_pair",
+    "remote_code",
+    "remote_workspaces",
+    "remote_session",
+    "remote_session_light",
+    "remote_reconnecting",
+];
 
 pub fn surface_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = SCENES.iter().map(|scene| scene.name()).collect();
@@ -227,6 +243,10 @@ impl Scene {
             Self::ToastInfo => "overlay_toast_info",
             Self::ToastError => "overlay_toast_error",
             Self::ToastErrorLight => "overlay_toast_error_light",
+            Self::ConnectPhone => "overlay_connect_phone",
+            Self::ConnectPhoneOffline => "overlay_connect_phone_no_tailscale",
+            Self::PhoneDriving => "content_terminal_phone_fit",
+            Self::SettingsRemote => "settings_remote",
         }
     }
 
@@ -239,6 +259,7 @@ impl Scene {
                 | Self::TabsAttention
                 | Self::TabsOverflow
                 | Self::TabsOverflowMenu
+                | Self::PhoneDriving
         )
     }
 }
@@ -301,6 +322,10 @@ pub fn apply_scene(
             overlays::skill_prompt(app, scene, window, cx)
         }
         Scene::SettingsAgentsInstalled => overlays::settings_agents_installed(app, cx),
+        Scene::ConnectPhone => remote::connect_phone(app, true, window, cx),
+        Scene::ConnectPhoneOffline => remote::connect_phone(app, false, window, cx),
+        Scene::PhoneDriving => content::phone_driving(app, window, cx),
+        Scene::SettingsRemote => remote::settings_remote(app, cx),
         Scene::WorklistCapture | Scene::WorklistCaptureFilled | Scene::WorklistCaptureLong => {
             chrome::populated(app, scene, window, cx);
             app.capture_worklist(window, cx);
@@ -378,6 +403,13 @@ pub fn apply_scene(
 }
 
 impl XenonApp {
+    /// Runner hook after the scene's terminal is ready (for PTY-dependent state).
+    pub fn visual_after_terminal_ready(&mut self, scene: Scene, cx: &mut Context<XenonApp>) {
+        if scene == Scene::PhoneDriving {
+            self.visual_phone_driving(cx);
+        }
+    }
+
     pub fn visual_settings_window(&self) -> Option<WindowHandle<SettingsView>> {
         self.settings_window
     }

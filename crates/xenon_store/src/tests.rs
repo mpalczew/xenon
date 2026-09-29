@@ -129,7 +129,9 @@ fn settings_round_trip() {
                 900.0,
                 WindowState::Maximized,
             )),
-            remote_password: "s3cret".into(),
+            remote_enabled: true,
+            remote_network: crate::RemoteNetwork::TailscaleAndLan,
+            remote_keep_awake: false,
             remote_port: 17890,
             remote_hostname: "macbook.tailnet.ts.net".into(),
             lsp: crate::LspSettings::default(),
@@ -143,7 +145,7 @@ fn settings_round_trip() {
 fn settings_update_preserves_unowned_fields() {
     with_data_dir(|| {
         let settings = AppSettings {
-            remote_password: "keep-me".into(),
+            remote_hostname: "keep-me".into(),
             lsp: crate::LspSettings {
                 enabled: false,
                 ..Default::default()
@@ -156,7 +158,7 @@ fn settings_update_preserves_unowned_fields() {
 
         let updated = load_settings().unwrap();
         assert!(!updated.show_line_numbers);
-        assert_eq!(updated.remote_password, "keep-me");
+        assert_eq!(updated.remote_hostname, "keep-me");
         assert!(!updated.lsp.enabled);
     });
 }
@@ -287,5 +289,40 @@ fn load_registry_migrates_legacy_stream_session() {
         assert_eq!(session.sidebar_width, 200.0);
         // terminal_visible false + no editors → content may be empty or term-only after migrate
         assert!(session.content.is_empty() || session.content.leaf_ids().len() <= 1);
+    });
+}
+
+#[test]
+fn remote_devices_round_trip_owner_only() {
+    with_data_dir(|| {
+        assert!(crate::load_remote_devices().unwrap().devices.is_empty());
+        let devices = crate::RemoteDevices {
+            devices: vec![crate::RemoteDevice {
+                id: "d1".into(),
+                label: "iPhone · Safari".into(),
+                token_sha256: "ab".into(),
+                created_at: 1,
+                last_seen_at: 2,
+            }],
+        };
+        crate::save_remote_devices(&devices).unwrap();
+        assert_eq!(crate::load_remote_devices().unwrap(), devices);
+        let path = crate::data_dir().join("remote_devices.json");
+        use std::os::unix::fs::PermissionsExt;
+        let mode = fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    });
+}
+
+#[test]
+fn legacy_remote_password_is_ignored() {
+    with_data_dir(|| {
+        let path = crate::data_dir().join("settings.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"remote_password":"old","remote_port":17890}"#).unwrap();
+        let settings = load_settings().unwrap();
+        assert!(!settings.remote_enabled);
+        assert!(settings.remote_keep_awake);
+        assert_eq!(settings.remote_network, crate::RemoteNetwork::Tailscale);
     });
 }

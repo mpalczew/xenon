@@ -14,6 +14,17 @@ pub enum ThemeMode {
     Dark,
 }
 
+/// Networks the phone remote listens on. Loopback is always included.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteNetwork {
+    /// Tailscale address only (reachable from anywhere on the tailnet).
+    #[default]
+    Tailscale,
+    /// Every interface, including home Wi-Fi.
+    TailscaleAndLan,
+}
+
 /// Windowed / maximized / fullscreen (restore size is always the rect).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -120,9 +131,15 @@ pub struct AppSettings {
     /// Last main window position/size (None until the user has moved/resized once).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowGeometry>,
-    /// Mobile remote shared password (phone auth token). Empty until first enable or set.
+    /// Phone remote server runs at launch (last toggle wins).
     #[serde(default)]
-    pub remote_password: String,
+    pub remote_enabled: bool,
+    /// Which networks the phone remote listens on.
+    #[serde(default)]
+    pub remote_network: RemoteNetwork,
+    /// Hold a no-idle-sleep assertion while the phone remote is on.
+    #[serde(default = "default_true")]
+    pub remote_keep_awake: bool,
     /// Mobile remote bind port (stable across restarts).
     #[serde(default = "default_remote_port")]
     pub remote_port: u16,
@@ -155,7 +172,9 @@ impl Default for AppSettings {
             sidebar_width: 240.0,
             workspaces_section_height: None,
             window: None,
-            remote_password: String::new(),
+            remote_enabled: false,
+            remote_network: RemoteNetwork::default(),
+            remote_keep_awake: true,
             remote_port: default_remote_port(),
             remote_hostname: String::new(),
             lsp: LspSettings::default(),

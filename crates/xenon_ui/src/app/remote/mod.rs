@@ -1,31 +1,70 @@
-//! Mobile PTY remote: host handlers + start/stop the local HTTP/WS server.
+//! Phone remote: server lifecycle, request dispatch, and the status snapshot
+//! Settings and the sidebar read. Sessions (attach/frames/input) live in
+//! `session`; lists in `host`; pairing UI in `pairing_sheet`.
 
 use super::*;
 
+mod devices;
 mod host;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+mod keep_awake;
+mod network;
+pub(crate) mod pairing_sheet;
+mod session;
+mod settings_api;
+mod status;
+#[cfg(feature = "visual-tests")]
+mod visual;
+mod wire;
+
+use std::collections::BTreeMap;
+use std::time::Instant;
 
 use gpui::{Global, WeakEntity};
-use xenon_remote::{HostRequest, RemoteServer};
+use xenon_remote::{ConnId, HostRequest, PairError, PairResponse, RemoteServer};
+use xenon_store::RemoteNetwork;
 
-/// Weak handle to the main shell so Settings (separate window) can toggle remote.
+use devices::DeviceBook;
+use keep_awake::KeepAwake;
+use network::Reachability;
+pub(crate) use network::normalize_hostname;
+use session::Conn;
+pub(crate) use settings_api::*;
+pub(crate) use status::RemoteFooter;
+
+/// How often the remote re-checks dots, the pairing countdown, and the network.
+const TICK: Duration = Duration::from_secs(1);
+/// Network re-probe cadence, in ticks.
+const NETWORK_EVERY: u32 = 15;
+
+/// Weak handle to the main shell so Settings (separate window) can reach it.
 pub(crate) struct MainApp(pub WeakEntity<XenonApp>);
 impl Global for MainApp {}
 
-/// Live remote status for Settings.
-/// Stored as a gpui Global so Settings paint never leases `XenonApp`
-/// (opening Settings runs inside a XenonApp update → double_lease_panic).
-#[derive(Clone, Debug, Default)]
+/// One paired device as Settings lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DeviceRow {
+    pub id: String,
+    pub label: String,
+    pub connected: bool,
+    pub last_seen_at: u64,
+    pub created_at: u64,
+}
+
+/// Remote status snapshot. A gpui Global so Settings paint never leases
+/// `XenonApp` (opening Settings runs inside a XenonApp update).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct MobileRemoteInfo {
     pub enabled: bool,
-    pub port: u16,
-    /// Shared password (same as phone token).
-    pub token: String,
-    /// Optional user hostname for the primary copy URL.
+    pub network: RemoteNetwork,
+    pub keep_awake: bool,
+    /// User override for the phone URL host (empty = automatic).
     pub hostname: String,
-    /// Prefer custom host, then Tailscale / localhost; includes `?token=` for copy-paste.
-    pub urls: Vec<String>,
+    /// `http://host:port` the phone should open, when running.
+    pub base_url: Option<String>,
+    /// A phone can reach us from off this Mac (Tailscale, or LAN when allowed).
+    pub reachable: bool,
+    pub devices: Vec<DeviceRow>,
+    pub connected: usize,
 }
 
 impl Global for MobileRemoteInfo {}
@@ -33,28 +72,325 @@ impl Global for MobileRemoteInfo {}
 pub(crate) fn mobile_remote_info(cx: &App) -> MobileRemoteInfo {
     cx.try_global::<MobileRemoteInfo>()
         .cloned()
-        .unwrap_or_else(info_from_disk)
+        .unwrap_or_default()
 }
 
-fn publish_remote_info(info: MobileRemoteInfo, cx: &mut App) {
-    cx.set_global(info);
+/// Everything alive while the remote is on. Dropping it stops the server,
+/// releases keep-awake, and ends the background tasks.
+pub(crate) struct RemoteRuntime {
+    /// Held for its `Drop`, which stops listening.
+    _server: RemoteServer,
+    /// Port the phone URL uses (the server's; fixed in visual tests).
+    port: u16,
+    network: RemoteNetwork,
+    reach: Reachability,
+    host_name: String,
+    devices: DeviceBook,
+    conns: BTreeMap<ConnId, Conn>,
+    _keep_awake: Option<KeepAwake>,
+    _requests: Task<()>,
+    _tick: Task<()>,
+    ticks: u32,
 }
 
-fn info_from_disk() -> MobileRemoteInfo {
-    let s = xenon_store::load_settings().unwrap_or_default();
-    let port = effective_port(s.remote_port);
-    let token = s.remote_password;
-    let hostname = normalize_hostname(&s.remote_hostname);
-    MobileRemoteInfo {
-        enabled: false,
-        port,
-        token: token.clone(),
-        hostname: hostname.clone(),
-        urls: if token.is_empty() {
-            Vec::new()
+impl XenonApp {
+    /// Register so Settings can reach the main app; start if left on last time.
+    pub(crate) fn register_main_handle(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let weak = cx.entity().downgrade();
+        cx.set_global(MainApp(weak));
+        self.services.main_window = Some(window.window_handle());
+        let settings = xenon_store::load_settings().unwrap_or_default();
+        if settings.remote_enabled && !self.skip_persist {
+            self.start_mobile_remote(cx);
+        }
+        self.publish_remote_info(cx);
+    }
+
+    pub(crate) fn remote_running(&self) -> bool {
+        self.services.remote.is_some()
+    }
+
+    /// Palette / menu toggle. Remembers the choice for the next launch.
+    pub(crate) fn toggle_mobile_remote(&mut self, cx: &mut Context<Self>) {
+        let on = !self.remote_running();
+        if on {
+            self.start_mobile_remote(cx);
         } else {
-            remote_urls_for(port, &token, &hostname)
-        },
+            self.stop_mobile_remote(cx);
+        }
+        persist_enabled(self.remote_running());
+        let toast = if self.remote_running() {
+            xenon_design_system::Toast::info("📱", "Phone remote on")
+        } else {
+            xenon_design_system::Toast::info("📴", "Phone remote off")
+        };
+        self.show_toast(toast, cx);
+    }
+
+    pub(crate) fn start_mobile_remote(&mut self, cx: &mut Context<Self>) {
+        if self.remote_running() {
+            return;
+        }
+        let settings = xenon_store::load_settings().unwrap_or_default();
+        let reach = Reachability::probe_local();
+        let (tx, rx) = async_channel::unbounded::<HostRequest>();
+        let port = effective_port(settings.remote_port);
+        let server = match RemoteServer::start(&reach.bind_ips(settings.remote_network), port, tx) {
+            Ok(server) => server,
+            Err(e) => {
+                log::error!("phone remote failed to start: {e:#}");
+                self.show_toast(toasts::failed("Phone remote didn’t start", e), cx);
+                return;
+            }
+        };
+        log::info!("phone remote on: {:?}", server.binds);
+        self.services.remote = Some(RemoteRuntime {
+            port: server.port,
+            _server: server,
+            network: settings.remote_network,
+            reach,
+            host_name: String::new(),
+            devices: DeviceBook::load(),
+            conns: BTreeMap::new(),
+            _keep_awake: settings
+                .remote_keep_awake
+                .then(KeepAwake::acquire)
+                .flatten(),
+            _requests: self.spawn_remote_requests(rx, cx),
+            _tick: self.spawn_remote_tick(cx),
+            ticks: 0,
+        });
+        self.refresh_remote_names(cx);
+        self.publish_remote_info(cx);
+    }
+
+    pub(crate) fn stop_mobile_remote(&mut self, cx: &mut Context<Self>) {
+        let Some(runtime) = self.services.remote.take() else {
+            return;
+        };
+        for conn in runtime.conns.values() {
+            self.release_phone_fit(conn, cx);
+        }
+        drop(runtime);
+        self.pairing_sheet = None;
+        log::info!("phone remote off");
+        self.publish_remote_info(cx);
+    }
+
+    /// Restart with fresh settings (network / port / keep-awake changed).
+    pub(crate) fn restart_mobile_remote(&mut self, cx: &mut Context<Self>) {
+        if self.remote_running() {
+            self.stop_mobile_remote(cx);
+            self.start_mobile_remote(cx);
+        }
+    }
+
+    /// Recompute the Settings/sidebar snapshot and repaint both windows.
+    pub(crate) fn publish_remote_info(&mut self, cx: &mut Context<Self>) {
+        let info = self.remote_info_snapshot();
+        if cx.try_global::<MobileRemoteInfo>() != Some(&info) {
+            cx.set_global(info);
+            if let Some(handle) = self.settings_window {
+                let _ = handle.update(cx, |_, _, cx| cx.notify());
+            }
+        }
+        cx.notify();
+    }
+
+    fn remote_info_snapshot(&self) -> MobileRemoteInfo {
+        let settings = xenon_store::load_settings().unwrap_or_default();
+        let hostname = normalize_hostname(&settings.remote_hostname);
+        let mut info = MobileRemoteInfo {
+            enabled: self.remote_running(),
+            network: settings.remote_network,
+            keep_awake: settings.remote_keep_awake,
+            hostname: hostname.clone(),
+            ..Default::default()
+        };
+        let devices = match &self.services.remote {
+            Some(runtime) => {
+                let host = runtime.reach.phone_host(runtime.network, &hostname);
+                info.base_url = Some(network::base_url(&host, runtime.port));
+                info.reachable = runtime.reach.reachable(runtime.network);
+                info.connected = runtime.conns.len();
+                runtime.devices.devices().to_vec()
+            }
+            None => {
+                xenon_store::load_remote_devices()
+                    .unwrap_or_default()
+                    .devices
+            }
+        };
+        info.devices = devices
+            .into_iter()
+            .map(|d| DeviceRow {
+                connected: self
+                    .services
+                    .remote
+                    .as_ref()
+                    .is_some_and(|r| r.conns.values().any(|c| c.device_id == d.id)),
+                id: d.id,
+                label: d.label,
+                last_seen_at: d.last_seen_at,
+                created_at: d.created_at,
+            })
+            .collect();
+        info
+    }
+
+    fn spawn_remote_requests(
+        &self,
+        rx: async_channel::Receiver<HostRequest>,
+        cx: &mut Context<Self>,
+    ) -> Task<()> {
+        let main = self.services.main_window;
+        cx.spawn(async move |this, cx| {
+            while let Ok(req) = rx.recv().await {
+                let Some(main) = main else { break };
+                let handled = main.update(cx, |_, window, cx| {
+                    this.update(cx, |app, cx| app.handle_remote_request(req, window, cx))
+                });
+                if !matches!(handled, Ok(Ok(()))) {
+                    break;
+                }
+            }
+        })
+    }
+
+    fn spawn_remote_tick(&self, cx: &mut Context<Self>) -> Task<()> {
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(TICK).await;
+                if this.update(cx, |app, cx| app.remote_tick(cx)).is_err() {
+                    break;
+                }
+            }
+        })
+    }
+
+    fn remote_tick(&mut self, cx: &mut Context<Self>) {
+        let Some(runtime) = self.services.remote.as_mut() else {
+            return;
+        };
+        runtime.ticks = runtime.ticks.wrapping_add(1);
+        let probe_network = runtime.ticks % NETWORK_EVERY == 0;
+        self.broadcast_remote_dots(cx);
+        if self.pairing_sheet.is_some() {
+            cx.notify(); // Countdown.
+        }
+        if probe_network {
+            self.reprobe_remote_network(cx);
+        }
+    }
+
+    /// Tailscale came up / changed address: rebind so the phone can connect.
+    fn reprobe_remote_network(&mut self, cx: &mut Context<Self>) {
+        let Some(runtime) = self.services.remote.as_ref() else {
+            return;
+        };
+        let fresh = Reachability::probe_local();
+        if fresh.tailscale_ip == runtime.reach.tailscale_ip {
+            if runtime.reach.magic_dns.is_none() && fresh.tailscale_ip.is_some() {
+                self.refresh_remote_names(cx);
+            }
+            return;
+        }
+        log::info!("phone remote: network changed, rebinding");
+        self.restart_mobile_remote(cx);
+    }
+
+    /// MagicDNS name and computer name come from subprocesses: off-thread.
+    fn refresh_remote_names(&self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            let (dns, name) = cx
+                .background_executor()
+                .spawn(async { (network::magic_dns_name(), network::computer_name()) })
+                .await;
+            this.update(cx, |app, cx| {
+                if let Some(runtime) = app.services.remote.as_mut() {
+                    runtime.reach.magic_dns = dns;
+                    runtime.host_name = name;
+                }
+                app.publish_remote_info(cx);
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn handle_remote_request(
+        &mut self,
+        req: HostRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match req {
+            HostRequest::Authenticate { token, reply } => {
+                let _ = reply.send(self.authenticate_remote(&token));
+            }
+            HostRequest::Pair { code, label, reply } => {
+                let _ = reply.send(self.pair_remote(&code, &label, cx));
+            }
+            HostRequest::ListWorkspaces { reply } => {
+                let _ = reply.send(self.list_remote_workspaces(cx));
+            }
+            HostRequest::ListTerminals {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(self.list_remote_terminals(&workspace_id, cx));
+            }
+            HostRequest::Connected {
+                conn,
+                device_id,
+                out,
+            } => self.remote_connected(conn, device_id, out, cx),
+            HostRequest::Message { conn, msg } => self.remote_message(conn, msg, window, cx),
+            HostRequest::Disconnected { conn } => self.remote_disconnected(conn, cx),
+        }
+    }
+
+    fn authenticate_remote(&mut self, token: &str) -> Option<String> {
+        let runtime = self.services.remote.as_mut()?;
+        let id = runtime.devices.authenticate(token)?;
+        if runtime.devices.touch(&id)
+            && let Err(e) = runtime.devices.save()
+        {
+            log::warn!("remote devices save: {e}");
+        }
+        Some(id)
+    }
+
+    fn pair_remote(
+        &mut self,
+        code: &str,
+        label: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<PairResponse, PairError> {
+        let runtime = self.services.remote.as_mut().ok_or(PairError::Rejected)?;
+        let device = runtime
+            .devices
+            .pair(code, label, Instant::now())
+            .ok_or(PairError::Rejected)?;
+        runtime
+            .devices
+            .save()
+            .map_err(|e| PairError::Storage(e.to_string()))?;
+        let host_name = runtime.host_name.clone();
+        let toast = xenon_design_system::Toast::success("📱", "Phone paired");
+        self.show_toast(toast, cx);
+        self.publish_remote_info(cx);
+        Ok(PairResponse {
+            device_id: device.id,
+            token: device.token,
+            host_name,
+        })
+    }
+}
+
+fn persist_enabled(on: bool) {
+    if let Err(e) = xenon_store::update_settings(|s| s.remote_enabled = on) {
+        log::warn!("save remote_enabled: {e}");
     }
 }
 
@@ -67,320 +403,4 @@ fn effective_port(saved: u16) -> u16 {
         } else {
             saved
         })
-}
-
-/// Ensure a password exists on disk; generate once if empty. Returns (port, password).
-fn ensure_remote_credentials() -> (u16, String) {
-    let s = xenon_store::update_settings(|settings| {
-        settings.remote_port = effective_port(settings.remote_port);
-        if settings.remote_password.is_empty() {
-            settings.remote_password = xenon_remote::new_token();
-        }
-    })
-    .unwrap_or_else(|e| {
-        log::error!("save remote credentials failed: {e}");
-        xenon_store::AppSettings::default()
-    });
-    let port = effective_port(s.remote_port);
-    (port, s.remote_password)
-}
-
-/// Persist a user-chosen password. Restarts the remote server if it is running.
-pub(crate) fn set_remote_password(password: String, window: &mut Window, cx: &mut App) {
-    let password = password.trim().to_string();
-    if password.is_empty() {
-        return;
-    }
-    if let Err(e) = xenon_store::update_settings(|settings| {
-        settings.remote_password = password.clone();
-    }) {
-        let toast = crate::app::toasts::failed("Couldn’t save the password", e);
-        xenon_design_system::show_toast_in(window, toast, cx);
-        return;
-    }
-    if let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) {
-        let _ = main.update(cx, |app, cx| {
-            let was_on = app.services.remote.is_some();
-            if was_on {
-                app.stop_mobile_remote(cx);
-                app.start_mobile_remote(window, cx, false);
-            } else {
-                publish_remote_info(app.snapshot_remote_info(), cx);
-                app.refresh_settings_window(cx);
-            }
-        });
-    }
-}
-
-/// Persist hostname for copyable URLs (server bind unchanged — no restart).
-pub(crate) fn set_remote_hostname(hostname: String, window: &Window, cx: &mut App) {
-    let hostname = normalize_hostname(&hostname);
-    if let Err(e) = xenon_store::update_settings(|settings| {
-        settings.remote_hostname = hostname.clone();
-    }) {
-        let toast = crate::app::toasts::failed("Couldn’t save the hostname", e);
-        xenon_design_system::show_toast_in(window, toast, cx);
-        return;
-    }
-    if let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) {
-        let _ = main.update(cx, |app, cx| {
-            publish_remote_info(app.snapshot_remote_info(), cx);
-            app.refresh_settings_window(cx);
-        });
-    } else {
-        publish_remote_info(info_from_disk(), cx);
-    }
-}
-
-/// Strip scheme/path noise; keep host only (optional port in host:port is allowed).
-fn normalize_hostname(raw: &str) -> String {
-    let s = raw.trim();
-    if s.is_empty() {
-        return String::new();
-    }
-    let s = s
-        .strip_prefix("https://")
-        .or_else(|| s.strip_prefix("http://"))
-        .unwrap_or(s);
-    let s = s.split('/').next().unwrap_or(s).trim();
-    // Drop accidental trailing colon with no port.
-    s.trim_end_matches(':').to_string()
-}
-
-/// Build `http://host:port/?token=…` candidates for the phone UI.
-pub(crate) fn remote_urls_for(port: u16, token: &str, hostname: &str) -> Vec<String> {
-    let mut hosts: Vec<String> = Vec::new();
-    let custom = normalize_hostname(hostname);
-    if !custom.is_empty() {
-        hosts.push(custom);
-    }
-    if let Some(ip) = tailscale_ipv4()
-        && !hosts.iter().any(|h| h == &ip)
-    {
-        hosts.push(ip);
-    }
-    // Always include loopback for same-machine smoke tests.
-    if !hosts.iter().any(|h| h == "127.0.0.1") {
-        hosts.push("127.0.0.1".into());
-    }
-    let q = percent_encode_query(token);
-    hosts
-        .into_iter()
-        .map(|h| {
-            // If user typed host:port, don't append our port again.
-            if h.contains(':') && !h.starts_with('[') {
-                format!("http://{h}/?token={q}")
-            } else {
-                format!("http://{h}:{port}/?token={q}")
-            }
-        })
-        .collect()
-}
-
-/// RFC 3986 unreserved + encode the rest (for password in query).
-fn percent_encode_query(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char);
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
-fn tailscale_ipv4() -> Option<String> {
-    let out = std::process::Command::new("tailscale")
-        .args(["ip", "-4"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let s = String::from_utf8_lossy(&out.stdout);
-    let ip = s.lines().next()?.trim();
-    if ip.is_empty() || !ip.chars().all(|c| c.is_ascii_digit() || c == '.') {
-        return None;
-    }
-    Some(ip.to_string())
-}
-
-impl XenonApp {
-    /// Register so Settings can reach the main app entity.
-    pub(crate) fn register_main_handle(cx: &mut Context<Self>) {
-        let weak = cx.entity().downgrade();
-        cx.set_global(MainApp(weak));
-        publish_remote_info(info_from_disk(), cx);
-    }
-
-    fn snapshot_remote_info(&self) -> MobileRemoteInfo {
-        let hostname = xenon_store::load_settings()
-            .map(|s| normalize_hostname(&s.remote_hostname))
-            .unwrap_or_default();
-        match &self.services.remote {
-            Some(s) => MobileRemoteInfo {
-                enabled: true,
-                port: s.port,
-                token: s.token.clone(),
-                hostname: hostname.clone(),
-                urls: remote_urls_for(s.port, &s.token, &hostname),
-            },
-            None => info_from_disk(),
-        }
-    }
-
-    /// Toggle mobile remote server (off by default).
-    pub(crate) fn toggle_mobile_remote(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.toggle_mobile_remote_with_prompt(window, cx, true);
-    }
-
-    /// Toggle from Settings (details shown in the settings UI; skip info prompts).
-    pub(crate) fn toggle_mobile_remote_quiet(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.toggle_mobile_remote_with_prompt(window, cx, false);
-    }
-
-    fn toggle_mobile_remote_with_prompt(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-        announce: bool,
-    ) {
-        if self.services.remote.is_some() {
-            self.stop_mobile_remote(cx);
-            if announce {
-                let toast = xenon_design_system::Toast::info("📴", "Mobile remote off");
-                self.show_toast(toast, cx);
-            }
-        } else {
-            self.start_mobile_remote(window, cx, announce);
-        }
-    }
-
-    pub(crate) fn start_mobile_remote(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-        announce: bool,
-    ) {
-        if self.services.remote.is_some() {
-            return;
-        }
-        let (tx, rx) = async_channel::unbounded::<HostRequest>();
-        let (port, token) = ensure_remote_credentials();
-        match RemoteServer::start(port, token, tx) {
-            Ok(server) => {
-                let token = server.token.clone();
-                let port = server.port;
-                let hostname = xenon_store::load_settings()
-                    .map(|s| normalize_hostname(&s.remote_hostname))
-                    .unwrap_or_default();
-                let url_hint = remote_urls_for(port, &token, &hostname)
-                    .into_iter()
-                    .next()
-                    .unwrap_or_else(|| format!("http://127.0.0.1:{port}/?token={token}"));
-                log::info!("Mobile remote ON — {url_hint}");
-                if announce {
-                    let detail = format!(
-                        "URL (includes password):\n{url_hint}\n\nTerminals only · phone does not resize PTY."
-                    );
-                    let answer = window.prompt(
-                        PromptLevel::Info,
-                        "Mobile remote enabled",
-                        Some(&detail),
-                        &["OK"],
-                        cx,
-                    );
-                    cx.spawn(async move |_, _| {
-                        let _ = answer.await;
-                    })
-                    .detach();
-                }
-                self.services.remote = Some(server);
-                self.services.remote_frame_seq = Arc::new(Mutex::new(HashMap::new()));
-                self.spawn_remote_host(rx, cx);
-            }
-            Err(e) => {
-                log::error!("mobile remote failed to start: {e:#}");
-                let toast = crate::app::toasts::failed("Mobile remote didn’t start", e);
-                xenon_design_system::show_toast_in(window, toast, cx);
-            }
-        }
-        publish_remote_info(self.snapshot_remote_info(), cx);
-        self.refresh_settings_window(cx);
-        cx.notify();
-    }
-
-    pub(crate) fn stop_mobile_remote(&mut self, cx: &mut Context<Self>) {
-        if let Some(server) = self.services.remote.take() {
-            server.stop();
-            drop(server);
-            log::info!("Mobile remote OFF");
-        }
-        self.services.remote_task = None;
-        self.services.remote_frame_seq = Arc::new(Mutex::new(HashMap::new()));
-        publish_remote_info(info_from_disk(), cx);
-        self.refresh_settings_window(cx);
-        cx.notify();
-    }
-
-    fn refresh_settings_window(&self, cx: &mut Context<Self>) {
-        if let Some(handle) = self.settings_window {
-            let _ = handle.update(cx, |_, _, cx| cx.notify());
-        }
-    }
-
-    fn spawn_remote_host(
-        &mut self,
-        rx: async_channel::Receiver<HostRequest>,
-        cx: &mut Context<Self>,
-    ) {
-        self.services.remote_task = Some(cx.spawn(async move |view, cx| {
-            while let Ok(req) = rx.recv().await {
-                if view
-                    .update(cx, |app, cx| app.handle_remote_request(req, cx))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        }));
-    }
-
-    fn handle_remote_request(&mut self, req: HostRequest, cx: &mut Context<Self>) {
-        match req {
-            HostRequest::ListWorkspaces { reply } => {
-                let _ = reply.send(self.list_remote_workspaces());
-            }
-            HostRequest::ListTerminals {
-                workspace_id,
-                reply,
-            } => {
-                let out = self.list_remote_terminals(&workspace_id, cx);
-                let _ = reply.send(out);
-            }
-            HostRequest::CaptureFrame {
-                workspace_id,
-                tab_id,
-                reply,
-            } => {
-                let out = self.capture_remote_frame(&workspace_id, tab_id, cx);
-                let _ = reply.send(out);
-            }
-            HostRequest::Inject {
-                workspace_id,
-                tab_id,
-                text,
-                reply,
-            } => {
-                let out = self.inject_remote(&workspace_id, tab_id, &text, cx);
-                let _ = reply.send(out);
-            }
-        }
-    }
 }

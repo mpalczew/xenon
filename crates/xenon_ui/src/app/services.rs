@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
-use gpui::{Subscription, Task};
+use gpui::{AnyWindowHandle, Subscription, Task};
 use xenon_core::WorkspaceId;
 use xenon_ide::IdeServer;
-use xenon_remote::RemoteServer;
 
 use super::git_dirt::DirtMsg;
+use super::remote::RemoteRuntime;
 use crate::git_dirt::GitDirt;
 
 /// Long-lived integrations and background work owned by the application.
@@ -14,9 +13,10 @@ use crate::git_dirt::GitDirt;
 pub(super) struct AppServices {
     pub ide: Option<IdeServer>,
     pub ide_task: Option<Task<()>>,
-    pub remote: Option<RemoteServer>,
-    pub remote_task: Option<Task<()>>,
-    pub remote_frame_seq: Arc<Mutex<HashMap<(WorkspaceId, u64), u64>>>,
+    /// Phone remote while on (server, sessions, devices).
+    pub remote: Option<RemoteRuntime>,
+    /// The shell window; remote work that needs a `Window` runs against it.
+    pub main_window: Option<AnyWindowHandle>,
     pub git_dirt: HashMap<WorkspaceId, GitDirt>,
     pub git_dirt_tx: Option<async_channel::Sender<DirtMsg>>,
     pub git_dirt_task: Option<Task<()>>,

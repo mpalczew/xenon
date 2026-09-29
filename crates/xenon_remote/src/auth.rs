@@ -1,26 +1,28 @@
-//! Shared-secret token checks.
+//! Device tokens: generation, hashing, comparison.
 
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// Generate a new remote auth token.
-pub fn new_token() -> String {
-    Uuid::new_v4().to_string()
+/// A fresh 256-bit-ish device token (two v4 UUIDs, hex). Shown to the phone once.
+pub fn new_device_token() -> String {
+    format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
 
-/// Constant-time-ish equality for short tokens (not crypto-grade; enough for LAN).
-pub fn token_ok(expected: &str, presented: &str) -> bool {
-    if expected.is_empty() {
-        return false;
-    }
-    if expected.len() != presented.len() {
-        return false;
-    }
-    expected
-        .as_bytes()
+/// SHA-256 hex digest; the only form of a device token that is stored.
+pub fn hash_token(token: &str) -> String {
+    Sha256::digest(token.as_bytes())
         .iter()
-        .zip(presented.as_bytes())
-        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
-        == 0
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// Constant-time equality for equal-length secrets.
+pub fn ct_eq(a: &str, b: &str) -> bool {
+    a.len() == b.len()
+        && a.bytes()
+            .zip(b.bytes())
+            .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+            == 0
 }
 
 #[cfg(test)]
@@ -28,18 +30,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rejects_empty_expected() {
-        assert!(!token_ok("", "anything"));
+    fn tokens_are_long_and_distinct() {
+        let a = new_device_token();
+        assert_eq!(a.len(), 64);
+        assert_ne!(a, new_device_token());
     }
 
     #[test]
-    fn accepts_exact_match() {
-        assert!(token_ok("abc", "abc"));
-    }
-
-    #[test]
-    fn rejects_mismatch() {
-        assert!(!token_ok("abc", "abd"));
-        assert!(!token_ok("abc", "ab"));
+    fn hash_is_stable_hex() {
+        assert_eq!(
+            hash_token("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 }

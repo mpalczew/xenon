@@ -208,7 +208,7 @@ pub(super) fn editor_toggles(
             ToggleRow {
                 id: "line-number-toggle",
                 title: "Line numbers",
-                subtitle: "Show row numbers in text editors",
+                subtitle: "Show row numbers in text editors".into(),
                 checked: xenon_settings::show_line_numbers(cx),
                 focused: toggle_focus == 0,
             },
@@ -223,7 +223,7 @@ pub(super) fn editor_toggles(
             ToggleRow {
                 id: "vim-mode-toggle",
                 title: "Vim mode",
-                subtitle: "Modal editing in the text editor",
+                subtitle: "Modal editing in the text editor".into(),
                 checked: xenon_settings::vim_mode(cx),
                 focused: toggle_focus == 1,
             },
@@ -336,15 +336,15 @@ pub(super) fn row_divider(cx: &mut Context<SettingsView>) -> impl IntoElement {
     div().h(px(1.)).bg(colors.border)
 }
 
-struct ToggleRow {
-    id: &'static str,
-    title: &'static str,
-    subtitle: &'static str,
-    checked: bool,
-    focused: bool,
+pub(super) struct ToggleRow {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub subtitle: SharedString,
+    pub checked: bool,
+    pub focused: bool,
 }
 
-fn settings_toggle(
+pub(super) fn settings_toggle(
     row: ToggleRow,
     cx: &mut Context<SettingsView>,
     on_toggle: impl Fn(&mut App) + 'static,

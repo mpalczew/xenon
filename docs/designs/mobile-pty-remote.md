@@ -1,6 +1,6 @@
 # Tech design: Mobile PTY remote (viewport + keys)
 
-**Status:** draft  
+**Status:** superseded by `mobile-remote-v2.md` (2026-09-29)  
 **Product:** Xenon open on Mac; phone drives the same terminal tabs  
 **Date:** 2026-07-24  
 **Shape:** lean

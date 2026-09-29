@@ -19,8 +19,11 @@ runner pins `NSScreen.backingScaleFactor` to 2.0 for its process
 Not part of `scripts/health` / `cargo test`: Metal capture needs a macOS window
 server. Do not add this to GitHub macOS runners unless asked.
 
-Remote HTML shots (`remote_auth`, `remote_session`) need Google Chrome at
-`/Applications/Google Chrome.app`. Missing Chrome fails those two surfaces.
+Remote HTML shots (`remote_pair`, `remote_code`, `remote_workspaces`,
+`remote_session`, `remote_reconnecting`) render the phone page offline via its
+`xenonFixture(name)` hook and need Google Chrome at
+`/Applications/Google Chrome.app`. Missing Chrome fails those surfaces.
+Headless Chrome lays out at least 500px wide, so fixtures pin the app to 390×844.
 
 The suite also runs keyboard regressions that need a real window
 (`visual_test_runner/keyboard.rs`). `VISUAL_TEST_ONLY=keyboard

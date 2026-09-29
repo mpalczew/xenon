@@ -13,6 +13,9 @@ impl Render for TerminalView {
             .update_focus(cursor_focused, cx, Self::blink_tick);
         let colors = cx.theme().colors().clone();
         let find_bar = self.render_find_bar(&colors, cx);
+        let phone_banner = self
+            .active_phone_fit()
+            .map(|fit| phone_banner(fit, &colors));
         let base = div()
             .track_focus(&self.focus)
             .key_context("Terminal")
@@ -39,6 +42,7 @@ impl Render for TerminalView {
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &Paste, _, cx| {
+                this.note_local_input(cx);
                 this.paste_clipboard(cx);
                 cx.notify();
             }))
@@ -85,6 +89,7 @@ impl Render for TerminalView {
         match &self.state {
             State::Ready(terminal) => base
                 .children(find_bar)
+                .children(phone_banner)
                 .child(
                     div()
                         .flex_1()
@@ -269,38 +274,83 @@ fn context_item(
     xenon_design_system::menu_item(id, label, shortcut, colors, false)
 }
 
+/// "Sized for iPhone (45×30) · type here to take it back" above a phone-fit grid.
+fn phone_banner(fit: &PhoneFit, colors: &theme::ThemeColors) -> impl IntoElement + use<> {
+    div()
+        .flex()
+        .gap_1()
+        .px_3()
+        .py_1()
+        .border_b_1()
+        .border_color(colors.border)
+        .bg(colors.element_selected)
+        .text_xs()
+        .child(div().text_color(colors.text_accent).child(format!(
+            "Sized for {} ({}×{})",
+            fit.device, fit.cols, fit.rows
+        )))
+        .child(
+            div()
+                .text_color(colors.text_muted)
+                .child("· type here to take it back"),
+        )
+}
+
 fn grid_canvas(
     terminal: Entity<Terminal>,
     view: Entity<TerminalView>,
     focus: FocusHandle,
 ) -> impl IntoElement {
+    let layout_view = view.clone();
     canvas(
         move |bounds, window, cx| {
             let face = xenon_settings::terminal_font(cx);
             let font = grid::terminal_font(&face.family);
-            layout(&terminal, &font, face.size, bounds, window, cx)
+            let fit = layout_view
+                .read(cx)
+                .active_phone_fit()
+                .map(|fit| (fit.cols, fit.rows));
+            layout(&terminal, &font, face.size, bounds, fit, window, cx)
         },
-        move |bounds, grid_layout, window, cx| {
+        move |bounds, (grid_layout, divider), window, cx| {
             let size = px(xenon_settings::terminal_font(cx).size);
             let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
             let focused = focus.is_focused(window) && window.is_window_active();
             let show_cursor = !focused || view.read(cx).cursor_blink.visible();
             grid::paint(&grid_layout, line_height, show_cursor, window, cx);
+            if let Some(divider) = divider {
+                window.paint_quad(gpui::fill(divider, cx.theme().colors().border));
+            }
             window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
         },
     )
     .size_full()
 }
 
+/// Lay out the grid in `bounds`, or in a `cols`×`rows` box at its origin while
+/// a phone owns the size. Returns the layout plus the phone-fit edge rule.
 fn layout(
     terminal: &Entity<Terminal>,
     font: &gpui::Font,
     font_size: f32,
     bounds: Bounds<Pixels>,
+    fit: Option<(u16, u16)>,
     window: &mut Window,
     cx: &mut App,
-) -> grid::GridLayout {
+) -> (grid::GridLayout, Option<Bounds<Pixels>>) {
     let size = px(font_size);
     let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
-    grid::layout(terminal, bounds, font, size, line_height, window, cx)
+    let Some((cols, rows)) = fit else {
+        let layout = grid::layout(terminal, bounds, font, size, line_height, window, cx);
+        return (layout, None);
+    };
+    let cell_w = grid::cell_width(window, font, size);
+    let grid_size = gpui::size(cell_w * cols as f32, line_height * rows as f32);
+    let fitted = Bounds::new(bounds.origin, grid_size);
+    let divider = Bounds::new(
+        gpui::point(bounds.origin.x + grid_size.width, bounds.origin.y),
+        gpui::size(px(1.), bounds.size.height),
+    );
+    let layout = grid::layout(terminal, fitted, font, size, line_height, window, cx);
+    (layout, Some(divider))
 }

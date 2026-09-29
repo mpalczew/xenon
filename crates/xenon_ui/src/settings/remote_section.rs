@@ -1,416 +1,436 @@
-//! Settings Remote section: mobile PTY remote toggle, host, password, URLs.
+//! Settings → Phone Remote: on/off, network, keep-awake, address override,
+//! Connect Phone, and paired devices (revoke one or all).
+//!
+//! Keyboard: focus indices continue the Settings list (see `SettingsView::toggle_focus`).
 
 use gpui::{
     App, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, div, prelude::FluentBuilder, px,
+    StatefulInteractiveElement, Styled, div, px,
 };
 use theme::ActiveTheme;
-use xenon_design_system::TextInputView;
-use xenon_design_system::{TypeRole, Typography};
+use xenon_design_system::{ActionButton, TextInputView, TypeRole, Typography};
+use xenon_store::RemoteNetwork;
 
 use super::SettingsView;
-use super::remote_edit::RemoteEditField;
-use super::sections::{group_card, row_divider};
+use super::sections::{ToggleRow, group_card, row_divider, settings_toggle};
+use crate::app::remote::{self, DeviceRow, MobileRemoteInfo};
 
-type RemoteEditPaint = (RemoteEditField, gpui::Entity<TextInputView>);
+pub(super) const FOCUS_REMOTE: usize = 2;
+const FOCUS_NETWORK: usize = 4;
+const FOCUS_KEEP_AWAKE: usize = 5;
+pub(super) const FOCUS_CONNECT: usize = 6;
+pub(super) const FOCUS_FIRST_DEVICE: usize = 7;
+
+/// Highest focus index: the last device row, then "Sign out all".
+pub(super) fn last_focus(info: &MobileRemoteInfo) -> usize {
+    if info.devices.is_empty() {
+        FOCUS_CONNECT
+    } else {
+        FOCUS_FIRST_DEVICE + info.devices.len()
+    }
+}
+
+/// Enter / Space on a remote row.
+pub(super) fn activate(focus: usize, info: &MobileRemoteInfo, cx: &mut App) {
+    match focus {
+        FOCUS_REMOTE => remote::settings_toggle_remote(cx),
+        FOCUS_NETWORK => remote::settings_set_network(next_network(info.network), cx),
+        FOCUS_KEEP_AWAKE => remote::settings_toggle_keep_awake(cx),
+        FOCUS_CONNECT => remote::settings_connect_phone(cx),
+        i if i >= FOCUS_FIRST_DEVICE => match info.devices.get(i - FOCUS_FIRST_DEVICE) {
+            Some(device) => remote::settings_revoke_device(device.id.clone(), cx),
+            None => remote::settings_revoke_all(cx),
+        },
+        _ => {}
+    }
+}
+
+fn next_network(network: RemoteNetwork) -> RemoteNetwork {
+    match network {
+        RemoteNetwork::Tailscale => RemoteNetwork::TailscaleAndLan,
+        RemoteNetwork::TailscaleAndLan => RemoteNetwork::Tailscale,
+    }
+}
 
 pub(super) fn remote_section(
-    info: &crate::app::remote::MobileRemoteInfo,
-    focused: bool,
-    remote_edit: Option<RemoteEditPaint>,
+    info: &MobileRemoteInfo,
+    focus: usize,
+    hostname_edit: Option<gpui::Entity<TextInputView>>,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    let subtitle = if info.enabled {
-        "On — copy a URL below for your phone"
-    } else {
-        "Off — set host + password, then enable"
-    };
-    let enabled = info.enabled;
-    let port = info.port;
-    let token = info.token.clone();
-    let hostname = info.hostname.clone();
-    let urls = info.urls.clone();
-    let editing = remote_edit.is_some();
-    let password_input = remote_edit
-        .as_ref()
-        .and_then(|(f, input)| (*f == RemoteEditField::Password).then(|| input.clone()));
-    let hostname_input = remote_edit
-        .as_ref()
-        .and_then(|(f, input)| (*f == RemoteEditField::Hostname).then(|| input.clone()));
     let body = div()
         .flex()
         .flex_col()
-        .child(remote_toggle_row(
-            enabled,
-            subtitle,
-            focused && !editing,
+        .child(settings_toggle(
+            ToggleRow {
+                id: "phone-remote-toggle",
+                title: "Phone remote",
+                subtitle: remote_subtitle(info).into(),
+                checked: info.enabled,
+                focused: focus == FOCUS_REMOTE,
+            },
             cx,
+            remote::settings_toggle_remote,
         ))
         .child(row_divider(cx))
-        .child(remote_hostname_block(&hostname, hostname_input, cx))
-        .child(remote_password_block(&token, password_input, cx))
-        .child(
-            div()
-                .px_3()
-                .pb_2()
-                .type_role(TypeRole::ControlLabel, cx)
-                .text_color(colors.text_muted)
-                .child(format!("Port {port} (stable across restarts)")),
-        )
-        .when(enabled || !token.is_empty(), |col| {
-            let mut details = div().flex().flex_col().gap_1().px_3().py_2().child(
-                div()
-                    .type_role(TypeRole::ControlLabel, cx)
-                    .text_color(colors.text_muted)
-                    .child("URL — click to copy (includes password)"),
-            );
-            if urls.is_empty() {
-                let fallback = if token.is_empty() {
-                    format!("http://127.0.0.1:{port}/")
-                } else {
-                    crate::app::remote::remote_urls_for(port, &token, &hostname)
-                        .into_iter()
-                        .next()
-                        .unwrap_or_else(|| format!("http://127.0.0.1:{port}/"))
-                };
-                details = details.child(copyable_mono_row("remote-url-fallback", fallback, cx));
-            } else {
-                for (i, url) in urls.iter().enumerate() {
-                    details = details.child(copyable_mono_row(
-                        SharedString::from(format!("remote-url-{i}")),
-                        url.clone(),
-                        cx,
-                    ));
-                }
-            }
-            col.child(row_divider(cx)).child(details)
-        });
-    group_card("Remote", body, cx)
-}
-
-struct FieldEditPaint {
-    id: &'static str,
-    label: &'static str,
-    input: gpui::Entity<TextInputView>,
-}
-
-fn remote_field_edit_row(
-    paint: FieldEditPaint,
-    cx: &mut Context<SettingsView>,
-) -> impl IntoElement {
-    let FieldEditPaint { id, label, input } = paint;
-    let colors = cx.theme().colors().clone();
+        .child(network_row(info.network, focus == FOCUS_NETWORK, cx))
+        .child(row_divider(cx))
+        .child(settings_toggle(
+            ToggleRow {
+                id: "phone-keep-awake-toggle",
+                title: "Keep Mac awake",
+                subtitle: "Stops idle sleep while on. Closing the lid still sleeps.".into(),
+                checked: info.keep_awake,
+                focused: focus == FOCUS_KEEP_AWAKE,
+            },
+            cx,
+            remote::settings_toggle_keep_awake,
+        ))
+        .child(row_divider(cx))
+        .child(hostname_row(&info.hostname, hostname_edit, cx))
+        .child(row_divider(cx))
+        .child(connect_row(focus == FOCUS_CONNECT, cx));
     div()
         .flex()
         .flex_col()
-        .gap_1()
-        .px_3()
-        .py_2()
-        .child(
-            div()
-                .type_role(TypeRole::ControlLabel, cx)
-                .text_color(colors.text_muted)
-                .child(format!("{label} — ←→ · ↵ save · Esc cancel")),
-        )
-        .child(
-            div()
-                .id(id)
-                .flex()
-                .items_center()
-                .h(px(28.))
-                .rounded_sm()
-                .px_2()
-                .border_1()
-                .border_color(colors.border_focused)
-                .bg(colors.elevated_surface_background)
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .type_role(TypeRole::Body, cx)
-                        .font_family("Menlo")
-                        .child(input),
-                ),
-        )
+        .child(group_card("Phone Remote", body, cx))
+        .child(devices_card(&info.devices, focus, cx))
 }
 
-struct FieldStaticPaint {
-    id: &'static str,
-    label: &'static str,
-    empty_hint: &'static str,
+fn remote_subtitle(info: &MobileRemoteInfo) -> String {
+    match (&info.base_url, info.reachable) {
+        (Some(url), true) => format!("On — reachable at {}", url.trim_start_matches("http://")),
+        (Some(_), false) => {
+            "On — Tailscale not detected, so your phone can’t reach this Mac".into()
+        }
+        (None, _) => "Off — ⌘⇧M connects a phone".into(),
+    }
 }
 
-fn remote_field_static_row(
-    paint: FieldStaticPaint,
-    current: &str,
-    on_edit: impl Fn(&mut SettingsView, &mut gpui::Window, &mut Context<SettingsView>) + 'static,
-    cx: &mut Context<SettingsView>,
-) -> impl IntoElement {
-    let FieldStaticPaint {
-        id,
-        label,
-        empty_hint,
-    } = paint;
-    let colors = cx.theme().colors().clone();
-    let empty = current.is_empty();
-    let display = if empty {
-        empty_hint.to_string()
+fn focus_bg(focused: bool, cx: &App) -> gpui::Hsla {
+    if focused {
+        cx.theme().colors().element_hover
     } else {
-        current.to_string()
-    };
-    div()
-        .flex()
-        .flex_col()
-        .gap_1()
-        .px_3()
-        .py_2()
-        .child(
-            div()
-                .type_role(TypeRole::ControlLabel, cx)
-                .text_color(colors.text_muted)
-                .child(format!("{label} — click to edit")),
-        )
-        .child(
-            div()
-                .id(id)
-                .flex()
-                .items_center()
-                .gap_2()
-                .h(px(28.))
-                .rounded_sm()
-                .px_2()
-                .cursor_pointer()
-                .hover(|s| s.bg(colors.element_hover))
-                .on_click(cx.listener(move |this, _, window, cx| {
-                    cx.stop_propagation();
-                    on_edit(this, window, cx);
-                }))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .type_role(TypeRole::Body, cx)
-                        .font_family("Menlo")
-                        .text_color(if empty {
-                            colors.text_muted
-                        } else {
-                            colors.text
-                        })
-                        .child(display),
-                )
-                .child(
-                    div()
-                        .flex_none()
-                        .type_role(TypeRole::ControlLabel, cx)
-                        .text_color(colors.text_muted)
-                        .child("Edit"),
-                ),
-        )
-}
-
-fn remote_hostname_block(
-    current: &str,
-    edit: Option<gpui::Entity<TextInputView>>,
-    cx: &mut Context<SettingsView>,
-) -> impl IntoElement {
-    if let Some(input) = edit {
-        return remote_field_edit_row(
-            FieldEditPaint {
-                id: "remote-hostname-edit",
-                label: "Hostname",
-                input,
-            },
-            cx,
-        )
-        .into_any_element();
+        gpui::transparent_black()
     }
-    let current_owned = current.to_string();
-    remote_field_static_row(
-        FieldStaticPaint {
-            id: "remote-hostname",
-            label: "Hostname",
-            empty_hint: "(optional — Tailscale MagicDNS / LAN name)",
-        },
-        current,
-        move |this, window, cx| {
-            this.begin_hostname_edit(current_owned.clone(), window, cx);
-        },
-        cx,
-    )
-    .into_any_element()
 }
 
-fn remote_password_block(
-    current: &str,
-    edit: Option<gpui::Entity<TextInputView>>,
-    cx: &mut Context<SettingsView>,
-) -> impl IntoElement {
-    if let Some(input) = edit {
-        return remote_field_edit_row(
-            FieldEditPaint {
-                id: "remote-password-edit",
-                label: "Password",
-                input,
-            },
-            cx,
-        )
-        .into_any_element();
-    }
-    let current_owned = current.to_string();
-    remote_field_static_row(
-        FieldStaticPaint {
-            id: "remote-password",
-            label: "Password",
-            empty_hint: "(not set — generated on first enable)",
-        },
-        current,
-        move |this, window, cx| {
-            this.begin_password_edit(current_owned.clone(), window, cx);
-        },
-        cx,
-    )
-    .into_any_element()
-}
-
-/// Mono value row; click copies the full string (GPUI text is not OS-selectable).
-fn copyable_mono_row(
-    id: impl Into<SharedString>,
-    value: impl Into<SharedString>,
-    cx: &mut Context<SettingsView>,
-) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    let value = value.into();
-    let value_for_copy = value.clone();
-    div()
-        .id(id.into())
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap_2()
-        .rounded_sm()
-        .px_2()
-        .py_1()
-        .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .on_click(cx.listener(move |_, _, window, cx| {
-            cx.stop_propagation();
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(value_for_copy.to_string()));
-            xenon_design_system::show_toast_in(
-                window,
-                crate::app::toasts::copied("to the clipboard"),
-                cx,
-            );
-            window.refresh();
-            cx.notify();
-        }))
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .type_role(TypeRole::Body, cx)
-                .font_family("Menlo")
-                .text_color(colors.text)
-                .child(value),
-        )
-        .child(
-            div()
-                .flex_none()
-                .type_role(TypeRole::ControlLabel, cx)
-                .text_color(colors.text_muted)
-                .child("Copy"),
-        )
-}
-
-fn remote_toggle_row(
-    enabled: bool,
-    subtitle: &'static str,
+fn network_row(
+    network: RemoteNetwork,
     focused: bool,
     cx: &mut Context<SettingsView>,
 ) -> impl IntoElement {
-    let colors = cx.theme().colors().clone();
-    let background = if enabled {
-        colors.element_selected
-    } else {
-        colors.elevated_surface_background
-    };
-    let row_bg = if focused {
-        colors.element_hover
-    } else {
-        gpui::transparent_black()
+    let option = |id: &'static str,
+                  label: &'static str,
+                  value: RemoteNetwork,
+                  cx: &mut Context<SettingsView>| {
+        let variant = if network == value {
+            ActionButton::primary(label)
+        } else {
+            ActionButton::quiet(label)
+        };
+        xenon_design_system::action_button(id, variant, cx, move |_, window, cx| {
+            cx.stop_propagation();
+            remote::settings_set_network(value, cx);
+            window.refresh();
+        })
     };
     div()
-        .id("mobile-remote-toggle")
         .flex()
         .items_center()
-        .gap_2()
+        .justify_between()
         .px_3()
         .py_2()
-        .bg(row_bg)
-        .cursor_pointer()
-        .hover(|s| s.bg(colors.element_hover))
-        .on_click(cx.listener(|_, _, window, cx| {
-            cx.stop_propagation();
-            toggle_mobile_remote_from_settings(window, cx);
-            window.refresh();
-            cx.notify();
-        }))
+        .bg(focus_bg(focused, cx))
         .child(
             div()
                 .flex()
                 .flex_col()
                 .gap_1()
-                .flex_1()
-                .min_w_0()
+                .child(div().type_role(TypeRole::Body, cx).child("Network"))
                 .child(
                     div()
-                        .type_role(TypeRole::Body, cx)
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .child("Mobile remote"),
+                        .type_role(TypeRole::ControlLabel, cx)
+                        .text_color(cx.theme().colors().text_muted)
+                        .child("LAN also opens the port on your Wi-Fi"),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .gap_1()
+                .child(option(
+                    "phone-net-tailscale",
+                    "Tailscale",
+                    RemoteNetwork::Tailscale,
+                    cx,
+                ))
+                .child(option(
+                    "phone-net-lan",
+                    "Tailscale + LAN",
+                    RemoteNetwork::TailscaleAndLan,
+                    cx,
+                )),
+        )
+}
+
+fn hostname_row(
+    current: &str,
+    edit: Option<gpui::Entity<TextInputView>>,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    let label = div()
+        .type_role(TypeRole::ControlLabel, cx)
+        .text_color(colors.text_muted);
+    let row = div().flex().flex_col().gap_1().px_3().py_2();
+    if let Some(input) = edit {
+        return row
+            .child(label.child("Address override — ↵ save · Esc cancel"))
+            .child(
+                div()
+                    .id("remote-hostname-edit")
+                    .h(px(28.))
+                    .px_2()
+                    .flex()
+                    .items_center()
+                    .rounded_sm()
+                    .border_1()
+                    .border_color(colors.border_focused)
+                    .bg(colors.elevated_surface_background)
+                    .type_role(TypeRole::Code, cx)
+                    .child(div().flex_1().min_w_0().child(input)),
+            )
+            .into_any_element();
+    }
+    let empty = current.is_empty();
+    let current_owned = current.to_string();
+    row.child(label.child("Address override — click to edit"))
+        .child(
+            div()
+                .id("remote-hostname")
+                .h(px(28.))
+                .px_2()
+                .flex()
+                .items_center()
+                .gap_2()
+                .rounded_sm()
+                .cursor_pointer()
+                .hover(|s| s.bg(colors.element_hover))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation();
+                    this.begin_hostname_edit(current_owned.clone(), window, cx);
+                }))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .type_role(TypeRole::Code, cx)
+                        .text_color(if empty {
+                            colors.text_muted
+                        } else {
+                            colors.text
+                        })
+                        .child(if empty {
+                            "Automatic (MagicDNS name or Tailscale IP)".to_string()
+                        } else {
+                            current.to_string()
+                        }),
                 )
                 .child(
                     div()
                         .type_role(TypeRole::ControlLabel, cx)
                         .text_color(colors.text_muted)
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .child(subtitle),
+                        .child("Edit"),
                 ),
         )
+        .into_any_element()
+}
+
+fn connect_row(focused: bool, cx: &mut Context<SettingsView>) -> impl IntoElement {
+    div()
+        .flex()
+        .justify_end()
+        .px_3()
+        .py_2()
+        .bg(focus_bg(focused, cx))
+        .child(xenon_design_system::action_button(
+            "phone-connect",
+            ActionButton::primary("Connect Phone…  ⌘⇧M"),
+            cx,
+            |_, window, cx| {
+                cx.stop_propagation();
+                remote::settings_connect_phone(cx);
+                window.refresh();
+            },
+        ))
+}
+
+fn devices_card(
+    devices: &[DeviceRow],
+    focus: usize,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    let mut body = div().flex().flex_col();
+    if devices.is_empty() {
+        body = body.child(
+            div()
+                .px_3()
+                .py_2()
+                .type_role(TypeRole::ControlLabel, cx)
+                .text_color(colors.text_muted)
+                .child("No phones paired yet. Connect Phone shows a QR code to scan."),
+        );
+        return group_card("Paired devices", body, cx);
+    }
+    for (i, device) in devices.iter().enumerate() {
+        body = body
+            .child(device_row(device, focus == FOCUS_FIRST_DEVICE + i, cx))
+            .child(row_divider(cx));
+    }
+    let sign_out_focused = focus == FOCUS_FIRST_DEVICE + devices.len();
+    body = body.child(
+        div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .bg(focus_bg(sign_out_focused, cx))
+            .child(
+                div()
+                    .type_role(TypeRole::ControlLabel, cx)
+                    .text_color(colors.text_muted)
+                    .child("Signs out every device and makes old QR codes stop working."),
+            )
+            .child(xenon_design_system::action_button(
+                "phone-sign-out-all",
+                ActionButton::destructive("Sign out all"),
+                cx,
+                |_, window, cx| {
+                    cx.stop_propagation();
+                    remote::settings_revoke_all(cx);
+                    window.refresh();
+                },
+            )),
+    );
+    group_card("Paired devices", body, cx)
+}
+
+fn device_row(
+    device: &DeviceRow,
+    focused: bool,
+    cx: &mut Context<SettingsView>,
+) -> impl IntoElement {
+    let colors = cx.theme().colors().clone();
+    let status: SharedString = if device.connected {
+        "● Connected now".into()
+    } else {
+        format!("Last seen {}", ago(device.last_seen_at)).into()
+    };
+    let id = device.id.clone();
+    div()
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap_2()
+        .px_3()
+        .py_2()
+        .bg(focus_bg(focused, cx))
         .child(
             div()
-                .flex_none()
-                .w(px(18.))
-                .h(px(18.))
                 .flex()
-                .items_center()
-                .justify_center()
-                .rounded_sm()
-                .border_1()
-                .border_color(colors.border)
-                .bg(background)
-                .type_role(TypeRole::ControlLabel, cx)
-                .children(enabled.then_some("x")),
+                .flex_col()
+                .gap_1()
+                .min_w_0()
+                .child(
+                    div()
+                        .type_role(TypeRole::Body, cx)
+                        .child(device.label.clone()),
+                )
+                .child(
+                    div()
+                        .type_role(TypeRole::ControlLabel, cx)
+                        .text_color(if device.connected {
+                            colors.version_control_added
+                        } else {
+                            colors.text_muted
+                        })
+                        .child(format!("{status} · paired {}", ago(device.created_at))),
+                ),
         )
+        .child(xenon_design_system::action_button(
+            SharedString::from(format!("phone-revoke-{}", device.id)),
+            ActionButton::secondary("Revoke"),
+            cx,
+            move |_, window, cx| {
+                cx.stop_propagation();
+                remote::settings_revoke_device(id.clone(), cx);
+                window.refresh();
+            },
+        ))
 }
 
-fn toggle_mobile_remote_from_settings(window: &mut gpui::Window, cx: &mut App) {
-    use crate::app::remote::MainApp;
-    let Some(main) = cx.try_global::<MainApp>().map(|m| m.0.clone()) else {
-        log::warn!("mobile remote: main app handle missing");
-        return;
-    };
-    let _ = main.update(cx, |app, cx| {
-        app.toggle_mobile_remote_quiet(window, cx);
-    });
+/// "just now", "5 min ago", "3 hours ago", "2 days ago".
+fn ago(unix: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let secs = now.saturating_sub(unix);
+    match secs {
+        0..60 => "just now".into(),
+        60..3600 => format!("{} min ago", secs / 60),
+        3600..86_400 => plural(secs / 3600, "hour"),
+        _ => plural(secs / 86_400, "day"),
+    }
 }
 
-/// Keyboard activation of the Mobile remote toggle (Settings focus index 2).
-pub(super) fn activate_mobile_remote(window: &mut gpui::Window, cx: &mut App) {
-    toggle_mobile_remote_from_settings(window, cx);
+fn plural(n: u64, unit: &str) -> String {
+    if n == 1 {
+        format!("1 {unit} ago")
+    } else {
+        format!("{n} {unit}s ago")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(devices: usize) -> MobileRemoteInfo {
+        MobileRemoteInfo {
+            devices: (0..devices)
+                .map(|i| DeviceRow {
+                    id: i.to_string(),
+                    label: "iPhone".into(),
+                    connected: false,
+                    last_seen_at: 0,
+                    created_at: 0,
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn focus_range_covers_devices_and_sign_out_all() {
+        assert_eq!(last_focus(&info(0)), FOCUS_CONNECT);
+        assert_eq!(last_focus(&info(2)), FOCUS_FIRST_DEVICE + 2);
+    }
+
+    #[test]
+    fn network_toggles() {
+        assert_eq!(
+            next_network(RemoteNetwork::Tailscale),
+            RemoteNetwork::TailscaleAndLan
+        );
+        assert_eq!(
+            next_network(RemoteNetwork::TailscaleAndLan),
+            RemoteNetwork::Tailscale
+        );
+    }
 }

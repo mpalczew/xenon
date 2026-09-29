@@ -5198,6 +5198,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9262,10 +9268,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
- "image",
  "log",
  "serde",
  "serde_json",
+ "sha2",
+ "tungstenite",
  "uuid",
 ]
 
@@ -9326,11 +9333,13 @@ dependencies = [
  "anyhow",
  "async-channel 2.5.0",
  "gpui",
+ "libc",
  "log",
  "lsp-types",
  "lucide-icons",
  "notify",
  "nucleo",
+ "qrcode",
  "serde",
  "serde_json",
  "tempfile",

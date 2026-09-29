@@ -34,5 +34,9 @@ mod view;
 
 pub use init::{apply_theme, init, observe_appearance, refresh_windows, theme_names};
 pub use terminal;
-pub use view::{Find, FindNext, FindPrevious, TerminalEvent, TerminalView, agent_title};
+pub use view::{
+    CellAttrs, Find, FindNext, FindPrevious, LOCAL_QUIET, PhoneFit, ScreenCell, ScreenCursor,
+    ScreenCursorShape, ScreenSnapshot, TerminalEvent, TerminalView, WIDE_SPACER, agent_title,
+    remote_theme_colors,
+};
 pub use viewport::viewport_lines;

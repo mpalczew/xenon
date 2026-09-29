@@ -15,6 +15,7 @@ use xenon_design_system::{TypeRole, Typography};
 use crate::app::{WorkspaceDot, XenonApp};
 use crate::icons::icon;
 
+mod remote_footer;
 mod widgets;
 
 use widgets::{
@@ -147,6 +148,7 @@ impl XenonApp {
             .child(self.workspaces_section_header(ws_collapsed, cx))
             .children(workspace_body)
             .children(has_active.then(|| self.render_files_section(cx)))
+            .children(self.render_remote_footer(cx))
             .child(crate::resize::col_resize_handle(
                 "sidebar-resize",
                 crate::resize::ResizeEdge::Sidebar,

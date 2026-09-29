@@ -50,6 +50,7 @@ impl Render for XenonApp {
         } else {
             None
         };
+        let pairing_sheet = self.render_pairing_sheet(cx);
         let tab_menu = self.render_tab_menu(cx);
         let overflow_menu = self.render_overflow_menu(cx);
         let browser_menu = self.render_browser_menu(cx);
@@ -80,6 +81,7 @@ impl Render for XenonApp {
             .children(theme_picker)
             .children(memory_panel)
             .children(skill_prompt)
+            .children(pairing_sheet)
             .children(tab_menu)
             .children(overflow_menu)
             .children(browser_menu)
@@ -103,6 +105,9 @@ impl XenonApp {
         } else if self.skill_prompt.is_some() {
             self.deferred.pending_focus = None;
             self.focus_skill_prompt(window, cx);
+        } else if self.pairing_sheet.is_some() {
+            self.deferred.pending_focus = None;
+            self.focus_pairing_sheet(window, cx);
         } else if let Some(pane) = self.deferred.pending_focus.take() {
             self.focus_owner(pane, window, cx);
         }
@@ -212,11 +217,12 @@ impl XenonApp {
             .on_action(cx.listener(|this, _: &crate::ToggleThemes, window, cx| {
                 this.open_theme_picker(window, cx);
             }))
-            .on_action(
-                cx.listener(|this, _: &crate::ToggleMobileRemote, window, cx| {
-                    this.toggle_mobile_remote(window, cx);
-                }),
-            )
+            .on_action(cx.listener(|this, _: &crate::ToggleMobileRemote, _, cx| {
+                this.toggle_mobile_remote(cx);
+            }))
+            .on_action(cx.listener(|this, _: &crate::ConnectPhone, _, cx| {
+                this.open_connect_phone(cx);
+            }))
             .on_action(cx.listener(|this, _: &crate::TogglePreview, _, cx| {
                 this.toggle_preview(cx);
             }))

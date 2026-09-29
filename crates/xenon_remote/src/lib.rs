@@ -1,21 +1,22 @@
-//! Mobile remote: local HTTP server so a phone can view a PTY viewport and type.
-//!
-//! Lean stack (no WebSocket): auth, list, inject, poll PNG frames.
-//! See `docs/designs/mobile-pty-remote.md`.
+//! Mobile remote: an HTTP + WebSocket server so a phone can pair, list
+//! workspaces, and drive a terminal. See `docs/designs/mobile-remote-v2.md`.
 
 mod auth;
 mod frame;
 mod host;
 mod http;
-mod png_frame;
+mod pairing;
 mod protocol;
+mod rate_limit;
 mod server;
+mod ws;
 
-pub use auth::{new_token, token_ok};
-pub use frame::viewport_lines;
-pub use host::{HostRequest, HostTx, ViewportSnapshot};
-pub use png_frame::viewport_png;
+pub use auth::{ct_eq, hash_token, new_device_token};
+pub use frame::{Cell, FrameEncoder, Rgb, Screen, Style, WIDE_SPACER};
+pub use host::{ConnId, HostRequest, HostTx, Outbox, PairError};
+pub use pairing::{PAIRING_TTL, PairingCode};
 pub use protocol::{
-    AuthRequest, AuthResponse, FrameMeta, InjectRequest, TerminalInfo, WorkspaceInfo,
+    ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, NamedKey, PairRequest, PairResponse,
+    ServerMsg, StyleWire, TerminalInfo, ThemeWire, WorkspaceInfo, style_flags,
 };
-pub use server::{RemoteServer, next_global_seq};
+pub use server::RemoteServer;
