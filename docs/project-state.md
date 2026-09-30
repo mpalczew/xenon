@@ -122,6 +122,13 @@ rediscover.
   path never does, and would swallow the hyperlink. ⌘ is open-path, not
   momentary select mode. Option-drag / hover-chrome Select text stay the copy
   hatch.
+- Known issue (macOS 27, recheck ~2026-10-21): LAN connections from
+  non-Apple tools in Xenon terminals (`fj`, Homebrew binaries, git-over-HTTP)
+  fail with `No route to host` and never prompt. PTY shells are their own TCC
+  responsible process, so Xenon's `NSLocalNetworkUsageDescription` and grant do
+  not cover them; Apple binaries (`curl`, `ssh`, `nc`) are exempt. Same bug in
+  Ghostty (discussions 13438/13476). Workaround: use Tailscale names, which
+  are not "local network".
 - In this codebase, “browser” is the Files tree, not a web view.
 - GPUI (pinned Zed rev) has no webview primitive. The window is one Metal
   `NSView`. A native WKWebView / wry child view composites above the GPU
