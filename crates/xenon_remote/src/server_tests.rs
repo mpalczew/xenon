@@ -306,3 +306,66 @@ fn busy_port_is_reported_and_freed_on_drop() {
     let third = RemoteServer::start(&["127.0.0.1".parse().unwrap()], port, tx);
     assert!(third.is_ok());
 }
+
+fn upload(port: u16, content_type: &str, body: &[u8], token: Option<&str>) -> String {
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("connect");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let auth = token
+        .map(|t| format!("Authorization: Bearer {t}\r\n"))
+        .unwrap_or_default();
+    let head = format!(
+        "POST /api/uploads HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n{auth}Connection: close\r\n\r\n",
+        body.len()
+    );
+    stream.write_all(head.as_bytes()).unwrap();
+    let _ = stream.write_all(body); // A refused upload may close before the body lands.
+    let mut raw = Vec::new();
+    let _ = stream.read_to_end(&mut raw);
+    String::from_utf8_lossy(&raw).into_owned()
+}
+
+fn uploads_dir() -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("xenon-upload-test-{}", uuid::Uuid::new_v4()))
+}
+
+#[test]
+fn signed_in_phone_uploads_an_image() {
+    let (server, _mock) = start_mock();
+    let dir = uploads_dir();
+    server.set_uploads_dir(dir.clone());
+    let image: Vec<u8> = (0..100_000u32).map(|i| (i % 251) as u8).collect();
+    let r = upload(server.port, "image/png", &image, Some(TOKEN));
+    assert!(r.starts_with("HTTP/1.1 200"), "{r}");
+    let json: serde_json::Value =
+        serde_json::from_str(r.split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    let path = std::path::PathBuf::from(json["path"].as_str().unwrap());
+    assert!(
+        path.starts_with(&dir) && path.extension().unwrap() == "png",
+        "{path:?}"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), image);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn uploads_refuse_strangers_and_non_images() {
+    let (server, _mock) = start_mock();
+    let port = server.port;
+    let r = upload(port, "image/png", b"img", None);
+    assert!(r.starts_with("HTTP/1.1 401"), "{r}");
+    let big = vec![0u8; 64 * 1024];
+    let r = upload(port, "image/png", &big, Some("guess"));
+    assert!(r.starts_with("HTTP/1.1 413"), "{r}");
+    let r = upload(port, "image/png", b"img", Some(TOKEN));
+    assert!(
+        r.starts_with("HTTP/1.1 503"),
+        "uploads off until a dir is set: {r}"
+    );
+    let dir = uploads_dir();
+    server.set_uploads_dir(dir.clone());
+    let r = upload(port, "text/html", b"<script>", Some(TOKEN));
+    assert!(r.starts_with("HTTP/1.1 415"), "{r}");
+    assert!(!dir.exists());
+}

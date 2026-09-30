@@ -36,28 +36,30 @@ pub(crate) fn split_path_query(path_q: &str) -> (&str, &str) {
     }
 }
 
-/// Largest request body accepted (pairing JSON is tiny).
-const MAX_BODY: usize = 8 * 1024;
+/// Largest request body accepted outside uploads (pairing JSON is tiny).
+pub(crate) const MAX_BODY: usize = 8 * 1024;
 
+pub(crate) fn content_length(headers: &HashMap<String, String>) -> usize {
+    headers
+        .get("content-length")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(0)
+}
+
+/// Body bytes already in `first` plus the rest read from `stream`, up to
+/// `clen` (callers check `clen` against their limit first).
 pub(crate) fn extract_body(
     first: &[u8],
     body_start: usize,
-    headers: &HashMap<String, String>,
+    clen: usize,
     stream: &mut TcpStream,
 ) -> Result<Vec<u8>> {
-    let clen = headers
-        .get("content-length")
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(0);
-    if clen > MAX_BODY {
-        return Err(anyhow!("request body too large"));
-    }
-    let mut body = Vec::new();
+    let mut body = Vec::with_capacity(clen);
     if body_start < first.len() {
         body.extend_from_slice(&first[body_start..]);
     }
+    let mut chunk = vec![0u8; 64 * 1024];
     while body.len() < clen {
-        let mut chunk = [0u8; 4096];
         let n = stream.read(&mut chunk)?;
         if n == 0 {
             break;
@@ -81,6 +83,8 @@ pub(crate) fn write_http(
         401 => "Unauthorized",
         403 => "Forbidden",
         404 => "Not Found",
+        413 => "Payload Too Large",
+        415 => "Unsupported Media Type",
         429 => "Too Many Requests",
         503 => "Service Unavailable",
         _ => "Error",

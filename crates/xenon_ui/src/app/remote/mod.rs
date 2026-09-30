@@ -182,6 +182,7 @@ impl XenonApp {
                 return;
             }
         };
+        server.set_uploads_dir(xenon_store::data_dir().join("remote").join("uploads"));
         log::info!("phone remote on: {:?}", server.binds);
         self.services.remote_port_busy_logged = false;
         self.services.remote = Some(RemoteRuntime {

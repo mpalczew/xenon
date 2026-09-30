@@ -9,6 +9,7 @@ mod pairing;
 mod protocol;
 mod rate_limit;
 mod server;
+mod uploads;
 mod ws;
 
 pub use auth::{ct_eq, hash_token, new_device_token};

@@ -4,9 +4,10 @@
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -16,6 +17,7 @@ use crate::host::{ConnId, HostRequest, HostTx, PairError};
 use crate::http;
 use crate::protocol::{PairRequest, PairResponse, TerminalInfo, WorkspaceInfo};
 use crate::rate_limit::RateLimiter;
+use crate::uploads;
 use crate::ws;
 
 const PAGE: &str = include_str!("page.html");
@@ -23,6 +25,7 @@ const MANIFEST: &str = include_str!("../assets/manifest.webmanifest");
 const ICON_180: &[u8] = include_bytes!("../assets/icon-180.png");
 const ICON_192: &[u8] = include_bytes!("../assets/icon-192.png");
 const ICON_512: &[u8] = include_bytes!("../assets/icon-512.png");
+const UPLOAD_PATH: &str = "/api/uploads";
 const HOST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Concurrent connections (phones hold one socket; the rest are short requests).
 const MAX_CONNECTIONS: usize = 32;
@@ -34,6 +37,8 @@ pub(crate) struct Shared {
     pub(crate) host: HostTx,
     pub(crate) enabled: AtomicBool,
     pub(crate) limiter: Mutex<RateLimiter>,
+    /// Where phone images land; uploads are refused until set.
+    pub(crate) uploads_dir: OnceLock<PathBuf>,
     next_conn: AtomicU64,
     active: AtomicUsize,
 }
@@ -111,6 +116,7 @@ impl RemoteServer {
             host,
             enabled: AtomicBool::new(true),
             limiter: Mutex::new(RateLimiter::new()),
+            uploads_dir: OnceLock::new(),
             next_conn: AtomicU64::new(1),
             active: AtomicUsize::new(0),
         });
@@ -127,6 +133,11 @@ impl RemoteServer {
             shared,
             accepts,
         })
+    }
+
+    /// Enable image uploads, saved under `dir`. First call wins.
+    pub fn set_uploads_dir(&self, dir: PathBuf) {
+        let _ = self.shared.uploads_dir.set(dir);
     }
 
     /// Listeners notice within `ACCEPT_POLL` and release their ports.
@@ -211,7 +222,7 @@ pub(crate) struct Request {
     pub(crate) peer: IpAddr,
 }
 
-fn read_request(stream: &mut TcpStream) -> Result<Option<Request>> {
+fn read_request(stream: &mut TcpStream, shared: &Shared) -> Result<Option<Request>> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
     let peer = stream.peer_addr()?.ip();
@@ -226,7 +237,18 @@ fn read_request(stream: &mut TcpStream) -> Result<Option<Request>> {
     let method = parts.next().unwrap_or("").to_string();
     let (path, _query) = http::split_path_query(parts.next().unwrap_or("/"));
     let path = path.to_string();
-    let body = http::extract_body(&buf[..n], body_start, &headers, stream)?;
+    let clen = http::content_length(&headers);
+    let upload = method == "POST" && path == UPLOAD_PATH && signed_in(&headers, shared);
+    let limit = if upload {
+        uploads::MAX_UPLOAD
+    } else {
+        http::MAX_BODY
+    };
+    if clen > limit {
+        http::write_json_error(stream, 413, "too large")?;
+        return Ok(None);
+    }
+    let body = http::extract_body(&buf[..n], body_start, clen, stream)?;
     Ok(Some(Request {
         method,
         path,
@@ -236,8 +258,13 @@ fn read_request(stream: &mut TcpStream) -> Result<Option<Request>> {
     }))
 }
 
+/// Only a signed-in phone may send an image-sized body.
+fn signed_in(headers: &HashMap<String, String>, shared: &Shared) -> bool {
+    matches!(shared.authenticate(bearer(headers)), Ok(Some(_)))
+}
+
 fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
-    let Some(req) = read_request(&mut stream)? else {
+    let Some(req) = read_request(&mut stream, shared)? else {
         return Ok(());
     };
     match (req.method.as_str(), req.path.as_str()) {
@@ -258,6 +285,7 @@ fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
         ("GET", "/icon-512.png") => http::write_http(&mut stream, 200, "image/png", ICON_512),
         ("POST", "/pair") => pair(&mut stream, &req, shared),
         ("GET", "/ws") => ws::serve(stream, &req, shared),
+        ("POST", UPLOAD_PATH) => uploads::serve(&mut stream, &req, shared),
         ("GET", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
         _ => http::write_http(&mut stream, 404, "text/plain", b"not found"),
     }
@@ -328,7 +356,7 @@ fn write_json<T: serde::Serialize>(stream: &mut TcpStream, value: &T) -> Result<
     http::write_http(stream, 200, "application/json", &bytes)
 }
 
-fn bearer(headers: &HashMap<String, String>) -> &str {
+pub(crate) fn bearer(headers: &HashMap<String, String>) -> &str {
     headers
         .get("authorization")
         .map(String::as_str)

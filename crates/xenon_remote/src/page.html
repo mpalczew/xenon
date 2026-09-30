@@ -119,6 +119,10 @@ html.in-session { background:var(--chrome); }
 .field input::placeholder { color:var(--faint); }
 .ret { flex:none; min-width:40px; height:30px; font-size:12px; font-weight:700; padding:0 8px; border-radius:15px; background:var(--accent-dim); color:var(--accent); white-space:nowrap; }
 .ret[aria-pressed="false"] { background:var(--panel-2); color:var(--muted); text-decoration:line-through; }
+.attach { flex:none; width:40px; height:40px; margin-right:-2px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line); color:var(--muted); display:grid; place-items:center; }
+.attach .spin { display:none; }
+.attach[aria-busy="true"] svg { display:none; }
+.attach[aria-busy="true"] .spin { display:block; }
 .send { flex:none; width:40px; height:40px; border-radius:50%; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; font-weight:800; font-size:18px; }
 
 /* ===== Pair screens ===== */
@@ -230,6 +234,8 @@ html.in-session { background:var(--chrome); }
       <button type="button" class="k enter" data-key="enter" aria-label="Enter">⏎</button>
     </div>
     <form class="input" id="input" autocomplete="off">
+      <button type="button" class="attach" id="attach" aria-label="Attach image"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20.5 11.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="spin" aria-hidden="true"></span></button>
+      <input type="file" id="file" accept="image/*" hidden>
       <div class="field">
         <input id="msg" type="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Message the agent…" aria-label="Text to send">
         <button type="button" class="ret" id="ret" aria-pressed="true" aria-label="Also press Enter after sending">+ ⏎</button>
@@ -929,6 +935,67 @@ async function onCodeInput() {
   }
 }
 
+// ===== Images =====
+const AGENT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+async function attachImage(file) {
+  const btn = $("attach");
+  if (!file || !file.type.startsWith("image/") || btn.getAttribute("aria-busy")) return;
+  btn.setAttribute("aria-busy", "true");
+  try {
+    insertPath(await uploadImage(await agentReadable(file)));
+  } catch (e) {
+    if (e.message !== "unauthorized") toast("Image didn’t send: " + e.message);
+  } finally {
+    btn.removeAttribute("aria-busy");
+  }
+}
+
+// Agents read PNG/JPEG/GIF/WebP; re-encode anything else (e.g. HEIC) as JPEG.
+async function agentReadable(file) {
+  if (AGENT_IMAGE_TYPES.includes(file.type)) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width; canvas.height = bmp.height;
+    canvas.getContext("2d").drawImage(bmp, 0, 0);
+    const jpeg = await new Promise((done) => canvas.toBlob(done, "image/jpeg", 0.9));
+    return jpeg || file;
+  } catch (_) { return file; }
+}
+
+async function uploadImage(blob) {
+  let r;
+  try {
+    r = await fetch("/api/uploads", { method: "POST", headers: { Authorization: "Bearer " + S.token, "Content-Type": blob.type }, body: blob });
+  } catch (_) { throw new Error("can’t reach your Mac"); }
+  if (r.status === 401) { unpair("This device was signed out. Enter a new code from your Mac."); throw new Error("unauthorized"); }
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data || !data.path) throw new Error((data && data.error) || "upload failed");
+  return data.path;
+}
+
+// Drop the path at the caret, space-separated, and leave it unsent for context.
+function insertPath(path) {
+  const input = $("msg");
+  const v = input.value;
+  const at = input.selectionStart ?? v.length;
+  const before = v.slice(0, at), after = v.slice(at);
+  const text = (before && !before.endsWith(" ") ? " " : "") + path + (after.startsWith(" ") ? "" : " ");
+  input.value = before + text + after;
+  const caret = before.length + text.length;
+  input.focus();
+  input.setSelectionRange(caret, caret);
+}
+
+function onMsgPaste(e) {
+  const files = e.clipboardData ? [...e.clipboardData.files] : [];
+  const image = files.find((f) => f.type.startsWith("image/"));
+  if (!image) return;
+  e.preventDefault();
+  attachImage(image);
+}
+
 let toastTimer = 0;
 function toast(text) {
   const el = $("toast");
@@ -966,6 +1033,9 @@ function wireEvents() {
   keys.addEventListener("click", onKeyClick);
   for (const end of ["pointerup", "pointercancel", "pointerleave"]) keys.addEventListener(end, stopRepeat);
   $("msg").addEventListener("keydown", onMsgKeyDown);
+  $("msg").addEventListener("paste", onMsgPaste);
+  $("attach").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", (e) => { attachImage(e.target.files[0]); e.target.value = ""; });
   $("ret").addEventListener("pointerdown", (e) => e.preventDefault());
   $("ret").addEventListener("click", () => setEnterOn(!S.enterOn));
   $("send").addEventListener("pointerdown", (e) => e.preventDefault());

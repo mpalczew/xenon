@@ -179,6 +179,10 @@ All HTTP served from the existing hand-rolled server; `/ws` upgrade routed by pe
 
 **New: `GET /manifest.webmanifest`, `/icon-192.png`, `/icon-512.png`, `/apple-touch-icon.png`** — static, embedded, no auth.
 
+**New: `POST /api/uploads`** — phone image attach (📎 or paste).
+- Bearer auth; raw image body, `Content-Type` PNG/JPEG/GIF/WebP/HEIC (else 415). Body cap 25 MB, granted only after the token checks out (strangers keep the 8 KB cap → 413).
+- Saved as `<data dir>/remote/uploads/phone-<unix>-<id>.<ext>`; files older than 7 days pruned on each save. Returns `{"path"}`; the page inserts it into the message field unsent, so any agent that reads image paths gets it.
+
 **New: `GET /ws` (WebSocket)**
 - Origin must equal `http://<Host header>`; else 403.
 - First client msg must be `{"t":"hello","token"}` within 5s, else close 4401.
