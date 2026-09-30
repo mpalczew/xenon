@@ -43,6 +43,8 @@
 html, body { margin:0; height:100%; background:var(--canvas); color:var(--text); font-family:var(--ui); line-height:1.4; overflow:hidden; }
 button { font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; cursor:pointer; touch-action:manipulation; }
 button:disabled { cursor:default; }
+/* iOS 26 Home Screen apps report a viewport one status bar short; the strip below #app shows the root background. */
+html.in-session { background:var(--chrome); }
 [hidden] { display:none !important; }
 
 #app { position:fixed; left:0; right:0; top:var(--app-top, 0px); height:var(--app-h, 100dvh);
@@ -213,6 +215,7 @@ button:disabled { cursor:default; }
           <button type="button" class="k sm" data-key="ctrl-c" aria-label="Control C">^C</button>
           <button type="button" class="k sm" data-key="tab" aria-label="Tab">Tab</button>
           <button type="button" class="k sm" data-key="shift-tab" aria-label="Shift Tab">⇧Tab</button>
+          <button type="button" class="k" data-key="backspace" data-repeat aria-label="Backspace">⌫</button>
         </div>
         <div class="krow">
           <button type="button" class="k" data-key="left" aria-label="Left arrow">←</button>
@@ -383,7 +386,7 @@ const S = {
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
   follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0,
-  enterOn: store(KEY.enter) !== "0",
+  enterOn: store(KEY.enter) !== "0", repeat: null,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -532,6 +535,7 @@ function onVisible() {
 function show(view) {
   S.view = view;
   for (const v of ["paired", "code", "list", "terms", "session"]) $("v-" + v).hidden = v !== view;
+  document.documentElement.classList.toggle("in-session", view === "session");
   if (view === "session") scheduleFit(0);
 }
 
@@ -849,6 +853,25 @@ function onKeyPointer(e) {
   if (!btn || btn.disabled) return;
   e.preventDefault();
   sendKeyButton(btn);
+  if ("repeat" in btn.dataset) startRepeat(btn);
+}
+
+function startRepeat(btn) {
+  stopRepeat();
+  S.repeat = setTimeout(function tick() {
+    if (btn.disabled) return stopRepeat();
+    sendKeyButton(btn);
+    S.repeat = setTimeout(tick, 60);
+  }, 400);
+}
+
+function stopRepeat() {
+  clearTimeout(S.repeat);
+  S.repeat = null;
+}
+
+function onMsgKeyDown(e) {
+  if (e.key === "Backspace" && !e.target.value) send({ t: "key", key: "backspace" });
 }
 
 function onKeyClick(e) {
@@ -941,6 +964,8 @@ function wireEvents() {
   const keys = $("keys");
   keys.addEventListener("pointerdown", onKeyPointer);
   keys.addEventListener("click", onKeyClick);
+  for (const end of ["pointerup", "pointercancel", "pointerleave"]) keys.addEventListener(end, stopRepeat);
+  $("msg").addEventListener("keydown", onMsgKeyDown);
   $("ret").addEventListener("pointerdown", (e) => e.preventDefault());
   $("ret").addEventListener("click", () => setEnterOn(!S.enterOn));
   $("send").addEventListener("pointerdown", (e) => e.preventDefault());
