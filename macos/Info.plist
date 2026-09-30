@@ -26,5 +26,7 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Xenon uses the local network to serve the phone remote and so commands run in its terminals can reach devices on your network.</string>
 </dict>
 </plist>
