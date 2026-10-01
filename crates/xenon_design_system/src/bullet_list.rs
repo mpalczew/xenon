@@ -1,13 +1,14 @@
 //! Indented supporting text. Depth 0 is a disc; deeper lines are circles.
 
-use gpui::{App, IntoElement, ParentElement, SharedString, Styled, div, px};
+use gpui::{App, IntoElement, ParentElement, Styled, div, px};
 
+use crate::marked_text::{MarkedText, marked_text};
 use crate::typography::{TypeRole, Typography};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BulletLine {
     pub depth: u8,
-    pub text: SharedString,
+    pub text: MarkedText,
 }
 
 pub fn bullet_list(lines: Vec<BulletLine>, cx: &App) -> impl IntoElement {
@@ -40,7 +41,7 @@ pub fn bullet_list(lines: Vec<BulletLine>, cx: &App) -> impl IntoElement {
                         .min_w_0()
                         .type_role(TypeRole::Supporting, cx)
                         .line_height(line_height)
-                        .child(line.text),
+                        .child(marked_text(line.text, cx)),
                 )
         }))
 }

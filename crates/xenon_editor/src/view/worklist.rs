@@ -20,10 +20,11 @@ mod rows;
 mod section_edit;
 use crate::worklist_file::Target;
 use crate::worklist_file::entries::{Entry, Parsed, parse};
+use crate::worklist_file::inline::marked;
 use header::HeaderState;
 pub(in crate::view) use rows::Cursor;
 pub(in crate::view) use section_edit::SectionEdit;
-use xenon_design_system::{BulletLine, bullet_list, selectable_row};
+use xenon_design_system::{BulletLine, bullet_list, marked_text, selectable_row};
 
 /// What one paint of the list shares between its regions.
 struct Frame<'a> {
@@ -405,12 +406,13 @@ impl EditorView {
         } = row;
         let checked = entry.checked;
         let editable = entry.editable;
-        let title = entry.title.clone();
+        let title = marked(&entry.title);
+        let label = format!("Complete {}", title.text);
         let lines: Vec<_> = xenon_design_system::points_from_details(&entry.details)
             .into_iter()
             .map(|point| BulletLine {
                 depth: point.depth,
-                text: point.text.into(),
+                text: marked(&point.text),
             })
             .collect();
         selectable_row(format!("worklist-row-{index}"), selected, colors)
@@ -430,7 +432,7 @@ impl EditorView {
                         checked: done,
                         disabled: false,
                     },
-                    format!("Complete {title}"),
+                    label,
                     cx,
                     cx.listener(move |this, _, _, cx| {
                         cx.stop_propagation();
@@ -462,7 +464,7 @@ impl EditorView {
                                 } else {
                                     title_line.mb_3()
                                 };
-                                title_line.child(title)
+                                title_line.child(marked_text(title, cx))
                             })
                             .child(bullet_list(lines, cx)),
                     ),

@@ -70,7 +70,7 @@ pub(super) fn tab(
     }
 }
 
-const SECTIONED_WORKLIST: &str = "# Worklist\n\n- Reply to the Zed maintainers about the GPUI pin\n\n## Now\n\n- [ ] Fix focus after closing a split\n  - Happens when the right pane owns the active terminal.\n\n- [ ] Phone remote: paste images from clipboard\n  - Reuse the attach path from the image work.\n\n## Next\n\n- Workspace search idea\n  - Show recently used workspaces first.\n\n- [ ] Theme side panel keyboard path\n\n- [x] Verify One Light contrast on diffs\n\n## Someday\n";
+const SECTIONED_WORKLIST: &str = "# Worklist\n\n- Reply to the Zed maintainers about the GPUI pin\n\n## Now\n\n- [ ] **Fix focus after closing a split** (*regression*)\n  - Happens when the right pane owns the active terminal; see `focus_after_close`.\n\n- [ ] Phone remote: paste images from clipboard\n  - Reuse the attach path from the image work.\n\n## Next\n\n- Workspace search idea\n  - Show recently used workspaces first.\n\n- [ ] Theme side panel keyboard path\n\n- [x] Verify One Light contrast on diffs\n\n## Someday\n";
 
 fn fixture(scene: Scene) -> &'static str {
     match scene {

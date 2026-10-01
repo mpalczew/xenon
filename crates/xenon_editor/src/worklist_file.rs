@@ -8,6 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, bail, ensure};
 mod draft;
 pub(crate) mod entries;
+pub(crate) mod inline;
 mod item;
 pub(crate) mod sections;
 pub use draft::{Change, ItemDraft};
