@@ -44,6 +44,9 @@ pub struct SettingsView {
     /// Pane child index for each keyboard row, refreshed every paint.
     row_children: Vec<usize>,
     open: Option<DropdownId>,
+    trigger_bounds: crate::dropdown::TriggerBounds,
+    /// Side of the open list, fixed once its trigger's bounds are known.
+    opens_up: Option<bool>,
     filter: String,
     filter_input: Entity<TextInputView>,
     highlight: usize,
@@ -58,7 +61,10 @@ impl SettingsView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let filter_input = cx.new(|cx| {
             TextInputView::new(
-                TextInputConfig::single_line("Type to filter…").parent_navigation(),
+                TextInputConfig::single_line("Type to filter…")
+                    .appearance(TextInputAppearance::Inline)
+                    .min_height(px(18.))
+                    .parent_navigation(),
                 cx,
             )
         });
@@ -96,6 +102,8 @@ impl SettingsView {
             search,
             row_children: Vec::new(),
             open: None,
+            trigger_bounds: Default::default(),
+            opens_up: None,
             filter: String::new(),
             filter_input,
             highlight: 0,
@@ -224,6 +232,14 @@ impl SettingsView {
                 .update(cx, |input, cx| input.set_text(query, cx));
             self.set_query(query.to_string(), cx);
         }
+    }
+
+    /// Visual tests: type into the open dropdown's filter.
+    pub fn visual_filter(&mut self, filter: &str, cx: &mut Context<Self>) {
+        self.filter_input
+            .update(cx, |input, cx| input.set_text(filter, cx));
+        self.filter = filter.to_owned();
+        cx.notify();
     }
 
     /// Keyboard tests: the live search query.

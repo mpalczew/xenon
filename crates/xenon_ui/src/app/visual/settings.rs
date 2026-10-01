@@ -24,8 +24,25 @@ pub(super) fn page(app: &mut XenonApp, scene: Scene, cx: &mut Context<XenonApp>)
 pub(super) fn dropdown(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
     show(app, SettingsPage::Fonts, "", cx);
-    with_settings(app, cx, |settings, window, cx| {
-        settings.toggle_dropdown(DropdownId::Editor, window, cx);
+    open_dropdown(app, DropdownId::Editor, "", cx);
+}
+
+/// The lowest font dropdown, filtered: the field stays in place and the list
+/// keeps its side of the trigger.
+pub(super) fn dropdown_filtered(
+    app: &mut XenonApp,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+) {
+    populate(app, window, cx);
+    show(app, SettingsPage::Fonts, "", cx);
+    open_dropdown(app, DropdownId::Terminal, "men", cx);
+}
+
+fn open_dropdown(app: &XenonApp, id: DropdownId, filter: &'static str, cx: &mut Context<XenonApp>) {
+    with_settings(app, cx, move |settings, window, cx| {
+        settings.toggle_dropdown(id, window, cx);
+        settings.visual_filter(filter, cx);
     });
 }
 

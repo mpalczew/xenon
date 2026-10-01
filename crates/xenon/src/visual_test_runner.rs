@@ -222,6 +222,7 @@ fn run_scene(
         scene,
         xenon_ui::Scene::SettingsWindow
             | xenon_ui::Scene::SettingsDropdown
+            | xenon_ui::Scene::SettingsDropdownFiltered
             | xenon_ui::Scene::SettingsAgentsInstalled
             | xenon_ui::Scene::SettingsRemote
             | xenon_ui::Scene::SettingsEditor

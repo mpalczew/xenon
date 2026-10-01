@@ -19,9 +19,14 @@ impl SettingsView {
             self.close_dropdown(window, cx);
         } else {
             self.open = Some(id);
+            self.opens_up = self
+                .trigger_bounds
+                .opens_up(id, window.viewport_size().height);
             self.filter.clear();
             self.highlight = 0;
+            let current = crate::dropdown::current_label(id, cx);
             self.filter_input.update(cx, |input, cx| {
+                input.set_placeholder(current, cx);
                 input.set_text("", cx);
                 input.open(cx);
             });

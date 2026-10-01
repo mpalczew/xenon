@@ -61,6 +61,7 @@ pub enum Scene {
     Rename,
     Memory,
     SettingsDropdown,
+    SettingsDropdownFiltered,
     TabTooltip,
     SettingsWindow,
     SkillPromptDark,
@@ -144,6 +145,7 @@ pub const SCENES: &[Scene] = &[
     Scene::Rename,
     Scene::Memory,
     Scene::SettingsDropdown,
+    Scene::SettingsDropdownFiltered,
     Scene::TabTooltip,
     Scene::SettingsWindow,
     Scene::SkillPromptDark,
@@ -244,6 +246,7 @@ impl Scene {
             Self::Rename => "overlay_rename",
             Self::Memory => "overlay_memory",
             Self::SettingsDropdown => "overlay_settings_dropdown",
+            Self::SettingsDropdownFiltered => "overlay_settings_dropdown_filtered",
             Self::TabTooltip => "overlay_tab_tooltip",
             Self::SettingsWindow => "settings_window",
             Self::SkillPromptDark => "overlay_skill_prompt_dark",
@@ -349,6 +352,7 @@ pub fn apply_scene(
         Scene::Rename => overlays::rename(app, window, cx),
         Scene::Memory => overlays::memory(app, window, cx),
         Scene::SettingsDropdown => settings::dropdown(app, window, cx),
+        Scene::SettingsDropdownFiltered => settings::dropdown_filtered(app, window, cx),
         Scene::TabTooltip => overlays::tab_tooltip(app, window, cx),
         Scene::SettingsWindow
         | Scene::SettingsEditor

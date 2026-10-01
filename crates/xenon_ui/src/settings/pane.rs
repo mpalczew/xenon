@@ -22,12 +22,25 @@ impl SettingsView {
         } else {
             search_groups(&self.query, cx)
         };
+        if let Some(id) = self.open
+            && self.opens_up.is_none()
+        {
+            self.opens_up = self
+                .trigger_bounds
+                .opens_up(id, window.viewport_size().height);
+            if self.opens_up.is_none() {
+                // Opened before its trigger painted: decide next frame.
+                cx.notify();
+            }
+        }
         let state = PaintState {
             open: self.open,
             filter: &self.filter,
             filter_input: &self.filter_input,
             highlight: self.highlight,
             viewport_height: window.viewport_size().height,
+            bounds: &self.trigger_bounds,
+            opens_up: self.opens_up.unwrap_or(false),
             editing: self
                 .field_edit
                 .as_ref()

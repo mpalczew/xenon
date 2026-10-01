@@ -19,6 +19,8 @@ pub(super) struct PaintState<'a> {
     pub filter_input: &'a Entity<TextInputView>,
     pub highlight: usize,
     pub viewport_height: gpui::Pixels,
+    pub bounds: &'a crate::dropdown::TriggerBounds,
+    pub opens_up: bool,
     pub editing: Option<(Field, Entity<TextInputView>)>,
 }
 
@@ -232,6 +234,8 @@ fn font_controls(
             filter_input: state.filter_input,
             highlight: state.highlight,
             viewport_height: state.viewport_height,
+            bounds: state.bounds.clone(),
+            opens_up: state.opens_up,
         },
         cx,
     );
