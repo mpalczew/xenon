@@ -86,7 +86,9 @@ Crates under `crates/`:
 
 Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
 an `EntityInputHandler` registered during paint (`window.handle_input`), NOT
-through `on_key_down` — which only carries control/navigation keys. Routine
+through `on_key_down`. The key-down for a typed letter still bubbles past the
+focused field to ancestors, so an ancestor's type-to-search or row keys must act
+only when its own handle `is_focused`. Routine
 fields use the complete control in `xenon_design_system`; only the editor and
 terminal canvases own direct input handlers. `scripts/check-ui-boundaries`
 enforces that split. GPUI repaints on explicit `cx.notify()`; the terminal
