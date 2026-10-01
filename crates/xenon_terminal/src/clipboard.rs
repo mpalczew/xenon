@@ -6,6 +6,9 @@ use anyhow::Result;
 use gpui::{ClipboardEntry, ClipboardItem, Image, ImageFormat};
 use image::ImageFormat as EncodedImageFormat;
 
+#[path = "bar_gutter.rs"]
+mod bar_gutter;
+
 pub(crate) fn clean_agent_output(text: &str) -> String {
     let text = strip_terminal_control_sequences(text);
     let mut lines: Vec<String> = text
@@ -32,13 +35,17 @@ pub(crate) fn clean_agent_output(text: &str) -> String {
                 .to_string();
         }
     }
-    let cleaned: Vec<(String, bool)> = lines
+    let bar_block = bar_gutter::strip(&mut lines);
+    let mut cleaned: Vec<(String, bool)> = lines
         .iter()
         .map(|line| {
             let (text, wrapped) = strip_box_gutters(line);
             (strip_status_suffix(&text), wrapped)
         })
         .collect();
+    if bar_block {
+        bar_gutter::mark_hard_wraps(&mut cleaned);
+    }
     let mut lines = unwrap_box_lines(cleaned);
     while lines.first().is_some_and(|line| line.is_empty()) {
         lines.remove(0);
