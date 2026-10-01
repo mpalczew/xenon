@@ -4,9 +4,10 @@
 type Check = fn(&mut gpui::VisualTestAppContext) -> anyhow::Result<()>;
 
 pub(crate) fn run_all(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
-    let checks: [(&str, Check); 4] = [
+    let checks: [(&str, Check); 5] = [
         ("keyboard_worklist_escape", shortcuts_survive_worklist_escape),
         ("keyboard_settings_rows", settings_keys_reach_rows),
+        ("keyboard_settings_search_typing", settings_typing_extends_search),
         ("keyboard_offscreen_focus", shortcuts_survive_offscreen_focus),
         ("keyboard_stranded_key_replay", stranded_key_is_replayed),
     ];
@@ -67,6 +68,29 @@ fn settings_keys_reach_rows(cx: &mut gpui::VisualTestAppContext) -> anyhow::Resu
     cx.simulate_keystrokes(settings.into(), "space");
     cx.run_until_parked();
     anyhow::ensure!(after != before, "⌘3 ↓ ↓ Space did not toggle Wrap prose");
+    Ok(())
+}
+
+/// Settings: typing starts search, and later letters extend the query instead
+/// of bubbling out of the field and restarting it.
+fn settings_typing_extends_search(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
+    let window = crate::open_window(cx)?;
+    window.update(cx, |app, window, cx| {
+        xenon_ui::apply_scene(app, xenon_ui::Scene::SettingsWindow, window, cx);
+    })?;
+    cx.run_until_parked();
+    let settings = window
+        .update(cx, |app, _, _| app.visual_settings_window())?
+        .ok_or_else(|| anyhow::anyhow!("settings window missing"))?;
+    for keys in ["w", "r", "a", "p"] {
+        cx.simulate_keystrokes(settings.into(), keys);
+        cx.update_window(settings.into(), |_, window, _| window.refresh())?;
+        cx.run_until_parked();
+    }
+    let query = settings.update(cx, |view, _, _| view.visual_query().to_owned())?;
+    cx.simulate_keystrokes(settings.into(), "escape");
+    cx.run_until_parked();
+    anyhow::ensure!(query == "wrap", "typed \"wrap\" but search holds {query:?}");
     Ok(())
 }
 

@@ -225,6 +225,11 @@ impl SettingsView {
             self.set_query(query.to_string(), cx);
         }
     }
+
+    /// Keyboard tests: the live search query.
+    pub fn visual_query(&self) -> &str {
+        &self.query
+    }
 }
 
 impl Focusable for SettingsView {

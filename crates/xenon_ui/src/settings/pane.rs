@@ -75,7 +75,12 @@ impl SettingsView {
             .pt_4()
             .pb_5()
             .on_click(cx.listener(|this, _, window, cx| this.dismiss_dropdown(window, cx)))
-            .children(children)
+            // Children keep their height; a long page or result list scrolls instead of squashing.
+            .children(
+                children
+                    .into_iter()
+                    .map(|child| div().flex_none().child(child).into_any_element()),
+            )
             .into_any_element()
     }
 }

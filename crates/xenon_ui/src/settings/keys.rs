@@ -33,7 +33,13 @@ impl SettingsView {
             cx.stop_propagation();
             return;
         }
-        if modifiers.control || modifiers.alt || modifiers.function {
+        // Keys a focused child input left alone (plain characters, space) bubble
+        // here; they belong to that input, not to row navigation or type-to-search.
+        if modifiers.control
+            || modifiers.alt
+            || modifiers.function
+            || !self.focus.is_focused(window)
+        {
             return;
         }
         if self.navigate(key, window, cx) {
