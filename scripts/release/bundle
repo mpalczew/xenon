@@ -6,15 +6,18 @@ source "$root/scripts/release/codesign.sh"
 
 (cd "$root" && cargo build --release -p xenon -p xenon_stub)
 
-app="$root/target/release/xenon.app"
+# Harnesses build in worktrees with a shared CARGO_TARGET_DIR; cargo resolves it from $root.
+target="${CARGO_TARGET_DIR:-target}"
+[[ "$target" == /* ]] || target="$root/$target"
+app="$target/release/xenon.app"
 identity="$(xenon_codesign_identity)"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$root/macos/Info.plist" "$app/Contents/Info.plist"
 cp "$root/macos/xenon.icns" "$app/Contents/Resources/xenon.icns"
 # Dock/Launch Services run the stub; the GUI is xenon-bin beside it.
-cp "$root/target/release/xenon-stub" "$app/Contents/MacOS/xenon"
-cp "$root/target/release/xenon" "$app/Contents/MacOS/xenon-bin"
+cp "$target/release/xenon-stub" "$app/Contents/MacOS/xenon"
+cp "$target/release/xenon" "$app/Contents/MacOS/xenon-bin"
 # Same identifier on stub and xenon-bin so FDA/TCC survive exec of the GUI.
 codesign --force --deep --sign "$identity" --identifier dev.xero.xero "$app" || {
     echo "codesign failed with identity: $identity" >&2

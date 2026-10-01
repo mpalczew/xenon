@@ -16,6 +16,8 @@ Results do not depend on the attached display: scenes fix window size, and the
 runner pins `NSScreen.backingScaleFactor` to 2.0 for its process
 (`visual_test_runner/display.rs`), so a 1x monitor renders Retina baselines.
 
+Scenes for lists and scrolling panes use enough content to overflow the window.
+
 Not part of `scripts/health` / `cargo test`: Metal capture needs a macOS window
 server. Do not add this to GitHub macOS runners unless asked.
 

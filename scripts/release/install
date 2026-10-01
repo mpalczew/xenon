@@ -5,13 +5,15 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$root/scripts/release/codesign.sh"
 
 "$root/scripts/release/bundle"
+target="${CARGO_TARGET_DIR:-target}"
+[[ "$target" == /* ]] || target="$root/$target"
 
 dest_dir="${XENON_INSTALL_DIR:-${XERO_INSTALL_DIR:-$HOME/Applications}}"
 dest="$dest_dir/Xenon.app"
 mkdir -p "$dest_dir"
 # Remove legacy install name if present.
 rm -rf "$dest_dir/xero.app" "$dest"
-cp -R "$root/target/release/xenon.app" "$dest"
+cp -R "$target/release/xenon.app" "$dest"
 identity="$(xenon_codesign_identity)"
 codesign --force --deep --sign "$identity" --identifier dev.xero.xero "$dest" || {
     echo "codesign of installed app failed: $dest" >&2
