@@ -137,6 +137,8 @@ pub struct XenonApp {
     finder: Option<Entity<FinderView>>,
     task_picker: Option<Entity<TaskPickerView>>,
     worklist_captures: HashMap<WorkspaceId, Entity<WorklistCaptureView>>,
+    /// The section each workspace's capture last used, for this app session.
+    worklist_last_section: HashMap<WorkspaceId, xenon_editor::worklist_file::Target>,
     worklist_capture_subs: Vec<Subscription>,
     worklist_capture_visible: Option<WorkspaceId>,
     worklist_undo: Option<(WorkspaceId, xenon_editor::worklist_file::ItemDraft)>,

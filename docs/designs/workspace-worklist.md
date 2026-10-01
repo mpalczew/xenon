@@ -12,6 +12,27 @@ Toolbar capture hosts the same item editor as the worklist tab (title, points, a
 
 The worklist tab opens in **List** presentation by default. It reads the Markdown file directly and shows top-level checkbox tasks, bullet notes, and existing standalone paragraph notes. **Add an item** opens the same editor as editing. An empty list shows the design system's all-clear state instead of the Add button: a large check that draws itself, "All clear.", and two key chips (↵ add an item, which is also clickable, and ⌘⇧K from anywhere). Return on the empty list opens that editor. Close leaves a saved item in the list. Delete removes it. There is no Save, Cancel, or list Undo button. The list supports checkbox completion, selected-row keyboard navigation (↑/↓, Space, Enter), item editing, and delete. Item editing is the outline; changes save as you type. Cmd-Z undoes typing in the focused field, and Cmd-Shift-Z puts it back. Escape or Close leaves the editor. ⌘⌫ or Delete removes the item. There is no Task/Note choice and no move control. A complex task that the list cannot safely rewrite remains visible; use **Markdown** for it. Markdown mode is the normal editor over the same buffer, with ordinary selection, find, Vim editing, dirty state, and Save. Switching back to List requires saving or undoing Markdown edits first. There is no duplicate task store or separate worklist window. Freeform notes can be written in Markdown mode or by an agent editing the file.
 
+## Sections
+
+Sections are plain Markdown headings; there is no other storage. The first `#` heading is the document title (`# Worklist`), not a section, and the list does not show it. Any later `#` or `##` heading starts a section (`##` preferred). `###` and deeper are ordinary content. Items above the first section show at the top without a header. A file with no sections looks exactly as before.
+
+```md
+# Worklist
+
+- Reply to the maintainers   <- unsectioned, shown at the top
+
+## Now
+- [ ] Fix focus after closing a split
+
+## Next
+```
+
+**List.** Each section has a header row: fold chevron, small-caps name, open-task count ("2 open", "all done" when only done tasks or notes remain, nothing when empty), and a quiet **+ Add** shown on hover or selection. Folding is session view state, never written to the file; a folded section says "N items hidden". An empty section shows "Empty — ↵ to add". ↑/↓ walk headers and items together. On a header, ←/→ fold and unfold, Space toggles, ↵ adds an item that lands at the end of that section, ⌘↵ renames inline (↵ commits, Escape cancels; a blank name deletes the section only when it is empty, otherwise an inline message says to use Markdown), and ⇧↵ starts a new section after the selected row's section and names it. Item keys are unchanged. **+ Add an item** files into the selected row's section (the top when nothing is selected); **+ Section** matches ⇧↵. Clicking a header folds it. Renaming or creating a section edits only its heading line; other text is untouched, and line endings are preserved.
+
+**Capture.** When the file has sections, quick capture shows "Into ‹ Section ›" under the editor. ⌥↑/⌥↓ (or the ‹ › buttons) cycle the options: the sections in file order, preceded by the top when unsectioned items exist. The default is the last section captured into for that workspace during this app session, otherwise the first option. The item is appended at the end of the chosen section, before the next heading, without reformatting anything else. Once the first save lands the chip locks. With no sections the chip is absent and capture appends at the end of the file.
+
+**No move control.** Existing items cannot be moved or reordered between sections from the app (no ⌥↑/⌥↓ item moving, no "Move to…" picker). Moving stays a Markdown-mode edit.
+
 ## File behavior
 
 Opening an absent worklist creates an empty virtual document; it does not create `.xenon` or mark the tab dirty. Save is available in this empty state and creates the file with `# Worklist`. The directory and file are otherwise created on the first successful write. Task capture appends `- [ ] Title` with indented detail bullets; Note capture appends `- Title` with the same detail bullets. Captures preserve the file's line-ending style and do not reformat existing text. An unclosed code fence or frontmatter blocks capture with a recoverable error.
@@ -52,6 +73,6 @@ The [single Snazzy editor mock](../../visual-review/workspace-queue.html) shows 
 
 ## Verification and boundaries
 
-Review capture (empty and filled), the List tab (populated, empty virtual, and inline Add in dark and light themes), item edit, Markdown mode, and toolbar hint in native visual scenes. Exercise storage conflicts, external edits, undo, keyboard input, and same-file saves in tests. Run `scripts/health` and native visual tests, then install with `project install`.
+Review capture (empty, filled, and with the section chip), the List tab (populated, sectioned in dark and light, a folded section, inline section rename, empty virtual, and inline Add in dark and light themes), item edit, Markdown mode, and toolbar hint in native visual scenes. Exercise storage conflicts, external edits, undo, keyboard input, and same-file saves in tests. Run `scripts/health` and native visual tests, then install with `project install`.
 
 Due dates, priorities, ownership, background task runners, sync, and search across workspaces are outside this version. The mock demonstrates the interaction; native behavior and this spec define the current app.

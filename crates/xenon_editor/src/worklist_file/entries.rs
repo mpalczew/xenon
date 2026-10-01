@@ -1,6 +1,7 @@
 //! Top-level worklist items located in the Markdown source.
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use super::sections::Section;
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
 #[derive(Clone, Debug)]
@@ -9,24 +10,44 @@ pub(crate) struct Entry {
     pub(crate) title: String,
     pub(crate) details: String,
     pub(crate) checked: Option<bool>,
-    #[allow(dead_code)]
-    pub(crate) section: usize,
+    /// Index into the file's sections; None above the first section.
+    pub(crate) section: Option<usize>,
     pub(crate) editable: bool,
 }
 
+pub(crate) struct Parsed {
+    pub(crate) sections: Vec<Section>,
+    pub(crate) entries: Vec<Entry>,
+}
+
 pub(crate) fn entries(source: &str) -> Vec<Entry> {
+    parse(source).entries
+}
+
+pub(crate) fn parse(source: &str) -> Parsed {
     let parser = Parser::new_ext(
         source,
         Options::ENABLE_TASKLISTS | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS,
     );
     let mut found = Vec::new();
+    let mut sections: Vec<Section> = Vec::new();
     let mut list_depth = 0;
-    let mut section = 0;
+    let mut quote_depth = 0;
+    let mut seen_title = false;
     let mut item: Option<Entry> = None;
     let mut paragraph: Option<Entry> = None;
     for (event, range) in parser.into_offset_iter() {
         match event {
-            Event::Start(Tag::Heading { .. }) => section += 1,
+            Event::Start(Tag::Heading { level, .. }) if list_depth == 0 && quote_depth == 0 => {
+                // The first `#` is the document title; later `#` and `##` start sections.
+                if level == HeadingLevel::H1 && !seen_title {
+                    seen_title = true;
+                } else if matches!(level, HeadingLevel::H1 | HeadingLevel::H2) {
+                    sections.push(Section::at(source, range.clone()));
+                }
+            }
+            Event::Start(Tag::BlockQuote(_)) => quote_depth += 1,
+            Event::End(TagEnd::BlockQuote(_)) => quote_depth -= 1,
             Event::Start(Tag::List(_)) => list_depth += 1,
             Event::End(TagEnd::List(_)) => list_depth -= 1,
             Event::Start(Tag::Item) if list_depth == 1 => {
@@ -35,7 +56,7 @@ pub(crate) fn entries(source: &str) -> Vec<Entry> {
                     title: String::new(),
                     details: String::new(),
                     checked: None,
-                    section,
+                    section: sections.len().checked_sub(1),
                     editable: true,
                 })
             }
@@ -61,7 +82,7 @@ pub(crate) fn entries(source: &str) -> Vec<Entry> {
                     title: String::new(),
                     details: String::new(),
                     checked: None,
-                    section,
+                    section: sections.len().checked_sub(1),
                     editable: true,
                 })
             }
@@ -82,7 +103,16 @@ pub(crate) fn entries(source: &str) -> Vec<Entry> {
             _ => {}
         }
     }
-    found
+    for index in 0..sections.len() {
+        let end = sections
+            .get(index + 1)
+            .map_or(source.len(), |next| next.start);
+        sections[index].end = end;
+    }
+    Parsed {
+        sections,
+        entries: found,
+    }
 }
 
 fn item_text(raw: &str) -> (String, String, bool) {
@@ -140,7 +170,7 @@ mod tests {
 
     #[test]
     fn nested_tasks_remain_visible_but_require_markdown_editing() {
-        let source = "# One\n\n- [ ] Parent\n  - [ ] Child\n\n# Two\n\n- [ ] Other\n";
+        let source = "# Worklist\n\n- [ ] Parent\n  - [ ] Child\n\n# Two\n\n- [ ] Other\n";
         let rows = entries(source);
         assert_eq!(rows.len(), 2);
         assert!(!rows[0].editable);

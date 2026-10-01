@@ -49,9 +49,15 @@ chrome from the selection, or from the clipboard if the selection is gone.
 Do not bind hold-⌘ to select mode.
 
 Worklist capture focuses its title on every open and saves as you type.
-Return adds a point, Escape or ⌘Return closes, and ⌘⌫ deletes the item. The worklist opens in a closable
-tab. In List view, arrows select, Space completes, Return edits, and Add opens
-an inline field. On an empty list, Return adds the first item. Item editing saves as you type. Escape closes it. ⌘⌫ deletes
+Return adds a point, Escape or ⌘Return closes, and ⌘⌫ deletes the item. When
+the file has sections, an "Into ‹ Section ›" chip sits under the editor and
+⌥↑ / ⌥↓ (or the ‹ › buttons) choose the section until the first save. The worklist opens in a closable
+tab. In List view, ↑/↓ walk section headers and items together, Space completes an
+item, Return edits it, and Add opens an inline field. On a header: ←/→ fold and
+unfold, Space toggles, Return adds an item to that section, ⌘Return renames it
+(Return commits, Escape cancels; a blank name deletes an empty section), and ⇧Return
+starts a new section after the current one. Clicking a header folds it. There is no
+key or button to move items between sections; that is a Markdown edit. On an empty list, Return adds the first item. Item editing saves as you type. Escape closes it. ⌘⌫ deletes
 the item. An empty virtual worklist can be saved with ⌘S.
 
 The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open

@@ -9,8 +9,13 @@ use anyhow::{Context, Result, bail, ensure};
 mod draft;
 pub(crate) mod entries;
 mod item;
+pub(crate) mod sections;
 pub use draft::{Change, ItemDraft};
 pub use item::{TITLE_LIMIT, WorkItem, title_length};
+pub(crate) use sections::Insertion;
+pub use sections::{
+    SourceEdit, Target, capture_targets, delete_empty_section, insert_section, rename_section,
+};
 
 /// Quick-capture chord, shown in the empty list. The app's command catalog asserts it matches.
 pub const CAPTURE_KEYS: &str = "⌘⇧K";
@@ -107,29 +112,14 @@ impl WorklistFile {
     }
 }
 
-pub(crate) fn append_item(source: &str, item: &WorkItem, checked: bool) -> Result<String> {
-    ensure!(
-        safe_append_boundary(source),
-        "Worklist ends inside an unfinished Markdown block; edit Markdown before capturing"
-    );
-    Ok(append_entry(source, item, checked))
-}
-
-fn append_entry(source: &str, item: &WorkItem, checked: bool) -> String {
-    let newline = if source.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    let mut out = source.trim_end_matches(['\r', '\n']).to_string();
-    if out.is_empty() {
-        out.push_str("# Worklist");
-    }
-    out.push_str(newline);
-    out.push_str(newline);
-    out.push_str(&item.markdown(checked, newline));
-    out.push_str(newline);
-    out
+pub(crate) fn append_item(
+    source: &str,
+    target: &Target,
+    item: &WorkItem,
+    checked: bool,
+) -> Result<Insertion> {
+    let block = item.markdown(checked, sections::newline_of(source));
+    sections::append_block(source, target, &block)
 }
 
 fn safe_append_boundary(source: &str) -> bool {
@@ -171,20 +161,19 @@ mod tests {
     #[test]
     fn inline_append_rejects_unclosed_fence_without_changing_source() {
         let source = "# Worklist\n\n```md\n";
-        assert!(append_item(source, &WorkItem::new("Next", "", true).unwrap(), false).is_err());
+        let item = WorkItem::new("Next", "", true).unwrap();
+        assert!(append_item(source, &Target::Top, &item, false).is_err());
         assert_eq!(source, "# Worklist\n\n```md\n");
     }
 
     #[test]
     fn append_keeps_multiline_and_crlf() {
-        assert_eq!(
-            append_entry(
-                "# Worklist\r\n",
-                &WorkItem::new("Next", "Detail", true).unwrap(),
-                false
-            ),
-            "# Worklist\r\n\r\n- [ ] Next\r\n  - Detail\r\n"
-        );
+        let source = "# Worklist\r\n";
+        let item = WorkItem::new("Next", "Detail", true).unwrap();
+        let insertion = append_item(source, &Target::Top, &item, false).unwrap();
+        let mut out = source.to_owned();
+        out.replace_range(insertion.range, &insertion.text);
+        assert_eq!(out, "# Worklist\r\n\r\n- [ ] Next\r\n  - Detail\r\n");
     }
 
     #[test]

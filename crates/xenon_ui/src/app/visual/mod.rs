@@ -12,6 +12,7 @@ mod keyboard;
 mod overlays;
 mod remote;
 mod settings;
+mod worklist;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scene {
@@ -76,6 +77,11 @@ pub enum Scene {
     WorklistEmptyVirtual,
     WorklistInlineCapture,
     WorklistInlineLight,
+    WorklistSections,
+    WorklistSectionsLight,
+    WorklistSectionsFolded,
+    WorklistSectionRename,
+    WorklistCaptureSection,
     WorklistToolbarTooltip,
     ToastSuccess,
     ToastInfo,
@@ -154,6 +160,11 @@ pub const SCENES: &[Scene] = &[
     Scene::WorklistEmptyVirtual,
     Scene::WorklistInlineCapture,
     Scene::WorklistInlineLight,
+    Scene::WorklistSections,
+    Scene::WorklistSectionsLight,
+    Scene::WorklistSectionsFolded,
+    Scene::WorklistSectionRename,
+    Scene::WorklistCaptureSection,
     Scene::WorklistToolbarTooltip,
     Scene::ToastSuccess,
     Scene::ToastInfo,
@@ -249,6 +260,11 @@ impl Scene {
             Self::WorklistEmptyVirtual => "content_worklist_empty_virtual",
             Self::WorklistInlineCapture => "content_worklist_inline_capture",
             Self::WorklistInlineLight => "content_worklist_inline_light",
+            Self::WorklistSections => "content_worklist_sections",
+            Self::WorklistSectionsLight => "content_worklist_sections_light",
+            Self::WorklistSectionsFolded => "content_worklist_sections_folded",
+            Self::WorklistSectionRename => "content_worklist_section_rename",
+            Self::WorklistCaptureSection => "overlay_worklist_capture_section",
             Self::WorklistToolbarTooltip => "overlay_worklist_toolbar_tooltip",
             Self::ToastSuccess => "overlay_toast_success",
             Self::ToastInfo => "overlay_toast_info",
@@ -347,25 +363,10 @@ pub fn apply_scene(
         Scene::ConnectPhoneOffline => remote::connect_phone(app, false, window, cx),
         Scene::PhoneDriving => content::phone_driving(app, window, cx),
         Scene::SettingsRemote => settings::remote(app, cx),
-        Scene::WorklistCapture | Scene::WorklistCaptureFilled | Scene::WorklistCaptureLong => {
-            chrome::populated(app, scene, window, cx);
-            app.capture_worklist(window, cx);
-            let text = match scene {
-                Scene::WorklistCaptureFilled => {
-                    Some("Fix focus after closing a split\nHappens in the right pane.")
-                }
-                Scene::WorklistCaptureLong => Some(
-                    "Fix focus after closing a split when the right pane owns the active terminal and a prompt is open\nHappens in the right pane.",
-                ),
-                _ => None,
-            };
-            if let Some(text) = text
-                && let Some(workspace) = app.active
-                && let Some(capture) = app.worklist_captures.get(&workspace)
-            {
-                capture.update(cx, |view, cx| view.visual_set_text(text, cx));
-            }
-        }
+        Scene::WorklistCapture
+        | Scene::WorklistCaptureFilled
+        | Scene::WorklistCaptureLong
+        | Scene::WorklistCaptureSection => worklist::capture(app, scene, window, cx),
         Scene::WorklistTab
         | Scene::WorklistItemEdit
         | Scene::WorklistMarkdown
@@ -373,38 +374,11 @@ pub fn apply_scene(
         | Scene::WorklistEmptyLight
         | Scene::WorklistEmptyVirtual
         | Scene::WorklistInlineCapture
-        | Scene::WorklistInlineLight => {
-            chrome::populated(app, scene, window, cx);
-            if let Some(root) = workspace_root(app) {
-                let path = root.join(".xenon/worklist.md");
-                if scene == Scene::WorklistEmptyVirtual {
-                    let _ = std::fs::remove_file(&path);
-                } else {
-                    if let Some(parent) = path.parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    let _ = std::fs::write(
-                        path,
-                        if matches!(scene, Scene::WorklistEmpty | Scene::WorklistEmptyLight) {
-                            "# Worklist\n"
-                        } else {
-                            "# Worklist\n\n- [ ] Fix focus after closing a split\n  - Happens when the right pane owns the active terminal.\n\n- Workspace search idea\n  - Show recently used workspaces first.\n"
-                        },
-                    );
-                }
-            }
-            app.open_worklist(cx);
-            if let Some(editor) = app.active_editor() {
-                editor.update(cx, |editor, cx| match scene {
-                    Scene::WorklistItemEdit => editor.visual_worklist_edit(cx),
-                    Scene::WorklistMarkdown => editor.visual_worklist_markdown(cx),
-                    Scene::WorklistInlineCapture | Scene::WorklistInlineLight => {
-                        editor.visual_worklist_capture(window, cx)
-                    }
-                    _ => {}
-                });
-            }
-        }
+        | Scene::WorklistInlineLight
+        | Scene::WorklistSections
+        | Scene::WorklistSectionsLight
+        | Scene::WorklistSectionsFolded
+        | Scene::WorklistSectionRename => worklist::tab(app, scene, window, cx),
         Scene::WorklistToolbarTooltip => chrome::populated(app, scene, window, cx),
         Scene::ToastSuccess | Scene::ToastInfo | Scene::ToastError | Scene::ToastErrorLight => {
             chrome::populated(app, scene, window, cx);
@@ -458,6 +432,7 @@ fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
         | Scene::PopulatedLight
         | Scene::SkillPromptLight
         | Scene::WorklistInlineLight
+        | Scene::WorklistSectionsLight
         | Scene::WorklistEmptyLight
         | Scene::ToastErrorLight => {
             set_theme(ThemeMode::Light, "One Dark", "One Light", cx);

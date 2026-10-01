@@ -64,7 +64,14 @@ pub struct EditorView {
     preview: bool,
     worklist_document: bool,
     worklist_raw: bool,
-    worklist_selection: usize,
+    worklist_cursor: worklist::Cursor,
+    /// Folded section titles: view state for this session, never written to the file.
+    worklist_folded: std::collections::BTreeSet<String>,
+    worklist_section_edit: Option<worklist::SectionEdit>,
+    /// Where an Add in progress files its item.
+    worklist_add_target: crate::worklist_file::Target,
+    /// Take focus back on the next paint, after an inline field closes.
+    worklist_refocus: bool,
     worklist_edit: Option<Entity<crate::item_editor::ItemEditor>>,
     worklist_input_sub: Vec<Subscription>,
     worklist_error: Option<String>,
@@ -207,7 +214,11 @@ impl EditorView {
             preview: false,
             worklist_document: false,
             worklist_raw: false,
-            worklist_selection: 0,
+            worklist_cursor: worklist::Cursor::Item(0),
+            worklist_folded: Default::default(),
+            worklist_section_edit: None,
+            worklist_add_target: Default::default(),
+            worklist_refocus: false,
             worklist_edit: None,
             worklist_input_sub: Vec::new(),
             worklist_error: None,
@@ -429,7 +440,7 @@ impl Render for EditorView {
             Content::Text(_) => {}
         }
         if self.worklist_document && !self.worklist_raw {
-            return self.render_worklist(cx).into_any_element();
+            return self.render_worklist(window, cx).into_any_element();
         }
         let alert = self.disk_alert_bar(cx);
         if self.preview {

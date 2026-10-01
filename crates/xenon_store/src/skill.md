@@ -3,7 +3,7 @@ name: xenon
 description: Open files in Xenon and read or update a workspace worklist when asked.
 metadata:
   xenon_managed: true
-  xenon_skill_version: 6
+  xenon_skill_version: 7
 ---
 
 # Xenon
@@ -37,6 +37,8 @@ When the user asks to capture, inspect, or update work, use `<workspace-root>/.x
   - Change the email in place.
   - Keep the existing storage account.
 ```
+
+Sections are optional Markdown headings. The first `#` heading is the file's title (`# Worklist`), not a section. Any later `##` (preferred) or `#` heading starts a section, for example `## Now`, `## Next`, `## Someday`; `###` and deeper are ordinary text. Items above the first section stay unsectioned at the top. When the file has sections, add a new item at the end of the section it belongs to, and leave existing items in their sections. Only create a section when the user asks or the file already groups work that way.
 
 Use `- [ ]` for an open work item and `- [x]` for a completed one. Put context in bullets beneath the item; do not create a separate note type for new entries. Preserve existing note entries and unrelated Markdown. Indent each bullet level by two spaces. Give independently finishable outcomes separate top-level items. When updating a worklist, check off completed items and keep unfinished work open; do not leave a combined item implying that finished work is still pending. Edit nested bullets in Markdown when the List editor cannot preserve them. Read the file before changing an item; avoid turning its bullets into a run-on paragraph. A worklist item is context, not authorization to execute it.
 

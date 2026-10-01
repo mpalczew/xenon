@@ -1,7 +1,7 @@
 //! One item carried across autosaves: appended on the first save, rewritten in place after.
 
 use super::entries::entries;
-use super::{WorkItem, append_item};
+use super::{Target, WorkItem, append_item};
 use anyhow::{Context, Result};
 use std::ops::Range;
 
@@ -26,6 +26,8 @@ impl Change {
 pub struct ItemDraft {
     saved: Option<Saved>,
     checked: bool,
+    /// Where the first save files the item.
+    target: Target,
 }
 
 /// The item's Markdown as last written, without trailing blank lines.
@@ -43,7 +45,12 @@ impl ItemDraft {
                 raw: trimmed(&source[range]).to_owned(),
             }),
             checked,
+            target: Target::Top,
         }
+    }
+
+    pub fn set_target(&mut self, target: Target) {
+        self.target = target;
     }
 
     pub fn is_saved(&self) -> bool {
@@ -127,23 +134,12 @@ impl ItemDraft {
         Some(index)
     }
 
-    pub fn forget(&mut self) {
-        self.saved = None;
-    }
-
     fn append(&self, source: &str, item: &WorkItem) -> Result<Change> {
-        let updated = append_item(source, item, self.checked)?;
-        let item_start = entries(&updated).last().map(|entry| entry.range.start);
-        let keep = trimmed(source).len();
-        let keep = if updated.starts_with(&source[..keep]) {
-            keep
-        } else {
-            0
-        };
+        let insertion = append_item(source, &self.target, item, self.checked)?;
         Ok(Change {
-            range: keep..source.len(),
-            text: updated[keep..].to_owned(),
-            item_start,
+            range: insertion.range,
+            text: insertion.text,
+            item_start: Some(insertion.block_start),
         })
     }
 
@@ -168,72 +164,4 @@ fn trimmed(text: &str) -> &str {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn item(title: &str, details: &str) -> WorkItem {
-        WorkItem::new(title, details, true).unwrap()
-    }
-
-    fn land(draft: &mut ItemDraft, source: &str, item: &WorkItem) -> String {
-        let change = draft.save(source, item).unwrap().unwrap();
-        let updated = change.apply(source);
-        draft.commit(&updated, &change);
-        updated
-    }
-
-    #[test]
-    fn title_reads_the_saved_first_line() {
-        let mut draft = ItemDraft::default();
-        assert_eq!(draft.title(), None);
-        land(&mut draft, "# Worklist\n", &item("Fix focus", "Right pane"));
-        assert_eq!(draft.title(), Some("Fix focus"));
-    }
-
-    #[test]
-    fn first_save_appends_then_later_saves_rewrite_in_place() {
-        let mut draft = ItemDraft::default();
-        let source = "# Worklist\n\n- [ ] Old\n";
-        let source = land(&mut draft, source, &item("F", ""));
-        assert_eq!(source, "# Worklist\n\n- [ ] Old\n\n- [ ] F\n");
-        let source = land(&mut draft, &source, &item("Fix", "why"));
-        assert_eq!(source, "# Worklist\n\n- [ ] Old\n\n- [ ] Fix\n  - why\n");
-        assert!(draft.save(&source, &item("Fix", "why")).unwrap().is_none());
-    }
-
-    #[test]
-    fn rewrite_keeps_checked_state_and_crlf() {
-        let source = "- [x] First\r\n  - Detail\r\n\r\nNext note.\r\n";
-        let range = entries(source)[0].range.clone();
-        let mut draft = ItemDraft::existing(source, range, true);
-        let updated = land(&mut draft, source, &item("Revised", "More"));
-        assert_eq!(updated, "- [x] Revised\r\n  - More\r\n\r\nNext note.\r\n");
-    }
-
-    #[test]
-    fn follows_the_item_when_an_agent_edits_above_it() {
-        let mut draft = ItemDraft::default();
-        let source = "# Worklist\n";
-        let source = land(&mut draft, source, &item("Mine", ""));
-        let source = source.replace("# Worklist\n", "# Worklist\n\n- [ ] Agent\n");
-        let updated = land(&mut draft, &source, &item("Mine!", ""));
-        assert_eq!(updated, "# Worklist\n\n- [ ] Agent\n\n- [ ] Mine!\n");
-    }
-
-    #[test]
-    fn refuses_to_write_over_an_item_changed_elsewhere() {
-        let mut draft = ItemDraft::default();
-        let source = "# Worklist\n";
-        let source = land(&mut draft, source, &item("Mine", ""));
-        let source = source.replace("Mine", "Theirs");
-        assert!(draft.save(&source, &item("Mine!", "")).is_err());
-    }
-
-    #[test]
-    fn removing_the_last_item_restores_the_source() {
-        let mut draft = ItemDraft::default();
-        let source = "# Worklist\n";
-        let added = land(&mut draft, source, &item("Gone", ""));
-        assert_eq!(draft.remove(&added).unwrap().unwrap().apply(&added), source);
-    }
-}
+mod tests;

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 const BUNDLED: &str = include_str!("skill.md");
-const SKILL_VERSION: u32 = 6;
+const SKILL_VERSION: u32 = 7;
 const STATE_NAME: &str = ".xenon-skill.json";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

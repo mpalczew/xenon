@@ -1,5 +1,6 @@
-use super::{Content, EditorView, entries};
+use super::{Content, Cursor, EditorView};
 use crate::item_editor::ItemEditor;
+use crate::worklist_file::entries::entries;
 use crate::worklist_file::{Change, WorkItem};
 use anyhow::{Result, anyhow};
 use gpui::{AppContext, Context};
@@ -93,7 +94,7 @@ impl EditorView {
         if !entry.editable {
             return;
         }
-        self.worklist_selection = index;
+        self.worklist_cursor = Cursor::Item(index);
         let editor = cx.new(|cx| ItemEditor::existing(&source, &entry, cx));
         self.worklist_host(editor, cx);
     }
@@ -103,6 +104,9 @@ impl EditorView {
             return;
         };
         let mut draft = editor.read(cx).draft();
+        if !draft.is_saved() {
+            draft.set_target(self.worklist_add_target.clone());
+        }
         let change = match draft.save(&self.text(), item) {
             Ok(Some(change)) => change,
             Ok(None) => return,
@@ -114,7 +118,7 @@ impl EditorView {
         };
         if self.worklist_mutate(change.range.clone(), &change.text, cx) {
             if let Some(index) = draft.commit(&self.text(), &change) {
-                self.worklist_selection = index;
+                self.worklist_cursor = Cursor::Item(index);
             }
             editor.update(cx, |editor, cx| editor.landed(draft, item.clone(), cx));
         }

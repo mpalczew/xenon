@@ -83,6 +83,7 @@ impl XenonApp {
             finder: None,
             task_picker: None,
             worklist_captures: HashMap::new(),
+            worklist_last_section: HashMap::new(),
             worklist_capture_subs: Vec::new(),
             worklist_capture_visible: None,
             worklist_undo: None,

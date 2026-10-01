@@ -2,7 +2,7 @@ use super::toasts;
 use super::*;
 use crate::worklist_capture::{CaptureEvent, WorklistCaptureView};
 use anyhow::Context as _;
-use xenon_editor::worklist_file::{Change, ItemDraft, WorkItem, WorklistFile};
+use xenon_editor::worklist_file::{Change, ItemDraft, WorkItem, WorklistFile, capture_targets};
 
 enum DraftEdit {
     Save(WorkItem),
@@ -57,7 +57,9 @@ impl XenonApp {
             capture
         };
         self.worklist_capture_visible = Some(workspace);
-        capture.update(cx, |view, cx| view.open(cx));
+        let targets = capture_targets(&self.worklist_text(workspace, cx));
+        let preferred = self.worklist_last_section.get(&workspace).cloned();
+        capture.update(cx, |view, cx| view.open(targets, preferred.as_ref(), cx));
         cx.notify();
     }
 
@@ -102,8 +104,12 @@ impl XenonApp {
                 self.worklist_capture_visible = None;
                 self.deferred.pending_focus = self.deferred.restore_pane.take();
             }
-            CaptureEvent::Save { item } => {
+            CaptureEvent::Section(target) => {
+                self.worklist_last_section.insert(workspace, target.clone());
+            }
+            CaptureEvent::Save { item, target } => {
                 let mut draft = capture.read(cx).draft(cx);
+                self.worklist_last_section.insert(workspace, target.clone());
                 let edit = DraftEdit::Save(item.clone());
                 match self.write_worklist_draft(workspace, &mut draft, edit, cx) {
                     Ok(()) => capture.update(cx, |view, cx| view.landed(draft, item.clone(), cx)),
@@ -167,6 +173,25 @@ impl XenonApp {
         file.write(old.as_deref(), updated.as_bytes())?;
         draft.commit(&updated, &change);
         Ok(())
+    }
+
+    /// The worklist as capture would see it: the open tab's text, else the file.
+    fn worklist_text(&self, workspace: WorkspaceId, cx: &Context<Self>) -> String {
+        let Some(root) = self.workspace_root(workspace) else {
+            return String::new();
+        };
+        if let Some(source) = self
+            .worklist_editor(workspace, &root)
+            .and_then(|editor| editor.read(cx).worklist_source())
+        {
+            return source;
+        }
+        let bytes = WorklistFile::new(&root).and_then(|file| file.read());
+        bytes
+            .ok()
+            .flatten()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_default()
     }
 
     fn worklist_editor(
