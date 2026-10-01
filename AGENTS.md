@@ -27,7 +27,7 @@ and `CONTRIBUTING.md`.
   (workspace root). Unit tests cover pure crates only; GPUI views are verified
   by launch tests plus `scripts/visual-tests` (`docs/visual-tests.md`). Full
   gate: `scripts/health` (fmtcheck + clippy + shape + test).
-  Run `scripts/health` before committing; the commit hook enforces its format and lint subset.
+  Run `scripts/health` before committing; the commit hook (`scripts/git-hooks/pre-commit`, enabled by `scripts/install-hooks`) checks the staged snapshot in `target/precommit-tree` and never touches the working tree.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
   release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`;

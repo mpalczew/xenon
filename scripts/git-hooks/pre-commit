@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Checks the staged snapshot in a private tree; never touches the working tree,
+# index, or stash. Same three whole-workspace checks as before.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+work="$root/target/precommit-tree"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/target/precommit}"
+lock="$root/target/precommit.lock"
+
+mkdir -p "$root/target"
+snapshot="$(mktemp -d "${TMPDIR:-/tmp}/xenon-precommit.XXXXXX")"
+trap 'rm -rf "$snapshot"' EXIT
+
+until mkdir "$lock" 2>/dev/null; do
+    echo "pre-commit: waiting for another commit's checks..." >&2
+    sleep 2
+done
+trap 'rm -rf "$snapshot"; rmdir "$lock"' EXIT
+
+# Honors GIT_INDEX_FILE, so `git commit -- <paths>` checks the real commit content.
+git checkout-index -a --prefix="$snapshot/"
+mkdir -p "$work"
+# Sync by content so unchanged files keep their mtimes and cargo stays incremental.
+rsync -a --checksum --delete "$snapshot/" "$work/"
+
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX
+cd "$work"
+
+run() {
+    local name="$1"
+    shift
+    echo "xenon $name..."
+    if ! "$@"; then
+        echo "xenon $name: FAILED" >&2
+        exit 1
+    fi
+}
+
+run fmtcheck cargo fmt --all --check
+run lint cargo clippy --workspace --all-targets -- \
+    -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines
+run lint-shape scripts/check-rust-shape
