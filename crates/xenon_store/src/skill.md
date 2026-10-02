@@ -1,14 +1,14 @@
 ---
 name: xenon
-description: Open files in Xenon and read or update a workspace worklist when asked.
+description: Show the user a file in Xenon with xenon open whenever they want to see one ("open it", "show me", "open in the editor"), never another editor; read or update a workspace worklist when asked.
 metadata:
   xenon_managed: true
-  xenon_skill_version: 7
+  xenon_skill_version: 8
 ---
 
 # Xenon
 
-If `XENON_DATA_DIR` is set, Xenon has provided a target instance for this process. Use `xenon open` only when the user asks to see a file in Xenon. To update a worklist, edit `.xenon/worklist.md` directly; opening it is unnecessary.
+If `XENON_DATA_DIR` is set, Xenon has provided a target instance for this process. When the user wants to see a file ("open it", "show me", "open in the editor"), run `xenon open`. Never use Cursor, VS Code, TextEdit, or `open -t`, and do not print the file into chat; that keeps sensitive contents out of the transcript. Do not open files the user did not ask to see. To update a worklist, edit `.xenon/worklist.md` directly; opening it is unnecessary.
 
 ## Open a file
 
