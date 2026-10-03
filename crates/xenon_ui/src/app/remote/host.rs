@@ -83,6 +83,39 @@ impl XenonApp {
         Ok(out)
     }
 
+    /// New shell in this workspace. The Mac keeps its current workspace and tab.
+    pub(super) fn open_remote_terminal(
+        &mut self,
+        workspace_id: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<TerminalInfo, String> {
+        let wid = parse_workspace_id(workspace_id)?;
+        self.ensure_workspace_live(wid, cx)?;
+        let root = self
+            .workspace_root(wid)
+            .ok_or_else(|| "unknown workspace".to_string())?;
+        let view = self.spawn_terminal(root.clone(), wid, cx);
+        let tab_id = self.insert_terminal_tab(wid, None, view, false);
+        self.save_layout(wid);
+        self.ensure_remote_terminal_sizes(wid, cx);
+        let active = self
+            .contents
+            .get(&wid)
+            .and_then(|c| c.active_tab())
+            .is_some_and(|t| t.id() == tab_id);
+        let title = self
+            .find_terminal_view(wid, tab_id)
+            .map(|view| view.read(cx).title(cx));
+        cx.notify();
+        Ok(TerminalInfo {
+            tab_id: tab_id.0,
+            title,
+            cwd: tilde(&root),
+            active,
+            dot: None,
+        })
+    }
+
     /// Per-terminal dots for one workspace (working outranks attention).
     pub(super) fn remote_terminal_dots(&self, wid: WorkspaceId, cx: &App) -> BTreeMap<u64, Dot> {
         let mut dots = BTreeMap::new();

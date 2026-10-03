@@ -62,6 +62,22 @@ fn host_loop(rx: async_channel::Receiver<HostRequest>, mock: Arc<MockHost>) {
                     Err("not found".into())
                 });
             }
+            HostRequest::CreateTerminal {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(if workspace_id == "ws-1" {
+                    Ok(TerminalInfo {
+                        tab_id: 8,
+                        title: Some("terminal".into()),
+                        cwd: "~/demo".into(),
+                        active: false,
+                        dot: None,
+                    })
+                } else {
+                    Err("not found".into())
+                });
+            }
             HostRequest::Connected { out, .. } => {
                 out.try_send(ServerMsg::Ready {
                     theme: ThemeWire {
@@ -116,6 +132,22 @@ fn pairing_then_bearer_lists() {
         Some(TOKEN),
     );
     assert!(terms.contains(r#""tabId":7"#), "{terms}");
+    let created = request(
+        port,
+        "POST",
+        "/api/workspaces/ws-1/terminals",
+        None,
+        Some(TOKEN),
+    );
+    assert!(created.contains(r#""tabId":8"#), "{created}");
+    let unknown = request(
+        port,
+        "POST",
+        "/api/workspaces/nope/terminals",
+        None,
+        Some(TOKEN),
+    );
+    assert!(unknown.starts_with("HTTP/1.1 404"), "{unknown}");
     let missing = request(
         port,
         "GET",

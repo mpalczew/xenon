@@ -321,3 +321,12 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
   (`XENON_SHARED_DIR` from `scripts/xenon`, else inferred from the slot dir).
 - Opening a closed workspace from the phone loads its terminals without
   activating it (`ensure_live_content` / `restore_closed_workspace`).
+- A drag on the grid sends wheel rows through `Terminal::scroll_wheel`
+  (the Mac trackpad path). The plain-text history request is no longer
+  how the phone scrolls. "↓ Live" only means the terminal viewport is
+  above the live row.
+- The key tray is hidden until Keys is tapped. It floats over the grid,
+  translucent, and does not resize the PTY. The iOS keyboard hides it.
+  Send always submits the line and then Enter.
+- New terminal (`POST /api/workspaces/:id/terminals`) appends a shell in
+  that workspace without changing the Mac's workspace or selected tab.

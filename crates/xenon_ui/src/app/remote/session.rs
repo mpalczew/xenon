@@ -149,6 +149,19 @@ impl XenonApp {
             }
             ClientMsg::Key { key } => self.remote_key(conn, key, cx),
             ClientMsg::History => self.remote_history(conn, cx),
+            ClientMsg::Wheel { rows } => {
+                let rows = rows.clamp(-40, 40);
+                if let Some(view) = self.attached_view(conn) {
+                    view.update(cx, |term, cx| {
+                        term.scroll_from_phone(Some(rows), window, cx)
+                    });
+                }
+            }
+            ClientMsg::Bottom => {
+                if let Some(view) = self.attached_view(conn) {
+                    view.update(cx, |term, cx| term.scroll_from_phone(None, window, cx));
+                }
+            }
             ClientMsg::Fit { cols, rows } => self.remote_fit(conn, cols, rows, cx),
             ClientMsg::Hello { .. } | ClientMsg::Ping => {}
         }

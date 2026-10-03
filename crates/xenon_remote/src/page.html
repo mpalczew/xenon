@@ -55,6 +55,10 @@ html.in-session { background:var(--chrome); }
 .hdr { flex:none; display:flex; align-items:center; gap:8px; min-height:48px; padding:4px 16px 4px; border-bottom:1px solid var(--line); }
 .hdr .back { width:40px; height:40px; margin-left:-12px; color:var(--accent); font-size:28px; line-height:1; display:grid; place-items:center; }
 .hdr .title { font-size:17px; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.keys-btn, .new-btn { flex:none; height:32px; padding:0 10px; border-radius:8px; color:var(--accent); font-size:15px; font-weight:600; }
+.keys-btn[aria-pressed="true"] { background:var(--accent-dim); }
+.keys-btn:disabled, .new-btn:disabled { opacity:.45; }
+.newterm { width:100%; text-align:left; min-height:52px; padding:14px 16px; color:var(--accent); font-size:16px; font-weight:600; border-bottom:1px solid var(--hair); }
 .hdr .crumb { color:var(--muted); font-weight:500; }
 .conn { flex:none; width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px var(--ok-halo); }
 .conn.off { background:var(--faint); box-shadow:none; }
@@ -98,11 +102,13 @@ html.in-session { background:var(--chrome); }
 #cursor.bar { background:var(--cursor); width:2px !important; }
 #cursor.underline { background:var(--cursor); height:2px; margin-top:calc(var(--lh) - 2px); }
 #starting { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-family:var(--ui); font-size:15px; }
-#live { position:absolute; right:12px; bottom:10px; min-height:32px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12px; font-weight:600; padding:0 12px; border-radius:16px; }
+#live { position:absolute; right:12px; bottom:10px; z-index:4; min-height:32px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:12px; font-weight:600; padding:0 12px; border-radius:16px; }
+#termwrap:has(#keys:not([hidden])) #live { bottom:168px; }
 #probe { position:absolute; visibility:hidden; white-space:pre; font-family:var(--mono); font-size:13px; left:-9999px; top:0; }
 .stale { opacity:.45; filter:grayscale(.6); }
 
-.keys { flex:none; display:flex; gap:5px; padding:8px 10px; border-top:1px solid var(--line); background:var(--chrome); }
+.keys { position:absolute; left:8px; right:8px; bottom:8px; z-index:3; display:flex; gap:5px; padding:8px; border-radius:14px; border:1px solid var(--line);
+  background:color-mix(in srgb, var(--chrome) 84%, transparent); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); }
 .kcols { flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
 .krow { display:flex; gap:5px; }
 .k { flex:1; min-width:0; height:40px; border-radius:9px; background:var(--panel-2); border:1px solid var(--line); border-bottom-width:2px;
@@ -117,8 +123,6 @@ html.in-session { background:var(--chrome); }
 .field:focus-within { border-color:var(--focus-line); }
 .field input { flex:1; min-width:0; height:100%; background:none; border:0; outline:0; color:var(--text); font:16px var(--ui); padding:0; }
 .field input::placeholder { color:var(--faint); }
-.ret { flex:none; min-width:40px; height:30px; font-size:12px; font-weight:700; padding:0 8px; border-radius:15px; background:var(--accent-dim); color:var(--accent); white-space:nowrap; }
-.ret[aria-pressed="false"] { background:var(--panel-2); color:var(--muted); text-decoration:line-through; }
 .attach { flex:none; width:40px; height:40px; margin-right:-2px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line); color:var(--muted); display:grid; place-items:center; }
 .attach .spin { display:none; }
 .attach[aria-busy="true"] svg { display:none; }
@@ -205,40 +209,45 @@ html.in-session { background:var(--chrome); }
   </section>
 
   <section id="v-session" class="view" hidden>
-    <div class="hdr"><button type="button" class="back" data-back aria-label="Back">‹</button><div class="title" id="sess-title"></div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="hdr"><button type="button" class="back" data-back aria-label="Back">‹</button><div class="title" id="sess-title"></div><button type="button" class="new-btn" id="new-session" aria-label="New terminal">New</button><button type="button" class="keys-btn" id="keys-btn" aria-pressed="false" aria-label="Show keys">Keys</button><div class="conn off" role="img" aria-label="Disconnected"></div></div>
     <div class="banner" id="reconnect" role="status" hidden><div class="spin" aria-hidden="true"></div><span id="reconnect-txt">Reconnecting…</span></div>
     <div id="termwrap">
       <div id="term" role="log" aria-label="Terminal" aria-live="off"><div id="hist"></div><div id="screen"></div></div>
       <div id="starting" hidden>Starting…</div>
       <button type="button" id="live" hidden aria-label="Jump to live output">↓ Live</button>
-    </div>
-    <div class="keys" id="keys">
-      <div class="kcols">
-        <div class="krow">
-          <button type="button" class="k sm" data-key="esc" aria-label="Escape">Esc</button>
-          <button type="button" class="k sm" data-key="ctrl-c" aria-label="Control C">^C</button>
-          <button type="button" class="k sm" data-key="tab" aria-label="Tab">Tab</button>
-          <button type="button" class="k sm" data-key="shift-tab" aria-label="Shift Tab">⇧Tab</button>
-          <button type="button" class="k" data-key="backspace" data-repeat aria-label="Backspace">⌫</button>
+      <div class="keys" id="keys" hidden>
+        <div class="kcols">
+          <div class="krow">
+            <button type="button" class="k sm" data-key="esc" aria-label="Escape">Esc</button>
+            <button type="button" class="k sm" data-key="ctrl-c" aria-label="Control C">^C</button>
+            <button type="button" class="k sm" data-key="tab" aria-label="Tab">Tab</button>
+            <button type="button" class="k sm" data-key="shift-tab" aria-label="Shift Tab">⇧Tab</button>
+            <button type="button" class="k" data-key="backspace" data-repeat aria-label="Backspace">⌫</button>
+          </div>
+          <div class="krow">
+            <button type="button" class="k" data-key="left" aria-label="Left arrow">←</button>
+            <button type="button" class="k" data-key="up" aria-label="Up arrow">↑</button>
+            <button type="button" class="k" data-key="down" aria-label="Down arrow">↓</button>
+            <button type="button" class="k" data-key="right" aria-label="Right arrow">→</button>
+            <button type="button" class="k num" data-text="1" aria-label="Option 1">1</button>
+            <button type="button" class="k num" data-text="2" aria-label="Option 2">2</button>
+            <button type="button" class="k num" data-text="3" aria-label="Option 3">3</button>
+          </div>
+          <div class="krow">
+            <button type="button" class="k sm" data-key="page-up" aria-label="Page up">PgUp</button>
+            <button type="button" class="k sm" data-key="page-down" aria-label="Page down">PgDn</button>
+            <button type="button" class="k sm" data-key="ctrl-u" aria-label="Control U">^U</button>
+            <button type="button" class="k sm" data-key="ctrl-d" aria-label="Control D">^D</button>
+          </div>
         </div>
-        <div class="krow">
-          <button type="button" class="k" data-key="left" aria-label="Left arrow">←</button>
-          <button type="button" class="k" data-key="up" aria-label="Up arrow">↑</button>
-          <button type="button" class="k" data-key="down" aria-label="Down arrow">↓</button>
-          <button type="button" class="k" data-key="right" aria-label="Right arrow">→</button>
-          <button type="button" class="k num" data-text="1" aria-label="Option 1">1</button>
-          <button type="button" class="k num" data-text="2" aria-label="Option 2">2</button>
-          <button type="button" class="k num" data-text="3" aria-label="Option 3">3</button>
-        </div>
+        <button type="button" class="k enter" data-key="enter" aria-label="Enter">⏎</button>
       </div>
-      <button type="button" class="k enter" data-key="enter" aria-label="Enter">⏎</button>
     </div>
     <form class="input" id="input" autocomplete="off">
       <button type="button" class="attach" id="attach" aria-label="Attach image"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20.5 11.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="spin" aria-hidden="true"></span></button>
       <input type="file" id="file" accept="image/*" hidden>
       <div class="field">
         <input id="msg" type="text" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Message the agent…" aria-label="Text to send">
-        <button type="button" class="ret" id="ret" aria-pressed="true" aria-label="Also press Enter after sending">+ ⏎</button>
       </div>
       <button type="submit" class="send" id="send" aria-label="Send">↑</button>
     </form>
@@ -271,7 +280,16 @@ const Core = (() => {
     }
     term.cursor = f.cursor || null;
     term.seq = f.seq;
+    term.scrolled = !!f.scrolled;
     return reset ? "all" : changed;
+  }
+
+  /** Finger or wheel pixels → whole rows. Positive `dy` shows older lines. */
+  function wheelRows(acc, dy, lineH) {
+    if (!(lineH > 0)) return { rows: 0, acc: acc || 0 };
+    const next = (acc || 0) + dy;
+    const rows = Math.trunc(next / lineH);
+    return { rows, acc: next - rows * lineH };
   }
 
   /** CSS for one interned style; colors are validated so the server can't inject CSS. */
@@ -377,12 +395,12 @@ const Core = (() => {
     return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
 
-  return { newTerm, applyFrame, styleRule, cellAt, fitCells, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
+  return { newTerm, applyFrame, styleRule, cellAt, fitCells, wheelRows, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
 })();
 // </core>
 
 // ===== State =====
-const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", enter: "xenon.remote.enter", a2hs: "xenon.remote.a2hsDismissed" };
+const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
   fixture: false, themed: false, view: null,
@@ -392,7 +410,7 @@ const S = {
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
   follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0,
-  enterOn: store(KEY.enter) !== "0", repeat: null,
+  wheelAcc: 0, repeat: null, creating: false,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -424,8 +442,11 @@ async function pair(code) {
   return j;
 }
 
-async function api(path) {
-  const r = await fetch(path, { headers: { Authorization: "Bearer " + S.token } });
+async function api(path, opts) {
+  opts = opts || {};
+  const headers = { Authorization: "Bearer " + S.token };
+  if (opts.body) headers["Content-Type"] = "application/json";
+  const r = await fetch(path, { method: opts.method || "GET", headers, body: opts.body });
   if (r.status === 401) { unpair("This device was signed out. Enter a new code from your Mac."); throw new Error("unauthorized"); }
   const text = await r.text();
   let data = null;
@@ -592,6 +613,7 @@ async function openWorkspace(w) {
 function tabLabel(t, i) { return t.title || "Terminal " + (i + 1); }
 
 function openSession(t) {
+  setKeys(false);
   S.tabTitle = tabLabel(t, S.terminals.indexOf(t));
   $("sess-title").innerHTML = esc(S.wsSel.name) + ' <span class="crumb">› ' + esc(S.tabTitle) + "</span>";
   S.want = { workspaceId: S.wsSel.id, tabId: t.tabId };
@@ -661,12 +683,28 @@ function renderWorkspaces() {
 }
 
 function renderTerminals() {
-  if (!S.terminals.length) { $("terms").innerHTML = '<div class="note">No terminal tabs in this workspace.</div>'; return; }
-  $("terms").innerHTML = S.terminals.map((t, i) =>
+  const rows = S.terminals.map((t, i) =>
     '<button type="button" class="ws" data-tab="' + i + '"><div class="rail ' + (t.dot || "") + '"></div>' +
     '<div class="body"><div class="name">' + esc(tabLabel(t, i)) + '</div><div class="path">' + esc(t.cwd || "") + "</div></div>" +
     '<div class="meta">' + tagFor(t.dot) + (t.active ? "Active" : "") + '</div><div class="chev" aria-hidden="true">›</div></button>'
   ).join("");
+  const empty = S.terminals.length ? "" : '<div class="note">No terminal tabs in this workspace.</div>';
+  $("terms").innerHTML = '<button type="button" class="newterm" id="new-term">New terminal</button>' + empty + rows;
+}
+
+async function createTerminal() {
+  if (!S.wsSel || S.creating) return;
+  S.creating = true;
+  try {
+    const t = await api("/api/workspaces/" + encodeURIComponent(S.wsSel.id) + "/terminals", { method: "POST" });
+    S.terminals.push(t);
+    S.skippedList = false;
+    openSession(t);
+  } catch (e) {
+    if (e.message !== "unauthorized") toast(e.message);
+  } finally {
+    S.creating = false;
+  }
 }
 
 // ===== Render: terminal =====
@@ -737,7 +775,7 @@ function renderFrame(f) {
   }
   $("starting").hidden = true;
   renderCursor();
-  if (S.follow) scrollToLive();
+  syncLive();
 }
 
 function renderCursor() {
@@ -770,26 +808,59 @@ function scrollToLive() {
 
 function setFollow(on) {
   S.follow = on;
-  $("live").hidden = on;
-  if (on) scrollToLive();
+  if (on) {
+    S.term.scrolled = false;
+    scrollToLive();
+    send({ t: "bottom" });
+  }
+  syncLive();
 }
 
-function requestHistory() {
-  if (S.histAsked || !S.want || !S.term.rows) return;
-  if (send({ t: "history" })) S.histAsked = true;
+function atLiveEdge() {
+  const t = $("term");
+  return t.scrollHeight - t.scrollTop - t.clientHeight < 4;
+}
+
+function syncLive() {
+  const away = !!S.term.scrolled || !atLiveEdge();
+  if (!away) S.follow = true;
+  $("live").hidden = !away;
+  if (S.follow && atLiveEdge()) scrollToLive();
 }
 
 function onTermScroll() {
+  if (S.follow && !atLiveEdge()) S.follow = false;
+  syncLive();
+}
+
+function linePx() {
+  return 18 * (S.scale || 1);
+}
+
+function gridTallerThanView() {
   const t = $("term");
-  const atBottom = t.scrollHeight - t.scrollTop - t.clientHeight < 4;
-  if (!atBottom && S.follow) { S.follow = false; $("live").hidden = false; requestHistory(); }
-  else if (atBottom && !S.follow) { S.follow = true; $("live").hidden = true; }
+  return t.scrollHeight - t.clientHeight > linePx();
+}
+
+function pushWheel(dy) {
+  const step = Core.wheelRows(S.wheelAcc, dy, linePx());
+  S.wheelAcc = step.acc;
+  if (step.rows) send({ t: "wheel", rows: step.rows });
+}
+
+function setKeys(on) {
+  const keys = $("keys");
+  const btn = $("keys-btn");
+  if (!keys || !btn) return;
+  keys.hidden = !on;
+  btn.setAttribute("aria-pressed", String(on));
+  btn.setAttribute("aria-label", on ? "Hide keys" : "Show keys");
 }
 
 function renderStale() {
   const stale = !S.connected && !S.fixtureLive;
   for (const id of ["termwrap", "keys", "input"]) $(id).classList.toggle("stale", stale);
-  for (const el of document.querySelectorAll("#keys button, #input button, #input input")) el.disabled = stale;
+  for (const el of document.querySelectorAll("#keys button, #input button, #input input, #keys-btn, #new-session, #new-term")) el.disabled = stale;
   $("reconnect").hidden = !stale || !S.token && !S.fixture;
   renderAgo();
 }
@@ -889,18 +960,9 @@ function submitText(e) {
   e.preventDefault();
   const input = $("msg");
   const text = input.value;
-  if (!text && !S.enterOn) return;
   if (text && !send({ t: "text", data: text })) return;
-  if (S.enterOn) send({ t: "key", key: "enter" });
+  if (!send({ t: "key", key: "enter" })) return;
   input.value = "";
-}
-
-function setEnterOn(on) {
-  S.enterOn = on;
-  store(KEY.enter, on ? "1" : "0");
-  const b = $("ret");
-  b.setAttribute("aria-pressed", String(on));
-  b.textContent = on ? "+ ⏎" : "⏎";
 }
 
 function renderDigits() {
@@ -1025,9 +1087,12 @@ function wireEvents() {
     if (w) openWorkspace(w);
   });
   $("terms").addEventListener("click", (e) => {
+    if (e.target.closest("#new-term")) return createTerminal();
     const row = e.target.closest("[data-tab]");
     if (row) openSession(S.terminals[+row.dataset.tab]);
   });
+  $("new-session").addEventListener("click", createTerminal);
+  $("keys-btn").addEventListener("click", () => setKeys($("keys").hidden));
   const keys = $("keys");
   keys.addEventListener("pointerdown", onKeyPointer);
   keys.addEventListener("click", onKeyClick);
@@ -1036,16 +1101,34 @@ function wireEvents() {
   $("msg").addEventListener("paste", onMsgPaste);
   $("attach").addEventListener("click", () => $("file").click());
   $("file").addEventListener("change", (e) => { attachImage(e.target.files[0]); e.target.value = ""; });
-  $("ret").addEventListener("pointerdown", (e) => e.preventDefault());
-  $("ret").addEventListener("click", () => setEnterOn(!S.enterOn));
+  $("msg").addEventListener("focus", () => setKeys(false));
   $("send").addEventListener("pointerdown", (e) => e.preventDefault());
   $("input").addEventListener("submit", submitText);
   const term = $("term");
   term.addEventListener("scroll", onTermScroll, { passive: true });
   let touchY = null;
-  term.addEventListener("touchstart", (e) => { touchY = e.touches[0].clientY; }, { passive: true });
-  term.addEventListener("touchmove", (e) => { if (touchY != null && e.touches[0].clientY - touchY > 12) requestHistory(); }, { passive: true });
-  term.addEventListener("wheel", (e) => { if (e.deltaY < 0) requestHistory(); }, { passive: true });
+  let touchWheel = false;
+  term.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) { touchY = null; return; }
+    touchY = e.touches[0].clientY;
+    S.wheelAcc = 0;
+    touchWheel = !gridTallerThanView();
+    term.style.touchAction = touchWheel ? "none" : "pan-y";
+  }, { passive: true });
+  term.addEventListener("touchmove", (e) => {
+    if (touchY == null || !touchWheel) return;
+    const y = e.touches[0].clientY;
+    const dy = y - touchY;
+    touchY = y;
+    e.preventDefault();
+    pushWheel(dy);
+  }, { passive: false });
+  term.addEventListener("touchend", () => { touchY = null; }, { passive: true });
+  term.addEventListener("wheel", (e) => {
+    if (gridTallerThanView()) return;
+    e.preventDefault();
+    pushWheel(-e.deltaY);
+  }, { passive: false });
   $("live").onclick = () => setFollow(true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.view !== "session") goBack(); });
   document.addEventListener("visibilitychange", onVisible);
@@ -1194,6 +1277,11 @@ window.xenonFixture = function (name) {
       S.lastUpdate = Date.now() - 14000;
       renderAgo();
       break;
+    case "session_keys":
+      live(true);
+      fixtureSession(FX.permission, null);
+      setKeys(true);
+      break;
   }
 };
 
@@ -1203,7 +1291,6 @@ function boot() {
   style.id = "term-styles";
   document.head.appendChild(style);
   wireEvents();
-  setEnterOn(S.enterOn);
   followSystemScheme();
   onViewport();
   const secret = location.pathname === "/pair" && location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "";

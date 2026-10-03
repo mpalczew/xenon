@@ -17,6 +17,14 @@ pub(super) enum FindSurface {
     None,
 }
 
+fn push_terminal(leaf: &mut LiveLeaf, tab: LiveTab, select: bool) {
+    leaf.parked = false;
+    leaf.tabs.push(tab);
+    if select {
+        leaf.active = leaf.tabs.len() - 1;
+    }
+}
+
 impl XenonApp {
     pub(crate) fn active_content(&self) -> Option<&LiveContent> {
         self.active.and_then(|id| self.contents.get(&id))
@@ -104,16 +112,15 @@ impl XenonApp {
         self.add_terminal_to_pane(None, cx);
     }
 
-    fn add_terminal_to_pane(&mut self, target: Option<PaneId>, cx: &mut Context<Self>) {
-        let Some(id) = self.active else {
-            self.show_toast(super::toasts::no_workspace(), cx);
-            return;
-        };
-        let Some(root) = self.workspace_root(id) else {
-            return;
-        };
-        self.nav_sync_active(id, cx);
-        let view = self.spawn_terminal(root, id, cx);
+    /// Append a shell tab. `select` makes it the leaf's current tab (⌘N).
+    /// The phone passes false so the Mac keeps the tab it is already showing.
+    pub(crate) fn insert_terminal_tab(
+        &mut self,
+        id: WorkspaceId,
+        target: Option<PaneId>,
+        view: Entity<TerminalView>,
+        select: bool,
+    ) -> TabId {
         let content = self.contents.entry(id).or_default();
         let tab_id = content.next_tab_id();
         let tab = LiveTab::Terminal { id: tab_id, view };
@@ -132,22 +139,30 @@ impl XenonApp {
                 .as_mut()
                 .and_then(|root| root.find_leaf_mut(pane))
         {
+            push_terminal(leaf, tab, select);
             content.focused = Some(pane);
-            leaf.parked = false;
-            leaf.tabs.push(tab);
-            leaf.active = leaf.tabs.len() - 1;
         } else if let Some(leaf) = content.focused_leaf_mut() {
-            leaf.parked = false;
-            leaf.tabs.push(tab);
-            leaf.active = leaf.tabs.len() - 1;
+            push_terminal(leaf, tab, select);
         } else if let Some(first) = content.leaf_ids().first().copied() {
             content.focused = Some(first);
             if let Some(leaf) = content.focused_leaf_mut() {
-                leaf.parked = false;
-                leaf.tabs.push(tab);
-                leaf.active = leaf.tabs.len() - 1;
+                push_terminal(leaf, tab, select);
             }
         }
+        tab_id
+    }
+
+    fn add_terminal_to_pane(&mut self, target: Option<PaneId>, cx: &mut Context<Self>) {
+        let Some(id) = self.active else {
+            self.show_toast(super::toasts::no_workspace(), cx);
+            return;
+        };
+        let Some(root) = self.workspace_root(id) else {
+            return;
+        };
+        self.nav_sync_active(id, cx);
+        let view = self.spawn_terminal(root, id, cx);
+        self.insert_terminal_tab(id, target, view, true);
         self.save_layout(id);
         if let Some(tab_id) = self
             .contents

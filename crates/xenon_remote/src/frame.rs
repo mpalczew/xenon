@@ -62,6 +62,8 @@ pub struct Screen {
     pub cols: u16,
     pub rows: Vec<Vec<Cell>>,
     pub cursor: Option<CursorWire>,
+    /// Terminal viewport is above the live row.
+    pub scrolled: bool,
 }
 
 /// Per-connection encoder: remembers what the phone has so patches stay small.
@@ -76,6 +78,7 @@ struct SentScreen {
     cols: u16,
     lines: Vec<Vec<SpanWire>>,
     cursor: Option<CursorWire>,
+    scrolled: bool,
 }
 
 impl FrameEncoder {
@@ -100,7 +103,11 @@ impl FrameEncoder {
             .is_none_or(|s| s.cols != screen.cols || s.lines.len() != lines.len());
         let changed = changed_rows(self.sent.as_ref(), &lines, full);
         let cursor_moved = self.sent.as_ref().is_none_or(|s| s.cursor != screen.cursor);
-        if !full && changed.is_empty() && !cursor_moved {
+        let scrolled_changed = self
+            .sent
+            .as_ref()
+            .is_none_or(|s| s.scrolled != screen.scrolled);
+        if !full && changed.is_empty() && !cursor_moved && !scrolled_changed {
             return Vec::new();
         }
         self.seq += 1;
@@ -115,11 +122,13 @@ impl FrameEncoder {
             full,
             cursor: screen.cursor,
             lines: changed,
+            scrolled: screen.scrolled,
         });
         self.sent = Some(SentScreen {
             cols: screen.cols,
             lines,
             cursor: screen.cursor,
+            scrolled: screen.scrolled,
         });
         out
     }
@@ -202,6 +211,7 @@ mod tests {
                 c: 0,
                 s: CursorShapeWire::Block,
             }),
+            scrolled: false,
         }
     }
 
@@ -229,6 +239,23 @@ mod tests {
         let mut enc = FrameEncoder::default();
         enc.encode(&screen(&["hi", "yo"], 4));
         assert!(enc.encode(&screen(&["hi", "yo"], 4)).is_empty());
+    }
+
+    #[test]
+    fn scrolled_change_sends_a_frame() {
+        let mut enc = FrameEncoder::default();
+        let mut screen = screen(&["hi"], 4);
+        enc.encode(&screen);
+        screen.scrolled = true;
+        let msgs = enc.encode(&screen);
+        let ServerMsg::Frame {
+            scrolled, lines, ..
+        } = &msgs[0]
+        else {
+            panic!("expected a frame");
+        };
+        assert!(*scrolled);
+        assert!(lines.is_empty());
     }
 
     #[test]

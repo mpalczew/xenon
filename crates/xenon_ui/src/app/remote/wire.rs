@@ -21,6 +21,7 @@ pub(super) fn wire_screen(snapshot: &ScreenSnapshot) -> Screen {
                 ScreenCursorShape::Underline => CursorShapeWire::Underline,
             },
         }),
+        scrolled: snapshot.scrolled,
     }
 }
 

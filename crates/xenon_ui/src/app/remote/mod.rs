@@ -385,6 +385,12 @@ impl XenonApp {
             } => {
                 let _ = reply.send(self.list_remote_terminals(&workspace_id, cx));
             }
+            HostRequest::CreateTerminal {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(self.open_remote_terminal(&workspace_id, cx));
+            }
             HostRequest::Connected {
                 conn,
                 device_id,

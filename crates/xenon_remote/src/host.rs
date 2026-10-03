@@ -62,6 +62,11 @@ pub enum HostRequest {
         workspace_id: String,
         reply: SyncSender<Result<Vec<TerminalInfo>, String>>,
     },
+    /// Open a shell in that workspace. Does not change the Mac's screen.
+    CreateTerminal {
+        workspace_id: String,
+        reply: SyncSender<Result<TerminalInfo, String>>,
+    },
     /// Authenticated WebSocket opened. Host sends `Ready` through `out`.
     Connected {
         conn: ConnId,

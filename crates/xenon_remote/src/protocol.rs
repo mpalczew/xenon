@@ -76,6 +76,10 @@ pub enum NamedKey {
     Left,
     Right,
     Backspace,
+    PageUp,
+    PageDown,
+    CtrlD,
+    CtrlU,
 }
 
 impl NamedKey {
@@ -92,6 +96,10 @@ impl NamedKey {
             Self::Left => "left",
             Self::Right => "right",
             Self::Backspace => "backspace",
+            Self::PageUp => "pageup",
+            Self::PageDown => "pagedown",
+            Self::CtrlD => "ctrl-d",
+            Self::CtrlU => "ctrl-u",
         }
     }
 }
@@ -118,6 +126,12 @@ pub enum ClientMsg {
     },
     /// Scrollback above the live screen (plain text, newest last).
     History,
+    /// Finger or trackpad wheel, in terminal rows. Positive shows older lines.
+    Wheel {
+        rows: i32,
+    },
+    /// Jump the terminal viewport back to the live row.
+    Bottom,
     /// Phone viewport in cells; the Mac sizes the PTY to it while idle locally.
     Fit {
         cols: u16,
@@ -149,6 +163,10 @@ pub struct StyleWire {
 
 fn is_zero(v: &u8) -> bool {
     *v == 0
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
 }
 
 /// `StyleWire::f` bits.
@@ -211,6 +229,9 @@ pub enum ServerMsg {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cursor: Option<CursorWire>,
         lines: Vec<LineWire>,
+        /// The terminal viewport is above its live row (shell scrollback).
+        #[serde(default, skip_serializing_if = "is_false")]
+        scrolled: bool,
     },
     History {
         lines: Vec<String>,
@@ -263,6 +284,17 @@ mod tests {
         );
         let fit: ClientMsg = serde_json::from_str(r#"{"t":"fit","cols":45,"rows":30}"#).unwrap();
         assert_eq!(fit, ClientMsg::Fit { cols: 45, rows: 30 });
+        let wheel: ClientMsg = serde_json::from_str(r#"{"t":"wheel","rows":-2}"#).unwrap();
+        assert_eq!(wheel, ClientMsg::Wheel { rows: -2 });
+        let bottom: ClientMsg = serde_json::from_str(r#"{"t":"bottom"}"#).unwrap();
+        assert_eq!(bottom, ClientMsg::Bottom);
+        let page: ClientMsg = serde_json::from_str(r#"{"t":"key","key":"page-up"}"#).unwrap();
+        assert_eq!(
+            page,
+            ClientMsg::Key {
+                key: NamedKey::PageUp
+            }
+        );
     }
 
     #[test]
@@ -278,6 +310,7 @@ mod tests {
                 s: CursorShapeWire::Block,
             }),
             lines: vec![(0, vec![("ab".into(), 0)])],
+            scrolled: false,
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert_eq!(

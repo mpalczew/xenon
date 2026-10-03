@@ -12,6 +12,7 @@ pub const FIXTURES: &[&str] = &[
     "workspaces",
     "session",
     "session_light",
+    "session_keys",
     "reconnecting",
 ];
 

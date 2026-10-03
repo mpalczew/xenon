@@ -7,7 +7,7 @@
 
 use std::time::Instant;
 
-use gpui::Rgba;
+use gpui::{Modifiers, Rgba, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px};
 
 use super::*;
 use crate::color::convert_color;
@@ -69,6 +69,8 @@ pub struct ScreenSnapshot {
     pub cols: u16,
     pub rows: Vec<Vec<ScreenCell>>,
     pub cursor: Option<ScreenCursor>,
+    /// The viewport is above the live row (shell scrollback, not a TUI's own scroll).
+    pub scrolled: bool,
 }
 
 /// A phone's requested grid and a short device name for the Mac banner.
@@ -128,6 +130,46 @@ impl TerminalView {
             .iter()
             .map(|l| l.trim_end().to_string())
             .collect()
+    }
+
+    /// Phone scroll. `Some(lines)` is a wheel (positive shows older rows).
+    /// `None` returns the viewport to the live row; a TUI that ate the wheel
+    /// is unchanged, because its scroll lives in the app. Neither counts as
+    /// Mac keyboard input, so the phone fit stays.
+    pub fn scroll_from_phone(
+        &mut self,
+        lines: Option<i32>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let State::Ready(terminal) = &self.state else {
+            return;
+        };
+        let terminal = terminal.clone();
+        match lines {
+            Some(0) => return,
+            Some(lines) => terminal.update(cx, |terminal, cx| {
+                terminal.sync(window, cx);
+                let (origin, size, line_height) = {
+                    let bounds = &terminal.last_content().terminal_bounds;
+                    (bounds.bounds.origin, bounds.bounds.size, bounds.line_height)
+                };
+                if line_height == px(0.) {
+                    return;
+                }
+                let position = origin + point(size.width * 0.5, size.height * 0.5);
+                let event = ScrollWheelEvent {
+                    position,
+                    delta: ScrollDelta::Lines(point(0., lines as f32)),
+                    modifiers: Modifiers::default(),
+                    touch_phase: TouchPhase::Moved,
+                };
+                terminal.scroll_wheel(&event, 1.);
+            }),
+            None => terminal.update(cx, |terminal, _| terminal.scroll_to_bottom()),
+        }
+        self.note_interaction(cx);
+        cx.notify();
     }
 
     /// A key-row key (`ctrl-c`, `shift-tab`, `up`, …) through the normal
@@ -229,6 +271,7 @@ fn snapshot_from_content(content: &terminal::Content, theme: &theme::Theme) -> S
         cols: cols as u16,
         rows: grid,
         cursor: screen_cursor(&content.cursor, offset, rows, cols),
+        scrolled: content.display_offset != 0,
     }
 }
 

@@ -286,7 +286,7 @@ fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
         ("POST", "/pair") => pair(&mut stream, &req, shared),
         ("GET", "/ws") => ws::serve(stream, &req, shared),
         ("POST", UPLOAD_PATH) => uploads::serve(&mut stream, &req, shared),
-        ("GET", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
+        ("GET" | "POST", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
         _ => http::write_http(&mut stream, 404, "text/plain", b"not found"),
     }
 }
@@ -325,20 +325,36 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
         Ok(None) => return http::write_json_error(stream, 401, "unauthorized"),
         Err(e) => return http::write_json_error(stream, 503, &e),
     }
-    if req.path == "/api/workspaces" {
+    if req.method == "GET" && req.path == "/api/workspaces" {
         let list: Vec<WorkspaceInfo> =
             ask(&shared.host, |reply| HostRequest::ListWorkspaces { reply })
                 .map_err(|e| anyhow!(e))?;
         return write_json(stream, &list);
     }
-    let workspace = req
+    let workspace_id = req
         .path
         .strip_prefix("/api/workspaces/")
         .and_then(|s| s.strip_suffix("/terminals"))
+        .filter(|s| !s.is_empty() && !s.contains('/'))
         .map(http::urlencoding_decode);
-    let Some(workspace_id) = workspace else {
+    let Some(workspace_id) = workspace_id else {
         return http::write_json_error(stream, 404, "not found");
     };
+    if req.method == "POST" {
+        let created: Result<TerminalInfo, String> =
+            ask(&shared.host, |reply| HostRequest::CreateTerminal {
+                workspace_id,
+                reply,
+            })
+            .and_then(|r| r);
+        return match created {
+            Ok(info) => write_json(stream, &info),
+            Err(e) => http::write_json_error(stream, 404, &e),
+        };
+    }
+    if req.method != "GET" {
+        return http::write_json_error(stream, 404, "not found");
+    }
     let terminals: Result<Vec<TerminalInfo>, String> =
         ask(&shared.host, |reply| HostRequest::ListTerminals {
             workspace_id,
