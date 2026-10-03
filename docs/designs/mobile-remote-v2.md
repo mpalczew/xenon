@@ -327,6 +327,7 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
   above the live row.
 - The key tray is hidden until Keys is tapped. It floats over the grid,
   translucent, and does not resize the PTY. The iOS keyboard hides it.
-  Send always submits the line and then Enter.
+  Send always submits the line, then Enter after a short pause so a
+  paste-burst TUI (Codex) does not swallow the CR.
 - New terminal (`POST /api/workspaces/:id/terminals`) appends a shell in
   that workspace without changing the Mac's workspace or selected tab.

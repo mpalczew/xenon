@@ -284,6 +284,12 @@ const Core = (() => {
     return reset ? "all" : changed;
   }
 
+  /** How long to wait before the CR that submits a line.
+   *  Codex treats a CR within 120ms of a fast text burst as a newline inside
+   *  the paste, not as submit. An empty send is a bare Enter.
+   */
+  function enterDelay(hasText) { return hasText ? 150 : 0; }
+
   /** Finger or wheel pixels → whole rows. Positive `dy` shows older lines. */
   function wheelRows(acc, dy, lineH) {
     if (!(lineH > 0)) return { rows: 0, acc: acc || 0 };
@@ -395,7 +401,7 @@ const Core = (() => {
     return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
 
-  return { newTerm, applyFrame, styleRule, cellAt, fitCells, wheelRows, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
+  return { newTerm, applyFrame, styleRule, cellAt, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
 })();
 // </core>
 
@@ -949,6 +955,10 @@ function stopRepeat() {
 
 function onMsgKeyDown(e) {
   if (e.key === "Backspace" && !e.target.value) send({ t: "key", key: "backspace" });
+  if (e.key === "Enter" && !e.isComposing) {
+    e.preventDefault();
+    submitText(e);
+  }
 }
 
 function onKeyClick(e) {
@@ -956,13 +966,19 @@ function onKeyClick(e) {
   if (btn && e.detail === 0) sendKeyButton(btn); // keyboard activation only; taps went through pointerdown
 }
 
+let submitGuard = false;
 function submitText(e) {
-  e.preventDefault();
+  if (e) e.preventDefault();
+  if (submitGuard) return;
+  submitGuard = true;
+  queueMicrotask(() => { submitGuard = false; });
   const input = $("msg");
   const text = input.value;
   if (text && !send({ t: "text", data: text })) return;
-  if (!send({ t: "key", key: "enter" })) return;
   input.value = "";
+  const wait = Core.enterDelay(text.length > 0);
+  const fire = () => send({ t: "key", key: "enter" });
+  if (wait) setTimeout(fire, wait); else fire();
 }
 
 function renderDigits() {
