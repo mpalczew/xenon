@@ -331,3 +331,12 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
   paste-burst TUI (Codex) does not swallow the CR.
 - New terminal (`POST /api/workspaces/:id/terminals`) appends a shell in
   that workspace without changing the Mac's workspace or selected tab.
+- Close (`DELETE /api/workspaces/:id/terminals/:tab`) drops that terminal.
+  The Mac changes tabs only when it was showing the one that closed.
+- The title bar switches Field (edit the line, then Send) and Direct (each
+  key goes straight to the program). The choice is remembered on the device.
+  Those controls sit on a second row so the workspace name stays visible.
+  Hide blurs the field and dismisses the software keyboard.
+- A tap on the live grid is a left click at that cell, reported only while
+  the program has mouse mode on. A drag still scrolls. Direct also focuses
+  typing on that tap.

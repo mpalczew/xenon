@@ -78,6 +78,17 @@ fn host_loop(rx: async_channel::Receiver<HostRequest>, mock: Arc<MockHost>) {
                     Err("not found".into())
                 });
             }
+            HostRequest::CloseTerminal {
+                workspace_id,
+                tab_id,
+                reply,
+            } => {
+                let _ = reply.send(if workspace_id == "ws-1" && tab_id == 7 {
+                    Ok(())
+                } else {
+                    Err("not found".into())
+                });
+            }
             HostRequest::Connected { out, .. } => {
                 out.try_send(ServerMsg::Ready {
                     theme: ThemeWire {
@@ -148,6 +159,25 @@ fn pairing_then_bearer_lists() {
         Some(TOKEN),
     );
     assert!(unknown.starts_with("HTTP/1.1 404"), "{unknown}");
+    let closed = request(
+        port,
+        "DELETE",
+        "/api/workspaces/ws-1/terminals/7",
+        None,
+        Some(TOKEN),
+    );
+    assert!(closed.starts_with("HTTP/1.1 200"), "{closed}");
+    let closed_missing = request(
+        port,
+        "DELETE",
+        "/api/workspaces/ws-1/terminals/9",
+        None,
+        Some(TOKEN),
+    );
+    assert!(
+        closed_missing.starts_with("HTTP/1.1 404"),
+        "{closed_missing}"
+    );
     let missing = request(
         port,
         "GET",

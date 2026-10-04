@@ -8,6 +8,8 @@ enum DropTabOutcome {
     FocusPane(PaneId),
     Unsplit,
     Empty,
+    /// The closed tab was not the one on screen. The pane index moved; focus did not.
+    Kept,
 }
 
 /// Which content surface should receive find commands (palette path).
@@ -360,29 +362,46 @@ impl XenonApp {
             let Some(content) = self.contents.get_mut(&workspace) else {
                 return;
             };
+            let focused_before = content.focused;
             let Some(root) = content.root.as_mut() else {
                 return;
             };
             let Some((pane, idx)) = root.find_tab(tab) else {
                 return;
             };
+            let was_showing = focused_before == Some(pane)
+                && root
+                    .find_leaf(pane)
+                    .is_some_and(|leaf| leaf.active_tab().is_some_and(|active| active.id() == tab));
             let Some(leaf) = root.find_leaf_mut(pane) else {
                 return;
             };
             leaf.tabs.remove(idx);
-            if !leaf.tabs.is_empty() {
-                fix_active_idx(&mut leaf.active, idx, leaf.tabs.len());
-                content.focused = Some(pane);
-                DropTabOutcome::FocusPane(pane)
-            } else if leaf.parked {
-                content.focused = Some(pane);
-                DropTabOutcome::FocusPane(pane)
+            if !leaf.tabs.is_empty() || leaf.parked {
+                if !leaf.tabs.is_empty() {
+                    fix_active_idx(&mut leaf.active, idx, leaf.tabs.len());
+                }
+                if was_showing {
+                    content.focused = Some(pane);
+                    DropTabOutcome::FocusPane(pane)
+                } else {
+                    DropTabOutcome::Kept
+                }
             } else if content.leaf_ids().len() <= 1 {
                 content.root = None;
                 content.focused = None;
                 DropTabOutcome::Empty
             } else {
                 content.unsplit_empty(pane);
+                if !was_showing
+                    && let Some(prev) = focused_before
+                    && content
+                        .root
+                        .as_ref()
+                        .is_some_and(|root| root.find_leaf(prev).is_some())
+                {
+                    content.focused = Some(prev);
+                }
                 DropTabOutcome::Unsplit
             }
         };
@@ -418,6 +437,7 @@ impl XenonApp {
                     self.focus_after_teardown(window, cx);
                 }
             }
+            DropTabOutcome::Kept => {}
         }
         cx.notify();
     }

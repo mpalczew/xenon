@@ -57,7 +57,15 @@ html.in-session { background:var(--chrome); }
 .hdr .title { font-size:17px; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .keys-btn, .new-btn { flex:none; height:32px; padding:0 10px; border-radius:8px; color:var(--accent); font-size:15px; font-weight:600; }
 .keys-btn[aria-pressed="true"] { background:var(--accent-dim); }
-.keys-btn:disabled, .new-btn:disabled { opacity:.45; }
+/* Five labeled controls do not fit beside the title at phone width. */
+#v-session > .hdr { flex-wrap:wrap; row-gap:0; padding-bottom:2px; }
+#v-session > .hdr .acts { flex:1 0 100%; display:flex; justify-content:flex-end; align-items:center; gap:2px; }
+#v-session > .hdr .keys-btn, #v-session > .hdr .new-btn { height:30px; padding:0 8px; font-size:14px; }
+.keys-btn:disabled, .new-btn:disabled, .close-tab:disabled { opacity:.45; }
+.termrow { display:flex; align-items:stretch; border-bottom:1px solid var(--hair); }
+.termrow .ws { flex:1; border-bottom:0; min-width:0; }
+.close-tab { flex:none; padding:0 14px; color:var(--err); font-size:15px; font-weight:600; }
+#direct { position:absolute; left:0; top:0; width:1px; height:1px; opacity:0; border:0; padding:0; resize:none; font-size:16px; pointer-events:none; }
 .newterm { width:100%; text-align:left; min-height:52px; padding:14px 16px; color:var(--accent); font-size:16px; font-weight:600; border-bottom:1px solid var(--hair); }
 .hdr .crumb { color:var(--muted); font-weight:500; }
 .conn { flex:none; width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px var(--ok-halo); }
@@ -209,12 +217,13 @@ html.in-session { background:var(--chrome); }
   </section>
 
   <section id="v-session" class="view" hidden>
-    <div class="hdr"><button type="button" class="back" data-back aria-label="Back">‹</button><div class="title" id="sess-title"></div><button type="button" class="new-btn" id="new-session" aria-label="New terminal">New</button><button type="button" class="keys-btn" id="keys-btn" aria-pressed="false" aria-label="Show keys">Keys</button><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="hdr"><button type="button" class="back" data-back aria-label="Back">‹</button><div class="title" id="sess-title"></div><div class="conn off" role="img" aria-label="Disconnected"></div><div class="acts"><button type="button" class="new-btn" id="new-session" aria-label="New terminal">New</button><button type="button" class="keys-btn" id="mode-btn" aria-pressed="false" aria-label="Editable field">Field</button><button type="button" class="keys-btn" id="hide-kb" aria-label="Hide keyboard">Hide</button><button type="button" class="keys-btn" id="close-session" aria-label="Close terminal">Close</button><button type="button" class="keys-btn" id="keys-btn" aria-pressed="false" aria-label="Show keys">Keys</button></div></div>
     <div class="banner" id="reconnect" role="status" hidden><div class="spin" aria-hidden="true"></div><span id="reconnect-txt">Reconnecting…</span></div>
     <div id="termwrap">
       <div id="term" role="log" aria-label="Terminal" aria-live="off"><div id="hist"></div><div id="screen"></div></div>
       <div id="starting" hidden>Starting…</div>
       <button type="button" id="live" hidden aria-label="Jump to live output">↓ Live</button>
+      <textarea id="direct" hidden autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Terminal input"></textarea>
       <div class="keys" id="keys" hidden>
         <div class="kcols">
           <div class="krow">
@@ -282,6 +291,15 @@ const Core = (() => {
     term.seq = f.seq;
     term.scrolled = !!f.scrolled;
     return reset ? "all" : changed;
+  }
+
+  /** Cell under a tap. Origin is the live grid's top left. Out of range is null. */
+  function cellAtPoint(x, y, originX, originY, cellW, lineH, cols, rows) {
+    if (!(cellW > 0) || !(lineH > 0) || !(cols > 0) || !(rows > 0)) return null;
+    const col = Math.floor((x - originX) / cellW);
+    const row = Math.floor((y - originY) / lineH);
+    if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+    return { col, row };
   }
 
   /** How long to wait before the CR that submits a line.
@@ -401,12 +419,12 @@ const Core = (() => {
     return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
 
-  return { newTerm, applyFrame, styleRule, cellAt, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
+  return { newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
 })();
 // </core>
 
 // ===== State =====
-const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed" };
+const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
   fixture: false, themed: false, view: null,
@@ -416,7 +434,8 @@ const S = {
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
   follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0,
-  wheelAcc: 0, repeat: null, creating: false,
+  wheelAcc: 0, repeat: null, creating: false, closing: false, suppressCloseToast: false,
+  inputMode: "field",
 };
 
 function $(id) { return document.getElementById(id); }
@@ -533,6 +552,7 @@ function onMsg(m) {
 
 function onReady(m) {
   S.attempt = 0;
+  S.suppressCloseToast = false;
   // Each socket starts a fresh style table on the Mac.
   S.styles = {};
   $("term-styles").textContent = "";
@@ -552,8 +572,14 @@ function onDots(m) {
 function onClosed(reason) {
   if (reason === "revoked") return unpair("This device was revoked on your Mac. Enter a new code to pair again.");
   if (reason === "tabClosed") {
-    toast("Terminal closed");
-    if (S.view === "session") leaveSession();
+    const own = S.suppressCloseToast;
+    S.suppressCloseToast = false;
+    // A phone close already moves the UI. This must not leave a session the
+    // user opened while the close was in flight.
+    if (!own) {
+      toast("Terminal closed");
+      if (S.view === "session") leaveSession();
+    }
     return;
   }
   if (reason === "serverStopping") toast("Xenon turned the phone remote off");
@@ -690,12 +716,51 @@ function renderWorkspaces() {
 
 function renderTerminals() {
   const rows = S.terminals.map((t, i) =>
-    '<button type="button" class="ws" data-tab="' + i + '"><div class="rail ' + (t.dot || "") + '"></div>' +
+    '<div class="termrow"><button type="button" class="ws" data-tab="' + i + '"><div class="rail ' + (t.dot || "") + '"></div>' +
     '<div class="body"><div class="name">' + esc(tabLabel(t, i)) + '</div><div class="path">' + esc(t.cwd || "") + "</div></div>" +
-    '<div class="meta">' + tagFor(t.dot) + (t.active ? "Active" : "") + '</div><div class="chev" aria-hidden="true">›</div></button>'
+    '<div class="meta">' + tagFor(t.dot) + (t.active ? "Active" : "") + '</div><div class="chev" aria-hidden="true">›</div></button>' +
+    '<button type="button" class="close-tab" data-close="' + i + '" aria-label="Close terminal">Close</button></div>'
   ).join("");
   const empty = S.terminals.length ? "" : '<div class="note">No terminal tabs in this workspace.</div>';
   $("terms").innerHTML = '<button type="button" class="newterm" id="new-term">New terminal</button>' + empty + rows;
+}
+
+async function closeTerminal(tab) {
+  if (!S.wsSel || !tab || S.closing) return;
+  S.closing = true;
+  S.suppressCloseToast = true;
+  const wsId = S.wsSel.id;
+  const tabId = tab.tabId;
+  // Attached closes get tabClosed. A list close of some other tab does not.
+  const attached = !!(S.want && S.want.tabId === tabId);
+  try {
+    await api("/api/workspaces/" + encodeURIComponent(wsId) + "/terminals/" + tabId, { method: "DELETE" });
+    if (!S.wsSel || S.wsSel.id !== wsId) {
+      if (!attached) S.suppressCloseToast = false;
+      return;
+    }
+    S.terminals = S.terminals.filter((t) => t.tabId !== tabId);
+    const stillHere = S.view === "session" && S.want && S.want.tabId === tabId;
+    if (!S.terminals.length) {
+      S.skippedList = false;
+      if (!attached) S.suppressCloseToast = false;
+      if (S.want && S.want.tabId === tabId) {
+        send({ t: "detach" });
+        S.want = null;
+      }
+      if (S.view === "session" || S.view === "terms") showWorkspaces();
+    } else if (stillHere) {
+      leaveSession();
+    } else {
+      if (!attached) S.suppressCloseToast = false;
+      if (S.view === "terms") renderTerminals();
+    }
+  } catch (e) {
+    S.suppressCloseToast = false;
+    if (e.message !== "unauthorized") toast(e.message);
+  } finally {
+    S.closing = false;
+  }
 }
 
 async function createTerminal() {
@@ -854,6 +919,38 @@ function pushWheel(dy) {
   if (step.rows) send({ t: "wheel", rows: step.rows });
 }
 
+function setInputMode(mode) {
+  S.inputMode = mode === "direct" ? "direct" : "field";
+  store(KEY.mode, S.inputMode);
+  const direct = S.inputMode === "direct";
+  $("input").hidden = direct;
+  $("direct").hidden = !direct;
+  const btn = $("mode-btn");
+  btn.textContent = direct ? "Direct" : "Field";
+  btn.setAttribute("aria-pressed", String(direct));
+  btn.setAttribute("aria-label", direct ? "Direct typing" : "Editable field");
+  if (!direct) $("direct").blur();
+  if (S.view === "session") scheduleFit(0);
+}
+
+function hideKeyboard() {
+  $("msg").blur();
+  $("direct").blur();
+}
+
+function focusDirect() {
+  if (S.inputMode !== "direct") return;
+  try { $("direct").focus(); } catch (_) {}
+}
+
+function sendClick(x, y) {
+  const rect = $("screen").getBoundingClientRect();
+  const cell = Core.cellAtPoint(x, y, rect.left, rect.top, (S.cw || 0) * (S.scale || 1), linePx(), S.term.cols, S.term.rows);
+  if (!cell) return false;
+  send({ t: "click", col: cell.col, row: cell.row });
+  return true;
+}
+
 function setKeys(on) {
   const keys = $("keys");
   const btn = $("keys-btn");
@@ -866,7 +963,7 @@ function setKeys(on) {
 function renderStale() {
   const stale = !S.connected && !S.fixtureLive;
   for (const id of ["termwrap", "keys", "input"]) $(id).classList.toggle("stale", stale);
-  for (const el of document.querySelectorAll("#keys button, #input button, #input input, #keys-btn, #new-session, #new-term")) el.disabled = stale;
+  for (const el of document.querySelectorAll("#keys button, #input button, #input input, #keys-btn, #new-session, #new-term, #mode-btn, #hide-kb, #close-session, #direct, .close-tab")) el.disabled = stale;
   $("reconnect").hidden = !stale || !S.token && !S.fixture;
   renderAgo();
 }
@@ -951,6 +1048,17 @@ function startRepeat(btn) {
 function stopRepeat() {
   clearTimeout(S.repeat);
   S.repeat = null;
+}
+
+function onDirectKey(e) {
+  if (e.isComposing) return;
+  if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); send({ t: "key", key: "shift-tab" }); return; }
+  if (e.ctrlKey && !e.metaKey && !e.altKey) {
+    const k = e.key.toLowerCase();
+    if (k === "c" || k === "d" || k === "u") { e.preventDefault(); send({ t: "key", key: "ctrl-" + k }); return; }
+  }
+  const named = { Enter: "enter", Escape: "esc", Backspace: "backspace", Tab: "tab", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
+  if (named) { e.preventDefault(); send({ t: "key", key: named }); }
 }
 
 function onMsgKeyDown(e) {
@@ -1104,16 +1212,41 @@ function wireEvents() {
   });
   $("terms").addEventListener("click", (e) => {
     if (e.target.closest("#new-term")) return createTerminal();
+    const closer = e.target.closest("[data-close]");
+    if (closer) return closeTerminal(S.terminals[+closer.dataset.close]);
     const row = e.target.closest("[data-tab]");
     if (row) openSession(S.terminals[+row.dataset.tab]);
   });
   $("new-session").addEventListener("click", createTerminal);
+  $("close-session").addEventListener("click", () => {
+    const tab = S.terminals.find((t) => S.want && t.tabId === S.want.tabId);
+    if (tab) closeTerminal(tab);
+  });
+  $("mode-btn").addEventListener("click", () => setInputMode(S.inputMode === "direct" ? "field" : "direct"));
+  $("hide-kb").addEventListener("click", hideKeyboard);
   $("keys-btn").addEventListener("click", () => setKeys($("keys").hidden));
   const keys = $("keys");
   keys.addEventListener("pointerdown", onKeyPointer);
   keys.addEventListener("click", onKeyClick);
   for (const end of ["pointerup", "pointercancel", "pointerleave"]) keys.addEventListener(end, stopRepeat);
   $("msg").addEventListener("keydown", onMsgKeyDown);
+  const direct = $("direct");
+  let composing = false;
+  direct.addEventListener("keydown", onDirectKey);
+  direct.addEventListener("compositionstart", () => { composing = true; });
+  direct.addEventListener("compositionend", (e) => {
+    composing = false;
+    const text = e.data || direct.value;
+    direct.value = "";
+    if (text) send({ t: "text", data: text });
+  });
+  direct.addEventListener("input", () => {
+    if (composing) return;
+    const text = direct.value;
+    if (!text) return;
+    direct.value = "";
+    send({ t: "text", data: text });
+  });
   $("msg").addEventListener("paste", onMsgPaste);
   $("attach").addEventListener("click", () => $("file").click());
   $("file").addEventListener("change", (e) => { attachImage(e.target.files[0]); e.target.value = ""; });
@@ -1124,14 +1257,22 @@ function wireEvents() {
   term.addEventListener("scroll", onTermScroll, { passive: true });
   let touchY = null;
   let touchWheel = false;
+  let tap = null;
+  let ignoreClick = false;
   term.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) { touchY = null; return; }
+    if (e.touches.length !== 1) { touchY = null; tap = null; return; }
     touchY = e.touches[0].clientY;
+    tap = { x: e.touches[0].clientX, y: e.touches[0].clientY, drag: false };
     S.wheelAcc = 0;
     touchWheel = !gridTallerThanView();
     term.style.touchAction = touchWheel ? "none" : "pan-y";
   }, { passive: true });
   term.addEventListener("touchmove", (e) => {
+    if (tap && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - tap.x;
+      const dy = e.touches[0].clientY - tap.y;
+      if (dx * dx + dy * dy > 64) tap.drag = true;
+    }
     if (touchY == null || !touchWheel) return;
     const y = e.touches[0].clientY;
     const dy = y - touchY;
@@ -1139,7 +1280,27 @@ function wireEvents() {
     e.preventDefault();
     pushWheel(dy);
   }, { passive: false });
-  term.addEventListener("touchend", () => { touchY = null; }, { passive: true });
+  term.addEventListener("touchend", (e) => {
+    const was = tap;
+    tap = null;
+    touchY = null;
+    if (!was) return;
+    // A drag still produces a click unless this swallows it.
+    ignoreClick = true;
+    if (was.drag) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    if (sendClick(t.clientX, t.clientY)) focusDirect();
+  }, { passive: true });
+  term.addEventListener("touchcancel", () => {
+    tap = null;
+    touchY = null;
+    ignoreClick = true;
+  });
+  term.addEventListener("click", (e) => {
+    if (ignoreClick) { ignoreClick = false; return; }
+    if (sendClick(e.clientX, e.clientY)) focusDirect();
+  });
   term.addEventListener("wheel", (e) => {
     if (gridTallerThanView()) return;
     e.preventDefault();
@@ -1307,6 +1468,7 @@ function boot() {
   style.id = "term-styles";
   document.head.appendChild(style);
   wireEvents();
+  setInputMode(store(KEY.mode) === "direct" ? "direct" : "field");
   followSystemScheme();
   onViewport();
   const secret = location.pathname === "/pair" && location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "";

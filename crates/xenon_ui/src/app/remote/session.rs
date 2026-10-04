@@ -162,6 +162,11 @@ impl XenonApp {
                     view.update(cx, |term, cx| term.scroll_from_phone(None, window, cx));
                 }
             }
+            ClientMsg::Click { col, row } => {
+                if let Some(view) = self.attached_view(conn) {
+                    view.update(cx, |term, cx| term.click_from_phone(col, row, window, cx));
+                }
+            }
             ClientMsg::Fit { cols, rows } => self.remote_fit(conn, cols, rows, cx),
             ClientMsg::Hello { .. } | ClientMsg::Ping => {}
         }

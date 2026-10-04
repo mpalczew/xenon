@@ -286,7 +286,7 @@ fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
         ("POST", "/pair") => pair(&mut stream, &req, shared),
         ("GET", "/ws") => ws::serve(stream, &req, shared),
         ("POST", UPLOAD_PATH) => uploads::serve(&mut stream, &req, shared),
-        ("GET" | "POST", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
+        ("GET" | "POST" | "DELETE", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
         _ => http::write_http(&mut stream, 404, "text/plain", b"not found"),
     }
 }
@@ -331,38 +331,60 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
                 .map_err(|e| anyhow!(e))?;
         return write_json(stream, &list);
     }
-    let workspace_id = req
-        .path
-        .strip_prefix("/api/workspaces/")
-        .and_then(|s| s.strip_suffix("/terminals"))
-        .filter(|s| !s.is_empty() && !s.contains('/'))
-        .map(http::urlencoding_decode);
-    let Some(workspace_id) = workspace_id else {
+    let Some(rest) = req.path.strip_prefix("/api/workspaces/") else {
         return http::write_json_error(stream, 404, "not found");
     };
-    if req.method == "POST" {
-        let created: Result<TerminalInfo, String> =
-            ask(&shared.host, |reply| HostRequest::CreateTerminal {
+    let Some((id_enc, tail)) = rest.split_once('/') else {
+        return http::write_json_error(stream, 404, "not found");
+    };
+    if id_enc.is_empty() {
+        return http::write_json_error(stream, 404, "not found");
+    }
+    let workspace_id = http::urlencoding_decode(id_enc);
+    if tail == "terminals" {
+        if req.method == "POST" {
+            let created: Result<TerminalInfo, String> =
+                ask(&shared.host, |reply| HostRequest::CreateTerminal {
+                    workspace_id,
+                    reply,
+                })
+                .and_then(|r| r);
+            return match created {
+                Ok(info) => write_json(stream, &info),
+                Err(e) => http::write_json_error(stream, 404, &e),
+            };
+        }
+        if req.method != "GET" {
+            return http::write_json_error(stream, 404, "not found");
+        }
+        let terminals: Result<Vec<TerminalInfo>, String> =
+            ask(&shared.host, |reply| HostRequest::ListTerminals {
                 workspace_id,
                 reply,
             })
             .and_then(|r| r);
-        return match created {
-            Ok(info) => write_json(stream, &info),
+        return match terminals {
+            Ok(list) => write_json(stream, &list),
             Err(e) => http::write_json_error(stream, 404, &e),
         };
     }
-    if req.method != "GET" {
+    let Some(tab_enc) = tail.strip_prefix("terminals/") else {
+        return http::write_json_error(stream, 404, "not found");
+    };
+    if req.method != "DELETE" || tab_enc.is_empty() || tab_enc.contains('/') {
         return http::write_json_error(stream, 404, "not found");
     }
-    let terminals: Result<Vec<TerminalInfo>, String> =
-        ask(&shared.host, |reply| HostRequest::ListTerminals {
-            workspace_id,
-            reply,
-        })
-        .and_then(|r| r);
-    match terminals {
-        Ok(list) => write_json(stream, &list),
+    let Ok(tab_id) = tab_enc.parse::<u64>() else {
+        return http::write_json_error(stream, 404, "not found");
+    };
+    let closed: Result<(), String> = ask(&shared.host, |reply| HostRequest::CloseTerminal {
+        workspace_id,
+        tab_id,
+        reply,
+    })
+    .and_then(|r| r);
+    match closed {
+        Ok(()) => write_json(stream, &serde_json::json!({})),
         Err(e) => http::write_json_error(stream, 404, &e),
     }
 }

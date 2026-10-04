@@ -67,6 +67,12 @@ pub enum HostRequest {
         workspace_id: String,
         reply: SyncSender<Result<TerminalInfo, String>>,
     },
+    /// Close one terminal in that workspace. The Mac follows only if it was showing it.
+    CloseTerminal {
+        workspace_id: String,
+        tab_id: u64,
+        reply: SyncSender<Result<(), String>>,
+    },
     /// Authenticated WebSocket opened. Host sends `Ready` through `out`.
     Connected {
         conn: ConnId,

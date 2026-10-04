@@ -116,6 +116,24 @@ impl XenonApp {
         })
     }
 
+    /// Close a terminal in this workspace. The Mac changes tabs only when it
+    /// was showing the one that closed.
+    pub(super) fn close_remote_terminal(
+        &mut self,
+        workspace_id: &str,
+        tab_id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let wid = parse_workspace_id(workspace_id)?;
+        let tab = TabId(tab_id);
+        if self.find_terminal_view(wid, tab).is_none() {
+            return Err("not found".to_string());
+        }
+        self.drop_tab(wid, tab, Some(window), cx);
+        Ok(())
+    }
+
     /// Per-terminal dots for one workspace (working outranks attention).
     pub(super) fn remote_terminal_dots(&self, wid: WorkspaceId, cx: &App) -> BTreeMap<u64, Dot> {
         let mut dots = BTreeMap::new();

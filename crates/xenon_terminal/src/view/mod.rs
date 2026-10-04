@@ -16,6 +16,7 @@ mod find_bar;
 mod find_session;
 mod input;
 mod paths;
+mod phone_click;
 mod remote;
 mod render;
 #[cfg(feature = "visual-tests")]

@@ -132,6 +132,12 @@ pub enum ClientMsg {
     },
     /// Jump the terminal viewport back to the live row.
     Bottom,
+    /// Left click on a live-grid cell. The Mac reports it only while the
+    /// program has mouse mode on.
+    Click {
+        col: u16,
+        row: u16,
+    },
     /// Phone viewport in cells; the Mac sizes the PTY to it while idle locally.
     Fit {
         cols: u16,
@@ -288,6 +294,8 @@ mod tests {
         assert_eq!(wheel, ClientMsg::Wheel { rows: -2 });
         let bottom: ClientMsg = serde_json::from_str(r#"{"t":"bottom"}"#).unwrap();
         assert_eq!(bottom, ClientMsg::Bottom);
+        let click: ClientMsg = serde_json::from_str(r#"{"t":"click","col":3,"row":4}"#).unwrap();
+        assert_eq!(click, ClientMsg::Click { col: 3, row: 4 });
         let page: ClientMsg = serde_json::from_str(r#"{"t":"key","key":"page-up"}"#).unwrap();
         assert_eq!(
             page,
