@@ -6,7 +6,8 @@ use gpui::{
 };
 use theme::ThemeColors;
 
-/// Display form of a key chord (`⌘⇧O`). Empty is illegal.
+/// A key chord written as the macOS glyphs (`⌘⇧O`). Empty is illegal.
+/// [`Shortcut::keys`] gives what the current platform and keymap show.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Shortcut {
     keys: &'static str,
@@ -18,8 +19,8 @@ impl Shortcut {
         Self { keys }
     }
 
-    pub const fn keys(self) -> &'static str {
-        self.keys
+    pub fn keys(self) -> String {
+        xenon_keymap::display_keys(self.keys)
     }
 }
 
@@ -62,7 +63,10 @@ mod tests {
 
     #[test]
     fn shortcut_keeps_keys() {
-        assert_eq!(Shortcut::new("⌘⇧O").keys(), "⌘⇧O");
+        assert_eq!(
+            Shortcut::new("⌘⇧O").keys(),
+            xenon_keymap::display_keys("⌘⇧O")
+        );
     }
 
     #[test]

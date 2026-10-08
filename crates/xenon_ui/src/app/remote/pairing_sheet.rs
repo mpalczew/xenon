@@ -37,7 +37,9 @@ impl XenonApp {
         if self.remote_waiting() {
             let toast = xenon_design_system::Toast::info(
                 "📱",
-                "The other Xenon has the phone remote — ⌘⇧M there, or quit it",
+                xenon_design_system::shortcut_text(
+                    "The other Xenon has the phone remote — ⌘⇧M there, or quit it",
+                ),
             );
             self.show_toast(toast, cx);
             return;
@@ -110,7 +112,7 @@ impl XenonApp {
         let ks = &event.keystroke;
         match ks.key.as_str() {
             "escape" | "enter" => self.close_connect_phone(cx),
-            "c" if ks.modifiers.platform => self.copy_pairing_link(cx),
+            "c" if ks.modifiers.secondary() => self.copy_pairing_link(cx),
             _ => return false,
         }
         true
@@ -172,7 +174,7 @@ impl XenonApp {
     fn sheet_actions(&self, can_copy: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let copy = xenon_design_system::action_button(
             "connect-phone-copy",
-            ActionButton::secondary("Copy link  ⌘C"),
+            ActionButton::secondary(xenon_design_system::shortcut_text("Copy link  ⌘C")),
             cx,
             cx.listener(|this, _, _, cx| {
                 cx.stop_propagation();
@@ -186,7 +188,7 @@ impl XenonApp {
             .children(can_copy.then_some(copy))
             .child(xenon_design_system::action_button(
                 "connect-phone-settings",
-                ActionButton::secondary("Settings…  ⌘,"),
+                ActionButton::secondary(xenon_design_system::shortcut_text("Settings…  ⌘,")),
                 cx,
                 cx.listener(|this, _, _, cx| {
                     cx.stop_propagation();

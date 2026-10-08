@@ -314,7 +314,7 @@ impl WorkspacePickerView {
         self.on_nav(
             key,
             event.keystroke.modifiers.shift,
-            event.keystroke.modifiers.platform,
+            event.keystroke.modifiers.secondary(),
             cx,
         );
     }
@@ -373,9 +373,11 @@ impl Render for WorkspacePickerView {
             .collect();
         let browse = xenon_design_system::action_button(
             "workspace-picker-browse-btn",
-            xenon_design_system::ActionButton::quiet("Browse… ⌘⇧O")
-                .hover_text(colors.text)
-                .hover_background(gpui::transparent_black()),
+            xenon_design_system::ActionButton::quiet(xenon_design_system::shortcut_text(
+                "Browse… ⌘⇧O",
+            ))
+            .hover_text(colors.text)
+            .hover_background(gpui::transparent_black()),
             cx,
             cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Browse)),
         )
@@ -401,7 +403,9 @@ impl Render for WorkspacePickerView {
                         colors: &colors,
                     }),
                     query_hint_action(
-                        "return opens  ·  ⌘⌫ forgets a closed workspace  ·  esc closes",
+                        &xenon_design_system::shortcut_text(
+                            "return opens  ·  ⌘⌫ forgets a closed workspace  ·  esc closes",
+                        ),
                         browse,
                         cx,
                     )

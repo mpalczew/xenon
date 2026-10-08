@@ -28,6 +28,7 @@ xenon_ide = { path = "crates/xenon_ide" }
 xenon_lsp = { path = "crates/xenon_lsp" }
 xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
+xenon_keymap = { path = "crates/xenon_keymap" }
 xenon_memory = { path = "crates/xenon_memory" }
 xenon_design_system = { path = "crates/xenon_design_system" }
 

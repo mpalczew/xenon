@@ -51,7 +51,7 @@ pub(super) fn groups(cx: &App) -> Vec<Group> {
             "other-theme",
             other,
             Control::Action(RowAction {
-                label: "All themes  ⌘⌥T".into(),
+                label: xenon_design_system::shortcut_text("All themes  ⌘⌥T").into(),
                 kind: ActionKind::Quiet,
                 run: Rc::new(open_theme_gallery),
             }),

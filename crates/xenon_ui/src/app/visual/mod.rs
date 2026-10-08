@@ -88,6 +88,8 @@ pub enum Scene {
     ToastInfo,
     ToastError,
     ToastErrorLight,
+    ToastKeymapError,
+    ToastLongKeys,
     ConnectPhone,
     ConnectPhoneOffline,
     PhoneDriving,
@@ -172,6 +174,8 @@ pub const SCENES: &[Scene] = &[
     Scene::ToastInfo,
     Scene::ToastError,
     Scene::ToastErrorLight,
+    Scene::ToastKeymapError,
+    Scene::ToastLongKeys,
     Scene::ConnectPhone,
     Scene::ConnectPhoneOffline,
     Scene::PhoneDriving,
@@ -273,6 +277,8 @@ impl Scene {
             Self::ToastInfo => "overlay_toast_info",
             Self::ToastError => "overlay_toast_error",
             Self::ToastErrorLight => "overlay_toast_error_light",
+            Self::ToastKeymapError => "overlay_toast_keymap_error",
+            Self::ToastLongKeys => "overlay_toast_long_keys",
             Self::ConnectPhone => "overlay_connect_phone",
             Self::ConnectPhoneOffline => "overlay_connect_phone_no_tailscale",
             Self::PhoneDriving => "content_terminal_phone_fit",
@@ -384,9 +390,18 @@ pub fn apply_scene(
         | Scene::WorklistSectionsFolded
         | Scene::WorklistSectionRename => worklist::tab(app, scene, window, cx),
         Scene::WorklistToolbarTooltip => chrome::populated(app, scene, window, cx),
-        Scene::ToastSuccess | Scene::ToastInfo | Scene::ToastError | Scene::ToastErrorLight => {
+        Scene::ToastSuccess
+        | Scene::ToastInfo
+        | Scene::ToastError
+        | Scene::ToastErrorLight
+        | Scene::ToastKeymapError
+        | Scene::ToastLongKeys => {
             chrome::populated(app, scene, window, cx);
             let toast = match scene {
+                Scene::ToastKeymapError => super::toasts::keymap_error(
+                    "binding \"ctrl-x\", didn’t find an action named \"xenon::NoSuchThing\".",
+                ),
+                Scene::ToastLongKeys => super::toasts::long_keys_sample(),
                 Scene::ToastSuccess => {
                     super::toasts::task_added(Some("Fix focus after closing a split"))
                 }

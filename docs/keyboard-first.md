@@ -9,6 +9,9 @@ stop. Tooltips and menus exist to make the shortcuts discoverable.
 
 ## Daily keys
 
+Tables show macOS keys. On Linux ⌘ is Ctrl (Ctrl+P, Ctrl+Shift+P, ...) with the
+exceptions listed under "Linux differences" below.
+
 | Area | Keys |
 |------|------|
 | New terminal / file | ⌘N / ⌘⇧N |
@@ -77,6 +80,65 @@ last-terminal / last-editor / Files.
 Vim mode includes normal/visual/visual-line/visual-block (`Ctrl-v`), `/` and
 `?`, `n`/`N`, `%`, join/indent/number-bump/scroll-center edits, and the
 supported ex commands.
+
+## Customizing keys
+
+Shortcuts are bindings you can change. Run **Open Keymap** from the command
+palette (⌘⇧P) to create and open `~/.xenon/keymap.json` (`XENON_DATA_DIR`
+moves it). The file is a JSON array in zed's keymap shape (comments and
+trailing commas are fine); your entries layer on top of the defaults, and a
+later entry wins:
+
+```json
+[
+  {
+    "bindings": {
+      "ctrl-alt-p": "xenon::FilePalette",
+      "cmd-shift-n": null
+    }
+  },
+  {
+    "context": "Terminal",
+    "bindings": { "ctrl-b": "xenon::ToggleSidebar" }
+  }
+]
+```
+
+- Keys are `ctrl`, `alt`, `shift`, `cmd` (Super on Linux) plus a key, and a
+  space separates a chord sequence (`ctrl-k ctrl-t`).
+- `null` unbinds a default.
+- Action names are `xenon::` plus the command, for example `xenon::NewTerminal`
+  (see `actions!` in `crates/xenon_ui/src/lib.rs`), `xenon_editor::Find`,
+  `xenon_terminal::Find`, `xenon_clipboard::Copy`.
+- `context` is a gpui context predicate. Useful ones: `Editor`, `EditorFind`,
+  `Terminal`, `TerminalFind`. Omit it for a global binding. On the focused
+  terminal a global binding and a `Terminal` binding tie; the later entry wins.
+- Saving the file reloads it. A mistake (bad JSON, unknown action, bad
+  keystroke) shows a notice and keeps the previous keys. A missing file means
+  defaults only; Xenon never creates it on its own.
+- Tooltips, menus, and the shortcut list show your bindings.
+
+### Linux differences
+
+Linux uses Ctrl where the tables say ⌘, plus:
+
+| Command | macOS | Linux |
+|---------|-------|-------|
+| Undo capture (toast) | ⌘Z | Ctrl+Alt+Z (Ctrl+Z is the shell's suspend) |
+| Copy Clean | ⌘⇧C | Ctrl+Shift+Y (Ctrl+Shift+C copies in a terminal) |
+| Themes | ⌘⌥T | Ctrl+Alt+Shift+T (Ctrl+Alt+T opens a terminal on Ubuntu) |
+| Navigation back / forward | ⌘[ / ⌘] | Ctrl+Alt+- / Ctrl+Alt+_ (Ctrl+[ is Escape) |
+| Terminal find / next / previous | ⌘F / ⌘G / ⌘⇧G | Ctrl+Shift+F / F3 / Shift+F3 |
+| Terminal copy / paste | ⌘C / ⌘V | Ctrl+Shift+C / Ctrl+Shift+V |
+| Quit | ⌘Q | Ctrl+Q |
+
+In the focused terminal, Ctrl+C, X, V, B, E, O, and S reach the shell or TUI
+instead of the app shortcut (Ctrl+C is SIGINT; Ctrl+B, E, O follow zed). Other
+Ctrl chords that are not listed here, such as Ctrl+D, Z, R, A, K, U, L, and
+Ctrl+G, were never app shortcuts and go to the PTY. App shortcuts win over the
+shell for Ctrl+P, N, W, J, `\`, and the rest of the tables. Editor word and file
+motion on Linux is Ctrl+←/→ and Ctrl+Home/End; with vim mode on, Ctrl+A, Z, C
+stay with vim.
 
 ## Focus ownership
 

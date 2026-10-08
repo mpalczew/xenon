@@ -21,7 +21,7 @@ impl SettingsView {
         let keystroke = &event.keystroke;
         let key = keystroke.key.as_str();
         let modifiers = keystroke.modifiers;
-        if modifiers.platform {
+        if modifiers.secondary() {
             if let Some(page) = SettingsPage::from_digit(key) {
                 self.show_page(page, window, cx);
                 self.keyboard = true;

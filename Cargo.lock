@@ -9469,6 +9469,7 @@ dependencies = [
  "objc2-app-kit 0.2.2",
  "theme",
  "unicode-segmentation",
+ "xenon_keymap",
  "xenon_settings",
 ]
 
@@ -9555,6 +9556,13 @@ dependencies = [
  "serde_json",
  "tungstenite",
  "uuid",
+]
+
+[[package]]
+name = "xenon_keymap"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -9657,6 +9665,7 @@ dependencies = [
  "qrcode",
  "serde",
  "serde_json",
+ "settings",
  "tempfile",
  "theme",
  "trash 5.2.6",
@@ -9665,6 +9674,7 @@ dependencies = [
  "xenon_editor",
  "xenon_finder",
  "xenon_ide",
+ "xenon_keymap",
  "xenon_lsp",
  "xenon_memory",
  "xenon_remote",

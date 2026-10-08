@@ -27,7 +27,7 @@ impl XenonApp {
         cx: &Context<Self>,
     ) {
         let key = event.keystroke.key.to_ascii_lowercase();
-        if event.keystroke.modifiers.platform && matches!(key.as_str(), "n" | "o") {
+        if event.keystroke.modifiers.secondary() && matches!(key.as_str(), "n" | "o") {
             log::info!(
                 "shortcut key event: {:?}; window_active={}; gpui_focus={:?}; xenon_focus={:?}",
                 event.keystroke,

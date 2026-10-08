@@ -126,7 +126,7 @@ impl TaskPickerView {
         self.on_nav(
             event.keystroke.key.as_str(),
             event.keystroke.modifiers.shift,
-            event.keystroke.modifiers.platform,
+            event.keystroke.modifiers.secondary(),
             cx,
         );
     }
@@ -200,7 +200,9 @@ impl Render for TaskPickerView {
                         colors: &colors,
                     }),
                     query_hint(
-                        "return runs in a new terminal  ·  ⌘return current  ·  esc closes",
+                        &xenon_design_system::shortcut_text(
+                            "return runs in a new terminal  ·  ⌘return current  ·  esc closes",
+                        ),
                         cx,
                     )
                     .into_any_element(),

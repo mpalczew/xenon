@@ -264,7 +264,7 @@ fn header(cx: &mut Context<ThemePickerView>) -> impl IntoElement + use<> {
             div()
                 .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
-                .child("⌘⌥T"),
+                .child(xenon_design_system::shortcut_text("⌘⌥T")),
         )
 }
 

@@ -98,7 +98,9 @@ fn tab_close(
         on_click,
     )
     .text_color(colors.text_muted)
-    .tooltip(tip_tooltip(SharedString::from("Close Tab · ⌘W")));
+    .tooltip(tip_tooltip(SharedString::from(
+        xenon_design_system::shortcut_text("Close Tab · ⌘W"),
+    )));
     if !always {
         close = close.invisible().group_hover(group, |s| s.visible());
     }

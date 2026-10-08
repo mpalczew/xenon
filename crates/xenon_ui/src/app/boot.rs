@@ -38,6 +38,7 @@ impl XenonApp {
                 app.start_memory_monitor(cx);
                 app.start_lsp_events(lsp_events, cx);
                 app.restart_git_dirt_watch(cx);
+                app.start_keymap_watch(cx);
                 if let Err(error) = xenon_store::refresh_on_launch() {
                     log::warn!("skill refresh: {error}");
                 }

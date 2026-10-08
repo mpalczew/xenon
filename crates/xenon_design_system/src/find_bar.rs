@@ -174,7 +174,7 @@ fn control<V: 'static>(
     } else {
         colors.text_muted
     };
-    let tip = SharedString::from(spec.tip);
+    let tip = SharedString::from(xenon_keymap::display_text(spec.tip));
     let on_action = config.on_action;
     let action = spec.action;
     div()

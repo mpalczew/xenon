@@ -136,7 +136,10 @@ impl TerminalView {
                     .bg(colors.elevated_surface_background)
                     .text_xs()
                     .text_color(colors.text_muted)
-                    .child(format!("⌘-click to open  {}", info.label)),
+                    .child(xenon_design_system::shortcut_text(&format!(
+                        "⌘-click to open  {}",
+                        info.label
+                    ))),
             ),
         )
         .with_priority(1)

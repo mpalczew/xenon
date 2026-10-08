@@ -371,7 +371,11 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     let hint = if command.keys.is_empty() {
         command.label.to_string()
     } else {
-        format!("{} · {}", command.label, command.keys)
+        format!(
+            "{} · {}",
+            command.label,
+            xenon_keymap::display_keys(command.keys)
+        )
     };
     let highlighted = active || primary;
     let paint = list_selection(&colors, highlighted);
@@ -421,7 +425,8 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     })
     .tooltip({
         let label = gpui::SharedString::from(command.label);
-        let keys = (!command.keys.is_empty()).then(|| gpui::SharedString::from(command.keys));
+        let keys = (!command.keys.is_empty())
+            .then(|| gpui::SharedString::from(xenon_keymap::display_keys(command.keys)));
         move |_window: &mut Window, cx: &mut gpui::App| {
             cx.new(|_| ToolbarTooltip {
                 label: label.clone(),

@@ -229,9 +229,9 @@ impl WorklistCaptureView {
             )
             .child(step("worklist-section-next", "›", 1, cx));
         let hint = if locked {
-            "Saved here"
+            "Saved here".to_owned()
         } else {
-            "⌥↑ ⌥↓ section"
+            xenon_design_system::shortcut_text("⌥↑ ⌥↓ section")
         };
         div()
             .mt_3()

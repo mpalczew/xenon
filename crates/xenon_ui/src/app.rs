@@ -49,6 +49,7 @@ mod focus_guard;
 mod git_dirt;
 mod key_events;
 mod keyboard;
+mod keymap;
 mod live;
 mod lsp;
 pub(crate) use lsp::settings_set_lsp;

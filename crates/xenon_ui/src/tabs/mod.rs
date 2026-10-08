@@ -284,7 +284,9 @@ impl XenonApp {
                 colors.text_muted
             })
             .cursor_pointer()
-            .tooltip(tip_tooltip(SharedString::from("Wrap Lines · ⌥Z"))),
+            .tooltip(tip_tooltip(SharedString::from(
+                xenon_design_system::shortcut_text("Wrap Lines · ⌥Z"),
+            ))),
         )
     }
 
@@ -312,9 +314,9 @@ impl XenonApp {
         }
         let previewing = self.active_editor_is_previewing(cx);
         let tip = SharedString::from(if previewing {
-            "Show Source · ⌘⇧V"
+            xenon_design_system::shortcut_text("Show Source · ⌘⇧V")
         } else {
-            "Markdown Preview · ⌘⇧V"
+            xenon_design_system::shortcut_text("Markdown Preview · ⌘⇧V")
         });
         let colors = colors.clone();
         Some(
@@ -368,6 +370,8 @@ impl XenonApp {
         .h_full()
         .flex_none()
         .text_color(colors.text_muted)
-        .tooltip(tip_tooltip(SharedString::from("New Terminal · ⌘N")))
+        .tooltip(tip_tooltip(SharedString::from(
+            xenon_design_system::shortcut_text("New Terminal · ⌘N"),
+        )))
     }
 }

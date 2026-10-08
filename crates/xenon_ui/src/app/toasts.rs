@@ -63,6 +63,25 @@ pub(crate) fn worklist_error(title: &str, error: impl std::fmt::Display) -> Toas
         ))
 }
 
+pub(crate) fn keymap_reloaded() -> Toast {
+    Toast::success("⌨️", "Keymap reloaded")
+}
+
+pub(crate) fn keymap_error(message: &str) -> Toast {
+    Toast::error("⌨️", "Keymap not loaded")
+        .detail(format!("{message} Still using the last good keys."))
+}
+
+/// A toast whose shortcut is too long for the countdown ring (Linux key names).
+#[cfg(feature = "visual-tests")]
+pub(crate) fn long_keys_sample() -> Toast {
+    Toast::info("📝", "Got it, task added").action(ToastAction::new(
+        "Undo",
+        Shortcut::new("⌘⌥⇧K"),
+        crate::UndoToast,
+    ))
+}
+
 /// A failed user action: what failed, and why.
 pub(crate) fn failed(title: impl Into<SharedString>, error: impl std::fmt::Display) -> Toast {
     Toast::error("🙈", title).detail(error.to_string())

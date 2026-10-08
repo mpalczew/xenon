@@ -187,7 +187,7 @@ impl XenonApp {
             .child(icon_button(
                 "add-workspace",
                 Icon::Plus,
-                Some("Open Workspace · ⌘⇧O"),
+                Some(&xenon_design_system::shortcut_text("Open Workspace · ⌘⇧O")),
                 cx,
                 cx.listener(|this, _, window, cx| {
                     cx.stop_propagation();
@@ -450,7 +450,7 @@ impl XenonApp {
             .child(icon_button(
                 ("workspace-close", id_hash(id.to_string())),
                 Icon::X,
-                Some("Close · ⌘⌥W"),
+                Some(&xenon_design_system::shortcut_text("Close · ⌘⌥W")),
                 cx,
                 cx.listener(move |this, _, window, cx| {
                     cx.stop_propagation();

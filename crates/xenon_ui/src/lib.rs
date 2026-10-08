@@ -10,6 +10,7 @@ mod file_browser;
 mod finder;
 mod git_dirt;
 mod icons;
+mod keymap;
 mod palette;
 mod rename;
 mod resize;
@@ -33,7 +34,7 @@ mod visual_review;
 #[cfg(feature = "visual-tests")]
 pub use app::visual::{SCENES, Scene, apply_scene, surface_names};
 
-use gpui::{App, KeyBinding, actions};
+use gpui::{App, actions};
 
 pub use app::XenonApp;
 pub(crate) use icons::preview_icon;
@@ -97,115 +98,13 @@ actions!(
         OpenWorklist,
         UndoToast,
         DismissToast,
+        OpenKeymap,
+        Quit,
     ]
 );
-
-/// Bind the shell's keyboard shortcuts. Call once at startup.
-pub fn bind_keys(cx: &mut App) {
-    cx.bind_keys([
-        // Create
-        KeyBinding::new("cmd-n", NewTerminal, None),
-        KeyBinding::new("cmd-shift-n", NewFile, None),
-        KeyBinding::new("cmd-alt-n", NewWorkspace, None),
-        KeyBinding::new("cmd-alt-shift-f", NewFolder, None),
-        // Open / jump
-        KeyBinding::new("cmd-o", OpenFile, None),
-        KeyBinding::new("cmd-p", FilePalette, None),
-        KeyBinding::new("cmd-shift-o", AddWorkspace, None),
-        KeyBinding::new("cmd-shift-r", RunTask, None),
-        KeyBinding::new("cmd-shift-k", CaptureWorklist, None),
-        KeyBinding::new("cmd-alt-k", OpenWorklist, None),
-        // Toast: handlers pass the key on when no toast claims it.
-        KeyBinding::new("cmd-z", UndoToast, None),
-        KeyBinding::new("cmd-.", DismissToast, None),
-        KeyBinding::new("cmd-shift-p", CommandPalette, None),
-        // macOS delivers Shift+/ as `?` (same as Zed's `cmd-?` bindings).
-        KeyBinding::new("cmd-?", KeyboardHelp, None),
-        KeyBinding::new("cmd-shift-/", KeyboardHelp, None),
-        // Focus panes
-        KeyBinding::new("cmd-1", FocusTerminal, None),
-        KeyBinding::new("cmd-2", FocusEditor, None),
-        KeyBinding::new("cmd-3", FocusBrowser, None),
-        KeyBinding::new("ctrl-`", FocusNextPane, None),
-        // Workspaces (vertical list)
-        KeyBinding::new("cmd-alt-down", NextWorkspace, None),
-        KeyBinding::new("cmd-alt-up", PrevWorkspace, None),
-        KeyBinding::new("cmd-alt-w", CloseWorkspace, None),
-        // Tabs (ctrl-tab matches browser/IDE muscle memory)
-        KeyBinding::new("ctrl-tab", NextTab, None),
-        KeyBinding::new("ctrl-shift-tab", PrevTab, None),
-        KeyBinding::new("cmd-shift-]", NextTab, None),
-        KeyBinding::new("cmd-shift-[", PrevTab, None),
-        // Surface history (browser-style; not sequential tab cycle)
-        KeyBinding::new("cmd-[", GoBack, None),
-        KeyBinding::new("cmd-]", GoForward, None),
-        KeyBinding::new("f12", GoToDefinition, Some("Editor")),
-        KeyBinding::new("f8", NextDiagnostic, Some("Editor")),
-        KeyBinding::new("shift-f8", PreviousDiagnostic, Some("Editor")),
-        KeyBinding::new("cmd-w", CloseEditor, None),
-        KeyBinding::new("cmd-alt-shift-w", CloseOtherTabs, None),
-        KeyBinding::new("cmd-alt-shift-c", CopyPath, None),
-        KeyBinding::new("cmd-alt-shift-r", CopyRelativePath, None),
-        KeyBinding::new("cmd-alt-r", RevealInFinder, None),
-        KeyBinding::new("cmd-alt-o", OpenInDefaultApp, None),
-        // Edit
-        KeyBinding::new("cmd-s", Save, None),
-        KeyBinding::new("cmd-shift-s", SaveAs, None),
-        KeyBinding::new("cmd-x", Cut, None),
-        KeyBinding::new("cmd-c", Copy, None),
-        KeyBinding::new("cmd-shift-c", CopyClean, None),
-        KeyBinding::new("cmd-alt-c", CopyCode, None),
-        KeyBinding::new("cmd-v", Paste, None),
-        KeyBinding::new("cmd-a", SelectAll, Some("Editor")),
-        // In-buffer find (editor context; also works when find bar focused)
-        KeyBinding::new("cmd-f", xenon_editor::Find, Some("Editor")),
-        KeyBinding::new("cmd-f", xenon_editor::Find, Some("EditorFind")),
-        KeyBinding::new("cmd-g", xenon_editor::FindNext, Some("Editor")),
-        KeyBinding::new("cmd-g", xenon_editor::FindNext, Some("EditorFind")),
-        KeyBinding::new("cmd-shift-g", xenon_editor::FindPrevious, Some("Editor")),
-        KeyBinding::new(
-            "cmd-shift-g",
-            xenon_editor::FindPrevious,
-            Some("EditorFind"),
-        ),
-        // Terminal scrollback find (mirrors editor strip)
-        KeyBinding::new("cmd-f", xenon_terminal::Find, Some("Terminal")),
-        KeyBinding::new("cmd-f", xenon_terminal::Find, Some("TerminalFind")),
-        KeyBinding::new("cmd-g", xenon_terminal::FindNext, Some("Terminal")),
-        KeyBinding::new("cmd-g", xenon_terminal::FindNext, Some("TerminalFind")),
-        KeyBinding::new(
-            "cmd-shift-g",
-            xenon_terminal::FindPrevious,
-            Some("Terminal"),
-        ),
-        KeyBinding::new(
-            "cmd-shift-g",
-            xenon_terminal::FindPrevious,
-            Some("TerminalFind"),
-        ),
-        // View chrome
-        KeyBinding::new("cmd-b", ToggleSidebar, None),
-        KeyBinding::new("cmd-j", ToggleTerminal, None),
-        KeyBinding::new("cmd-shift-e", ToggleEditor, None),
-        KeyBinding::new("cmd-\\", SplitRight, None),
-        KeyBinding::new("cmd-shift-\\", SplitDown, None),
-        KeyBinding::new("cmd-alt-\\", ReserveEmptyPaneRight, None),
-        KeyBinding::new("cmd-e", ToggleBrowser, None),
-        KeyBinding::new("cmd-,", ToggleSettings, None),
-        KeyBinding::new("cmd-alt-t", ToggleThemes, None),
-        KeyBinding::new("cmd-shift-v", TogglePreview, None),
-        KeyBinding::new("alt-z", ToggleSoftWrap, None),
-        KeyBinding::new("cmd-alt-m", ToggleMemory, None),
-        KeyBinding::new("cmd-shift-m", ConnectPhone, None),
-        KeyBinding::new("cmd-=", IncreaseFontSize, None),
-        KeyBinding::new("cmd-+", IncreaseFontSize, None),
-        KeyBinding::new("cmd--", DecreaseFontSize, None),
-        KeyBinding::new("cmd-0", ResetFontSize, None),
-    ]);
-}
 
 pub fn init(cx: &mut App) {
     xenon_settings::load_embedded_fonts(cx);
     icons::load_icon_font(cx);
-    bind_keys(cx);
+    keymap::install(cx);
 }

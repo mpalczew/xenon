@@ -152,7 +152,7 @@ impl TextInputView {
         self.blink.reset(cx, Self::blink_tick);
         let key = event.keystroke.key.as_str();
         let modifiers = event.keystroke.modifiers;
-        if modifiers.platform && !modifiers.control && key == "z" {
+        if modifiers.secondary() && key == "z" {
             let restored = if modifiers.shift {
                 self.history.redo(&mut self.value)
             } else {
@@ -176,12 +176,12 @@ impl TextInputView {
             self.config.key_behavior,
             TextInputKeyBehavior::ParentNavigation
         ) && (matches!(key, "enter" | "escape" | "tab" | "up" | "down")
-            || (key == "backspace" && (modifiers.platform || self.value.is_caret_at_start())))
+            || (key == "backspace" && (modifiers.secondary() || self.value.is_caret_at_start())))
         {
             cx.emit(TextInputEvent::ParentKey {
                 key: key.to_owned(),
                 shift: modifiers.shift,
-                platform: modifiers.platform,
+                platform: modifiers.secondary(),
             });
             cx.stop_propagation();
             return;
@@ -191,7 +191,7 @@ impl TextInputView {
         {
             return;
         }
-        if modifiers.platform && key == "a" {
+        if modifiers.secondary() && key == "a" {
             self.value.select_all();
             cx.notify();
             cx.stop_propagation();
@@ -220,7 +220,7 @@ impl TextInputView {
                         self.config.key_behavior,
                         TextInputKeyBehavior::SubmitAndCancel
                     )
-                    && !modifiers.platform =>
+                    && !modifiers.secondary() =>
             {
                 self.value.replace(None, "\n", false);
                 true

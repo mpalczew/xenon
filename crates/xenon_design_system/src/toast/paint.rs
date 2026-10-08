@@ -15,10 +15,13 @@ use super::{Toast, ToastAction, ToastKind, ToastView};
 use crate::{Shortcut, TypeRole, Typography};
 
 /// Ring diameter and key size by shortcut length, so ⌘⌥K fits as well as ⌘Z.
-fn ring_metrics(keys: &str) -> (f32, f32) {
+/// Ring size and key text size; `None` when the text is too long to sit
+/// inside the ring (spelled-out keys like `Ctrl+Z`) and goes beside it.
+fn ring_metrics(keys: &str) -> (f32, Option<f32>) {
     match keys.chars().count() {
-        0..=2 => (24., 9.),
-        _ => (30., 8.5),
+        0..=2 => (24., Some(9.)),
+        3 => (30., Some(8.5)),
+        _ => (22., None),
     }
 }
 
@@ -84,6 +87,13 @@ fn words(toast: &Toast, cx: &App) -> impl IntoElement {
 
 fn chip(action: &ToastAction, progress: f32, cx: &mut Context<ToastView>) -> impl IntoElement {
     let colors = cx.theme().colors();
+    let keys = action.shortcut.keys();
+    let beside = ring_metrics(&keys).1.is_none().then(|| {
+        div()
+            .text_size(px(10.))
+            .text_color(colors.text_muted)
+            .child(keys)
+    });
     div()
         .id("toast-action")
         .flex_none()
@@ -105,13 +115,15 @@ fn chip(action: &ToastAction, progress: f32, cx: &mut Context<ToastView>) -> imp
                 .text_color(colors.text_accent)
                 .child(action.label.clone()),
         )
+        .children(beside)
 }
 
 /// The shortcut inside a ring that drains as the toast's time runs out.
 fn countdown(shortcut: Shortcut, progress: f32, cx: &App) -> impl IntoElement {
     let colors = cx.theme().colors();
     let (track, fill) = (colors.text.opacity(0.12), colors.text_accent);
-    let (diameter, key_size) = ring_metrics(shortcut.keys());
+    let keys = shortcut.keys();
+    let (diameter, key_size) = ring_metrics(&keys);
     div()
         .relative()
         .flex_none()
@@ -132,13 +144,13 @@ fn countdown(shortcut: Shortcut, progress: f32, cx: &App) -> impl IntoElement {
             .absolute()
             .size_full(),
         )
-        .child(
+        .children(key_size.map(|size| {
             div()
-                .text_size(px(key_size))
+                .text_size(px(size))
                 .font_weight(gpui::FontWeight::BOLD)
                 .text_color(colors.text)
-                .child(shortcut.keys()),
-        )
+                .child(keys)
+        }))
 }
 
 fn paint_arc(

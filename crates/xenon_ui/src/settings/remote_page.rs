@@ -91,7 +91,7 @@ fn server_rows(info: &MobileRemoteInfo) -> Vec<SettingRow> {
             "phone-connect",
             "Pair a phone",
             Control::Action(RowAction {
-                label: "Connect Phone…  ⌘⇧M".into(),
+                label: xenon_design_system::shortcut_text("Connect Phone…  ⌘⇧M").into(),
                 kind: ActionKind::Primary,
                 run: Rc::new(|_, cx| remote::settings_connect_phone(cx)),
             }),
@@ -110,7 +110,7 @@ fn remote_subtitle(info: &MobileRemoteInfo) -> String {
         (Some(_), false) => {
             "On — Tailscale not detected, so your phone can’t reach this Mac".into()
         }
-        (None, _) => "Off — ⌘⇧M connects a phone".into(),
+        (None, _) => xenon_design_system::shortcut_text("Off — ⌘⇧M connects a phone"),
     }
 }
 

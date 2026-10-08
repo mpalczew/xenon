@@ -169,6 +169,7 @@ impl XenonApp {
                 this.new_terminal(window, cx);
             }))
             .on_action(cx.listener(|this, _: &OpenFile, _, cx| this.open_file_dialog(cx)))
+            .on_action(cx.listener(|this, _: &crate::OpenKeymap, _, cx| this.open_keymap(cx)))
             .on_action(cx.listener(|this, _: &NewFile, _, cx| this.new_file_dialog(cx)))
             .on_action(cx.listener(|this, _: &AddWorkspace, window, cx| {
                 this.log_shortcut_action("AddWorkspace", window, cx);

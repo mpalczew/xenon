@@ -214,7 +214,7 @@ impl FinderView {
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let key = event.keystroke.key.as_str();
-        let platform = event.keystroke.modifiers.platform || event.keystroke.modifiers.control;
+        let platform = event.keystroke.modifiers.secondary() || event.keystroke.modifiers.control;
         self.on_nav(key, event.keystroke.modifiers.shift, platform, cx);
     }
 
@@ -270,7 +270,7 @@ impl Render for FinderView {
                     cx,
                 )
                 .on_click(cx.listener(move |this, event: &gpui::ClickEvent, _, cx| {
-                    let beside = event.modifiers().platform || event.modifiers().control;
+                    let beside = event.modifiers().secondary() || event.modifiers().control;
                     this.click_result(i, beside, cx);
                 }))
                 .into_any_element()
@@ -296,7 +296,11 @@ impl Render for FinderView {
                         scroll: &self.scroll,
                         colors: &colors,
                     }),
-                    query_hint("return opens  ·  ⌘return beside", cx).into_any_element(),
+                    query_hint(
+                        &xenon_design_system::shortcut_text("return opens  ·  ⌘return beside"),
+                        cx,
+                    )
+                    .into_any_element(),
                 ],
             },
             cx,

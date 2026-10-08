@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use gpui::{
-    App, AppContext, Bounds, KeyBinding, Menu, MenuItem, OsAction, WindowBounds, WindowOptions,
-    actions, point, px, size,
+    App, AppContext, Bounds, Menu, MenuItem, OsAction, WindowBounds, WindowOptions, point, px, size,
 };
 use gpui_platform::application;
 use xenon_store::{
@@ -12,12 +11,10 @@ use xenon_ui::{
     AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, CopyClean, CopyCode, Cut,
     DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack,
     GoForward, IncreaseFontSize, KeyboardHelp, NewTerminal, NewWorkspace, NextTab, NextWorkspace,
-    OpenFile, Paste, PrevTab, PrevWorkspace, ResetFontSize, RunTask, Save, SelectAll,
+    OpenFile, Paste, PrevTab, PrevWorkspace, Quit, ResetFontSize, RunTask, Save, SelectAll,
     ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleSoftWrap, ToggleTerminal,
     ToggleThemes, XenonApp,
 };
-
-actions!(xenon, [Quit]);
 
 fn main() {
     init_logging();
@@ -173,10 +170,6 @@ fn init_logging() {
 /// App menus + Quit on Cmd-Q or closing the last window.
 fn wire_menus(cx: &mut App) {
     cx.on_action(|_: &Quit, cx| cx.quit());
-    cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
-    // Linux has no app menu to reach Quit from; cmd is the Super key there.
-    #[cfg(not(target_os = "macos"))]
-    cx.bind_keys([KeyBinding::new("ctrl-shift-q", Quit, None)]);
     cx.set_menus([
         Menu::new("Xenon").items([
             MenuItem::action("Themes…", ToggleThemes),

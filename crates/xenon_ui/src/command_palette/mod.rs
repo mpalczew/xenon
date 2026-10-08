@@ -28,7 +28,12 @@ pub enum PaletteItem {
 impl PaletteItem {
     fn haystack(&self) -> String {
         match self {
-            Self::Command(e) => format!("{} {} {}", e.label, e.keys, e.group),
+            Self::Command(e) => format!(
+                "{} {} {}",
+                e.label,
+                xenon_keymap::display_keys(e.keys),
+                e.group
+            ),
             Self::Workspace { label, .. } => label.clone(),
         }
     }
@@ -42,7 +47,7 @@ impl PaletteItem {
 
     fn detail(&self) -> String {
         match self {
-            Self::Command(e) => e.keys.to_string(),
+            Self::Command(e) => xenon_keymap::display_keys(e.keys),
             Self::Workspace { .. } => "workspace".into(),
         }
     }
@@ -189,7 +194,7 @@ impl CommandPaletteView {
         self.on_nav(
             event.keystroke.key.as_str(),
             event.keystroke.modifiers.shift,
-            event.keystroke.modifiers.platform,
+            event.keystroke.modifiers.secondary(),
             cx,
         );
     }

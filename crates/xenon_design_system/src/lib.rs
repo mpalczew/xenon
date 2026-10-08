@@ -57,6 +57,7 @@ pub use menu::{Shortcut, menu_item};
 pub use multiline_text::MultilineText;
 pub use toast::{Toast, ToastAction, ToastKind, ToastView, show_toast, show_toast_in, toast_host};
 pub use typography::{TypeRole, Typography};
+pub use xenon_keymap::display_text as shortcut_text;
 
 /// How a selectable chrome row or chip should paint.
 #[derive(Clone, Copy)]

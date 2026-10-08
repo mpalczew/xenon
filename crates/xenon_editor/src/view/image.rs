@@ -51,7 +51,7 @@ impl EditorView {
         let Content::Image(viewer) = &mut self.content else {
             return;
         };
-        if !event.modifiers.platform {
+        if !event.modifiers.secondary() {
             viewer.pan(event_delta(event));
             cx.stop_propagation();
             cx.notify();

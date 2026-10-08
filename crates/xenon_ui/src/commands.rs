@@ -74,6 +74,7 @@ pub enum CommandId {
     Copy,
     Cut,
     Paste,
+    OpenKeymap,
 }
 
 macro_rules! cmd {
@@ -87,7 +88,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 61] {
+const fn all_commands() -> [CommandEntry; 62] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -155,12 +156,13 @@ const fn all_commands() -> [CommandEntry; 61] {
         cmd!(Copy, "Copy", "⌘C", "Edit"),
         cmd!(Cut, "Cut", "⌘X", "Edit"),
         cmd!(Paste, "Paste", "⌘V", "Edit"),
+        cmd!(OpenKeymap, "Open Keymap", "", "View"),
     ]
 }
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 61] = all_commands();
+    static ENTRIES: [CommandEntry; 62] = all_commands();
     &ENTRIES
 }
 

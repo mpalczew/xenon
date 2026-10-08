@@ -35,7 +35,7 @@ impl EditorView {
             return;
         }
         if matches!(self.content, Content::Image(_)) {
-            if !keystroke.modifiers.platform {
+            if !keystroke.modifiers.secondary() {
                 return;
             }
             match keystroke.key.as_str() {
@@ -51,7 +51,7 @@ impl EditorView {
         if !matches!(self.content, Content::Text(_)) {
             return;
         }
-        if keystroke.modifiers.platform && keystroke.key == "z" {
+        if self.command_chord(keystroke, cx) && keystroke.key == "z" {
             let edited = if keystroke.modifiers.shift {
                 self.redo_edit()
             } else {
@@ -65,14 +65,14 @@ impl EditorView {
             cx.notify();
             return;
         }
-        if keystroke.modifiers.platform && keystroke.key == "a" {
+        if self.command_chord(keystroke, cx) && keystroke.key == "a" {
             self.select_all(cx);
             cx.stop_propagation();
             return;
         }
         if self.preview {
             // Preview is read-only: select-all (above), copy, heading steps, and Esc/menu.
-            if keystroke.modifiers.platform && keystroke.key == "c" {
+            if self.command_chord(keystroke, cx) && keystroke.key == "c" {
                 self.copy_selection(cx);
                 cx.stop_propagation();
             }
@@ -121,6 +121,13 @@ impl EditorView {
         };
         let result = self.vim.handle_key(buffer, key);
         self.apply_vim_result(result, cx)
+    }
+
+    /// The platform's command chord (cmd on macOS, ctrl elsewhere). With vim
+    /// mode on, ctrl keeps its vim meaning off macOS.
+    fn command_chord(&self, keystroke: &gpui::Keystroke, cx: &gpui::App) -> bool {
+        let vim_owns_ctrl = cfg!(not(target_os = "macos")) && xenon_settings::vim_mode(cx);
+        keystroke.modifiers.secondary() && !vim_owns_ctrl
     }
 
     /// Returns true if the keystroke was fully consumed (caller should return).
@@ -304,7 +311,7 @@ impl EditorView {
             return;
         };
         let (row, col) = mouse::position_at(layout, event.position);
-        if event.modifiers.platform {
+        if event.modifiers.secondary() {
             buffer.set_cursor_position(row, col);
             self.emit_go_to_definition(cx);
             self.claim_keyboard(window, cx);
@@ -406,6 +413,15 @@ fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand>
         match keystroke.key.as_str() {
             "left" => Some(Motion::WordLeft),
             "right" => Some(Motion::WordRight),
+            _ => None,
+        }
+    } else if cfg!(not(target_os = "macos")) && keystroke.modifiers.control {
+        // Linux/IDE convention: ctrl moves by word, ctrl-home/end by file.
+        match keystroke.key.as_str() {
+            "left" => Some(Motion::WordLeft),
+            "right" => Some(Motion::WordRight),
+            "home" => Some(Motion::FileStart),
+            "end" => Some(Motion::FileEnd),
             _ => None,
         }
     } else {

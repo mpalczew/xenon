@@ -28,7 +28,7 @@ impl EditorView {
             ("left", Cursor::Header(index)) => self.worklist_fold(index, Some(true), cx),
             ("right", Cursor::Header(index)) => self.worklist_fold(index, Some(false), cx),
             ("space", Cursor::Header(index)) => self.worklist_fold(index, None, cx),
-            ("enter", Cursor::Header(index)) if keys.platform => {
+            ("enter", Cursor::Header(index)) if keys.secondary() => {
                 self.worklist_start_rename(index, cx)
             }
             ("enter", Cursor::Header(index)) => {

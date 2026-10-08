@@ -74,7 +74,7 @@ pub fn key_chip(
                 .border_color(colors.border)
                 .bg(colors.element_background)
                 .text_color(colors.text)
-                .child(keys),
+                .child(xenon_keymap::display_keys(keys)),
         )
         .child(label.into())
 }

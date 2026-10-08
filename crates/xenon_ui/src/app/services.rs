@@ -28,4 +28,6 @@ pub(super) struct AppServices {
     pub bounds_save_generation: u64,
     pub window_bounds_subscription: Option<Subscription>,
     pub focus_guard: Vec<Subscription>,
+    pub keymap_watcher: Option<notify::RecommendedWatcher>,
+    pub keymap_task: Option<Task<()>>,
 }

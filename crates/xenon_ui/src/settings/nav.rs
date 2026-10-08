@@ -82,7 +82,7 @@ fn search_field(
             div()
                 .type_role(TypeRole::ControlLabel, cx)
                 .text_color(colors.text_muted)
-                .child("⌘F")
+                .child(xenon_design_system::shortcut_text("⌘F"))
         }))
 }
 

@@ -1002,7 +1002,7 @@ impl TerminalView {
         set_mouse_to_app: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let tip = SharedString::from(tip);
+        let tip = SharedString::from(xenon_design_system::shortcut_text(tip));
         xenon_design_system::action_button(
             label,
             if active {

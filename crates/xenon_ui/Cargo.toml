@@ -34,6 +34,8 @@ theme.workspace = true
 anyhow.workspace = true
 async-channel.workspace = true
 serde_json.workspace = true
+settings.workspace = true
+xenon_keymap.workspace = true
 log = "0.4"
 lucide-icons.workspace = true
 nucleo.workspace = true
@@ -45,3 +47,4 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+gpui = { workspace = true, features = ["test-support"] }

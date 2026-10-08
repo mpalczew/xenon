@@ -60,7 +60,7 @@ fn action_hint(
     move |_window, cx| {
         cx.new(|_| ActionHint {
             label: label.into(),
-            keys: keys.into(),
+            keys: xenon_design_system::shortcut_text(keys).into(),
         })
         .into()
     }

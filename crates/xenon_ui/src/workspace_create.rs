@@ -282,7 +282,7 @@ impl WorkspaceCreateView {
         self.on_nav(
             event.keystroke.key.as_str(),
             event.keystroke.modifiers.shift,
-            event.keystroke.modifiers.platform,
+            event.keystroke.modifiers.secondary(),
             cx,
         );
     }

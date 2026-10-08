@@ -198,6 +198,7 @@ impl XenonApp {
             CommandId::ZoomIn => self.nudge_font_size(1.0, window, cx),
             CommandId::ZoomOut => self.nudge_font_size(-1.0, window, cx),
             CommandId::ZoomReset => self.reset_font_size(window, cx),
+            CommandId::OpenKeymap => self.open_keymap(cx),
         }
     }
 

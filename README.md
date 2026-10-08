@@ -177,7 +177,8 @@ Bundle only (no copy to Applications):
 | Save | ⌘S |
 | Connect phone (QR) | ⌘⇧M |
 
-Full map: [`docs/keyboard-first.md`](docs/keyboard-first.md).
+Full map, Linux keys (Ctrl where the table says ⌘), and how to rebind with
+`~/.xenon/keymap.json`: [`docs/keyboard-first.md`](docs/keyboard-first.md#customizing-keys).
 
 ---
 

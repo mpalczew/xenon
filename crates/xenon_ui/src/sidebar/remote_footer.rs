@@ -54,7 +54,9 @@ impl XenonApp {
                 .child(if active {
                     div().size(px(7.)).rounded_full().bg(colors.text_accent)
                 } else {
-                    div().text_color(colors.text_muted).child("⌘⇧M")
+                    div()
+                        .text_color(colors.text_muted)
+                        .child(xenon_design_system::shortcut_text("⌘⇧M"))
                 }),
         )
     }

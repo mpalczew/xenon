@@ -53,12 +53,14 @@ impl XenonApp {
                     }
                 }),
             )
-            .tooltip(crate::tabs::tip_tooltip("New Terminal · ⌘N".into()))
+            .tooltip(crate::tabs::tip_tooltip(
+                xenon_design_system::shortcut_text("New Terminal · ⌘N").into(),
+            ))
             .into_any_element()
         } else {
             action_button(
                 "empty-open-workspace",
-                ActionButton::primary("Open Workspace  ⌘⇧O"),
+                ActionButton::primary(xenon_design_system::shortcut_text("Open Workspace  ⌘⇧O")),
                 cx,
                 cx.listener(|this, _, window, cx| this.add_workspace(window, cx)),
             )
@@ -71,7 +73,9 @@ impl XenonApp {
                 cx,
                 cx.listener(|this, _, window, cx| this.open_palette(window, cx)),
             )
-            .tooltip(crate::tabs::tip_tooltip("Open File · ⌘O".into()))
+            .tooltip(crate::tabs::tip_tooltip(
+                xenon_design_system::shortcut_text("Open File · ⌘O").into(),
+            ))
             .into_any_element()
         });
         let close_workspace = has_workspace.then(|| {
@@ -81,7 +85,9 @@ impl XenonApp {
                 cx,
                 cx.listener(|this, _, window, cx| this.close_active_workspace(window, cx)),
             )
-            .tooltip(crate::tabs::tip_tooltip("Close Workspace · ⌘⌥W".into()))
+            .tooltip(crate::tabs::tip_tooltip(
+                xenon_design_system::shortcut_text("Close Workspace · ⌘⌥W").into(),
+            ))
             .into_any_element()
         });
         let remove_empty_pane = remove_pane.filter(|pane| {
