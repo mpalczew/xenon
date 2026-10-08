@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Linux install (no .app, no codesign). Called by scripts/release/install.
+#   ~/.local/share/xenon/xenon-bin   GUI binary
+#   ~/.local/bin/xenon               slot launcher (scripts/xenon); `xero` symlink
+#   ~/.local/share/applications/xenon.desktop + hicolor icon
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+(cd "$root" && cargo build --release -p xenon)
+target="${CARGO_TARGET_DIR:-target}"
+[[ "$target" == /* ]] || target="$root/$target"
+
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+app_dir="${XENON_APP_DIR:-$data_home/xenon}"
+bin_dir="${XENON_BIN_DIR:-$HOME/.local/bin}"
+mkdir -p "$app_dir" "$bin_dir" "$data_home/applications"
+
+# Replace via rename so a running instance keeps its old inode.
+install -m 755 "$target/release/xenon" "$app_dir/xenon-bin.new"
+mv -f "$app_dir/xenon-bin.new" "$app_dir/xenon-bin"
+echo "installed $app_dir/xenon-bin"
+
+install -m 755 "$root/scripts/xenon" "$bin_dir/xenon"
+ln -sfn xenon "$bin_dir/xero"
+echo "installed $bin_dir/xenon"
+
+# Icon: 512px when ImageMagick is available, else the 1024px source as-is.
+icon_src="$root/macos/xenon-icon-source.png"
+if command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1; then
+    size=512
+else
+    size=1024
+fi
+icon_dir="$data_home/icons/hicolor/${size}x${size}/apps"
+mkdir -p "$icon_dir"
+if [[ $size == 512 ]]; then
+    resize="$(command -v magick || command -v convert)"
+    "$resize" "$icon_src" -resize 512x512 "$icon_dir/xenon.png"
+else
+    cp "$icon_src" "$icon_dir/xenon.png"
+fi
+
+cat >"$data_home/applications/xenon.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Xenon
+Comment=Agent shell for driving coding agents
+Exec=$bin_dir/xenon %F
+Icon=xenon
+Terminal=false
+Categories=Development;TerminalEmulator;
+StartupWMClass=xenon
+DESKTOP
+echo "installed $data_home/applications/xenon.desktop"
+
+command -v update-desktop-database >/dev/null 2>&1 &&
+    update-desktop-database "$data_home/applications" 2>/dev/null || true
+command -v gtk-update-icon-cache >/dev/null 2>&1 &&
+    gtk-update-icon-cache -q -t "$data_home/icons/hicolor" 2>/dev/null || true
+case ":$PATH:" in
+    *":$bin_dir:"*) ;;
+    *) echo "note: $bin_dir is not on PATH" >&2 ;;
+esac

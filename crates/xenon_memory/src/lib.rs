@@ -18,6 +18,10 @@ pub fn process_memory() -> ProcessMemory {
     {
         return macos::process_memory();
     }
+    #[cfg(target_os = "linux")]
+    {
+        return linux::process_memory();
+    }
     #[allow(unreachable_code)]
     ProcessMemory::default()
 }
@@ -32,6 +36,34 @@ pub fn write_snapshot<T: Serialize>(path: &Path, snapshot: &T) -> std::io::Resul
     let temp = path.with_extension("json.tmp");
     std::fs::write(&temp, json)?;
     std::fs::rename(temp, path)
+}
+
+/// Linux has no compressed memory or physical-footprint ledger: footprint is
+/// resident pages, the peak is `VmHWM`.
+#[cfg(target_os = "linux")]
+mod linux {
+    use super::ProcessMemory;
+
+    pub(super) fn process_memory() -> ProcessMemory {
+        let page = 4096;
+        let resident = std::fs::read_to_string("/proc/self/statm")
+            .ok()
+            .and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok())
+            .map_or(0, |pages| pages * page);
+        let peak = std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|s| {
+                let line = s.lines().find(|l| l.starts_with("VmHWM:"))?;
+                line.split_whitespace().nth(1)?.parse::<u64>().ok()
+            })
+            .map_or(resident, |kib| kib * 1024);
+        ProcessMemory {
+            footprint_bytes: resident,
+            peak_footprint_bytes: peak.max(resident),
+            resident_bytes: resident,
+            compressed_bytes: 0,
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -101,7 +133,7 @@ mod tests {
         assert_eq!(parsed, ProcessMemory::default());
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[test]
     fn process_memory_has_sane_footprint() {
         let memory = process_memory();

@@ -4,8 +4,19 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
 
 use xenon_stub::gui_binary;
+
+/// Linux refuses to exec a file another thread still has open for writing
+/// (ETXTBSY, via fork fd inheritance), so tests take turns.
+static SERIAL: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 fn stub_exe() -> PathBuf {
     std::env::var_os("CARGO_BIN_EXE_xenon-stub")
@@ -66,6 +77,7 @@ fn run_stub(stub: &Path, home: &Path, extra_env: &[(&str, &str)]) -> String {
 
 #[test]
 fn stub_adopts_last_slot() {
+    let _serial = serial();
     let root = tempfile::TempDir::new().unwrap();
     let macos = root.path().join("MacOS");
     let stub = install_stub(&macos);
@@ -85,6 +97,7 @@ fn stub_adopts_last_slot() {
 
 #[test]
 fn stub_without_marker_uses_ship_dir() {
+    let _serial = serial();
     let root = tempfile::TempDir::new().unwrap();
     let macos = root.path().join("MacOS");
     let stub = install_stub(&macos);
@@ -100,6 +113,7 @@ fn stub_without_marker_uses_ship_dir() {
 
 #[test]
 fn stub_preserves_existing_data_dir_env() {
+    let _serial = serial();
     let root = tempfile::TempDir::new().unwrap();
     let macos = root.path().join("MacOS");
     let stub = install_stub(&macos);

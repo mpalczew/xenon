@@ -192,14 +192,20 @@ impl XenonApp {
         }
     }
 
-    /// macOS: `open -R` selects the file in Finder.
+    /// macOS: `open -R` selects the file in Finder. Linux: `xdg-open` on the
+    /// containing folder (file managers have no portable "select" verb).
     pub(crate) fn reveal_in_finder(path: &Path, cx: &mut App) {
+        #[cfg(target_os = "macos")]
         let spawned = std::process::Command::new("open")
             .arg("-R")
             .arg(path)
             .spawn();
+        #[cfg(not(target_os = "macos"))]
+        let spawned = std::process::Command::new("xdg-open")
+            .arg(path.parent().unwrap_or(path))
+            .spawn();
         if let Err(error) = spawned {
-            let toast = super::toasts::failed("Couldn’t reveal that in Finder", error);
+            let toast = super::toasts::failed("Couldn’t reveal that in the file manager", error);
             xenon_design_system::show_toast(toast, cx);
         }
     }

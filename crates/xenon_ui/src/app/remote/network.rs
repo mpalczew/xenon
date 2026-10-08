@@ -6,11 +6,15 @@ use std::process::Command;
 
 use xenon_store::RemoteNetwork;
 
-/// CLI locations: Homebrew/standalone, then the Mac App Store app bundle.
+/// CLI locations: `tailscale` on PATH (Linux packages, Homebrew), then the
+/// macOS standalone and Mac App Store locations.
 const TAILSCALE_CLIS: &[&str] = &[
     "tailscale",
+    #[cfg(target_os = "macos")]
     "/usr/local/bin/tailscale",
+    #[cfg(target_os = "macos")]
     "/opt/homebrew/bin/tailscale",
+    #[cfg(target_os = "macos")]
     "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
 ];
 
@@ -105,16 +109,23 @@ pub(crate) fn normalize_hostname(raw: &str) -> String {
         .to_string()
 }
 
-/// This Mac's user-facing name ("Michal's MacBook Pro").
+/// This machine's user-facing name ("Michal's MacBook Pro").
 pub(crate) fn computer_name() -> String {
-    Command::new("scutil")
-        .args(["--get", "ComputerName"])
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("scutil");
+        command.args(["--get", "ComputerName"]);
+        command
+    };
+    #[cfg(not(target_os = "macos"))]
+    let mut command = Command::new("hostname");
+    command
         .output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "this Mac".to_string())
+        .unwrap_or_else(|| "this computer".to_string())
 }
 
 fn is_tailscale(ip: &Ipv4Addr) -> bool {

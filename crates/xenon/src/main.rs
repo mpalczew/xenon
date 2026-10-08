@@ -49,6 +49,8 @@ fn main() {
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(window_bounds),
+                // Linux: matches StartupWMClass in xenon.desktop.
+                app_id: Some("xenon".into()),
                 ..Default::default()
             },
             move |window, cx| {
@@ -172,6 +174,9 @@ fn init_logging() {
 fn wire_menus(cx: &mut App) {
     cx.on_action(|_: &Quit, cx| cx.quit());
     cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+    // Linux has no app menu to reach Quit from; cmd is the Super key there.
+    #[cfg(not(target_os = "macos"))]
+    cx.bind_keys([KeyBinding::new("ctrl-shift-q", Quit, None)]);
     cx.set_menus([
         Menu::new("Xenon").items([
             MenuItem::action("Themes…", ToggleThemes),

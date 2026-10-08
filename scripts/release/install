@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+if [[ "$(uname -s)" != Darwin ]]; then
+    exec "$root/scripts/release/install-linux" "$@"
+fi
 # shellcheck source=codesign.sh
 source "$root/scripts/release/codesign.sh"
 

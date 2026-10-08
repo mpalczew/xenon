@@ -2,9 +2,15 @@
 set -euo pipefail
 
 # Slot launcher for Xenon (legacy name: xero). Supports both app binaries during rename.
-APP_BIN="${XENON_APP:-${XERO_APP:-$HOME/Applications/Xenon.app}}/Contents/MacOS/xenon"
-if [[ ! -x "$APP_BIN" ]]; then
-    APP_BIN="${XERO_APP:-$HOME/Applications/xero.app}/Contents/MacOS/xero"
+# Linux has no .app bundle: scripts/release/install-linux puts the GUI binary
+# at $XENON_APP_DIR/xenon-bin (default ~/.local/share/xenon).
+if [[ "$(uname -s)" == Darwin ]]; then
+    APP_BIN="${XENON_APP:-${XERO_APP:-$HOME/Applications/Xenon.app}}/Contents/MacOS/xenon"
+    if [[ ! -x "$APP_BIN" ]]; then
+        APP_BIN="${XERO_APP:-$HOME/Applications/xero.app}/Contents/MacOS/xero"
+    fi
+else
+    APP_BIN="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
 fi
 APP="$APP_BIN"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
@@ -72,10 +78,32 @@ pid_is_live_app() {
     [[ "$comm" == "xenon" || "$comm" == "xenon-bin" || "$comm" == "xero" ]]
 }
 
+# Linux: the slot comes from the process env in /proc.
+pid_slot_linux() {
+    local pid="$1" env slot data
+    env="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null)" || return 1
+    slot="$(sed -n -e 's/^XENON_SLOT=//p' -e 's/^XERO_SLOT=//p' <<<"$env" | head -n1)"
+    slot="$(printf '%s' "$slot" | tr '[:upper:]' '[:lower:]')"
+    case "$slot" in
+        a | b) printf '%s\n' "$slot"; return 0 ;;
+    esac
+    data="$(sed -n -e 's/^XENON_DATA_DIR=//p' -e 's/^XERO_DATA_DIR=//p' <<<"$env" | head -n1)"
+    data="${data%/}"
+    case "$data" in
+        *.xenon-a | *.xero-a) printf 'a\n' ;;
+        *.xenon-b | *.xero-b) printf 'b\n' ;;
+        *) return 1 ;;
+    esac
+}
+
 # macOS does not expose process env via `ps e`; read it with KERN_PROCARGS2.
 pid_slot() {
     local pid="$1"
     local slot
+    if [[ "$(uname -s)" != Darwin ]]; then
+        pid_slot_linux "$pid"
+        return
+    fi
     slot="$(
         python3 - "$pid" <<'PY'
 import sys
@@ -376,6 +404,8 @@ raise_pid() {
     local pid="$1"
     [[ "$pid" =~ ^[0-9]+$ ]] || return 1
     kill -0 "$pid" 2>/dev/null || return 1
+    # Linux: no portable raise-by-pid (Wayland); the IPC Activate handoff is the path.
+    [[ "$(uname -s)" == Darwin ]] || return 1
     osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null
 }
 

@@ -115,6 +115,25 @@ cert. Inspect with:
 Do **not** ad-hoc sign with `-` for daily installs—the CDHash changes every
 build and macOS drops permissions.
 
+### Linux (Ubuntu 24.04+, Wayland or X11)
+
+Experimental: builds and passes tests; same app, minus macOS-only chrome.
+
+```bash
+sudo apt install build-essential cmake clang lld pkg-config curl git rsync \
+  libasound2-dev libfontconfig-dev libglib2.0-dev libssl-dev libvulkan-dev \
+  libwayland-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+  libxcb1-dev libxcb-xkb-dev libzstd-dev libsqlite3-dev libgit2-dev libva-dev
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust stable
+git clone https://github.com/mpalczew/xenon.git && cd xenon
+./scripts/release/install
+```
+
+Installs `~/.local/share/xenon/xenon-bin`, the launcher `~/.local/bin/xenon`,
+and a `.desktop` entry + icon (`XENON_APP_DIR`, `XENON_BIN_DIR` override).
+Update with `git pull && ./scripts/release/install`. Needs a Vulkan-capable
+GPU driver. "cmd" shortcuts are the Super key on Linux; quit is `ctrl-shift-q`.
+
 ### Dev loop
 
 ```bash

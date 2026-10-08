@@ -44,6 +44,14 @@ and `CONTRIBUTING.md`.
   Never ad-hoc `-` for install — that changes the CDHash every build and drops
   Full Disk Access. Use `scripts/release/sign_setup` to print the identity.
   Complex release steps live under `scripts/release/`.
+- Linux: `scripts/release/install` branches on `uname` to `install-linux` (no
+  .app/codesign): GUI at `~/.local/share/xenon/xenon-bin`, launcher
+  `~/.local/bin/xenon` (same `scripts/xenon`, slot detection via
+  `/proc/<pid>/environ`; no raise-by-pid, IPC handoff only), `.desktop` + icon.
+  `xenon_stub` is unused there. `cmd-*` bindings are the Super key (GNOME grabs
+  some); `visual_test_runner` stays mac-only. Build deps: README "Linux".
+  Linux refuses to exec a file open for write (ETXTBSY): serialize tests that
+  write then exec binaries (see `xenon_stub/tests/exec.rs`).
 - Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
   Toolchain (`xcodebuild -downloadComponent MetalToolchain`). Missing either
   fails the build inside `wasmtime-c-api-impl` / `gpui_macos` respectively.
