@@ -52,6 +52,8 @@ Market this honestly: **anti-IDE shell where the agent is free to leave.**
 ## Features
 
 - **Multi-workspace sessions** — project roots with saved layout and tabs
+- **SSH workspaces** — browse/edit remote text files and reconnect to persistent
+  agent terminals; [setup and current scope](docs/ssh-workspaces.md)
 - **First-class terminals** — not a drawer; agents live as tabs (and splits)
 - **Editors when you need them** — tree-sitter highlighting, find, vim mode,
   LSP for Rust and TypeScript

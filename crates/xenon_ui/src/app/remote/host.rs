@@ -264,7 +264,7 @@ pub(super) fn collect_terminals(node: &LiveNode, f: &mut dyn FnMut(TabId, &Entit
 fn find_terminal_cwd(node: &PaneNode, tab: TabId) -> Option<String> {
     match node {
         PaneNode::Leaf(leaf) => leaf.tabs.iter().find_map(|t| match t {
-            TabState::Terminal { id, cwd } if *id == tab => Some(cwd.display().to_string()),
+            TabState::Terminal { id, cwd, .. } if *id == tab => Some(cwd.display().to_string()),
             _ => None,
         }),
         PaneNode::Split { first, second, .. } => {

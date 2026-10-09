@@ -14,6 +14,9 @@ pub(crate) fn markdown_preview(
 
 impl super::EditorView {
     pub fn is_dirty(&self) -> bool {
+        if let Some(dirty) = self.remote_is_dirty() {
+            return dirty;
+        }
         match &self.content {
             super::Content::Text(buffer) => buffer.is_dirty(),
             _ => false,

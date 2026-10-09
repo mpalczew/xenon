@@ -89,7 +89,7 @@ impl XenonApp {
         let current = self.active;
         let mut known = Vec::new();
         for rec in &self.registry.closed_workspaces {
-            let missing = !crate::workspace_discover::path_is_dir(&rec.root);
+            let missing = rec.ssh.is_none() && !crate::workspace_discover::path_is_dir(&rec.root);
             known.push(WorkspaceCandidate::Closed {
                 id: rec.id,
                 name: rec.name.clone(),
@@ -114,6 +114,15 @@ impl XenonApp {
             }
         }
         let picker = cx.new(|cx| WorkspacePickerView::new(known, cx));
+        let remote_paths = self
+            .registry
+            .workspaces
+            .iter()
+            .chain(self.registry.closed_workspaces.iter())
+            .filter(|workspace| workspace.ssh.is_some())
+            .map(|workspace| (workspace.root.clone(), workspace.display_root()))
+            .collect();
+        picker.update(cx, |picker, _| picker.set_remote_paths(remote_paths));
         self._workspace_picker_sub = Some(cx.subscribe(&picker, Self::on_workspace_picker_event));
         self.workspace_picker = Some(picker);
         cx.notify();
@@ -167,6 +176,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         match event {
+            WorkspacePickerEvent::Ssh(address) => self.connect_ssh_workspace(address, cx),
             WorkspacePickerEvent::Open(candidate) => {
                 self.workspace_picker = None;
                 self.deferred.restore_pane = None;
@@ -214,7 +224,10 @@ impl XenonApp {
             | WorkspaceCandidate::Path { root, .. } => root,
         };
         let missing = matches!(candidate, WorkspaceCandidate::Closed { missing: true, .. });
-        if missing || !crate::workspace_discover::path_is_dir(root) {
+        if missing
+            || (!root.starts_with("/__xenon_ssh__")
+                && !crate::workspace_discover::path_is_dir(root))
+        {
             self.show_toast(super::toasts::folder_missing(root), cx);
             return;
         }
@@ -275,6 +288,9 @@ impl XenonApp {
         let basename = root.file_name().map(|n| n.to_os_string());
         if let Some(base) = basename {
             self.registry.closed_workspaces.retain(|rec| {
+                if rec.ssh.is_some() {
+                    return true;
+                }
                 if crate::workspace_discover::path_is_dir(&rec.root) {
                     return true;
                 }
@@ -420,7 +436,9 @@ impl XenonApp {
             return false;
         };
         // Never reopen a root that no longer exists on disk.
-        if !crate::workspace_discover::path_is_dir(&self.registry.closed_workspaces[index].root) {
+        if self.registry.closed_workspaces[index].ssh.is_none()
+            && !crate::workspace_discover::path_is_dir(&self.registry.closed_workspaces[index].root)
+        {
             return false;
         }
         let record = self.registry.closed_workspaces.remove(index);

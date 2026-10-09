@@ -66,12 +66,13 @@ impl XenonApp {
                 }
                 return;
             };
-            let view = self.spawn_terminal(root_path, ws, cx);
             let tab_id = self
                 .contents
                 .get(&ws)
                 .map(|c| c.next_tab_id())
                 .unwrap_or(TabId(1));
+            let tab_id = TabId(tab_id.0.max(moved.id().0.saturating_add(1)));
+            let view = self.spawn_terminal_for(root_path, (ws, tab_id), cx);
             vec![LiveTab::Terminal { id: tab_id, view }]
         } else {
             remaining
@@ -259,12 +260,13 @@ impl XenonApp {
                 }
                 return;
             };
-            let view = self.spawn_terminal(root_path, ws, cx);
             let term_id = self
                 .contents
                 .get(&ws)
                 .map(|c| c.next_tab_id())
                 .unwrap_or(TabId(1));
+            let term_id = TabId(term_id.0.max(tab_state.id().0.saturating_add(1)));
+            let view = self.spawn_terminal_for(root_path, (ws, term_id), cx);
             if let Some(content) = self.contents.get_mut(&ws)
                 && let Some(leaf) = content
                     .root

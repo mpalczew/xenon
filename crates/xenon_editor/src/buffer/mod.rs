@@ -2,6 +2,7 @@
 //! Pure logic (no gpui) so it can be unit tested directly.
 
 mod io;
+mod remote;
 mod sel;
 
 use std::ops::Range;
@@ -50,6 +51,7 @@ pub struct Buffer {
     version: u64,
     /// `version` at last open/save/reload. Dirty when these differ.
     saved_version: u64,
+    mutation: u64,
     disk_mtime: Option<SystemTime>,
     disk_snapshot: Option<Vec<u8>>,
     never_created: bool,
@@ -207,6 +209,7 @@ impl Buffer {
     }
 
     fn apply_raw(&mut self, old: &str, new: &str, start: usize) {
+        self.mutation = self.mutation.wrapping_add(1);
         let old_len = old.chars().count();
         let end = start + old_len;
         if old_len > 0 {

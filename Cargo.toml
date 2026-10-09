@@ -19,6 +19,7 @@ unimplemented = "deny"
 
 [workspace.dependencies]
 xenon_core = { path = "crates/xenon_core" }
+xenon_ssh = { path = "crates/xenon_ssh" }
 xenon_store = { path = "crates/xenon_store" }
 xenon_terminal = { path = "crates/xenon_terminal" }
 xenon_editor = { path = "crates/xenon_editor" }

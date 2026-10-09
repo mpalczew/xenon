@@ -59,7 +59,7 @@ impl XenonApp {
             .map(|w| WorkspaceRows {
                 id: w.id,
                 name: w.name.clone(),
-                path: w.root.display().to_string(),
+                path: w.display_root(),
                 active: active == Some(w.id),
                 status: self.workspace_status(w.id, cx),
             })

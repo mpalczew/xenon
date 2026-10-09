@@ -74,17 +74,40 @@ impl XenonApp {
             let Ok(choice) = answer.await else {
                 return;
             };
-            this.update(cx, |this, cx| match choice {
-                0 => {
-                    for tab in &dirty {
-                        tab.view.update(cx, |editor, cx| editor.save(cx));
-                    }
-                    this.finish_dirty_close(after, cx);
+            if choice == 0 {
+                let started = this
+                    .update(cx, |_, cx| {
+                        for tab in &dirty {
+                            tab.view.update(cx, |editor, cx| editor.save(cx));
+                        }
+                    })
+                    .is_ok();
+                if !started {
+                    return;
                 }
-                1 => this.finish_dirty_close(after, cx),
-                _ => {}
-            })
-            .ok();
+                loop {
+                    let busy = this
+                        .update(cx, |_, cx| {
+                            dirty.iter().any(|tab| tab.view.read(cx).remote_busy())
+                        })
+                        .unwrap_or(false);
+                    if !busy {
+                        break;
+                    }
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_millis(50))
+                        .await;
+                }
+                this.update(cx, |this, cx| {
+                    if dirty.iter().all(|tab| !tab.view.read(cx).is_dirty()) {
+                        this.finish_dirty_close(after, cx);
+                    }
+                })
+                .ok();
+            } else if choice == 1 {
+                this.update(cx, |this, cx| this.finish_dirty_close(after, cx))
+                    .ok();
+            }
         })
         .detach();
     }

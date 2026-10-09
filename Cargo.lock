@@ -9458,6 +9458,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "xenon_ssh",
 ]
 
 [[package]]
@@ -9534,6 +9535,7 @@ dependencies = [
  "unicode-segmentation",
  "xenon_design_system",
  "xenon_settings",
+ "xenon_ssh",
 ]
 
 [[package]]
@@ -9609,6 +9611,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon_ssh"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "xenon_store"
 version = "0.1.0"
 dependencies = [
@@ -9679,6 +9690,7 @@ dependencies = [
  "xenon_memory",
  "xenon_remote",
  "xenon_settings",
+ "xenon_ssh",
  "xenon_store",
  "xenon_terminal",
 ]

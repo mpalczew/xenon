@@ -206,12 +206,34 @@ impl TerminalView {
         env: Vec<(String, String)>,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::with_shell(working_dir, env, Shell::System, cx)
+    }
+
+    pub fn ssh(command: String, cx: &mut Context<Self>) -> Self {
+        Self::with_shell(
+            None,
+            Vec::new(),
+            Shell::WithArguments {
+                program: "/bin/bash".into(),
+                args: vec!["-lc".into(), command],
+                title_override: Some("SSH".into()),
+            },
+            cx,
+        )
+    }
+
+    fn with_shell(
+        working_dir: Option<PathBuf>,
+        env: Vec<(String, String)>,
+        shell: Shell,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let root_name = working_dir
             .as_deref()
             .and_then(|dir| dir.file_name())
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let builder = build(working_dir, env, cx);
+        let builder = build(working_dir, env, shell, cx);
         let spawn = cx.spawn(async move |view, cx| {
             let result = builder.await;
             view.update(cx, |view, cx| view.resolve(result, cx)).ok();
@@ -1050,6 +1072,7 @@ fn clipboard_plain_text(cx: &App) -> Option<String> {
 fn build(
     working_dir: Option<PathBuf>,
     env: Vec<(String, String)>,
+    shell: Shell,
     cx: &App,
 ) -> Task<Result<TerminalBuilder>> {
     // zed's terminal only detects file-path hyperlinks when given non-empty path
@@ -1061,7 +1084,7 @@ fn build(
     TerminalBuilder::new(
         working_dir,
         None,
-        Shell::System,
+        shell,
         env.into_iter().collect(),
         CursorShape::default(),
         AlternateScroll::On,

@@ -52,6 +52,10 @@ impl XenonApp {
         if !force && self.file_indexes.contains_key(&root) {
             return;
         }
+        if let Some(ssh) = self.ssh_for_root(&root) {
+            self.ssh_reindex(root, ssh, cx);
+            return;
+        }
         let key = root.clone();
         let build_root = root.clone();
         let (tx, rx) = async_channel::bounded::<Arc<FileIndex>>(1);
@@ -88,7 +92,7 @@ impl XenonApp {
         self.index_tasks.insert(key, task);
     }
 
-    fn install_index(
+    pub(super) fn install_index(
         &mut self,
         root: PathBuf,
         index: Arc<FileIndex>,

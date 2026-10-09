@@ -54,6 +54,16 @@ impl XenonApp {
         view: &Entity<EditorView>,
         cx: &mut Context<Self>,
     ) {
+        if self
+            .registry
+            .workspace(workspace)
+            .is_some_and(|workspace| workspace.ssh.is_some())
+        {
+            view.update(cx, |editor, cx| {
+                editor.set_lsp_status(Some("Remote language servers are unavailable".into()), cx)
+            });
+            return;
+        }
         if !self.lsp.settings.enabled {
             return;
         }

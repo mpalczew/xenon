@@ -12,6 +12,7 @@ mod input;
 mod layout;
 mod lsp;
 mod menu;
+mod remote;
 #[cfg(feature = "visual-tests")]
 mod visual;
 mod worklist;
@@ -45,6 +46,7 @@ pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 pub(super) const ZOOM_STEP: f32 = 1.2;
 
 pub struct EditorView {
+    remote: Option<remote::RemoteDocument>,
     pub(super) content: Content,
     pub(super) highlights: Vec<highlight::Span>,
     pub(super) occurrence_ranges: Vec<Range<usize>>,
@@ -198,6 +200,7 @@ impl EditorView {
         let _preview_sel_sub =
             cx.subscribe(&preview_state, |_, _, _: &PreviewEvent, cx| cx.notify());
         let mut view = Self {
+            remote: None,
             content,
             highlights: Vec::new(),
             occurrence_ranges: Vec::new(),

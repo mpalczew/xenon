@@ -41,6 +41,7 @@ impl XenonApp {
         self.reindex(root, false, cx);
         self.persist_active();
         self.nav_seed_active(id, cx);
+        self.save_layout(id);
         cx.notify();
     }
 
@@ -135,8 +136,16 @@ impl XenonApp {
                 let mut tabs = Vec::new();
                 for tab in &leaf.tabs {
                     match tab {
-                        TabState::Terminal { id, cwd: _ } => {
-                            let view = self.spawn_terminal(root.to_path_buf(), workspace, cx);
+                        TabState::Terminal {
+                            id, remote_session, ..
+                        } => {
+                            if let Some(session) = remote_session {
+                                self.services
+                                    .ssh_sessions
+                                    .insert((workspace, *id), session.clone());
+                            }
+                            let view =
+                                self.spawn_terminal_for(root.to_path_buf(), (workspace, *id), cx);
                             tabs.push(LiveTab::Terminal { id: *id, view });
                         }
                         TabState::Editor {
@@ -150,7 +159,7 @@ impl XenonApp {
                             } else {
                                 root.join(path)
                             };
-                            match Self::build_workspace_editor(abs.clone(), root, false, cx) {
+                            match self.build_workspace_editor(abs.clone(), root, false, cx) {
                                 Ok(view) => {
                                     self.wire_editor_selection(&view, cx);
                                     tabs.push(LiveTab::Editor {
@@ -167,7 +176,11 @@ impl XenonApp {
                 }
                 if tabs.is_empty() && !leaf.parked {
                     // Keep leaf valid with a terminal.
-                    let view = self.spawn_terminal(root.to_path_buf(), workspace, cx);
+                    let view = self.spawn_terminal_for(
+                        root.to_path_buf(),
+                        (workspace, TabId(leaf.id.0.saturating_mul(1000) + 1)),
+                        cx,
+                    );
                     tabs.push(LiveTab::Terminal {
                         id: TabId(leaf.id.0.saturating_mul(1000) + 1),
                         view,
@@ -198,11 +211,45 @@ impl XenonApp {
     pub(super) fn spawn_terminal(
         &mut self,
         root: PathBuf,
-        _workspace: WorkspaceId,
+        workspace: WorkspaceId,
+        cx: &mut Context<Self>,
+    ) -> Entity<TerminalView> {
+        let tab = self
+            .contents
+            .get(&workspace)
+            .map(|content| content.next_tab_id())
+            .unwrap_or(TabId(1));
+        self.services.ssh_sessions.remove(&(workspace, tab));
+        self.spawn_terminal_for(root, (workspace, tab), cx)
+    }
+
+    pub(super) fn spawn_terminal_for(
+        &mut self,
+        root: PathBuf,
+        owner: (WorkspaceId, TabId),
         cx: &mut Context<Self>,
     ) -> Entity<TerminalView> {
         let env = self.terminal_env(&root);
-        let terminal = cx.new(|cx| TerminalView::new(Some(root), env, cx));
+        let terminal = if let Some(ssh) = self.ssh_for_root(&root) {
+            let session = self
+                .services
+                .ssh_sessions
+                .entry(owner)
+                .or_insert_with(|| format!("xenon-{}", WorkspaceId::new()))
+                .clone();
+            match ssh.terminal_command(&session) {
+                Ok(command) => cx.new(|cx| TerminalView::ssh(command, cx)),
+                Err(error) => {
+                    self.show_toast(
+                        super::toasts::failed("Couldn’t open SSH terminal", error),
+                        cx,
+                    );
+                    cx.new(|cx| TerminalView::ssh("exit 1".into(), cx))
+                }
+            }
+        } else {
+            cx.new(|cx| TerminalView::new(Some(root), env, cx))
+        };
         self._bell_subs
             .push(cx.subscribe(&terminal, move |this, view, event, cx| {
                 let owner = this.locate_terminal(&view);
@@ -239,8 +286,16 @@ impl XenonApp {
                     TerminalEvent::AutoCloseChanged => {
                         this.on_terminal_auto_close_changed(view.clone(), cx)
                     }
-                    TerminalEvent::OpenPath(path) => this.open_terminal_path(path.clone(), cx),
-                    TerminalEvent::OpenInEditor(path) => this.open_editor(path.clone(), true, cx),
+                    TerminalEvent::OpenPath(path) => {
+                        if let Some(path) = this.terminal_workspace_path(owner, path, cx) {
+                            this.open_terminal_path(path, cx);
+                        }
+                    }
+                    TerminalEvent::OpenInEditor(path) => {
+                        if let Some(path) = this.terminal_workspace_path(owner, path, cx) {
+                            this.open_editor(path, true, cx);
+                        }
+                    }
                     TerminalEvent::ResolvePath(token) => this.resolve_clicked(token.clone(), cx),
                 }
             }));
@@ -250,7 +305,7 @@ impl XenonApp {
     /// Terminal cmd-click on a path: browser-native types go to the system
     /// default app; everything else opens as an editor tab.
     fn open_terminal_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
-        if prefer_system_open(&path) {
+        if !path.starts_with("/__xenon_ssh__") && prefer_system_open(&path) {
             cx.open_with_system(&path);
             return;
         }
@@ -366,6 +421,17 @@ impl XenonApp {
                 }
             }
             RenameTarget::File { path, .. } => {
+                if path.starts_with("/__xenon_ssh__") {
+                    self.show_toast(
+                        super::toasts::failed(
+                            "Rename the remote file in a terminal",
+                            "Remote tree renaming is unavailable",
+                        ),
+                        cx,
+                    );
+                    self.cancel_rename(cx);
+                    return;
+                }
                 let Some(parent) = path.parent() else { return };
                 let destination = parent.join(&name);
                 if destination != *path {

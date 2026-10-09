@@ -29,11 +29,14 @@ impl XenonApp {
         if self.skip_persist {
             return;
         }
-        let content = self
+        let mut content = self
             .contents
             .get(&id)
             .map(|c| c.snapshot())
             .unwrap_or_default();
+        if let Some(root) = &mut content.root {
+            install_ssh_sessions(root, id, &self.services.ssh_sessions);
+        }
         let session = SessionState {
             sidebar_visible: !self.sidebar_collapsed,
             sidebar_width: xenon_core::clamp_sidebar(self.sidebar_width),
@@ -202,4 +205,27 @@ fn set_if_changed(slot: &mut f32, value: f32) -> bool {
     }
     *slot = value;
     true
+}
+
+fn install_ssh_sessions(
+    node: &mut xenon_core::PaneNode,
+    workspace: WorkspaceId,
+    sessions: &HashMap<(WorkspaceId, TabId), String>,
+) {
+    match node {
+        xenon_core::PaneNode::Leaf(leaf) => {
+            for tab in &mut leaf.tabs {
+                if let xenon_core::TabState::Terminal {
+                    id, remote_session, ..
+                } = tab
+                {
+                    *remote_session = sessions.get(&(workspace, *id)).cloned();
+                }
+            }
+        }
+        xenon_core::PaneNode::Split { first, second, .. } => {
+            install_ssh_sessions(first, workspace, sessions);
+            install_ssh_sessions(second, workspace, sessions);
+        }
+    }
 }

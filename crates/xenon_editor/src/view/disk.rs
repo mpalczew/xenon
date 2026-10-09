@@ -22,13 +22,19 @@ pub enum DiskAlert {
     Conflict,
     /// File was removed from disk.
     Deleted,
+    Unavailable,
 }
 
 impl EditorView {
     pub(super) fn start_disk_poll(&mut self, cx: &mut Context<Self>) {
+        let interval = if self.is_remote() {
+            Duration::from_secs(2)
+        } else {
+            DISK_POLL
+        };
         self._disk_poll = cx.spawn(async move |this, cx| {
             loop {
-                cx.background_executor().timer(DISK_POLL).await;
+                cx.background_executor().timer(interval).await;
                 if this
                     .update(cx, |view, cx| {
                         view.sync_from_disk(cx);
@@ -45,6 +51,10 @@ impl EditorView {
     /// Dirty buffers are left alone (conflict); deleted files mark dirty.
     /// Image tabs silently reload (no local edits to conflict with).
     pub fn sync_from_disk(&mut self, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            self.remote_refresh(false, cx);
+            return;
+        }
         match &mut self.content {
             Content::Text(buffer) => match if self.worklist_document {
                 let root = buffer
@@ -100,6 +110,10 @@ impl EditorView {
 
     /// Drop local edits and reload from disk (user chose disk in a conflict).
     pub fn reload_from_disk(&mut self, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            self.remote_refresh(true, cx);
+            return;
+        }
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
@@ -117,6 +131,10 @@ impl EditorView {
 
     /// Keep local edits and adopt current disk mtime (user chose buffer).
     pub fn keep_local_edits(&mut self, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            self.remote_keep(cx);
+            return;
+        }
         if self.worklist_document {
             self.disk_alert = DiskAlert::Conflict;
             let toast = Toast::error("✋", "The worklist can’t overwrite agent edits")
@@ -145,6 +163,10 @@ impl EditorView {
             ),
             DiskAlert::Deleted => (
                 "File was deleted on disk. Your buffer is still open.",
+                false,
+            ),
+            DiskAlert::Unavailable => (
+                "Remote file unavailable. Your edits are kept; retrying…",
                 false,
             ),
         };

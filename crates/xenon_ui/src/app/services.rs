@@ -11,6 +11,7 @@ use crate::git_dirt::GitDirt;
 /// Long-lived integrations and background work owned by the application.
 #[derive(Default)]
 pub(super) struct AppServices {
+    pub ssh_sessions: HashMap<(WorkspaceId, xenon_core::TabId), String>,
     pub ide: Option<IdeServer>,
     pub ide_task: Option<Task<()>>,
     /// Phone remote while on (server, sessions, devices).

@@ -16,6 +16,10 @@ impl EditorView {
                 self.ex_write(force, path, cx);
             }
             ExEffect::WriteQuit { force } => {
+                if self.is_remote() {
+                    self.remote_save(force, true, cx);
+                    return;
+                }
                 if self.ex_write(force, None, cx) {
                     cx.emit(EditorEvent::RequestClose { force: true });
                 }
@@ -60,6 +64,16 @@ impl EditorView {
 
     /// Write buffer; optionally rebind path. Returns whether write succeeded.
     fn ex_write(&mut self, force: bool, path: Option<PathBuf>, cx: &mut Context<Self>) -> bool {
+        if self.is_remote() {
+            if path.is_some() {
+                self.vim.ex_status =
+                    Some("Remote Save As is unavailable; save this file with :w".into());
+                cx.notify();
+            } else {
+                self.remote_save(force, false, cx);
+            }
+            return false;
+        }
         let Content::Text(buffer) = &mut self.content else {
             return false;
         };
@@ -177,6 +191,10 @@ impl EditorView {
 
     /// Write the buffer to disk (no-op for image/unsupported content).
     pub fn save(&mut self, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            self.remote_save(false, false, cx);
+            return;
+        }
         if self.worklist_document && !self.is_dirty() && !self.worklist_needs_creation() {
             return;
         }
@@ -213,6 +231,10 @@ impl EditorView {
 
     /// Force write (overwrite external changes).
     pub fn save_force(&mut self, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            self.remote_save(true, false, cx);
+            return;
+        }
         if self.worklist_document && !self.is_dirty() && !self.worklist_needs_creation() {
             return;
         }
@@ -244,6 +266,10 @@ impl EditorView {
 
     /// Save As: rebind path and write.
     pub fn save_as(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            save_failed(&path, "Remote Save As is unavailable", cx);
+            return;
+        }
         self.worklist_document = false;
         let Content::Text(buffer) = &mut self.content else {
             return;
@@ -260,7 +286,11 @@ impl EditorView {
     }
 }
 
-fn save_failed(path: &std::path::Path, error: impl std::fmt::Display, cx: &mut gpui::App) {
+pub(super) fn save_failed(
+    path: &std::path::Path,
+    error: impl std::fmt::Display,
+    cx: &mut gpui::App,
+) {
     let name = path.file_name().map_or_else(
         || path.display().to_string(),
         |name| name.to_string_lossy().into_owned(),

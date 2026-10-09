@@ -48,6 +48,19 @@ pub(super) fn workspace_create(
     app.open_workspace_creator(window, cx);
 }
 
+pub(super) fn ssh_workspace_picker(
+    app: &mut XenonApp,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+) {
+    workspace_picker(app, window, cx);
+    if let Some(picker) = &app.workspace_picker {
+        picker.update(cx, |picker, cx| {
+            picker.visual_query("ssh://devbox/home/alex/project", cx)
+        });
+    }
+}
+
 pub(super) fn theme_gallery(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
     app.open_theme_picker(window, cx);

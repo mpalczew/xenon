@@ -45,6 +45,9 @@ impl WorkspaceCandidate {
     }
 
     pub fn selectable(&self) -> bool {
+        if self.root().starts_with("/__xenon_ssh__") {
+            return true;
+        }
         match self {
             Self::Closed { missing: true, .. } => false,
             Self::Open { root, .. }
@@ -103,6 +106,7 @@ impl WorkspaceCandidate {
 }
 
 pub enum WorkspacePickerEvent {
+    Ssh(String),
     Open(WorkspaceCandidate),
     /// Drop a closed workspace from history (session file removed).
     Forget(WorkspaceId),

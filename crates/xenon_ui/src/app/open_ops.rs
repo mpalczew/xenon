@@ -5,11 +5,27 @@ use xenon_core::{DEFAULT_SPLIT_RATIO, MAX_NEST_DEPTH, SplitAxis, TabId};
 
 impl XenonApp {
     pub(super) fn build_workspace_editor(
+        &self,
         path: PathBuf,
         root: &Path,
         autofocus: bool,
         cx: &mut gpui::App,
     ) -> anyhow::Result<Entity<EditorView>> {
+        if let Some(ssh) = self
+            .registry
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.root == root)
+            .and_then(|workspace| workspace.ssh.as_ref())
+        {
+            let relative = path.strip_prefix(root)?;
+            return Ok(EditorView::build_remote(
+                path.clone(),
+                ssh.file(relative),
+                autofocus,
+                cx,
+            ));
+        }
         if path == root.join(".xenon/worklist.md") {
             EditorView::build_worklist(path, autofocus, cx)
         } else {
@@ -76,7 +92,7 @@ impl XenonApp {
         let built = self
             .workspace_root(id)
             .ok_or_else(|| anyhow::anyhow!("workspace root unavailable"))
-            .and_then(|root| Self::build_workspace_editor(path.clone(), &root, true, cx));
+            .and_then(|root| self.build_workspace_editor(path.clone(), &root, true, cx));
         match built {
             Ok(view) => {
                 self.wire_editor_selection(&view, cx);
@@ -177,7 +193,7 @@ impl XenonApp {
         let built = self
             .workspace_root(id)
             .ok_or_else(|| anyhow::anyhow!("workspace root unavailable"))
-            .and_then(|root| Self::build_workspace_editor(path.clone(), &root, focus, cx));
+            .and_then(|root| self.build_workspace_editor(path.clone(), &root, focus, cx));
         match built {
             Ok(view) => {
                 if let Some((row, col)) = at {

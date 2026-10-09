@@ -17,6 +17,7 @@ visual-tests = [
 ]
 
 [dependencies]
+xenon_ssh.workspace = true
 gpui.workspace = true
 xenon_core.workspace = true
 xenon_store.workspace = true

@@ -89,6 +89,23 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         let root = self.active.and_then(|id| self.workspace_root(id));
+        if root
+            .as_ref()
+            .is_some_and(|root| self.ssh_for_root(root).is_some())
+            && matches!(
+                action,
+                BrowserMenuAction::RevealInFinder | BrowserMenuAction::OpenInDefaultApp
+            )
+        {
+            self.show_toast(
+                super::toasts::failed(
+                    "That action needs a local file",
+                    "Open remote files in Xenon or use the remote terminal",
+                ),
+                cx,
+            );
+            return;
+        }
         let target = path.clone().or_else(|| root.clone());
         let parent_for_create = match (&path, is_dir) {
             (Some(p), true) => p.clone(),
@@ -163,6 +180,16 @@ impl XenonApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if path.starts_with("/__xenon_ssh__") {
+            self.show_toast(
+                super::toasts::failed(
+                    "Delete the remote file in a terminal",
+                    "Remote files aren’t sent to the Mac’s Trash",
+                ),
+                cx,
+            );
+            return;
+        }
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())

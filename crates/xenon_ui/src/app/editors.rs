@@ -2,6 +2,15 @@ use super::*;
 
 impl XenonApp {
     pub(super) fn open_file_dialog(&mut self, cx: &mut Context<Self>) {
+        if self
+            .active
+            .and_then(|id| self.workspace_root(id))
+            .is_some_and(|root| self.ssh_for_root(&root).is_some())
+        {
+            self.deferred.pending_palette_query = Some(String::new());
+            cx.notify();
+            return;
+        }
         let rx = cx.prompt_for_paths(PathPromptOptions {
             files: true,
             directories: false,
@@ -33,6 +42,16 @@ impl XenonApp {
 
     /// Create a new empty file with the save dialog starting in `dir`.
     pub(crate) fn new_file_in_dir(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
+        if dir.starts_with("/__xenon_ssh__") {
+            self.show_toast(
+                super::toasts::failed(
+                    "Create the remote file in a terminal",
+                    "Then open it with Cmd-P",
+                ),
+                cx,
+            );
+            return;
+        }
         let mut path = dir.join("untitled");
         let mut index = 2;
         while path.exists() {
@@ -57,6 +76,16 @@ impl XenonApp {
 
     /// Create a new empty directory (path prompt under `dir`).
     pub(crate) fn new_folder_in_dir(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
+        if dir.starts_with("/__xenon_ssh__") {
+            self.show_toast(
+                super::toasts::failed(
+                    "Create the remote folder in a terminal",
+                    "The Files list refreshes when you open Cmd-P",
+                ),
+                cx,
+            );
+            return;
+        }
         let rx = cx.prompt_for_new_path(&dir, Some("untitled"));
         cx.spawn(async move |this, cx| {
             if let Ok(Ok(Some(path))) = rx.await {
@@ -87,6 +116,16 @@ impl XenonApp {
         let Some(editor) = self.active_editor() else {
             return;
         };
+        if editor.read(cx).is_remote() {
+            self.show_toast(
+                super::toasts::failed(
+                    "Couldn’t save as",
+                    "Use the remote terminal to copy or rename files",
+                ),
+                cx,
+            );
+            return;
+        }
         let current = editor.read(cx).path().to_path_buf();
         let dir = current
             .parent()

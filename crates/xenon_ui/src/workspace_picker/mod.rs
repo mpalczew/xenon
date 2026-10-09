@@ -9,6 +9,7 @@
 
 mod candidate;
 mod rank;
+mod ssh;
 
 pub use candidate::{WorkspaceCandidate, WorkspacePickerEvent};
 
@@ -36,6 +37,7 @@ use rank::sort_candidates;
 const DISCOVER_DEBOUNCE: Duration = Duration::from_millis(60);
 
 pub struct WorkspacePickerView {
+    remote_paths: std::collections::HashMap<std::path::PathBuf, String>,
     known: Vec<WorkspaceCandidate>,
     query: String,
     results: Vec<WorkspaceCandidate>,
@@ -54,10 +56,25 @@ pub struct WorkspacePickerView {
 impl EventEmitter<WorkspacePickerEvent> for WorkspacePickerView {}
 
 impl WorkspacePickerView {
+    pub(crate) fn set_remote_paths(
+        &mut self,
+        paths: std::collections::HashMap<std::path::PathBuf, String>,
+    ) {
+        self.remote_paths = paths;
+    }
+
+    #[cfg(feature = "visual-tests")]
+    pub(crate) fn visual_query(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.query = query.into();
+        self.input.update(cx, |input, cx| input.set_text(query, cx));
+        self.refilter();
+        cx.notify();
+    }
+
     pub fn new(known: Vec<WorkspaceCandidate>, cx: &mut Context<Self>) -> Self {
         let input = cx.new(|cx| {
             xenon_design_system::TextInputView::new(
-                xenon_design_system::TextInputConfig::single_line("Open workspace…")
+                xenon_design_system::TextInputConfig::single_line("Folder or ssh://host/path…")
                     .parent_navigation()
                     .appearance(xenon_design_system::TextInputAppearance::Palette),
                 cx,
@@ -75,6 +92,7 @@ impl WorkspacePickerView {
             PaletteInput::Ignore => {}
         });
         let mut view = Self {
+            remote_paths: Default::default(),
             known,
             query: String::new(),
             results: Vec::new(),
@@ -226,8 +244,16 @@ impl WorkspacePickerView {
     }
 
     fn confirm(&mut self, cx: &mut Context<Self>) {
+        if self.query.trim().starts_with("ssh://") {
+            cx.emit(WorkspacePickerEvent::Ssh(self.query.trim().to_string()));
+            return;
+        }
         if let Some(candidate) = self.results.get(self.selected).cloned() {
             if !candidate.selectable() {
+                return;
+            }
+            if candidate.root().starts_with("/__xenon_ssh__") {
+                cx.emit(WorkspacePickerEvent::Open(candidate));
                 return;
             }
             if let Some(root) = resolve_existing_dir(candidate.root()) {
@@ -336,7 +362,7 @@ impl Render for WorkspacePickerView {
             "No match — try ~/src name or Browse…"
         };
         let mut ranker = nucleo::Matcher::new(nucleo::Config::DEFAULT);
-        let rows: Vec<_> = self
+        let mut rows: Vec<_> = self
             .results
             .iter()
             .enumerate()
@@ -350,7 +376,12 @@ impl Render for WorkspacePickerView {
                     QueryRow {
                         title,
                         detail: Some(cand.badge().to_string()),
-                        subtitle: Some(cand.root().display().to_string()),
+                        subtitle: Some(
+                            self.remote_paths
+                                .get(cand.root())
+                                .cloned()
+                                .unwrap_or_else(|| cand.root().display().to_string()),
+                        ),
                         selected,
                         enabled: selectable || cand.is_closed(),
                         hits,
@@ -371,6 +402,9 @@ impl Render for WorkspacePickerView {
                 row.into_any_element()
             })
             .collect();
+        if let Some(row) = self.ssh_row(cx) {
+            rows.insert(0, row);
+        }
         let browse = xenon_design_system::action_button(
             "workspace-picker-browse-btn",
             xenon_design_system::ActionButton::quiet(xenon_design_system::shortcut_text(

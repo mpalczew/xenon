@@ -36,6 +36,7 @@ impl XenonApp {
             .registry
             .workspaces
             .iter()
+            .filter(|workspace| workspace.ssh.is_none())
             .map(|w| (w.id, w.root.clone()))
             .collect::<Vec<_>>();
         if let Some(tx) = &self.services.git_dirt_tx

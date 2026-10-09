@@ -344,6 +344,7 @@ fn snapshot_node(node: &LiveNode) -> PaneNode {
 fn snapshot_tab(tab: &LiveTab) -> TabState {
     match tab {
         LiveTab::Terminal { id, .. } => TabState::Terminal {
+            remote_session: None,
             id: *id,
             cwd: PathBuf::from("."),
         },

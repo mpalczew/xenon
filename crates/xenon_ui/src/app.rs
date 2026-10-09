@@ -69,6 +69,7 @@ mod sessions;
 mod settings_window;
 mod skill_prompt;
 mod split_ops;
+mod ssh;
 mod tab_context;
 mod tab_drop;
 mod tasks;
@@ -329,6 +330,7 @@ impl XenonApp {
         self.registry
             .workspaces
             .iter()
+            .filter(|workspace| workspace.ssh.is_none())
             .map(|workspace| workspace.root.clone())
             .collect()
     }

@@ -1,17 +1,18 @@
 //! Visual-test scenes: drive the shipped `XenonApp` render into known states.
 
-use gpui::{Context, Window, WindowHandle};
+use gpui::{Context, Window};
 use xenon_store::ThemeMode;
 
 use super::XenonApp;
-use crate::settings::SettingsView;
 
 mod chrome;
 mod content;
+mod hooks;
 mod keyboard;
 mod overlays;
 mod remote;
 mod settings;
+mod ssh;
 mod worklist;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +52,9 @@ pub enum Scene {
     KeyboardHelp,
     TaskPicker,
     WorkspacePicker,
+    SshWorkspacePicker,
+    SshWorkspace,
+    SshWorkspaceUnavailable,
     WorkspaceCreate,
     ThemeGallery,
     TabMenu,
@@ -137,6 +141,9 @@ pub const SCENES: &[Scene] = &[
     Scene::KeyboardHelp,
     Scene::TaskPicker,
     Scene::WorkspacePicker,
+    Scene::SshWorkspacePicker,
+    Scene::SshWorkspace,
+    Scene::SshWorkspaceUnavailable,
     Scene::WorkspaceCreate,
     Scene::ThemeGallery,
     Scene::TabMenu,
@@ -240,6 +247,9 @@ impl Scene {
             Self::KeyboardHelp => "overlay_keyboard_help",
             Self::TaskPicker => "overlay_task_picker",
             Self::WorkspacePicker => "overlay_workspace_picker",
+            Self::SshWorkspacePicker => "overlay_ssh_workspace_picker",
+            Self::SshWorkspace => "chrome_ssh_workspace",
+            Self::SshWorkspaceUnavailable => "chrome_ssh_workspace_unavailable",
             Self::WorkspaceCreate => "overlay_workspace_create",
             Self::ThemeGallery => "overlay_theme_gallery",
             Self::TabMenu => "overlay_tab_menu",
@@ -347,6 +357,9 @@ pub fn apply_scene(
         Scene::KeyboardHelp => overlays::keyboard_help(app, window, cx),
         Scene::TaskPicker => overlays::task_picker(app, window, cx),
         Scene::WorkspacePicker => overlays::workspace_picker(app, window, cx),
+        Scene::SshWorkspacePicker => overlays::ssh_workspace_picker(app, window, cx),
+        Scene::SshWorkspace => ssh::workspace(app, false, window, cx),
+        Scene::SshWorkspaceUnavailable => ssh::workspace(app, true, window, cx),
         Scene::WorkspaceCreate => overlays::workspace_create(app, window, cx),
         Scene::ThemeGallery => overlays::theme_gallery(app, window, cx),
         Scene::ThemePanelPreview => overlays::theme_panel_preview(app, window, cx),
@@ -413,24 +426,6 @@ pub fn apply_scene(
             };
             app.show_toast(toast, cx);
         }
-    }
-}
-
-impl XenonApp {
-    /// Runner hook after the scene's terminal is ready (for PTY-dependent state).
-    pub fn visual_after_terminal_ready(&mut self, scene: Scene, cx: &mut Context<XenonApp>) {
-        if scene == Scene::PhoneDriving {
-            self.visual_phone_driving(cx);
-        }
-    }
-
-    pub fn visual_settings_window(&self) -> Option<WindowHandle<SettingsView>> {
-        self.settings_window
-    }
-
-    pub fn visual_terminal_ready(&self, cx: &gpui::App) -> bool {
-        self.active_terminal()
-            .is_some_and(|view| view.read(cx).visual_is_ready())
     }
 }
 

@@ -14,6 +14,9 @@ pub struct WorkspaceRec {
     pub id: WorkspaceId,
     pub name: String,
     pub root: PathBuf,
+    /// SSH roots use a virtual namespace, never a local filesystem directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh: Option<xenon_ssh::SshWorkspace>,
     /// Unix seconds when this workspace was last activated (MRU for ⌘⇧O).
     /// Absent on pre-field registry JSON → treated as never opened for sort.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -21,6 +24,28 @@ pub struct WorkspaceRec {
 }
 
 impl WorkspaceRec {
+    pub fn remote(ssh: xenon_ssh::SshWorkspace) -> Self {
+        let id = WorkspaceId::new();
+        let name = std::path::Path::new(&ssh.directory)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| ssh.host.clone());
+        Self {
+            id,
+            name,
+            root: PathBuf::from("/__xenon_ssh__").join(id.to_string()),
+            ssh: Some(ssh),
+            last_opened: Some(now_unix()),
+        }
+    }
+
+    pub fn display_root(&self) -> String {
+        self.ssh
+            .as_ref()
+            .map(|ssh| format!("{}:{}", ssh.host, ssh.directory))
+            .unwrap_or_else(|| self.root.display().to_string())
+    }
+
     /// Register `root`, taking the **default** display name from its final path
     /// component. Callers may rename `name` later without changing `root`.
     pub fn new(root: PathBuf) -> Self {
@@ -32,6 +57,7 @@ impl WorkspaceRec {
             id: WorkspaceId::new(),
             name,
             root,
+            ssh: None,
             last_opened: Some(now_unix()),
         }
     }
@@ -92,5 +118,24 @@ impl Registry {
 
     pub fn workspace_mut(&mut self, id: WorkspaceId) -> Option<&mut WorkspaceRec> {
         self.workspaces.iter_mut().find(|w| w.id == id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ssh_workspace_identity_survives_registry_round_trip() {
+        let record: WorkspaceRec = serde_json::from_value(serde_json::json!({
+            "id": "00000000-0000-0000-0000-000000000001", "name": "project",
+            "root": "/__xenon_ssh__/00000000-0000-0000-0000-000000000001",
+            "ssh": { "host": "devbox", "directory": "/home/alex/project" }
+        }))
+        .unwrap();
+        let restored: WorkspaceRec =
+            serde_json::from_str(&serde_json::to_string(&record).unwrap()).unwrap();
+        assert_eq!(restored, record);
+        assert_eq!(restored.display_root(), "devbox:/home/alex/project");
     }
 }

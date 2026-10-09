@@ -62,6 +62,8 @@ pub enum TabState {
         id: TabId,
         #[serde(default = "default_cwd")]
         cwd: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        remote_session: Option<String>,
     },
     Editor {
         id: TabId,
@@ -230,6 +232,7 @@ pub fn migrate_from_legacy(legacy: LegacySession) -> ContentLayout {
     };
 
     let make_term = |alloc_tab: &mut dyn FnMut() -> TabId| TabState::Terminal {
+        remote_session: None,
         id: alloc_tab(),
         cwd: terminal.cwd.clone(),
     };

@@ -7,6 +7,8 @@ rediscover.
 ## Current model
 
 - A workspace is a checkout root plus a saved pane-tree session.
+- SSH workspaces use a bundled Python file helper over OpenSSH and tmux-owned
+  persistent terminals. Scope and requirements: [SSH workspaces](ssh-workspaces.md).
 - There is no user-facing stream concept. Parallel agents use terminal tabs
   and/or multiple workspaces.
 - Terminals and editors are peer surfaces in pane tab stacks. PTYs are not

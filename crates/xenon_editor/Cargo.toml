@@ -12,6 +12,7 @@ default = []
 visual-tests = []
 
 [dependencies]
+xenon_ssh.workspace = true
 ropey.workspace = true
 regex.workspace = true
 anyhow.workspace = true

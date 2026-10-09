@@ -1,9 +1,12 @@
+mod remote;
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use lucide_icons::Icon;
 
 pub(crate) struct FileBrowser {
+    remote_entries: std::collections::HashMap<PathBuf, Vec<xenon_ssh::RemoteEntry>>,
     expanded_dirs: HashSet<PathBuf>,
     open: bool,
     /// Keyboard cursor index into the flattened `rows()` list.
@@ -19,6 +22,7 @@ impl Default for FileBrowser {
 impl FileBrowser {
     pub fn with_open(open: bool) -> Self {
         Self {
+            remote_entries: Default::default(),
             expanded_dirs: HashSet::new(),
             open,
             cursor: None,
@@ -106,6 +110,9 @@ impl FileBrowser {
     }
 
     pub fn rows(&self, root: &Path, open_file: Option<&Path>) -> Vec<TreeRow> {
+        if root.starts_with("/__xenon_ssh__") {
+            return self.remote_rows(root, open_file);
+        }
         let mut rows = Vec::new();
         self.push_rows(
             RowQuery {
@@ -232,6 +239,42 @@ mod tests {
     use super::*;
     use std::fs;
     use std::os::unix::fs::symlink;
+
+    #[test]
+    fn remote_tree_expands_cached_entries_without_local_filesystem_access() {
+        let root = PathBuf::from("/__xenon_ssh__/fixture");
+        let mut browser = FileBrowser::default();
+        browser.install_remote(
+            root.clone(),
+            vec![
+                xenon_ssh::RemoteEntry {
+                    path: "src".into(),
+                    is_dir: true,
+                    is_symlink: false,
+                },
+                xenon_ssh::RemoteEntry {
+                    path: "src/main.rs".into(),
+                    is_dir: false,
+                    is_symlink: false,
+                },
+                xenon_ssh::RemoteEntry {
+                    path: "Cargo.toml".into(),
+                    is_dir: false,
+                    is_symlink: false,
+                },
+            ],
+        );
+        assert_eq!(browser.rows(&root, None).len(), 2);
+        browser.toggle_dir(root.join("src"));
+        let open = root.join("src/main.rs");
+        let rows = browser.rows(&root, Some(&open));
+        assert_eq!(
+            rows.iter().map(|row| row.name.as_str()).collect::<Vec<_>>(),
+            ["src", "main.rs", "Cargo.toml"]
+        );
+        assert!(rows[1].is_open);
+        assert_eq!(rows[1].depth, 1);
+    }
 
     #[test]
     fn marks_file_and_dir_symlinks() {
