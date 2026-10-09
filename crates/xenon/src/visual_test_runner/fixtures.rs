@@ -63,8 +63,8 @@ pub fn build() -> Result<Fixture> {
         r#"{
   "version": "2.0.0",
   "tasks": [
-    { "label": "demo-build", "type": "shell", "command": "echo build" },
-    { "label": "demo-test", "type": "shell", "command": "echo test" }
+    { "label": "demo-build", "type": "shell", "command": "echo build", "detail": "Build the demo" },
+    { "label": "demo-test", "type": "shell", "command": "echo test", "detail": "Run every demo check, including the slow simulator suites that only pass on a machine with the full toolchain installed" }
   ]
 }"#,
     )?;

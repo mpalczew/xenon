@@ -48,7 +48,7 @@ pub fn query_row(id: impl Into<ElementId>, row: QueryRow, cx: &App) -> Stateful<
     if !row.enabled {
         el = el.opacity(0.45);
     }
-    let mut title = div().min_w_0();
+    let mut title = div().min_w_0().truncate();
     if row.selected && row.enabled {
         title = title.type_role(TypeRole::ListPrimary, cx);
     } else {
@@ -78,7 +78,13 @@ pub fn query_row(id: impl Into<ElementId>, row: QueryRow, cx: &App) -> Stateful<
     }
     el = el.child(top);
     if let Some(subtitle) = row.subtitle.filter(|subtitle| !subtitle.is_empty()) {
-        el = el.child(div().type_role(TypeRole::ControlLabel, cx).child(subtitle));
+        el = el.child(
+            div()
+                .min_w_0()
+                .truncate()
+                .type_role(TypeRole::ControlLabel, cx)
+                .child(subtitle),
+        );
     }
     el
 }

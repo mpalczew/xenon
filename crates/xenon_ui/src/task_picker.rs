@@ -164,8 +164,8 @@ impl Render for TaskPickerView {
                     ("task-row", i),
                     QueryRow {
                         title: task.label.clone(),
-                        detail: task.detail.clone(),
-                        subtitle: None,
+                        detail: None,
+                        subtitle: task.detail.clone(),
                         selected: i == self.selected,
                         enabled: true,
                         hits,
