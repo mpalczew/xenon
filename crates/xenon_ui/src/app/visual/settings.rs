@@ -57,6 +57,7 @@ pub(super) fn remote(app: &mut XenonApp, cx: &mut Context<XenonApp>) {
 }
 
 fn show(app: &mut XenonApp, page: SettingsPage, query: &'static str, cx: &mut Context<XenonApp>) {
+    crate::settings::pin_version_for_visuals(1);
     app.open_settings_window_now(cx);
     with_settings(app, cx, move |settings, window, cx| {
         settings.visual_show(page, query, window, cx);

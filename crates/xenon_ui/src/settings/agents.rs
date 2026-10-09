@@ -1,5 +1,6 @@
 //! Settings › Agents: install, update, reset, or remove the managed skill.
 
+use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::{App, Window};
@@ -7,6 +8,20 @@ use xenon_design_system::{Toast, show_toast_in};
 use xenon_store::{SkillStatus, install_skill, remove_skill, skill_status};
 
 use super::row::{ActionKind, Control, Group, RowAction, SettingRow, Tone};
+
+thread_local! {
+    /// Screenshot scenes pin the shown version so baselines survive skill bumps.
+    static PINNED_VERSION: Cell<Option<u32>> = const { Cell::new(None) };
+}
+
+#[cfg(feature = "visual-tests")]
+pub(crate) fn pin_version_for_visuals(version: u32) {
+    PINNED_VERSION.set(Some(version));
+}
+
+fn shown(version: u32) -> u32 {
+    PINNED_VERSION.get().unwrap_or(version)
+}
 
 pub(super) fn groups() -> Vec<Group> {
     let status = skill_status();
@@ -49,10 +64,13 @@ fn subtitle(status: &SkillStatus) -> String {
     match status {
         SkillStatus::Missing => "Off — Xenon asks when an agent starts".into(),
         SkillStatus::Installed { version } => {
-            format!("Installed v{version} · same skill for every slot")
+            format!("Installed v{} · same skill for every slot", shown(*version))
         }
         SkillStatus::UpdateAvailable { installed } => {
-            format!("Installed v{installed} · a newer one ships with this build")
+            format!(
+                "Installed v{} · a newer one ships with this build",
+                shown(*installed)
+            )
         }
         SkillStatus::UserEdited => "You edited the skill · Xenon will not overwrite it".into(),
     }
@@ -69,8 +87,8 @@ fn refresh_label(status: &SkillStatus) -> Option<&'static str> {
 fn homes_label(status: &SkillStatus) -> String {
     let mark = match status {
         SkillStatus::Missing => "not installed".to_string(),
-        SkillStatus::Installed { version } => format!("v{version}"),
-        SkillStatus::UpdateAvailable { installed } => format!("v{installed}"),
+        SkillStatus::Installed { version } => format!("v{}", shown(*version)),
+        SkillStatus::UpdateAvailable { installed } => format!("v{}", shown(*installed)),
         SkillStatus::UserEdited => "edited".to_string(),
     };
     ["~/.agents", "~/.claude", "~/.grok"]

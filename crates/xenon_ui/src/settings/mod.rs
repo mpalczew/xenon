@@ -27,6 +27,8 @@ use xenon_design_system::{
 
 use crate::ToggleSettings;
 use crate::dropdown::DropdownId;
+#[cfg(feature = "visual-tests")]
+pub(crate) use agents::pin_version_for_visuals;
 use field_edit::FieldEdit;
 pub(crate) use page::SettingsPage;
 use row::visible_rows;
