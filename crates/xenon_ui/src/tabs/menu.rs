@@ -213,7 +213,10 @@ fn tab_menu_row(action: TabMenuAction) -> (&'static str, Shortcut) {
         TabMenuAction::CopyRelativePath => {
             ("Copy Relative Path", shortcut(CommandId::CopyRelativePath))
         }
-        TabMenuAction::RevealInFinder => ("Reveal in Finder", shortcut(CommandId::RevealInFinder)),
+        TabMenuAction::RevealInFinder => (
+            crate::commands::REVEAL_LABEL,
+            shortcut(CommandId::RevealInFinder),
+        ),
         TabMenuAction::OpenInDefaultApp => {
             ("Open in Default App", shortcut(CommandId::OpenInDefaultApp))
         }

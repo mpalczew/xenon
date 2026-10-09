@@ -345,9 +345,10 @@ fn browser_menu_row(action: BrowserMenuAction) -> (&'static str, crate::chrome::
             ("Copy Relative Path", shortcut(CommandId::CopyRelativePath))
         }
         BrowserMenuAction::CopyName => ("Copy Name", Shortcut::new("⌘⌥⇧N")),
-        BrowserMenuAction::RevealInFinder => {
-            ("Reveal in Finder", shortcut(CommandId::RevealInFinder))
-        }
+        BrowserMenuAction::RevealInFinder => (
+            crate::commands::REVEAL_LABEL,
+            shortcut(CommandId::RevealInFinder),
+        ),
         BrowserMenuAction::OpenInDefaultApp => {
             ("Open in Default App", shortcut(CommandId::OpenInDefaultApp))
         }

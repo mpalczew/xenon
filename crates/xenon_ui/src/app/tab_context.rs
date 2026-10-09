@@ -204,8 +204,12 @@ impl XenonApp {
         let spawned = std::process::Command::new("xdg-open")
             .arg(path.parent().unwrap_or(path))
             .spawn();
+        #[cfg(target_os = "macos")]
+        const FAILED: &str = "Couldn’t reveal that in Finder";
+        #[cfg(not(target_os = "macos"))]
+        const FAILED: &str = "Couldn’t open the containing folder";
         if let Err(error) = spawned {
-            let toast = super::toasts::failed("Couldn’t reveal that in the file manager", error);
+            let toast = super::toasts::failed(FAILED, error);
             xenon_design_system::show_toast(toast, cx);
         }
     }

@@ -77,6 +77,12 @@ pub enum CommandId {
     OpenKeymap,
 }
 
+/// Platform name for revealing a file: Linux opens the folder without selecting.
+#[cfg(target_os = "macos")]
+pub(crate) const REVEAL_LABEL: &str = "Reveal in Finder";
+#[cfg(not(target_os = "macos"))]
+pub(crate) const REVEAL_LABEL: &str = "Open Containing Folder";
+
 macro_rules! cmd {
     ($id:ident, $label:expr, $keys:expr, $group:expr) => {
         CommandEntry {
@@ -119,7 +125,7 @@ const fn all_commands() -> [CommandEntry; 62] {
         cmd!(CopyRelativePath, "Copy Relative Path", "⌘⌥⇧R", "Edit"),
         cmd!(CopyClean, "Copy Clean", "⌘⇧C", "Edit"),
         cmd!(CopyCode, "Copy Code", "⌘⌥C", "Edit"),
-        cmd!(RevealInFinder, "Reveal in Finder", "⌘⌥R", "Edit"),
+        cmd!(RevealInFinder, REVEAL_LABEL, "⌘⌥R", "Edit"),
         cmd!(OpenInDefaultApp, "Open in Default App", "⌘⌥O", "Edit"),
         cmd!(NewTerminal, "New Terminal", "⌘N", "Create"),
         cmd!(NewWorkspace, "New Workspace…", "⌘⌥N", "Create"),
