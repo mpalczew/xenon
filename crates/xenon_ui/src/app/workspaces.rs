@@ -113,19 +113,37 @@ impl XenonApp {
                 });
             }
         }
+        known.extend(self.ssh_host_candidates());
         let picker = cx.new(|cx| WorkspacePickerView::new(known, cx));
-        let remote_paths = self
+        let ssh_workspaces = self
             .registry
             .workspaces
             .iter()
             .chain(self.registry.closed_workspaces.iter())
-            .filter(|workspace| workspace.ssh.is_some())
-            .map(|workspace| (workspace.root.clone(), workspace.display_root()))
+            .filter_map(|w| Some((w.root.clone(), w.ssh.clone()?)))
             .collect();
-        picker.update(cx, |picker, _| picker.set_remote_paths(remote_paths));
+        picker.update(cx, |picker, _| picker.set_ssh_workspaces(ssh_workspaces));
         self._workspace_picker_sub = Some(cx.subscribe(&picker, Self::on_workspace_picker_event));
         self.workspace_picker = Some(picker);
         cx.notify();
+    }
+
+    /// SSH hosts to offer: `~/.ssh/config` aliases plus hosts of past workspaces.
+    /// Screenshot runs skip the config so baselines do not depend on the machine.
+    fn ssh_host_candidates(&self) -> Vec<WorkspaceCandidate> {
+        let config = if cfg!(feature = "visual-tests") {
+            Vec::new()
+        } else {
+            xenon_ssh::config_hosts()
+        };
+        let used: Vec<(String, u64)> = self
+            .registry
+            .workspaces
+            .iter()
+            .chain(self.registry.closed_workspaces.iter())
+            .filter_map(|w| Some((w.ssh.as_ref()?.host.clone(), w.last_opened.unwrap_or(0))))
+            .collect();
+        crate::workspace_picker::host_candidates(config, &used)
     }
 
     pub(crate) fn toggle_workspaces_section(&mut self, cx: &mut Context<Self>) {
@@ -221,7 +239,9 @@ impl XenonApp {
         let root = match candidate {
             WorkspaceCandidate::Open { root, .. }
             | WorkspaceCandidate::Closed { root, .. }
-            | WorkspaceCandidate::Path { root, .. } => root,
+            | WorkspaceCandidate::Path { root, .. }
+            | WorkspaceCandidate::Host { root, .. }
+            | WorkspaceCandidate::Remote { root, .. } => root,
         };
         let missing = matches!(candidate, WorkspaceCandidate::Closed { missing: true, .. });
         if missing
@@ -239,6 +259,8 @@ impl XenonApp {
             }
             WorkspaceCandidate::Closed { id, .. } => self.reopen_workspace(*id, cx),
             WorkspaceCandidate::Path { root, .. } => self.register_workspace(root.clone(), cx),
+            // The picker handles these itself (step into a host, open over SSH).
+            WorkspaceCandidate::Host { .. } | WorkspaceCandidate::Remote { .. } => {}
         }
     }
 

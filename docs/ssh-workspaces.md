@@ -1,8 +1,26 @@
 # SSH workspaces
 
-Open Workspace (⌘⇧O), type `ssh://devbox/home/alex/project`, and press Enter.
-`devbox` can be a host alias from `~/.ssh/config`. For a directory under the
-remote home, use `ssh://devbox/~/project`.
+Open Workspace (⌘⇧O) lists your SSH hosts (concrete `Host` aliases from
+`~/.ssh/config`, following `Include`, plus hosts of past SSH workspaces) with an
+"SSH" chip. Type `think` to find `thinkpad`, then press Enter to step inside the
+host. The field now reads "Search folders on thinkpad…" and the footer says
+"on thinkpad".
+
+Inside a host:
+
+- Type a name (`xen`) to search the host's `~/src`, `~/dev`, `~/code`,
+  `~/Projects`, `~/Developer` like local discovery; `~/src xen` searches under
+  one folder.
+- Type a path (`~/src/`, `/etc/`, `src/` relative to the remote home) to list
+  its folders. Tab writes the selected folder into the field; Enter opens it.
+- Past workspaces on that host rank first.
+- Backspace on an empty field returns to the local list; Esc closes.
+- "Searching thinkpad…" shows while the host answers. If it cannot be reached
+  (auth, host key, network, no python3) a disabled row says so; run
+  `ssh thinkpad` once in a terminal and try again.
+
+`ssh://devbox/home/alex/project` typed directly still works as a shortcut
+(`ssh://devbox/~/project` for the remote home).
 
 The host needs Python 3 and tmux. Establish key authentication and accept the
 host key with `ssh devbox` first: background file operations use OpenSSH batch
@@ -26,6 +44,11 @@ Sessions are ordinary tmux sessions and can be accessed outside Xenon with
 `tmux -L xenon list-sessions` and `tmux -L xenon attach -t <session>`.
 
 ## Implementation
+
+Host lookups (`discover`, `list_dirs`) are read-only helper operations that need
+no workspace. They share the per-host control connection, are capped like local
+discovery (depth 3, 20 results, 2,500 directories, 4 seconds), never follow
+symlinks while searching, and skip hidden and build directories.
 
 `xenon_ssh` runs a bundled, standard-library Python helper over system SSH for
 file operations. No helper binary or global service is installed. File requests

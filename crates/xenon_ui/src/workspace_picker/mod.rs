@@ -8,10 +8,16 @@
 //! like `personalfiles` wins over a random dir named `personal`.
 
 mod candidate;
+mod host;
 mod rank;
+mod render;
+mod scope;
 mod ssh;
 
 pub use candidate::{WorkspaceCandidate, WorkspacePickerEvent};
+#[cfg(feature = "visual-tests")]
+pub(crate) use scope::Remote as VisualRemote;
+pub(crate) use scope::host_candidates;
 
 use std::time::Duration;
 
@@ -32,12 +38,15 @@ use crate::workspace_discover::{
     resolve_existing_dir, same_root,
 };
 
-use rank::sort_candidates;
+use rank::{sort_candidates, sort_listing};
+use scope::Scope;
 
 const DISCOVER_DEBOUNCE: Duration = Duration::from_millis(60);
 
 pub struct WorkspacePickerView {
-    remote_paths: std::collections::HashMap<std::path::PathBuf, String>,
+    /// Virtual root of each SSH workspace in `known` → where it points.
+    ssh_known: std::collections::HashMap<std::path::PathBuf, xenon_ssh::SshWorkspace>,
+    scope: Scope,
     known: Vec<WorkspaceCandidate>,
     query: String,
     results: Vec<WorkspaceCandidate>,
@@ -56,11 +65,11 @@ pub struct WorkspacePickerView {
 impl EventEmitter<WorkspacePickerEvent> for WorkspacePickerView {}
 
 impl WorkspacePickerView {
-    pub(crate) fn set_remote_paths(
+    pub(crate) fn set_ssh_workspaces(
         &mut self,
-        paths: std::collections::HashMap<std::path::PathBuf, String>,
+        workspaces: std::collections::HashMap<std::path::PathBuf, xenon_ssh::SshWorkspace>,
     ) {
-        self.remote_paths = paths;
+        self.ssh_known = workspaces;
     }
 
     #[cfg(feature = "visual-tests")]
@@ -92,7 +101,8 @@ impl WorkspacePickerView {
             PaletteInput::Ignore => {}
         });
         let mut view = Self {
-            remote_paths: Default::default(),
+            ssh_known: Default::default(),
+            scope: Scope::Local,
             known,
             query: String::new(),
             results: Vec::new(),
@@ -111,17 +121,26 @@ impl WorkspacePickerView {
     }
 
     fn refilter(&mut self) {
-        let mut results = self.filter_known();
-        self.merge_discovered(&mut results);
-        self.add_exact_path(&mut results);
-        let needle = ranking_needle(&self.query);
-        sort_candidates(&mut results, needle.as_deref());
+        let results = if self.scope.host().is_some() {
+            self.host_results()
+        } else {
+            self.local_results()
+        };
         self.results = results;
         self.selected = self
             .results
             .iter()
             .position(|c| c.selectable() || c.is_closed())
             .unwrap_or(0);
+    }
+
+    fn local_results(&mut self) -> Vec<WorkspaceCandidate> {
+        let mut results = self.filter_known();
+        self.merge_discovered(&mut results);
+        self.add_exact_path(&mut results);
+        let needle = ranking_needle(&self.query);
+        sort_candidates(&mut results, needle.as_deref());
+        results
     }
 
     fn filter_known(&mut self) -> Vec<WorkspaceCandidate> {
@@ -176,6 +195,7 @@ impl WorkspacePickerView {
     fn set_query(&mut self, query: String, cx: &mut Context<Self>) {
         self.query = query;
         self.discovered.clear();
+        self.kick_remote(cx);
         self.refilter();
         self.kick_discover(cx);
         cx.notify();
@@ -183,6 +203,9 @@ impl WorkspacePickerView {
 
     /// Walk the FS off the UI thread; merge when still matching the latest query.
     fn kick_discover(&mut self, cx: &mut Context<Self>) {
+        if self.scope.host().is_some() {
+            return;
+        }
         let Some(parsed) = parse_discover_query(&self.query) else {
             self._discover_task = None;
             return;
@@ -248,6 +271,9 @@ impl WorkspacePickerView {
             cx.emit(WorkspacePickerEvent::Ssh(self.query.trim().to_string()));
             return;
         }
+        if self.confirm_host_row(cx) {
+            return;
+        }
         if let Some(candidate) = self.results.get(self.selected).cloned() {
             if !candidate.selectable() {
                 return;
@@ -257,34 +283,7 @@ impl WorkspacePickerView {
                 return;
             }
             if let Some(root) = resolve_existing_dir(candidate.root()) {
-                let candidate = match candidate {
-                    WorkspaceCandidate::Open {
-                        id,
-                        name,
-                        last_opened,
-                        ..
-                    } => WorkspaceCandidate::Open {
-                        id,
-                        name,
-                        root,
-                        last_opened,
-                    },
-                    WorkspaceCandidate::Closed {
-                        id,
-                        name,
-                        last_opened,
-                        ..
-                    } => WorkspaceCandidate::Closed {
-                        id,
-                        name,
-                        root,
-                        missing: false,
-                        last_opened,
-                    },
-                    WorkspaceCandidate::Path { found, .. } => {
-                        WorkspaceCandidate::Path { root, found }
-                    }
-                };
+                let candidate = candidate.with_root(root);
                 cx.emit(WorkspacePickerEvent::Open(candidate));
             }
             return;
@@ -325,6 +324,8 @@ impl WorkspacePickerView {
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
             "backspace" if platform => self.forget_selected(cx),
+            "backspace" => self.leave_host_if_empty(cx),
+            "tab" => self.complete_selected(cx),
             _ => return,
         }
         cx.stop_propagation();
@@ -349,104 +350,5 @@ impl WorkspacePickerView {
 impl Focusable for WorkspacePickerView {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus.clone()
-    }
-}
-
-impl Render for WorkspacePickerView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        let layout = PaletteLayout::default();
-        let empty = if self.query.is_empty() {
-            "No workspaces — type a path, name, or ~/src name"
-        } else {
-            "No match — try ~/src name or Browse…"
-        };
-        let mut ranker = nucleo::Matcher::new(nucleo::Config::DEFAULT);
-        let mut rows: Vec<_> = self
-            .results
-            .iter()
-            .enumerate()
-            .map(|(i, cand)| {
-                let selectable = cand.selectable();
-                let selected = i == self.selected && (selectable || cand.is_closed());
-                let title = cand.name();
-                let hits = match_hits(&title, &self.query, &mut ranker);
-                let mut row = query_row(
-                    ("workspace-row", i),
-                    QueryRow {
-                        title,
-                        detail: Some(cand.badge().to_string()),
-                        subtitle: Some(
-                            self.remote_paths
-                                .get(cand.root())
-                                .cloned()
-                                .unwrap_or_else(|| cand.root().display().to_string()),
-                        ),
-                        selected,
-                        enabled: selectable || cand.is_closed(),
-                        hits,
-                    },
-                    cx,
-                );
-                if selectable {
-                    row = row.on_click(cx.listener(move |this, _, _, cx| {
-                        this.selected = i;
-                        this.confirm(cx);
-                    }));
-                } else if cand.is_closed() {
-                    row = row.on_click(cx.listener(move |this, _, _, cx| {
-                        this.selected = i;
-                        cx.notify();
-                    }));
-                }
-                row.into_any_element()
-            })
-            .collect();
-        if let Some(row) = self.ssh_row(cx) {
-            rows.insert(0, row);
-        }
-        let browse = xenon_design_system::action_button(
-            "workspace-picker-browse-btn",
-            xenon_design_system::ActionButton::quiet(xenon_design_system::shortcut_text(
-                "Browse… ⌘⇧O",
-            ))
-            .hover_text(colors.text)
-            .hover_background(gpui::transparent_black()),
-            cx,
-            cx.listener(|_, _, _, cx| cx.emit(WorkspacePickerEvent::Browse)),
-        )
-        .into_any_element();
-
-        palette_overlay(
-            PaletteOverlay {
-                id: "workspace-picker-scrim",
-                layout,
-                colors: &colors,
-                focus: self.focus.clone(),
-                key_context: "WorkspacePicker",
-                on_key: Self::on_key,
-                on_dismiss: |_, _, _, cx| cx.emit(WorkspacePickerEvent::Dismissed),
-                children: vec![
-                    self.input.clone().into_any_element(),
-                    scroll_results(ScrollResults {
-                        list_id: "workspace-picker-results",
-                        empty_message: empty,
-                        rows,
-                        selected: self.selected,
-                        scroll: &self.scroll,
-                        colors: &colors,
-                    }),
-                    query_hint_action(
-                        &xenon_design_system::shortcut_text(
-                            "return opens  ·  ⌘⌫ forgets a closed workspace  ·  esc closes",
-                        ),
-                        browse,
-                        cx,
-                    )
-                    .into_any_element(),
-                ],
-            },
-            cx,
-        )
     }
 }

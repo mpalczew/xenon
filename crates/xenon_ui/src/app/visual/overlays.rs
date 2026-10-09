@@ -147,7 +147,7 @@ pub(super) fn skill_prompt(
     window: &mut Window,
     cx: &mut Context<XenonApp>,
 ) {
-    super::theme_for(scene, cx);
+    super::chrome::theme_for(scene, cx);
     populate(app, window, cx);
     app.show_skill_prompt(cx);
 }

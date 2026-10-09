@@ -1,12 +1,25 @@
 //! SSH workspace transport. Blocking operations belong on a background executor.
 
 mod file;
+mod host;
+mod ssh_config;
 mod transport;
+
+pub use host::{HostQuery, RemoteDir, RemoteListing, lookup as lookup_host, tilde_path};
+pub use ssh_config::config_hosts;
 
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::Path;
+
+pub(crate) fn valid_host(host: &str) -> bool {
+    !host.is_empty()
+        && !host.starts_with('-')
+        && host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"@._-:[]".contains(&b))
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SshWorkspace {
@@ -57,14 +70,7 @@ impl SshWorkspace {
         Self::new(host.to_string(), directory)
     }
     pub fn new(host: String, directory: String) -> Result<Self> {
-        ensure!(
-            !host.is_empty()
-                && !host.starts_with('-')
-                && host
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b"@._-:[]".contains(&b)),
-            "Use an SSH host alias or user@host"
-        );
+        ensure!(valid_host(&host), "Use an SSH host alias or user@host");
         ensure!(
             directory.starts_with('/') || directory.starts_with("~/"),
             "Use an absolute remote path or ~/path"

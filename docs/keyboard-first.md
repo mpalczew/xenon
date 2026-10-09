@@ -16,6 +16,7 @@ exceptions listed under "Linux differences" below.
 |------|------|
 | New terminal / file | ⌘N / ⌘⇧N |
 | New / open workspace | ⌘⌥N / ⌘⇧O |
+| Open workspace picker: step into SSH host / complete folder / leave host | ↩ / ⇥ / ⌫ on an empty field (Esc closes) |
 | Open file | ⌘P (↩ this pane, ⌘↩ / ⌃↩ new pane to the right) |
 | Commands / help / task | ⌘⇧P / ⌘⇧/ / ⌘⇧R |
 | Save / Save As | ⌘S / ⌘⇧S |

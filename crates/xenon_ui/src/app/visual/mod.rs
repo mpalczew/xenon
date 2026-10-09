@@ -13,6 +13,7 @@ mod overlays;
 mod remote;
 mod settings;
 mod ssh;
+mod ssh_picker;
 mod worklist;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +54,10 @@ pub enum Scene {
     TaskPicker,
     WorkspacePicker,
     SshWorkspacePicker,
+    SshHostPicker,
+    SshHostResults,
+    SshHostSearching,
+    SshHostError,
     SshWorkspace,
     SshWorkspaceUnavailable,
     WorkspaceCreate,
@@ -142,6 +147,10 @@ pub const SCENES: &[Scene] = &[
     Scene::TaskPicker,
     Scene::WorkspacePicker,
     Scene::SshWorkspacePicker,
+    Scene::SshHostPicker,
+    Scene::SshHostResults,
+    Scene::SshHostSearching,
+    Scene::SshHostError,
     Scene::SshWorkspace,
     Scene::SshWorkspaceUnavailable,
     Scene::WorkspaceCreate,
@@ -248,6 +257,10 @@ impl Scene {
             Self::TaskPicker => "overlay_task_picker",
             Self::WorkspacePicker => "overlay_workspace_picker",
             Self::SshWorkspacePicker => "overlay_ssh_workspace_picker",
+            Self::SshHostPicker => "overlay_ssh_host_picker",
+            Self::SshHostResults => "overlay_ssh_host_results",
+            Self::SshHostSearching => "overlay_ssh_host_searching",
+            Self::SshHostError => "overlay_ssh_host_error",
             Self::SshWorkspace => "chrome_ssh_workspace",
             Self::SshWorkspaceUnavailable => "chrome_ssh_workspace_unavailable",
             Self::WorkspaceCreate => "overlay_workspace_create",
@@ -358,6 +371,10 @@ pub fn apply_scene(
         Scene::TaskPicker => overlays::task_picker(app, window, cx),
         Scene::WorkspacePicker => overlays::workspace_picker(app, window, cx),
         Scene::SshWorkspacePicker => overlays::ssh_workspace_picker(app, window, cx),
+        Scene::SshHostPicker
+        | Scene::SshHostResults
+        | Scene::SshHostSearching
+        | Scene::SshHostError => ssh_picker::scene(app, scene, window, cx),
         Scene::SshWorkspace => ssh::workspace(app, false, window, cx),
         Scene::SshWorkspaceUnavailable => ssh::workspace(app, true, window, cx),
         Scene::WorkspaceCreate => overlays::workspace_create(app, window, cx),
@@ -437,27 +454,6 @@ pub(super) fn set_theme(mode: ThemeMode, dark: &str, light: &str, cx: &mut Conte
     xenon_settings::apply(&settings, cx);
     xenon_terminal::apply_theme(cx);
     cx.notify();
-}
-
-fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
-    match scene {
-        Scene::EmptyNoWorkspaceLight
-        | Scene::EmptyWithWorkspaceLight
-        | Scene::PopulatedLight
-        | Scene::SkillPromptLight
-        | Scene::WorklistInlineLight
-        | Scene::WorklistSectionsLight
-        | Scene::WorklistEmptyLight
-        | Scene::ToastErrorLight => {
-            set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
-        }
-        Scene::EmptyNoWorkspaceTrueBlack
-        | Scene::EmptyWithWorkspaceTrueBlack
-        | Scene::PopulatedTrueBlack => {
-            set_theme(ThemeMode::Dark, "True Black", "One Light", cx);
-        }
-        _ => set_theme(ThemeMode::Dark, "One Dark", "One Light", cx),
-    }
 }
 
 fn workspace_root(app: &XenonApp) -> Option<std::path::PathBuf> {

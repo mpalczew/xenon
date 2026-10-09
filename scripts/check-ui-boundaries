@@ -33,8 +33,17 @@ if rg -n 'dismissible_scrim|overlay_scrim|overlay_panel|\.on_key_down\(' "${pale
     printf 'Palette dismissal and key routing belong in palette_overlay\n' >&2
     exit 1
 fi
+# The picker's rendering lives beside its state; check both halves.
+if ! rg -q 'palette_overlay\(' crates/xenon_ui/src/workspace_picker/render.rs; then
+    printf 'Palette must use palette_overlay: workspace_picker/render.rs\n' >&2
+    exit 1
+fi
+if rg -n 'dismissible_scrim|overlay_scrim|overlay_panel|\.on_key_down\(' crates/xenon_ui/src/workspace_picker/render.rs; then
+    printf 'Palette dismissal and key routing belong in palette_overlay\n' >&2
+    exit 1
+fi
 for path in "${palette_views[@]}"; do
-    if ! rg -q 'palette_overlay\(' "$path"; then
+    if [[ "$path" != */workspace_picker/mod.rs ]] && ! rg -q 'palette_overlay\(' "$path"; then
         printf 'Palette must use palette_overlay: %s\n' "$path" >&2
         exit 1
     fi

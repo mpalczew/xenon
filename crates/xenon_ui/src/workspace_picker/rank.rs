@@ -12,6 +12,11 @@ pub(super) fn sort_candidates(results: &mut [WorkspaceCandidate], needle: Option
     results.sort_by(|a, b| cmp_candidates(a, b, needle));
 }
 
+/// Keep the host's listing order within a tier (a folder listing is alphabetical).
+pub(super) fn sort_listing(results: &mut [WorkspaceCandidate]) {
+    results.sort_by_key(WorkspaceCandidate::rank_tier);
+}
+
 fn cmp_candidates(
     a: &WorkspaceCandidate,
     b: &WorkspaceCandidate,

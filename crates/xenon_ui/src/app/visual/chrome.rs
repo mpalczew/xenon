@@ -1,7 +1,8 @@
 use gpui::{Context, Window};
 use xenon_core::{Registry, SplitAxis};
+use xenon_store::ThemeMode;
 
-use super::{Scene, XenonApp, ensure_terminal, open_rel, populate, theme_for};
+use super::{Scene, XenonApp, ensure_terminal, open_rel, populate, set_theme};
 use crate::app::AttentionReason;
 use crate::git_dirt::GitDirt;
 
@@ -17,6 +18,27 @@ pub(super) fn empty_no_workspace(app: &mut XenonApp, scene: Scene, cx: &mut Cont
 pub(super) fn empty_with_workspace(_app: &mut XenonApp, scene: Scene, cx: &mut Context<XenonApp>) {
     theme_for(scene, cx);
     cx.notify();
+}
+
+pub(super) fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
+    match scene {
+        Scene::EmptyNoWorkspaceLight
+        | Scene::EmptyWithWorkspaceLight
+        | Scene::PopulatedLight
+        | Scene::SkillPromptLight
+        | Scene::WorklistInlineLight
+        | Scene::WorklistSectionsLight
+        | Scene::WorklistEmptyLight
+        | Scene::ToastErrorLight => {
+            set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
+        }
+        Scene::EmptyNoWorkspaceTrueBlack
+        | Scene::EmptyWithWorkspaceTrueBlack
+        | Scene::PopulatedTrueBlack => {
+            set_theme(ThemeMode::Dark, "True Black", "One Light", cx);
+        }
+        _ => set_theme(ThemeMode::Dark, "One Dark", "One Light", cx),
+    }
 }
 
 pub(super) fn populated(
