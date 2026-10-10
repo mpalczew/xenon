@@ -48,8 +48,10 @@ and `CONTRIBUTING.md`.
   .app/codesign): GUI at `~/.local/share/xenon/xenon-bin`, launcher
   `~/.local/bin/xenon` (same `scripts/xenon`, slot detection via
   `/proc/<pid>/environ`; no raise-by-pid, IPC handoff only), `.desktop` + icon.
-  `xenon_stub` is unused there. `cmd-*` bindings are the Super key (GNOME grabs
-  some); `visual_test_runner` stays mac-only. Build deps: README "Linux".
+  `xenon_stub` is unused there. Default keys swap `cmd` for `ctrl`
+  (`crates/xenon_keymap`); `visual_test_runner` stays mac-only. Build deps:
+  README "Linux". The launcher forks the GUI and exits, so a systemd unit that
+  runs it needs `KillMode=process` or the app dies with the unit.
   Linux refuses to exec a file open for write (ETXTBSY): serialize tests that
   write then exec binaries (see `xenon_stub/tests/exec.rs`).
 - Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
