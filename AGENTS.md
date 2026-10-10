@@ -53,7 +53,10 @@ and `CONTRIBUTING.md`.
   README "Linux". The launcher forks the GUI and exits, so a systemd unit that
   runs it needs `KillMode=process` or the app dies with the unit.
   Linux refuses to exec a file open for write (ETXTBSY): serialize tests that
-  write then exec binaries (see `xenon_stub/tests/exec.rs`).
+  write then exec binaries (see `xenon_stub/tests/exec.rs`). Linux CI
+  (`.github/workflows/linux.yml`, Ubuntu runner) runs `scripts/health` on every
+  push; that is the Linux check. Build on the ThinkPad only to install there
+  (`git pull && scripts/release/install`), when the user wants it.
 - Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
   Toolchain (`xcodebuild -downloadComponent MetalToolchain`). Missing either
   fails the build inside `wasmtime-c-api-impl` / `gpui_macos` respectively.
