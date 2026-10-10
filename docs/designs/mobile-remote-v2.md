@@ -32,7 +32,7 @@
 **In scope (v2):**
 
 1. **Reach** — Tailscale-first: listen on Tailscale IP + loopback by default; LAN opt-in. Detect Tailscale by interface (100.64.0.0/10), not CLI.
-2. **Discover / connect** — persisted enabled state; `Connect Phone…` command + keybinding opens a pairing sheet with QR; sidebar status indicator (off / on / phone connected); keep Mac awake while enabled.
+2. **Discover / connect** — persisted enabled state; `Connect Phone…` command + keybinding opens a pairing sheet with QR; sidebar status indicator (off / on / phone connected); optional keep-awake while a phone is connected (opt-in, off by default).
 3. **Read** — cell-grid frames (text + resolved RGB + attrs + cursor) rendered as real text on the phone; WebSocket push on PTY wakeup with row deltas; scrollback on demand.
 4. **Fit** — phone-sized PTY while the phone drives (Decision A).
 5. **Type** — key strip (Esc, ^C, Tab, ⇧Tab, ↑↓←→, 1 2 3, ⏎) via named keys → `try_keystroke`; text field with send-with/without-Enter.
@@ -75,7 +75,7 @@
 - Command palette: **Connect Phone…** (enables remote if off, opens pairing sheet). Keybinding: `cmd-shift-m`-class, final pick checked against `docs/keyboard-first.md`.
 - Existing **Toggle Mobile Remote** stays (no sheet).
 - Sidebar footer indicator (only when enabled): phone glyph, muted = listening, accent = ≥1 device connected. Enter/click opens the pairing sheet. Tooltip: "Phone remote on · 1 device connected".
-- Settings › Remote: toggle, network (Tailscale / Tailscale + LAN), keep-awake toggle, QR, URL copy, paired devices list with Revoke, Rotate password.
+- Settings › Remote: toggle, network (Tailscale / Tailscale + LAN), keep-awake opt-in, QR, URL copy, paired devices list with Revoke, Rotate password.
 
 **Pairing sheet (Mac, modal, keyboard-first)**
 
@@ -140,7 +140,7 @@ QR encodes `http://<tailscale-host>:<port>/pair#<one-time pairing code>` (fragme
 
 **Modified**
 
-- `AppSettings` — add `remote_enabled: bool`, `remote_network: RemoteNetwork`, `remote_keep_awake: bool (default true)`. `remote_hostname` kept (override for URL).
+- `AppSettings` — add `remote_enabled: bool`, `remote_network: RemoteNetwork`, `remote_keep_awake_while_connected: bool (default false; the earlier `remote_keep_awake` key is ignored, not migrated)`. `remote_hostname` kept (override for URL).
 - `MobileRemoteInfo` (global) — add `connected_devices: usize`, `tailscale: Option<TailscaleAddr>`, `pairing: Option<PairingCode>`.
 - `HostRequest` — remove `CaptureFrame`; add `Attach`, `Detach`, `Key`, `History`, `Pair` (see contracts).
 - `TerminalView` — add `cell_snapshot(&self, cx, palette) -> Option<CellFrame>` and `history_lines(before, count)` (scrollback read).
@@ -151,7 +151,7 @@ QR encodes `http://<tailscale-host>:<port>/pair#<one-time pairing code>` (fragme
 
 **Transitions**
 
-- Server: `Off → Listening` (enable / launch with `remote_enabled`) → `Off` (disable). Keep-awake assertion held iff `Listening && remote_keep_awake`.
+- Server: `Off → Listening` (enable / launch with `remote_enabled`) → `Off` (disable). Keep-awake hold is held iff `Listening && remote_keep_awake_while_connected && connected phones >= 1`: acquired on the first connection, released on the last disconnect, when the setting is turned off, or when the remote stops.
 - Pairing: `None → Issued` (sheet opened) → `Consumed` (phone pairs) or `Expired` (10 min / sheet closed... stays valid until TTL so typing on a PWA works after closing sheet).
 - Device: `Paired → Revoked` (Settings revoke, or password rotate revokes all).
 - Attach: `Detached → Attached(ws, tab)` → `Detached` on WS close, tab close, or re-attach.
@@ -242,7 +242,7 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 ```json
 "remote_enabled": false,
 "remote_network": "tailscale",
-"remote_keep_awake": true
+"remote_keep_awake_while_connected": false
 ```
 `remote_password` retained as the root secret (rotate = revoke all devices). No longer displayed or put in URLs.
 
@@ -286,7 +286,7 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 
 **Alternative paths:**
 - Tab closed on Mac → subscription sees view release / `is_exited` → `closed{tab-closed}` → phone returns to list.
-- Remote disabled → server stops → `closed{server-stopping}` to all → keep-awake released.
+- Remote disabled → server stops → `closed{server-stopping}` to all → keep-awake hold released.
 - Tailscale IP changes (re-login) → detected on next enable/launch; pairing sheet reflects current. (Watching interface changes: deferred.)
 - Attention dots: attention state changes → host broadcasts `dots` to all authenticated connections (not just attached).
 
@@ -311,7 +311,11 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
   sent once per attach on `{"t":"history"}`.
 - The long-lived remote password is gone (not the "root secret" above): devices
   hold per-device tokens; "Sign out all" clears `remote_devices.json`.
-- Keep-awake is a `caffeinate -i -w <pid>` child, not an IOKit assertion.
+- Keep-awake is a `caffeinate -i -w <pid>` child (Linux: `systemd-inhibit`), not
+  an IOKit assertion. It is opt-in ("Keep this Mac awake while a phone is
+  connected", off by default; the Connect Phone sheet row, ⌘K, and Settings ›
+  Phone Remote). State is `Inhibitor::{Released, Held}`, synced from every
+  published remote snapshot via `should_hold(remote_on, opted_in, connected)`.
 - Heartbeat: the page sends `{"t":"ping"}` every 15s; the socket thread answers
   `{"t":"pong"}`. The page treats 5s of silence after a ping as a dead socket.
 - Tab chip shows `title · iPhone` while a phone fit is active (no icon).

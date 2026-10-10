@@ -24,7 +24,12 @@ host mode.
     `ssh://devbox//home/alex/project` is absolute. (A single slash is now
     relative to home, so `ssh://devbox/home/alex/project` means
     `~/home/alex/project`.)
-- "Searching thinkpad…" shows while the host answers. If it cannot be reached
+- The folder listing renders as soon as it arrives; name-search matches join
+  below it later. "Searching thinkpad…" stays under the rows until the search
+  finishes (a search failure shows a "Couldn’t search" row under the listing).
+  Name matches rank project roots and plain folders before folders inside a git
+  repo (`~/src/xenon` before `~/src/xenon/crates/x/src`); nothing is hidden.
+  While nothing has arrived yet, it shows "Searching thinkpad…" alone. If it cannot be reached
   (auth, host key, network, no python3) a disabled row says so; run
   `ssh thinkpad` once in a terminal and try again.
 

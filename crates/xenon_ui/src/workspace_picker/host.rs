@@ -1,6 +1,6 @@
 //! `ssh://` queries: host rows, remote folder rows, Tab completion, status.
 
-use super::remote::{PathListing, Remote, lookup_path, merge_path, short_error};
+use super::remote::{Discovery, Remote, Reply, ReplyBody, lookup_line, merge_path};
 use super::ssh_input::{
     SshInput, folder_address, host_completion, host_matches, last_segment, lookups,
     names_whole_folder, open_address, path_completion, scheme_completion,
@@ -42,7 +42,7 @@ impl WorkspacePickerView {
                 (ssh.host == host).then(|| (c.clone(), ssh.directory.clone()))
             })
             .collect();
-        if needle.is_empty() || matches!(self.remote, Remote::Ready(_)) {
+        if needle.is_empty() || self.remote.complete() {
             return mine;
         }
         let haystacks: Vec<String> = mine
@@ -68,25 +68,29 @@ impl WorkspacePickerView {
         let (token, host) = (self.discover_gen, host.to_string());
         let (listing, search) = lookups(rest);
         self._discover_task = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(REMOTE_DEBOUNCE).await;
-            let result = cx
-                .background_executor()
-                .spawn(async move { lookup_path(&host, &listing, search.as_ref()) })
-                .await;
-            this.update(cx, |this, cx| {
-                if this.discover_gen == token {
-                    this.apply_remote(result, cx);
-                }
-            })
-            .ok();
+            let background = cx.background_executor().clone();
+            background.timer(REMOTE_DEBOUNCE).await;
+            let searching = search.is_some();
+            let listing_host = host.clone();
+            let listed = background.spawn(async move { lookup_line(&listing_host, &listing) });
+            let found = search.map(|q| background.spawn(async move { lookup_line(&host, &q) }));
+            let listing = listed.await;
+            let failed = listing.is_err();
+            let body = ReplyBody::Listed { listing, searching };
+            this.update(cx, |this, cx| this.apply_remote(Reply { token, body }, cx))
+                .ok();
+            let Some(found) = found.filter(|_| !failed) else {
+                return;
+            };
+            let body = ReplyBody::Discovered(found.await);
+            this.update(cx, |this, cx| this.apply_remote(Reply { token, body }, cx))
+                .ok();
         }));
     }
 
-    fn apply_remote(&mut self, result: anyhow::Result<PathListing>, cx: &mut Context<Self>) {
-        self.remote = match result {
-            Ok(listing) => Remote::Ready(listing),
-            Err(error) => Remote::Failed(short_error(&error.to_string())),
-        };
+    fn apply_remote(&mut self, reply: Reply, cx: &mut Context<Self>) {
+        let remote = std::mem::replace(&mut self.remote, Remote::Idle);
+        self.remote = remote.apply(self.discover_gen, reply);
         self.refilter();
         cx.notify();
     }
@@ -171,7 +175,14 @@ impl WorkspacePickerView {
                 format!("Couldn’t reach {host}"),
                 Some(format!("Run `ssh {host}` once in a terminal · {error}")),
             ),
-            Remote::Idle | Remote::Ready(_) => return None,
+            Remote::Ready(listing) => match &listing.discovery {
+                Discovery::Pending => (format!("Searching {host}…"), None),
+                Discovery::Failed(error) => {
+                    (format!("Couldn’t search {host}"), Some(error.clone()))
+                }
+                Discovery::Done => return None,
+            },
+            Remote::Idle => return None,
         };
         let row = QueryRow {
             title,

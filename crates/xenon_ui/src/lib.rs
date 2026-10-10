@@ -74,6 +74,7 @@ actions!(
         ToggleThemes,
         ToggleMobileRemote,
         ConnectPhone,
+        ToggleKeepAwake,
         TogglePreview,
         ToggleSoftWrap,
         ToggleMemory,

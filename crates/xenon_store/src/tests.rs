@@ -136,7 +136,7 @@ fn settings_round_trip() {
             )),
             remote_enabled: true,
             remote_network: crate::RemoteNetwork::TailscaleAndLan,
-            remote_keep_awake: false,
+            remote_keep_awake_while_connected: true,
             remote_port: 17890,
             remote_hostname: "macbook.tailnet.ts.net".into(),
             lsp: crate::LspSettings::default(),
@@ -324,10 +324,16 @@ fn legacy_remote_password_is_ignored() {
     with_data_dir(|| {
         let path = crate::data_dir().join("settings.json");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, r#"{"remote_password":"old","remote_port":17890}"#).unwrap();
+        fs::write(
+            &path,
+            r#"{"remote_password":"old","remote_keep_awake":true,"remote_port":17890}"#,
+        )
+        .unwrap();
         let settings = load_settings().unwrap();
         assert!(!settings.remote_enabled);
-        assert!(settings.remote_keep_awake);
+        // The old keep-awake key is ignored, not migrated.
+        assert!(!settings.remote_keep_awake_while_connected);
+        assert_eq!(settings.remote_port, 17890);
         assert_eq!(settings.remote_network, crate::RemoteNetwork::Tailscale);
     });
 }

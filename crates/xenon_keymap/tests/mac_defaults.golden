@@ -73,3 +73,4 @@ Terminal	cmd-shift-g	xenon_terminal::FindPrevious
 TerminalFind	cmd-f	xenon_terminal::Find
 TerminalFind	cmd-g	xenon_terminal::FindNext
 TerminalFind	cmd-shift-g	xenon_terminal::FindPrevious
+ConnectPhone	cmd-k	xenon::ToggleKeepAwake

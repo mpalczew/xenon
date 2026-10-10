@@ -1,4 +1,4 @@
-//! Settings › Phone Remote: on/off, network, keep-awake, address override,
+//! Settings › Phone Remote: on/off, network, keep-awake opt-in, address override,
 //! pairing, and paired devices (revoke one or all).
 
 use std::rc::Rc;
@@ -58,13 +58,13 @@ fn server_rows(info: &MobileRemoteInfo) -> Vec<SettingRow> {
         .keywords("wifi lan tailscale"),
         SettingRow::new(
             "phone-keep-awake",
-            "Keep Mac awake",
+            remote::KEEP_AWAKE_LABEL,
             Control::Switch {
                 on: info.keep_awake,
                 toggle: Rc::new(|_, cx| remote::settings_toggle_keep_awake(cx)),
             },
         )
-        .detail("Stops idle sleep while on. Closing the lid still sleeps.")
+        .detail(remote::KEEP_AWAKE_DETAIL)
         .keywords("sleep"),
         SettingRow::new(
             "phone-hostname",

@@ -25,7 +25,8 @@ use xenon_remote::{ConnId, HostRequest, PairError, PairResponse, RemoteServer, S
 use xenon_store::RemoteNetwork;
 
 use devices::DeviceBook;
-use keep_awake::KeepAwake;
+use keep_awake::Inhibitor;
+pub(crate) use keep_awake::{KEEP_AWAKE_DETAIL, KEEP_AWAKE_LABEL};
 use network::Reachability;
 pub(crate) use network::normalize_hostname;
 use session::Conn;
@@ -61,6 +62,7 @@ pub(crate) struct MobileRemoteInfo {
     /// On, but another Xenon (the other a/b slot) holds the port for now.
     pub waiting: bool,
     pub network: RemoteNetwork,
+    /// Opt-in: hold the machine awake while a phone is connected.
     pub keep_awake: bool,
     /// User override for the phone URL host (empty = automatic).
     pub hostname: String,
@@ -81,7 +83,7 @@ pub(crate) fn mobile_remote_info(cx: &App) -> MobileRemoteInfo {
 }
 
 /// Everything alive while the remote is on. Dropping it stops the server,
-/// releases keep-awake, and ends the background tasks.
+/// releases the keep-awake hold, and ends the background tasks.
 pub(crate) struct RemoteRuntime {
     /// Held for its `Drop`, which stops listening.
     _server: RemoteServer,
@@ -92,7 +94,8 @@ pub(crate) struct RemoteRuntime {
     host_name: String,
     devices: DeviceBook,
     conns: BTreeMap<ConnId, Conn>,
-    _keep_awake: Option<KeepAwake>,
+    /// Held only while a phone is connected and the user opted in.
+    keep_awake: Inhibitor,
     _requests: Task<()>,
     _tick: Task<()>,
     ticks: u32,
@@ -193,10 +196,7 @@ impl XenonApp {
             host_name: String::new(),
             devices: DeviceBook::load(),
             conns: BTreeMap::new(),
-            _keep_awake: settings
-                .remote_keep_awake
-                .then(KeepAwake::acquire)
-                .flatten(),
+            keep_awake: Inhibitor::default(),
             _requests: self.spawn_remote_requests(rx, cx),
             _tick: self.spawn_remote_tick(cx),
             ticks: 0,
@@ -221,7 +221,7 @@ impl XenonApp {
         self.publish_remote_info(cx);
     }
 
-    /// Restart with fresh settings (network / port / keep-awake changed).
+    /// Restart with fresh settings (network / port changed).
     pub(crate) fn restart_mobile_remote(&mut self, cx: &mut Context<Self>) {
         if self.remote_running() {
             self.stop_mobile_remote(cx);
@@ -232,6 +232,7 @@ impl XenonApp {
     /// Recompute the Settings/sidebar snapshot and repaint both windows.
     pub(crate) fn publish_remote_info(&mut self, cx: &mut Context<Self>) {
         let info = self.remote_info_snapshot();
+        self.sync_keep_awake(&info);
         if cx.try_global::<MobileRemoteInfo>() != Some(&info) {
             cx.set_global(info);
             if let Some(handle) = self.settings_window {
@@ -248,7 +249,7 @@ impl XenonApp {
             enabled: self.remote_running(),
             waiting: self.remote_waiting(),
             network: settings.remote_network,
-            keep_awake: settings.remote_keep_awake,
+            keep_awake: settings.remote_keep_awake_while_connected,
             hostname: hostname.clone(),
             ..Default::default()
         };

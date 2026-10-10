@@ -35,7 +35,7 @@ exceptions listed under "Linux differences" below.
 | Themes panel · browse · keep · revert | ⌘⌥T · ↑/↓ family, ←/→ dark/light (live) · Return · Escape |
 | Settings: page · row · value · toggle | ⌘1–⌘7 · ↑/↓ · ←/→ (segments, sizes, theme swatches) · Space/Return |
 | Settings: search · back out | ⌘F or just type · Escape (dropdown, then search, then window) |
-| Connect Phone sheet · copy link · close | ⌘⇧M · ⌘C · Escape / Return |
+| Connect Phone sheet · copy link · keep awake while connected · close | ⌘⇧M · ⌘C · ⌘K · Escape / Return |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
 
 Toasts never take focus or Escape. A toast's action shows its shortcut and

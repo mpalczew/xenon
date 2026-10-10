@@ -1,4 +1,3 @@
-use super::remote::Remote;
 use super::ssh_input::{SshInput, open_address};
 use super::*;
 
@@ -9,7 +8,7 @@ impl WorkspacePickerView {
         let SshInput::Path { host, rest } = SshInput::parse(&self.query)? else {
             return None;
         };
-        let waiting = matches!(self.remote, Remote::Searching | Remote::Failed(_));
+        let waiting = self.remote.waiting();
         if !self.typed_folder_selected() && !(self.results.is_empty() && !waiting) {
             return None;
         }

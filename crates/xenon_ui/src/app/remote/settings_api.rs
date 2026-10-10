@@ -26,18 +26,7 @@ pub(crate) fn settings_set_network(network: RemoteNetwork, cx: &mut App) {
 }
 
 pub(crate) fn settings_toggle_keep_awake(cx: &mut App) {
-    if let Err(e) = xenon_store::update_settings(|s| s.remote_keep_awake = !s.remote_keep_awake) {
-        log::warn!("save remote keep-awake: {e}");
-    }
-    with_main(cx, |app, cx| {
-        let on = xenon_store::load_settings()
-            .map(|s| s.remote_keep_awake)
-            .unwrap_or(true);
-        if let Some(runtime) = app.services.remote.as_mut() {
-            runtime._keep_awake = on.then(KeepAwake::acquire).flatten();
-        }
-        app.publish_remote_info(cx);
-    });
+    with_main(cx, |app, cx| app.toggle_keep_awake(cx));
 }
 
 /// Persist the phone URL host override (no restart: bind is unaffected).

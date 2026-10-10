@@ -25,6 +25,7 @@ pub(super) fn scene(
             Scene::SshHostComplete => picker.visual_query("ssh://thin", cx),
             Scene::SshHostResults => picker.visual_remote(FOLDER_QUERY, listing(), cx),
             Scene::SshHostSearching => picker.visual_remote(FOLDER_QUERY, Remote::searching(), cx),
+            Scene::SshHostDiscovering => picker.visual_remote(FOLDER_QUERY, discovering(), cx),
             _ => picker.visual_remote(
                 FOLDER_QUERY,
                 Remote::failed("Permission denied (publickey,password)."),
@@ -45,6 +46,18 @@ fn listing() -> Remote {
         &[
             ("/home/alex/dev/xen-notes", false),
             ("/home/alex/Projects/xenial", true),
+        ],
+    )
+}
+
+/// The listing is on screen; the name search is still running.
+fn discovering() -> Remote {
+    Remote::discovering(
+        "/home/alex",
+        &[
+            ("/home/alex/src/xenon", true),
+            ("/home/alex/src/xenon-site", true),
+            ("/home/alex/src/xterm-notes", false),
         ],
     )
 }

@@ -46,7 +46,7 @@ impl XenonApp {
             host_name: "MacBook Pro".into(),
             devices,
             conns,
-            _keep_awake: None,
+            keep_awake: Default::default(),
             _requests: self.spawn_remote_requests(rx, cx),
             _tick: Task::ready(()),
             ticks: 0,

@@ -161,29 +161,40 @@ class Budget:
         return self.visits >= MAX_VISITS or time.monotonic() > self.deadline
 
 
+def found_order(entry):
+    """Project roots and plain folders before folders inside a repo, then match
+    quality, then shallow, short, git, alphabetical."""
+    path = entry['path']
+    return (entry['inside'], entry['quality'], path.count('/'), len(path),
+            not entry['git'], path)
+
+
 def keep_found(found, entry):
     if len(found) < MAX_COLLECT:
         found.append(entry)
         return
-    weaker = [i for i, other in enumerate(found) if other['quality'] > entry['quality']]
-    if weaker:
-        found[max(weaker, key=lambda i: found[i]['quality'])] = entry
+    worst = max(range(len(found)), key=lambda i: found_order(found[i]))
+    if found_order(entry) < found_order(found[worst]):
+        found[worst] = entry
 
 
 def exact_count(found):
-    return sum(1 for entry in found if entry['quality'] == 0)
+    """Exact matches outside repos; these are what end the search early."""
+    return sum(1 for entry in found if entry['quality'] == 0 and not entry['inside'])
 
 
 def walk_for_name(root, needle, found, seen, budget):
     """Breadth-first, never following symlinks, so it stays under `root`."""
-    queue = [(root, 0)]
+    queue = [(root, 0, False)]
     cursor = 0
     while cursor < len(queue):
         if budget.spent() or exact_count(found) >= MAX_RESULTS:
             return
-        directory, depth = queue[cursor]
+        directory, depth, inside = queue[cursor]
         cursor += 1
         budget.visits += 1
+        # Children are inside a repo once any directory below the root is one.
+        inside = inside or (depth > 0 and has_git(directory))
         for name in child_dirs(directory, False):
             if skipped(name):
                 continue
@@ -191,14 +202,10 @@ def walk_for_name(root, needle, found, seen, budget):
             quality = match_quality(name, needle)
             if quality is not None and path not in seen:
                 seen.add(path)
-                keep_found(found, {'path': path, 'git': has_git(path), 'quality': quality})
+                keep_found(found, {'path': path, 'git': has_git(path),
+                                   'quality': quality, 'inside': inside})
             if depth < MAX_DEPTH:
-                queue.append((path, depth + 1))
-
-
-def found_order(entry):
-    path = entry['path']
-    return (entry['quality'], path.count('/'), len(path), not entry['git'], path)
+                queue.append((path, depth + 1, inside))
 
 
 def discover(request):

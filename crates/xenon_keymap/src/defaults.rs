@@ -96,6 +96,7 @@ const SHARED: &[Row] = &[
         "cmd-shift-g",
         "xenon_terminal::FindPrevious",
     ),
+    (Some("ConnectPhone"), "cmd-k", "xenon::ToggleKeepAwake"),
 ];
 
 /// Linux keys that collide once `cmd` becomes `ctrl`: (context, action,
@@ -309,7 +310,7 @@ mod tests {
         let json = to_json(&defaults(Platform::Mac));
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
         let sections = value.as_array().unwrap();
-        assert_eq!(sections.len(), 5);
+        assert_eq!(sections.len(), 6);
         assert!(sections[0].get("context").is_none());
         assert_eq!(sections[1]["context"], "Editor");
     }

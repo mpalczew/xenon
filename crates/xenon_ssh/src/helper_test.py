@@ -91,6 +91,33 @@ class HostChecks(unittest.TestCase):
         result = helper.discover({'needle': 'xen'})
         self.assertEqual(self.paths(result)[:2], ['/home/me/src/xenon', '/home/me/src/xen-old'])
 
+    def test_project_roots_rank_before_folders_inside_a_repo(self):
+        nested = {'/home/me/src/xenon': ['crates', '.git'],
+                  '/home/me/src/xenon/crates': ['xen-util', 'core'],
+                  '/home/me/src/xenon/crates/core': ['src']}
+        with patch.dict(TREE, nested):
+            self.assertEqual(self.paths(helper.discover({'needle': 'xen'})),
+                             ['/home/me/src/xenon', '/home/me/src/xen-old',
+                              '/home/me/src/xenon/crates/xen-util'])
+            result = helper.discover({'needle': 'sr'})
+        self.assertEqual(self.paths(result), ['/home/me/src/xenon/crates/core/src'])
+        self.assertTrue(result['dirs'][0]['inside'])
+        self.assertFalse(helper.discover({'needle': 'xenon'})['dirs'][0]['inside'])
+
+    def test_shallow_prefix_beats_nested_exact(self):
+        nested = {'/home/me/src': ['xenon', 'srcery'],
+                  '/home/me/src/xenon': ['crates', '.git'],
+                  '/home/me/src/xenon/crates': ['src']}
+        with patch.dict(TREE, nested):
+            found = self.paths(helper.discover({'needle': 'src'}))
+        self.assertEqual(found, ['/home/me/src/srcery', '/home/me/src/xenon/crates/src'])
+
+    def test_a_repo_at_the_search_root_does_not_make_its_children_nested(self):
+        with patch.dict(TREE, {'/home/me/docs': ['xenon-spec', '.git']}):
+            with patch.object(helper, 'has_git', side_effect=lambda p: p == '/home/me/docs'):
+                result = helper.discover({'needle': 'xen', 'scope': '~/docs'})
+        self.assertFalse(result['dirs'][0]['inside'])
+
     def test_search_is_limited_by_depth_and_skips_junk(self):
         self.assertEqual(helper.discover({'needle': 'xenial'})['dirs'], [])
         self.assertEqual(helper.discover({'needle': 'node'})['dirs'], [])

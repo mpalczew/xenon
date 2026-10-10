@@ -137,9 +137,10 @@ pub struct AppSettings {
     /// Which networks the phone remote listens on.
     #[serde(default)]
     pub remote_network: RemoteNetwork,
-    /// Hold a no-idle-sleep assertion while the phone remote is on.
-    #[serde(default = "default_true")]
-    pub remote_keep_awake: bool,
+    /// Hold a no-idle-sleep assertion while a phone is connected. Opt-in; the
+    /// older `remote_keep_awake` key is ignored.
+    #[serde(default)]
+    pub remote_keep_awake_while_connected: bool,
     /// Mobile remote bind port (stable across restarts).
     #[serde(default = "default_remote_port")]
     pub remote_port: u16,
@@ -174,7 +175,7 @@ impl Default for AppSettings {
             window: None,
             remote_enabled: false,
             remote_network: RemoteNetwork::default(),
-            remote_keep_awake: true,
+            remote_keep_awake_while_connected: false,
             remote_port: default_remote_port(),
             remote_hostname: String::new(),
             lsp: LspSettings::default(),

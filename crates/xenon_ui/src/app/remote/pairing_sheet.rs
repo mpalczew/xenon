@@ -1,6 +1,6 @@
 //! "Connect Phone" sheet (⌘⇧M): QR to the one-time pairing link, the same
 //! code as six digits for the Home Screen app, and the address. Keyboard:
-//! Escape/Return close, ⌘C copies the link.
+//! Escape/Return close, ⌘C copies the link, ⌘K toggles keep-awake.
 
 use std::time::Instant;
 
@@ -25,6 +25,7 @@ struct SheetModel {
     expires_in: Duration,
     address: String,
     reachable: bool,
+    keep_awake: bool,
 }
 
 impl XenonApp {
@@ -81,9 +82,8 @@ impl XenonApp {
         let runtime = self.services.remote.as_mut()?;
         let now = Instant::now();
         let code = runtime.devices.pairing_code(now).clone();
-        let hostname = xenon_store::load_settings()
-            .map(|s| normalize_hostname(&s.remote_hostname))
-            .unwrap_or_default();
+        let settings = xenon_store::load_settings().unwrap_or_default();
+        let hostname = normalize_hostname(&settings.remote_hostname);
         let host = runtime.reach.phone_host(runtime.network, &hostname);
         let base = network::base_url(&host, runtime.port);
         let reachable = runtime.reach.reachable(runtime.network) || !hostname.is_empty();
@@ -97,6 +97,7 @@ impl XenonApp {
             },
             address: base,
             reachable,
+            keep_awake: settings.remote_keep_awake_while_connected,
         })
     }
 
@@ -127,6 +128,9 @@ impl XenonApp {
             .occlude()
             .track_focus(&focus)
             .key_context("ConnectPhone")
+            .on_action(cx.listener(|this, _: &crate::ToggleKeepAwake, _, cx| {
+                this.toggle_keep_awake(cx);
+            }))
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
                 if this.on_pairing_sheet_key(event, cx) {
                     cx.stop_propagation();
@@ -155,6 +159,7 @@ impl XenonApp {
                     .child(sheet_steps(&model, cx)),
             )
             .child(div().h(px(1.)).bg(colors.border))
+            .child(keep_awake_row(model.keep_awake, cx))
             .child(self.sheet_actions(model.url.is_some(), cx));
         Some(
             div()
@@ -206,6 +211,49 @@ impl XenonApp {
                 }),
             ))
     }
+}
+
+/// Opt-in switch; the key chip shows what the keymap binds.
+fn keep_awake_row(on: bool, cx: &mut Context<XenonApp>) -> impl IntoElement + use<> {
+    let colors = cx.theme().colors().clone();
+    let toggle = xenon_design_system::switch(
+        "connect-phone-keep-awake",
+        xenon_design_system::SwitchState {
+            on,
+            disabled: false,
+        },
+        KEEP_AWAKE_LABEL,
+        cx,
+        cx.listener(|this, _, _, cx| {
+            cx.stop_propagation();
+            this.toggle_keep_awake(cx);
+        }),
+    );
+    div()
+        .flex()
+        .items_center()
+        .gap_3()
+        .child(toggle)
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .child(div().type_role(TypeRole::Body, cx).child(KEEP_AWAKE_LABEL))
+                .child(
+                    div()
+                        .type_role(TypeRole::Supporting, cx)
+                        .text_color(colors.text_muted)
+                        .child(KEEP_AWAKE_DETAIL),
+                ),
+        )
+        .child(
+            div()
+                .type_role(TypeRole::ControlLabel, cx)
+                .text_color(colors.text_muted)
+                .child(xenon_design_system::shortcut_text("⌘K")),
+        )
 }
 
 fn sheet_steps(model: &SheetModel, cx: &App) -> impl IntoElement + use<> {
