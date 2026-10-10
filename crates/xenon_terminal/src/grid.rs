@@ -3,18 +3,19 @@
 //! (`layout_grid`), GPL-3.0-or-later; see ATTRIBUTION.md.
 
 use gpui::{
-    Bounds, Entity, Font, FontFeatures, Hsla, Pixels, Point as GpuiPoint, ShapedLine, SharedString,
-    Size, TextAlign, TextRun, Window, fill, point, px,
+    Bounds, Entity, Font, FontFeatures, Hsla, Pixels, Point as GpuiPoint, ShapedLine, Size,
+    TextAlign, Window, fill, point, px,
 };
 use terminal::{Terminal, TerminalBounds};
 use theme::{ActiveTheme, Theme};
 
-use crate::color::convert_color;
+mod row;
 
-/// A line ready to paint at a pixel offset, plus its per-cell background quads.
+use row::Row;
+
+/// A row's grid-anchored text segments, plus its per-cell background quads.
 pub struct GridLine {
-    pub origin: GpuiPoint<Pixels>,
-    pub line: ShapedLine,
+    pub segments: Vec<(GpuiPoint<Pixels>, ShapedLine)>,
     pub backgrounds: Vec<(Bounds<Pixels>, Hsla)>,
 }
 
@@ -302,82 +303,6 @@ fn shape_rows(
     lines
 }
 
-/// Accumulates one terminal row into a string + text runs + background quads.
-struct Row {
-    line: i32,
-    text: String,
-    runs: Vec<TextRun>,
-    backgrounds: Vec<(i32, Hsla)>,
-}
-
-impl Row {
-    fn new(line: i32) -> Self {
-        Row {
-            line,
-            text: String::new(),
-            runs: Vec::new(),
-            backgrounds: Vec::new(),
-        }
-    }
-
-    fn push(&mut self, indexed: &terminal::IndexedCell, theme: &Theme, font: &Font) {
-        let cell = &indexed.cell;
-        if cell.is_wide_char_spacer() {
-            return;
-        }
-        let (mut fg, mut bg) = (cell.foreground(), cell.background());
-        if cell.is_inverse() {
-            std::mem::swap(&mut fg, &mut bg);
-        }
-        let column = indexed.point.column as i32;
-        if !terminal::is_default_background_color(bg) {
-            self.backgrounds.push((column, convert_color(&bg, theme)));
-        }
-        let ch = cell.character();
-        self.text.push(ch);
-        self.runs.push(TextRun {
-            len: ch.len_utf8(),
-            color: convert_color(&fg, theme),
-            background_color: None,
-            font: font.clone(),
-            underline: None,
-            strikethrough: None,
-        });
-    }
-
-    fn finish(self, viewport: &Viewport, font_size: Pixels, window: &mut Window) -> GridLine {
-        let y = viewport.origin.y + viewport.line_height * ((self.line + viewport.offset) as f32);
-        let line = window.text_system().shape_line(
-            SharedString::from(self.text),
-            font_size,
-            &self.runs,
-            None,
-        );
-        let backgrounds = self
-            .backgrounds
-            .into_iter()
-            .map(|(col, color)| {
-                let cell_origin = point(viewport.origin.x + viewport.cell_w * (col as f32), y);
-                (
-                    Bounds::new(
-                        cell_origin,
-                        Size {
-                            width: viewport.cell_w,
-                            height: viewport.line_height,
-                        },
-                    ),
-                    color,
-                )
-            })
-            .collect();
-        GridLine {
-            origin: point(viewport.origin.x, y),
-            line,
-            backgrounds,
-        }
-    }
-}
-
 /// Paint cell backgrounds, search matches, selection, cursor, then glyphs.
 pub fn paint(
     layout: &GridLayout,
@@ -403,15 +328,8 @@ pub fn paint(
     if let Some(cursor) = layout.cursor.filter(|_| show_cursor) {
         window.paint_quad(fill(cursor, cursor_color));
     }
-    for grid_line in &layout.lines {
-        let _ = grid_line.line.paint(
-            grid_line.origin,
-            line_height,
-            TextAlign::Left,
-            None,
-            window,
-            cx,
-        );
+    for (origin, line) in layout.lines.iter().flat_map(|l| &l.segments) {
+        let _ = line.paint(*origin, line_height, TextAlign::Left, None, window, cx);
     }
     let link_color = cx.theme().colors().text_accent;
     for rect in &layout.underline {

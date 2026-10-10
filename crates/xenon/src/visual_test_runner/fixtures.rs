@@ -76,7 +76,7 @@ pub fn build() -> Result<Fixture> {
     let shell = root.join("visual-shell");
     fs::write(
         &shell,
-        "#!/bin/bash\nprintf '\\033[2J\\033[H'\nprintf '%s\\n' 'xenon visual fixture' 'fn main() { println!(\"hello\"); }' '$ '\nexec cat\n",
+        "#!/bin/bash\nprintf '\\033[2J\\033[H'\nprintf '%s\\n' 'xenon visual fixture' 'fn main() { println!(\"hello\"); }'\n# Fallback and wide glyphs before the cursor: text must stay on the cell grid.\nprintf '%s' '❯ [✔] 漢字 $ '\nexec cat\n",
     )?;
     let mut perms = fs::metadata(&shell)?.permissions();
     perms.set_mode(0o755);
