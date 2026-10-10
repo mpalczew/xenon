@@ -10,14 +10,15 @@
 mod candidate;
 mod host;
 mod rank;
+mod remote;
 mod render;
-mod scope;
 mod ssh;
+mod ssh_input;
 
 pub use candidate::{WorkspaceCandidate, WorkspacePickerEvent};
 #[cfg(feature = "visual-tests")]
-pub(crate) use scope::Remote as VisualRemote;
-pub(crate) use scope::host_candidates;
+pub(crate) use remote::Remote as VisualRemote;
+pub(crate) use remote::host_candidates;
 
 use std::time::Duration;
 
@@ -38,15 +39,19 @@ use crate::workspace_discover::{
     resolve_existing_dir, same_root,
 };
 
-use rank::{sort_candidates, sort_listing};
-use scope::Scope;
+use rank::sort_candidates;
+use remote::Remote;
+use ssh_input::SshInput;
 
 const DISCOVER_DEBOUNCE: Duration = Duration::from_millis(60);
 
 pub struct WorkspacePickerView {
     /// Virtual root of each SSH workspace in `known` → where it points.
     ssh_known: std::collections::HashMap<std::path::PathBuf, xenon_ssh::SshWorkspace>,
-    scope: Scope,
+    /// What the host said about the current `ssh://host/…` query.
+    remote: Remote,
+    /// The user arrowed to a row since the last result change.
+    moved: bool,
     known: Vec<WorkspaceCandidate>,
     query: String,
     results: Vec<WorkspaceCandidate>,
@@ -102,7 +107,8 @@ impl WorkspacePickerView {
         });
         let mut view = Self {
             ssh_known: Default::default(),
-            scope: Scope::Local,
+            remote: Remote::Idle,
+            moved: false,
             known,
             query: String::new(),
             results: Vec::new(),
@@ -121,12 +127,13 @@ impl WorkspacePickerView {
     }
 
     fn refilter(&mut self) {
-        let results = if self.scope.host().is_some() {
-            self.host_results()
-        } else {
-            self.local_results()
+        let query = self.query.clone();
+        self.results = match SshInput::parse(&query) {
+            Some(SshInput::Hosts(prefix)) => self.host_choices(prefix),
+            Some(SshInput::Path { host, rest }) => self.path_results(host, rest),
+            None => self.local_results(),
         };
-        self.results = results;
+        self.moved = false;
         self.selected = self
             .results
             .iter()
@@ -203,7 +210,7 @@ impl WorkspacePickerView {
 
     /// Walk the FS off the UI thread; merge when still matching the latest query.
     fn kick_discover(&mut self, cx: &mut Context<Self>) {
-        if self.scope.host().is_some() {
+        if SshInput::parse(&self.query).is_some() {
             return;
         }
         let Some(parsed) = parse_discover_query(&self.query) else {
@@ -246,6 +253,12 @@ impl WorkspacePickerView {
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
         // Include missing closed rows so ⌘⌫ can target them.
+        if delta > 0 && self.typed_folder_selected() {
+            // The typed folder is the row above the list; stepping down leaves it.
+            self.moved = true;
+            cx.notify();
+            return;
+        }
         let navigable: Vec<usize> = self
             .results
             .iter()
@@ -261,16 +274,21 @@ impl WorkspacePickerView {
             .position(|&i| i == self.selected)
             .unwrap_or(0);
         let next = (cur as isize + delta).clamp(0, (navigable.len() - 1) as isize) as usize;
+        self.moved = next > 0;
         self.selected = navigable[next];
         reveal_selected(&self.scroll, self.selected);
         cx.notify();
     }
 
     fn confirm(&mut self, cx: &mut Context<Self>) {
-        if self.query.trim().starts_with("ssh://") {
-            cx.emit(WorkspacePickerEvent::Ssh(self.query.trim().to_string()));
-            return;
+        let query = self.query.clone();
+        match SshInput::parse(&query) {
+            Some(SshInput::Path { host, rest }) => self.confirm_remote(host, rest, cx),
+            _ => self.confirm_local(cx),
         }
+    }
+
+    fn confirm_local(&mut self, cx: &mut Context<Self>) {
         if self.confirm_host_row(cx) {
             return;
         }
@@ -324,7 +342,6 @@ impl WorkspacePickerView {
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
             "backspace" if platform => self.forget_selected(cx),
-            "backspace" => self.leave_host_if_empty(cx),
             "tab" => self.complete_selected(cx),
             _ => return,
         }

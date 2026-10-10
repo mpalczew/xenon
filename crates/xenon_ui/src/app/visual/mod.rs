@@ -55,6 +55,7 @@ pub enum Scene {
     WorkspacePicker,
     SshWorkspacePicker,
     SshHostPicker,
+    SshHostComplete,
     SshHostResults,
     SshHostSearching,
     SshHostError,
@@ -148,6 +149,7 @@ pub const SCENES: &[Scene] = &[
     Scene::WorkspacePicker,
     Scene::SshWorkspacePicker,
     Scene::SshHostPicker,
+    Scene::SshHostComplete,
     Scene::SshHostResults,
     Scene::SshHostSearching,
     Scene::SshHostError,
@@ -258,6 +260,7 @@ impl Scene {
             Self::WorkspacePicker => "overlay_workspace_picker",
             Self::SshWorkspacePicker => "overlay_ssh_workspace_picker",
             Self::SshHostPicker => "overlay_ssh_host_picker",
+            Self::SshHostComplete => "overlay_ssh_host_complete",
             Self::SshHostResults => "overlay_ssh_host_results",
             Self::SshHostSearching => "overlay_ssh_host_searching",
             Self::SshHostError => "overlay_ssh_host_error",
@@ -372,6 +375,7 @@ pub fn apply_scene(
         Scene::WorkspacePicker => overlays::workspace_picker(app, window, cx),
         Scene::SshWorkspacePicker => overlays::ssh_workspace_picker(app, window, cx),
         Scene::SshHostPicker
+        | Scene::SshHostComplete
         | Scene::SshHostResults
         | Scene::SshHostSearching
         | Scene::SshHostError => ssh_picker::scene(app, scene, window, cx),

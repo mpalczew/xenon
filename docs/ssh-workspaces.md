@@ -1,26 +1,32 @@
 # SSH workspaces
 
-Open Workspace (⌘⇧O) lists your SSH hosts (concrete `Host` aliases from
-`~/.ssh/config`, following `Include`, plus hosts of past SSH workspaces) with an
-"SSH" chip. Type `think` to find `thinkpad`, then press Enter to step inside the
-host. The field now reads "Search folders on thinkpad…" and the footer says
-"on thinkpad".
+Open Workspace (⌘⇧O): the query text is the whole state. There is no hidden
+host mode.
 
-Inside a host:
-
-- Type a name (`xen`) to search the host's `~/src`, `~/dev`, `~/code`,
-  `~/Projects`, `~/Developer` like local discovery; `~/src xen` searches under
-  one folder.
-- Type a path (`~/src/`, `/etc/`, `src/` relative to the remote home) to list
-  its folders. Tab writes the selected folder into the field; Enter opens it.
-- Past workspaces on that host rank first.
-- Backspace on an empty field returns to the local list; Esc closes.
+- A plain query also lists matching hosts (concrete `Host` aliases from
+  `~/.ssh/config`, following `Include`, plus hosts of past SSH workspaces) as
+  `ssh://thinkpad/` rows with an "SSH" chip, below local matches. Tab or Enter
+  on one writes `ssh://thinkpad/` into the field.
+- `ss` + Tab writes `ssh://`.
+- `ssh://thin` lists hosts whose names start with `thin`. Tab or Enter on a
+  host writes `ssh://thinkpad/`; it does not open anything.
+- `ssh://thinkpad/<rest>`: `<rest>` is relative to the remote home unless it
+  starts with `/` (absolute) or `~`. Rows are the folders under the parent of
+  `<rest>` whose names start with the last segment, then fuzzy name matches for
+  that segment (like local discovery), without repeats. Past workspaces on that
+  host come first.
+  - Tab on a row completes the field in the style you typed, ending in `/`:
+    `ssh://thinkpad/sr` becomes `ssh://thinkpad/src/`.
+  - Enter opens the selected row. With a whole folder typed (`ssh://thinkpad/src/`,
+    `ssh://thinkpad/`) and no arrow press, Enter opens that folder; arrow down to
+    pick a child instead. With no rows, Enter opens what you typed.
+  - `ssh://devbox/~/project` opens the remote home's `project`;
+    `ssh://devbox//home/alex/project` is absolute. (A single slash is now
+    relative to home, so `ssh://devbox/home/alex/project` means
+    `~/home/alex/project`.)
 - "Searching thinkpad…" shows while the host answers. If it cannot be reached
   (auth, host key, network, no python3) a disabled row says so; run
   `ssh thinkpad` once in a terminal and try again.
-
-`ssh://devbox/home/alex/project` typed directly still works as a shortcut
-(`ssh://devbox/~/project` for the remote home).
 
 The host needs Python 3 and tmux. Establish key authentication and accept the
 host key with `ssh devbox` first: background file operations use OpenSSH batch

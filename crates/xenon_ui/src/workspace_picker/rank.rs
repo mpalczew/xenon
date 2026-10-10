@@ -12,11 +12,6 @@ pub(super) fn sort_candidates(results: &mut [WorkspaceCandidate], needle: Option
     results.sort_by(|a, b| cmp_candidates(a, b, needle));
 }
 
-/// Keep the host's listing order within a tier (a folder listing is alphabetical).
-pub(super) fn sort_listing(results: &mut [WorkspaceCandidate]) {
-    results.sort_by_key(WorkspaceCandidate::rank_tier);
-}
-
 fn cmp_candidates(
     a: &WorkspaceCandidate,
     b: &WorkspaceCandidate,
@@ -121,5 +116,17 @@ mod tests {
         sort_candidates(&mut rows, Some("personal"));
         assert_eq!(rows[0].name(), "personal");
         assert_eq!(rows[1].name(), "personalfiles");
+    }
+
+    #[test]
+    fn hosts_rank_below_every_local_match() {
+        let host = WorkspaceCandidate::Host {
+            name: "thinkpad".into(),
+            root: PathBuf::from("ssh://thinkpad"),
+            last_opened: 999,
+        };
+        let mut rows = vec![host, found("/Users/me/src/think"), closed("t", "/tmp/t", 1)];
+        sort_candidates(&mut rows, Some("think"));
+        assert!(matches!(rows[2], WorkspaceCandidate::Host { .. }));
     }
 }

@@ -25,13 +25,14 @@ pub enum WorkspaceCandidate {
     },
     /// Typed or discovered existing directory.
     Path { root: PathBuf, found: bool },
-    /// An SSH host from `~/.ssh/config` or a past SSH workspace; Enter steps inside.
+    /// An SSH host from `~/.ssh/config` or a past SSH workspace; Enter writes
+    /// `ssh://name/` into the query.
     Host {
         name: String,
         root: PathBuf,
         last_opened: u64,
     },
-    /// A folder found on the host the picker is inside; Enter opens it over SSH.
+    /// A folder the host reported for an `ssh://host/…` query; Enter opens it.
     Remote {
         host: String,
         /// Absolute remote path.
@@ -44,9 +45,8 @@ pub enum WorkspaceCandidate {
 impl WorkspaceCandidate {
     pub fn name(&self) -> String {
         match self {
-            Self::Open { name, .. } | Self::Closed { name, .. } | Self::Host { name, .. } => {
-                name.clone()
-            }
+            Self::Open { name, .. } | Self::Closed { name, .. } => name.clone(),
+            Self::Host { name, .. } => format!("ssh://{name}/"),
             Self::Path { root, .. } | Self::Remote { root, .. } => root
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -88,14 +88,14 @@ impl WorkspaceCandidate {
         }
     }
 
-    pub(super) fn badge(&self) -> &'static str {
+    pub(super) fn badge(&self) -> Option<&'static str> {
         match self {
-            Self::Open { .. } => "open",
-            Self::Closed { missing: true, .. } => "missing",
-            Self::Closed { .. } => "closed",
-            Self::Path { found: true, .. } | Self::Remote { .. } => "found",
-            Self::Host { .. } => "SSH",
-            Self::Path { .. } => "path",
+            Self::Open { .. } => Some("open"),
+            Self::Closed { missing: true, .. } => Some("missing"),
+            Self::Closed { .. } => Some("closed"),
+            Self::Path { found: true, .. } | Self::Remote { .. } => None,
+            Self::Host { .. } => Some("SSH"),
+            Self::Path { .. } => Some("path"),
         }
     }
 
@@ -105,9 +105,11 @@ impl WorkspaceCandidate {
             // User typed an existing path (or ~ expansion).
             Self::Path { found: false, .. } => 0,
             // Open or closed history — prefer these over FS discovery.
-            Self::Open { .. } | Self::Closed { missing: false, .. } | Self::Host { .. } => 1,
+            Self::Open { .. } | Self::Closed { missing: false, .. } => 1,
             Self::Path { found: true, .. } | Self::Remote { .. } => 2,
             Self::Closed { missing: true, .. } => 3,
+            // Hosts rank below every local match.
+            Self::Host { .. } => 4,
         }
     }
 

@@ -1,4 +1,4 @@
-//! Workspace picker inside an SSH host, with fixed offline answers.
+//! Open Workspace picker with `ssh://` text, with fixed offline host answers.
 
 use gpui::{Context, Window};
 
@@ -6,6 +6,7 @@ use super::{Scene, XenonApp, overlays};
 use crate::workspace_picker::VisualRemote as Remote;
 
 const HOSTS: [&str; 3] = ["devbox", "pixelbook", "thinkpad"];
+const FOLDER_QUERY: &str = "ssh://thinkpad/src/x";
 
 pub(super) fn scene(
     app: &mut XenonApp,
@@ -17,18 +18,19 @@ pub(super) fn scene(
     let Some(picker) = &app.workspace_picker else {
         return;
     };
-    let remote = match scene {
-        Scene::SshHostResults => listing(),
-        Scene::SshHostSearching => Remote::searching(),
-        Scene::SshHostError => Remote::failed("Permission denied (publickey,password)."),
-        _ => {
-            picker.update(cx, |picker, cx| picker.visual_hosts(&HOSTS, cx));
-            return;
-        }
-    };
     picker.update(cx, |picker, cx| {
         picker.visual_hosts(&HOSTS, cx);
-        picker.visual_in_host("thinkpad", "xen", remote, cx)
+        match scene {
+            Scene::SshHostPicker => picker.visual_query("think", cx),
+            Scene::SshHostComplete => picker.visual_query("ssh://thin", cx),
+            Scene::SshHostResults => picker.visual_remote(FOLDER_QUERY, listing(), cx),
+            Scene::SshHostSearching => picker.visual_remote(FOLDER_QUERY, Remote::searching(), cx),
+            _ => picker.visual_remote(
+                FOLDER_QUERY,
+                Remote::failed("Permission denied (publickey,password)."),
+                cx,
+            ),
+        }
     });
 }
 
@@ -38,7 +40,9 @@ fn listing() -> Remote {
         &[
             ("/home/alex/src/xenon", true),
             ("/home/alex/src/xenon-site", true),
-            ("/home/alex/src/xenon/crates/xenon_ui", false),
+            ("/home/alex/src/xterm-notes", false),
+        ],
+        &[
             ("/home/alex/dev/xen-notes", false),
             ("/home/alex/Projects/xenial", true),
         ],

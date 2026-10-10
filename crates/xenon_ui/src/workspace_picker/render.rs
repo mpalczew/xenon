@@ -7,6 +7,7 @@ impl Render for WorkspacePickerView {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
         let empty = self.empty_message();
+        let typed_folder = self.typed_folder_selected();
         let mut ranker = nucleo::Matcher::new(nucleo::Config::DEFAULT);
         let mut rows: Vec<_> = self
             .results
@@ -14,14 +15,15 @@ impl Render for WorkspacePickerView {
             .enumerate()
             .map(|(i, cand)| {
                 let selectable = cand.selectable();
-                let selected = i == self.selected && (selectable || cand.is_closed());
+                let selected =
+                    i == self.selected && !typed_folder && (selectable || cand.is_closed());
                 let title = cand.name();
-                let hits = match_hits(&title, &self.query, &mut ranker);
+                let hits = match_hits(&title, self.hit_needle(), &mut ranker);
                 let mut row = query_row(
                     ("workspace-row", i),
                     QueryRow {
                         title,
-                        detail: Some(cand.badge().to_string()),
+                        detail: cand.badge().map(str::to_string),
                         subtitle: self.subtitle_of(cand),
                         selected,
                         enabled: selectable || cand.is_closed(),
@@ -32,6 +34,7 @@ impl Render for WorkspacePickerView {
                 if selectable {
                     row = row.on_click(cx.listener(move |this, _, _, cx| {
                         this.selected = i;
+                        this.moved = true;
                         this.confirm(cx);
                     }));
                 } else if cand.is_closed() {

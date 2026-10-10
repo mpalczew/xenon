@@ -1,35 +1,39 @@
-//! Inside-host mode: Enter on an SSH host searches that host's folders.
+//! `ssh://` queries: host rows, remote folder rows, Tab completion, status.
 
-use xenon_ssh::{HostQuery, RemoteListing, tilde_path};
-
-use super::scope::{Remote, completion, merge_remote, short_error};
+use super::remote::{PathListing, Remote, lookup_path, merge_path, short_error};
+use super::ssh_input::{
+    SshInput, folder_address, host_completion, host_matches, last_segment, lookups,
+    names_whole_folder, open_address, path_completion, scheme_completion,
+};
 use super::*;
 
 const REMOTE_DEBOUNCE: Duration = Duration::from_millis(150);
-const LOCAL_PLACEHOLDER: &str = "Folder or ssh://host/path…";
 
 impl WorkspacePickerView {
-    /// Past workspaces on this host first, then folders the host reported.
-    pub(super) fn host_results(&mut self) -> Vec<WorkspaceCandidate> {
-        let Some(host) = self.scope.host().cloned() else {
-            return Vec::new();
-        };
-        let query = HostQuery::parse(&self.query);
-        let recents = self.host_recents(&host.name, &query);
-        let listing = match &host.remote {
+    /// `ssh://thin`: hosts whose names start with what was typed.
+    pub(super) fn host_choices(&mut self, prefix: &str) -> Vec<WorkspaceCandidate> {
+        let mut rows: Vec<WorkspaceCandidate> = self
+            .known
+            .iter()
+            .filter(|c| matches!(c, WorkspaceCandidate::Host { name, .. } if host_matches(name, prefix)))
+            .cloned()
+            .collect();
+        sort_candidates(&mut rows, None);
+        rows
+    }
+
+    /// `ssh://host/rest`: past workspaces on the host, then what it reported.
+    pub(super) fn path_results(&mut self, host: &str, rest: &str) -> Vec<WorkspaceCandidate> {
+        let recents = self.host_recents(host, last_segment(rest));
+        let listing = match &self.remote {
             Remote::Ready(listing) => Some(listing),
             _ => None,
         };
-        let mut results = merge_remote(&host.name, recents, &query, listing);
-        match query.needle() {
-            Some(needle) => sort_candidates(&mut results, Some(needle)),
-            None if query == HostQuery::Empty => sort_candidates(&mut results, None),
-            None => sort_listing(&mut results),
-        }
-        results
+        merge_path(host, recents, listing)
     }
 
-    fn host_recents(&mut self, host: &str, query: &HostQuery) -> Vec<(WorkspaceCandidate, String)> {
+    /// Past SSH workspaces on `host`; before the host answers, only fuzzy matches.
+    fn host_recents(&mut self, host: &str, needle: &str) -> Vec<(WorkspaceCandidate, String)> {
         let mine: Vec<(WorkspaceCandidate, String)> = self
             .known
             .iter()
@@ -38,9 +42,9 @@ impl WorkspacePickerView {
                 (ssh.host == host).then(|| (c.clone(), ssh.directory.clone()))
             })
             .collect();
-        let Some(needle) = query.needle() else {
+        if needle.is_empty() || matches!(self.remote, Remote::Ready(_)) {
             return mine;
-        };
+        }
         let haystacks: Vec<String> = mine
             .iter()
             .map(|(c, dir)| format!("{} {dir}", c.name()))
@@ -53,24 +57,21 @@ impl WorkspacePickerView {
 
     /// Ask the host about the current query; later answers replace earlier ones.
     pub(super) fn kick_remote(&mut self, cx: &mut Context<Self>) {
-        let Scope::Host(host) = &mut self.scope else {
-            return;
-        };
         self._discover_task = None;
         self.discover_gen = self.discover_gen.wrapping_add(1);
-        let query = HostQuery::parse(&self.query);
-        if query == HostQuery::Empty {
-            host.remote = Remote::Idle;
+        let query = self.query.clone();
+        let Some(SshInput::Path { host, rest }) = SshInput::parse(&query) else {
+            self.remote = Remote::Idle;
             return;
-        }
-        host.remote = Remote::Searching;
-        let (token, name) = (self.discover_gen, host.name.clone());
+        };
+        self.remote = Remote::Searching;
+        let (token, host) = (self.discover_gen, host.to_string());
+        let (listing, search) = lookups(rest);
         self._discover_task = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(REMOTE_DEBOUNCE).await;
-            let host = name.clone();
             let result = cx
                 .background_executor()
-                .spawn(async move { xenon_ssh::lookup_host(&host, &query) })
+                .spawn(async move { lookup_path(&host, &listing, search.as_ref()) })
                 .await;
             this.update(cx, |this, cx| {
                 if this.discover_gen == token {
@@ -81,99 +82,94 @@ impl WorkspacePickerView {
         }));
     }
 
-    fn apply_remote(
-        &mut self,
-        result: anyhow::Result<Option<RemoteListing>>,
-        cx: &mut Context<Self>,
-    ) {
-        let Scope::Host(host) = &mut self.scope else {
-            return;
-        };
-        host.remote = match result {
-            Ok(Some(listing)) => Remote::Ready(listing),
-            Ok(None) => Remote::Idle,
+    fn apply_remote(&mut self, result: anyhow::Result<PathListing>, cx: &mut Context<Self>) {
+        self.remote = match result {
+            Ok(listing) => Remote::Ready(listing),
             Err(error) => Remote::Failed(short_error(&error.to_string())),
         };
         self.refilter();
         cx.notify();
     }
 
-    pub(super) fn set_scope(&mut self, scope: Scope, cx: &mut Context<Self>) {
-        let placeholder = match scope.host() {
-            Some(host) => format!("Search folders on {}…", host.name),
-            None => LOCAL_PLACEHOLDER.to_string(),
-        };
-        self.scope = scope;
-        self.query.clear();
-        self.discovered.clear();
-        self._discover_task = None;
-        self.discover_gen = self.discover_gen.wrapping_add(1);
-        self.input.update(cx, |input, cx| {
-            input.set_placeholder(placeholder, cx);
-            input.set_text("", cx);
-        });
-        self.refilter();
-        cx.notify();
-    }
-
-    pub(super) fn leave_host_if_empty(&mut self, cx: &mut Context<Self>) {
-        if let Some(scope) = self.scope.after_backspace(self.query.is_empty()) {
-            self.set_scope(scope, cx);
-        }
-    }
-
-    /// Enter on a host steps inside it; on a remote folder it opens that folder.
-    pub(super) fn confirm_host_row(&mut self, cx: &mut Context<Self>) -> bool {
-        match self.results.get(self.selected).cloned() {
-            Some(WorkspaceCandidate::Host { name, .. }) => {
-                self.set_scope(Scope::enter(name), cx);
-                true
-            }
-            Some(WorkspaceCandidate::Remote { host, root, .. }) => {
-                let address = format!("ssh://{host}{}", root.display());
-                cx.emit(WorkspacePickerEvent::Ssh(address));
-                true
-            }
-            _ => false,
-        }
-    }
-
-    /// Tab: step into a host, or write the selected folder into the field.
-    pub(super) fn complete_selected(&mut self, cx: &mut Context<Self>) {
-        let Some(selected) = self.results.get(self.selected).cloned() else {
-            return;
-        };
-        let path = match (&self.scope, &selected) {
-            (Scope::Local, WorkspaceCandidate::Host { .. }) => {
-                self.confirm_host_row(cx);
-                return;
-            }
-            (Scope::Host(_), WorkspaceCandidate::Remote { display, .. }) => display.clone(),
-            (Scope::Host(host), _) => match self.ssh_known.get(selected.root()) {
-                Some(ssh) => match &host.remote {
-                    Remote::Ready(listing) => tilde_path(&ssh.directory, &listing.home),
-                    _ => ssh.directory.clone(),
-                },
-                None => return,
-            },
-            _ => return,
-        };
-        let text = completion(&path);
+    /// Put `text` in the field and treat it as typed.
+    fn write_query(&mut self, text: String, cx: &mut Context<Self>) {
         self.input
             .update(cx, |input, cx| input.set_text(text.clone(), cx));
         self.set_query(text, cx);
     }
 
+    /// Enter on a host row writes `ssh://host/`; elsewhere it falls through.
+    pub(super) fn confirm_host_row(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(WorkspaceCandidate::Host { name, .. }) = self.results.get(self.selected) else {
+            return false;
+        };
+        let text = host_completion(name);
+        self.write_query(text, cx);
+        true
+    }
+
+    /// Enter inside `ssh://host/rest`. A typed whole folder (`ssh://box/src/`)
+    /// opens unless the user moved to a row; otherwise the selected row opens.
+    pub(super) fn confirm_remote(&mut self, host: &str, rest: &str, cx: &mut Context<Self>) {
+        let typed_folder = !self.moved && names_whole_folder(rest);
+        let row = self.results.get(self.selected).cloned();
+        match row {
+            Some(WorkspaceCandidate::Remote { host, root, .. }) if !typed_folder => {
+                let address = folder_address(&host, &root.to_string_lossy());
+                cx.emit(WorkspacePickerEvent::Ssh(address));
+            }
+            Some(row) if !typed_folder && row.selectable() => {
+                cx.emit(WorkspacePickerEvent::Open(row));
+            }
+            _ => cx.emit(WorkspacePickerEvent::Ssh(open_address(host, rest))),
+        }
+    }
+
+    /// Tab: `ss` becomes `ssh://`; a selected host or folder is written into the field.
+    pub(super) fn complete_selected(&mut self, cx: &mut Context<Self>) {
+        let text = scheme_completion(&self.query)
+            .map(str::to_string)
+            .or_else(|| {
+                self.results
+                    .get(self.selected)
+                    .and_then(|c| self.completion_for(c))
+            });
+        if let Some(text) = text {
+            self.write_query(text, cx);
+        }
+    }
+
+    fn completion_for(&self, row: &WorkspaceCandidate) -> Option<String> {
+        if let WorkspaceCandidate::Host { name, .. } = row {
+            return Some(host_completion(name));
+        }
+        let SshInput::Path { host, rest } = SshInput::parse(&self.query)? else {
+            return None;
+        };
+        let path = match row {
+            WorkspaceCandidate::Remote { root, .. } => root.to_string_lossy().into_owned(),
+            _ => self.ssh_known.get(row.root())?.directory.clone(),
+        };
+        Some(path_completion(host, rest, &path, self.remote.home()))
+    }
+
+    /// The typed folder (`ssh://box/src/`) is what Enter opens right now.
+    pub(super) fn typed_folder_selected(&self) -> bool {
+        match SshInput::parse(&self.query) {
+            Some(SshInput::Path { rest, .. }) => !self.moved && names_whole_folder(rest),
+            _ => false,
+        }
+    }
+
     pub(super) fn status_row(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
-        let host = self.scope.host()?;
-        let (title, subtitle) = match &host.remote {
-            Remote::Searching => (format!("Searching {}…", host.name), None),
+        let SshInput::Path { host, .. } = SshInput::parse(&self.query)? else {
+            return None;
+        };
+        let (title, subtitle) = match &self.remote {
+            Remote::Searching => (format!("Searching {host}…"), None),
             Remote::Failed(error) => (
-                format!("Couldn’t reach {}", host.name),
-                Some(format!(
-                    "Run `ssh {}` once in a terminal · {error}",
-                    host.name
-                )),
+                format!("Couldn’t reach {host}"),
+                Some(format!("Run `ssh {host}` once in a terminal · {error}")),
             ),
             Remote::Idle | Remote::Ready(_) => return None,
         };
@@ -195,12 +191,18 @@ impl WorkspacePickerView {
         }
     }
 
+    /// What the typed text is looking for, for highlighting row titles.
+    pub(super) fn hit_needle(&self) -> &str {
+        match SshInput::parse(&self.query) {
+            Some(SshInput::Path { rest, .. }) => last_segment(rest),
+            Some(SshInput::Hosts(_)) | None => &self.query,
+        }
+    }
+
     pub(super) fn empty_message(&self) -> String {
-        match self.scope.host() {
-            Some(host) if self.query.is_empty() => {
-                format!("Type a folder name or a path like ~/src/ on {}", host.name)
-            }
-            Some(host) => format!("No folders match on {}", host.name),
+        match SshInput::parse(&self.query) {
+            Some(SshInput::Hosts(_)) => "No SSH host matches — keep typing ssh://host/path".into(),
+            Some(SshInput::Path { host, .. }) => format!("No folders match on {host}"),
             None if self.query.is_empty() => {
                 "No workspaces — type a path, name, or ~/src name".into()
             }
@@ -209,11 +211,8 @@ impl WorkspacePickerView {
     }
 
     pub(super) fn hint(&self) -> String {
-        match self.scope.host() {
-            Some(host) => format!(
-                "on {}  ·  return opens  ·  tab completes  ·  ⌫ leaves host  ·  esc closes",
-                host.name
-            ),
+        match SshInput::parse(&self.query) {
+            Some(_) => "return opens  ·  tab completes  ·  esc closes".into(),
             None => "return opens  ·  ⌘⌫ forgets a closed workspace  ·  esc closes".into(),
         }
     }
@@ -223,25 +222,13 @@ impl WorkspacePickerView {
 impl WorkspacePickerView {
     pub(crate) fn visual_hosts(&mut self, hosts: &[&str], cx: &mut Context<Self>) {
         let names = hosts.iter().map(|h| (*h).to_string()).collect();
-        self.known.extend(scope::host_candidates(names, &[]));
+        self.known.extend(remote::host_candidates(names, &[]));
         self.refilter();
         cx.notify();
     }
 
-    pub(crate) fn visual_in_host(
-        &mut self,
-        host: &str,
-        query: &str,
-        remote: Remote,
-        cx: &mut Context<Self>,
-    ) {
-        self.set_scope(Scope::enter(host.into()), cx);
-        self.query = query.into();
-        self.input.update(cx, |input, cx| input.set_text(query, cx));
-        if let Scope::Host(scope) = &mut self.scope {
-            scope.remote = remote;
-        }
-        self.refilter();
-        cx.notify();
+    pub(crate) fn visual_remote(&mut self, query: &str, remote: Remote, cx: &mut Context<Self>) {
+        self.remote = remote;
+        self.visual_query(query, cx);
     }
 }

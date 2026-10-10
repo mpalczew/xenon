@@ -56,7 +56,7 @@ pub(super) fn ssh_workspace_picker(
     workspace_picker(app, window, cx);
     if let Some(picker) = &app.workspace_picker {
         picker.update(cx, |picker, cx| {
-            picker.visual_query("ssh://devbox/home/alex/project", cx)
+            picker.visual_query("ssh://devbox//home/alex/project", cx)
         });
     }
 }
