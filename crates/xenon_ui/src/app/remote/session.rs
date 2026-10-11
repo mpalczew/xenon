@@ -20,6 +20,7 @@ const FIT_ROWS: std::ops::RangeInclusive<u16> = 8..=200;
 
 pub(super) struct Conn {
     pub device_id: String,
+    low_bandwidth: bool,
     pub(super) out: Outbox,
     pub(super) attach: Option<Attach>,
     pub(super) last_dots: Option<ServerMsg>,
@@ -42,6 +43,7 @@ impl Conn {
     pub(super) fn visual(device_id: &str, out: Outbox) -> Self {
         Self {
             device_id: device_id.into(),
+            low_bandwidth: false,
             out,
             attach: None,
             last_dots: None,
@@ -107,6 +109,7 @@ impl XenonApp {
             conn,
             Conn {
                 device_id,
+                low_bandwidth: false,
                 out,
                 attach: None,
                 last_dots: None,
@@ -140,6 +143,15 @@ impl XenonApp {
                     .ok()
                     .map(|wid| (wid, TabId(tab_id)));
                 self.remote_attach(conn, target, window, cx);
+            }
+            ClientMsg::Bandwidth { low_bandwidth } => {
+                if let Some(c) = self.conn_mut(conn) {
+                    c.low_bandwidth = low_bandwidth;
+                    if let Some(attach) = c.attach.as_mut() {
+                        attach.flush = None;
+                    }
+                }
+                self.schedule_remote_flush(conn, cx);
             }
             ClientMsg::Detach => self.remote_detach(conn, cx),
             ClientMsg::Text { data } => {
@@ -296,7 +308,12 @@ impl XenonApp {
     }
 
     fn schedule_remote_flush(&mut self, conn: ConnId, cx: &mut Context<Self>) {
-        self.schedule_remote_flush_after(conn, FLUSH_AFTER, cx);
+        let delay = if self.conn(conn).is_some_and(|c| c.low_bandwidth) {
+            FLUSH_AFTER
+        } else {
+            Duration::ZERO
+        };
+        self.schedule_remote_flush_after(conn, delay, cx);
     }
 
     fn schedule_remote_flush_after(

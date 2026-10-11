@@ -117,6 +117,11 @@ pub enum ClientMsg {
         tab_id: u64,
     },
     Detach,
+    /// Output cadence for this connection; responsive unless explicitly enabled.
+    #[serde(rename_all = "camelCase")]
+    Bandwidth {
+        low_bandwidth: bool,
+    },
     /// Raw text; no implicit Enter.
     Text {
         data: String,
@@ -281,6 +286,12 @@ mod tests {
                 tab_id: 7
             }
         );
+        for low_bandwidth in [false, true] {
+            let msg = ClientMsg::Bandwidth { low_bandwidth };
+            let json = format!(r#"{{"t":"bandwidth","lowBandwidth":{low_bandwidth}}}"#);
+            assert_eq!(serde_json::from_str::<ClientMsg>(&json).unwrap(), msg);
+            assert_eq!(serde_json::to_string(&msg).unwrap(), json);
+        }
         let key: ClientMsg = serde_json::from_str(r#"{"t":"key","key":"shift-tab"}"#).unwrap();
         assert_eq!(
             key,

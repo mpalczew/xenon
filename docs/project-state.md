@@ -103,6 +103,10 @@ rediscover.
   `XenonApp` key context); it is a safety net, not the transfer.
 - A fresh PTY grid is tiny before first paint. Remote-only reopen must call
   `ensure_grid_size`.
+- Remote output defaults to responsive delivery, without a fixed frame delay.
+  The browser's Low bandwidth toggle batches all output at 30 fps, including
+  TUI redraws, and persists per browser. WebSocket I/O wakes on socket readiness
+  or queued host output; TCP_NODELAY avoids buffering small updates.
 - Phone remote needs a `Window` for terminal snapshots (`Terminal::sync`);
   remote tasks run against `services.main_window`, never the caller's window
   (Settings is a separate window). Mac keyboard input suspends a phone fit for

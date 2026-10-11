@@ -9593,6 +9593,7 @@ dependencies = [
  "anyhow",
  "async-channel 2.5.0",
  "log",
+ "mio",
  "serde",
  "serde_json",
  "sha2",

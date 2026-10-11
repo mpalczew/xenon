@@ -13,7 +13,10 @@ pub struct ConnId(pub u64);
 /// Mac → phone queue for one connection. Bounded: a slow phone drops patches
 /// (the host then sends a full frame) instead of growing memory.
 #[derive(Clone)]
-pub struct Outbox(pub(crate) SyncSender<ServerMsg>);
+pub struct Outbox {
+    sender: SyncSender<ServerMsg>,
+    wake: Option<std::sync::Arc<mio::Waker>>,
+}
 
 impl Outbox {
     /// Bound on queued messages per connection.
@@ -21,16 +24,31 @@ impl Outbox {
 
     /// False when the queue is full or the connection is gone.
     pub fn try_send(&self, msg: ServerMsg) -> bool {
-        match self.0.try_send(msg) {
-            Ok(()) => true,
+        match self.sender.try_send(msg) {
+            Ok(()) => {
+                if let Some(wake) = &self.wake {
+                    let _ = wake.wake();
+                }
+                true
+            }
             Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => false,
         }
+    }
+
+    pub(crate) fn wake_on_send(&mut self, wake: std::sync::Arc<mio::Waker>) {
+        self.wake = Some(wake);
     }
 
     /// Test/host helper: a detached outbox plus its receiving end.
     pub fn channel() -> (Self, std::sync::mpsc::Receiver<ServerMsg>) {
         let (tx, rx) = std::sync::mpsc::sync_channel(Self::CAPACITY);
-        (Self(tx), rx)
+        (
+            Self {
+                sender: tx,
+                wake: None,
+            },
+            rx,
+        )
     }
 }
 

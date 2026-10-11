@@ -184,6 +184,11 @@ All HTTP served from the existing hand-rolled server; `/ws` upgrade routed by pe
 - Saved as `<data dir>/remote/uploads/phone-<unix>-<id>.<ext>`; files older than 7 days pruned on each save. Returns `{"path"}`; the page inserts it into the message field unsent, so any agent that reads image paths gets it.
 
 **New: `GET /ws` (WebSocket)**
+
+Established sockets use TCP_NODELAY and readiness-driven I/O. The bounded host
+outbox wakes the socket thread immediately; it does not wait for a read timeout.
+Pending writes resume on writable readiness, with a bounded transport buffer.
+
 - Origin must equal `http://<Host header>`; else 403.
 - First client msg must be `{"t":"hello","token"}` within 5s, else close 4401.
 
@@ -265,7 +270,7 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 **Representative path: agent prints output → phone sees it**
 
 1. PTY bytes → zed `Terminal` → `Event::Wakeup` on the `TerminalView`'s terminal (GPUI main thread).
-2. `XenonApp` remote host has a `cx.subscribe` for each attached tab (created on `Attach`). On Wakeup: mark `dirty`; if no flush scheduled, schedule one in 33 ms (coalesces bursts → ≤ 30 fps).
+2. `XenonApp` remote host has a `cx.subscribe` for each attached tab (created on `Attach`). On Wakeup: if no flush is scheduled, queue one immediately for responsive mode (the default). Low bandwidth mode waits 33 ms to coalesce bursts (≤ 30 fps). The browser persists this preference and sends `bandwidth { lowBandwidth }` before attach and whenever it changes. The policy covers all terminal output, including TUI redraws; there is no local echo or input/output classification.
 3. Flush: `view.cell_snapshot(cx)` → `FrameDiff(prev, next)` against that attach's last-sent frame. `None` → nothing sent (idle = zero traffic). Else intern new styles, build `ServerMsg::Frame` + optional `Styles`, `out.try_send`.
    - Backpressure: `out` is bounded (4). If full, drop the patch and set `needs_full` → next flush sends a full frame. Slow cellular can't grow memory.
 4. WS thread loop (blocking socket, 50 ms read timeout): drain `out` → `tungstenite::send` (JSON text msg); then try read one client message.
