@@ -1,3 +1,5 @@
+mod window_icon;
+
 use std::path::PathBuf;
 
 use gpui::{
@@ -48,6 +50,7 @@ fn main() {
                 window_bounds: Some(window_bounds),
                 // Linux: matches StartupWMClass in xenon.desktop.
                 app_id: Some("xenon".into()),
+                icon: window_icon::window_icon(),
                 ..Default::default()
             },
             move |window, cx| {

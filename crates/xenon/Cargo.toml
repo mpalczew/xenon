@@ -23,7 +23,6 @@ visual-tests = [
     "gpui_platform/test-support",
     "xenon_ui/visual-tests",
     "dep:anyhow",
-    "dep:image",
     "dep:serde",
     "dep:serde_json",
 ]
@@ -32,7 +31,7 @@ visual-tests = [
 anyhow = { workspace = true, optional = true }
 async-channel.workspace = true
 env_logger = "0.11"
-image = { version = "0.25.10", optional = true }
+image = "0.25.10"
 log = "0.4"
 gpui.workspace = true
 gpui_platform.workspace = true
