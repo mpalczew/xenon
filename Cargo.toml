@@ -124,3 +124,13 @@ notify-types = { git = "https://github.com/zed-industries/notify", rev = "faecbc
 # never removes the old ones.
 split-debuginfo = "packed"
 debug = "limited"
+
+# Local profile for everything the author builds: install, health, hook, visual
+# tests. One target/dogfood tree, incremental, no LTO. Public builds keep release.
+[profile.dogfood]
+inherits = "release"
+incremental = true
+codegen-units = 256
+lto = false
+debug = "line-tables-only"
+split-debuginfo = "packed"

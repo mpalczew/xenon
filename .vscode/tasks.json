@@ -10,7 +10,7 @@
     {
       "label": "install",
       "type": "shell",
-      "command": "scripts/release/install",
+      "command": "XENON_PROFILE=dogfood scripts/release/install && scripts/prune-target",
       "detail": "bundle Xenon.app into ~/Applications and install ~/bin/xenon"
     }
   ]

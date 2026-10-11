@@ -30,7 +30,7 @@ rediscover.
   `which xenon` is still `~/bin/xenon`; A/B routing is that env plus the
   launcher’s `open` handler (`scripts/xenon`, copied to `~/bin/xenon` by
   `scripts/release/install`). The signed `Xenon.app` in the Dock is that
-  same release binary (bundle id `dev.xero.xero`). `CFBundleExecutable` is
+  same dogfood-profile binary (bundle id `dev.xero.xero`). `CFBundleExecutable` is
   a Mach-O stub (`Contents/MacOS/xenon`) that `exec`s `xenon-bin`. Cold
   start from Dock/Spotlight/login: no data-dir env → last slot from
   `~/.xenon-active-slot` when `~/.xenon-a`/`~/.xenon-b` exists, else ship
@@ -49,7 +49,8 @@ rediscover.
 
 - `.vscode/tasks.json` exposes only `project xenon` and `project install`.
   Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent
-  extra `project` labels.
+  extra `project` labels. Local builds share one `--profile dogfood` target
+  tree; the pre-commit hook is the gate, `scripts/health` the full/CI run.
 - Known open/closed workspaces outrank filesystem discovery. Workspace MRU is
   persisted; file MRU is an in-memory tiebreaker only.
 - Cmd-P serves its cached index immediately and refreshes in the background.

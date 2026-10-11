@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Full run (manual, CI). The pre-commit hook is the per-commit gate.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
@@ -6,8 +7,8 @@ scripts/check-public-surface
 scripts/check-ui-boundaries
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s crates/xenon_ssh/src -p helper_test.py
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings \
+cargo clippy --profile dogfood --workspace --all-targets -- -D warnings \
     -D clippy::cognitive_complexity \
     -D clippy::too_many_lines
 scripts/check-rust-shape
-cargo test
+cargo test --profile dogfood

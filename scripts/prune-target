@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Delete build artifacts under target/ not touched in N days (default 14).
+# Uses cargo-sweep when installed, else an mtime sweep of deps/build/incremental.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+days="${1:-14}"
+target="${CARGO_TARGET_DIR:-$root/target}"
+[[ "$target" == /* ]] || target="$root/$target"
+[[ -d "$target" ]] || exit 0
+
+if command -v cargo-sweep >/dev/null; then
+    cargo sweep --time "$days" "$root"
+    exit 0
+fi
+
+before="$(du -sk "$target" | cut -f1)"
+for profile in "$target"/*/; do
+    for sub in deps build incremental; do
+        dir="${profile}${sub}"
+        [[ -d "$dir" ]] || continue
+        # Whole stale entries only (one level down); live ones were just touched by a build.
+        find "$dir" -mindepth 1 -maxdepth 1 -atime +"$days" -mtime +"$days" -exec rm -rf {} +
+    done
+done
+after="$(du -sk "$target" | cut -f1)"
+echo "prune-target: freed $(((before - after) / 1024)) MiB (older than ${days}d)"

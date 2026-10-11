@@ -24,13 +24,20 @@ and `CONTRIBUTING.md`.
 
 - Dev: run cargo directly — `cargo build` / `cargo run` / `cargo test` /
   `cargo fmt --all` / `cargo clippy --workspace --all-targets -- -D warnings`
-  (workspace root). Unit tests cover pure crates only; GPUI views are verified
+  (workspace root). Author sessions pass `--profile dogfood` to clippy/test/run
+  so everything shares one `target/dogfood` (incremental, no LTO; public
+  builds keep `release`). Unit tests cover pure crates only; GPUI views are verified
   by launch tests plus `scripts/visual-tests` (`docs/visual-tests.md`). Full
-  gate: `scripts/health` (fmtcheck + clippy + shape + test).
-  Run `scripts/health` before committing; the commit hook (`scripts/git-hooks/pre-commit`, enabled by `scripts/install-hooks`) checks the staged snapshot in `target/precommit-tree` and never touches the working tree.
+  run: `scripts/health` (checks + fmtcheck + clippy + shape + test; CI).
+  The pre-commit hook (`scripts/git-hooks/pre-commit`, enabled by
+  `scripts/install-hooks`) is the gate: it checks the staged snapshot in
+  `target/precommit-tree` (never touches the working tree), shares `target/`,
+  and tests only crates the diff touches. `scripts/prune-target [days]` drops
+  stale artifacts; `project install` runs it.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
-  release-builds, assembles `target/release/xenon.app` (Info.plist in `macos/`;
+  builds `--profile dogfood` (`XENON_PROFILE`; default `release`), assembles
+  `target/dogfood/xenon.app` (Info.plist in `macos/`;
   `Contents/MacOS/xenon` is a Mach-O slot stub that execs `xenon-bin`),
   **stable-codesigns** it, copies it to `~/Applications/Xenon.app` (override
   with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`), and installs
@@ -126,13 +133,13 @@ building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   Prefer **large coherent hauls** over small PR-sized slices. Do not ask the
   author to read diffs for quality control.
 - Run `project install` at the END of all work, once every change is complete —
-  this is how the author dogfoods. It release-builds and installs
+  this is how the author dogfoods. It dogfood-builds and installs
   `~/Applications/Xenon.app`; the author verifies there (or via `project xenon` /
   `~/bin/xenon`), not in the debug build. Public/contributor install path is
   `./scripts/release/install` (README). Do not install mid-way through a
   multi-step change; batch it as the final step. During work, use cargo /
   `scripts/health` directly — not `project` wrappers.
-- Land finished work without asking: once `scripts/health` passes and
+- Land finished work without asking: once the pre-commit hook passes and
   `project install` has run, commit and push this session's paths (harvest
   step 6: leave unrelated WIP, stop on conflicts). End the handoff by listing
   any dirty paths left behind and whose they are.
