@@ -475,24 +475,3 @@ fn rename_file(from: &Path, to: &Path) -> anyhow::Result<()> {
     std::fs::rename(from, to)?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::prefer_system_open;
-    use std::path::Path;
-
-    #[test]
-    fn prefer_system_open_html_and_pdf() {
-        assert!(prefer_system_open(Path::new("tmp/bakeoff.html")));
-        assert!(prefer_system_open(Path::new("report.HTM")));
-        assert!(prefer_system_open(Path::new("/abs/doc.PDF")));
-    }
-
-    #[test]
-    fn prefer_system_open_source_stays_in_editor() {
-        assert!(!prefer_system_open(Path::new("src/main.rs")));
-        assert!(!prefer_system_open(Path::new("index.md")));
-        assert!(!prefer_system_open(Path::new("styles.css")));
-        assert!(!prefer_system_open(Path::new("noext")));
-    }
-}

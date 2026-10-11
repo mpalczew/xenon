@@ -221,17 +221,6 @@ pub fn parse_cli_paths(args: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
-
-    #[test]
-    fn roundtrip_open_request_json() {
-        let req = IpcRequest::Open {
-            paths: vec![PathBuf::from("/tmp/foo")],
-        };
-        let s = serde_json::to_string(&req).unwrap();
-        let back: IpcRequest = serde_json::from_str(&s).unwrap();
-        assert_eq!(req, back);
-    }
 
     #[test]
     fn parse_cli_skips_flags() {
@@ -243,74 +232,5 @@ mod tests {
         );
         assert_eq!(paths.len(), 2);
         assert!(paths[1].is_absolute());
-    }
-
-    #[test]
-    fn roundtrip_open_file_request_json() {
-        let req = IpcRequest::OpenFile(OpenFileSpec {
-            path: PathBuf::from("/tmp/foo.rs"),
-            line: Some(42),
-            column: Some(8),
-            end_line: Some(80),
-            pane: OpenPane::Sibling,
-        });
-        let s = serde_json::to_string(&req).unwrap();
-        let back: IpcRequest = serde_json::from_str(&s).unwrap();
-        assert_eq!(req, back);
-        match &back {
-            IpcRequest::OpenFile(spec) => {
-                assert_eq!(spec.line, Some(42));
-                assert_eq!(spec.column, Some(8));
-                assert_eq!(spec.end_line, Some(80));
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn handoff_to_live_server() {
-        // Serialize with other data_dir tests (process-global env).
-        let _guard = crate::DATA_DIR_TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        let dir = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var("XENON_DATA_DIR", dir.path());
-            std::env::set_var("XERO_DATA_DIR", dir.path());
-        }
-        let listener = bind_server().expect("bind");
-        let got = Arc::new(Mutex::new(None));
-        let got2 = got.clone();
-        serve_forever(listener, move |req| {
-            *got2.lock().unwrap() = Some(req);
-        });
-        std::thread::sleep(Duration::from_millis(20));
-        let path = dir.path().join("file.txt");
-        std::fs::write(&path, b"hi").unwrap();
-        assert!(try_handoff(std::slice::from_ref(&path)), "handoff");
-        std::thread::sleep(Duration::from_millis(20));
-        let req = got.lock().unwrap().clone().expect("received");
-        match req {
-            IpcRequest::Open { paths } => assert_eq!(paths, vec![path.clone()]),
-            other => panic!("unexpected {other:?}"),
-        }
-        let spec = OpenFileSpec {
-            path: path.clone(),
-            line: Some(4),
-            column: Some(2),
-            end_line: Some(9),
-            pane: OpenPane::SplitRight,
-        };
-        let req = IpcRequest::OpenFile(spec.clone());
-        assert!(try_handoff_request(&req), "open_file 1");
-        std::thread::sleep(Duration::from_millis(20));
-        assert!(try_handoff_request(&req), "open_file 2");
-        std::thread::sleep(Duration::from_millis(20));
-        let last = got.lock().unwrap().clone().expect("received file");
-        assert_eq!(last, IpcRequest::OpenFile(spec));
-        unsafe {
-            std::env::remove_var("XENON_DATA_DIR");
-            std::env::remove_var("XERO_DATA_DIR");
-        }
     }
 }

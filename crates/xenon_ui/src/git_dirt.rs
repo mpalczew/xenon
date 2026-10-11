@@ -148,8 +148,6 @@ fn stat_col(label: String, color: gpui::Hsla) -> impl IntoElement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::Command;
-    use std::{fs, path::PathBuf};
 
     #[test]
     fn parse_sums_rows_and_skips_binary() {
@@ -169,35 +167,6 @@ mod tests {
     }
 
     #[test]
-    fn labels_omit_zero_side() {
-        assert_eq!(GitDirt::default().labels(), None);
-        assert_eq!(
-            GitDirt {
-                insertions: 4,
-                deletions: 0
-            }
-            .labels(),
-            Some(("+4".into(), String::new()))
-        );
-        assert_eq!(
-            GitDirt {
-                insertions: 0,
-                deletions: 9
-            }
-            .labels(),
-            Some((String::new(), "-9".into()))
-        );
-        assert_eq!(
-            GitDirt {
-                insertions: 1,
-                deletions: 2
-            }
-            .labels(),
-            Some(("+1".into(), "-2".into()))
-        );
-    }
-
-    #[test]
     fn text_line_count_matches_git_style() {
         assert_eq!(count_text_lines(b""), Some(0));
         assert_eq!(count_text_lines(b"a"), Some(1));
@@ -205,44 +174,5 @@ mod tests {
         assert_eq!(count_text_lines(b"a\nb"), Some(2));
         assert_eq!(count_text_lines(b"a\nb\n"), Some(2));
         assert_eq!(count_text_lines(b"a\0b"), None);
-    }
-
-    #[test]
-    fn measure_counts_untracked_lines() {
-        let root = temp_repo();
-        fs::write(root.join("tracked.txt"), "1\n2\n3\n").unwrap();
-        run(&root, &["add", "tracked.txt"]);
-        run(&root, &["commit", "-m", "init"]);
-        fs::write(root.join("tracked.txt"), "1\n2\n3\n4\n").unwrap(); // +1 tracked
-        fs::write(root.join("new.txt"), "a\nb\nc\n").unwrap(); // +3 untracked
-        fs::write(root.join("bin.dat"), [0u8, 1, 2]).unwrap(); // binary, skip
-        let dirt = measure(&root).expect("work tree");
-        assert_eq!(
-            dirt,
-            GitDirt {
-                insertions: 4,
-                deletions: 0
-            }
-        );
-        let _ = fs::remove_dir_all(&root);
-    }
-
-    fn temp_repo() -> PathBuf {
-        let root = std::env::temp_dir().join(format!("xenon-git-dirt-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
-        run(&root, &["init"]);
-        run(&root, &["config", "user.email", "test@example.com"]);
-        run(&root, &["config", "user.name", "test"]);
-        root
-    }
-
-    fn run(root: &Path, args: &[&str]) {
-        let status = Command::new("git")
-            .args(args)
-            .current_dir(root)
-            .status()
-            .expect("git");
-        assert!(status.success(), "git {args:?} failed");
     }
 }

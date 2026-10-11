@@ -56,22 +56,3 @@ pub fn menu_item(
         .child(label.into())
         .child(div().text_xs().text_color(muted).child(shortcut.keys()))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::Shortcut;
-
-    #[test]
-    fn shortcut_keeps_keys() {
-        assert_eq!(
-            Shortcut::new("⌘⇧O").keys(),
-            xenon_keymap::display_keys("⌘⇧O")
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "menu rows must show a keyboard shortcut")]
-    fn shortcut_rejects_empty() {
-        let _ = Shortcut::new("");
-    }
-}

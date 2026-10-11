@@ -32,7 +32,7 @@ pub use visual_review::{disapproval_clipboard, selected_names};
 mod visual_review;
 
 #[cfg(feature = "visual-tests")]
-pub use app::visual::{SCENES, Scene, apply_scene, surface_names};
+pub use app::visual::{SCENES, Scene, apply_scene};
 
 use gpui::{App, actions};
 

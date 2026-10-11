@@ -45,19 +45,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn flat_details_stay_depth_zero() {
+    fn details_round_trip_with_depth() {
         let points = points_from_details("First point\nSecond point");
         assert_eq!(points.len(), 2);
         assert_eq!(points[0].depth, 0);
         assert_eq!(points[1].text, "Second point");
         assert_eq!(details_from_points(&points), "First point\nSecond point");
-    }
 
-    #[test]
-    fn indented_details_keep_depth() {
-        let points = points_from_details("Parent\n  Child");
-        assert_eq!(points[1].depth, 1);
-        assert_eq!(points[1].text, "Child");
-        assert_eq!(details_from_points(&points), "Parent\n  Child");
+        let nested = points_from_details("Parent\n  Child");
+        assert_eq!(nested[1].depth, 1);
+        assert_eq!(nested[1].text, "Child");
+        assert_eq!(details_from_points(&nested), "Parent\n  Child");
     }
 }

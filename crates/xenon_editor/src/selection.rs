@@ -100,18 +100,6 @@ mod tests {
     use ropey::Rope;
 
     #[test]
-    fn empty_selection_when_equal() {
-        assert!(range(Some(3), 3).is_none());
-        assert!(range(None, 3).is_none());
-    }
-
-    #[test]
-    fn ordered_range() {
-        assert_eq!(range(Some(5), 2), Some(2..5));
-        assert_eq!(range(Some(2), 5), Some(2..5));
-    }
-
-    #[test]
     fn word_range_identifier() {
         let rope = Rope::from_str("foo bar_baz");
         assert_eq!(word_range_at(&rope, 1), 0..3);

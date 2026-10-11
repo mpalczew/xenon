@@ -31,8 +31,10 @@ and `CONTRIBUTING.md`.
   run: `scripts/health` (checks + fmtcheck + clippy + shape + test; CI).
   The pre-commit hook (`scripts/git-hooks/pre-commit`, enabled by
   `scripts/install-hooks`) is the gate: it checks the staged snapshot in
-  `target/precommit-tree` (never touches the working tree), shares `target/`,
-  and tests only crates the diff touches. `scripts/prune-target [days]` drops
+  `target/precommit-tree` (never touches the working tree) under its own
+  `precommit` profile, and tests only crates the diff touches. Gotcha: never
+  point the snapshot at the `dogfood` dir — path crates hash relative to the
+  workspace root, so each tree's artifacts pass as fresh for the other. `scripts/prune-target [days]` drops
   stale artifacts; `project install` runs it.
 - Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
   cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
@@ -125,7 +127,7 @@ rules apply to agent work here; do not duplicate them in this file. Key points:
 minimize cognitive load, present options at real decision forks before
 building, Rule of 7, never amend/rebase/force-push, bash not zsh.
 
-- UI that paints is incomplete without screenshot coverage of those surfaces and a `/ui-iteration` review of the images. How: `docs/visual-tests.md`.
+- UI that paints is incomplete until you have captured the scenes for the surfaces you touched (one scene per unique UI state) and looked at the images (`/ui-iteration`). How: `docs/visual-tests.md`.
 - **Agent-owned quality on author sessions.** The product is open source and
   welcomes substantive human review via issues/PRs (`CONTRIBUTING.md`). On the
   author's solo agent sessions there is no second human in the loop: the agent
@@ -148,6 +150,22 @@ building, Rule of 7, never amend/rebase/force-push, bash not zsh.
   chrome or UX work. Keep them aligned with settled decisions; do not invent a
   competing vision in chat only. Cross-cutting current decisions live in
   `docs/project-state.md`; release work lives in `docs/release.md`.
+
+## Tests and views
+
+- Views draw, models decide. Code that paints receives precomputed values and
+  lays them out: no product-state branching, ranking, parsing, or policy in
+  render code. Decisions live in plain Rust types/functions with no GPUI.
+- Unit-test budget: default zero new tests. Add one only for (a) a bug that
+  recurred, (b) a boundary format (parsing, persistence, protocol), or (c) logic
+  too tangled to verify by eye. Never pin tunable policy (ranking weights, copy,
+  layout). Prefer one table-driven test over near-duplicates. Tests are
+  deterministic: no sleeps, no live I/O.
+- Screenshot scenes: at most one per unique UI state. They let you check the UI
+  looks as intended and matches its mock; they are not a regression gate.
+  Capture only the scenes for surfaces you touched, then look at them.
+- Red CI on main: fix it first, before other work. Check with
+  `scripts/ci-status` at session start.
 
 ## Keyboard-first (mouseless)
 

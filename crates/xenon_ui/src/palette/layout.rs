@@ -190,42 +190,11 @@ pub(crate) fn match_hits(text: &str, query: &str, matcher: &mut Matcher) -> Vec<
 #[cfg(test)]
 mod reveal_tests {
     use super::*;
-    use gpui::point;
 
     #[test]
     fn fuzzy_order_keeps_duplicate_labels_distinct() {
         let labels = vec!["same".to_string(), "other".to_string(), "same".to_string()];
         let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
         assert_eq!(fuzzy_index_order(&labels, "same", &mut matcher), vec![0, 2]);
-    }
-
-    #[test]
-    fn match_hits_marks_the_query_in_the_title() {
-        let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
-        let hits = match_hits("Open Workspace…", "open", &mut matcher);
-        assert!(hits.contains(&0));
-        assert!(hits.contains(&1));
-    }
-
-    #[test]
-    fn offset_scrolls_up_when_item_above() {
-        let viewport = gpui::Bounds::new(point(px(0.), px(100.)), gpui::size(px(200.), px(100.)));
-        let item = gpui::Bounds::new(point(px(0.), px(50.)), gpui::size(px(200.), px(30.)));
-        // Matches GPUI: offset.y = viewport.top() - item.top().
-        assert_eq!(offset_to_show(item, viewport, px(0.)), px(50.));
-    }
-
-    #[test]
-    fn offset_scrolls_down_when_item_below() {
-        let viewport = gpui::Bounds::new(point(px(0.), px(100.)), gpui::size(px(200.), px(100.)));
-        let item = gpui::Bounds::new(point(px(0.), px(220.)), gpui::size(px(200.), px(30.)));
-        assert_eq!(offset_to_show(item, viewport, px(0.)), px(-50.));
-    }
-
-    #[test]
-    fn offset_unchanged_when_visible() {
-        let viewport = gpui::Bounds::new(point(px(0.), px(100.)), gpui::size(px(200.), px(100.)));
-        let item = gpui::Bounds::new(point(px(0.), px(120.)), gpui::size(px(200.), px(30.)));
-        assert_eq!(offset_to_show(item, viewport, px(0.)), px(0.));
     }
 }

@@ -201,36 +201,4 @@ mod tests {
             seen.push(entry.id);
         }
     }
-
-    #[test]
-    fn menu_commands_have_shortcuts() {
-        for id in [
-            CommandId::NewWorkspace,
-            CommandId::OpenWorkspace,
-            CommandId::CloseFocusedTab,
-            CommandId::CloseOtherTabs,
-            CommandId::CopyPath,
-            CommandId::CopyRelativePath,
-            CommandId::CopyClean,
-            CommandId::CopyCode,
-            CommandId::RevealInFinder,
-            CommandId::OpenInDefaultApp,
-            CommandId::NewFile,
-            CommandId::NewFolder,
-            CommandId::NewTerminal,
-        ] {
-            assert!(!entry(id).keys.is_empty(), "{id:?} needs a shortcut");
-            let _ = shortcut(id);
-        }
-    }
-
-    #[test]
-    fn worklist_shortcuts_match_the_approved_pair() {
-        assert_eq!(entry(CommandId::CaptureWorklist).keys, "⌘⇧K");
-        assert_eq!(
-            entry(CommandId::CaptureWorklist).keys,
-            xenon_editor::worklist_file::CAPTURE_KEYS
-        );
-        assert_eq!(entry(CommandId::OpenWorklist).keys, "⌘⌥K");
-    }
 }

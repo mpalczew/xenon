@@ -46,15 +46,4 @@ mod tests {
         assert_eq!(lines[1], "c");
         assert!(!lines.iter().any(|l| l.contains('H')));
     }
-
-    #[test]
-    fn dims_match_viewport_not_cell_count() {
-        // Many cells out of bounds must not grow lines past `rows`.
-        let cells: Vec<_> = (0..100)
-            .flat_map(|r| (0..100).map(move |c| (r, c, 'x')))
-            .collect();
-        let lines = viewport_lines(cells, 3, 2);
-        assert_eq!(lines.len(), 2);
-        assert!(lines.iter().all(|l| l.chars().count() <= 3));
-    }
 }

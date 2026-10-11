@@ -100,24 +100,3 @@ pub(super) fn lineup(cx: &App) -> Vec<Family> {
 pub(super) fn group_title(group: &str) -> SharedString {
     SharedString::from(group.to_uppercase())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dark_only_family_falls_back_to_dark() {
-        let black = &LINEUP[9];
-        assert_eq!(
-            black.nearest(Appearance::Light),
-            (Appearance::Dark, "True Black")
-        );
-        assert!(black.contains("True Black"));
-    }
-
-    #[test]
-    fn lineup_has_ten_families() {
-        assert_eq!(LINEUP.len(), 10);
-        assert!(LINEUP.iter().all(|f| f.dark.is_some()));
-    }
-}

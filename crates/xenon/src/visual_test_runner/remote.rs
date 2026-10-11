@@ -11,16 +11,18 @@ pub const FIXTURES: &[&str] = &[
     "code",
     "workspaces",
     "session",
-    "session_light",
     "session_keys",
     "reconnecting",
 ];
 
-pub fn capture(output_dir: &Path) -> Result<Vec<String>> {
+pub fn capture(output_dir: &Path, wants: impl Fn(&str) -> bool) -> Result<Vec<String>> {
     fs::create_dir_all(output_dir)?;
     let mut names = Vec::new();
     for fixture in FIXTURES {
         let name = format!("remote_{fixture}");
+        if !wants(&name) {
+            continue;
+        }
         let html = output_dir.join(format!("{name}.html"));
         fs::write(&html, fixture_html(fixture))?;
         screenshot(&html, &output_dir.join(format!("{name}.png")), 390, 844)?;

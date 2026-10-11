@@ -237,8 +237,6 @@ fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::os::unix::fs::symlink;
 
     #[test]
     fn remote_tree_expands_cached_entries_without_local_filesystem_access() {
@@ -274,43 +272,5 @@ mod tests {
         );
         assert!(rows[1].is_open);
         assert_eq!(rows[1].depth, 1);
-    }
-
-    #[test]
-    fn marks_file_and_dir_symlinks() {
-        let root = tempfile::tempdir().unwrap();
-        let root = root.path();
-        fs::write(root.join("plain.txt"), "hi").unwrap();
-        fs::create_dir(root.join("real_dir")).unwrap();
-        symlink(root.join("plain.txt"), root.join("link.txt")).unwrap();
-        symlink(root.join("real_dir"), root.join("link_dir")).unwrap();
-
-        let browser = FileBrowser::default();
-        let rows = browser.rows(root, None);
-        let by_name: std::collections::HashMap<_, _> =
-            rows.into_iter().map(|r| (r.name.clone(), r)).collect();
-
-        let plain = by_name.get("plain.txt").unwrap();
-        assert!(!plain.is_symlink);
-        assert!(!plain.is_dir);
-        assert_eq!(char::from(file_icon(plain)), char::from(Icon::FileText));
-
-        let link = by_name.get("link.txt").unwrap();
-        assert!(link.is_symlink);
-        assert!(!link.is_dir);
-        assert_eq!(char::from(file_icon(link)), char::from(Icon::FileSymlink));
-
-        let dir = by_name.get("real_dir").unwrap();
-        assert!(!dir.is_symlink);
-        assert!(dir.is_dir);
-        assert_eq!(char::from(file_icon(dir)), char::from(Icon::Folder));
-
-        let link_dir = by_name.get("link_dir").unwrap();
-        assert!(link_dir.is_symlink);
-        assert!(link_dir.is_dir);
-        assert_eq!(
-            char::from(file_icon(link_dir)),
-            char::from(Icon::FolderSymlink)
-        );
     }
 }

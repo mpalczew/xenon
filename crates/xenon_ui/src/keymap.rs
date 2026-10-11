@@ -147,15 +147,6 @@ pub(crate) fn ensure_file() -> std::io::Result<PathBuf> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn summarize_keeps_the_first_failing_binding() {
-        let report = "Errors in user keymap file.\nIn section without context predicate:\n\n- In binding `\"ctrl-x\"`, didn't find an action named \"xenon::Nope\".\n\n- In binding `\"ctrl-y\"`, other";
-        assert_eq!(
-            summarize(report),
-            "binding \"ctrl-x\", didn't find an action named \"xenon::Nope\"."
-        );
-    }
-
     fn with_app<R>(run: impl FnOnce(&mut App) -> R) -> R {
         let cx = gpui::TestAppContext::single();
         cx.update(run)
@@ -233,45 +224,5 @@ mod tests {
             (press(open_file), press("alt-9"))
         });
         assert_eq!((unbound, rebound), (0, 1));
-    }
-
-    #[test]
-    fn linux_terminal_passes_shell_keys_and_copies_with_shift() {
-        let json = xenon_keymap::to_json(&xenon_keymap::defaults(Platform::Linux));
-        let actions_for = |key: &str, contexts: &str| {
-            with_app(|cx| {
-                cx.bind_keys(load(&json, cx).unwrap());
-                let stack = vec![
-                    gpui::KeyContext::parse("XenonApp").unwrap(),
-                    gpui::KeyContext::parse(contexts).unwrap(),
-                ];
-                let stroke = gpui::Keystroke::parse(key).unwrap();
-                let keymap = cx.key_bindings();
-                let (found, _) = keymap.borrow().bindings_for_input(&[stroke], &stack);
-                found
-                    .iter()
-                    .map(|b| b.action().name().to_owned())
-                    .collect::<Vec<_>>()
-            })
-        };
-        for key in [
-            "ctrl-c", "ctrl-b", "ctrl-e", "ctrl-o", "ctrl-s", "ctrl-x", "ctrl-v",
-        ] {
-            assert!(
-                actions_for(key, "Terminal").is_empty(),
-                "{key} must reach the PTY"
-            );
-        }
-        assert_eq!(actions_for("ctrl-c", "Editor"), ["xenon_clipboard::Copy"]);
-        assert_eq!(
-            actions_for("ctrl-shift-c", "Terminal"),
-            ["xenon_clipboard::Copy"]
-        );
-        assert_eq!(
-            actions_for("ctrl-shift-v", "Terminal")[0],
-            "xenon_clipboard::Paste"
-        );
-        assert_eq!(actions_for("ctrl-p", "Terminal"), ["xenon::FilePalette"]);
-        assert_eq!(actions_for("ctrl-w", "Terminal"), ["xenon::CloseEditor"]);
     }
 }

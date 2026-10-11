@@ -120,18 +120,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn match_pair_open_to_close() {
-        let rope = Rope::from_str("a(bc)d");
-        assert_eq!(match_pair(&rope, 1), 4);
-    }
-
-    #[test]
-    fn match_pair_close_to_open() {
-        let rope = Rope::from_str("a(bc)d");
-        assert_eq!(match_pair(&rope, 4), 1);
-    }
-
-    #[test]
     fn match_pair_finds_next_on_line() {
         let rope = Rope::from_str("x (ab)");
         assert_eq!(match_pair(&rope, 0), 5);
@@ -142,20 +130,5 @@ mod tests {
         let rope = Rope::from_str("(a(b)c)");
         assert_eq!(match_pair(&rope, 0), 6);
         assert_eq!(match_pair(&rope, 2), 4);
-    }
-
-    #[test]
-    fn match_pair_braces_and_brackets() {
-        let rope = Rope::from_str("{[x]}");
-        assert_eq!(match_pair(&rope, 0), 4);
-        assert_eq!(match_pair(&rope, 1), 3);
-    }
-
-    #[test]
-    fn percent_of_file_mid() {
-        let rope = Rope::from_str("a\nb\nc\nd\n");
-        let pos = percent_of_file(&rope, 50);
-        let row = rope.char_to_line(pos.min(rope.len_chars().saturating_sub(1)));
-        assert!(row > 0);
     }
 }

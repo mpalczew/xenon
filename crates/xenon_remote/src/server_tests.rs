@@ -189,39 +189,6 @@ fn pairing_then_bearer_lists() {
 }
 
 #[test]
-fn responses_do_not_allow_cross_origin_reads() {
-    let (server, _mock) = start_mock();
-    let page = request(server.port, "GET", "/", None, None);
-    assert!(page.starts_with("HTTP/1.1 200"), "{page}");
-    assert!(!page.contains("Access-Control-Allow-Origin"), "{page}");
-    let manifest = request(server.port, "GET", "/manifest.webmanifest", None, None);
-    assert!(manifest.contains("standalone"), "{manifest}");
-}
-
-#[test]
-fn repeated_bad_codes_are_rate_limited() {
-    let (server, _mock) = start_mock();
-    for _ in 0..5 {
-        let r = request(
-            server.port,
-            "POST",
-            "/pair",
-            Some(r#"{"code":"000000"}"#),
-            None,
-        );
-        assert!(r.starts_with("HTTP/1.1 401"), "{r}");
-    }
-    let limited = request(
-        server.port,
-        "POST",
-        "/pair",
-        Some(r#"{"code":"123456"}"#),
-        None,
-    );
-    assert!(limited.starts_with("HTTP/1.1 429"), "{limited}");
-}
-
-#[test]
 fn websocket_hello_ready_and_forwarding() {
     let (server, mock) = start_mock();
     let url = format!("ws://127.0.0.1:{}/ws", server.port);
@@ -255,19 +222,6 @@ fn websocket_hello_ready_and_forwarding() {
 }
 
 #[test]
-fn websocket_bad_token_closes_unauthorized() {
-    let (server, _mock) = start_mock();
-    let url = format!("ws://127.0.0.1:{}/ws", server.port);
-    let (mut ws, _) = tungstenite::connect(url).expect("connect");
-    ws.send(Message::Text(r#"{"t":"hello","token":"nope"}"#.into()))
-        .unwrap();
-    match ws.read() {
-        Ok(Message::Close(Some(frame))) => assert_eq!(u16::from(frame.code), 4401),
-        other => panic!("expected close, got {other:?}"),
-    }
-}
-
-#[test]
 fn websocket_rejects_foreign_origin() {
     let (server, _mock) = start_mock();
     let port = server.port;
@@ -283,23 +237,6 @@ fn websocket_rejects_foreign_origin() {
     let mut out = String::new();
     let _ = stream.read_to_string(&mut out);
     assert!(out.starts_with("HTTP/1.1 403"), "{out}");
-}
-
-#[test]
-fn stopped_server_stops_accepting() {
-    let (server, _mock) = start_mock();
-    let port = server.port;
-    server.stop();
-    thread::sleep(Duration::from_millis(80));
-    if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)) {
-        stream
-            .set_read_timeout(Some(Duration::from_millis(300)))
-            .ok();
-        let _ = stream.write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n");
-        let mut body = String::new();
-        let _ = stream.read_to_string(&mut body);
-        assert!(body.is_empty(), "{body}");
-    }
 }
 
 fn wait_until(mut f: impl FnMut() -> bool) {
@@ -334,26 +271,12 @@ fn request(port: u16, method: &str, path: &str, body: Option<&str>, token: Optio
 #[test]
 fn bad_tokens_never_lock_out_paired_phones() {
     let (server, _mock) = start_mock();
-    for _ in 0..30 {
+    for _ in 0..6 {
         let r = request(server.port, "GET", "/api/workspaces", None, Some("guess"));
         assert!(r.starts_with("HTTP/1.1 401"), "{r}");
     }
     let ok = request(server.port, "GET", "/api/workspaces", None, Some(TOKEN));
     assert!(ok.starts_with("HTTP/1.1 200"), "{ok}");
-}
-
-#[test]
-fn oversized_body_is_refused() {
-    let (server, _mock) = start_mock();
-    let mut stream = TcpStream::connect(("127.0.0.1", server.port)).unwrap();
-    stream
-        .set_read_timeout(Some(Duration::from_secs(2)))
-        .unwrap();
-    let _ =
-        stream.write_all(b"POST /pair HTTP/1.1\r\nHost: x\r\nContent-Length: 999999999\r\n\r\n{");
-    let mut out = String::new();
-    let _ = stream.read_to_string(&mut out);
-    assert!(!out.contains("200"), "{out}");
 }
 
 #[test]

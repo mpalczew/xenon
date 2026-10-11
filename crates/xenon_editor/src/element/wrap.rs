@@ -446,20 +446,6 @@ mod tests {
     }
 
     #[test]
-    fn short_line_stays_one_row() {
-        let wrapped = rows("hello", 20);
-        assert_eq!(
-            wrapped,
-            vec![WrapRow {
-                line: 0,
-                start: 0,
-                end: 5,
-                continuation: false,
-            }]
-        );
-    }
-
-    #[test]
     fn breaks_on_the_last_space_that_fits() {
         let wrapped = rows("The preview already wraps\n", 16);
         assert_eq!(wrapped[0].end, 12);

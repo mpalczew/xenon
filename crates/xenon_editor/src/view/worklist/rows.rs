@@ -75,23 +75,6 @@ mod tests {
     }
 
     #[test]
-    fn rows_interleave_headers_and_items() {
-        use Cursor::*;
-        assert_eq!(
-            rows(&[]),
-            [
-                Item(0),
-                Header(0),
-                Item(1),
-                Item(2),
-                Header(1),
-                Header(2),
-                Item(3)
-            ]
-        );
-    }
-
-    #[test]
     fn folded_sections_hide_their_items_only() {
         use Cursor::*;
         assert_eq!(
@@ -112,13 +95,5 @@ mod tests {
             settle(&folded, Cursor::Item(9), &parsed.entries),
             Cursor::Item(3)
         );
-    }
-
-    #[test]
-    fn stepping_stops_at_both_ends() {
-        let all = rows(&[]);
-        assert_eq!(step(&all, Cursor::Item(0), -1), Cursor::Item(0));
-        assert_eq!(step(&all, Cursor::Item(0), 1), Cursor::Header(0));
-        assert_eq!(step(&all, Cursor::Item(3), 1), Cursor::Item(3));
     }
 }

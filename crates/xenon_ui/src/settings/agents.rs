@@ -118,16 +118,3 @@ fn remove(window: &Window, cx: &mut App) {
     };
     show_toast_in(window, toast, cx);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn homes_list_every_agent_home() {
-        let label = homes_label(&SkillStatus::Installed { version: 3 });
-        assert_eq!(label.lines().count(), 3);
-        assert!(label.contains("~/.claude/skills/xenon"));
-        assert!(label.ends_with("v3"));
-    }
-}

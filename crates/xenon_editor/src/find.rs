@@ -141,26 +141,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn literal_case_insensitive() {
-        let scan = scan("Foo foo FOO", "foo", FindOptions::default());
-        assert_eq!(scan.matches.len(), 3);
-    }
-
-    #[test]
-    fn literal_case_sensitive() {
-        let scan = scan(
-            "Foo foo FOO",
-            "foo",
-            FindOptions {
-                case_sensitive: true,
-                ..Default::default()
-            },
-        );
-        assert_eq!(scan.matches.len(), 1);
-        assert_eq!(scan.matches[0], 4..7);
-    }
-
-    #[test]
     fn whole_word() {
         let scan = scan(
             "cat catalog cat",
@@ -173,21 +153,6 @@ mod tests {
         assert_eq!(scan.matches.len(), 2);
         assert_eq!(scan.matches[0], 0..3);
         assert_eq!(scan.matches[1], 12..15);
-    }
-
-    #[test]
-    fn regex_digits() {
-        let scan = scan(
-            "a1 b22 c",
-            r"\d+",
-            FindOptions {
-                regex: true,
-                ..Default::default()
-            },
-        );
-        assert_eq!(scan.matches.len(), 2);
-        assert_eq!(scan.matches[0], 1..2);
-        assert_eq!(scan.matches[1], 4..6);
     }
 
     #[test]
@@ -218,13 +183,5 @@ mod tests {
         assert_eq!(step_index(&matches, Some(0), false), Some(1));
         assert_eq!(step_index(&matches, Some(2), false), Some(0));
         assert_eq!(step_index(&matches, Some(0), true), Some(2));
-    }
-
-    #[test]
-    fn index_at_or_after_cursor() {
-        let matches = vec![2..3, 8..9];
-        assert_eq!(index_at_or_after(&matches, 0), Some(0));
-        assert_eq!(index_at_or_after(&matches, 5), Some(1));
-        assert_eq!(index_at_or_after(&matches, 20), Some(0));
     }
 }

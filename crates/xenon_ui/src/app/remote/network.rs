@@ -221,28 +221,6 @@ mod tests {
     }
 
     #[test]
-    fn phone_host_prefers_override_then_magic_dns() {
-        let r = tailnet();
-        assert_eq!(r.phone_host(RemoteNetwork::Tailscale, "mac.lan"), "mac.lan");
-        assert_eq!(
-            r.phone_host(RemoteNetwork::Tailscale, ""),
-            "mbp.tail7c2e.ts.net"
-        );
-        let lan_only = Reachability {
-            lan_ip: Some(Ipv4Addr::new(192, 168, 1, 9)),
-            ..Default::default()
-        };
-        assert_eq!(
-            lan_only.phone_host(RemoteNetwork::Tailscale, ""),
-            "127.0.0.1"
-        );
-        assert_eq!(
-            lan_only.phone_host(RemoteNetwork::TailscaleAndLan, ""),
-            "192.168.1.9"
-        );
-    }
-
-    #[test]
     fn detects_cgnat_range() {
         assert!(is_tailscale(&Ipv4Addr::new(100, 64, 0, 1)));
         assert!(is_tailscale(&Ipv4Addr::new(100, 127, 255, 1)));

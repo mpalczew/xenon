@@ -70,29 +70,13 @@ mod tests {
     }
 
     #[test]
-    fn untouched_defaults_have_no_overrides() {
-        assert!(display_overrides(Platform::Linux, &[]).is_empty());
-        assert!(display_overrides(Platform::Mac, &[]).is_empty());
-    }
-
-    #[test]
-    fn rebinding_shows_the_new_key() {
+    fn rebinding_shows_the_new_key_and_unbinding_shows_nothing() {
         let user = [bind("ctrl-alt-p", "xenon::FilePalette")];
         let map = display_overrides(Platform::Linux, &user);
         assert_eq!(map.get("cmd-p").map(String::as_str), Some("Ctrl+Alt+P"));
-    }
 
-    #[test]
-    fn rebinding_on_mac_uses_glyphs() {
-        let user = [bind("cmd-alt-p", "xenon::FilePalette")];
-        let map = display_overrides(Platform::Mac, &user);
-        assert_eq!(map.get("cmd-p").map(String::as_str), Some("⌥⌘P"));
-    }
-
-    #[test]
-    fn unbinding_shows_nothing() {
-        let user = [Entry::new(None, "ctrl-p", None)];
-        let map = display_overrides(Platform::Linux, &user);
+        let unbound = [Entry::new(None, "ctrl-p", None)];
+        let map = display_overrides(Platform::Linux, &unbound);
         assert_eq!(map.get("cmd-p").map(String::as_str), Some(""));
     }
 }

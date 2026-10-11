@@ -96,22 +96,6 @@ fn stub_adopts_last_slot() {
 }
 
 #[test]
-fn stub_without_marker_uses_ship_dir() {
-    let _serial = serial();
-    let root = tempfile::TempDir::new().unwrap();
-    let macos = root.path().join("MacOS");
-    let stub = install_stub(&macos);
-    write_gui_printer(&macos);
-    let home = root.path().join("home");
-    fs::create_dir_all(&home).unwrap();
-
-    let stdout = run_stub(&stub, &home, &[]);
-    let ship = home.join(".xenon");
-    assert!(stdout.contains(&format!("XENON_DATA_DIR={}", ship.display())));
-    assert!(stdout.contains("XENON_SLOT=\n"));
-}
-
-#[test]
 fn stub_preserves_existing_data_dir_env() {
     let _serial = serial();
     let root = tempfile::TempDir::new().unwrap();

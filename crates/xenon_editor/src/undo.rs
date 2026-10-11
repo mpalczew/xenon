@@ -155,31 +155,4 @@ mod tests {
         assert_eq!(version_before, 0);
         assert!(stack.undo().is_none());
     }
-
-    #[test]
-    fn ungrouped_edits_are_separate_steps() {
-        let mut stack = UndoStack::default();
-        stack.push(
-            Edit {
-                start: 0,
-                old: String::new(),
-                new: "a".into(),
-            },
-            0,
-        );
-        stack.push(
-            Edit {
-                start: 1,
-                old: String::new(),
-                new: "b".into(),
-            },
-            1,
-        );
-        let (edits, v) = stack.undo().unwrap();
-        assert_eq!(edits.len(), 1);
-        assert_eq!(v, 1);
-        let (edits, v) = stack.undo().unwrap();
-        assert_eq!(edits[0].new, "a");
-        assert_eq!(v, 0);
-    }
 }

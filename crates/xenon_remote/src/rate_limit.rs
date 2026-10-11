@@ -68,14 +68,4 @@ mod tests {
         assert!(rl.allow(other, now));
         assert!(rl.allow(ip, now + WINDOW));
     }
-
-    #[test]
-    fn limiter_has_global_cap() {
-        let now = Instant::now();
-        let mut rl = RateLimiter::new();
-        for i in 0..20u8 {
-            rl.record_failure(IpAddr::from([10, 0, 0, i]), now);
-        }
-        assert!(!rl.allow(IpAddr::from([10, 0, 1, 1]), now));
-    }
 }

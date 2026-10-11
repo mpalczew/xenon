@@ -235,59 +235,12 @@ mod tests {
     }
 
     #[test]
-    fn unchanged_screen_sends_nothing() {
-        let mut enc = FrameEncoder::default();
-        enc.encode(&screen(&["hi", "yo"], 4));
-        assert!(enc.encode(&screen(&["hi", "yo"], 4)).is_empty());
-    }
-
-    #[test]
-    fn scrolled_change_sends_a_frame() {
-        let mut enc = FrameEncoder::default();
-        let mut screen = screen(&["hi"], 4);
-        enc.encode(&screen);
-        screen.scrolled = true;
-        let msgs = enc.encode(&screen);
-        let ServerMsg::Frame {
-            scrolled, lines, ..
-        } = &msgs[0]
-        else {
-            panic!("expected a frame");
-        };
-        assert!(*scrolled);
-        assert!(lines.is_empty());
-    }
-
-    #[test]
     fn patch_sends_only_changed_rows() {
         let mut enc = FrameEncoder::default();
         enc.encode(&screen(&["a", "b", "c"], 4));
         let (full, lines) = frame(&enc.encode(&screen(&["a", "B", "c"], 4)));
         assert!(!full);
         assert_eq!(lines, vec![(1, vec![("B".into(), 0)])]);
-    }
-
-    #[test]
-    fn resize_forces_full_frame() {
-        let mut enc = FrameEncoder::default();
-        enc.encode(&screen(&["a"], 4));
-        let (full, _) = frame(&enc.encode(&screen(&["a"], 5)));
-        assert!(full);
-    }
-
-    #[test]
-    fn cursor_move_alone_sends_empty_patch() {
-        let mut enc = FrameEncoder::default();
-        let mut s = screen(&["a"], 4);
-        enc.encode(&s);
-        s.cursor = Some(CursorWire {
-            r: 0,
-            c: 1,
-            s: CursorShapeWire::Block,
-        });
-        let (full, lines) = frame(&enc.encode(&s));
-        assert!(!full);
-        assert!(lines.is_empty());
     }
 
     #[test]

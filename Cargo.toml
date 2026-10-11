@@ -134,3 +134,10 @@ codegen-units = 256
 lto = false
 debug = "line-tables-only"
 split-debuginfo = "packed"
+
+# Pre-commit hook only. Its snapshot tree must not share artifacts with the real
+# tree: path crates hash relative to the workspace root, so a shared profile dir
+# lets each tree's build pass as fresh for the other (stale tests).
+[profile.precommit]
+inherits = "dev"
+debug = false

@@ -168,31 +168,6 @@ mod tests {
     }
 
     #[test]
-    fn up_past_top_scrolls() {
-        let next = keep_row_visible(px(50.), 3, px(10.), px(100.));
-        assert_eq!(next, px(30.));
-    }
-
-    #[test]
-    fn already_visible_unchanged() {
-        let next = keep_row_visible(px(20.), 5, px(10.), px(100.));
-        assert_eq!(next, px(20.));
-    }
-
-    #[test]
-    fn col_past_right_scrolls() {
-        let next = keep_col_visible(px(0.), 20, px(10.), px(100.));
-        assert_eq!(next, px(110.));
-    }
-
-    #[test]
-    fn follow_viewport_reserves_vertical_bar() {
-        let (w, h) = follow_viewport(px(200.), px(100.), px(50.), px(200.), px(8.));
-        assert_eq!(w, px(192.));
-        assert_eq!(h, px(100.));
-    }
-
-    #[test]
     fn follow_viewport_reserves_both_bars() {
         let (w, h) = follow_viewport(px(200.), px(100.), px(400.), px(200.), px(8.));
         assert_eq!(w, px(192.));

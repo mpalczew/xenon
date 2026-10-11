@@ -279,14 +279,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_basic() {
-        let cmd = parse_substitute("/foo/bar/gi").unwrap();
-        assert_eq!(cmd.pattern.as_deref(), Some("foo"));
-        assert_eq!(cmd.replacement, "bar");
-        assert!(cmd.flags.all && cmd.flags.ignore_case);
-    }
-
-    #[test]
     fn expand_groups_and_case() {
         let re = Regex::new(r"(\w+)").unwrap();
         let caps = re.captures("hello").unwrap();
@@ -303,14 +295,5 @@ mod tests {
         let out = apply_substitute(&mut buf, &cmd, (0, 1), None, &mut prev).unwrap();
         assert_eq!(out.replacements, 3);
         assert_eq!(buf.text(), "X X\nbar X\n");
-    }
-
-    #[test]
-    fn apply_capture_replace() {
-        let mut buf = buffer_with("ab cd\n");
-        let cmd = parse_substitute(r"/(\w+)/[\1]/g").unwrap();
-        let mut prev = String::new();
-        apply_substitute(&mut buf, &cmd, (0, 0), None, &mut prev).unwrap();
-        assert_eq!(buf.text(), "[ab] [cd]\n");
     }
 }

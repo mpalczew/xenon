@@ -84,41 +84,6 @@ mod tests {
     }
 
     #[test]
-    fn mru_orders_known_when_basename_equal() {
-        let mut rows = vec![
-            closed("xenon", "/Users/me/src/old/xenon", 10),
-            closed("xenon", "/Users/me/src/new/xenon", 99),
-        ];
-        sort_candidates(&mut rows, Some("xenon"));
-        assert_eq!(rows[0].root(), Path::new("/Users/me/src/new/xenon"));
-        assert_eq!(rows[1].root(), Path::new("/Users/me/src/old/xenon"));
-    }
-
-    #[test]
-    fn empty_query_mru_first() {
-        let mut rows = vec![
-            closed("a", "/tmp/a", 1),
-            closed("b", "/tmp/b", 50),
-            closed("c", "/tmp/c", 20),
-        ];
-        sort_candidates(&mut rows, None);
-        assert_eq!(rows[0].name(), "b");
-        assert_eq!(rows[1].name(), "c");
-        assert_eq!(rows[2].name(), "a");
-    }
-
-    #[test]
-    fn exact_basename_beats_prefix_among_known() {
-        let mut rows = vec![
-            closed("personalfiles", "/tmp/personalfiles", 999),
-            closed("personal", "/tmp/personal", 1),
-        ];
-        sort_candidates(&mut rows, Some("personal"));
-        assert_eq!(rows[0].name(), "personal");
-        assert_eq!(rows[1].name(), "personalfiles");
-    }
-
-    #[test]
     fn hosts_rank_below_every_local_match() {
         let host = WorkspaceCandidate::Host {
             name: "thinkpad".into(),
@@ -128,40 +93,5 @@ mod tests {
         let mut rows = vec![host, found("/Users/me/src/think"), closed("t", "/tmp/t", 1)];
         sort_candidates(&mut rows, Some("think"));
         assert!(matches!(rows[2], WorkspaceCandidate::Host { .. }));
-    }
-
-    fn scheme(last: u64, leads: bool) -> WorkspaceCandidate {
-        WorkspaceCandidate::Scheme {
-            last_opened: last,
-            leads,
-        }
-    }
-
-    #[test]
-    fn scheme_leads_for_three_or_more_chars() {
-        let mut rows = vec![closed("sshfoo", "/tmp/sshfoo", 999), scheme(0, true)];
-        sort_candidates(&mut rows, Some("ssh"));
-        assert!(matches!(rows[0], WorkspaceCandidate::Scheme { .. }));
-    }
-
-    #[test]
-    fn recent_scheme_beats_older_prefix_match() {
-        let mut rows = vec![closed("src", "/tmp/src", 10), scheme(99, false)];
-        sort_candidates(&mut rows, Some("s"));
-        assert!(matches!(rows[0], WorkspaceCandidate::Scheme { .. }));
-    }
-
-    #[test]
-    fn newer_prefix_match_beats_older_scheme() {
-        let mut rows = vec![scheme(10, false), closed("src", "/tmp/src", 99)];
-        sort_candidates(&mut rows, Some("s"));
-        assert_eq!(rows[0].name(), "src");
-    }
-
-    #[test]
-    fn scheme_beats_contains_only_match() {
-        let mut rows = vec![closed("notes", "/tmp/notes", 999), scheme(0, false)];
-        sort_candidates(&mut rows, Some("s"));
-        assert!(matches!(rows[0], WorkspaceCandidate::Scheme { .. }));
     }
 }

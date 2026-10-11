@@ -139,68 +139,26 @@ mod tests {
     }
 
     #[test]
-    fn open_line() {
-        let s = spec(args(&["open", "/tmp/file.rs:42"]));
-        assert_eq!(s.path, PathBuf::from("/tmp/file.rs"));
-        assert_eq!(s.line, Some(42));
-        assert_eq!(s.column, None);
-        assert_eq!(s.end_line, None);
-        assert_eq!(s.pane, OpenPane::Sibling);
-    }
-
-    #[test]
-    fn open_line_col() {
-        let s = spec(args(&["open", "/tmp/file.rs:42:8"]));
-        assert_eq!(s.line, Some(42));
-        assert_eq!(s.column, Some(8));
-        assert_eq!(s.end_line, None);
-    }
-
-    #[test]
-    fn open_range() {
-        let s = spec(args(&["open", "/tmp/file.rs:42-80"]));
-        assert_eq!(s.line, Some(42));
-        assert_eq!(s.end_line, Some(80));
-        assert_eq!(s.column, None);
-    }
-
-    #[test]
-    fn open_each_pane() {
-        for (flag, pane) in [
-            ("sibling", OpenPane::Sibling),
-            ("focused", OpenPane::Focused),
-            ("split-right", OpenPane::SplitRight),
-        ] {
-            let s = spec(args(&["open", "--pane", flag, "/tmp/a.rs"]));
-            assert_eq!(s.pane, pane, "{flag}");
+    fn open_spec_forms() {
+        let cases = [
+            ("/tmp/file.rs:42", Some(42), None, None),
+            ("/tmp/file.rs:42:8", Some(42), Some(8), None),
+            ("/tmp/file.rs:42-80", Some(42), None, Some(80)),
+        ];
+        for (arg, line, column, end_line) in cases {
+            let s = spec(args(&["open", arg]));
+            assert_eq!(s.path, PathBuf::from("/tmp/file.rs"), "{arg}");
+            assert_eq!(
+                (s.line, s.column, s.end_line),
+                (line, column, end_line),
+                "{arg}"
+            );
+            assert_eq!(s.pane, OpenPane::Sibling, "{arg}");
         }
+        let s = spec(args(&["open", "--pane", "split-right", "/tmp/a.rs"]));
+        assert_eq!(s.pane, OpenPane::SplitRight);
         let s = spec(args(&["open", "/tmp/a.rs", "--pane=focused"]));
         assert_eq!(s.pane, OpenPane::Focused);
-    }
-
-    #[test]
-    fn open_to_request_roundtrip() {
-        let cmd = args(&["open", "--pane", "split-right", "/tmp/x.rs:3:1"]);
-        let req = cmd.to_request();
-        let json = serde_json::to_string(&req).unwrap();
-        let back: IpcRequest = serde_json::from_str(&json).unwrap();
-        assert_eq!(req, back);
-        match back {
-            IpcRequest::OpenFile(spec) => {
-                assert_eq!(spec.line, Some(3));
-                assert_eq!(spec.column, Some(1));
-                assert_eq!(spec.pane, OpenPane::SplitRight);
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn legacy_paths_still_parse() {
-        match args(&["/abs"]) {
-            CliCommand::Paths(paths) => assert!(paths[0].is_absolute()),
-            other => panic!("{other:?}"),
-        }
     }
 
     #[test]

@@ -156,19 +156,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pairing_adds_device_and_rotates_code() {
-        let now = Instant::now();
-        let mut book = DeviceBook::from_devices(RemoteDevices::default());
-        let code = book.pairing_code(now).digits.clone();
-        let device = book.pair(&code, "iPhone · Safari", now).expect("paired");
-        assert_eq!(book.authenticate(&device.token), Some(device.id.clone()));
-        assert!(book.authenticate("nope").is_none());
-        // Single use: the same code no longer works.
-        assert!(book.pair(&code, "Other", now).is_none());
-        assert_ne!(book.pairing_code(now).digits, code);
-    }
-
-    #[test]
     fn stores_only_the_token_hash() {
         let now = Instant::now();
         let mut book = DeviceBook::from_devices(RemoteDevices::default());

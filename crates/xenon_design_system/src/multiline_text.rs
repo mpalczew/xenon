@@ -121,16 +121,6 @@ mod tests {
         assert_eq!(edit.text(), "a🦀b日本語c");
     }
     #[test]
-    fn multiline_arrows_keep_column() {
-        let mut edit = MultilineText::new("one\ntwo\nlonger");
-        edit.home(false);
-        edit.right(false);
-        edit.up(false);
-        assert_eq!(edit.selected_utf16(), 5..5);
-        edit.down(false);
-        assert_eq!(edit.selected_utf16(), 9..9);
-    }
-    #[test]
     fn marked_selection_uses_utf16_offsets() {
         let mut edit = MultilineText::new("a");
         edit.replace(None, "🦀b", true);

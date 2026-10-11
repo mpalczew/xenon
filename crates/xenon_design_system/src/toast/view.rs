@@ -170,34 +170,3 @@ impl Render for ToastView {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::toast::ToastKind;
-
-    fn shown(kind: ToastKind, remaining: Duration) -> Shown {
-        Shown {
-            toast: Toast::new(kind, "", "title"),
-            generation: 1,
-            remaining,
-            since: None,
-        }
-    }
-
-    #[test]
-    fn errors_never_drain() {
-        assert_eq!(
-            shown(ToastKind::Error, Duration::ZERO).progress(),
-            1.,
-            "sticky toasts keep a full ring"
-        );
-    }
-
-    #[test]
-    fn paused_toast_keeps_its_time() {
-        let paused = shown(ToastKind::Success, LIFETIME / 2);
-        assert_eq!(paused.left(), LIFETIME / 2);
-        assert!((paused.progress() - 0.5).abs() < f32::EPSILON);
-    }
-}

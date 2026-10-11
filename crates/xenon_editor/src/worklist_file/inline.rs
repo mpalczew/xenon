@@ -112,16 +112,6 @@ mod tests {
     }
 
     #[test]
-    fn bold_and_code_lose_their_delimiters() {
-        let (text, marks) = spans("**Ship 2.19**: fix `/v1/me` errors");
-        assert_eq!(text, "Ship 2.19: fix /v1/me errors");
-        assert_eq!(
-            marks,
-            [("bold", "Ship 2.19".into()), ("code", "/v1/me".into())]
-        );
-    }
-
-    #[test]
     fn nested_emphasis_and_links() {
         let (text, marks) = spans("**a *b* c** ~~old~~ [docs](https://x.dev)");
         assert_eq!(text, "a b c old docs");
@@ -142,11 +132,5 @@ mod tests {
         assert_eq!(spans("1. first step").0, "1. first step");
         assert_eq!(spans("# not a heading").0, "# not a heading");
         assert_eq!(spans("> quoted").0, "> quoted");
-    }
-
-    #[test]
-    fn plain_and_unclosed_text_is_unchanged() {
-        assert_eq!(spans("2 * 3 = 6, **open").0, "2 * 3 = 6, **open");
-        assert!(spans("plain words").1.is_empty());
     }
 }

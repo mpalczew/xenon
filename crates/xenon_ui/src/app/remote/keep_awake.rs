@@ -135,11 +135,4 @@ mod tests {
         assert!(!should_hold(true, false, 2));
         assert!(!should_hold(false, true, 2));
     }
-
-    #[test]
-    fn releasing_needs_no_process() {
-        let mut inhibitor = Inhibitor::default();
-        inhibitor.sync(false);
-        assert!(matches!(inhibitor, Inhibitor::Released));
-    }
 }

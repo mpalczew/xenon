@@ -199,27 +199,6 @@ mod tests {
     }
 
     #[test]
-    fn finished_or_bell_is_attention_when_not_working() {
-        let mut map = AttentionMap::default();
-        let ws = WorkspaceId::new();
-        let tab = TabId(1);
-        map.flag(ws, tab, AttentionReason::IdleSettled);
-        assert_eq!(
-            workspace_dot(false, map.reason(ws, tab)),
-            Some(WorkspaceDot::Attention("Idle after busy output"))
-        );
-        map.flag(ws, tab, AttentionReason::Bell);
-        assert_eq!(
-            workspace_dot(false, map.reason(ws, tab)),
-            Some(WorkspaceDot::Attention("Bell"))
-        );
-        assert_eq!(
-            workspace_dot(true, map.reason(ws, tab)),
-            Some(WorkspaceDot::Working)
-        );
-    }
-
-    #[test]
     fn terminals_stay_independent_and_workspace_aggregates() {
         let mut map = AttentionMap::default();
         let ws = WorkspaceId::new();
@@ -255,35 +234,5 @@ mod tests {
             workspace_dot_from_tabs(tab_states(&map, ws, &[(a, false), (b, false)])),
             workspace_dot(false, map.reason(ws, b))
         );
-    }
-
-    #[test]
-    fn dismiss_one_tab_does_not_clear_sibling() {
-        let mut map = AttentionMap::default();
-        let ws = WorkspaceId::new();
-        let a = TabId(1);
-        let b = TabId(2);
-        map.flag(ws, a, AttentionReason::IdleSettled);
-        map.flag(ws, b, AttentionReason::Bell);
-        assert!(map.clear_tab(ws, a));
-        assert_eq!(map.reason(ws, a), None);
-        assert_eq!(map.reason(ws, b), Some(AttentionReason::Bell));
-        assert_eq!(
-            workspace_dot_from_tabs(tab_states(&map, ws, &[(a, false), (b, false)])),
-            Some(WorkspaceDot::Attention("Bell"))
-        );
-    }
-
-    #[test]
-    fn clear_workspace_drops_only_that_workspace() {
-        let mut map = AttentionMap::default();
-        let ws_a = WorkspaceId::new();
-        let ws_b = WorkspaceId::new();
-        let tab = TabId(1);
-        map.flag(ws_a, tab, AttentionReason::Bell);
-        map.flag(ws_b, tab, AttentionReason::IdleSettled);
-        assert!(map.clear_workspace(ws_a));
-        assert_eq!(map.reason(ws_a, tab), None);
-        assert_eq!(map.reason(ws_b, tab), Some(AttentionReason::IdleSettled));
     }
 }

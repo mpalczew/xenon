@@ -22,21 +22,7 @@ pub(super) fn empty_with_workspace(_app: &mut XenonApp, scene: Scene, cx: &mut C
 
 pub(super) fn theme_for(scene: Scene, cx: &mut Context<XenonApp>) {
     match scene {
-        Scene::EmptyNoWorkspaceLight
-        | Scene::EmptyWithWorkspaceLight
-        | Scene::PopulatedLight
-        | Scene::SkillPromptLight
-        | Scene::WorklistInlineLight
-        | Scene::WorklistSectionsLight
-        | Scene::WorklistEmptyLight
-        | Scene::ToastErrorLight => {
-            set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
-        }
-        Scene::EmptyNoWorkspaceTrueBlack
-        | Scene::EmptyWithWorkspaceTrueBlack
-        | Scene::PopulatedTrueBlack => {
-            set_theme(ThemeMode::Dark, "True Black", "One Light", cx);
-        }
+        Scene::PopulatedLight => set_theme(ThemeMode::Light, "One Dark", "One Light", cx),
         _ => set_theme(ThemeMode::Dark, "One Dark", "One Light", cx),
     }
 }
@@ -170,13 +156,6 @@ pub(super) fn split_right(app: &mut XenonApp, window: &mut Window, cx: &mut Cont
     populate(app, window, cx);
     open_rel(app, "NOTES.md", window, cx);
     app.split_right(window, cx);
-    cx.notify();
-}
-
-pub(super) fn split_down(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
-    populate(app, window, cx);
-    open_rel(app, "NOTES.md", window, cx);
-    app.split_down(window, cx);
     cx.notify();
 }
 

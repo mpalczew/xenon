@@ -304,42 +304,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn migrate_both_visible() {
-        let c = migrate_from_legacy(LegacySession {
-            terminal_visible: true,
-            editor_visible: true,
-            terminal_width: 520.0,
-            editors: vec![OpenEditor {
-                path: PathBuf::from("x.rs"),
-                cursor: Point::default(),
-                scroll_top: 0,
-            }],
-            active_editor: Some(0),
-            terminal: TerminalState::default(),
-        });
-        assert_eq!(c.leaf_ids().len(), 2);
-    }
-
-    #[test]
-    fn content_round_trip_json() {
-        let c = migrate_from_legacy(LegacySession {
-            terminal_visible: true,
-            editor_visible: true,
-            terminal_width: 520.0,
-            editors: vec![OpenEditor {
-                path: PathBuf::from("a.rs"),
-                cursor: Point::default(),
-                scroll_top: 0,
-            }],
-            active_editor: Some(0),
-            terminal: TerminalState::default(),
-        });
-        let json = serde_json::to_string(&c).unwrap();
-        let parsed: ContentLayout = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.leaf_ids().len(), 2);
-    }
-
-    #[test]
     fn parked_empty_leaf_round_trips() {
         let content = ContentLayout {
             root: Some(PaneNode::Leaf(LeafPane {

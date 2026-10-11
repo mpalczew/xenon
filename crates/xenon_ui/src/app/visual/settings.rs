@@ -1,9 +1,8 @@
-//! Settings window scenes: one page each, search results, and light mode.
+//! Settings window scenes: one page each and search results.
 
 use gpui::{Context, Window};
-use xenon_store::ThemeMode;
 
-use super::{Scene, XenonApp, populate, set_theme};
+use super::{Scene, XenonApp, populate};
 use crate::dropdown::DropdownId;
 use crate::settings::SettingsPage;
 
@@ -15,9 +14,6 @@ pub(super) fn page(app: &mut XenonApp, scene: Scene, cx: &mut Context<XenonApp>)
         Scene::SettingsSearch => (SettingsPage::Appearance, "k"),
         _ => (SettingsPage::Appearance, ""),
     };
-    if scene == Scene::SettingsLight {
-        set_theme(ThemeMode::Light, "One Dark", "One Light", cx);
-    }
     show(app, page, query, cx);
 }
 
@@ -25,18 +21,6 @@ pub(super) fn dropdown(app: &mut XenonApp, window: &mut Window, cx: &mut Context
     populate(app, window, cx);
     show(app, SettingsPage::Fonts, "", cx);
     open_dropdown(app, DropdownId::Editor, "", cx);
-}
-
-/// The lowest font dropdown, filtered: the field stays in place and the list
-/// keeps its side of the trigger.
-pub(super) fn dropdown_filtered(
-    app: &mut XenonApp,
-    window: &mut Window,
-    cx: &mut Context<XenonApp>,
-) {
-    populate(app, window, cx);
-    show(app, SettingsPage::Fonts, "", cx);
-    open_dropdown(app, DropdownId::Terminal, "men", cx);
 }
 
 fn open_dropdown(app: &XenonApp, id: DropdownId, filter: &'static str, cx: &mut Context<XenonApp>) {

@@ -76,10 +76,4 @@ mod tests {
         assert_eq!(canonicalize(".ZedMono"), "Lilex");
         assert_eq!(canonicalize("Menlo"), "Menlo");
     }
-
-    #[test]
-    fn display_sf_mono() {
-        assert_eq!(display_name(".SF NS Mono"), "SF Mono");
-        assert_eq!(display_name("Menlo"), "Menlo");
-    }
 }

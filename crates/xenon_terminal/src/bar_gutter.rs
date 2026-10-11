@@ -49,18 +49,14 @@ mod tests {
     fn clean_agent_output_strips_quote_bar_and_unwraps() {
         let sample = "  ▎ Stop your WhatsApp/wacli sync and disable every routine that uses it. Then zip your memory folder (all memory/log files), all of /workspace\n  ▎ including wacli-store, and your Status and Queue board files. Save it to my Mac's Downloads as grok-rescue-2026-10-01.zip. Reply with the file name\n  ▎ and confirm wacli is stopped.";
         assert_eq!(
-            clean_agent_output(sample),
-            "Stop your WhatsApp/wacli sync and disable every routine that uses it. Then zip your memory folder (all memory/log files), all of /workspace including wacli-store, and your Status and Queue board files. Save it to my Mac's Downloads as grok-rescue-2026-10-01.zip. Reply with the file name and confirm wacli is stopped."
-        );
-    }
-
-    #[test]
-    fn clean_agent_output_quote_bar_keeps_paragraphs_and_lists() {
-        assert_eq!(
             clean_agent_output(
                 "  ▎ first para\n  ▎ continues\n  ▎\n  ▎ second para\n  ▎ - item a\n  ▎ - item b"
             ),
             "first para continues\n\nsecond para\n- item a\n- item b"
+        );
+        assert_eq!(
+            clean_agent_output(sample),
+            "Stop your WhatsApp/wacli sync and disable every routine that uses it. Then zip your memory folder (all memory/log files), all of /workspace including wacli-store, and your Status and Queue board files. Save it to my Mac's Downloads as grok-rescue-2026-10-01.zip. Reply with the file name and confirm wacli is stopped."
         );
     }
 

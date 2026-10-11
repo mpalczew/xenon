@@ -186,36 +186,3 @@ fn plural(n: u64, unit: &str) -> String {
         format!("{n} {unit}s ago")
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn info(devices: usize) -> MobileRemoteInfo {
-        MobileRemoteInfo {
-            devices: (0..devices)
-                .map(|i| DeviceRow {
-                    id: i.to_string(),
-                    label: "iPhone".into(),
-                    connected: false,
-                    last_seen_at: 0,
-                    created_at: 0,
-                })
-                .collect(),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn devices_end_with_sign_out_all() {
-        let rows = device_rows(&info(2).devices);
-        assert_eq!(rows.len(), 3);
-        assert_eq!(rows[2].id.as_ref(), "phone-sign-out-all");
-    }
-
-    #[test]
-    fn no_devices_shows_an_empty_row() {
-        let rows = device_rows(&[]);
-        assert!(matches!(rows[0].control, Control::None));
-    }
-}

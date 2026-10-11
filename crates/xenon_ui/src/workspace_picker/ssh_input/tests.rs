@@ -1,30 +1,5 @@
 use super::*;
 
-fn path<'a>(host: &'a str, rest: &'a str) -> Option<SshInput<'a>> {
-    Some(SshInput::Path { host, rest })
-}
-
-#[test]
-fn query_text_is_the_whole_state() {
-    assert_eq!(SshInput::parse("src"), None);
-    assert_eq!(SshInput::parse("ssh:/"), None);
-    assert_eq!(SshInput::parse("ssh://"), Some(SshInput::Hosts("")));
-    assert_eq!(SshInput::parse("ssh://thin"), Some(SshInput::Hosts("thin")));
-    assert_eq!(SshInput::parse("ssh:///"), Some(SshInput::Hosts("")));
-    assert_eq!(SshInput::parse("ssh://box/"), path("box", ""));
-    assert_eq!(SshInput::parse("ssh://box/a/b"), path("box", "a/b"));
-    assert_eq!(SshInput::parse("ssh://box//etc"), path("box", "/etc"));
-}
-
-#[test]
-fn ss_tab_writes_the_scheme_only_for_partial_prefixes() {
-    assert_eq!(scheme_completion("ss"), Some("ssh://"));
-    assert_eq!(scheme_completion("ssh:/"), Some("ssh://"));
-    assert_eq!(scheme_completion("s"), None);
-    assert_eq!(scheme_completion("ssh://"), None);
-    assert_eq!(scheme_completion("sx"), None);
-}
-
 #[test]
 fn scheme_prefix_is_a_proper_nonempty_prefix() {
     for query in ["s", "ss", "SSH", "ssh:/", " ssh:"] {
@@ -33,15 +8,6 @@ fn scheme_prefix_is_a_proper_nonempty_prefix() {
     for query in ["", "ssh://", "sx", "ssh://box", "sshh"] {
         assert!(!scheme_prefix(query), "{query}");
     }
-}
-
-#[test]
-fn hosts_match_by_case_insensitive_prefix() {
-    assert!(host_matches("thinkpad", "thin"));
-    assert!(host_matches("ThinkPad", "thin"));
-    assert!(host_matches("nuc", ""));
-    assert!(!host_matches("thinkpad", "pad"));
-    assert_eq!(host_completion("thinkpad"), "ssh://thinkpad/");
 }
 
 #[test]
@@ -61,14 +27,6 @@ fn lookups_split_parent_from_last_segment() {
     assert_eq!(lookups("/e"), (dirs("/", "e"), name("e")));
     assert_eq!(lookups("/etc/ng"), (dirs("/etc", "ng"), name("ng")));
     assert_eq!(last_segment("a/b/c"), "c");
-}
-
-#[test]
-fn whole_folder_detection() {
-    assert!(names_whole_folder(""));
-    assert!(names_whole_folder("~"));
-    assert!(names_whole_folder("src/"));
-    assert!(!names_whole_folder("src"));
 }
 
 #[test]

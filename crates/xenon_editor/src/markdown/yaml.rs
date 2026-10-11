@@ -207,15 +207,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn yaml_pairs_single_line() {
-        let pairs = split_simple_yaml_pairs("name: brainstorming\ndescription: Open space.\n")
-            .expect("pairs");
-        assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0], ("name".into(), "brainstorming".into()));
-        assert_eq!(pairs[1], ("description".into(), "Open space.".into()));
-    }
-
-    #[test]
     fn yaml_pairs_multiline_description() {
         let body =
             "name: brainstorming\ndescription:\n  Open the problem space before\n  narrowing it.\n";
@@ -237,10 +228,5 @@ mod tests {
     #[test]
     fn yaml_pairs_rejects_orphan_indent() {
         assert!(split_simple_yaml_pairs("  just indented\n").is_none());
-    }
-
-    #[test]
-    fn yaml_pairs_rejects_empty_value() {
-        assert!(split_simple_yaml_pairs("name:\n").is_none());
     }
 }

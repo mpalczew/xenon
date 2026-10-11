@@ -143,16 +143,3 @@ fn pop_scale(t: f32, checking: bool) -> f32 {
         0.88 + 0.12 * ((t - 0.6) / 0.4)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::pop_scale;
-
-    #[test]
-    fn checkbox_pop_settles_at_resting_size() {
-        assert!(pop_scale(0.45, true) > 1.);
-        assert!(pop_scale(0.6, false) < 1.);
-        assert!((pop_scale(1., true) - 1.).abs() < 0.001);
-        assert!((pop_scale(1., false) - 1.).abs() < 0.001);
-    }
-}

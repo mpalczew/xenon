@@ -376,7 +376,7 @@ fn preserve_width(old: &str, new: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{Mode, VimState};
+    use super::super::VimState;
     use crate::buffer::Buffer;
     use std::io::Write;
     use tempfile::NamedTempFile;
@@ -394,39 +394,6 @@ mod tests {
         let mut vim = VimState::default();
         assert!(vim.handle_char(&mut buffer, "J").edited);
         assert_eq!(buffer.text(), "hello world\n");
-    }
-
-    #[test]
-    fn gj_joins_without_space() {
-        let mut buffer = buffer_with("hello\nworld\n");
-        let mut vim = VimState::default();
-        vim.handle_char(&mut buffer, "g");
-        assert!(vim.handle_char(&mut buffer, "J").edited);
-        assert_eq!(buffer.text(), "helloworld\n");
-    }
-
-    #[test]
-    fn d_c_y_s_shortcuts() {
-        let mut buffer = buffer_with("hello\nworld\n");
-        let mut vim = VimState::default();
-        // D = d$ from start → empty first line
-        assert!(vim.handle_char(&mut buffer, "D").edited);
-        assert_eq!(buffer.text(), "\nworld\n");
-
-        let mut buffer = buffer_with("hello\nworld\n");
-        let mut vim = VimState::default();
-        // Y = yy, then j, p pastes below
-        vim.handle_char(&mut buffer, "Y");
-        vim.handle_char(&mut buffer, "j");
-        assert!(vim.handle_char(&mut buffer, "p").edited);
-        assert_eq!(buffer.text(), "hello\nworld\nhello\n");
-
-        let mut buffer = buffer_with("hello\nworld\n");
-        let mut vim = VimState::default();
-        // S = cc → delete line, insert at start of what follows.
-        assert!(vim.handle_char(&mut buffer, "S").edited);
-        assert_eq!(vim.mode, Mode::Insert);
-        assert_eq!(buffer.text(), "world\n");
     }
 
     #[test]

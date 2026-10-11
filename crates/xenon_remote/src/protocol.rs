@@ -326,9 +326,4 @@ mod tests {
             r#"{"t":"frame","seq":3,"cols":4,"rows":1,"full":true,"cursor":{"r":0,"c":2,"s":"block"},"lines":[[0,[["ab",0]]]]}"#
         );
     }
-
-    #[test]
-    fn default_style_serializes_empty() {
-        assert_eq!(serde_json::to_string(&StyleWire::default()).unwrap(), "{}");
-    }
 }

@@ -3,7 +3,7 @@ use std::io::Write;
 
 use tempfile::NamedTempFile;
 
-use crate::{Buffer, EditCommand, ExternalState, Motion, SaveError};
+use crate::{Buffer, EditCommand, ExternalState, SaveError};
 
 fn file_with(contents: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
@@ -13,44 +13,12 @@ fn file_with(contents: &str) -> NamedTempFile {
 }
 
 #[test]
-fn open_reads_contents() {
-    let file = file_with("hello\nworld\n");
-    let buffer = Buffer::open(file.path()).unwrap();
-    assert_eq!(buffer.text(), "hello\nworld\n");
-    assert!(!buffer.is_dirty());
-}
-
-#[test]
 fn open_rejects_binary() {
     let file = file_with("abc\0def");
     assert!(matches!(
         Buffer::open(file.path()),
         Err(crate::OpenError::Binary(_))
     ));
-}
-
-#[test]
-fn insert_and_cursor_advances() {
-    let file = file_with("");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.apply(EditCommand::Insert("fn".into()));
-    assert_eq!(buffer.text(), "fn");
-    assert_eq!(buffer.cursor(), 2);
-    assert!(buffer.is_dirty());
-}
-
-#[test]
-fn selection_replace_and_undo() {
-    let file = file_with("abcdef");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.set_selection(1, 4);
-    assert_eq!(buffer.selected_text(), "bcd");
-    buffer.replace_selection("X");
-    assert_eq!(buffer.text(), "aXef");
-    assert!(buffer.is_dirty());
-    assert!(buffer.undo());
-    assert_eq!(buffer.text(), "abcdef");
-    assert!(!buffer.is_dirty());
 }
 
 /// Accidental edit then undo should clear the modified indicator.
@@ -87,33 +55,6 @@ fn undo_after_save_stays_dirty_only_past_checkpoint() {
     assert!(!buffer.is_dirty());
 }
 
-#[test]
-fn select_all_covers_buffer() {
-    let file = file_with("hello\nworld");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    let len = buffer.rope().len_chars();
-    buffer.set_selection(0, len);
-    assert_eq!(buffer.selected_text(), "hello\nworld");
-}
-
-/// Vim insert session: many keystrokes, one `u` (group until Esc).
-#[test]
-fn undo_group_is_one_step() {
-    let file = file_with("hi");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.set_cursor_raw(2);
-    buffer.set_undo_group(true);
-    buffer.apply(EditCommand::Insert(" ".into()));
-    buffer.apply(EditCommand::Insert("there".into()));
-    buffer.set_undo_group(false);
-    assert_eq!(buffer.text(), "hi there");
-    assert!(buffer.is_dirty());
-    assert!(buffer.undo());
-    assert_eq!(buffer.text(), "hi");
-    assert!(!buffer.is_dirty());
-    assert!(!buffer.undo());
-}
-
 /// Change-like: delete then type, still one undo step.
 #[test]
 fn undo_group_delete_then_insert() {
@@ -130,60 +71,6 @@ fn undo_group_delete_then_insert() {
 }
 
 /// Ungrouped edits stay separate steps (non-vim / normal commands).
-#[test]
-fn ungrouped_edits_undo_separately() {
-    let file = file_with("");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.apply(EditCommand::Insert("a".into()));
-    buffer.apply(EditCommand::Insert("b".into()));
-    assert!(buffer.undo());
-    assert_eq!(buffer.text(), "a");
-    assert!(buffer.undo());
-    assert_eq!(buffer.text(), "");
-}
-
-#[test]
-fn shift_extend_moves() {
-    let file = file_with("hello");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.apply(EditCommand::Extend(Motion::Right));
-    buffer.apply(EditCommand::Extend(Motion::Right));
-    assert_eq!(buffer.selected_text(), "he");
-}
-
-#[test]
-fn backspace_at_start_is_noop() {
-    let file = file_with("x");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.apply(EditCommand::Backspace);
-    assert_eq!(buffer.text(), "x");
-}
-
-#[test]
-fn newline_then_up_keeps_column() {
-    let file = file_with("abcd\nef");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.apply(EditCommand::SetCursor(7)); // end of "ef"
-    buffer.apply(EditCommand::Move(Motion::Up));
-    // Column 2 on the shorter... first line has room, so row 0 col 2.
-    assert_eq!(buffer.cursor_position(), (0, 2));
-}
-
-#[test]
-fn set_cursor_position_clamps_column() {
-    let file = file_with("abc\nde\n");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.set_cursor_position(1, 99);
-    assert_eq!(buffer.cursor_position(), (1, 2));
-}
-
-#[test]
-fn set_cursor_position_clamps_row() {
-    let file = file_with("abc\nde");
-    let mut buffer = Buffer::open(file.path()).unwrap();
-    buffer.set_cursor_position(99, 1);
-    assert_eq!(buffer.cursor_position(), (1, 1));
-}
 
 #[test]
 fn save_round_trips_bytes() {

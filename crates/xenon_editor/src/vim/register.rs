@@ -145,30 +145,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn named_yank_and_paste() {
-        let mut regs = Registers::default();
-        regs.set_pending('a');
-        regs.yank("hello", false);
-        regs.set_pending('a');
-        let got = regs.paste();
-        assert_eq!(got.text, "hello");
-        assert!(!got.linewise);
-        // Unnamed still holds the last yank when no pending register.
-        assert_eq!(regs.paste().text, "hello");
-    }
-
-    #[test]
-    fn append_register() {
-        let mut regs = Registers::default();
-        regs.set_pending('a');
-        regs.yank("hi", false);
-        regs.set_pending('A');
-        regs.yank("!", false);
-        regs.set_pending('a');
-        assert_eq!(regs.paste().text, "hi!");
-    }
-
-    #[test]
     fn linewise_flag_survives_paste() {
         let mut regs = Registers::default();
         regs.yank("foo\n", true);

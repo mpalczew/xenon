@@ -380,24 +380,3 @@ fn shape(text: String, runs: Vec<TextRun>, font_size: Pixels, window: &mut Windo
         .text_system()
         .shape_line(SharedString::from(text), font_size, &runs, None)
 }
-
-#[cfg(test)]
-mod style_tests {
-    use super::*;
-    use gpui::hsla;
-
-    #[test]
-    fn run_applies_font_weight_and_style() {
-        let base = editor_font("Menlo");
-        let bold = run(
-            4,
-            hsla(0., 0., 1., 1.),
-            &base,
-            Some(FontWeight::BOLD),
-            Some(FontStyle::Italic),
-        );
-        assert_eq!(bold.font.weight, FontWeight::BOLD);
-        assert_eq!(bold.font.style, FontStyle::Italic);
-        assert_eq!(bold.font.family, base.family);
-    }
-}

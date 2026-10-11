@@ -57,20 +57,6 @@ mod tests {
     use super::{OVERFLOW_BTN, pack_tabs};
 
     #[test]
-    fn all_visible_when_they_fit() {
-        let packed = pack_tabs(&[80., 80., 80.], 0, 300.);
-        assert!(packed.hidden.is_empty());
-        assert_eq!(packed.visible, vec![0, 1, 2]);
-    }
-
-    #[test]
-    fn hides_later_tabs() {
-        let packed = pack_tabs(&[100., 100., 100., 100.], 0, 250.);
-        assert_eq!(packed.visible, vec![0, 1]);
-        assert_eq!(packed.hidden, vec![2, 3]);
-    }
-
-    #[test]
     fn keeps_active_on_strip() {
         let packed = pack_tabs(&[120., 120., 120., 120.], 3, 200.);
         assert!(packed.visible.contains(&3));

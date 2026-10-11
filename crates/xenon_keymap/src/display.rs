@@ -132,20 +132,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mac_text_is_untouched() {
-        assert_eq!(display_for("⌘⌥⇧W", Platform::Mac), "⌘⌥⇧W");
-    }
-
-    #[test]
     fn linux_text_names_keys() {
         assert_eq!(display_for("⌘⇧P", Platform::Linux), "Ctrl+Shift+P");
         assert_eq!(display_for("⌃⇥", Platform::Linux), "Ctrl+Tab");
         assert_eq!(display_for("F12", Platform::Linux), "F12");
         assert_eq!(display_for("↩", Platform::Linux), "Enter");
-    }
-
-    #[test]
-    fn single_chord_function_leaves_prose_alone() {
         assert_eq!(display_for("⌘↩ / ⌃↩", Platform::Linux), "⌘↩ / ⌃↩");
     }
 

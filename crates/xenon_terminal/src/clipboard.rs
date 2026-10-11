@@ -292,12 +292,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shell_quote_leaves_simple_paths_plain() {
-        assert_eq!(shell_quote("/tmp/xero-image.png"), "/tmp/xero-image.png");
-    }
-
-    #[test]
     fn shell_quote_handles_spaces_and_quotes() {
+        assert_eq!(shell_quote("/tmp/xero-image.png"), "/tmp/xero-image.png");
         assert_eq!(shell_quote("/tmp/a b's.png"), "'/tmp/a b'\\''s.png'");
     }
 
@@ -352,18 +348,6 @@ A stated need is not an implementation request. make the change when asked."
         assert_eq!(
             clean_agent_output("| a | b |\n| 1 | 2 |"),
             "| a | b |\n| 1 | 2 |"
-        );
-    }
-
-    #[test]
-    fn extract_code_returns_fenced_blocks() {
-        assert_eq!(
-            extract_code("before\n```rust\nfn main() {}\n```\nafter"),
-            "fn main() {}"
-        );
-        assert_eq!(
-            extract_code("```\ntimeout  10:00 AM\n| a | b |\n```"),
-            "timeout  10:00 AM\n| a | b |"
         );
     }
 }

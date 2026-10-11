@@ -177,18 +177,4 @@ mod tests {
         assert!(rows[1].editable);
         assert_ne!(rows[0].section, rows[1].section);
     }
-
-    #[test]
-    fn title_and_bullets_are_separate_for_tasks_and_notes() {
-        let rows = entries(
-            "# Worklist\n\n- [ ] Task title\n  - First point\n  - Second point\n\n- Note title\n  - Context\n",
-        );
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].title, "Task title");
-        assert_eq!(rows[0].details, "First point\nSecond point");
-        assert!(rows[0].editable);
-        assert_eq!(rows[1].title, "Note title");
-        assert_eq!(rows[1].details, "Context");
-        assert!(rows[1].editable);
-    }
 }

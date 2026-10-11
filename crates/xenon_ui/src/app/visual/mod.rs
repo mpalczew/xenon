@@ -19,14 +19,9 @@ mod worklist;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scene {
     EmptyNoWorkspaceDark,
-    EmptyNoWorkspaceLight,
-    EmptyNoWorkspaceTrueBlack,
     EmptyWithWorkspaceDark,
-    EmptyWithWorkspaceLight,
-    EmptyWithWorkspaceTrueBlack,
     PopulatedDark,
     PopulatedLight,
-    PopulatedTrueBlack,
     SidebarAttention,
     SidebarWorking,
     FilesSelected,
@@ -36,7 +31,6 @@ pub enum Scene {
     TabsOverflow,
     TabsOverflowMenu,
     SplitRight,
-    SplitDown,
     ReservedEmptyPane,
     FocusRing,
     TerminalGrid,
@@ -55,10 +49,8 @@ pub enum Scene {
     WorkspacePicker,
     SshWorkspacePicker,
     SshHostPicker,
-    SshHostComplete,
     SshHostResults,
     SshHostSearching,
-    SshHostDiscovering,
     SshHostError,
     SshSchemeSuggest,
     SshWorkspace,
@@ -73,34 +65,23 @@ pub enum Scene {
     Rename,
     Memory,
     SettingsDropdown,
-    SettingsDropdownFiltered,
     TabTooltip,
     SettingsWindow,
     SkillPromptDark,
-    SkillPromptLight,
     SettingsAgentsInstalled,
     WorklistCapture,
-    WorklistCaptureFilled,
     WorklistCaptureLong,
     WorklistTab,
     WorklistItemEdit,
     WorklistMarkdown,
     WorklistEmpty,
-    WorklistEmptyLight,
-    WorklistEmptyVirtual,
     WorklistInlineCapture,
-    WorklistInlineLight,
     WorklistSections,
-    WorklistSectionsLight,
     WorklistSectionsFolded,
     WorklistSectionRename,
-    WorklistCaptureSection,
     WorklistToolbarTooltip,
     ToastSuccess,
-    ToastInfo,
     ToastError,
-    ToastErrorLight,
-    ToastKeymapError,
     ToastLongKeys,
     ConnectPhone,
     ConnectPhoneOffline,
@@ -109,20 +90,14 @@ pub enum Scene {
     SettingsEditor,
     SettingsLanguageServers,
     SettingsSearch,
-    SettingsLight,
     ThemePanelPreview,
 }
 
 pub const SCENES: &[Scene] = &[
     Scene::EmptyNoWorkspaceDark,
-    Scene::EmptyNoWorkspaceLight,
-    Scene::EmptyNoWorkspaceTrueBlack,
     Scene::EmptyWithWorkspaceDark,
-    Scene::EmptyWithWorkspaceLight,
-    Scene::EmptyWithWorkspaceTrueBlack,
     Scene::PopulatedDark,
     Scene::PopulatedLight,
-    Scene::PopulatedTrueBlack,
     Scene::SidebarAttention,
     Scene::SidebarWorking,
     Scene::FilesSelected,
@@ -132,7 +107,6 @@ pub const SCENES: &[Scene] = &[
     Scene::TabsOverflow,
     Scene::TabsOverflowMenu,
     Scene::SplitRight,
-    Scene::SplitDown,
     Scene::ReservedEmptyPane,
     Scene::FocusRing,
     Scene::TerminalGrid,
@@ -151,10 +125,8 @@ pub const SCENES: &[Scene] = &[
     Scene::WorkspacePicker,
     Scene::SshWorkspacePicker,
     Scene::SshHostPicker,
-    Scene::SshHostComplete,
     Scene::SshHostResults,
     Scene::SshHostSearching,
-    Scene::SshHostDiscovering,
     Scene::SshHostError,
     Scene::SshSchemeSuggest,
     Scene::SshWorkspace,
@@ -169,34 +141,23 @@ pub const SCENES: &[Scene] = &[
     Scene::Rename,
     Scene::Memory,
     Scene::SettingsDropdown,
-    Scene::SettingsDropdownFiltered,
     Scene::TabTooltip,
     Scene::SettingsWindow,
     Scene::SkillPromptDark,
-    Scene::SkillPromptLight,
     Scene::SettingsAgentsInstalled,
     Scene::WorklistCapture,
-    Scene::WorklistCaptureFilled,
     Scene::WorklistCaptureLong,
     Scene::WorklistTab,
     Scene::WorklistItemEdit,
     Scene::WorklistMarkdown,
     Scene::WorklistEmpty,
-    Scene::WorklistEmptyLight,
-    Scene::WorklistEmptyVirtual,
     Scene::WorklistInlineCapture,
-    Scene::WorklistInlineLight,
     Scene::WorklistSections,
-    Scene::WorklistSectionsLight,
     Scene::WorklistSectionsFolded,
     Scene::WorklistSectionRename,
-    Scene::WorklistCaptureSection,
     Scene::WorklistToolbarTooltip,
     Scene::ToastSuccess,
-    Scene::ToastInfo,
     Scene::ToastError,
-    Scene::ToastErrorLight,
-    Scene::ToastKeymapError,
     Scene::ToastLongKeys,
     Scene::ConnectPhone,
     Scene::ConnectPhoneOffline,
@@ -205,37 +166,16 @@ pub const SCENES: &[Scene] = &[
     Scene::SettingsEditor,
     Scene::SettingsLanguageServers,
     Scene::SettingsSearch,
-    Scene::SettingsLight,
     Scene::ThemePanelPreview,
 ];
-
-const REMOTE_SURFACES: &[&str] = &[
-    "remote_pair",
-    "remote_code",
-    "remote_workspaces",
-    "remote_session",
-    "remote_session_light",
-    "remote_reconnecting",
-];
-
-pub fn surface_names() -> Vec<&'static str> {
-    let mut names: Vec<&'static str> = SCENES.iter().map(|scene| scene.name()).collect();
-    names.extend_from_slice(REMOTE_SURFACES);
-    names
-}
 
 impl Scene {
     pub fn name(self) -> &'static str {
         match self {
             Self::EmptyNoWorkspaceDark => "chrome_empty_no_workspace_dark",
-            Self::EmptyNoWorkspaceLight => "chrome_empty_no_workspace_light",
-            Self::EmptyNoWorkspaceTrueBlack => "chrome_empty_no_workspace_true_black",
             Self::EmptyWithWorkspaceDark => "chrome_empty_with_workspace_dark",
-            Self::EmptyWithWorkspaceLight => "chrome_empty_with_workspace_light",
-            Self::EmptyWithWorkspaceTrueBlack => "chrome_empty_with_workspace_true_black",
             Self::PopulatedDark => "chrome_populated_dark",
             Self::PopulatedLight => "chrome_populated_light",
-            Self::PopulatedTrueBlack => "chrome_populated_true_black",
             Self::SidebarAttention => "chrome_sidebar_attention",
             Self::SidebarWorking => "chrome_sidebar_working",
             Self::FilesSelected => "chrome_files_selected",
@@ -245,7 +185,6 @@ impl Scene {
             Self::TabsOverflow => "chrome_tabs_overflow",
             Self::TabsOverflowMenu => "overlay_tab_overflow",
             Self::SplitRight => "chrome_split_right",
-            Self::SplitDown => "chrome_split_down",
             Self::ReservedEmptyPane => "chrome_reserved_empty_pane",
             Self::FocusRing => "chrome_focus_ring",
             Self::TerminalGrid => "content_terminal_grid",
@@ -264,10 +203,8 @@ impl Scene {
             Self::WorkspacePicker => "overlay_workspace_picker",
             Self::SshWorkspacePicker => "overlay_ssh_workspace_picker",
             Self::SshHostPicker => "overlay_ssh_host_picker",
-            Self::SshHostComplete => "overlay_ssh_host_complete",
             Self::SshHostResults => "overlay_ssh_host_results",
             Self::SshHostSearching => "overlay_ssh_host_searching",
-            Self::SshHostDiscovering => "overlay_ssh_host_discovering",
             Self::SshHostError => "overlay_ssh_host_error",
             Self::SshSchemeSuggest => "overlay_ssh_scheme_suggest",
             Self::SshWorkspace => "chrome_ssh_workspace",
@@ -282,34 +219,23 @@ impl Scene {
             Self::Rename => "overlay_rename",
             Self::Memory => "overlay_memory",
             Self::SettingsDropdown => "overlay_settings_dropdown",
-            Self::SettingsDropdownFiltered => "overlay_settings_dropdown_filtered",
             Self::TabTooltip => "overlay_tab_tooltip",
             Self::SettingsWindow => "settings_window",
             Self::SkillPromptDark => "overlay_skill_prompt_dark",
-            Self::SkillPromptLight => "overlay_skill_prompt_light",
             Self::SettingsAgentsInstalled => "settings_agents_installed",
             Self::WorklistCapture => "overlay_worklist_capture",
-            Self::WorklistCaptureFilled => "overlay_worklist_capture_filled",
             Self::WorklistCaptureLong => "overlay_worklist_capture_long",
             Self::WorklistTab => "content_worklist_tab",
             Self::WorklistItemEdit => "content_worklist_item_edit",
             Self::WorklistMarkdown => "content_worklist_markdown",
             Self::WorklistEmpty => "content_worklist_empty",
-            Self::WorklistEmptyLight => "content_worklist_empty_light",
-            Self::WorklistEmptyVirtual => "content_worklist_empty_virtual",
             Self::WorklistInlineCapture => "content_worklist_inline_capture",
-            Self::WorklistInlineLight => "content_worklist_inline_light",
             Self::WorklistSections => "content_worklist_sections",
-            Self::WorklistSectionsLight => "content_worklist_sections_light",
             Self::WorklistSectionsFolded => "content_worklist_sections_folded",
             Self::WorklistSectionRename => "content_worklist_section_rename",
-            Self::WorklistCaptureSection => "overlay_worklist_capture_section",
             Self::WorklistToolbarTooltip => "overlay_worklist_toolbar_tooltip",
             Self::ToastSuccess => "overlay_toast_success",
-            Self::ToastInfo => "overlay_toast_info",
             Self::ToastError => "overlay_toast_error",
-            Self::ToastErrorLight => "overlay_toast_error_light",
-            Self::ToastKeymapError => "overlay_toast_keymap_error",
             Self::ToastLongKeys => "overlay_toast_long_keys",
             Self::ConnectPhone => "overlay_connect_phone",
             Self::ConnectPhoneOffline => "overlay_connect_phone_no_tailscale",
@@ -318,7 +244,6 @@ impl Scene {
             Self::SettingsEditor => "settings_editor",
             Self::SettingsLanguageServers => "settings_language_servers",
             Self::SettingsSearch => "settings_search",
-            Self::SettingsLight => "settings_window_light",
             Self::ThemePanelPreview => "overlay_theme_panel_preview",
         }
     }
@@ -344,13 +269,9 @@ pub fn apply_scene(
     cx: &mut Context<XenonApp>,
 ) {
     match scene {
-        Scene::EmptyNoWorkspaceDark
-        | Scene::EmptyNoWorkspaceLight
-        | Scene::EmptyNoWorkspaceTrueBlack => chrome::empty_no_workspace(app, scene, cx),
-        Scene::EmptyWithWorkspaceDark
-        | Scene::EmptyWithWorkspaceLight
-        | Scene::EmptyWithWorkspaceTrueBlack => chrome::empty_with_workspace(app, scene, cx),
-        Scene::PopulatedDark | Scene::PopulatedLight | Scene::PopulatedTrueBlack => {
+        Scene::EmptyNoWorkspaceDark => chrome::empty_no_workspace(app, scene, cx),
+        Scene::EmptyWithWorkspaceDark => chrome::empty_with_workspace(app, scene, cx),
+        Scene::PopulatedDark | Scene::PopulatedLight => {
             chrome::populated(app, scene, window, cx);
         }
         Scene::SidebarAttention => chrome::sidebar_attention(app, window, cx),
@@ -362,7 +283,6 @@ pub fn apply_scene(
         Scene::TabsOverflow => chrome::tabs_overflow(app, window, cx, false),
         Scene::TabsOverflowMenu => chrome::tabs_overflow(app, window, cx, true),
         Scene::SplitRight => chrome::split_right(app, window, cx),
-        Scene::SplitDown => chrome::split_down(app, window, cx),
         Scene::ReservedEmptyPane => chrome::reserved_empty(app, window, cx),
         Scene::FocusRing => chrome::focus_ring(app, window, cx),
         Scene::TerminalGrid => content::terminal_grid(app, window, cx),
@@ -381,10 +301,8 @@ pub fn apply_scene(
         Scene::WorkspacePicker => overlays::workspace_picker(app, window, cx),
         Scene::SshWorkspacePicker => overlays::ssh_workspace_picker(app, window, cx),
         Scene::SshHostPicker
-        | Scene::SshHostComplete
         | Scene::SshHostResults
         | Scene::SshHostSearching
-        | Scene::SshHostDiscovering
         | Scene::SshHostError
         | Scene::SshSchemeSuggest => ssh_picker::scene(app, scene, window, cx),
         Scene::SshWorkspace => ssh::workspace(app, false, window, cx),
@@ -400,54 +318,36 @@ pub fn apply_scene(
         Scene::Rename => overlays::rename(app, window, cx),
         Scene::Memory => overlays::memory(app, window, cx),
         Scene::SettingsDropdown => settings::dropdown(app, window, cx),
-        Scene::SettingsDropdownFiltered => settings::dropdown_filtered(app, window, cx),
         Scene::TabTooltip => overlays::tab_tooltip(app, window, cx),
         Scene::SettingsWindow
         | Scene::SettingsEditor
         | Scene::SettingsLanguageServers
-        | Scene::SettingsSearch
-        | Scene::SettingsLight => settings::page(app, scene, cx),
-        Scene::SkillPromptDark | Scene::SkillPromptLight => {
-            overlays::skill_prompt(app, scene, window, cx)
-        }
+        | Scene::SettingsSearch => settings::page(app, scene, cx),
+        Scene::SkillPromptDark => overlays::skill_prompt(app, scene, window, cx),
         Scene::SettingsAgentsInstalled => settings::agents_installed(app, cx),
         Scene::ConnectPhone => remote::connect_phone(app, true, window, cx),
         Scene::ConnectPhoneOffline => remote::connect_phone(app, false, window, cx),
         Scene::PhoneDriving => content::phone_driving(app, window, cx),
         Scene::SettingsRemote => settings::remote(app, cx),
-        Scene::WorklistCapture
-        | Scene::WorklistCaptureFilled
-        | Scene::WorklistCaptureLong
-        | Scene::WorklistCaptureSection => worklist::capture(app, scene, window, cx),
+        Scene::WorklistCapture | Scene::WorklistCaptureLong => {
+            worklist::capture(app, scene, window, cx)
+        }
         Scene::WorklistTab
         | Scene::WorklistItemEdit
         | Scene::WorklistMarkdown
         | Scene::WorklistEmpty
-        | Scene::WorklistEmptyLight
-        | Scene::WorklistEmptyVirtual
         | Scene::WorklistInlineCapture
-        | Scene::WorklistInlineLight
         | Scene::WorklistSections
-        | Scene::WorklistSectionsLight
         | Scene::WorklistSectionsFolded
         | Scene::WorklistSectionRename => worklist::tab(app, scene, window, cx),
         Scene::WorklistToolbarTooltip => chrome::populated(app, scene, window, cx),
-        Scene::ToastSuccess
-        | Scene::ToastInfo
-        | Scene::ToastError
-        | Scene::ToastErrorLight
-        | Scene::ToastKeymapError
-        | Scene::ToastLongKeys => {
+        Scene::ToastSuccess | Scene::ToastError | Scene::ToastLongKeys => {
             chrome::populated(app, scene, window, cx);
             let toast = match scene {
-                Scene::ToastKeymapError => super::toasts::keymap_error(
-                    "binding \"ctrl-x\", didn’t find an action named \"xenon::NoSuchThing\".",
-                ),
                 Scene::ToastLongKeys => super::toasts::long_keys_sample(),
                 Scene::ToastSuccess => {
                     super::toasts::task_added(Some("Fix focus after closing a split"))
                 }
-                Scene::ToastInfo => super::toasts::no_workspace(),
                 _ => super::toasts::worklist_error(
                     "Can’t undo just yet",
                     "Save or undo the worklist Markdown edits first",

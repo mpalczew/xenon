@@ -103,6 +103,12 @@ mod tests {
                 slot: None,
             }
         );
+        // A marker naming a slot whose dir is missing also falls back.
+        fs::write(home.join(".xenon-active-slot"), "b").unwrap();
+        assert_eq!(
+            resolve_slot_launch(&home, None, None).data_dir,
+            home.join(".xenon")
+        );
     }
 
     #[test]
@@ -117,16 +123,6 @@ mod tests {
                 data_dir: preset,
                 slot: None,
             }
-        );
-    }
-
-    #[test]
-    fn marker_without_slot_dir_uses_ship_dir() {
-        let (_keep, home) = home();
-        fs::write(home.join(".xenon-active-slot"), "b").unwrap();
-        assert_eq!(
-            resolve_slot_launch(&home, None, None).data_dir,
-            home.join(".xenon")
         );
     }
 }

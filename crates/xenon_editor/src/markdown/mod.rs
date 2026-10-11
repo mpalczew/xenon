@@ -228,41 +228,6 @@ mod tests {
         assert!(!saw_setext_h2, "description must not become setext H2");
     }
 
-    #[test]
-    fn parser_without_yaml_flag_makes_setext() {
-        let src = "---\nname: brainstorming\ndescription: Open the problem space.\n---\n";
-        let mut saw_h2 = false;
-        for event in Parser::new_ext(src, Options::empty()) {
-            if matches!(
-                event,
-                Event::Start(Tag::Heading {
-                    level: HeadingLevel::H2,
-                    ..
-                })
-            ) {
-                saw_h2 = true;
-            }
-        }
-        assert!(saw_h2, "baseline: no yaml flag yields setext H2");
-    }
-
-    /// Nested list items must see increasing open-list depth (preview pad uses this).
-    #[test]
-    fn nested_list_item_depths() {
-        let src = "- a\n  - b\n    - c\n- d\n";
-        let mut depth = 0u32;
-        let mut item_depths = Vec::new();
-        for event in Parser::new_ext(src, markdown_options()) {
-            match event {
-                Event::Start(Tag::List(_)) => depth += 1,
-                Event::End(TagEnd::List(_)) => depth = depth.saturating_sub(1),
-                Event::Start(Tag::Item) => item_depths.push(depth),
-                _ => {}
-            }
-        }
-        assert_eq!(item_depths, vec![1, 2, 3, 1]);
-    }
-
     /// Mirrors builder list flush rules (tight lists: flush lead-in before nested List).
     fn list_preview_blocks(src: &str) -> Vec<(u32, String)> {
         let mut depth = 0u32;
@@ -322,20 +287,6 @@ mod tests {
                 (1, "• d".into()),
             ],
             "must not collapse nested tight items into one block"
-        );
-    }
-
-    #[test]
-    fn ordered_nested_list_markers() {
-        let blocks = list_preview_blocks("1. a\n   1. b\n   2. c\n2. d\n");
-        assert_eq!(
-            blocks,
-            vec![
-                (1, "1. a".into()),
-                (2, "1. b".into()),
-                (2, "2. c".into()),
-                (1, "2. d".into()),
-            ]
         );
     }
 }

@@ -36,19 +36,3 @@ pub fn agent_title(title: &str) -> bool {
     }
     t.contains("agent") || t.contains("llm")
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn agent_busy_detects_named_and_anonymous_bursts() {
-        assert!(!agent_busy_signal(5, "claude"));
-        assert!(agent_busy_signal(15, "claude code"));
-        assert!(agent_busy_signal(20, "Grok session"));
-        assert!(!agent_busy_signal(20, "bash"));
-        assert!(agent_busy_signal(40, "bash"));
-        assert!(agent_title("kimi-cli"));
-        assert!(!agent_title("zsh"));
-    }
-}

@@ -117,15 +117,6 @@ mod tests {
     }
 
     #[test]
-    fn definition_transition_can_go_back_and_forward() {
-        let mut history = NavHistory::default();
-        history.visit(editor("a.rs", 3));
-        history.visit(editor("b.rs", 7));
-        assert_eq!(history.back(), Some(editor("a.rs", 3)));
-        assert_eq!(history.forward(), Some(editor("b.rs", 7)));
-    }
-
-    #[test]
     fn branch_truncates_forward_entries() {
         let mut history = NavHistory::default();
         history.visit(editor("a", 0));

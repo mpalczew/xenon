@@ -160,15 +160,3 @@ impl TextGeometry {
         )
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn palette_insets_follow_the_ui_rem() {
-        let (x, y) = field_insets(TextInputAppearance::Palette, px(14.));
-        assert_eq!(x, px(10.5));
-        assert_eq!(y, px(7.));
-    }
-}

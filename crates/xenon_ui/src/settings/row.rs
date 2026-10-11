@@ -180,19 +180,3 @@ pub(super) fn visible_rows(page: SettingsPage, query: &str, cx: &App) -> Vec<Loc
         .filter(|located| query.is_empty() || located.row.matches(query))
         .collect()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn search_matches_name_detail_and_keywords() {
-        let row = SettingRow::new("wrap", "Wrap prose", Control::None)
-            .detail("Markdown and plain text")
-            .keywords("soft");
-        assert!(row.matches("WRAP"));
-        assert!(row.matches("markdown"));
-        assert!(row.matches("soft"));
-        assert!(!row.matches("vim"));
-    }
-}

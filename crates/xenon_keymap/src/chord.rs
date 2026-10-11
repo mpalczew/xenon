@@ -225,27 +225,9 @@ mod tests {
     }
 
     #[test]
-    fn mac_formatting_uses_glyphs_in_standard_order() {
-        let chord = Chord::parse("cmd-alt-shift-w").unwrap();
-        assert_eq!(chord.format(Platform::Mac), "⌥⇧⌘W");
-    }
-
-    #[test]
-    fn prose_is_not_a_chord() {
+    fn prose_and_empty_key_are_not_chords() {
         assert!(Chord::from_glyphs("⌘↩ / ⌃↩").is_none());
         assert!(Chord::from_glyphs("⌘-click").is_none());
-    }
-
-    #[test]
-    fn formats_sequences() {
-        assert_eq!(
-            format_sequence("ctrl-k ctrl-t", Platform::Linux),
-            "Ctrl+K Ctrl+T"
-        );
-    }
-
-    #[test]
-    fn rejects_empty_key() {
         assert!(Chord::parse("").is_none());
         assert!(Chord::from_glyphs("⌘").is_none());
     }

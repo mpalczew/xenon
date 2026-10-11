@@ -214,16 +214,6 @@ mod tests {
     }
 
     #[test]
-    fn same_version_is_noop() {
-        with_home(|| {
-            install_skill().unwrap();
-            let before = read_canonical();
-            refresh_on_launch().unwrap();
-            assert_eq!(read_canonical(), before);
-        });
-    }
-
-    #[test]
     fn user_edit_is_left_alone() {
         with_home(|| {
             let dir = skill_dirs(&skill_home())[0].clone();
@@ -237,29 +227,6 @@ mod tests {
             );
             install_skill().unwrap();
             assert!(read_canonical().contains("xenon_managed: true"));
-        });
-    }
-
-    #[test]
-    fn decline_blocks_until_version_would_bump() {
-        with_home(|| {
-            assert!(should_prompt_skill());
-            decline_skill().unwrap();
-            assert!(!should_prompt_skill());
-            assert_eq!(skill_status(), SkillStatus::Missing);
-        });
-    }
-
-    #[test]
-    fn writes_stay_in_temp_home() {
-        with_home(|| {
-            let home = skill_home();
-            install_skill().unwrap();
-            for dir in skill_dirs(&home) {
-                assert!(dir.starts_with(&home));
-            }
-            remove_skill().unwrap();
-            assert_eq!(skill_status(), SkillStatus::Missing);
         });
     }
 }

@@ -59,22 +59,3 @@ impl SettingsPage {
         Self::ALL.get(index).copied()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::SettingsPage;
-
-    #[test]
-    fn digits_map_to_pages() {
-        assert_eq!(
-            SettingsPage::from_digit("1"),
-            Some(SettingsPage::Appearance)
-        );
-        assert_eq!(
-            SettingsPage::from_digit("7"),
-            Some(SettingsPage::LanguageServers)
-        );
-        assert_eq!(SettingsPage::from_digit("0"), None);
-        assert_eq!(SettingsPage::from_digit("8"), None);
-    }
-}

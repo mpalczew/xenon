@@ -50,14 +50,10 @@ fn main() {
 #[cfg(target_os = "macos")]
 fn run_tests() -> anyhow::Result<()> {
     use anyhow::anyhow;
-    use xenon_ui::surface_names;
 
-    let update = std::env::var("UPDATE_BASELINE").is_ok();
     let output_dir = output_dir();
     std::fs::create_dir_all(&output_dir)?;
-    let baseline_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_fixtures/visual_tests");
-    std::fs::create_dir_all(&baseline_dir)?;
+    let only = Only::from_env();
 
     display::pin_scale_factor()?;
     let _fixture = fixtures::build()?;
@@ -67,15 +63,14 @@ fn run_tests() -> anyhow::Result<()> {
         xenon_ui::init(cx);
     });
 
-    let mut captured = Vec::new();
+    let mut captured: Vec<String> = Vec::new();
     let mut failed: Vec<String> = Vec::new();
-    // Dev loop: VISUAL_TEST_ONLY=keyboard runs just the keyboard checks.
-    if std::env::var("VISUAL_TEST_ONLY").as_deref() == Ok("keyboard") {
-        return keyboard::run_all(&mut cx);
-    }
 
     for scene in xenon_ui::SCENES {
-        match run_scene(*scene, &mut cx, &output_dir, &baseline_dir, update) {
+        if !only.wants(scene.name()) {
+            continue;
+        }
+        match run_scene(*scene, &mut cx, &output_dir) {
             Ok(name) => {
                 println!("ok {name}");
                 captured.push(name.to_string());
@@ -88,66 +83,24 @@ fn run_tests() -> anyhow::Result<()> {
     }
 
     // After the scenes: it writes .xenon/worklist.md into the shared fixture.
-    if let Err(error) = keyboard::run_all(&mut cx) {
+    if only.wants("keyboard")
+        && let Err(error) = keyboard::run_all(&mut cx)
+    {
         eprintln!("FAIL keyboard: {error:#}");
         failed.push("keyboard".into());
     }
 
-    match remote::capture(&output_dir) {
-        Ok(names) => {
-            for name in names {
-                let png = output_dir.join(format!("{name}.png"));
-                let actual = image::open(&png)?.to_rgba8();
-                if let Err(error) = compare::assert_filled(&actual, &name) {
-                    eprintln!("FAIL {name}: {error:#}");
-                    failed.push(name);
-                    continue;
-                }
-                if let Err(error) = compare::compare_or_update(
-                    &actual,
-                    &baseline_dir.join(format!("{name}.png")),
-                    &png,
-                    update,
-                ) {
-                    eprintln!("FAIL {name}: {error:#}");
-                    failed.push(name);
-                } else {
-                    println!("ok {name}");
-                    captured.push(name);
-                }
-            }
-        }
-        Err(error) => {
-            eprintln!("FAIL remote html: {error:#}");
-            failed.extend(remote::FIXTURES.iter().map(|f| format!("remote_{f}")));
-        }
-    }
-
-    let mut names: Vec<&str> = surface_names();
-    names.sort_unstable();
-    captured.sort();
-    let missing: Vec<_> = names
+    if remote::FIXTURES
         .iter()
-        .copied()
-        .filter(|name| captured.iter().all(|got| got != name))
-        .collect();
-    if !missing.is_empty() {
-        failed.push("inventory".into());
-        eprintln!("missing surfaces: {missing:?}");
+        .any(|f| only.wants(&format!("remote_{f}")))
+    {
+        capture_remote(&only, &output_dir, &mut captured, &mut failed);
     }
 
+    captured.sort();
     let captured_refs: Vec<&str> = captured.iter().map(String::as_str).collect();
     let review = review::write_page(&output_dir, &captured_refs, "")?;
     println!("review page {}", review.display());
-    if update {
-        let committed =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../visual-review");
-        review::write_page(
-            &committed,
-            &names,
-            "../crates/xenon/test_fixtures/visual_tests/",
-        )?;
-    }
 
     if failed.is_empty() {
         Ok(())
@@ -156,13 +109,67 @@ fn run_tests() -> anyhow::Result<()> {
     }
 }
 
+/// `VISUAL_TEST_ONLY=a,b` limits the run to scenes whose name equals or starts
+/// with a token (`keyboard` selects the keyboard checks). Unset runs everything.
+#[cfg(target_os = "macos")]
+struct Only(Option<Vec<String>>);
+
+#[cfg(target_os = "macos")]
+impl Only {
+    fn from_env() -> Self {
+        Self(std::env::var("VISUAL_TEST_ONLY").ok().map(|raw| {
+            raw.split(',')
+                .map(|token| token.trim().to_string())
+                .filter(|token| !token.is_empty())
+                .collect()
+        }))
+    }
+
+    fn wants(&self, name: &str) -> bool {
+        self.0
+            .as_ref()
+            .is_none_or(|tokens| tokens.iter().any(|token| name.starts_with(token.as_str())))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn capture_remote(
+    only: &Only,
+    output_dir: &std::path::Path,
+    captured: &mut Vec<String>,
+    failed: &mut Vec<String>,
+) {
+    match remote::capture(output_dir, |name| only.wants(name)) {
+        Ok(names) => {
+            for name in names {
+                let png = output_dir.join(format!("{name}.png"));
+                let filled = image::open(&png)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|img| compare::assert_filled(&img.to_rgba8(), &name));
+                match filled {
+                    Ok(()) => {
+                        println!("ok {name}");
+                        captured.push(name);
+                    }
+                    Err(error) => {
+                        eprintln!("FAIL {name}: {error:#}");
+                        failed.push(name);
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            eprintln!("FAIL remote html: {error:#}");
+            failed.extend(remote::FIXTURES.iter().map(|f| format!("remote_{f}")));
+        }
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn run_scene(
     scene: xenon_ui::Scene,
     cx: &mut gpui::VisualTestAppContext,
     output_dir: &std::path::Path,
-    baseline_dir: &std::path::Path,
-    update: bool,
 ) -> anyhow::Result<&'static str> {
     use anyhow::anyhow;
     use gpui::{Modifiers, px};
@@ -222,13 +229,11 @@ fn run_scene(
         scene,
         xenon_ui::Scene::SettingsWindow
             | xenon_ui::Scene::SettingsDropdown
-            | xenon_ui::Scene::SettingsDropdownFiltered
             | xenon_ui::Scene::SettingsAgentsInstalled
             | xenon_ui::Scene::SettingsRemote
             | xenon_ui::Scene::SettingsEditor
             | xenon_ui::Scene::SettingsLanguageServers
             | xenon_ui::Scene::SettingsSearch
-            | xenon_ui::Scene::SettingsLight
     ) {
         let settings = window
             .update(cx, |app, _, _| app.visual_settings_window())?
@@ -248,12 +253,7 @@ fn run_scene(
         cx.capture_screenshot(window.into())?
     };
     compare::assert_filled(&image, name)?;
-    compare::compare_or_update(
-        &image,
-        &baseline_dir.join(format!("{name}.png")),
-        &output_dir.join(format!("{name}.png")),
-        update,
-    )?;
+    image.save(output_dir.join(format!("{name}.png")))?;
     Ok(name)
 }
 

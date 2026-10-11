@@ -1,7 +1,6 @@
 //! Worklist scenes: the list with sections, inline editors, and capture.
 
 use gpui::{Context, Window};
-use xenon_editor::worklist_file::Target;
 
 use super::{Scene, XenonApp, chrome, workspace_root};
 
@@ -12,21 +11,8 @@ pub(super) fn capture(
     cx: &mut Context<XenonApp>,
 ) {
     chrome::populated(app, scene, window, cx);
-    if scene == Scene::WorklistCaptureSection {
-        write(app, SECTIONED_WORKLIST);
-        if let Some(workspace) = app.active {
-            let next = Target::Section {
-                index: 1,
-                title: "Next".into(),
-            };
-            app.worklist_last_section.insert(workspace, next);
-        }
-    }
     app.capture_worklist(window, cx);
     let text = match scene {
-        Scene::WorklistCaptureFilled => {
-            Some("Fix focus after closing a split\nHappens in the right pane.")
-        }
         Scene::WorklistCaptureLong => Some(
             "Fix focus after closing a split when the right pane owns the active terminal and a prompt is open\nHappens in the right pane.",
         ),
@@ -47,13 +33,7 @@ pub(super) fn tab(
     cx: &mut Context<XenonApp>,
 ) {
     chrome::populated(app, scene, window, cx);
-    if scene == Scene::WorklistEmptyVirtual {
-        if let Some(root) = workspace_root(app) {
-            let _ = std::fs::remove_file(root.join(".xenon/worklist.md"));
-        }
-    } else {
-        write(app, fixture(scene));
-    }
+    write(app, fixture(scene));
     app.open_worklist(cx);
     if let Some(editor) = app.active_editor() {
         editor.update(cx, |editor, cx| match scene {
@@ -62,9 +42,7 @@ pub(super) fn tab(
             Scene::WorklistSectionRename => editor.visual_worklist_rename(1, cx),
             Scene::WorklistItemEdit => editor.visual_worklist_edit(cx),
             Scene::WorklistMarkdown => editor.visual_worklist_markdown(cx),
-            Scene::WorklistInlineCapture | Scene::WorklistInlineLight => {
-                editor.visual_worklist_capture(window, cx)
-            }
+            Scene::WorklistInlineCapture => editor.visual_worklist_capture(window, cx),
             _ => {}
         });
     }
@@ -74,11 +52,10 @@ const SECTIONED_WORKLIST: &str = "# Worklist\n\n- Reply to the Zed maintainers a
 
 fn fixture(scene: Scene) -> &'static str {
     match scene {
-        Scene::WorklistEmpty | Scene::WorklistEmptyLight => "# Worklist\n",
-        Scene::WorklistSections
-        | Scene::WorklistSectionsLight
-        | Scene::WorklistSectionsFolded
-        | Scene::WorklistSectionRename => SECTIONED_WORKLIST,
+        Scene::WorklistEmpty => "# Worklist\n",
+        Scene::WorklistSections | Scene::WorklistSectionsFolded | Scene::WorklistSectionRename => {
+            SECTIONED_WORKLIST
+        }
         _ => {
             "# Worklist\n\n- [ ] Fix focus after closing a split\n  - Happens when the right pane owns the active terminal.\n\n- Workspace search idea\n  - Show recently used workspaces first.\n"
         }

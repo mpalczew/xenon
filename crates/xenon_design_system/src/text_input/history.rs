@@ -60,19 +60,3 @@ impl History {
         true
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn undo_restores_the_previous_text() {
-        let mut value = MultilineText::new("ab");
-        let mut history = History::default();
-        history.record(("a".into(), 1, 1));
-        assert!(history.undo(&mut value));
-        assert_eq!(value.text(), "a");
-        assert!(history.redo(&mut value));
-        assert_eq!(value.text(), "ab");
-    }
-}

@@ -1,46 +1,42 @@
 # Screenshot tests
 
-If a surface paints, it belongs in this suite. UI work is incomplete until the
-new pixels are captured and reviewed (`/ui-iteration`).
+Capture-only. The runner renders scenes so you can look at them and check the UI
+matches its mock; there are no committed baselines and no pixel comparison. It
+fails only when a scene crashes, fails to render, or paints blank.
+
+Rules: at most one scene per unique UI state (no theme or data variants unless
+that is the point). UI work is done when you have captured the scenes for the
+surfaces you touched and looked at them (`/ui-iteration`).
 
 ## Run
 
 ```bash
-scripts/visual-tests
+scripts/visual-tests                                  # every scene
+VISUAL_TEST_ONLY=overlay_finder scripts/visual-tests   # one scene
+VISUAL_TEST_ONLY=overlay_ssh,content_worklist scripts/visual-tests   # prefixes
+VISUAL_TEST_ONLY=keyboard scripts/visual-tests         # keyboard regressions only
 ```
 
-Writes current PNGs to `target/visual_tests/` and compares them to
-`crates/xenon/test_fixtures/visual_tests/`. The suite fails on pixel divergence.
+`VISUAL_TEST_ONLY` takes comma-separated names or name prefixes. PNGs and
+`index.html` land in `target/visual_tests/`. Scene list: `Scene` in
+`crates/xenon_ui/src/app/visual/mod.rs`.
 
 Results do not depend on the attached display: scenes fix window size, and the
 runner pins `NSScreen.backingScaleFactor` to 2.0 for its process
-(`visual_test_runner/display.rs`), so a 1x monitor renders Retina baselines.
+(`visual_test_runner/display.rs`), so a 1x monitor renders Retina images.
 
 Scenes for lists and scrolling panes use enough content to overflow the window.
 
 Not part of `scripts/health` / `cargo test`: Metal capture needs a macOS window
 server. Do not add this to GitHub macOS runners unless asked.
 
-Remote HTML shots (`remote_pair`, `remote_code`, `remote_workspaces`,
-`remote_session`, `remote_reconnecting`) render the phone page offline via its
+Remote HTML shots (`remote_*`) render the phone page offline via its
 `xenonFixture(name)` hook and need Google Chrome at
 `/Applications/Google Chrome.app`. Missing Chrome fails those surfaces.
 Headless Chrome lays out at least 500px wide, so fixtures pin the app to 390×844.
 
-The suite also runs keyboard regressions that need a real window
-(`visual_test_runner/keyboard.rs`). `VISUAL_TEST_ONLY=keyboard
-scripts/visual-tests` runs just those.
-
-## Update baselines
-
-After an intentional visual change:
-
-```bash
-UPDATE_BASELINE=1 scripts/visual-tests
-```
-
-Then open `target/visual_tests/index.html` (or `visual-review/index.html`) and
-look at the images. Passing tests without opening the shots does not count.
+The keyboard regressions (`visual_test_runner/keyboard.rs`) are behavior checks
+that need a real window; they run with the full suite and fail it.
 
 ## Review page
 

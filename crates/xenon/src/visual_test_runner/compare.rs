@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
 use image::{Rgba, RgbaImage};
-use std::path::Path;
 
 pub fn assert_filled(image: &RgbaImage, name: &str) -> Result<()> {
     let (width, height) = image.dimensions();
@@ -22,58 +21,4 @@ pub fn assert_filled(image: &RgbaImage, name: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-pub fn compare_or_update(
-    actual: &RgbaImage,
-    baseline: &Path,
-    output: &Path,
-    update: bool,
-) -> Result<()> {
-    actual.save(output)?;
-    if update {
-        if let Some(parent) = baseline.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        actual.save(baseline)?;
-        println!("  baseline updated {}", baseline.display());
-        return Ok(());
-    }
-    if !baseline.exists() {
-        return Err(anyhow!(
-            "missing baseline {} (run with UPDATE_BASELINE=1)",
-            baseline.display()
-        ));
-    }
-    let expected = image::open(baseline)?.to_rgba8();
-    if expected.dimensions() != actual.dimensions() {
-        return Err(anyhow!(
-            "size {:?} vs baseline {:?}",
-            actual.dimensions(),
-            expected.dimensions()
-        ));
-    }
-    let diff = diff_pixels(&expected, actual);
-    if diff > 0 {
-        return Err(anyhow!(
-            "{} pixels differ from {}",
-            diff,
-            baseline.display()
-        ));
-    }
-    Ok(())
-}
-
-fn diff_pixels(expected: &RgbaImage, actual: &RgbaImage) -> u64 {
-    expected
-        .pixels()
-        .zip(actual.pixels())
-        .filter(|(a, b)| !close(**a, **b))
-        .count() as u64
-}
-
-fn close(a: Rgba<u8>, b: Rgba<u8>) -> bool {
-    a.0.iter()
-        .zip(b.0.iter())
-        .all(|(l, r)| l.abs_diff(*r) <= 1)
 }

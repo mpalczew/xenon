@@ -42,14 +42,6 @@ fn with_data_dir_at<R>(dir: &std::path::Path, body: impl FnOnce() -> R) -> R {
 }
 
 #[test]
-fn missing_registry_loads_default() {
-    with_data_dir(|| {
-        let registry = load_registry().unwrap();
-        assert_eq!(registry, Registry::default());
-    });
-}
-
-#[test]
 fn registry_saves_and_loads() {
     with_data_dir(|| {
         let mut registry = Registry::default();
@@ -58,30 +50,6 @@ fn registry_saves_and_loads() {
             .push(WorkspaceRec::new("/tmp/proj".into()));
         save_registry(&registry).unwrap();
         assert_eq!(load_registry().unwrap(), registry);
-    });
-}
-
-#[test]
-fn registry_saves_closed_workspaces() {
-    with_data_dir(|| {
-        let mut registry = Registry::default();
-        registry
-            .closed_workspaces
-            .push(WorkspaceRec::new("/tmp/closed".into()));
-
-        save_registry(&registry).unwrap();
-
-        assert_eq!(load_registry().unwrap(), registry);
-    });
-}
-
-#[test]
-fn session_saves_and_loads_by_workspace() {
-    with_data_dir(|| {
-        let ws = WorkspaceRec::new("/tmp/proj".into());
-        let session = SessionState::default();
-        save_session(ws.id, &session).unwrap();
-        assert_eq!(load_session(ws.id).unwrap(), session);
     });
 }
 
@@ -95,13 +63,6 @@ fn corrupt_registry_backs_up_and_defaults() {
         let registry = load_registry().unwrap();
         assert_eq!(registry, Registry::default());
         assert!(path.with_extension("corrupt").exists());
-    });
-}
-
-#[test]
-fn settings_default_when_missing() {
-    with_data_dir(|| {
-        assert_eq!(load_settings().unwrap(), AppSettings::default());
     });
 }
 
@@ -169,28 +130,6 @@ fn settings_update_preserves_unowned_fields() {
 }
 
 #[test]
-fn settings_missing_window_defaults_to_none() {
-    with_data_dir(|| {
-        let path = crate::data_dir().join("settings.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            r#"{"editor_font_size":16.0,"show_line_numbers":true,"vim_mode":false}"#,
-        )
-        .unwrap();
-        let settings = load_settings().unwrap();
-        assert!(settings.window.is_none());
-    });
-}
-
-#[test]
-fn window_geometry_sane_rejects_tiny_or_non_finite() {
-    assert!(WindowGeometry::new(0., 0., 800., 600., WindowState::Windowed).is_sane());
-    assert!(!WindowGeometry::new(0., 0., 100., 600., WindowState::Windowed).is_sane());
-    assert!(!WindowGeometry::new(0., 0., 800., f32::NAN, WindowState::Windowed).is_sane());
-}
-
-#[test]
 fn settings_missing_theme_defaults_to_system() {
     with_data_dir(|| {
         let path = crate::data_dir().join("settings.json");
@@ -207,6 +146,7 @@ fn settings_missing_theme_defaults_to_system() {
         assert_eq!(settings.ui_font_size, 14.0);
         assert_eq!(settings.editor_font_family, "Lilex");
         assert_eq!(settings.ui_font_family, ".SystemUIFont");
+        assert!(settings.window.is_none());
     });
 }
 

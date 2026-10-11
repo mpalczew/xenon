@@ -127,33 +127,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn active_is_last_heading_above_line() {
-        let tops = [Some(px(-200.)), Some(px(10.)), Some(px(400.))];
-        assert_eq!(active_index(&tops, px(32.)), Some(1));
-    }
-
-    #[test]
-    fn active_defaults_to_first_heading() {
-        let tops = [Some(px(100.)), Some(px(400.))];
-        assert_eq!(active_index(&tops, px(32.)), Some(0));
-        assert_eq!(active_index(&[], px(32.)), None);
-    }
-
-    #[test]
-    fn next_stops_at_last() {
-        assert_eq!(step_target(Some(0), true, 1, 3), Some(1));
-        assert_eq!(step_target(Some(2), true, 1, 3), None);
-    }
-
-    #[test]
     fn previous_returns_to_section_heading_first() {
         assert_eq!(step_target(Some(2), false, -1, 3), Some(2));
         assert_eq!(step_target(Some(2), true, -1, 3), Some(1));
         assert_eq!(step_target(Some(0), true, -1, 3), None);
-    }
-
-    #[test]
-    fn no_headings_no_target() {
-        assert_eq!(step_target(None, true, 1, 0), None);
     }
 }

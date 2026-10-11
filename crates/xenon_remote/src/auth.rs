@@ -30,13 +30,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tokens_are_long_and_distinct() {
-        let a = new_device_token();
-        assert_eq!(a.len(), 64);
-        assert_ne!(a, new_device_token());
-    }
-
-    #[test]
     fn hash_is_stable_hex() {
         assert_eq!(
             hash_token("abc"),

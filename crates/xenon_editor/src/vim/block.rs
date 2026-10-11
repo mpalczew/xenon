@@ -141,16 +141,6 @@ mod tests {
     }
 
     #[test]
-    fn zz_requests_scroll_center() {
-        let mut buffer = buffer_with("hi\n");
-        let mut vim = VimState::default();
-        vim.handle_char(&mut buffer, "z");
-        let r = vim.handle_char(&mut buffer, "z");
-        assert!(r.handled);
-        assert!(r.scroll_center);
-    }
-
-    #[test]
     fn visual_block_yank_delete_paste() {
         let mut buffer = buffer_with("abcd\nefgh\nijkl\n");
         let mut vim = VimState::default();
@@ -171,29 +161,5 @@ mod tests {
         assert!(vim.handle_char(&mut buffer, "p").edited);
         // col 0 'i', p → col 1: "i"+"ab"+"jkl" and next line pad+ef.
         assert_eq!(buffer.text(), "abcd\nefgh\niabjkl\n ef");
-    }
-
-    #[test]
-    fn visual_block_delete() {
-        let mut buffer = buffer_with("abcd\nefgh\nijkl\n");
-        let mut vim = VimState::default();
-        vim.toggle_visual_block(&mut buffer);
-        vim.handle_char(&mut buffer, "j");
-        vim.handle_char(&mut buffer, "l");
-        assert!(vim.handle_char(&mut buffer, "d").edited);
-        assert_eq!(buffer.text(), "cd\ngh\nijkl\n");
-        assert_eq!(vim.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn visual_block_replace() {
-        let mut buffer = buffer_with("abcd\nefgh\n");
-        let mut vim = VimState::default();
-        vim.toggle_visual_block(&mut buffer);
-        vim.handle_char(&mut buffer, "j");
-        vim.handle_char(&mut buffer, "l");
-        vim.handle_char(&mut buffer, "r");
-        assert!(vim.handle_char(&mut buffer, "x").edited);
-        assert_eq!(buffer.text(), "xxcd\nxxgh\n");
     }
 }

@@ -59,45 +59,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_query() {
+    fn search_building_and_stepping() {
         assert!(matches!(build_search("", FindOptions::default()), Ok(None)));
-    }
-
-    #[test]
-    fn literal_builds() {
-        assert!(
-            build_search("error", FindOptions::default())
-                .unwrap()
-                .is_some()
-        );
-    }
-
-    #[test]
-    fn regex_meta_escaped_in_literal() {
-        // `+` would be invalid/meaningful as raw regex; literal must succeed.
+        // `+` is regex meta; a literal search must escape it and still build.
         assert!(
             build_search("a+", FindOptions::default())
                 .unwrap()
                 .is_some()
         );
-    }
-
-    #[test]
-    fn bare_dot_regex_is_noop() {
-        assert!(matches!(
-            build_search(
-                ".",
-                FindOptions {
-                    regex: true,
-                    ..Default::default()
-                }
-            ),
-            Ok(None)
-        ));
-    }
-
-    #[test]
-    fn step_wraps() {
+        let bare_dot = FindOptions {
+            regex: true,
+            ..Default::default()
+        };
+        assert!(matches!(build_search(".", bare_dot), Ok(None)));
         assert_eq!(step_index(3, Some(0), false), Some(1));
         assert_eq!(step_index(3, Some(2), false), Some(0));
         assert_eq!(step_index(3, Some(0), true), Some(2));

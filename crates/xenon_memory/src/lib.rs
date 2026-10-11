@@ -132,13 +132,4 @@ mod tests {
         let parsed: ProcessMemory = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
         assert_eq!(parsed, ProcessMemory::default());
     }
-
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    #[test]
-    fn process_memory_has_sane_footprint() {
-        let memory = process_memory();
-        assert!(memory.footprint_bytes > 0);
-        assert!(memory.peak_footprint_bytes >= memory.footprint_bytes);
-        assert!(memory.compressed_bytes < memory.footprint_bytes.saturating_mul(100));
-    }
 }

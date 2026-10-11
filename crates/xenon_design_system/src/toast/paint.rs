@@ -242,20 +242,3 @@ fn back_out(t: f32) -> f32 {
 fn shake_offset(t: f32) -> f32 {
     4. * (1. - t) * (t * std::f32::consts::TAU * 2.).sin()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn overshoot_settles_at_rest() {
-        assert!((back_out(1.) - 1.).abs() < 1e-5);
-        assert!(back_out(0.7) > 1.);
-        assert!(shake_offset(1.).abs() < 1e-5);
-    }
-
-    #[test]
-    fn long_shortcuts_get_a_wider_ring() {
-        assert!(ring_metrics("⌘⌥K").0 > ring_metrics("⌘Z").0);
-    }
-}

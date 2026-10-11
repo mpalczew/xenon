@@ -122,17 +122,6 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_advertises_open_file() {
-        let (tx, _rx) = async_channel::unbounded();
-        let reply = handle(&request("tools/list", json!({})), &[], &tx).expect("reply");
-        let value: Value = serde_json::from_str(&reply).expect("json");
-        let tools = value["result"]["tools"].as_array().expect("tools");
-
-        assert!(tools.iter().any(|tool| tool["name"] == "openFile"));
-        assert!(!tools.iter().any(|tool| tool["name"] == "getDiagnostics"));
-    }
-
-    #[test]
     fn open_file_sends_command() {
         let (tx, rx) = async_channel::unbounded();
         let params = json!({

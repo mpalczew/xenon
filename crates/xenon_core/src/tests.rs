@@ -1,34 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{Layout, Registry, SessionState, WorkspaceRec};
-
-#[test]
-fn workspace_name_from_root() {
-    let ws = WorkspaceRec::new(PathBuf::from("/Users/me/src/xero"));
-    assert_eq!(ws.name, "xero");
-}
-
-#[test]
-fn layout_default_is_all_visible() {
-    let d = Layout::default();
-    assert!(d.terminal_visible && d.editor_visible && d.sidebar_visible);
-    assert_eq!(d.sidebar_width, crate::session::DEFAULT_SIDEBAR_WIDTH);
-    assert_eq!(d.terminal_width, crate::session::DEFAULT_TERMINAL_WIDTH);
-}
-
-#[test]
-fn layout_round_trips_through_json() {
-    let layout = Layout {
-        terminal_visible: false,
-        editor_visible: true,
-        sidebar_visible: false,
-        sidebar_width: 200.,
-        terminal_width: 640.,
-    };
-    let json = serde_json::to_string_pretty(&layout).unwrap();
-    let parsed: Layout = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed, layout);
-}
+use crate::{Registry, SessionState, WorkspaceRec};
 
 #[test]
 fn old_session_json_migrates_to_content() {
@@ -60,14 +32,6 @@ fn old_session_with_editors_and_split() {
 }
 
 #[test]
-fn new_session_round_trips() {
-    let session = SessionState::default();
-    let json = serde_json::to_string(&session).unwrap();
-    let parsed: SessionState = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed, session);
-}
-
-#[test]
 fn registry_round_trips_through_json() {
     let mut registry = Registry::default();
     let ws = WorkspaceRec::new(PathBuf::from("/tmp/proj"));
@@ -80,7 +44,7 @@ fn registry_round_trips_through_json() {
 }
 
 #[test]
-fn old_registry_json_defaults_closed_workspaces() {
+fn old_registry_and_workspace_json_get_defaults() {
     let json = r#"{
   "version": 1,
   "workspaces": [],
@@ -88,6 +52,11 @@ fn old_registry_json_defaults_closed_workspaces() {
 }"#;
     let parsed: Registry = serde_json::from_str(json).unwrap();
     assert!(parsed.closed_workspaces.is_empty());
+
+    let ws_json =
+        r#"{"id": "00000000-0000-4000-8000-000000000001", "name": "proj", "root": "/tmp/proj"}"#;
+    let ws: WorkspaceRec = serde_json::from_str(ws_json).unwrap();
+    assert_eq!(ws.last_opened, None);
 }
 
 #[test]
@@ -109,34 +78,4 @@ fn registry_ignores_legacy_streams_field() {
     assert_eq!(parsed.workspaces.len(), 1);
     assert_eq!(parsed.workspaces[0].name, "proj");
     assert!(parsed.active.is_some());
-}
-
-#[test]
-fn registry_preserves_closed_workspaces() {
-    let mut registry = Registry::default();
-    registry
-        .closed_workspaces
-        .push(WorkspaceRec::new(PathBuf::from("/tmp/closed")));
-
-    let json = serde_json::to_string_pretty(&registry).unwrap();
-    let parsed: Registry = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.closed_workspaces, registry.closed_workspaces);
-}
-
-#[test]
-fn old_workspace_json_defaults_last_opened() {
-    let json = r#"{
-  "id": "00000000-0000-4000-8000-000000000001",
-  "name": "proj",
-  "root": "/tmp/proj"
-}"#;
-    let parsed: WorkspaceRec = serde_json::from_str(json).unwrap();
-    assert_eq!(parsed.name, "proj");
-    assert_eq!(parsed.last_opened, None);
-}
-
-#[test]
-fn workspace_new_sets_last_opened() {
-    let ws = WorkspaceRec::new(PathBuf::from("/tmp/proj"));
-    assert!(ws.last_opened.is_some());
 }

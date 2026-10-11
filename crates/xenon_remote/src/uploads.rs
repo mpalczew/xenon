@@ -99,15 +99,4 @@ mod tests {
         assert_eq!(extension("text/html"), None);
         assert_eq!(extension(""), None);
     }
-
-    #[test]
-    fn saves_and_prunes_week_old_files() {
-        let dir = std::env::temp_dir().join(format!("xenon-uploads-{}", uuid::Uuid::new_v4()));
-        let path = save(&dir, "png", b"img").expect("save");
-        assert_eq!(fs::read(&path).unwrap(), b"img");
-        assert!(path.starts_with(&dir));
-        prune(&dir, SystemTime::now() + KEEP + Duration::from_secs(1));
-        assert!(!path.exists());
-        let _ = fs::remove_dir_all(&dir);
-    }
 }

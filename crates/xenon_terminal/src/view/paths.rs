@@ -79,32 +79,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn trim_token_drops_trailing_sentence_period() {
+    fn trim_token_cleans_prose_punctuation() {
         assert_eq!(
             trim_token("amazon-summary-2026.html.").as_deref(),
             Some("amazon-summary-2026.html")
         );
-    }
-
-    #[test]
-    fn trim_token_keeps_relative_and_absolute_prefixes() {
         assert_eq!(
             trim_token("./rel/path.rs").as_deref(),
             Some("./rel/path.rs")
         );
-        assert_eq!(trim_token("/abs/path.md").as_deref(), Some("/abs/path.md"));
-    }
-
-    #[test]
-    fn trim_token_strips_wrapping_delimiters_but_keeps_line_col() {
         assert_eq!(trim_token("(foo.rs:12)").as_deref(), Some("foo.rs:12"));
-        assert_eq!(trim_token("\"quoted\"").as_deref(), Some("quoted"));
-    }
-
-    #[test]
-    fn trim_token_all_punctuation_is_none() {
         assert_eq!(trim_token("..."), None);
-        assert_eq!(trim_token(""), None);
     }
 
     #[test]

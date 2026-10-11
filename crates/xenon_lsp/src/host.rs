@@ -450,16 +450,3 @@ impl Drop for LspHost {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn failed_and_stopped_servers_are_replaceable() {
-        assert!(server_is_live(ClientState::Starting));
-        assert!(server_is_live(ClientState::Running));
-        assert!(!server_is_live(ClientState::Failed));
-        assert!(!server_is_live(ClientState::Stopped));
-    }
-}

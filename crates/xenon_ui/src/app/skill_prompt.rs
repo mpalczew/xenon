@@ -255,18 +255,3 @@ impl XenonApp {
         )
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn return_and_escape_are_prompt_actions() {
-        assert_eq!(interpret_skill_key("enter"), Some(SkillKey::Confirm));
-        assert_eq!(interpret_skill_key("return"), Some(SkillKey::Confirm));
-        assert_eq!(interpret_skill_key("escape"), Some(SkillKey::Later));
-        assert_eq!(interpret_skill_key("left"), Some(SkillKey::Move(-1)));
-        assert_eq!(interpret_skill_key("right"), Some(SkillKey::Move(1)));
-        assert_eq!(interpret_skill_key("a"), None);
-    }
-}

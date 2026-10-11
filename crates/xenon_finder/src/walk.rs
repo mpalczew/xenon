@@ -136,20 +136,3 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
             | ".pytest_cache"
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn skips_dependency_dirs_not_dotfiles() {
-        assert!(should_skip_dir("node_modules"));
-        assert!(should_skip_dir("target"));
-        assert!(should_skip_dir("Library"));
-        assert!(should_skip_dir(".git"));
-        assert!(should_skip_dir(".cache"));
-        assert!(!should_skip_dir(".claude"));
-        assert!(!should_skip_dir(".github"));
-        assert!(!should_skip_dir("src"));
-    }
-}

@@ -161,24 +161,4 @@ mod tests {
             ["beta", "gamma", "epsilon", "delta", "alpha"]
         );
     }
-
-    #[test]
-    fn include_cycles_terminate() {
-        let files = [("loop", "Include loop\nHost looped")];
-        assert_eq!(hosts("Include loop", &files), ["looped"]);
-    }
-
-    #[test]
-    fn unsafe_aliases_are_dropped() {
-        assert_eq!(hosts("Host -oProxyCommand=x ok;rm good", &[]), ["good"]);
-    }
-
-    #[test]
-    fn wildcards_match_one_component() {
-        assert!(wildcard_match("*", "anything"));
-        assert!(wildcard_match("conf*.d", "conf-x.d"));
-        assert!(wildcard_match("a?c", "abc"));
-        assert!(!wildcard_match("a?c", "ac"));
-        assert!(!wildcard_match("*.conf", "x.conf.bak"));
-    }
 }

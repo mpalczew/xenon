@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks the staged snapshot in a private tree; never touches the working tree,
 # index, or stash. The per-commit gate; scripts/health is the full run (CI).
-# Shares target/ (dogfood profile) with install and health so deps compile once.
+# Own profile (target/precommit): sharing dogfood with the real tree serves stale
+# artifacts, since path crates hash relative to the workspace root.
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
@@ -54,9 +55,9 @@ run ui-boundaries scripts/check-ui-boundaries
 run ssh-helper env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     -s crates/xenon_ssh/src -p helper_test.py
 run fmtcheck cargo fmt --all --check
-run lint cargo clippy --profile dogfood --workspace --all-targets -- \
+run lint cargo clippy --profile precommit --workspace --all-targets -- \
     -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines
 run lint-shape scripts/check-rust-shape
 if ((${#test_args[@]})); then
-    run test cargo test --profile dogfood "${test_args[@]}"
+    run test cargo test --profile precommit "${test_args[@]}"
 fi

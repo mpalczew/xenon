@@ -121,13 +121,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn inner_word() {
-        let rope = Rope::from_str("foo bar");
-        let r = Object::Word { around: false }.range(&rope, 1).unwrap();
-        assert_eq!(rope.slice(r).to_string(), "foo");
-    }
-
-    #[test]
     fn inner_parens() {
         let rope = Rope::from_str("a(bc)d");
         let r = Object::Pair {

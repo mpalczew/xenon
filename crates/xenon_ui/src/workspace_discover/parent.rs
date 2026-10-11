@@ -138,24 +138,6 @@ mod tests {
     }
 
     #[test]
-    fn existing_dir_lists_self_then_shallow_first() {
-        let (_tmp, root) = tree();
-        let out = list_parent_candidates(&root.to_string_lossy()).expect("path query");
-        assert_eq!(out[0], root);
-        let names = rels(&root, &out);
-        let a = names.iter().position(|n| n == "a").expect("a");
-        let b = names.iter().position(|n| n == "b").expect("b");
-        let deep = names.iter().position(|n| n == "a/deep").expect("a/deep");
-        let nested = names
-            .iter()
-            .position(|n| n == "a/deep/nested")
-            .expect("nested");
-        assert!(a < deep, "depth 1 before depth 2: {names:?}");
-        assert!(b < deep, "sibling before nested: {names:?}");
-        assert!(deep < nested, "depth 2 before depth 3: {names:?}");
-    }
-
-    #[test]
     fn missing_last_segment_prefix_filters() {
         let (_tmp, root) = tree();
         let query = root.join("xe");

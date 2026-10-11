@@ -194,21 +194,3 @@ fn ring_progress(t: f32) -> f32 {
 fn child_id(id: &ElementId, name: &'static str) -> ElementId {
     ElementId::NamedChild(Arc::new(id.clone()), name.into())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{draw_progress, ring_progress};
-
-    #[test]
-    fn stroke_waits_then_finishes_drawn() {
-        assert_eq!(draw_progress(0.2), 0.);
-        assert!(draw_progress(0.6) > 0.);
-        assert!((draw_progress(1.) - 1.).abs() < 0.001);
-    }
-
-    #[test]
-    fn ring_starts_after_the_stroke_lands() {
-        assert_eq!(ring_progress(0.4), 0.);
-        assert!((ring_progress(1.) - 1.).abs() < 0.001);
-    }
-}

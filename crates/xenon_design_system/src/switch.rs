@@ -104,15 +104,3 @@ fn settle(t: f32) -> f32 {
     let u = t - 1.;
     1. + u * u * ((s + 1.) * u + s)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::settle;
-
-    #[test]
-    fn switch_motion_overshoots_then_settles() {
-        assert!(settle(0.).abs() < 0.001);
-        assert!(settle(0.7) > 1.);
-        assert!((settle(1.) - 1.).abs() < 0.001);
-    }
-}

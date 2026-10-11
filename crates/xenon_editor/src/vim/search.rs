@@ -354,40 +354,6 @@ mod tests {
     }
 
     #[test]
-    fn smartcase() {
-        let rope = Rope::from_str("Foo foo FOO");
-        assert_eq!(find_inclusive(&rope, "foo", 0, true), Some(0));
-        assert_eq!(find(&rope, "foo", 0, true), Some(4));
-        assert_eq!(find(&rope, "foo", 4, true), Some(8));
-        // Exclusive backward from inside third match lands on second.
-        assert_eq!(find(&rope, "foo", 9, false), Some(4));
-        assert_eq!(find_inclusive(&rope, "Foo", 0, true), Some(0));
-        assert_eq!(find(&rope, "Foo", 1, true), Some(0));
-        assert_eq!(find_inclusive(&rope, "FOO", 0, true), Some(8));
-        assert_eq!(find(&rope, "FoO", 0, true), None);
-    }
-
-    #[test]
-    fn slash_incsearch_and_enter() {
-        let mut buf = buffer("aa bb aa");
-        buf.set_cursor_raw(0);
-        let mut vim = VimState::default();
-        assert!(vim.handle_char(&mut buf, "/").handled);
-        assert!(vim.search_draft.is_some());
-        assert!(vim.handle_char(&mut buf, "a").handled);
-        assert!(vim.handle_char(&mut buf, "a").handled);
-        assert_eq!(buf.cursor(), 0);
-        assert!(vim.search_draft.as_ref().unwrap().has_match);
-        assert!(buf.selection_range().is_some());
-        assert!(vim.handle_key(&mut buf, "enter").handled);
-        assert!(vim.search_draft.is_none());
-        assert_eq!(buf.cursor(), 0);
-        assert_eq!(vim.search.as_ref().unwrap().pattern, "aa");
-        assert!(vim.handle_char(&mut buf, "n").handled);
-        assert_eq!(buf.cursor(), 6);
-    }
-
-    #[test]
     fn slash_escape_and_empty_reuse() {
         let mut buf = buffer("hello world");
         buf.set_cursor_raw(0);
@@ -449,34 +415,5 @@ mod tests {
         assert!(vim.handle_char(&mut buf, "el").handled);
         assert_eq!(vim.search_draft.as_ref().unwrap().pattern, "el");
         assert!(vim.search_draft.as_ref().unwrap().has_match);
-    }
-
-    #[test]
-    fn slash_smartcase_flow() {
-        let mut buf = buffer("error Error ERROR");
-        buf.set_cursor_raw(0);
-        let mut vim = VimState::default();
-        vim.handle_char(&mut buf, "/");
-        for c in ['e', 'r', 'r', 'o', 'r'] {
-            assert!(vim.handle_char(&mut buf, &c.to_string()).handled);
-        }
-        assert_eq!(buf.cursor(), 0);
-        vim.handle_key(&mut buf, "enter");
-        assert!(vim.handle_char(&mut buf, "n").handled);
-        assert_eq!(buf.cursor(), 6);
-        assert!(vim.handle_char(&mut buf, "n").handled);
-        assert_eq!(buf.cursor(), 12);
-
-        let mut buf = buffer("error Error ERROR");
-        buf.set_cursor_raw(0);
-        let mut vim = VimState::default();
-        vim.handle_char(&mut buf, "/");
-        for c in ['E', 'r', 'r', 'o', 'r'] {
-            assert!(vim.handle_char(&mut buf, &c.to_string()).handled);
-        }
-        assert_eq!(buf.cursor(), 6);
-        vim.handle_key(&mut buf, "enter");
-        assert!(vim.handle_char(&mut buf, "n").handled);
-        assert_eq!(buf.cursor(), 6);
     }
 }

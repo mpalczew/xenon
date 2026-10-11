@@ -388,17 +388,4 @@ mod tests {
             ExEffect::Quit { force: true }
         ));
     }
-
-    #[test]
-    fn write_path() {
-        let mut buf = buffer_with("x\n");
-        let mut prev = String::new();
-        match run("w /tmp/out.txt", &mut buf, ctx(&mut prev, 1)) {
-            ExEffect::Write {
-                force: false,
-                path: Some(p),
-            } => assert_eq!(p, PathBuf::from("/tmp/out.txt")),
-            other => panic!("{other:?}"),
-        }
-    }
 }

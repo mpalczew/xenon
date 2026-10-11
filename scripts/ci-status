@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# CI state of main, as one line: `green`, `red <url>`, or `unknown <reason>`.
+# Exit 0 green, 1 red, 2 unknown.
+# This is the only script that knows where CI runs: today the GitHub Actions
+# workflow linux.yml. CI may move to the homelab Forgejo runner (`runs-on: nuc`);
+# only this script changes then.
+set -uo pipefail
+
+workflow="linux.yml"
+branch="main"
+
+if ! command -v gh >/dev/null 2>&1; then
+    echo "unknown gh not installed"
+    exit 2
+fi
+
+out="$(mktemp "${TMPDIR:-/tmp}/xenon-ci-status.XXXXXX")"
+trap 'rm -f "$out"' EXIT
+
+gh run list --workflow "$workflow" --branch "$branch" --status completed \
+    --limit 1 --json conclusion,url >"$out" 2>&1 &
+pid=$!
+
+# Bounded wait (~5s) without a long poll: check every 0.1s.
+for _ in $(seq 1 50); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+done
+if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null
+    echo "unknown gh timed out"
+    exit 2
+fi
+wait "$pid" || {
+    echo "unknown gh failed: $(head -c 120 "$out" | tr '\n' ' ')"
+    exit 2
+}
+
+conclusion="$(sed -n 's/.*"conclusion":"\([^"]*\)".*/\1/p' "$out")"
+url="$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$out")"
+case "$conclusion" in
+success) echo "green" ;;
+"") echo "unknown no completed run for $workflow on $branch"; exit 2 ;;
+failure | timed_out | startup_failure) echo "red $url"; exit 1 ;;
+# cancelled/skipped: superseded or not run; says nothing about main's health.
+*) echo "unknown last run $conclusion"; exit 2 ;;
+esac

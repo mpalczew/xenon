@@ -210,10 +210,6 @@ mod tests {
     fn echoes_requested_mcp_subprotocol() {
         assert_eq!(echoed(Some("mcp")).as_deref(), Some("mcp"));
         assert_eq!(echoed(Some("other, mcp")).as_deref(), Some("mcp"));
-    }
-
-    #[test]
-    fn omits_subprotocol_when_not_requested() {
         assert_eq!(echoed(None), None);
         assert_eq!(echoed(Some("other")), None);
     }

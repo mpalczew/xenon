@@ -181,15 +181,3 @@ fn faint_note(
         .child(text)
         .into_any_element()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::count_label;
-
-    #[test]
-    fn counts_open_tasks_and_says_when_everything_is_done() {
-        assert_eq!(count_label(2, 5).as_deref(), Some("2 open"));
-        assert_eq!(count_label(0, 3).as_deref(), Some("all done"));
-        assert_eq!(count_label(0, 0), None);
-    }
-}

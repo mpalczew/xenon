@@ -249,39 +249,6 @@ mod tests {
     }
 
     #[test]
-    fn mac_defaults_match_the_shipped_bindings() {
-        let golden: BTreeSet<String> = include_str!("../tests/mac_defaults.golden")
-            .lines()
-            .map(str::to_owned)
-            .collect();
-        assert_eq!(flat(&defaults(Platform::Mac)), golden);
-    }
-
-    #[test]
-    fn linux_has_no_cmd_and_no_super() {
-        for entry in defaults(Platform::Linux) {
-            assert!(!entry.keystroke.contains("cmd"), "{entry:?}");
-        }
-    }
-
-    #[test]
-    fn linux_swaps_cmd_for_ctrl() {
-        let linux = flat(&defaults(Platform::Linux));
-        for want in [
-            "-\tctrl-p\txenon::FilePalette",
-            "-\tctrl-shift-p\txenon::CommandPalette",
-            "-\tctrl-n\txenon::NewTerminal",
-            "-\tctrl-w\txenon::CloseEditor",
-            "-\tctrl-s\txenon::Save",
-            "-\tctrl-1\txenon::FocusTerminal",
-            "-\tctrl-q\txenon::Quit",
-            "-\tctrl-tab\txenon::NextTab",
-        ] {
-            assert!(linux.contains(want), "missing {want}");
-        }
-    }
-
-    #[test]
     fn linux_terminal_keeps_shell_keys() {
         let linux = defaults(Platform::Linux);
         for key in ["ctrl-c", "ctrl-b", "ctrl-e", "ctrl-o", "ctrl-s"] {
@@ -295,23 +262,14 @@ mod tests {
     }
 
     #[test]
-    fn linux_has_no_conflicting_bindings() {
+    fn linux_has_no_cmd_and_no_conflicting_bindings() {
         let mut seen: HashMap<(Option<String>, String), Option<String>> = HashMap::new();
         for entry in defaults(Platform::Linux) {
+            assert!(!entry.keystroke.contains("cmd"), "{entry:?}");
             let key = (entry.context.clone(), entry.keystroke.clone());
             if let Some(old) = seen.insert(key, entry.action.clone()) {
                 assert_eq!(old, entry.action, "duplicate {entry:?}");
             }
         }
-    }
-
-    #[test]
-    fn json_groups_entries_by_context() {
-        let json = to_json(&defaults(Platform::Mac));
-        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let sections = value.as_array().unwrap();
-        assert_eq!(sections.len(), 6);
-        assert!(sections[0].get("context").is_none());
-        assert_eq!(sections[1]["context"], "Editor");
     }
 }

@@ -135,17 +135,6 @@ impl Remote {
             discovery: Discovery::Done,
         })
     }
-
-    /// Listing on screen, name search still running.
-    pub(crate) fn discovering(home: &str, listed: &[(&str, bool)]) -> Self {
-        match Self::ready(home, listed, &[]) {
-            Self::Ready(listing) => Self::Ready(PathListing {
-                discovery: Discovery::Pending,
-                ..listing
-            }),
-            other => other,
-        }
-    }
 }
 
 /// Run one host lookup, reporting failure as a single short line.
