@@ -221,11 +221,14 @@ running_instances() {
         fi
     done
 
-    local pids
+    # BSD pgrep hides its own ancestors (e.g. the Xenon hosting this shell)
+    # unless -a; procps -a means something else and hides nothing.
+    local pids ancestors=()
+    [[ "$(uname -s)" == Darwin ]] && ancestors=(-a)
     pids="$(
-        pgrep -x xenon 2>/dev/null || true
-        pgrep -x xenon-bin 2>/dev/null || true
-        pgrep -x xero 2>/dev/null || true
+        pgrep "${ancestors[@]}" -x xenon 2>/dev/null || true
+        pgrep "${ancestors[@]}" -x xenon-bin 2>/dev/null || true
+        pgrep "${ancestors[@]}" -x xero 2>/dev/null || true
     )"
     [[ -n "$pids" ]] || return 0
     while IFS= read -r pid; do
