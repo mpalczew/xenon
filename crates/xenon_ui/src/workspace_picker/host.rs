@@ -2,7 +2,7 @@
 
 use super::remote::{Discovery, Remote, Reply, ReplyBody, lookup_line, merge_path};
 use super::ssh_input::{
-    SshInput, folder_address, host_completion, host_matches, last_segment, lookups,
+    SCHEME, SshInput, folder_address, host_completion, host_matches, last_segment, lookups,
     names_whole_folder, open_address, path_completion, scheme_completion,
 };
 use super::*;
@@ -102,12 +102,18 @@ impl WorkspacePickerView {
         self.set_query(text, cx);
     }
 
-    /// Enter on a host row writes `ssh://host/`; elsewhere it falls through.
+    /// Enter on a host row writes `ssh://host/`, on the scheme row `ssh://`;
+    /// elsewhere it falls through.
     pub(super) fn confirm_host_row(&mut self, cx: &mut Context<Self>) -> bool {
-        let Some(WorkspaceCandidate::Host { name, .. }) = self.results.get(self.selected) else {
+        let text = match self.results.get(self.selected) {
+            Some(row @ (WorkspaceCandidate::Host { .. } | WorkspaceCandidate::Scheme { .. })) => {
+                self.completion_for(row)
+            }
+            _ => None,
+        };
+        let Some(text) = text else {
             return false;
         };
-        let text = host_completion(name);
         self.write_query(text, cx);
         true
     }
@@ -129,23 +135,24 @@ impl WorkspacePickerView {
         }
     }
 
-    /// Tab: `ss` becomes `ssh://`; a selected host or folder is written into the field.
+    /// Tab: the selected scheme, host or folder is written into the field; with
+    /// no such row, `ss` still becomes `ssh://`.
     pub(super) fn complete_selected(&mut self, cx: &mut Context<Self>) {
-        let text = scheme_completion(&self.query)
-            .map(str::to_string)
-            .or_else(|| {
-                self.results
-                    .get(self.selected)
-                    .and_then(|c| self.completion_for(c))
-            });
+        let text = self
+            .results
+            .get(self.selected)
+            .and_then(|c| self.completion_for(c))
+            .or_else(|| scheme_completion(&self.query).map(str::to_string));
         if let Some(text) = text {
             self.write_query(text, cx);
         }
     }
 
     fn completion_for(&self, row: &WorkspaceCandidate) -> Option<String> {
-        if let WorkspaceCandidate::Host { name, .. } = row {
-            return Some(host_completion(name));
+        match row {
+            WorkspaceCandidate::Host { name, .. } => return Some(host_completion(name)),
+            WorkspaceCandidate::Scheme { .. } => return Some(SCHEME.to_string()),
+            _ => {}
         }
         let SshInput::Path { host, rest } = SshInput::parse(&self.query)? else {
             return None;

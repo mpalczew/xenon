@@ -242,6 +242,7 @@ impl XenonApp {
             | WorkspaceCandidate::Path { root, .. }
             | WorkspaceCandidate::Host { root, .. }
             | WorkspaceCandidate::Remote { root, .. } => root,
+            WorkspaceCandidate::Scheme { .. } => return,
         };
         let missing = matches!(candidate, WorkspaceCandidate::Closed { missing: true, .. });
         if missing
@@ -260,7 +261,9 @@ impl XenonApp {
             WorkspaceCandidate::Closed { id, .. } => self.reopen_workspace(*id, cx),
             WorkspaceCandidate::Path { root, .. } => self.register_workspace(root.clone(), cx),
             // The picker handles these itself (step into a host, open over SSH).
-            WorkspaceCandidate::Host { .. } | WorkspaceCandidate::Remote { .. } => {}
+            WorkspaceCandidate::Host { .. }
+            | WorkspaceCandidate::Scheme { .. }
+            | WorkspaceCandidate::Remote { .. } => {}
         }
     }
 

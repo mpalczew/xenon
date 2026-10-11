@@ -26,6 +26,16 @@ fn ss_tab_writes_the_scheme_only_for_partial_prefixes() {
 }
 
 #[test]
+fn scheme_prefix_is_a_proper_nonempty_prefix() {
+    for query in ["s", "ss", "SSH", "ssh:/", " ssh:"] {
+        assert!(scheme_prefix(query), "{query}");
+    }
+    for query in ["", "ssh://", "sx", "ssh://box", "sshh"] {
+        assert!(!scheme_prefix(query), "{query}");
+    }
+}
+
+#[test]
 fn hosts_match_by_case_insensitive_prefix() {
     assert!(host_matches("thinkpad", "thin"));
     assert!(host_matches("ThinkPad", "thin"));

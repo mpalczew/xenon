@@ -144,6 +144,7 @@ impl WorkspacePickerView {
     fn local_results(&mut self) -> Vec<WorkspaceCandidate> {
         let mut results = self.filter_known();
         self.merge_discovered(&mut results);
+        results.extend(self.scheme_row());
         self.add_exact_path(&mut results);
         let needle = ranking_needle(&self.query);
         sort_candidates(&mut results, needle.as_deref());

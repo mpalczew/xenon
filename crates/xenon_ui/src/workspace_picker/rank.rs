@@ -32,7 +32,7 @@ fn basename_rank(c: &WorkspaceCandidate, needle: Option<&str>) -> u8 {
     let Some(n) = needle else {
         return 1;
     };
-    match MatchQuality::of_basename(&c.name(), n) {
+    match MatchQuality::of_basename(&c.rank_name(), n) {
         Some(MatchQuality::Exact) => 0,
         Some(MatchQuality::Prefix) => 1,
         Some(MatchQuality::Contains) => 2,
@@ -128,5 +128,40 @@ mod tests {
         let mut rows = vec![host, found("/Users/me/src/think"), closed("t", "/tmp/t", 1)];
         sort_candidates(&mut rows, Some("think"));
         assert!(matches!(rows[2], WorkspaceCandidate::Host { .. }));
+    }
+
+    fn scheme(last: u64, leads: bool) -> WorkspaceCandidate {
+        WorkspaceCandidate::Scheme {
+            last_opened: last,
+            leads,
+        }
+    }
+
+    #[test]
+    fn scheme_leads_for_three_or_more_chars() {
+        let mut rows = vec![closed("sshfoo", "/tmp/sshfoo", 999), scheme(0, true)];
+        sort_candidates(&mut rows, Some("ssh"));
+        assert!(matches!(rows[0], WorkspaceCandidate::Scheme { .. }));
+    }
+
+    #[test]
+    fn recent_scheme_beats_older_prefix_match() {
+        let mut rows = vec![closed("src", "/tmp/src", 10), scheme(99, false)];
+        sort_candidates(&mut rows, Some("s"));
+        assert!(matches!(rows[0], WorkspaceCandidate::Scheme { .. }));
+    }
+
+    #[test]
+    fn newer_prefix_match_beats_older_scheme() {
+        let mut rows = vec![scheme(10, false), closed("src", "/tmp/src", 99)];
+        sort_candidates(&mut rows, Some("s"));
+        assert_eq!(rows[0].name(), "src");
+    }
+
+    #[test]
+    fn scheme_beats_contains_only_match() {
+        let mut rows = vec![closed("notes", "/tmp/notes", 999), scheme(0, false)];
+        sort_candidates(&mut rows, Some("s"));
+        assert!(matches!(rows[0], WorkspaceCandidate::Scheme { .. }));
     }
 }

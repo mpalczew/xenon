@@ -32,6 +32,9 @@ pub enum WorkspaceCandidate {
         root: PathBuf,
         last_opened: u64,
     },
+    /// `ssh://` offered while the user types a prefix of it; Enter/Tab write it
+    /// into the query. `leads` puts it first (`ssh`, `ssh:`, `ssh:/`).
+    Scheme { last_opened: u64, leads: bool },
     /// A folder the host reported for an `ssh://host/…` query; Enter opens it.
     Remote {
         host: String,
@@ -47,6 +50,7 @@ impl WorkspaceCandidate {
         match self {
             Self::Open { name, .. } | Self::Closed { name, .. } => name.clone(),
             Self::Host { name, .. } => format!("ssh://{name}/"),
+            Self::Scheme { .. } => "ssh://".into(),
             Self::Path { root, .. } | Self::Remote { root, .. } => root
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -54,8 +58,17 @@ impl WorkspaceCandidate {
         }
     }
 
+    /// Name used for basename ranking; `ssh://` ranks as `ssh`.
+    pub(super) fn rank_name(&self) -> String {
+        match self {
+            Self::Scheme { .. } => "ssh".into(),
+            _ => self.name(),
+        }
+    }
+
     pub fn root(&self) -> &Path {
         match self {
+            Self::Scheme { .. } => Path::new("ssh://"),
             Self::Open { root, .. }
             | Self::Closed { root, .. }
             | Self::Path { root, .. }
@@ -69,7 +82,7 @@ impl WorkspaceCandidate {
             return true;
         }
         match self {
-            Self::Host { .. } | Self::Remote { .. } => true,
+            Self::Host { .. } | Self::Remote { .. } | Self::Scheme { .. } => true,
             Self::Closed { missing: true, .. } => false,
             Self::Open { root, .. }
             | Self::Closed {
@@ -94,7 +107,7 @@ impl WorkspaceCandidate {
             Self::Closed { missing: true, .. } => Some("missing"),
             Self::Closed { .. } => Some("closed"),
             Self::Path { found: true, .. } | Self::Remote { .. } => None,
-            Self::Host { .. } => Some("SSH"),
+            Self::Host { .. } | Self::Scheme { .. } => Some("SSH"),
             Self::Path { .. } => Some("path"),
         }
     }
@@ -108,6 +121,10 @@ impl WorkspaceCandidate {
             Self::Open { .. } | Self::Closed { missing: false, .. } => 1,
             Self::Path { found: true, .. } | Self::Remote { .. } => 2,
             Self::Closed { missing: true, .. } => 3,
+            // `ssh`, `ssh:`, `ssh:/` can only mean the scheme.
+            Self::Scheme { leads: true, .. } => 0,
+            // `s`, `ss`: compete with known workspaces on basename and MRU.
+            Self::Scheme { leads: false, .. } => 1,
             // Hosts rank below every local match.
             Self::Host { .. } => 4,
         }
@@ -117,7 +134,8 @@ impl WorkspaceCandidate {
         match self {
             Self::Open { last_opened, .. }
             | Self::Closed { last_opened, .. }
-            | Self::Host { last_opened, .. } => *last_opened,
+            | Self::Host { last_opened, .. }
+            | Self::Scheme { last_opened, .. } => *last_opened,
             Self::Path { .. } | Self::Remote { .. } => 0,
         }
     }
@@ -125,7 +143,9 @@ impl WorkspaceCandidate {
     pub(super) fn workspace_id(&self) -> Option<WorkspaceId> {
         match self {
             Self::Open { id, .. } | Self::Closed { id, .. } => Some(*id),
-            Self::Path { .. } | Self::Host { .. } | Self::Remote { .. } => None,
+            Self::Path { .. } | Self::Host { .. } | Self::Scheme { .. } | Self::Remote { .. } => {
+                None
+            }
         }
     }
 
@@ -133,6 +153,7 @@ impl WorkspaceCandidate {
     pub(super) fn subtitle(&self) -> Option<String> {
         match self {
             Self::Host { .. } => None,
+            Self::Scheme { .. } => Some("Folder on an SSH host".into()),
             Self::Remote { display, .. } => Some(display.clone()),
             _ => Some(self.root().display().to_string()),
         }

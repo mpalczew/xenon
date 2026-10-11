@@ -60,6 +60,7 @@ pub enum Scene {
     SshHostSearching,
     SshHostDiscovering,
     SshHostError,
+    SshSchemeSuggest,
     SshWorkspace,
     SshWorkspaceUnavailable,
     WorkspaceCreate,
@@ -155,6 +156,7 @@ pub const SCENES: &[Scene] = &[
     Scene::SshHostSearching,
     Scene::SshHostDiscovering,
     Scene::SshHostError,
+    Scene::SshSchemeSuggest,
     Scene::SshWorkspace,
     Scene::SshWorkspaceUnavailable,
     Scene::WorkspaceCreate,
@@ -267,6 +269,7 @@ impl Scene {
             Self::SshHostSearching => "overlay_ssh_host_searching",
             Self::SshHostDiscovering => "overlay_ssh_host_discovering",
             Self::SshHostError => "overlay_ssh_host_error",
+            Self::SshSchemeSuggest => "overlay_ssh_scheme_suggest",
             Self::SshWorkspace => "chrome_ssh_workspace",
             Self::SshWorkspaceUnavailable => "chrome_ssh_workspace_unavailable",
             Self::WorkspaceCreate => "overlay_workspace_create",
@@ -382,7 +385,8 @@ pub fn apply_scene(
         | Scene::SshHostResults
         | Scene::SshHostSearching
         | Scene::SshHostDiscovering
-        | Scene::SshHostError => ssh_picker::scene(app, scene, window, cx),
+        | Scene::SshHostError
+        | Scene::SshSchemeSuggest => ssh_picker::scene(app, scene, window, cx),
         Scene::SshWorkspace => ssh::workspace(app, false, window, cx),
         Scene::SshWorkspaceUnavailable => ssh::workspace(app, true, window, cx),
         Scene::WorkspaceCreate => overlays::workspace_create(app, window, cx),

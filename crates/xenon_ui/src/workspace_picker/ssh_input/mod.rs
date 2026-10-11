@@ -6,7 +6,7 @@
 
 use xenon_ssh::{HostQuery, tilde_path};
 
-const SCHEME: &str = "ssh://";
+pub(super) const SCHEME: &str = "ssh://";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SshInput<'a> {
@@ -29,6 +29,12 @@ impl<'a> SshInput<'a> {
 /// `ss` + Tab becomes `ssh://`.
 pub(super) fn scheme_completion(query: &str) -> Option<&'static str> {
     (query.len() >= 2 && query.len() < SCHEME.len() && SCHEME.starts_with(query)).then_some(SCHEME)
+}
+
+/// The query is a proper, non-empty prefix of `ssh://` (`s`, `ss`, `ssh:/`).
+pub(super) fn scheme_prefix(query: &str) -> bool {
+    let typed = query.trim_start().to_lowercase();
+    !typed.is_empty() && typed.len() < SCHEME.len() && SCHEME.starts_with(&typed)
 }
 
 pub(super) fn host_matches(host: &str, prefix: &str) -> bool {

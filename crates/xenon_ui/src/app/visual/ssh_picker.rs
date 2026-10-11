@@ -22,6 +22,7 @@ pub(super) fn scene(
         picker.visual_hosts(&HOSTS, cx);
         match scene {
             Scene::SshHostPicker => picker.visual_query("think", cx),
+            Scene::SshSchemeSuggest => picker.visual_query("ss", cx),
             Scene::SshHostComplete => picker.visual_query("ssh://thin", cx),
             Scene::SshHostResults => picker.visual_remote(FOLDER_QUERY, listing(), cx),
             Scene::SshHostSearching => picker.visual_remote(FOLDER_QUERY, Remote::searching(), cx),
