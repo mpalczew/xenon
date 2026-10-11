@@ -51,6 +51,10 @@ rediscover.
   Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent
   extra `project` labels. Local builds share one `--profile dogfood` target
   tree; the pre-commit hook is the gate, `scripts/health` the full/CI run.
+- Linux X11: `third_party/gpui_linux` is zed `ced90fc` plus one fix. Portal
+  appearance callbacks must drop the `X11Client` borrow before they call back,
+  or `with_common` panics while `xdg-desktop-portal` is running. Re-copy that
+  crate from the pin and re-apply the fix when bumping zed.
 - Known open/closed workspaces outrank filesystem discovery. Workspace MRU is
   persisted; file MRU is an in-memory tiebreaker only.
 - Cmd-P serves its cached index immediately and refreshes in the background.

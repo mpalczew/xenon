@@ -65,7 +65,8 @@ is_adapted() {
 }
 
 while IFS= read -r file; do
-    if is_adapted "$file"; then
+    # third_party/gpui_linux is a zed vendor (ATTRIBUTION.md), not our shape.
+    if is_adapted "$file" || [[ "$file" == third_party/* ]]; then
         continue
     fi
     lines="$(wc -l <"$file" | tr -d ' ')"

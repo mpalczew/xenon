@@ -20,6 +20,7 @@ Every copied/adapted file also carries a header comment naming its entry here.
 | `crates/xenon_editor/queries/markdown/*.scm` | tree-sitter-grammars/tree-sitter-markdown (via crates.io `tree-sitter-md`) | 0.5.x stock queries | MIT | Block/inline highlights adapted from crate-shipped queries; injections add `include-children` for inline re-parse. |
 | `crates/xenon_settings/fonts/lilex/*` | mishamyrt/Lilex (via zed `assets/fonts/lilex` at ced90fc) | OFL-1.1 | Bundled editor/terminal face. GPUI maps `.ZedMono` → Lilex; we load the TTFs so the picker resolves. |
 | `crates/xenon_settings/fonts/ibm-plex-sans/*` | IBM Plex Sans (via zed `assets/fonts/ibm-plex-sans` at ced90fc) | OFL-1.1 | Bundled UI face. GPUI maps `.SystemUIFont` on Linux to IBM Plex Sans; we load the TTFs so chrome does not fall through to Lilex. |
+| `third_party/gpui_linux/**` | zed-industries/zed `crates/gpui_linux` | ced90fc (v1.9.0) | Apache-2.0 | Vendored so the X11 portal callbacks can drop the `X11Client` borrow before calling back. Provenance header is on `src/linux/x11/client.rs` (the edited file) and `README.md`. |
 
 Original Xenon theme families (no third-party source file): `neon`, `tokyo`,
 `high_contrast`, `imperial`, `mithril`, `true_black`, `hotdog`.
