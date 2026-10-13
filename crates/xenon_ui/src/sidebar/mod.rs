@@ -39,7 +39,7 @@ struct WorkspaceHeader<'a> {
     active: bool,
     status: Option<WorkspaceDot>,
     /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
-    dirt: Option<(String, String)>,
+    dirt: Option<crate::git_dirt::DirtLabels>,
 }
 
 struct WorkspaceTitle<'a> {

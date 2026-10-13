@@ -89,7 +89,7 @@ pub(super) fn workspace_rename_row(
 /// Right-edge gutter for workspace rows: holds git +/- flush right.
 /// `min_w` matches hover-action width so absolute actions never cover the title.
 pub(super) fn workspace_dirt_gutter(
-    dirt: Option<(String, String)>,
+    dirt: Option<crate::git_dirt::DirtLabels>,
     group: &str,
     colors: &theme::ThemeColors,
 ) -> impl IntoElement + use<> {
@@ -100,14 +100,14 @@ pub(super) fn workspace_dirt_gutter(
         .flex()
         .items_center()
         .justify_end()
-        .children(dirt.map(|(plus, minus)| {
+        .children(dirt.map(|labels| {
             div()
                 .group_hover(group, |s| s.invisible())
                 .child(crate::git_dirt::badge(
-                    plus,
-                    minus,
+                    labels,
                     colors.version_control_added,
                     colors.version_control_deleted,
+                    colors.text_muted,
                 ))
         }))
 }

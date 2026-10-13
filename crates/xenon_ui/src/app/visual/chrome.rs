@@ -77,6 +77,7 @@ pub(super) fn files_git_dirt(app: &mut XenonApp, window: &mut Window, cx: &mut C
             GitDirt {
                 insertions: 12,
                 deletions: 3,
+                index_diverged: true,
             },
         );
     }

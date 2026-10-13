@@ -4,22 +4,33 @@
 use std::path::Path;
 use std::process::Command;
 
-use gpui::{IntoElement, ParentElement, Styled, div};
+use gpui::{IntoElement, ParentElement, Styled, div, prelude::FluentBuilder};
 
 /// Line-level dirty stats for a workspace root that is a git work tree.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GitDirt {
     pub insertions: u64,
     pub deletions: u64,
+    /// Partially staged: index differs from both HEAD and the working tree,
+    /// so the net +/- vs HEAD can understate (or hide) what `git status` shows.
+    pub index_diverged: bool,
+}
+
+/// Precomputed sidebar badge text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DirtLabels {
+    pub plus: String,
+    pub minus: String,
+    pub index_diverged: bool,
 }
 
 impl GitDirt {
     pub fn is_clean(self) -> bool {
-        self.insertions == 0 && self.deletions == 0
+        self.insertions == 0 && self.deletions == 0 && !self.index_diverged
     }
 
     /// Compact label parts for the sidebar (`+12`, `-3`). Empty when clean.
-    pub fn labels(self) -> Option<(String, String)> {
+    pub fn labels(self) -> Option<DirtLabels> {
         if self.is_clean() {
             return None;
         }
@@ -33,7 +44,11 @@ impl GitDirt {
         } else {
             String::new()
         };
-        Some((plus, minus))
+        Some(DirtLabels {
+            plus,
+            minus,
+            index_diverged: self.index_diverged,
+        })
     }
 }
 
@@ -75,6 +90,7 @@ pub fn measure(root: &Path) -> Option<GitDirt> {
         return None;
     }
     let mut dirt = tracked_dirt(root);
+    dirt.index_diverged = index_diverged(root);
     dirt.insertions += untracked_insertions(root);
     Some(dirt)
 }
@@ -87,6 +103,23 @@ fn tracked_dirt(root: &Path) -> GitDirt {
     git(root, &["diff", "--numstat", "HEAD", "--", "."])
         .map(|out| parse_numstat(&out))
         .unwrap_or_default()
+}
+
+/// Index differs from HEAD and the working tree differs from the index.
+/// Checks the cheaper staged side first so most workspaces cost one call.
+fn index_diverged(root: &Path) -> bool {
+    differs(root, &["diff", "--cached", "--quiet", "--", "."])
+        && differs(root, &["diff", "--quiet", "--", "."])
+}
+
+/// `git diff --quiet` exits 1 when there are differences.
+fn differs(root: &Path, args: &[&str]) -> bool {
+    Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .env("GIT_OPTIONAL_LOCKS", "1")
+        .status()
+        .is_ok_and(|status| status.code() == Some(1))
 }
 
 fn untracked_insertions(root: &Path) -> u64 {
@@ -114,13 +147,13 @@ fn git(root: &Path, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// Compact `+N -M` chip for the workspace sidebar header.
+/// Compact `• +N -M` chip (`•` = partially staged) for the workspace sidebar header.
 /// Two fixed right-aligned columns so counts line up across workspace rows.
 pub fn badge(
-    plus: String,
-    minus: String,
+    labels: DirtLabels,
     added: gpui::Hsla,
     deleted: gpui::Hsla,
+    muted: gpui::Hsla,
 ) -> impl IntoElement {
     use gpui::px;
     div()
@@ -130,8 +163,19 @@ pub fn badge(
         .flex_none()
         .text_xs()
         .font_weight(gpui::FontWeight::NORMAL)
-        .child(stat_col(plus, added))
-        .child(stat_col(minus, deleted))
+        .child(
+            div()
+                .w(px(8.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .when(labels.index_diverged, |col| {
+                    col.child(div().size(px(5.)).rounded_full().bg(muted))
+                }),
+        )
+        .child(stat_col(labels.plus, added))
+        .child(stat_col(labels.minus, deleted))
 }
 
 fn stat_col(label: String, color: gpui::Hsla) -> impl IntoElement {
@@ -162,6 +206,7 @@ mod tests {
             GitDirt {
                 insertions: 13,
                 deletions: 6,
+                index_diverged: false,
             }
         );
     }
