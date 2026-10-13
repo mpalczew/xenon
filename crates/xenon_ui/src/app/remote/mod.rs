@@ -5,6 +5,7 @@
 use super::*;
 
 mod devices;
+mod feed;
 mod host;
 mod keep_awake;
 mod labels;
@@ -403,7 +404,9 @@ impl XenonApp {
                 conn,
                 device_id,
                 out,
-            } => self.remote_connected(conn, device_id, out, cx),
+                input,
+            } => self.remote_connected(conn, device_id, (out, input), cx),
+            HostRequest::InputSent { conn } => self.remote_input_sent(conn, cx),
             HostRequest::Message { conn, msg } => self.remote_message(conn, msg, window, cx),
             HostRequest::Disconnected { conn } => self.remote_disconnected(conn, cx),
         }

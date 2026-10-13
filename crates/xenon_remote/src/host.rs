@@ -1,6 +1,7 @@
 //! Requests from the remote server threads into the UI host (GPUI app).
 
 use std::sync::mpsc::{SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
 
 use async_channel::Sender;
 
@@ -52,6 +53,31 @@ impl Outbox {
     }
 }
 
+/// Input the host can deliver from the connection thread, without a trip
+/// through the UI thread.
+pub trait InputSink: Send + Sync {
+    /// True when `msg` was fully handled here.
+    fn send(&self, msg: &ClientMsg) -> bool;
+}
+
+/// Where a connection's fast-path input goes. The host fills it in when the
+/// phone attaches to a terminal and clears it on detach; until then input
+/// takes the normal `HostRequest::Message` path.
+#[derive(Clone, Default)]
+pub struct InputRoute(Arc<Mutex<Option<Arc<dyn InputSink>>>>);
+
+impl InputRoute {
+    pub fn set(&self, sink: Option<Arc<dyn InputSink>>) {
+        if let Ok(mut slot) = self.0.lock() {
+            *slot = sink;
+        }
+    }
+
+    pub(crate) fn get(&self) -> Option<Arc<dyn InputSink>> {
+        self.0.lock().ok()?.clone()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PairError {
     /// Wrong, used, or expired code.
@@ -96,11 +122,17 @@ pub enum HostRequest {
         conn: ConnId,
         device_id: String,
         out: Outbox,
+        input: InputRoute,
     },
     /// A post-hello client message on `conn`.
     Message {
         conn: ConnId,
         msg: ClientMsg,
+    },
+    /// Input already delivered through the connection's `InputRoute`: the
+    /// host only does its own bookkeeping (activity, attention).
+    InputSent {
+        conn: ConnId,
     },
     Disconnected {
         conn: ConnId,

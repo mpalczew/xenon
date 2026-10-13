@@ -21,6 +21,7 @@ Every copied/adapted file also carries a header comment naming its entry here.
 | `crates/xenon_settings/fonts/lilex/*` | mishamyrt/Lilex (via zed `assets/fonts/lilex` at ced90fc) | OFL-1.1 | Bundled editor/terminal face. GPUI maps `.ZedMono` → Lilex; we load the TTFs so the picker resolves. |
 | `crates/xenon_settings/fonts/ibm-plex-sans/*` | IBM Plex Sans (via zed `assets/fonts/ibm-plex-sans` at ced90fc) | OFL-1.1 | Bundled UI face. GPUI maps `.SystemUIFont` on Linux to IBM Plex Sans; we load the TTFs so chrome does not fall through to Lilex. |
 | `third_party/gpui_linux/**` | zed-industries/zed `crates/gpui_linux` | ced90fc (v1.9.0) | Apache-2.0 | Vendored so the X11 portal callbacks can drop the `X11Client` borrow before calling back. Provenance header is on `src/linux/x11/client.rs` (the edited file) and `README.md`. |
+| `third_party/terminal/**` | zed-industries/zed `crates/terminal` | ced90fc (v1.9.0) | GPL-3.0-or-later | Vendored so the phone remote can reach the PTY writer and term grid off the UI thread. Xenon change (`RemoteHandle`, `WakeHooks`, `Terminal::remote_handle`) is marked in `src/alacritty.rs` and described in `README.md`. |
 
 Original Xenon theme families (no third-party source file): `neon`, `tokyo`,
 `high_contrast`, `imperial`, `mithril`, `true_black`, `hotdog`.

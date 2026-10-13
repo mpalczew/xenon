@@ -3,17 +3,13 @@
 
 use super::*;
 use xenon_remote::{
-    ClientMsg, ClosedReason, FrameEncoder, NamedKey, Outbox, Rgb, ServerMsg, ThemeWire,
+    ClientMsg, ClosedReason, InputRoute, NamedKey, Outbox, Rgb, ServerMsg, ThemeWire,
 };
 use xenon_terminal::PhoneFit;
 
+use super::feed::Feed;
 use super::labels::device_short_name;
-use super::wire::wire_screen;
 
-/// Frame coalescing window (≤ 30 fps while output streams).
-const FLUSH_AFTER: Duration = Duration::from_millis(33);
-/// Retry after a full outbox (slow phone link).
-const RETRY_AFTER: Duration = Duration::from_millis(250);
 /// Phone fit bounds (anything else is a buggy or hostile client).
 const FIT_COLS: std::ops::RangeInclusive<u16> = 20..=300;
 const FIT_ROWS: std::ops::RangeInclusive<u16> = 8..=200;
@@ -22,6 +18,8 @@ pub(super) struct Conn {
     pub device_id: String,
     low_bandwidth: bool,
     pub(super) out: Outbox,
+    /// Where this connection's typing goes once a terminal is attached.
+    input: InputRoute,
     pub(super) attach: Option<Attach>,
     pub(super) last_dots: Option<ServerMsg>,
 }
@@ -30,7 +28,8 @@ pub(super) struct Attach {
     pub(super) workspace: WorkspaceId,
     tab: TabId,
     pub(super) view: WeakEntity<TerminalView>,
-    encoder: FrameEncoder,
+    /// Off-thread input/output path; created once the PTY is ready.
+    feed: Option<Feed>,
     fit: Option<(u16, u16)>,
     flush: Option<Task<()>>,
     _observe: Subscription,
@@ -45,6 +44,7 @@ impl Conn {
             device_id: device_id.into(),
             low_bandwidth: false,
             out,
+            input: InputRoute::default(),
             attach: None,
             last_dots: None,
         }
@@ -74,7 +74,7 @@ impl XenonApp {
                 workspace,
                 tab,
                 view: view.downgrade(),
-                encoder: FrameEncoder::default(),
+                feed: None,
                 fit: Some((45, 30)),
                 flush: None,
                 _observe: observe,
@@ -89,7 +89,7 @@ impl XenonApp {
         &mut self,
         conn: ConnId,
         device_id: String,
-        out: Outbox,
+        (out, input): (Outbox, InputRoute),
         cx: &mut Context<Self>,
     ) {
         let [bg, fg, cursor] = xenon_terminal::remote_theme_colors(cx);
@@ -111,6 +111,7 @@ impl XenonApp {
                 device_id,
                 low_bandwidth: false,
                 out,
+                input,
                 attach: None,
                 last_dots: None,
             },
@@ -147,11 +148,10 @@ impl XenonApp {
             ClientMsg::Bandwidth { low_bandwidth } => {
                 if let Some(c) = self.conn_mut(conn) {
                     c.low_bandwidth = low_bandwidth;
-                    if let Some(attach) = c.attach.as_mut() {
-                        attach.flush = None;
+                    if let Some(feed) = c.attach.as_ref().and_then(|a| a.feed.as_ref()) {
+                        feed.set_low_bandwidth(low_bandwidth);
                     }
                 }
-                self.schedule_remote_flush(conn, cx);
             }
             ClientMsg::Detach => self.remote_detach(conn, cx),
             ClientMsg::Text { data } => {
@@ -213,7 +213,7 @@ impl XenonApp {
                 workspace,
                 tab,
                 view: view.downgrade(),
-                encoder: FrameEncoder::default(),
+                feed: None,
                 fit: None,
                 flush: None,
                 _observe: observe,
@@ -236,7 +236,11 @@ impl XenonApp {
     }
 
     fn remote_detach(&mut self, conn: ConnId, cx: &mut Context<Self>) {
-        let Some(attach) = self.conn_mut(conn).and_then(|c| c.attach.take()) else {
+        let Some(c) = self.conn_mut(conn) else {
+            return;
+        };
+        c.input.set(None);
+        let Some(attach) = c.attach.take() else {
             return;
         };
         self.apply_tab_fit(attach.workspace, attach.tab, cx);
@@ -246,6 +250,13 @@ impl XenonApp {
     fn remote_key(&mut self, conn: ConnId, key: NamedKey, cx: &mut Context<Self>) {
         if let Some(view) = self.attached_view(conn) {
             view.update(cx, |term, cx| term.send_named_key(key.keystroke(), cx));
+        }
+    }
+
+    /// The connection thread already wrote the phone's typing to the PTY.
+    pub(super) fn remote_input_sent(&mut self, conn: ConnId, cx: &mut Context<Self>) {
+        if let Some(view) = self.attached_view(conn) {
+            view.update(cx, |term, cx| term.note_remote_input(cx));
         }
     }
 
@@ -307,21 +318,9 @@ impl XenonApp {
         }
     }
 
+    /// Coalesce main-thread work for this connection: sync the terminal
+    /// (resize, scroll) and poke the feed. Output itself never waits for this.
     fn schedule_remote_flush(&mut self, conn: ConnId, cx: &mut Context<Self>) {
-        let delay = if self.conn(conn).is_some_and(|c| c.low_bandwidth) {
-            FLUSH_AFTER
-        } else {
-            Duration::ZERO
-        };
-        self.schedule_remote_flush_after(conn, delay, cx);
-    }
-
-    fn schedule_remote_flush_after(
-        &mut self,
-        conn: ConnId,
-        delay: Duration,
-        cx: &mut Context<Self>,
-    ) {
         let main = self.services.main_window;
         let Some(attach) = self.conn_mut(conn).and_then(|c| c.attach.as_mut()) else {
             return;
@@ -330,7 +329,6 @@ impl XenonApp {
             return;
         }
         attach.flush = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(delay).await;
             let Some(main) = main else { return };
             let _ = main.update(cx, |_, window, cx| {
                 this.update(cx, |app, cx| {
@@ -343,7 +341,8 @@ impl XenonApp {
         }));
     }
 
-    /// Snapshot the attached terminal and send what changed.
+    /// Bring the terminal's queued events current, make sure the feed exists,
+    /// and ask it for a frame.
     fn flush_remote(&mut self, conn: ConnId, window: &mut Window, cx: &mut Context<Self>) {
         let Some(view) = self.attached_view(conn) else {
             return;
@@ -352,21 +351,24 @@ impl XenonApp {
             self.remote_tab_gone(conn, cx);
             return;
         }
-        let Some(snapshot) = view.update(cx, |term, cx| term.screen_snapshot(window, cx)) else {
-            return;
-        };
-        let screen = wire_screen(&snapshot);
+        view.update(cx, |term, cx| term.sync_for_remote(window, cx));
+        let io = view.read(cx).remote_io(cx);
         let Some(c) = self.conn_mut(conn) else {
             return;
         };
+        let (low_bandwidth, out) = (c.low_bandwidth, c.out.clone());
         let Some(attach) = c.attach.as_mut() else {
             return;
         };
-        let msgs = attach.encoder.encode(&screen);
-        let delivered = msgs.into_iter().all(|m| c.out.try_send(m));
-        if !delivered {
-            attach.encoder.force_full();
-            self.schedule_remote_flush_after(conn, RETRY_AFTER, cx);
+        if attach.feed.is_none() {
+            let Some(io) = io else { return };
+            let feed = Feed::new(io, out, low_bandwidth);
+            c.input.set(Some(feed.input_sink()));
+            attach.feed = Some(feed);
+        }
+        if let Some(feed) = attach.feed.as_ref() {
+            feed.io().refresh_theme(cx);
+            feed.poke();
         }
     }
 

@@ -102,7 +102,7 @@ fn host_loop(rx: async_channel::Receiver<HostRequest>, mock: Arc<MockHost>) {
                 mock.outboxes.lock().unwrap().push(out);
             }
             HostRequest::Message { msg, .. } => mock.messages.lock().unwrap().push(msg),
-            HostRequest::Disconnected { .. } => {}
+            HostRequest::InputSent { .. } | HostRequest::Disconnected { .. } => {}
         }
     }
 }

@@ -126,6 +126,7 @@ notify-types = { git = "https://github.com/zed-industries/notify", rev = "faecbc
 # See third_party/gpui_linux/README.md.
 [patch.'https://github.com/zed-industries/zed']
 gpui_linux = { path = "third_party/gpui_linux" }
+terminal = { path = "third_party/terminal" }
 
 [profile.dev]
 # unpacked writes one .o per codegen unit into target/debug/deps, and Cargo

@@ -18,6 +18,7 @@ mod input;
 mod paths;
 mod phone_click;
 mod remote;
+mod remote_io;
 mod render;
 #[cfg(feature = "visual-tests")]
 mod visual;
@@ -26,6 +27,7 @@ pub use remote::{
     CellAttrs, LOCAL_QUIET, PhoneFit, ScreenCell, ScreenCursor, ScreenCursorShape, ScreenSnapshot,
     WIDE_SPACER, remote_theme_colors,
 };
+pub use remote_io::RemoteIo;
 
 use std::ops::Range;
 use std::path::PathBuf;

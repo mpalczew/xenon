@@ -1,0 +1,46 @@
+# Vendored from zed ced90fc (v1.9.0). Not a workspace member: its manifest
+# spells out the deps zed inherited. See README.md for the Xenon change.
+[package]
+name = "terminal"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "GPL-3.0-or-later"
+
+[features]
+test-support = []
+
+[lib]
+path = "src/terminal.rs"
+doctest = false
+
+[dependencies]
+async-channel = "2.5.0"
+alacritty_terminal = { git = "https://github.com/zed-industries/alacritty", rev = "4c129667ce56611becdc82de6e28218c80e2e88f" }
+anyhow = "1.0.86"
+collections = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+futures = "0.3.32"
+futures-lite = "1.13"
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+itertools = "0.14.0"
+libc = "0.2"
+log = { version = "0.4.16", features = ["kv_unstable_serde", "serde"] }
+regex = "1.5"
+release_channel = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+schemars = { version = "1.0", features = ["indexmap2"] }
+serde = { version = "1.0.221", features = ["derive", "rc"] }
+settings = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+sysinfo = "0.37.0"
+task = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+theme = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+theme_settings = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+thiserror = "2.0.12"
+url = "2.2"
+util = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
+urlencoding = "2.1.2"
+vte = { version = "0.15.0", features = ["ansi"] }
+parking_lot = "0.12.1"
+percent-encoding = "2.3.2"
+
+[target.'cfg(windows)'.dependencies]
+windows = "0.61"

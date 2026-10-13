@@ -12,7 +12,7 @@ use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{CloseFrame, Role, WebSocketConfig};
 use tungstenite::{Message, WebSocket};
 
-use crate::host::{ConnId, HostRequest, Outbox};
+use crate::host::{ConnId, HostRequest, InputRoute, Outbox};
 use crate::http;
 use crate::protocol::{ClientMsg, ClosedReason, ServerMsg};
 use crate::server::{Request, Shared};
@@ -66,6 +66,7 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
     poll.registry()
         .register(&mut readiness, Token(0), Interest::READABLE)?;
     let wake = Arc::new(Waker::new(poll.registry(), Token(1))?);
+    let input = InputRoute::default();
     let (mut out, rx) = Outbox::channel();
     out.wake_on_send(wake);
     shared
@@ -74,6 +75,7 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
             conn,
             device_id,
             out,
+            input: input.clone(),
         })
         .map_err(|_| anyhow!("host gone"))?;
     let result = Session {
@@ -81,6 +83,7 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
         rx,
         poll,
         readiness,
+        input,
     }
     .run(&mut socket, shared);
     let _ = shared
@@ -129,6 +132,7 @@ struct Session {
     rx: Receiver<ServerMsg>,
     poll: Poll,
     readiness: mio::net::TcpStream,
+    input: InputRoute,
 }
 
 impl Session {
@@ -161,13 +165,7 @@ impl Session {
             loop {
                 match read(socket) {
                     Read::Msg(ClientMsg::Ping) => send(socket, &ServerMsg::Pong)?,
-                    Read::Msg(msg) => shared
-                        .host
-                        .send_blocking(HostRequest::Message {
-                            conn: self.conn,
-                            msg,
-                        })
-                        .map_err(|_| anyhow!("host gone"))?,
+                    Read::Msg(msg) => self.forward(msg, shared)?,
                     Read::Closed => return Ok(()),
                     Read::Idle => break,
                     Read::Other => {}
@@ -191,6 +189,41 @@ impl Session {
                 result => result?,
             }
         }
+    }
+}
+
+impl Session {
+    /// Typing goes straight to the terminal when the host has routed this
+    /// connection; everything else (and typing before attach) goes to the host.
+    fn forward(&self, msg: ClientMsg, shared: &Shared) -> Result<()> {
+        let request = if self.fast_input(&msg) {
+            HostRequest::InputSent { conn: self.conn }
+        } else {
+            HostRequest::Message {
+                conn: self.conn,
+                msg,
+            }
+        };
+        shared
+            .host
+            .send_blocking(request)
+            .map_err(|_| anyhow!("host gone"))
+    }
+
+    fn fast_input(&self, msg: &ClientMsg) -> bool {
+        if !matches!(msg, ClientMsg::Text { .. } | ClientMsg::Key { .. }) {
+            return false;
+        }
+        let Some(sink) = self.input.get() else {
+            return false;
+        };
+        let started = Instant::now();
+        let handled = sink.send(msg);
+        log::debug!(
+            "xenon remote: input ws->pty {:?} handled={handled}",
+            started.elapsed()
+        );
+        handled
     }
 }
 

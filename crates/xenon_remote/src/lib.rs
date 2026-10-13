@@ -14,7 +14,7 @@ mod ws;
 
 pub use auth::{ct_eq, hash_token, new_device_token};
 pub use frame::{Cell, FrameEncoder, Rgb, Screen, Style, WIDE_SPACER};
-pub use host::{ConnId, HostRequest, HostTx, Outbox, PairError};
+pub use host::{ConnId, HostRequest, HostTx, InputRoute, InputSink, Outbox, PairError};
 pub use pairing::{PAIRING_TTL, PairingCode};
 pub use protocol::{
     ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, NamedKey, PairRequest, PairResponse,

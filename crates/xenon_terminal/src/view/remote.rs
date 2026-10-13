@@ -99,21 +99,14 @@ fn rgb(color: gpui::Hsla) -> [u8; 3] {
 }
 
 impl TerminalView {
-    /// Fresh snapshot of the visible grid (syncs the terminal first so it is
-    /// current even when the Mac is not painting this tab).
-    pub fn screen_snapshot(
-        &mut self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<ScreenSnapshot> {
+    /// Apply queued terminal events (resize, scroll) so an off-thread snapshot
+    /// sees them, even when the Mac is not painting this tab.
+    pub fn sync_for_remote(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let State::Ready(terminal) = &self.state else {
-            return None;
+            return;
         };
         let terminal = terminal.clone();
         terminal.update(cx, |terminal, cx| terminal.sync(window, cx));
-        let theme = cx.theme().clone();
-        let content = terminal.read(cx).last_content();
-        Some(snapshot_from_content(content, &theme))
     }
 
     /// Scrollback above the live screen as plain text, oldest first.
@@ -250,7 +243,10 @@ impl TerminalView {
     }
 }
 
-fn snapshot_from_content(content: &terminal::Content, theme: &theme::Theme) -> ScreenSnapshot {
+pub(super) fn snapshot_from_content(
+    content: &terminal::Content,
+    theme: &theme::Theme,
+) -> ScreenSnapshot {
     let cols = content.terminal_bounds.num_columns();
     let rows = content.terminal_bounds.num_lines();
     let offset = content.display_offset as i32;
