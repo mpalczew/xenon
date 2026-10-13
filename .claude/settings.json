@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"CI status of main: $(scripts/ci-status 2>&1 || true)\"; exit 0",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

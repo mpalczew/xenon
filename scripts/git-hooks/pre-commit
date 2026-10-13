@@ -52,6 +52,9 @@ fi
 
 run public-surface scripts/check-public-surface
 run ui-boundaries scripts/check-ui-boundaries
+run zed-pins scripts/check-zed-pins
+run attribution scripts/check-attribution
+run test-determinism scripts/check-test-determinism
 run ssh-helper env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     -s crates/xenon_ssh/src -p helper_test.py
 run fmtcheck cargo fmt --all --check

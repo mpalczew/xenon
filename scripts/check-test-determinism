@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Tests are deterministic: no sleeps in test code. Scans files under any tests/
+# dir and #[cfg(test)] mod blocks in crates/ (vendored third_party/ is exempt). Escape hatch on the
+# same line: `// check-test-determinism: allow <reason>`.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+# Sleep-like calls: thread::sleep, tokio/async_std/smol sleep, smol::Timer, etc.
+pat='(\bsleep\s*\(|\bTimer::(after|interval)|\bsleep_until\s*\()'
+awkpat='sleep[ \t]*\\(|Timer::(after|interval)|sleep_until[ \t]*\\('
+allow='check-test-determinism: allow'
+fail=0
+
+report() { echo "$1: sleep in test code (deterministic tests only; or add '// $allow <reason>')" >&2; fail=1; }
+
+# 1. Whole files under tests/ directories.
+while IFS=: read -r f n text; do
+    [[ "$text" == *"$allow"* ]] || report "$f:$n"
+done < <(rg -n --no-heading "$pat" crates --glob '**/tests/**/*.rs' || true)
+
+# 2. #[cfg(test)] mod blocks in other .rs files (brace-counted).
+while IFS= read -r f; do
+    while IFS=: read -r n text; do
+        [[ "$text" == *"$allow"* ]] || report "$f:$n"
+    done < <(awk -v pat="$awkpat" '
+        intest == 0 && /^[[:space:]]*#\[cfg\(test\)\]/ { armed = 1; next }
+        armed && /^[[:space:]]*(pub[[:space:]]+)?mod[[:space:]]/ {
+            armed = 0; intest = 1; depth = 0; started = 0
+        }
+        armed && !/^[[:space:]]*(#|\/\/|$)/ { armed = 0 }
+        intest {
+            line = $0
+            if (match(line, pat)) print NR ":" line
+            tmp = line; o = gsub(/\{/, "", tmp); tmp = line; c = gsub(/\}/, "", tmp)
+            depth += o - c
+            if (o > 0) started = 1
+            if (started && depth <= 0) intest = 0
+            if (!started && line ~ /;[[:space:]]*$/) intest = 0
+        }
+    ' "$f")
+done < <(rg -l '#\[cfg\(test\)\]' crates --glob '*.rs' --glob '!**/tests/**' || true)
+
+[[ "$fail" -eq 0 ]] || exit 1
+echo "check-test-determinism: ok"

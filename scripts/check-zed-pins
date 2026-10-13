@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Assert every zed-industries/zed git dependency in the root Cargo.toml (deps and
+# [patch.crates-io] mirrors) pins one identical `rev`; no branch/tag/floating.
+# The zed forks (notify, async-process, ...) have their own revs and are exempt.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+lines="$(rg -n 'git\s*=\s*"https://github\.com/zed-industries/zed(\.git)?"' Cargo.toml || true)"
+if [[ -z "$lines" ]]; then
+    echo "check-zed-pins: no zed git dependencies found in Cargo.toml" >&2
+    exit 1
+fi
+
+fail=0
+revs=()
+while IFS= read -r line; do
+    n="${line%%:*}"
+    text="${line#*:}"
+    if [[ "$text" =~ (^|[^a-z_])(branch|tag)[[:space:]]*= ]]; then
+        echo "Cargo.toml:$n: zed dependency must use rev, not branch/tag" >&2
+        fail=1
+    fi
+    if [[ "$text" =~ rev[[:space:]]*=[[:space:]]*\"([0-9a-f]{40})\" ]]; then
+        revs+=("${BASH_REMATCH[1]}")
+    else
+        echo "Cargo.toml:$n: zed dependency missing a full 40-char rev" >&2
+        fail=1
+    fi
+done <<<"$lines"
+
+if [[ "$(printf '%s\n' "${revs[@]}" | sort -u | wc -l | tr -d ' ')" -gt 1 ]]; then
+    echo "Cargo.toml: zed deps pin different revs:" >&2
+    printf '%s\n' "${revs[@]}" | sort | uniq -c >&2
+    fail=1
+fi
+
+[[ "$fail" -eq 0 ]] || exit 1
+echo "check-zed-pins: ok"

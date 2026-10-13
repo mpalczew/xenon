@@ -180,8 +180,14 @@ mod tests {
         fs::write(&path, "original\n").unwrap();
         let mut buffer = Buffer::open(&path).unwrap();
         buffer.apply(EditCommand::Insert("mine ".into()));
-        std::thread::sleep(std::time::Duration::from_millis(20));
         fs::write(&path, "theirs\n").unwrap();
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(10);
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
         assert!(matches!(
             buffer.save_worklist(root.path()),
             Err(SaveError::ExternalChange)

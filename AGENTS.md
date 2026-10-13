@@ -1,198 +1,51 @@
 # AGENTS.md
 
-This file is the agent guide for this repository.
+Xenon: a native macOS (and experimental Linux) agent shell in Rust on GPUI.
+Workspaces sidebar; pane tree of terminals and tree-sitter editors.
+GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 
-## What this is
+## Where truth lives
 
-Xenon: a macOS agent shell for driving coding agents, built in Rust on GPUI
-(zed's UI framework). Left sidebar of workspaces; main panel is an embedded
-terminal optionally split with tree-sitter-highlighted editors (tabs per
-workspace). License: GPL-3.0-or-later. Public repo: `mpalczew/xenon`.
+- Product vision, personas, priorities: `PRODUCT.md`. Visual design: `DESIGN.md`.
+  Read both before chrome or UX work; update them when a decision settles.
+- Cross-cutting decisions and gotchas: `docs/project-state.md`.
+- Install, signing, Linux build deps: `README.md`, `scripts/release/`.
+- Release checklist: `docs/release.md`.
+- Keyboard map and focus model: `docs/keyboard-first.md`.
+- Screenshot scenes: `docs/visual-tests.md`.
+- Claude Code IDE protocol: `crates/xenon_ide/PROTOCOL.md`.
+- Phone remote design: `docs/designs/mobile-remote-v2.md`.
+- Copied/adapted source provenance: `ATTRIBUTION.md`.
 
-**Product vision (source of truth: `PRODUCT.md`):** native macOS **agent shell**
-(**anti-IDE**) for many agents across workspaces, any terminal harness
-(PTY-agnostic). "IDE" means live-here-all-day (author replaced VS Code), not
-VS Code parity on day one. Public name **Xenon**; CLI/binary **`xenon`**;
-app `Xenon.app`; data `~/.xenon` (migrates from `~/.xero`). Public install:
-`./scripts/release/install` → `~/Applications/Xenon.app` (see README). Author
-dogfood path may use `project install` / `~/bin/xenon`. OSS success:
-**substantive issues/PRs**. Chrome: Option 2 + 3-lite; True Black opt-in.
-Personas and product priorities live in `PRODUCT.md`. Strangers: `README.md`
-and `CONTRIBUTING.md`.
+## Build and check
 
-## Build & run
+- Plain cargo at the workspace root. Author sessions pass `--profile dogfood`
+  to build/test/clippy/run. `scripts/health` is the full gate (also CI, Linux
+  CI included). The pre-commit hook (`scripts/install-hooks`) is the commit gate.
+- `.vscode/tasks.json` is for the author; agents run scripts directly. Do not add labels.
+- Red main gets fixed first (a SessionStart hook runs `scripts/ci-status`).
 
-- Dev: run cargo directly — `cargo build` / `cargo run` / `cargo test` /
-  `cargo fmt --all` / `cargo clippy --workspace --all-targets -- -D warnings`
-  (workspace root). Author sessions pass `--profile dogfood` to clippy/test/run
-  so everything shares one `target/dogfood` (incremental, no LTO; public
-  builds keep `release`). Unit tests cover pure crates only; GPUI views are verified
-  by launch tests plus `scripts/visual-tests` (`docs/visual-tests.md`). Full
-  run: `scripts/health` (checks + fmtcheck + clippy + shape + test; CI).
-  The pre-commit hook (`scripts/git-hooks/pre-commit`, enabled by
-  `scripts/install-hooks`) is the gate: it checks the staged snapshot in
-  `target/precommit-tree` (never touches the working tree) under its own
-  `precommit` profile, and tests only crates the diff touches. Gotcha: never
-  point the snapshot at the `dogfood` dir — path crates hash relative to the
-  workspace root, so each tree's artifacts pass as fresh for the other. `scripts/prune-target [days]` drops
-  stale artifacts; `project install` runs it.
-- Project tasks (`.vscode/tasks.json` — only two; agents run everything else via
-  cargo/scripts): `project xenon` launches via `~/bin/xenon`; `project install`
-  builds `--profile dogfood` (`XENON_PROFILE`; default `release`), assembles
-  `target/dogfood/xenon.app` (Info.plist in `macos/`;
-  `Contents/MacOS/xenon` is a Mach-O slot stub that execs `xenon-bin`),
-  **stable-codesigns** it, copies it to `~/Applications/Xenon.app` (override
-  with `XENON_INSTALL_DIR` or legacy `XERO_INSTALL_DIR`), and installs
-  `scripts/xenon` to `~/bin/xenon` (`XENON_BIN_DIR` to override). Not `/Applications`:
-  reinstalling there from a shell hosted by the app triggers macOS App
-  Management TCC every time. `scripts/release/bundle` stops before copying.
-  Signing identity (for TCC grants to survive reinstall): `XERO_CODESIGN_IDENTITY`
-  if set, else first `Developer ID Application`, else `Apple Development`, else
-  auto-created local `xero-dev` self-signed cert. Bundle id stays
-  `dev.xero.xero` so TCC grants stick.
-  Never ad-hoc `-` for install — that changes the CDHash every build and drops
-  Full Disk Access. Use `scripts/release/sign_setup` to print the identity.
-  Complex release steps live under `scripts/release/`.
-- Linux: `scripts/release/install` branches on `uname` to `install-linux` (no
-  .app/codesign): GUI at `~/.local/share/xenon/xenon-bin`, launcher
-  `~/.local/bin/xenon` (same `scripts/xenon`, slot detection via
-  `/proc/<pid>/environ`; no raise-by-pid, IPC handoff only), `.desktop` + icon.
-  `xenon_stub` is unused there. Default keys swap `cmd` for `ctrl`
-  (`crates/xenon_keymap`); `visual_test_runner` stays mac-only. Build deps:
-  README "Linux". The launcher forks the GUI and exits, so a systemd unit that
-  runs it needs `KillMode=process` or the app dies with the unit.
-  Linux refuses to exec a file open for write (ETXTBSY): serialize tests that
-  write then exec binaries (see `xenon_stub/tests/exec.rs`). Linux CI
-  (`.github/workflows/linux.yml`, Ubuntu runner) runs `scripts/health` on every
-  push; that is the Linux check. Build on the ThinkPad only to install there
-  (`git pull && scripts/release/install`), when the user wants it.
-- Prerequisites beyond Rust >= 1.85: `cmake` (brew) and the Xcode Metal
-  Toolchain (`xcodebuild -downloadComponent MetalToolchain`). Missing either
-  fails the build inside `wasmtime-c-api-impl` / `gpui_macos` respectively.
-- zed crates (gpui, gpui_platform, terminal, theme, settings, …) are git
-  dependencies pinned to one zed rev in the root Cargo.toml. Never float the rev;
-  upgrade all pins together, including the mirrored `[patch.crates-io]` entries
-  (zed's patches do not propagate to consumers).
+## Gotchas
 
-## Architecture
-
-Crates under `crates/`:
-- `xenon` — bin: gpui `Application`, window, quit/menu wiring.
-- `xenon_ui` — the app shell: `XenonApp` root view (workspace sidebar, terminal/
-  editor main panel with tabs, cmd-p finder, Run Task palette), keybindings.
-- `xenon_core` — pure data model (Workspace/SessionState). Session layout + open
-  editors are keyed by workspace; tabs (terminals + editors) are the multi-surface.
-- `xenon_store` — JSON persistence under `~/.xenon` (atomic writes, corrupt-file
-  backup; migrates from `~/.xero`). `XENON_DATA_DIR` overrides the location
-  (legacy `XERO_DATA_DIR` still works; used by tests).
-- `xenon_terminal` — zed terminal backend + adapted `TerminalElement`; `init()`
-  installs the zed globals (settings/theme/release_channel) the terminal needs.
-- `xenon_editor` — ropey `Buffer` (edit ops, save, mtime external-change) + gpui
-  `EditorView` with tree-sitter highlighting.
-- `xenon_finder` — cmd-p: ignore-respecting walk + nucleo fuzzy match.
-- `xenon_settings` — app settings + font size actions.
-- `xenon_ide` — Claude Code IDE integration: one localhost WebSocket MCP
-  endpoint per workspace (`~/.claude/ide/<port>.lock` + that workspace's
-  `CLAUDE_CODE_SSE_PORT` injected into its terminals) that lets agents open
-  files in Xenon and receive that workspace's editor selection. Protocol captured in
-  `crates/xenon_ide/PROTOCOL.md`.
-- `xenon_lsp` — runtime-neutral stdio JSON-RPC client/host for Rust and
-  TypeScript navigation, highlights, and diagnostics.
-- `xenon_remote` — phone remote: HTTP + WebSocket server (Tailscale +
-  loopback by default), device pairing, cell-grid frame diffs, and the phone
-  PWA (`page.html`). Host side: `xenon_ui/src/app/remote/`. Design:
-  `docs/designs/mobile-remote-v2.md`.
-- Project tasks: only `xenon` and `install` in `.vscode/tasks.json` (Run Task
-  palette cmd-shift-r; `project <label>` from any shell). Build/test/fmt/lint
-  are plain cargo (or `scripts/health`); do not invent extra `project` labels.
-
-Input pattern (learned, load-bearing): on macOS, plain typed text arrives through
-an `EntityInputHandler` registered during paint (`window.handle_input`), NOT
-through `on_key_down`. The key-down for a typed letter still bubbles past the
-focused field to ancestors, so an ancestor's type-to-search or row keys must act
-only when its own handle `is_focused`. Routine
-fields use the complete control in `xenon_design_system`; only the editor and
-terminal canvases own direct input handlers. `scripts/check-ui-boundaries`
-enforces that split. GPUI repaints on explicit `cx.notify()`; the terminal
-subscribes to `terminal::Event::Wakeup` to repaint on PTY output.
-
-Any source copied/adapted from another project (e.g. zed's terminal_view) must
-get a provenance entry in `ATTRIBUTION.md` plus a file-header marker — this
-keeps a clean-room rewrite possible.
+- Typed text arrives via `EntityInputHandler`, not key-down; ancestors act
+  only when their own handle is focused (`docs/project-state.md`).
+- Linux: the launcher forks and exits, so a systemd unit needs
+  `KillMode=process`.
+- Never `pkill`/`killall` or bypass `~/bin/xenon`. Killing an instance killed
+  every background agent in it.
 
 ## Rules
 
-`.cursor/rules/core.mdc` holds the author's core AI rules when present. Those
-rules apply to agent work here; do not duplicate them in this file. Key points:
-minimize cognitive load, present options at real decision forks before
-building, Rule of 7, never amend/rebase/force-push, bash not zsh.
-
-- UI that paints is incomplete until you have captured the scenes for the surfaces you touched (one scene per unique UI state) and looked at the images (`/ui-iteration`). How: `docs/visual-tests.md`.
-- **Agent-owned quality on author sessions.** The product is open source and
-  welcomes substantive human review via issues/PRs (`CONTRIBUTING.md`). On the
-  author's solo agent sessions there is no second human in the loop: the agent
-  reviews, builds, and tests; surface risks and decision forks, then implement.
-  Prefer **large coherent hauls** over small PR-sized slices. Do not ask the
-  author to read diffs for quality control.
-- Run `project install` at the END of all work, once every change is complete —
-  this is how the author dogfoods. It dogfood-builds and installs
-  `~/Applications/Xenon.app`; the author verifies there (or via `project xenon` /
-  `~/bin/xenon`), not in the debug build. Public/contributor install path is
-  `./scripts/release/install` (README). Do not install mid-way through a
-  multi-step change; batch it as the final step. During work, use cargo /
-  `scripts/health` directly — not `project` wrappers.
-- Land finished work without asking: once the pre-commit hook passes and
-  `project install` has run, commit and push this session's paths (harvest
-  step 6: leave unrelated WIP, stop on conflicts). End the handoff by listing
-  any dirty paths left behind and whose they are.
-- Commit `.xenon/worklist.md` whenever it has changes. Do not leave it untracked.
-- Product/design context: read `PRODUCT.md` (and `DESIGN.md` if present) before
-  chrome or UX work. Keep them aligned with settled decisions; do not invent a
-  competing vision in chat only. Cross-cutting current decisions live in
-  `docs/project-state.md`; release work lives in `docs/release.md`.
-
-## Tests and views
-
-- Views draw, models decide. Code that paints receives precomputed values and
-  lays them out: no product-state branching, ranking, parsing, or policy in
-  render code. Decisions live in plain Rust types/functions with no GPUI.
-- Unit-test budget: default zero new tests. Add one only for (a) a bug that
-  recurred, (b) a boundary format (parsing, persistence, protocol), or (c) logic
-  too tangled to verify by eye. Never pin tunable policy (ranking weights, copy,
-  layout). Prefer one table-driven test over near-duplicates. Tests are
-  deterministic: no sleeps, no live I/O.
-- Screenshot scenes: at most one per unique UI state. They let you check the UI
-  looks as intended and matches its mock; they are not a regression gate.
-  Capture only the scenes for surfaces you touched, then look at them.
-- Red CI on main: fix it first, before other work. Check with
-  `scripts/ci-status` at session start.
-
-## Keyboard-first (mouseless)
-
-Every UX surface must be operable end-to-end from the keyboard. Mouse is additive,
-never required for a complete flow.
-
-Current bindings and the GPUI focus-ownership model live in
-`docs/keyboard-first.md`.
-
-- Design the keyboard path first: action, keybinding, focus target, Escape dismiss.
-- Click-only chrome is incomplete. Lists, pickers, sidebars, dialogs, and empty
-  states need arrows / Enter / Escape (and type-to-filter when lists are long).
-- Prefer in-app palettes (cmd-p pattern) for frequent power-user flows; keep native
-  macOS pickers as optional Browse… escape hatches, not the only path.
-- Do not ship a mouse-only control when a keyboard equivalent exists elsewhere
-  without wiring that equivalent (or adding one).
-- When reviewing UX work, ask: can a user do this with hands on the home row?
-
-## Never kill Xenon processes
-
-Never run `pkill`, `killall`, or any command that could terminate running Xenon
-instances or background agents without explicit user instruction. This includes:
-- Never bypass `~/bin/xenon` (or `~/bin/xero` symlink; the slot launcher) to
-  directly interact with `Xenon.app`
-- Never run diagnostics on running processes without understanding side effects
-- Always ask first if unsure whether a command could kill something
-
-Context: I killed a running instance and all background agents by running
-diagnostics without understanding the implications. This destroyed work in
-progress. Use the slot launcher for all Xenon operations.
+- Views draw, models decide: no product-state branching, ranking, parsing, or
+  policy in render code.
+- Unit tests: default zero new. Add one only for a recurring bug, a boundary
+  format, or logic too tangled to check by eye. Never pin tunable policy.
+- Painted UI is unfinished until you capture one scene per touched UI state and
+  look at it (`docs/visual-tests.md`).
+- Keyboard-first: every flow works from the keyboard (action, binding, focus,
+  Escape). Mouse is additive.
+- Copied source gets an `ATTRIBUTION.md` entry and a file-header marker.
+- Author sessions: the agent reviews, builds, and tests; no human reads diffs.
+  Prefer large coherent hauls.
+- Finish: `XENON_PROFILE=dogfood scripts/release/install && scripts/prune-target`
+  once at the end, then commit and push this session's paths. List leftover dirty paths and whose they are.

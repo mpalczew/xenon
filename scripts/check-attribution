@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Provenance gate. A source file whose first 15 lines mention ATTRIBUTION.md is
+# marked as copied/adapted; it must be covered by a row in ATTRIBUTION.md (exact
+# path or glob like `dir/**`). Every path in the first column must exist.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+fail=0
+
+# First-column backticked paths of table rows.
+mapfile -t entries < <(sed -n 's/^| *\(`[^|]*\) *|.*/\1/p' ATTRIBUTION.md |
+    rg -o '`[^`]+`' | tr -d '`')
+if ((${#entries[@]} == 0)); then
+    echo "ATTRIBUTION.md: no table entries found" >&2
+    exit 1
+fi
+
+# Entries must exist (globs must match something).
+for e in "${entries[@]}"; do
+    if [[ "$e" == *'*'* ]]; then
+        # shellcheck disable=SC2086
+        if ! compgen -G "${e//\*\*/*}" >/dev/null; then
+            echo "ATTRIBUTION.md: listed glob matches nothing: $e" >&2
+            fail=1
+        fi
+    elif [[ ! -e "$e" ]]; then
+        echo "ATTRIBUTION.md: listed path does not exist: $e" >&2
+        fail=1
+    fi
+done
+
+# Files that merely point at ATTRIBUTION.md (no copied code of their own).
+pointers=(
+    crates/xenon_terminal/src/init.rs
+    crates/xenon_terminal/src/lib.rs
+    crates/xenon_settings/src/fonts.rs
+)
+
+covered() {
+    local f="$1" e
+    for e in "${entries[@]}" "${pointers[@]}"; do
+        # shellcheck disable=SC2053
+        [[ "$f" == $e ]] && return 0
+    done
+    return 1
+}
+
+while IFS= read -r f; do
+    if [[ -n "$(head -n 15 "$f" | rg -F 'ATTRIBUTION.md' || true)" ]] && ! covered "$f"; then
+        n="$(rg -n -F 'ATTRIBUTION.md' "$f" | head -n 1 | cut -d: -f1)"
+        echo "$f:$n: marked as third-party but not listed in ATTRIBUTION.md" >&2
+        fail=1
+    fi
+done < <(rg -l -F 'ATTRIBUTION.md' crates third_party --glob '!*.md' || true)
+
+[[ "$fail" -eq 0 ]] || exit 1
+echo "check-attribution: ok"
