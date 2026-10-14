@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Shared codesign identity helpers for xero release scripts.
+# Shared codesign identity helpers for Xenon release scripts.
 # shellcheck shell=bash
 
-XERO_LOCAL_IDENTITY="${XERO_LOCAL_IDENTITY:-xero-dev}"
+XENON_LOCAL_IDENTITY="${XENON_LOCAL_IDENTITY:-${XERO_LOCAL_IDENTITY:-xero-dev}}"
 
 _xenon_codesign_list() {
     security find-identity -v -p codesigning 2>/dev/null \
@@ -10,12 +10,12 @@ _xenon_codesign_list() {
 }
 
 _xenon_ensure_local_identity() {
-    if _xenon_codesign_list | grep -qx "$XERO_LOCAL_IDENTITY"; then
+    if _xenon_codesign_list | grep -qx "$XENON_LOCAL_IDENTITY"; then
         return 0
     fi
-    echo "creating local codesign identity \"$XERO_LOCAL_IDENTITY\"…" >&2
+    echo "creating local codesign identity \"$XENON_LOCAL_IDENTITY\"…" >&2
     local tmp
-    tmp="$(mktemp -d "${TMPDIR:-/tmp}/xero-codesign.XXXXXX")"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/xenon-codesign.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$tmp'" RETURN
 
@@ -25,7 +25,7 @@ distinguished_name = req_dn
 x509_extensions = codesign_ext
 prompt = no
 [req_dn]
-CN = ${XERO_LOCAL_IDENTITY}
+CN = ${XENON_LOCAL_IDENTITY}
 [codesign_ext]
 basicConstraints = critical,CA:FALSE
 keyUsage = critical,digitalSignature
@@ -36,7 +36,7 @@ EOF
         -keyout "$tmp/key.pem" \
         -out "$tmp/cert.pem" \
         >/dev/null 2>&1 || {
-        echo "openssl failed creating $XERO_LOCAL_IDENTITY cert" >&2
+        echo "openssl failed creating $XENON_LOCAL_IDENTITY cert" >&2
         return 1
     }
     openssl pkcs12 -export \
@@ -44,7 +44,7 @@ EOF
         -in "$tmp/cert.pem" \
         -out "$tmp/identity.p12" \
         -passout pass: \
-        -name "$XERO_LOCAL_IDENTITY" \
+        -name "$XENON_LOCAL_IDENTITY" \
         >/dev/null 2>&1 || {
         echo "openssl pkcs12 export failed" >&2
         return 1
@@ -55,7 +55,7 @@ EOF
         -T /usr/bin/codesign \
         -T /usr/bin/security \
         >/dev/null 2>&1 || {
-        echo "security import failed for $XERO_LOCAL_IDENTITY" >&2
+        echo "security import failed for $XENON_LOCAL_IDENTITY" >&2
         return 1
     }
     security set-key-partition-list \
@@ -64,19 +64,19 @@ EOF
         "$HOME/Library/Keychains/login.keychain-db" \
         >/dev/null 2>&1 || true
 
-    if ! _xenon_codesign_list | grep -qx "$XERO_LOCAL_IDENTITY"; then
-        echo "identity $XERO_LOCAL_IDENTITY not visible after import" >&2
+    if ! _xenon_codesign_list | grep -qx "$XENON_LOCAL_IDENTITY"; then
+        echo "identity $XENON_LOCAL_IDENTITY not visible after import" >&2
         return 1
     fi
-    echo "created codesign identity \"$XERO_LOCAL_IDENTITY\"" >&2
+    echo "created codesign identity \"$XENON_LOCAL_IDENTITY\"" >&2
 }
 
 # Resolve a stable codesign identity. Prefer Apple identities, then local
 # xero-dev. Never prefer bare ad-hoc (`-`) — that changes the CDHash every
 # install and drops Full Disk Access / App Management grants.
 xenon_codesign_identity() {
-    if [[ -n "${XERO_CODESIGN_IDENTITY:-}" ]]; then
-        printf '%s\n' "$XERO_CODESIGN_IDENTITY"
+    if [[ -n "${XENON_CODESIGN_IDENTITY:-${XERO_CODESIGN_IDENTITY:-}}" ]]; then
+        printf '%s\n' "${XENON_CODESIGN_IDENTITY:-$XERO_CODESIGN_IDENTITY}"
         return 0
     fi
     local id
@@ -91,5 +91,5 @@ xenon_codesign_identity() {
         return 0
     fi
     _xenon_ensure_local_identity || return 1
-    printf '%s\n' "$XERO_LOCAL_IDENTITY"
+    printf '%s\n' "$XENON_LOCAL_IDENTITY"
 }

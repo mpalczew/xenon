@@ -223,7 +223,7 @@ pub(crate) fn terminal_paths_text(paths: impl IntoIterator<Item = impl AsRef<Pat
 }
 
 fn save_clipboard_image(image: &Image) -> Result<PathBuf> {
-    let dir = std::env::temp_dir().join("xero-clipboard");
+    let dir = std::env::temp_dir().join("xenon-clipboard");
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(format!(
         "clipboard-{}-{}.png",
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn shell_quote_handles_spaces_and_quotes() {
-        assert_eq!(shell_quote("/tmp/xero-image.png"), "/tmp/xero-image.png");
+        assert_eq!(shell_quote("/tmp/xenon-image.png"), "/tmp/xenon-image.png");
         assert_eq!(shell_quote("/tmp/a b's.png"), "'/tmp/a b'\\''s.png'");
     }
 

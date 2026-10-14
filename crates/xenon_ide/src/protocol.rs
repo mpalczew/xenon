@@ -38,7 +38,7 @@ pub fn handle(text: &str, roots: &[PathBuf], commands: &Sender<IdeCommand>) -> O
     Some(reply.to_string())
 }
 
-/// The tools xero advertises. Schemas mirror VSCode's; only `openFile` and
+/// The tools Xenon advertises. Schemas mirror VSCode's; only `openFile` and
 /// `getWorkspaceFolders` do real work in the MVP.
 fn tool_list() -> Value {
     let obj = || json!({ "type": "object", "properties": {} });

@@ -4,9 +4,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 baseline="$root/scripts/rust-shape-baseline.tsv"
 
-max_file_lines="${XERO_MAX_FILE_LINES:-500}"
-max_fn_items="${XERO_MAX_FN_ITEMS:-21}"
-max_pub_fns="${XERO_MAX_PUB_FNS:-7}"
+max_file_lines="${XENON_MAX_FILE_LINES:-${XERO_MAX_FILE_LINES:-500}}"
+max_fn_items="${XENON_MAX_FN_ITEMS:-${XERO_MAX_FN_ITEMS:-21}}"
+max_pub_fns="${XENON_MAX_PUB_FNS:-${XERO_MAX_PUB_FNS:-7}}"
 
 fail=0
 

@@ -158,7 +158,7 @@ fn init_logging() {
     let _ = std::fs::create_dir_all(&dir);
     let mut builder = env_logger::Builder::new();
     builder.parse_filters(&std::env::var("RUST_LOG").unwrap_or_else(|_| {
-        "warn,xero=info,xenon_ui=info,xenon_ide=info,xenon_terminal=info".into()
+        "warn,xenon=info,xenon_ui=info,xenon_ide=info,xenon_terminal=info".into()
     }));
     if let Ok(file) = std::fs::OpenOptions::new()
         .create(true)
