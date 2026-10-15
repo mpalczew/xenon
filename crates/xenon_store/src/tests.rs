@@ -150,22 +150,6 @@ fn settings_missing_theme_defaults_to_system() {
 }
 
 #[test]
-fn settings_migrates_legacy_font_size() {
-    with_data_dir(|| {
-        let path = crate::data_dir().join("settings.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            r#"{"font_size":18.0,"show_line_numbers":true,"vim_mode":false}"#,
-        )
-        .unwrap();
-        let settings = load_settings().unwrap();
-        assert_eq!(settings.editor_font_size, 18.0);
-        assert_eq!(settings.terminal_font_size, 18.0);
-    });
-}
-
-#[test]
 fn corrupt_settings_defaults() {
     with_data_dir(|| {
         let path = crate::data_dir().join("settings.json");
@@ -196,47 +180,6 @@ fn corrupt_session_returns_error() {
 }
 
 #[test]
-fn load_registry_migrates_legacy_stream_session() {
-    with_data_dir(|| {
-        let ws = WorkspaceRec::new("/tmp/proj".into());
-        let mut registry = Registry::default();
-        registry.workspaces.push(ws.clone());
-        save_registry(&registry).unwrap();
-
-        let dir = crate::data_dir().join("streams").join(ws.id.to_string());
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(
-            dir.join("legacy.json"),
-            r#"{
-  "id": "00000000-0000-4000-8000-000000000099",
-  "name": "main",
-  "backing": {"kind": "checkout"},
-  "session": {
-    "layout": {
-      "terminal_visible": false,
-      "editor_visible": true,
-      "sidebar_visible": true,
-      "sidebar_width": 200.0,
-      "terminal_width": 640.0
-    },
-    "editors": [],
-    "active_editor": null,
-    "terminal": {"cwd": "."}
-  }
-}"#,
-        )
-        .unwrap();
-
-        let _ = load_registry().unwrap();
-        let session = load_session(ws.id).unwrap();
-        assert!(session.sidebar_visible);
-        assert_eq!(session.sidebar_width, 200.0);
-        // terminal_visible false + no editors → content may be empty or term-only after migrate
-        assert!(session.content.is_empty() || session.content.leaf_ids().len() <= 1);
-    });
-}
-
-#[test]
 fn remote_devices_round_trip_owner_only() {
     with_data_dir(|| {
         assert!(crate::load_remote_devices().unwrap().devices.is_empty());
@@ -259,25 +202,6 @@ fn remote_devices_round_trip_owner_only() {
 }
 
 #[test]
-fn legacy_remote_password_is_ignored() {
-    with_data_dir(|| {
-        let path = crate::data_dir().join("settings.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            r#"{"remote_password":"old","remote_keep_awake":true,"remote_port":17890}"#,
-        )
-        .unwrap();
-        let settings = load_settings().unwrap();
-        assert!(!settings.remote_enabled);
-        // The old keep-awake key is ignored, not migrated.
-        assert!(!settings.remote_keep_awake_while_connected);
-        assert_eq!(settings.remote_port, 17890);
-        assert_eq!(settings.remote_network, crate::RemoteNetwork::Tailscale);
-    });
-}
-
-#[test]
 fn slot_dirs_share_remote_devices() {
     let home = tempfile::tempdir().unwrap();
     let devices = crate::RemoteDevices {
@@ -295,20 +219,5 @@ fn slot_dirs_share_remote_devices() {
     });
     with_data_dir_at(&home.path().join(".xenon-b"), || {
         assert_eq!(crate::load_remote_devices().unwrap(), devices);
-    });
-}
-
-#[test]
-fn per_slot_devices_file_migrates_to_shared() {
-    let home = tempfile::tempdir().unwrap();
-    let slot_a = home.path().join(".xenon-a");
-    fs::create_dir_all(&slot_a).unwrap();
-    fs::write(
-        slot_a.join("remote_devices.json"),
-        r#"{"devices":[{"id":"old","label":"iPhone","token_sha256":"x","created_at":1,"last_seen_at":1}]}"#,
-    )
-    .unwrap();
-    with_data_dir_at(&slot_a, || {
-        assert_eq!(crate::load_remote_devices().unwrap().devices[0].id, "old");
     });
 }

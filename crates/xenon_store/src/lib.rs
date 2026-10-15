@@ -71,14 +71,13 @@ fn settings_path() -> PathBuf {
 }
 
 /// Load app settings, or defaults if missing/corrupt.
-/// Migrates legacy `font_size` into editor + terminal sizes when needed.
 pub fn load_settings() -> Result<AppSettings, StoreError> {
     let path = settings_path();
     if !path.exists() {
         return Ok(AppSettings::default());
     }
     let contents = fs::read_to_string(&path)?;
-    let mut value: serde_json::Value = match serde_json::from_str(&contents) {
+    let value: serde_json::Value = match serde_json::from_str(&contents) {
         Ok(value) => value,
         Err(_) => {
             let backup = path.with_extension("corrupt");
@@ -86,7 +85,6 @@ pub fn load_settings() -> Result<AppSettings, StoreError> {
             return Ok(AppSettings::default());
         }
     };
-    migrate_settings_value(&mut value);
     match serde_json::from_value(value) {
         Ok(settings) => Ok(settings),
         Err(_) => {
@@ -94,17 +92,6 @@ pub fn load_settings() -> Result<AppSettings, StoreError> {
             let _ = fs::rename(&path, &backup);
             Ok(AppSettings::default())
         }
-    }
-}
-
-/// Copy legacy shared `font_size` into the split editor/terminal fields.
-fn migrate_settings_value(value: &mut serde_json::Value) {
-    let Some(obj) = value.as_object_mut() else {
-        return;
-    };
-    if let Some(legacy) = obj.get("font_size").cloned() {
-        obj.entry("editor_font_size").or_insert(legacy.clone());
-        obj.entry("terminal_font_size").or_insert(legacy);
     }
 }
 
@@ -140,13 +127,8 @@ fn session_path(workspace: WorkspaceId) -> PathBuf {
 
 /// Load the registry, or a default if none exists. A corrupt file is preserved
 /// as `*.corrupt` and a default is returned alongside the error's backup path.
-///
-/// One-shot: any open/closed workspace still only on legacy `streams/<id>/` is
-/// written to `sessions/<id>.json` so later loads never read streams.
 pub fn load_registry() -> Result<Registry, StoreError> {
-    let registry = load_or_default(&registry_path())?;
-    migrate_legacy_streams(&registry);
-    Ok(registry)
+    load_or_default(&registry_path())
 }
 
 pub fn save_registry(registry: &Registry) -> Result<(), StoreError> {
@@ -165,24 +147,6 @@ pub fn load_session(workspace: WorkspaceId) -> Result<SessionState, StoreError> 
     )))
 }
 
-/// Copy first legacy stream session into modern path when the session file is
-/// missing. Leaves `streams/` on disk (no delete).
-fn migrate_legacy_streams(registry: &Registry) {
-    for workspace in registry
-        .workspaces
-        .iter()
-        .chain(registry.closed_workspaces.iter())
-    {
-        let path = session_path(workspace.id);
-        if path.exists() {
-            continue;
-        }
-        if let Some(session) = read_legacy_stream_session(workspace.id) {
-            let _ = save_session(workspace.id, &session);
-        }
-    }
-}
-
 pub fn save_session(workspace: WorkspaceId, session: &SessionState) -> Result<(), StoreError> {
     write_atomic(&session_path(workspace), session)
 }
@@ -195,37 +159,6 @@ pub fn delete_session(workspace: WorkspaceId) -> Result<(), StoreError> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),
     }
-}
-
-/// Read the first legacy `streams/<workspace>/*.json` file as a SessionState.
-fn read_legacy_stream_session(workspace: WorkspaceId) -> Option<SessionState> {
-    let dir = data_dir().join("streams").join(workspace.to_string());
-    let entries = fs::read_dir(&dir).ok()?;
-    let mut paths: Vec<PathBuf> = entries
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|ext| ext == "json"))
-        .collect();
-    paths.sort();
-    for path in paths {
-        let Ok(contents) = fs::read_to_string(&path) else {
-            continue;
-        };
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
-            continue;
-        };
-        // Legacy stream file: { id, name, backing, session: { ... } }
-        if let Some(session_val) = value.get("session")
-            && let Ok(session) = serde_json::from_value::<SessionState>(session_val.clone())
-        {
-            return Some(session);
-        }
-        // Already a bare SessionState (or migrated shape).
-        if let Ok(session) = serde_json::from_value::<SessionState>(value) {
-            return Some(session);
-        }
-    }
-    None
 }
 
 fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> Result<T, StoreError> {

@@ -52,15 +52,9 @@ fn devices_path() -> PathBuf {
     shared_dir().join(FILE)
 }
 
-/// Paired devices, or none if the file is missing or corrupt. Falls back to
-/// this slot's own file once, from before devices were shared.
+/// Paired devices, or none if the file is missing or corrupt.
 pub fn load_remote_devices() -> Result<RemoteDevices, StoreError> {
-    let shared = devices_path();
-    let legacy = data_dir().join(FILE);
-    if !shared.exists() && legacy.exists() {
-        return load_or_default(&legacy);
-    }
-    load_or_default(&shared)
+    load_or_default(&devices_path())
 }
 
 pub fn save_remote_devices(devices: &RemoteDevices) -> Result<(), StoreError> {

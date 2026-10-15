@@ -249,23 +249,6 @@ copy_state() {
     copy_state_dir "$src" "$dst"
 }
 
-seed_legacy_state() {
-    local slot="$1"
-    local dst src=""
-    case "$slot" in
-        a) dst="$HOME/.xenon-a" ;;
-        b) dst="$HOME/.xenon-b" ;;
-    esac
-    if [[ ! -d "$dst" ]]; then
-        if [[ -d "$HOME/.xenon" ]]; then
-            src="$HOME/.xenon"
-        fi
-        if [[ -n "$src" ]]; then
-            copy_state_dir "$src" "$dst"
-        fi
-    fi
-}
-
 slot_data_dir() {
     local slot="$1"
     case "$slot" in
@@ -451,7 +434,6 @@ open_paths() {
             exit 1
             ;;
     esac
-    seed_legacy_state "$slot"
     # Single-instance IPC lives in the app; this just targets the right data dir.
     launch_slot "$slot" "${abs_args[@]}"
 }
@@ -478,7 +460,6 @@ main() {
                         exit 1
                         ;;
                 esac
-                seed_legacy_state "$slot"
                 dir="$(slot_data_dir "$slot")"
                 upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
                 export XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR"
@@ -499,7 +480,6 @@ main() {
     case "$count" in
         0)
             slot="$(last_slot)"
-            seed_legacy_state "$slot"
             launch_slot "$slot"
             ;;
         1)

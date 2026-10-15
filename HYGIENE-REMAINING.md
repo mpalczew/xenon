@@ -4,7 +4,6 @@
 
 | Item | Result |
 |------|--------|
-| Streams migrate | One-shot on `load_registry` |
 | DeferredUi peel | Overlay focus queue |
 | Terminal modules | `attention` / `paths` |
 | Settings selection paint | Shared chrome, still a window |
