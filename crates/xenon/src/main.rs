@@ -137,23 +137,13 @@ fn start_ipc(listener: std::os::unix::net::UnixListener, cx: &mut gpui::Context<
     .detach();
 }
 
-/// Log under the active data dir (slot-aware via XENON_DATA_DIR / XERO_DATA_DIR),
+/// Log under the active data dir (slot-aware via XENON_DATA_DIR),
 /// with fallbacks for early boot. Bundled apps have no terminal for stderr.
 /// `RUST_LOG` still overrides filters.
 fn init_logging() {
     let dir = std::env::var_os("XENON_DATA_DIR")
-        .or_else(|| std::env::var_os("XERO_DATA_DIR"))
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| {
-                let home = PathBuf::from(home);
-                if home.join(".xenon").exists() {
-                    home.join(".xenon")
-                } else {
-                    home.join(".xero")
-                }
-            })
-        })
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".xenon")))
         .unwrap_or_else(|| PathBuf::from("."));
     let _ = std::fs::create_dir_all(&dir);
     let mut builder = env_logger::Builder::new();

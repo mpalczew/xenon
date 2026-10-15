@@ -53,9 +53,6 @@ Details and signing notes: [`README.md`](README.md).
 - Match surrounding code (short functions, explicit over clever).
 - Do not force-push shared history; merge, do not rebase published work.
 - Run `scripts/health` (or the cargo equivalents above) before you open a PR.
-- Leave intentional legacy identifiers alone unless you are sure: bundle id
-  `dev.xero.xero`, `XERO_*` env aliases, `~/.xero` migration, and local
-  `xero-dev` codesign name exist so TCC grants stick across renames.
 
 ## Communication
 

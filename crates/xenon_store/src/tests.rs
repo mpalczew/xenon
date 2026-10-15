@@ -21,12 +21,11 @@ fn with_data_dir_at<R>(dir: &std::path::Path, body: impl FnOnce() -> R) -> R {
     let _guard = crate::DATA_DIR_TEST_LOCK
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    const VARS: [&str; 3] = ["XENON_DATA_DIR", "XERO_DATA_DIR", "XENON_SHARED_DIR"];
+    const VARS: [&str; 2] = ["XENON_DATA_DIR", "XENON_SHARED_DIR"];
     let prev: Vec<_> = VARS.iter().map(std::env::var_os).collect();
     // SAFETY: DATA_DIR_TEST_LOCK serializes every env mutation in these tests.
     unsafe {
         std::env::set_var("XENON_DATA_DIR", dir);
-        std::env::remove_var("XERO_DATA_DIR");
         std::env::remove_var("XENON_SHARED_DIR");
     }
     let result = body();

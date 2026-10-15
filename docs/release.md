@@ -14,7 +14,6 @@ and attention, stable installation, and continued daily dogfood.
 
 ## Packaging
 
-- [x] Rename GitHub `mpalczew/xero` to `mpalczew/xenon` and update the remote.
 - [x] Make the repository public with GPL-3.0 clearly visible (`LICENSE` + README).
 - [x] Add a concise README with install instructions and the anti-IDE pitch.
 - [x] Add short contribution guidance (`CONTRIBUTING.md`) that discourages
@@ -24,13 +23,6 @@ and attention, stable installation, and continued daily dogfood.
 - [ ] Decide notarization for public binaries.
 - [ ] Add issue templates (optional; CONTRIBUTING covers the anti-noise bar).
 - [ ] Draft the HN launch around multi-harness freedom, layout, and native feel.
-
-## Rename state
-
-Completed: Xenon app/binary name, `~/.xenon` migration, `XENON_*` environment
-variables with legacy aliases, release scripts, crate paths, icon, launcher
-compatibility, and GitHub `mpalczew/xenon` (public). The bundle id intentionally
-remains `dev.xero.xero` so existing TCC grants survive.
 
 Remaining identity / distribution work: Homebrew formula and notarization.
 Never force-push.

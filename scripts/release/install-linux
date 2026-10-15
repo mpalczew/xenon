@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Linux install (no .app, no codesign). Called by scripts/release/install.
 #   ~/.local/share/xenon/xenon-bin   GUI binary
-#   ~/.local/bin/xenon               slot launcher (scripts/xenon); `xero` symlink
+#   ~/.local/bin/xenon               slot launcher (scripts/xenon)
 #   ~/.local/share/applications/xenon.desktop + hicolor icon
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -21,7 +21,6 @@ mv -f "$app_dir/xenon-bin.new" "$app_dir/xenon-bin"
 echo "installed $app_dir/xenon-bin"
 
 install -m 755 "$root/scripts/xenon" "$bin_dir/xenon"
-ln -sfn xenon "$bin_dir/xero"
 echo "installed $bin_dir/xenon"
 
 # Icon: 512px when ImageMagick is available, else the 1024px source as-is.

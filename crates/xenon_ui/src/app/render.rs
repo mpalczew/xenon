@@ -304,9 +304,7 @@ impl XenonApp {
         {
             title = format!("Xenon - {}", workspace.name);
         }
-        let slot = std::env::var("XENON_SLOT")
-            .or_else(|_| std::env::var("XERO_SLOT"))
-            .ok();
+        let slot = std::env::var("XENON_SLOT").ok();
         match slot {
             Some(slot) if !slot.trim().is_empty() => format!("{} {title}", slot.trim()),
             _ => title,

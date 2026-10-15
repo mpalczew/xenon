@@ -8,14 +8,6 @@
 | DeferredUi peel | Overlay focus queue |
 | Terminal modules | `attention` / `paths` |
 | Settings selection paint | Shared chrome, still a window |
-| **Crate rename** | `crates/xenon_*`, `XenonApp`, package names |
-
-## Intentionally kept (legacy / TCC)
-
-- Bundle id `dev.xero.xero`
-- Data dir migrate `~/.xero` → `~/.xenon`
-- Env aliases `XERO_*` → `XENON_*`
-- Local codesign identity name `xero-dev` (CDHash / TCC stickiness)
 
 ## Still later (not crate hygiene)
 

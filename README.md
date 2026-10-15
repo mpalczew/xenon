@@ -106,10 +106,9 @@ Override install location:
 XENON_INSTALL_DIR=/path/to/dir ./scripts/release/install
 ```
 
-Signing identity (first match wins): `XENON_CODESIGN_IDENTITY` (legacy
-`XERO_CODESIGN_IDENTITY`) if set, else Developer ID Application, else Apple
-Development, else a local `xero-dev` cert (name kept for TCC
-stickiness). Inspect with:
+Signing identity (first match wins): `XENON_CODESIGN_IDENTITY` if set, else
+Developer ID Application, else Apple Development, else a local `xenon-dev`
+cert. Inspect with:
 
 ```bash
 ./scripts/release/sign_setup

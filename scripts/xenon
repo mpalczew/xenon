@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Slot launcher for Xenon (legacy name: xero). Supports both app binaries during rename.
+# Slot launcher for Xenon.
 # Linux has no .app bundle: scripts/release/install-linux puts the GUI binary
 # at $XENON_APP_DIR/xenon-bin (default ~/.local/share/xenon).
 if [[ "$(uname -s)" == Darwin ]]; then
-    APP_BIN="${XENON_APP:-${XERO_APP:-$HOME/Applications/Xenon.app}}/Contents/MacOS/xenon"
-    if [[ ! -x "$APP_BIN" ]]; then
-        APP_BIN="${XERO_APP:-$HOME/Applications/xero.app}/Contents/MacOS/xero"
-    fi
+    APP_BIN="${XENON_APP:-$HOME/Applications/Xenon.app}/Contents/MacOS/xenon"
 else
     APP_BIN="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
 fi
@@ -16,10 +13,6 @@ APP="$APP_BIN"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
 # State both slots must see (phone-remote paired devices): not copied per slot.
 SHARED_DIR="$HOME/.xenon-shared"
-# Prefer modern active file; fall back to legacy.
-if [[ ! -f "$ACTIVE_FILE" && -f "$HOME/.xero-active-slot" ]]; then
-    ACTIVE_FILE="$HOME/.xero-active-slot"
-fi
 
 usage() {
     cat >&2 <<'EOF'
@@ -43,18 +36,10 @@ EOF
 slot_dir() {
     case "$1" in
         a)
-            if [[ -d "$HOME/.xenon-a" || ! -d "$HOME/.xero-a" ]]; then
-                printf '%s/.xenon-a\n' "$HOME"
-            else
-                printf '%s/.xero-a\n' "$HOME"
-            fi
+            printf '%s/.xenon-a\n' "$HOME"
             ;;
         b)
-            if [[ -d "$HOME/.xenon-b" || ! -d "$HOME/.xero-b" ]]; then
-                printf '%s/.xenon-b\n' "$HOME"
-            else
-                printf '%s/.xero-b\n' "$HOME"
-            fi
+            printf '%s/.xenon-b\n' "$HOME"
             ;;
         *) return 1 ;;
     esac
@@ -75,23 +60,23 @@ pid_is_live_app() {
     comm="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
     comm="${comm##*/}"
     # Dock stub execs xenon-bin; comm is the GUI name, not CFBundleExecutable.
-    [[ "$comm" == "xenon" || "$comm" == "xenon-bin" || "$comm" == "xero" ]]
+    [[ "$comm" == "xenon" || "$comm" == "xenon-bin" ]]
 }
 
 # Linux: the slot comes from the process env in /proc.
 pid_slot_linux() {
     local pid="$1" env slot data
     env="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null)" || return 1
-    slot="$(sed -n -e 's/^XENON_SLOT=//p' -e 's/^XERO_SLOT=//p' <<<"$env" | head -n1)"
+    slot="$(sed -n -e 's/^XENON_SLOT=//p' <<<"$env" | head -n1)"
     slot="$(printf '%s' "$slot" | tr '[:upper:]' '[:lower:]')"
     case "$slot" in
         a | b) printf '%s\n' "$slot"; return 0 ;;
     esac
-    data="$(sed -n -e 's/^XENON_DATA_DIR=//p' -e 's/^XERO_DATA_DIR=//p' <<<"$env" | head -n1)"
+    data="$(sed -n -e 's/^XENON_DATA_DIR=//p' <<<"$env" | head -n1)"
     data="${data%/}"
     case "$data" in
-        *.xenon-a | *.xero-a) printf 'a\n' ;;
-        *.xenon-b | *.xero-b) printf 'b\n' ;;
+        *.xenon-a) printf 'a\n' ;;
+        *.xenon-b) printf 'b\n' ;;
         *) return 1 ;;
     esac
 }
@@ -129,21 +114,17 @@ for part in parts:
     except UnicodeDecodeError:
         pass
 
-slot = env.get("XENON_SLOT", env.get("XERO_SLOT", "")).strip().lower()
+slot = env.get("XENON_SLOT", "").strip().lower()
 if slot in ("a", "b"):
     print(slot)
     sys.exit(0)
 
-data = env.get("XENON_DATA_DIR", env.get("XERO_DATA_DIR", "")).rstrip("/")
+data = env.get("XENON_DATA_DIR", "").rstrip("/")
 for suffix, out in (
     ("/.xenon-a", "a"),
     (".xenon-a", "a"),
-    ("/.xero-a", "a"),
-    (".xero-a", "a"),
     ("/.xenon-b", "b"),
     (".xenon-b", "b"),
-    ("/.xero-b", "b"),
-    (".xero-b", "b"),
 ):
     if data.endswith(suffix):
         print(out)
@@ -154,30 +135,18 @@ PY
     printf '%s\n' "$slot"
 }
 
-# Only the real system Applications path counts as legacy — not ~/Applications.
-pid_looks_legacy_xero() {
-    local pid="$1"
-    local cmd
-    cmd="$(ps -p "$pid" -o args= 2>/dev/null || true)"
-    [[ "$cmd" == /Applications/xero.app/Contents/MacOS/xero* ]] ||
-        [[ "$cmd" == /Applications/Xenon.app/Contents/MacOS/xenon* ]]
-}
-
 # Live-instance files: never transfer; ditto also fails on Unix sockets.
 RUNTIME_EXCLUDES=(
     --exclude='xenon.pid'
-    --exclude='xero.pid'
     --exclude='ipc.sock'
     --exclude='xenon.log'
-    --exclude='xero.log'
 )
 
 # Drop any residual runtime files after a copy.
 strip_runtime_files() {
     local dir="$1"
     [[ -n "$dir" && -d "$dir" ]] || return 0
-    rm -f "$dir/xenon.pid" "$dir/xero.pid" "$dir/ipc.sock" \
-        "$dir/xenon.log" "$dir/xero.log"
+    rm -f "$dir/xenon.pid" "$dir/ipc.sock" "$dir/xenon.log"
 }
 
 # Copy durable slot state only. Skips sockets/pidfiles/logs (ditto cannot copy sockets).
@@ -196,7 +165,6 @@ running_instances() {
     local slot pid seen="" pf claimed
     for slot in a b; do
         pf="$(slot_dir "$slot")/xenon.pid"
-        [[ -f "$pf" ]] || pf="$(slot_dir "$slot")/xero.pid"
         [[ -f "$pf" ]] || continue
         pid="$(tr -d '[:space:]' <"$pf" 2>/dev/null || true)"
         if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
@@ -211,11 +179,6 @@ running_instances() {
         if claimed="$(pid_slot "$pid" 2>/dev/null)" && [[ "$claimed" == "$slot" ]]; then
             printf '%s %s\n' "$slot" "$pid"
             seen+=" $pid "
-            # Prefer modern pidfile name under the resolved slot dir.
-            if [[ "$pf" != "$(slot_dir "$slot")/xenon.pid" ]]; then
-                printf '%s\n' "$pid" >"$(slot_dir "$slot")/xenon.pid"
-                rm -f "$pf"
-            fi
         else
             rm -f "$pf"
         fi
@@ -228,7 +191,6 @@ running_instances() {
     pids="$(
         pgrep "${ancestors[@]}" -x xenon 2>/dev/null || true
         pgrep "${ancestors[@]}" -x xenon-bin 2>/dev/null || true
-        pgrep "${ancestors[@]}" -x xero 2>/dev/null || true
     )"
     [[ -n "$pids" ]] || return 0
     while IFS= read -r pid; do
@@ -238,9 +200,6 @@ running_instances() {
         if slot="$(pid_slot "$pid" 2>/dev/null)"; then
             printf '%s %s\n' "$slot" "$pid"
             printf '%s\n' "$pid" >"$(slot_dir "$slot")/xenon.pid"
-            seen+=" $pid "
-        elif pid_looks_legacy_xero "$pid"; then
-            printf 'legacy %s\n' "$pid"
             seen+=" $pid "
         else
             printf '? %s\n' "$pid"
@@ -281,21 +240,8 @@ copy_state() {
     local from="$1"
     local to="$2"
     local src dst
-    if [[ "$from" == "legacy" ]]; then
-        if [[ -d "$HOME/.xenon" ]]; then
-            src="$HOME/.xenon"
-        else
-            src="$HOME/.xero"
-        fi
-    else
-        src="$(slot_dir "$from")"
-    fi
+    src="$(slot_dir "$from")"
     dst="$(slot_dir "$to")"
-    # Prefer writing modern slot dirs.
-    case "$to" in
-        a) dst="$HOME/.xenon-a" ;;
-        b) dst="$HOME/.xenon-b" ;;
-    esac
     if [[ ! -d "$src" ]]; then
         echo "cannot copy: source state missing: $src" >&2
         exit 1
@@ -313,10 +259,6 @@ seed_legacy_state() {
     if [[ ! -d "$dst" ]]; then
         if [[ -d "$HOME/.xenon" ]]; then
             src="$HOME/.xenon"
-        elif [[ -d "$HOME/.xero" ]]; then
-            src="$HOME/.xero"
-        elif [[ -d "$HOME/.xero-$slot" ]]; then
-            src="$HOME/.xero-$slot"
         fi
         if [[ -n "$src" ]]; then
             copy_state_dir "$src" "$dst"
@@ -340,21 +282,14 @@ launch_slot() {
     shift
     local dir upper log pid
     dir="$(slot_data_dir "$slot")"
-    # Migrate legacy slot if modern empty.
-    if [[ ! -d "$dir" && -d "$HOME/.xero-$slot" ]]; then
-        copy_state_dir "$HOME/.xero-$slot" "$dir"
-    fi
     upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
     mkdir -p "$dir"
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        XERO_DATA_DIR="$dir" XERO_SLOT="$upper" \
         "$APP" "$@" >>"$log" 2>&1 &
     pid=$!
     printf '%s\n' "$pid" >"$dir/xenon.pid"
-    # Drop legacy name so only one pidfile claims this slot.
-    rm -f "$dir/xero.pid"
     disown "$pid" 2>/dev/null || true
     if [[ $# -gt 0 ]]; then
         echo "Xenon slot $slot ← $* (pid $pid)"
@@ -432,7 +367,6 @@ activate_slot() {
     # Empty argv → try_handoff(Activate) then exit. Bound wait so a failed handoff
     # cannot leave a third long-lived primary in the foreground of this shell.
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        XERO_DATA_DIR="$dir" XERO_SLOT="$upper" \
         "$APP" >>"$log" 2>&1 &
     handoff=$!
     i=0
@@ -548,7 +482,6 @@ main() {
                 dir="$(slot_data_dir "$slot")"
                 upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
                 export XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR"
-                export XERO_DATA_DIR="$dir" XERO_SLOT="$upper"
             fi
             exec "$APP" "$@"
             ;;
@@ -577,11 +510,6 @@ main() {
                     # Count is already slot-aware; no second pidfile probe.
                     slot="$(other_slot "$running")"
                     copy_state "$running" "$slot"
-                    launch_slot "$slot"
-                    ;;
-                legacy)
-                    slot="b"
-                    copy_state legacy "$slot"
                     launch_slot "$slot"
                     ;;
                 *)

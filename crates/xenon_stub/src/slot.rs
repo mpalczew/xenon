@@ -9,15 +9,11 @@ pub struct SlotLaunch {
 
 /// Resolve launch env from existing data-dir env and `$HOME` slot files.
 ///
-/// A set `XENON_DATA_DIR` or `XERO_DATA_DIR` is returned unchanged (no slot).
+/// A set `XENON_DATA_DIR` is returned unchanged (no slot).
 /// Otherwise `~/.xenon-active-slot` of `a`/`b` plus a matching `~/.xenon-{slot}`
 /// directory selects that slot. Missing marker or dir → ship `~/.xenon`.
-pub fn resolve_slot_launch(
-    home: &Path,
-    xenon_data_dir: Option<&Path>,
-    xero_data_dir: Option<&Path>,
-) -> SlotLaunch {
-    if let Some(dir) = xenon_data_dir.or(xero_data_dir) {
+pub fn resolve_slot_launch(home: &Path, xenon_data_dir: Option<&Path>) -> SlotLaunch {
+    if let Some(dir) = xenon_data_dir {
         return SlotLaunch {
             data_dir: dir.to_path_buf(),
             slot: None,
@@ -40,20 +36,18 @@ pub fn resolve_slot_launch(
 
 /// Export resolved slot env. No-op when a data-dir env var is already set.
 pub fn apply_slot_env() {
-    if std::env::var_os("XENON_DATA_DIR").is_some() || std::env::var_os("XERO_DATA_DIR").is_some() {
+    if std::env::var_os("XENON_DATA_DIR").is_some() {
         return;
     }
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_default();
-    let launch = resolve_slot_launch(&home, None, None);
+    let launch = resolve_slot_launch(&home, None);
     // SAFETY: single-threaded stub, before exec of the GUI.
     unsafe {
         std::env::set_var("XENON_DATA_DIR", &launch.data_dir);
-        std::env::set_var("XERO_DATA_DIR", &launch.data_dir);
         if let Some(slot) = &launch.slot {
             std::env::set_var("XENON_SLOT", slot);
-            std::env::set_var("XERO_SLOT", slot);
         }
     }
 }
@@ -85,7 +79,7 @@ mod tests {
         fs::create_dir(home.join(".xenon-a")).unwrap();
         fs::write(home.join(".xenon-active-slot"), "a\n").unwrap();
         assert_eq!(
-            resolve_slot_launch(&home, None, None),
+            resolve_slot_launch(&home, None),
             SlotLaunch {
                 data_dir: home.join(".xenon-a"),
                 slot: Some("A".into()),
@@ -97,7 +91,7 @@ mod tests {
     fn missing_marker_uses_ship_dir() {
         let (_keep, home) = home();
         assert_eq!(
-            resolve_slot_launch(&home, None, None),
+            resolve_slot_launch(&home, None),
             SlotLaunch {
                 data_dir: home.join(".xenon"),
                 slot: None,
@@ -106,7 +100,7 @@ mod tests {
         // A marker naming a slot whose dir is missing also falls back.
         fs::write(home.join(".xenon-active-slot"), "b").unwrap();
         assert_eq!(
-            resolve_slot_launch(&home, None, None).data_dir,
+            resolve_slot_launch(&home, None).data_dir,
             home.join(".xenon")
         );
     }
@@ -118,7 +112,7 @@ mod tests {
         fs::write(home.join(".xenon-active-slot"), "b").unwrap();
         let preset = home.join("preset");
         assert_eq!(
-            resolve_slot_launch(&home, Some(&preset), None),
+            resolve_slot_launch(&home, Some(&preset)),
             SlotLaunch {
                 data_dir: preset,
                 slot: None,

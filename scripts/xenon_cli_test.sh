@@ -28,10 +28,8 @@ chmod +x "$app/Contents/MacOS/xenon"
 
 cp "$root/scripts/xenon" "$bin_dir/xenon"
 chmod +x "$bin_dir/xenon"
-ln -sfn xenon "$bin_dir/xero"
 
 [[ -x "$bin_dir/xenon" ]]
-[[ "$(readlink "$bin_dir/xero")" == xenon ]]
 grep -q $'^        open)$' "$bin_dir/xenon"
 
 out="$(
@@ -58,7 +56,7 @@ cc -o "$app/Contents/MacOS/xenon-bin" "$tmp/sleeper.c"
 home="$tmp/home"
 slot_dir="$home/.xenon-a"
 mkdir -p "$slot_dir"
-XENON_DATA_DIR="$slot_dir" XENON_SLOT=A XERO_DATA_DIR="$slot_dir" XERO_SLOT=A \
+XENON_DATA_DIR="$slot_dir" XENON_SLOT=A \
     "$app/Contents/MacOS/xenon" &
 sleeper_pid=$!
 printf '%s\n' "$sleeper_pid" >"$slot_dir/xenon.pid"

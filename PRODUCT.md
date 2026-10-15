@@ -34,21 +34,11 @@ This is the missing layer: multi-workspace, any terminal harness, instant feel.
 Most software engineers are becoming prompt engineers (or resisting that). The
 trend is accelerating. A daily-driver shell for parallel agent work is the bet.
 
-## Brand name (intent)
+## Naming
 
-The working name **xero** was loved because it sounds like **zero**: nothing.
-Subconsciously: anti-IDE, empty chrome, no opinionated agent stack. That
-semantic is right even if the spelling must change (Xero accounting collision).
-
-**Settled public name: Xenon.** CLI / app binary: **`xenon`** (not `xe`:
-brew + XenServer PATH collision). Metaphor: noble gas, present but inert,
-anti-IDE. App: `Xenon.app`. Data: `~/.xenon` (auto-migrate from `~/.xero`).
-Env: `XENON_DATA_DIR` / `XENON_SLOT` with legacy `XERO_*` aliases. Bundle id
-stays `dev.xero.xero` (TCC). Crate paths `crates/xenon_*`. GitHub:
-`mpalczew/xenon` (public). Checklist: `docs/release.md`.
-
-Rejected or DQ: xero (accounting), xe CLI, mu (Mu Editor), nyx (Nix verbal +
-brew), vexo (vex), soft metaphors (weft/skiff). zeno/wu kept as also-rans only.
+App: `Xenon.app`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` /
+`XENON_SLOT`. Bundle id `dev.xenon.xenon`. Crate paths `crates/xenon_*`.
+GitHub: `mpalczew/xenon` (public). Checklist: `docs/release.md`.
 
 ## Anti-IDE (product rule, not slogan)
 

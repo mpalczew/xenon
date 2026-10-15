@@ -46,9 +46,7 @@ fn write_gui_printer(macos: &Path) {
         &gui,
         "#!/bin/sh\n\
          printf 'XENON_DATA_DIR=%s\\n' \"$XENON_DATA_DIR\"\n\
-         printf 'XERO_DATA_DIR=%s\\n' \"$XERO_DATA_DIR\"\n\
          printf 'XENON_SLOT=%s\\n' \"$XENON_SLOT\"\n\
-         printf 'XERO_SLOT=%s\\n' \"$XERO_SLOT\"\n\
          printf 'ARGS=%s\\n' \"$*\"\n",
     )
     .unwrap();
@@ -59,9 +57,7 @@ fn run_stub(stub: &Path, home: &Path, extra_env: &[(&str, &str)]) -> String {
     let mut cmd = Command::new(stub);
     cmd.env("HOME", home)
         .env_remove("XENON_DATA_DIR")
-        .env_remove("XERO_DATA_DIR")
         .env_remove("XENON_SLOT")
-        .env_remove("XERO_SLOT")
         .args(["open", "file.rs"]);
     for (key, value) in extra_env {
         cmd.env(key, value);
@@ -89,9 +85,7 @@ fn stub_adopts_last_slot() {
     let stdout = run_stub(&stub, &home, &[]);
     let slot = home.join(".xenon-a");
     assert!(stdout.contains(&format!("XENON_DATA_DIR={}", slot.display())));
-    assert!(stdout.contains(&format!("XERO_DATA_DIR={}", slot.display())));
     assert!(stdout.contains("XENON_SLOT=A"));
-    assert!(stdout.contains("XERO_SLOT=A"));
     assert!(stdout.contains("ARGS=open file.rs"));
 }
 

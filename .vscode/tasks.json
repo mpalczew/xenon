@@ -5,7 +5,7 @@
       "label": "xenon",
       "type": "shell",
       "command": "~/bin/xenon",
-      "detail": "launch Xenon via the slot launcher (alias: ~/bin/xero)"
+      "detail": "launch Xenon via the slot launcher"
     },
     {
       "label": "install",

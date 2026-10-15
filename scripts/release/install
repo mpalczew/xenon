@@ -11,14 +11,13 @@ source "$root/scripts/release/codesign.sh"
 target="${CARGO_TARGET_DIR:-target}"
 [[ "$target" == /* ]] || target="$root/$target"
 
-dest_dir="${XENON_INSTALL_DIR:-${XERO_INSTALL_DIR:-$HOME/Applications}}"
+dest_dir="${XENON_INSTALL_DIR:-$HOME/Applications}"
 dest="$dest_dir/Xenon.app"
 mkdir -p "$dest_dir"
-# Remove legacy install name if present.
-rm -rf "$dest_dir/xero.app" "$dest"
+rm -rf "$dest"
 cp -R "$target/${XENON_PROFILE:-release}/xenon.app" "$dest"
 identity="$(xenon_codesign_identity)"
-codesign --force --deep --sign "$identity" --identifier dev.xero.xero "$dest" || {
+codesign --force --deep --sign "$identity" --identifier dev.xenon.xenon "$dest" || {
     echo "codesign of installed app failed: $dest" >&2
     exit 1
 }
@@ -28,5 +27,4 @@ bin_dir="${XENON_BIN_DIR:-$HOME/bin}"
 mkdir -p "$bin_dir"
 cp "$root/scripts/xenon" "$bin_dir/xenon"
 chmod +x "$bin_dir/xenon"
-ln -sfn xenon "$bin_dir/xero"
 echo "installed $bin_dir/xenon"

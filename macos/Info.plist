@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>Xenon</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.xero.xero</string>
+    <string>dev.xenon.xenon</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>

@@ -2,7 +2,7 @@
 # Shared codesign identity helpers for Xenon release scripts.
 # shellcheck shell=bash
 
-XENON_LOCAL_IDENTITY="${XENON_LOCAL_IDENTITY:-${XERO_LOCAL_IDENTITY:-xero-dev}}"
+XENON_LOCAL_IDENTITY="${XENON_LOCAL_IDENTITY:-xenon-dev}"
 
 _xenon_codesign_list() {
     security find-identity -v -p codesigning 2>/dev/null \
@@ -72,11 +72,11 @@ EOF
 }
 
 # Resolve a stable codesign identity. Prefer Apple identities, then local
-# xero-dev. Never prefer bare ad-hoc (`-`) — that changes the CDHash every
+# xenon-dev. Never prefer bare ad-hoc (`-`) — that changes the CDHash every
 # install and drops Full Disk Access / App Management grants.
 xenon_codesign_identity() {
-    if [[ -n "${XENON_CODESIGN_IDENTITY:-${XERO_CODESIGN_IDENTITY:-}}" ]]; then
-        printf '%s\n' "${XENON_CODESIGN_IDENTITY:-$XERO_CODESIGN_IDENTITY}"
+    if [[ -n "${XENON_CODESIGN_IDENTITY:-}" ]]; then
+        printf '%s\n' "$XENON_CODESIGN_IDENTITY"
         return 0
     fi
     local id
