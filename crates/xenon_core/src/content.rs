@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::session::{OpenEditor, Point, TerminalState};
+use crate::session::Point;
 
 /// Max split depth root→leaf (at most 4 leaves on a path of length 3).
 pub const MAX_NEST_DEPTH: u32 = 3;
@@ -88,22 +88,6 @@ pub struct LeafPane {
     /// Keep this leaf visible when it has no tabs.
     #[serde(default)]
     pub parked: bool,
-}
-
-impl LeafPane {
-    pub(crate) fn new(id: PaneId, tabs: Vec<TabState>, active: usize) -> Self {
-        let active = if tabs.is_empty() {
-            0
-        } else {
-            active.min(tabs.len() - 1)
-        };
-        Self {
-            id,
-            tabs,
-            active,
-            parked: false,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -198,107 +182,6 @@ fn clamp_ratio(ratio: f32) -> f32 {
     ratio.clamp(RATIO_MIN, RATIO_MAX)
 }
 
-/// Build content layout from the pre-pane-tree session fields.
-/// Inputs from the pre-pane-tree session JSON shape.
-pub struct LegacySession {
-    pub terminal_visible: bool,
-    pub editor_visible: bool,
-    pub terminal_width: f32,
-    pub editors: Vec<OpenEditor>,
-    pub active_editor: Option<usize>,
-    pub terminal: TerminalState,
-}
-
-pub fn migrate_from_legacy(legacy: LegacySession) -> ContentLayout {
-    let LegacySession {
-        terminal_visible,
-        editor_visible,
-        terminal_width,
-        editors,
-        active_editor,
-        terminal,
-    } = legacy;
-    let mut next_pane = 1u64;
-    let mut next_tab = 1u64;
-    let mut alloc_pane = || {
-        let id = PaneId(next_pane);
-        next_pane += 1;
-        id
-    };
-    let mut alloc_tab = || {
-        let id = TabId(next_tab);
-        next_tab += 1;
-        id
-    };
-
-    let make_term = |alloc_tab: &mut dyn FnMut() -> TabId| TabState::Terminal {
-        remote_session: None,
-        id: alloc_tab(),
-        cwd: terminal.cwd.clone(),
-    };
-    let make_editors = |alloc_tab: &mut dyn FnMut() -> TabId| -> Vec<TabState> {
-        editors
-            .iter()
-            .map(|e| TabState::Editor {
-                id: alloc_tab(),
-                path: e.path.clone(),
-                cursor: e.cursor,
-                scroll_top: e.scroll_top,
-            })
-            .collect()
-    };
-
-    let has_editors = !editors.is_empty();
-    let mut content = if terminal_visible && editor_visible && has_editors {
-        let term_id = alloc_pane();
-        let ed_id = alloc_pane();
-        let ratio = clamp_ratio(terminal_width / (terminal_width + 400.0).max(1.0));
-        let active = active_editor.unwrap_or(0);
-        ContentLayout {
-            root: Some(PaneNode::Split {
-                axis: SplitAxis::Horizontal,
-                ratio,
-                first: Box::new(PaneNode::Leaf(LeafPane::new(
-                    term_id,
-                    vec![make_term(&mut alloc_tab)],
-                    0,
-                ))),
-                second: Box::new(PaneNode::Leaf(LeafPane::new(
-                    ed_id,
-                    make_editors(&mut alloc_tab),
-                    active,
-                ))),
-            }),
-            focused: Some(term_id),
-        }
-    } else if has_editors && (editor_visible || !terminal_visible) {
-        let ed_id = alloc_pane();
-        let active = active_editor.unwrap_or(0);
-        ContentLayout {
-            root: Some(PaneNode::Leaf(LeafPane::new(
-                ed_id,
-                make_editors(&mut alloc_tab),
-                active,
-            ))),
-            focused: Some(ed_id),
-        }
-    } else if terminal_visible || !has_editors {
-        let term_id = alloc_pane();
-        ContentLayout {
-            root: Some(PaneNode::Leaf(LeafPane::new(
-                term_id,
-                vec![make_term(&mut alloc_tab)],
-                0,
-            ))),
-            focused: Some(term_id),
-        }
-    } else {
-        ContentLayout::default()
-    };
-    content.normalize();
-    content
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,24 +204,5 @@ mod tests {
         };
         assert!(leaf.parked);
         assert!(leaf.tabs.is_empty());
-    }
-
-    #[test]
-    fn normalize_repairs_focus_and_ratio() {
-        let mut content = migrate_from_legacy(LegacySession {
-            terminal_visible: true,
-            editor_visible: true,
-            terminal_width: f32::NAN,
-            editors: vec![OpenEditor {
-                path: PathBuf::from("a.rs"),
-                cursor: Point::default(),
-                scroll_top: 0,
-            }],
-            active_editor: Some(0),
-            terminal: TerminalState::default(),
-        });
-        content.focused = Some(PaneId(999));
-        content.normalize();
-        assert!(content.leaf_ids().contains(&content.focused.unwrap()));
     }
 }
