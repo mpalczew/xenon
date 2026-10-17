@@ -1344,7 +1344,7 @@ const FX = {
     5: { fg: "#a626a4", f: 1 }, 6: { fg: "#a626a4" }, 7: { fg: "#4078f2" }, 8: { fg: "#e45649" },
   },
   workspaces: [
-    { id: "w1", name: "xenon", open: true, root: "~/src/desktop/xenon", dot: "attention", terminals: 3 },
+    { id: "w1", name: "xenon", open: true, root: "~/src/xenon", dot: "attention", terminals: 3 },
     { id: "w3", name: "aipm", open: true, root: "~/src/aipm", dot: "working", terminals: 2 },
     { id: "w2", name: "homelab", open: true, root: "~/src/homelab", dot: "attention", terminals: 1 },
     { id: "w4", name: "dotfiles", open: true, root: "~/dotfiles", terminals: 1 },
@@ -1415,7 +1415,7 @@ const FX = {
 function fixtureSession(content, cursor, styles) {
   S.workspaces = FX.workspaces;
   S.wsSel = FX.workspaces[0];
-  S.terminals = [{ tabId: 7, title: "claude", cwd: "~/src/desktop/xenon", active: true, dot: "attention" }];
+  S.terminals = [{ tabId: 7, title: "claude", cwd: "~/src/xenon", active: true, dot: "attention" }];
   S.skippedList = false;
   openSession(S.terminals[0]);
   addStyles(styles || FX.styles);
