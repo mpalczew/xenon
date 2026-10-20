@@ -85,6 +85,9 @@ Vim mode includes normal/visual/visual-line/visual-block (`Ctrl-v`), `/` and
 `?`, `n`/`N`, `%`, join/indent/number-bump/scroll-center edits, and the
 supported ex commands.
 
+macOS swallows some chords before Xenon sees them; don't bind defaults there.
+Known: ⌘⌥D (Dock hide/show).
+
 ## Customizing keys
 
 Shortcuts are bindings you can change. Run **Open Keymap** from the command
