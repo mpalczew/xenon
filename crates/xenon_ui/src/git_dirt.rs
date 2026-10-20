@@ -102,14 +102,25 @@ impl GitFile {
         self.path.rsplit('/').next().unwrap_or(&self.path)
     }
 
-    /// The last two directories, `…/src/sidebar`, for a narrow list.
+    /// The deepest directories that fit the sidebar's ~10-character room:
+    /// the last two segments (`src/app`) when they fit, else the last segment
+    /// alone (`sidebar`), else its tail (`…ar_footer`). The row truncates at
+    /// the end, so the distinguishing leaf must never be what gets cut.
     pub(crate) fn dir_tail(&self) -> String {
+        const BUDGET: usize = 10;
         let parts: Vec<&str> = self.dir().split('/').filter(|p| !p.is_empty()).collect();
-        match parts.len() {
-            0 => String::new(),
-            1 | 2 => parts.join("/"),
-            n => format!("…/{}", parts[n - 2..].join("/")),
+        let tail = &parts[parts.len().saturating_sub(2)..];
+        let joined = tail.join("/");
+        if joined.chars().count() <= BUDGET {
+            return joined;
         }
+        let last = tail.last().copied().unwrap_or_default();
+        let n = last.chars().count();
+        if n <= BUDGET {
+            return last.to_string();
+        }
+        let keep: String = last.chars().skip(n - (BUDGET - 1)).collect();
+        format!("…{keep}")
     }
 
     /// Directory part of the path, without a trailing slash (empty at root).

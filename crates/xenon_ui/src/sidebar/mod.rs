@@ -286,8 +286,9 @@ impl XenonApp {
         let group = format!("ws-{id}");
         let drop_line = colors.drop_target_border;
         let path_tip = SharedString::from(path.to_string());
+        // Neutral strong edge: blue is the working line, yellow needs-you.
         let edge_color = if active {
-            colors.text_accent
+            colors.text
         } else {
             gpui::transparent_black()
         };

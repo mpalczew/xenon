@@ -58,7 +58,8 @@ sections show Staged (HEAD | Index) and Unstaged (Index | Working tree).
 ## Color strategy
 
 **Restrained.** Tinted neutrals from the active theme pack; one accent
-(`text.accent`) for selection edges and links. Semantic warning for attention.
+(`text.accent`) for links and tab underlines. Workspace-row selection edges use
+neutral `text` so they never read as the blue working or yellow needs-you line. Semantic warning for attention.
 
 ## Elevation (dark)
 
@@ -137,7 +138,7 @@ they do not draw checkbox glyphs or wire keyboard activation.
 apply immediately; checkboxes stay for picking items. The knob travels in
 180ms with a small overshoot while the track crossfades; Reduce Motion makes
 it instant.
-`selectable_row` owns selection fill, the left accent edge, and hover. Callers
+`selectable_row` owns selection fill, the left selection edge (`border.selected`; neutral `text` on workspace rows), and hover. Callers
 supply the row content. `bullet_list` renders indented supporting lines at
 22px per level. `OutlineView` edits one title and indented points: Enter
 splits a point, Tab and Shift-Tab change depth, and Backspace at the start
