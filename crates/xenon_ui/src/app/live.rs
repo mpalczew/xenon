@@ -16,12 +16,19 @@ pub(crate) enum LiveTab {
         name: String,
         view: Entity<EditorView>,
     },
+    /// Read-only git diff of one workspace-relative path. Not persisted.
+    Diff {
+        id: TabId,
+        path: String,
+        name: String,
+        view: Entity<crate::diff_view::DiffView>,
+    },
 }
 
 impl LiveTab {
     pub(crate) fn id(&self) -> TabId {
         match self {
-            Self::Terminal { id, .. } | Self::Editor { id, .. } => *id,
+            Self::Terminal { id, .. } | Self::Editor { id, .. } | Self::Diff { id, .. } => *id,
         }
     }
 
@@ -321,12 +328,20 @@ impl LiveContent {
 
 fn snapshot_node(node: &LiveNode) -> PaneNode {
     match node {
-        LiveNode::Leaf(leaf) => PaneNode::Leaf(LeafPane {
-            id: leaf.id,
-            active: leaf.active,
-            tabs: leaf.tabs.iter().map(snapshot_tab).collect(),
-            parked: leaf.parked,
-        }),
+        LiveNode::Leaf(leaf) => {
+            // Diff tabs are not restored; keep the active index on saved tabs.
+            let tabs: Vec<TabState> = leaf.tabs.iter().filter_map(snapshot_tab).collect();
+            let kept_before = leaf.tabs[..leaf.active.min(leaf.tabs.len())]
+                .iter()
+                .filter(|tab| snapshot_tab(tab).is_some())
+                .count();
+            PaneNode::Leaf(LeafPane {
+                id: leaf.id,
+                active: kept_before.min(tabs.len().saturating_sub(1)),
+                parked: leaf.parked || (tabs.is_empty() && !leaf.tabs.is_empty()),
+                tabs,
+            })
+        }
         LiveNode::Split {
             axis,
             ratio,
@@ -341,8 +356,8 @@ fn snapshot_node(node: &LiveNode) -> PaneNode {
     }
 }
 
-fn snapshot_tab(tab: &LiveTab) -> TabState {
-    match tab {
+fn snapshot_tab(tab: &LiveTab) -> Option<TabState> {
+    Some(match tab {
         LiveTab::Terminal { id, .. } => TabState::Terminal {
             remote_session: None,
             id: *id,
@@ -354,7 +369,8 @@ fn snapshot_tab(tab: &LiveTab) -> TabState {
             cursor: xenon_core::Point::default(),
             scroll_top: 0,
         },
-    }
+        LiveTab::Diff { .. } => return None,
+    })
 }
 
 fn unsplit_live(

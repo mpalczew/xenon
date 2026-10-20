@@ -77,6 +77,7 @@ impl XenonApp {
         match self.active_content().and_then(|c| c.active_tab()) {
             Some(LiveTab::Terminal { view, .. }) => FindSurface::Terminal(view.clone()),
             Some(LiveTab::Editor { view, .. }) => FindSurface::Editor(view.clone()),
+            Some(LiveTab::Diff { .. }) => FindSurface::None,
             None => {
                 if let Some(editor) = self.active_editor() {
                     FindSurface::Editor(editor)
@@ -179,7 +180,7 @@ impl XenonApp {
 
     pub(crate) fn new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.follow_gpui_leaf(window, cx);
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         self.add_terminal(cx);
         if let Some(terminal) = self.active_terminal() {
             self.deferred.last_font_pane = FontPane::Terminal;
@@ -193,7 +194,7 @@ impl XenonApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         self.add_terminal_to_pane(Some(pane), cx);
         if let Some(terminal) = self.active_terminal() {
             self.deferred.last_font_pane = FontPane::Terminal;
@@ -224,7 +225,7 @@ impl XenonApp {
             return;
         };
         let tab_id = tab.id();
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         match tab {
             LiveTab::Terminal { view, .. } => {
                 self.clear_tab_attention(id, tab_id, cx);
@@ -235,6 +236,10 @@ impl XenonApp {
                 self.touch_recent_file(id, &path);
                 self.deferred.last_font_pane = FontPane::Editor;
                 view.update(cx, |view, cx| view.sync_from_disk(cx));
+                view.read(cx).focus_handle(cx).focus(window, cx);
+            }
+            LiveTab::Diff { view, .. } => {
+                self.deferred.last_font_pane = FontPane::Editor;
                 view.read(cx).focus_handle(cx).focus(window, cx);
             }
         }
@@ -273,11 +278,11 @@ impl XenonApp {
         {
             return;
         }
-        if content.focused == Some(pane) && !self.browser_focused {
+        if content.focused == Some(pane) && !self.browser_focused && !self.git.focused {
             return;
         }
         content.focused = Some(pane);
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         cx.notify();
     }
 
@@ -354,7 +359,7 @@ impl XenonApp {
                         .and_then(|leaf| leaf.tabs.get(index))
                         .and_then(|tab| match tab {
                             LiveTab::Editor { path, .. } => Some(path.clone()),
-                            LiveTab::Terminal { .. } => None,
+                            LiveTab::Terminal { .. } | LiveTab::Diff { .. } => None,
                         })
                 })
             });

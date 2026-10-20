@@ -129,14 +129,19 @@ impl XenonApp {
             return match tab {
                 LiveTab::Terminal { .. } => FocusOwner::Terminal,
                 LiveTab::Editor { .. } => FocusOwner::Editor,
+                LiveTab::Diff { .. } => FocusOwner::Diff,
             };
         }
         if self.browser_focused {
             return FocusOwner::Browser;
         }
+        if self.git.focused {
+            return FocusOwner::Git;
+        }
         match self.active_content().and_then(|c| c.active_tab()) {
             Some(LiveTab::Terminal { .. }) => FocusOwner::Terminal,
             Some(LiveTab::Editor { .. }) => FocusOwner::Editor,
+            Some(LiveTab::Diff { .. }) => FocusOwner::Diff,
             None => {
                 if self.active_terminal().is_some() {
                     FocusOwner::Terminal
@@ -159,8 +164,11 @@ impl XenonApp {
             FocusOwner::Terminal => self.focus_terminal(window, cx),
             FocusOwner::Editor => self.focus_editor(window, cx),
             FocusOwner::Browser => self.focus_browser(window, cx),
+            FocusOwner::Git => self.focus_git(window, cx),
+            FocusOwner::Diff => self.focus_workspace_leaf(Some(window), cx),
             FocusOwner::Shell => {
-                self.browser_focused = false;
+                self.clear_sidebar_focus();
+                self.git.focused = false;
                 self.focus.focus(window, cx);
                 cx.notify();
             }
@@ -268,7 +276,9 @@ impl XenonApp {
         let target = match self.current_focus_owner(window, cx) {
             FocusOwner::Editor => FontPane::Editor,
             FocusOwner::Terminal => FontPane::Terminal,
-            FocusOwner::Browser | FocusOwner::Shell => self.deferred.last_font_pane,
+            FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {
+                self.deferred.last_font_pane
+            }
         };
         self.deferred.last_font_pane = target;
         target
@@ -353,7 +363,7 @@ impl XenonApp {
                     });
                 }
             }
-            FocusOwner::Browser | FocusOwner::Shell => {}
+            FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {}
         }
     }
 
@@ -375,7 +385,7 @@ impl XenonApp {
                     });
                 }
             }
-            FocusOwner::Browser | FocusOwner::Shell => {}
+            FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {}
         }
     }
 
@@ -392,7 +402,7 @@ impl XenonApp {
                     self.show_toast(super::toasts::nothing_to_copy(), cx);
                 }
             }
-            FocusOwner::Browser | FocusOwner::Shell => {
+            FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {
                 self.show_toast(super::toasts::nothing_to_copy(), cx);
             }
         }
@@ -409,7 +419,7 @@ impl XenonApp {
                     });
                 }
             }
-            FocusOwner::Browser | FocusOwner::Shell => {}
+            FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {}
         }
     }
 
@@ -431,7 +441,7 @@ impl XenonApp {
                     });
                 }
             }
-            FocusOwner::Browser | FocusOwner::Shell => {}
+            FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {}
         }
     }
 }

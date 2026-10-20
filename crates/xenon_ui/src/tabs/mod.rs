@@ -162,13 +162,7 @@ impl XenonApp {
                     )
                     .into_any_element()
                 }
-                LiveTab::Editor {
-                    id,
-                    path,
-                    name,
-                    view,
-                } => {
-                    let dirty = view.read(cx).is_dirty();
+                LiveTab::Editor { id, path, name, .. } => {
                     let tab_id = *id;
                     let path_s = path.display().to_string();
                     self.mixed_editor_chip(
@@ -179,12 +173,26 @@ impl XenonApp {
                         &path_s,
                         is_active,
                         focused && is_active,
-                        dirty,
+                        false,
                         ws,
                         cx,
                     )
                     .into_any_element()
                 }
+                LiveTab::Diff { id, path, name, .. } => self
+                    .mixed_editor_chip(
+                        pane,
+                        index,
+                        *id,
+                        name,
+                        &format!("{path} · HEAD → working tree"),
+                        is_active,
+                        focused && is_active,
+                        true,
+                        ws,
+                        cx,
+                    )
+                    .into_any_element(),
             };
             chips.push(chip);
         }

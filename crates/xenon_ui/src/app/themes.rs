@@ -30,7 +30,7 @@ impl XenonApp {
             return;
         }
         self.dismiss_palettes(cx);
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let picker = cx.new(ThemePickerView::new);
         self._theme_picker_sub = Some(cx.subscribe(&picker, Self::on_theme_picker_event));

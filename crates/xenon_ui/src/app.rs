@@ -47,6 +47,7 @@ mod empty_pane_ops;
 mod empty_state;
 mod focus_guard;
 mod git_dirt;
+mod git_section;
 mod key_events;
 mod keyboard;
 mod keymap;
@@ -85,6 +86,7 @@ mod workspaces;
 
 pub(crate) use attention::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
 use deferred::{DeferredUi, FocusOwner, FontPane};
+pub(crate) use git_section::GitSectionState;
 pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
 use lsp::LspState;
 use nav_history::NavHistory;
@@ -151,6 +153,8 @@ pub struct XenonApp {
     theme_picker: Option<Entity<crate::theme_picker::ThemePickerView>>,
     /// File tree has keyboard focus (arrows/enter route here, not editor/terminal).
     browser_focused: bool,
+    /// Sidebar Git section: collapse, size, keyboard cursor.
+    pub(crate) git: GitSectionState,
     // Per-root fuzzy index shared by cmd-p and cmd-click resolution, built off
     // the UI thread. `index_tasks` keeps in-flight builds alive, keyed by root so
     // a new build for the same root replaces (cancels) the previous one.

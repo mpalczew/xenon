@@ -239,7 +239,7 @@ impl XenonApp {
         path: &str,
         is_active: bool,
         is_focused: bool,
-        _is_dirty: bool,
+        read_only: bool,
         ws: Option<xenon_core::WorkspaceId>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
@@ -304,6 +304,7 @@ impl XenonApp {
             .tooltip(move |_window: &mut Window, cx: &mut App| {
                 cx.new(|_| TabTooltip { text: tip.clone() }).into()
             })
+            .children(read_only.then(|| icon(Icon::GitCompare, px(14.))))
             .child(
                 div()
                     .type_role(TypeRole::Body, cx)
@@ -317,6 +318,7 @@ impl XenonApp {
                     .truncate()
                     .child(name_owned),
             )
+            .children(read_only.then(|| icon(Icon::Lock, px(11.))))
             .child(tab_close(
                 SharedString::from(format!("etab-close-{}-{}", pane.0, index)),
                 &group,

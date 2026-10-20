@@ -38,6 +38,8 @@ pub enum CommandId {
     FocusTerminal,
     FocusEditor,
     FocusBrowser,
+    FocusGit,
+    CycleDiffLayout,
     FocusNextPane,
     NextWorkspace,
     PrevWorkspace,
@@ -94,7 +96,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 62] {
+const fn all_commands() -> [CommandEntry; 64] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -110,6 +112,8 @@ const fn all_commands() -> [CommandEntry; 62] {
         cmd!(FocusTerminal, "Focus Terminal", "⌘1", "Focus"),
         cmd!(FocusEditor, "Focus Editor", "⌘2", "Focus"),
         cmd!(FocusBrowser, "Focus File Tree", "⌘3", "Focus"),
+        cmd!(FocusGit, "Focus Git Changes", "⌘⌥G", "Focus"),
+        cmd!(CycleDiffLayout, "Cycle Diff Layout", "⌘⌥⇧D", "View"),
         cmd!(FocusNextPane, "Focus Next Pane", "⌃`", "Focus"),
         cmd!(NextTab, "Next Tab", "⌃⇥", "Focus"),
         cmd!(PrevTab, "Previous Tab", "⌃⇧⇥", "Focus"),
@@ -168,7 +172,7 @@ const fn all_commands() -> [CommandEntry; 62] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 62] = all_commands();
+    static ENTRIES: [CommandEntry; 64] = all_commands();
     &ENTRIES
 }
 

@@ -94,6 +94,7 @@ impl XenonApp {
             command_palette: None,
             theme_picker: None,
             browser_focused: false,
+            git: GitSectionState::new(&settings),
             file_indexes: HashMap::new(),
             index_tasks: HashMap::new(),
             recent_files: HashMap::new(),

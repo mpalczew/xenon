@@ -27,6 +27,8 @@ const SHARED: &[Row] = &[
     (None, "cmd-1", "xenon::FocusTerminal"),
     (None, "cmd-2", "xenon::FocusEditor"),
     (None, "cmd-3", "xenon::FocusBrowser"),
+    (None, "cmd-alt-g", "xenon::FocusGit"),
+    (None, "cmd-alt-shift-d", "xenon::CycleDiffLayout"),
     (None, "ctrl-`", "xenon::FocusNextPane"),
     (None, "cmd-alt-down", "xenon::NextWorkspace"),
     (None, "cmd-alt-up", "xenon::PrevWorkspace"),

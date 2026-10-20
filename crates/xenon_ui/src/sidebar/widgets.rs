@@ -86,32 +86,6 @@ pub(super) fn workspace_rename_row(
         .into_any_element()
 }
 
-/// Right-edge gutter for workspace rows: holds git +/- flush right.
-/// `min_w` matches hover-action width so absolute actions never cover the title.
-pub(super) fn workspace_dirt_gutter(
-    dirt: Option<crate::git_dirt::DirtLabels>,
-    group: &str,
-    colors: &theme::ThemeColors,
-) -> impl IntoElement + use<> {
-    let group = group.to_string();
-    div()
-        .flex_none()
-        .w(px(ACTIONS_W))
-        .flex()
-        .items_center()
-        .justify_end()
-        .children(dirt.map(|labels| {
-            div()
-                .group_hover(group, |s| s.invisible())
-                .child(crate::git_dirt::badge(
-                    labels,
-                    colors.version_control_added,
-                    colors.version_control_deleted,
-                    colors.text_muted,
-                ))
-        }))
-}
-
 pub(super) fn path_tooltip(
     path: SharedString,
 ) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static {

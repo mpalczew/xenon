@@ -5,6 +5,10 @@ mod app;
 mod chrome;
 mod command_palette;
 mod commands;
+mod diff_load;
+mod diff_model;
+mod diff_rows;
+mod diff_view;
 mod dropdown;
 mod file_browser;
 mod finder;
@@ -82,6 +86,8 @@ actions!(
         FocusTerminal,
         FocusEditor,
         FocusBrowser,
+        FocusGit,
+        CycleDiffLayout,
         FocusNextPane,
         NextWorkspace,
         PrevWorkspace,

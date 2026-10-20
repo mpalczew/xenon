@@ -23,6 +23,9 @@ exceptions listed under "Linux differences" below.
 | Capture task / open worklist | ⌘⇧K / ⌘⌥K |
 | Toast: undo capture / dismiss | ⌘Z / ⌘. |
 | Focus terminal / editor / Files | ⌘1 / ⌘2 / ⌘3 (kinds, not pane index) |
+| Focus Git section (again: fold it, back to the pane) | ⌘⌥G |
+| Git section: move · open diff · back to the pane | ↑/↓ · ↩ · Escape |
+| Diff tab: cycle Auto / Split / Unified · scroll | ⌘⌥⇧D · ↑/↓, Space, PageUp/PageDown, Home/End |
 | Next pane (leaves, then Files) | ⌃` |
 | Workspace next / previous / close | ⌘⌥↓ / ⌘⌥↑ / ⌘⌥W |
 | Tab next / previous / close | ⌃⇥ / ⌃⇧⇥ / ⌘W (this leaf only) |
@@ -147,7 +150,9 @@ GPUI actions run on the focused node's path. An active Xenon window always has
 a logical focus owner:
 
 - the active terminal or editor;
-- the Files tree through the shell focus handle; or
+- the Files tree or the Git section through the shell focus handle
+  (`browser_focused` / `git.focused`; never both);
+- a read-only diff tab (its own focus handle); or
 - the shell itself when no content exists.
 
 The logical owner is resolved as a non-optional `FocusOwner`; with no live

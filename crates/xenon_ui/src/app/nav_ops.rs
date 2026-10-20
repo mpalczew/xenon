@@ -101,6 +101,7 @@ impl XenonApp {
                     col,
                 })
             }
+            LiveTab::Diff { .. } => None,
         }
     }
 

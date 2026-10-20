@@ -15,12 +15,13 @@ use xenon_design_system::{TypeRole, Typography};
 use crate::app::{WorkspaceDot, XenonApp};
 use crate::icons::icon;
 
+mod git_section;
+mod marks;
 mod remote_footer;
 mod widgets;
 
 use widgets::{
-    DragWorkspace, ICON_MD, ICON_SM, ROW_H, drag_chip, id_hash, path_tooltip,
-    workspace_dirt_gutter, workspace_rename_row,
+    DragWorkspace, ICON_MD, ICON_SM, ROW_H, drag_chip, id_hash, path_tooltip, workspace_rename_row,
 };
 
 struct WorkspaceRows {
@@ -30,6 +31,7 @@ struct WorkspaceRows {
     active: bool,
     /// Workspace status pip (`None` = quiet).
     status: Option<WorkspaceDot>,
+    dirt: crate::git_dirt::DirtState,
 }
 
 struct WorkspaceHeader<'a> {
@@ -38,8 +40,8 @@ struct WorkspaceHeader<'a> {
     path: &'a str,
     active: bool,
     status: Option<WorkspaceDot>,
-    /// `+N` / `-M` line dirt when the workspace root is a dirty git work tree.
-    dirt: Option<crate::git_dirt::DirtLabels>,
+    /// How far the workspace root has drifted from HEAD.
+    dirt: crate::git_dirt::DirtState,
 }
 
 struct WorkspaceTitle<'a> {
@@ -62,6 +64,7 @@ impl XenonApp {
                 path: w.display_root(),
                 active: active == Some(w.id),
                 status: self.workspace_status(w.id, cx),
+                dirt: self.workspace_dirt(w.id),
             })
             .collect();
 
@@ -72,7 +75,6 @@ impl XenonApp {
         let mut ws_rows = Vec::new();
         if !ws_collapsed {
             for workspace in &workspaces {
-                let dirt = self.workspace_dirt(workspace.id).and_then(|d| d.labels());
                 ws_rows.push(
                     self.workspace_header(
                         WorkspaceHeader {
@@ -81,7 +83,7 @@ impl XenonApp {
                             path: &workspace.path,
                             active: workspace.active,
                             status: workspace.status,
-                            dirt,
+                            dirt: workspace.dirt,
                         },
                         cx,
                     )
@@ -148,6 +150,7 @@ impl XenonApp {
             .child(self.workspaces_section_header(ws_collapsed, cx))
             .children(workspace_body)
             .children(has_active.then(|| self.render_files_section(cx)))
+            .children(self.render_git_section(cx))
             .children(self.render_remote_footer(cx))
             .child(crate::resize::col_resize_handle(
                 "sidebar-resize",
@@ -286,12 +289,9 @@ impl XenonApp {
         let edge_color = if active {
             colors.text_accent
         } else {
-            match status {
-                Some(WorkspaceDot::Working) => crate::chrome::status_color(cx, false),
-                Some(WorkspaceDot::Attention(_)) => crate::chrome::status_color(cx, true),
-                None => gpui::transparent_black(),
-            }
+            gpui::transparent_black()
         };
+        let status_line = status.map(|dot| self.status_line_element(id, dot, cx));
         let row = xenon_design_system::selectable_row(
             ("ws-row", id_hash(id.to_string())),
             active,
@@ -316,26 +316,38 @@ impl XenonApp {
                 this.reorder_workspace(dragged.0, id, cx)
             }),
         )
+        .children(status_line)
         .child(self.workspace_title_hit(WorkspaceTitle { id, name, path }, cx))
-        .child(workspace_dirt_gutter(dirt, &group, &colors))
+        .child(marks::dirt_gutter(dirt, &group, &colors, cx))
         .child(self.workspace_hover_actions(id, &group, &colors, cx));
+        row.into_any_element()
+    }
+
+    /// Left-edge agent line; the working one pulses quietly.
+    fn status_line_element(
+        &self,
+        id: WorkspaceId,
+        status: WorkspaceDot,
+        cx: &Context<Self>,
+    ) -> gpui::AnyElement {
+        let line = marks::status_line(status, cx);
         #[cfg(not(feature = "visual-tests"))]
-        if !active && matches!(status, Some(WorkspaceDot::Working)) {
-            row.with_animation(
-                ("workspace-status", id_hash(id.to_string())),
-                Animation::new(std::time::Duration::from_millis(1400))
-                    .repeat()
-                    .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
-                move |this, delta| this.border_color(edge_color.opacity(delta)),
-            )
-            .into_any_element()
-        } else {
-            row.into_any_element()
+        if matches!(status, WorkspaceDot::Working) {
+            let color = crate::chrome::status_color(cx, false);
+            return line
+                .with_animation(
+                    ("workspace-status", id_hash(id.to_string())),
+                    Animation::new(std::time::Duration::from_millis(1400))
+                        .repeat()
+                        .with_easing(|delta| {
+                            (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)
+                        }),
+                    move |this, delta| this.bg(color.opacity(delta)),
+                )
+                .into_any_element();
         }
-        #[cfg(feature = "visual-tests")]
-        {
-            row.into_any_element()
-        }
+        let _ = id;
+        line.into_any_element()
     }
 
     /// Thin drop strip under the last open workspace (keeps gap small).

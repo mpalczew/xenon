@@ -28,6 +28,13 @@ impl XenonApp {
                 .overflow_hidden()
                 .child(view.clone())
                 .into_any_element(),
+            Some(LiveTab::Diff { view, .. }) => div()
+                .size_full()
+                .min_h_0()
+                .min_w_0()
+                .overflow_hidden()
+                .child(view.clone())
+                .into_any_element(),
             None => self
                 .render_empty_state(colors.clone(), Some(pane_id), cx)
                 .into_any_element(),

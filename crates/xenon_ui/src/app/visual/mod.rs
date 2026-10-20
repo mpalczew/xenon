@@ -7,6 +7,7 @@ use super::XenonApp;
 
 mod chrome;
 mod content;
+mod git;
 mod hooks;
 mod keyboard;
 mod overlays;
@@ -25,7 +26,18 @@ pub enum Scene {
     SidebarAttention,
     SidebarWorking,
     FilesSelected,
-    FilesGitDirt,
+    SidebarMarkers,
+    SidebarMarkersLight,
+    GitExpanded,
+    GitExpandedLight,
+    GitCollapsed,
+    GitClean,
+    GitKeyboard,
+    DiffSplit,
+    DiffSplitLight,
+    DiffUnified,
+    DiffNarrowAuto,
+    DiffIndexOnly,
     TabsDirty,
     TabsAttention,
     TabsOverflow,
@@ -101,7 +113,18 @@ pub const SCENES: &[Scene] = &[
     Scene::SidebarAttention,
     Scene::SidebarWorking,
     Scene::FilesSelected,
-    Scene::FilesGitDirt,
+    Scene::SidebarMarkers,
+    Scene::SidebarMarkersLight,
+    Scene::GitExpanded,
+    Scene::GitExpandedLight,
+    Scene::GitCollapsed,
+    Scene::GitClean,
+    Scene::GitKeyboard,
+    Scene::DiffSplit,
+    Scene::DiffSplitLight,
+    Scene::DiffUnified,
+    Scene::DiffNarrowAuto,
+    Scene::DiffIndexOnly,
     Scene::TabsDirty,
     Scene::TabsAttention,
     Scene::TabsOverflow,
@@ -179,7 +202,18 @@ impl Scene {
             Self::SidebarAttention => "chrome_sidebar_attention",
             Self::SidebarWorking => "chrome_sidebar_working",
             Self::FilesSelected => "chrome_files_selected",
-            Self::FilesGitDirt => "chrome_files_git_dirt",
+            Self::SidebarMarkers => "chrome_sidebar_markers",
+            Self::SidebarMarkersLight => "chrome_sidebar_markers_light",
+            Self::GitExpanded => "chrome_git_expanded",
+            Self::GitExpandedLight => "chrome_git_expanded_light",
+            Self::GitCollapsed => "chrome_git_collapsed",
+            Self::GitClean => "chrome_git_clean",
+            Self::GitKeyboard => "chrome_git_keyboard",
+            Self::DiffSplit => "content_diff_split",
+            Self::DiffSplitLight => "content_diff_split_light",
+            Self::DiffUnified => "content_diff_unified",
+            Self::DiffNarrowAuto => "content_diff_narrow_auto",
+            Self::DiffIndexOnly => "content_diff_index_only",
             Self::TabsDirty => "chrome_tabs_dirty",
             Self::TabsAttention => "chrome_tabs_attention",
             Self::TabsOverflow => "chrome_tabs_overflow",
@@ -277,7 +311,18 @@ pub fn apply_scene(
         Scene::SidebarAttention => chrome::sidebar_attention(app, window, cx),
         Scene::SidebarWorking => chrome::sidebar_working(app, window, cx),
         Scene::FilesSelected => chrome::files_selected(app, window, cx),
-        Scene::FilesGitDirt => chrome::files_git_dirt(app, window, cx),
+        Scene::SidebarMarkers => git::sidebar_markers(app, false, window, cx),
+        Scene::SidebarMarkersLight => git::sidebar_markers(app, true, window, cx),
+        Scene::GitExpanded
+        | Scene::GitExpandedLight
+        | Scene::GitCollapsed
+        | Scene::GitClean
+        | Scene::GitKeyboard => git::section(app, scene, window, cx),
+        Scene::DiffSplit
+        | Scene::DiffSplitLight
+        | Scene::DiffUnified
+        | Scene::DiffNarrowAuto
+        | Scene::DiffIndexOnly => git::diff(app, scene, window, cx),
         Scene::TabsDirty => chrome::tabs_dirty(app, window, cx),
         Scene::TabsAttention => chrome::tabs_attention(app, window, cx),
         Scene::TabsOverflow => chrome::tabs_overflow(app, window, cx, false),

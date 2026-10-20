@@ -14,7 +14,7 @@ use std::time::Duration;
 use notify::{RecursiveMode, Watcher};
 
 use super::*;
-use crate::git_dirt::{self, GitDirt};
+use crate::git_dirt::{self, GitStatus};
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
 
@@ -51,8 +51,14 @@ impl XenonApp {
         }));
     }
 
-    pub(crate) fn workspace_dirt(&self, id: WorkspaceId) -> Option<GitDirt> {
-        self.services.git_dirt.get(&id).copied()
+    pub(crate) fn workspace_dirt(&self, id: WorkspaceId) -> crate::git_dirt::DirtState {
+        self.workspace_git(id)
+            .map(|git| git.state)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn workspace_git(&self, id: WorkspaceId) -> Option<&GitStatus> {
+        self.services.git_dirt.get(&id)
     }
 }
 
@@ -203,6 +209,8 @@ async fn handle_fs_burst(
             .spawn(async move { measure_all(&batch) })
             .await;
         apply_partial(app, cx, &pending, updates)?;
+        app.update(cx, |app, cx| app.refresh_diff_tabs(&pending, cx))
+            .map_err(|_| ())?;
     }
     Ok(deferred_roots)
 }
@@ -303,13 +311,11 @@ fn mark_workspace(
     }
 }
 
-fn measure_all(roots: &[(WorkspaceId, PathBuf)]) -> HashMap<WorkspaceId, GitDirt> {
+fn measure_all(roots: &[(WorkspaceId, PathBuf)]) -> HashMap<WorkspaceId, GitStatus> {
     let mut map = HashMap::new();
     for (id, root) in roots {
-        if let Some(dirt) = git_dirt::measure(root)
-            && !dirt.is_clean()
-        {
-            map.insert(*id, dirt);
+        if let Some(status) = git_dirt::measure(root) {
+            map.insert(*id, status);
         }
     }
     map
@@ -318,7 +324,7 @@ fn measure_all(roots: &[(WorkspaceId, PathBuf)]) -> HashMap<WorkspaceId, GitDirt
 fn apply_full(
     app: &gpui::WeakEntity<XenonApp>,
     cx: &mut gpui::AsyncApp,
-    snapshot: HashMap<WorkspaceId, GitDirt>,
+    snapshot: HashMap<WorkspaceId, GitStatus>,
 ) -> Result<(), ()> {
     app.update(cx, |app, cx| {
         if app.services.git_dirt != snapshot {
@@ -348,14 +354,15 @@ fn apply_partial(
     app: &gpui::WeakEntity<XenonApp>,
     cx: &mut gpui::AsyncApp,
     measured: &HashSet<WorkspaceId>,
-    updates: HashMap<WorkspaceId, GitDirt>,
+    updates: HashMap<WorkspaceId, GitStatus>,
 ) -> Result<(), ()> {
     app.update(cx, |app, cx| {
         let mut changed = false;
         for &id in measured {
             match updates.get(&id) {
-                Some(&dirt) => {
-                    if app.services.git_dirt.insert(id, dirt) != Some(dirt) {
+                Some(status) => {
+                    if app.services.git_dirt.get(&id) != Some(status) {
+                        app.services.git_dirt.insert(id, status.clone());
                         changed = true;
                     }
                 }

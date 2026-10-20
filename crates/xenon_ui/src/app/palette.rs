@@ -20,7 +20,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         self.dismiss_palettes(cx);
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
         let workspaces = self.workspace_palette_rows();
         let picker = cx.new(|cx| CommandPaletteView::new(mode, workspaces, cx));

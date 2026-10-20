@@ -30,6 +30,14 @@ Scenes for lists and scrolling panes use enough content to overflow the window.
 Not part of `scripts/health` / `cargo test`: Metal capture needs a macOS window
 server. Do not add this to GitHub macOS runners unless asked.
 
+Git scenes (`app/visual/git.rs`) use fixed status and diff text, never a live
+repo: `chrome_sidebar_markers[_light]` (every marker combination: needs-you +
+dirty, working + index-only, idle + dirty, clean, selected), `chrome_git_*`
+(expanded, expanded light, collapsed, clean, keyboard cursor), and
+`content_diff_*` (split, split light, unified, narrow Auto, index-only
+staged/unstaged). Workspace agent status is pinned per row with
+`services.visual_status`.
+
 Remote HTML shots (`remote_*`) render the phone page offline via its
 `xenonFixture(name)` hook and need Google Chrome at
 `/Applications/Google Chrome.app`. Missing Chrome fails those surfaces.

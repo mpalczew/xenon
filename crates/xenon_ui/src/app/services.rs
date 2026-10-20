@@ -6,7 +6,7 @@ use xenon_ide::IdeServer;
 
 use super::git_dirt::DirtMsg;
 use super::remote::RemoteRuntime;
-use crate::git_dirt::GitDirt;
+use crate::git_dirt::GitStatus;
 
 /// Long-lived integrations and background work owned by the application.
 #[derive(Default)]
@@ -22,7 +22,10 @@ pub(super) struct AppServices {
     pub remote_port_busy_logged: bool,
     /// The shell window; remote work that needs a `Window` runs against it.
     pub main_window: Option<AnyWindowHandle>,
-    pub git_dirt: HashMap<WorkspaceId, GitDirt>,
+    pub git_dirt: HashMap<WorkspaceId, GitStatus>,
+    /// Visual scenes pin a workspace's agent status.
+    #[cfg(feature = "visual-tests")]
+    pub visual_status: HashMap<WorkspaceId, super::WorkspaceDot>,
     pub git_dirt_tx: Option<async_channel::Sender<DirtMsg>>,
     pub git_dirt_task: Option<Task<()>>,
     pub bounds_save_task: Option<Task<()>>,

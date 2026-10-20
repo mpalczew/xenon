@@ -27,6 +27,7 @@ pub(crate) fn tab_has_gpui_focus(tab: &LiveTab, window: &Window, cx: &App) -> bo
             view.read(cx).focus_handle(cx).contains_focused(window, cx)
         }
         LiveTab::Editor { view, .. } => view.read(cx).focus_handle(cx).contains_focused(window, cx),
+        LiveTab::Diff { view, .. } => view.read(cx).focus_handle(cx).contains_focused(window, cx),
     }
 }
 
@@ -44,6 +45,7 @@ impl XenonApp {
         if !self.file_browser.is_open() {
             self.show_browser(cx);
         }
+        self.git.focused = false;
         self.browser_focused = true;
         self.file_browser.ensure_cursor();
         self.focus.focus(window, cx);

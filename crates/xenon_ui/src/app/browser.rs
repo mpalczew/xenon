@@ -24,7 +24,7 @@ impl XenonApp {
                     if this.files_section_closing {
                         this.file_browser.close();
                         this.files_section_closing = false;
-                        this.browser_focused = false;
+                        this.clear_sidebar_focus();
                         this.persist_section_prefs();
                         cx.notify();
                     }
@@ -198,7 +198,7 @@ impl XenonApp {
                     .when(!is_renaming, |this| this.child(row.name.clone())),
             )
             .on_click(cx.listener(move |this, _, _window, cx| {
-                this.browser_focused = false;
+                this.clear_sidebar_focus();
                 this.file_browser.ensure_cursor();
                 if row.is_dir {
                     this.toggle_dir(row.path.clone(), cx);

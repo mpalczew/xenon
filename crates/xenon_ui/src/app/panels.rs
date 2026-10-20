@@ -1,6 +1,7 @@
 use super::*;
 use crate::resize::{
-    DragResult, ResizeEdge, WORKSPACES_HEADER_H, resolve_drag, resolve_section_height,
+    DragResult, GIT_HEADER_H, ResizeEdge, WORKSPACES_HEADER_H, resolve_drag, resolve_git_height,
+    resolve_section_height,
 };
 use gpui::DragMoveEvent;
 use xenon_core::SplitAxis;
@@ -15,6 +16,8 @@ impl XenonApp {
             settings.workspaces_collapsed = self.workspaces_collapsed;
             settings.files_open = self.file_browser.is_open();
             settings.workspaces_section_height = self.workspaces_section_height;
+            settings.git_collapsed = self.git.collapsed;
+            settings.git_section_height = self.git.height;
         }) {
             log::error!("persist section prefs failed: {error}");
         }
@@ -63,7 +66,7 @@ impl XenonApp {
     /// newly opened tab does not jump back to the first terminal).
     pub(super) fn focus_or_new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.follow_gpui_leaf(window, cx);
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         self.deferred.last_font_pane = FontPane::Terminal;
         if let Some(content) = self.active_content()
             && let Some(leaf) = content.focused_leaf()
@@ -84,7 +87,7 @@ impl XenonApp {
 
     /// ⌘⇧E / ⌘2: focus last editor if any, and make that leaf the session target.
     pub(super) fn focus_or_reveal_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.browser_focused = false;
+        self.clear_sidebar_focus();
         self.deferred.last_font_pane = FontPane::Editor;
         let located = self.active_editor().and_then(|editor| {
             let (ws, tab) = self.locate_editor(&editor)?;
@@ -145,6 +148,26 @@ impl XenonApp {
                 };
                 if changed {
                     self.workspaces_section_height = Some(height);
+                    self.layout_dirty = true;
+                    cx.notify();
+                }
+            }
+            ResizeEdge::SidebarGit => {
+                let available = f32::from(event.bounds.size.height);
+                if available < 1.0 {
+                    return;
+                }
+                let footer = if self.remote_footer(cx).is_some() {
+                    32.
+                } else {
+                    0.
+                };
+                let raw = f32::from(event.bounds.bottom() - event.event.position.y)
+                    - GIT_HEADER_H
+                    - footer;
+                let height = resolve_git_height(raw, available);
+                if self.git.height.is_none_or(|h| (h - height).abs() >= 0.5) {
+                    self.git.height = Some(height);
                     self.layout_dirty = true;
                     cx.notify();
                 }

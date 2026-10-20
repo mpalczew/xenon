@@ -12,6 +12,10 @@ pub(super) enum FocusOwner {
     Terminal,
     Editor,
     Browser,
+    /// The sidebar Git section.
+    Git,
+    /// A read-only diff tab.
+    Diff,
     Shell,
 }
 

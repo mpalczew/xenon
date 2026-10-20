@@ -4,7 +4,6 @@ use xenon_store::ThemeMode;
 
 use super::{Scene, XenonApp, ensure_terminal, open_rel, populate, set_theme};
 use crate::app::AttentionReason;
-use crate::git_dirt::GitDirt;
 
 pub(super) fn empty_no_workspace(app: &mut XenonApp, scene: Scene, cx: &mut Context<XenonApp>) {
     app.registry = Registry::default();
@@ -67,21 +66,6 @@ pub(super) fn files_selected(app: &mut XenonApp, window: &mut Window, cx: &mut C
     }
     app.focus_browser(window, cx);
     app.deferred.pending_focus = None;
-}
-
-pub(super) fn files_git_dirt(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
-    files_selected(app, window, cx);
-    if let Some(id) = app.active {
-        app.services.git_dirt.insert(
-            id,
-            GitDirt {
-                insertions: 12,
-                deletions: 3,
-                index_diverged: true,
-            },
-        );
-    }
-    cx.notify();
 }
 
 pub(super) fn tabs_dirty(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {

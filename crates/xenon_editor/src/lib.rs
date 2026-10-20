@@ -22,6 +22,8 @@ pub use buffer::{Buffer, ExternalState, OpenError, SaveError};
 // Buffer::create_new / empty / save_force used by shell (New File, Save As).
 pub use edit::{EditCommand, Motion};
 pub use find::FindOptions;
+/// Tree-sitter highlight spans, for read-only code surfaces such as diffs.
+pub use highlight::{Span as SyntaxSpan, spans_for_path as syntax_spans_for_path};
 pub use view::{
     DiskAlert, EditorDiagnostic, EditorDiagnosticSeverity, EditorEvent, EditorView, Find, FindNext,
     FindPrevious,

@@ -166,6 +166,8 @@ impl XenonApp {
             CommandId::FocusTerminal => self.focus_terminal(window, cx),
             CommandId::FocusEditor => self.focus_editor(window, cx),
             CommandId::FocusBrowser => self.focus_browser(window, cx),
+            CommandId::FocusGit => self.toggle_git_focus(window, cx),
+            CommandId::CycleDiffLayout => self.cycle_diff_layout(cx),
             CommandId::FocusNextPane => self.focus_next_pane(window, cx),
             CommandId::NextWorkspace => self.next_workspace(window, cx),
             CommandId::PrevWorkspace => self.prev_workspace(window, cx),

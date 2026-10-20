@@ -16,6 +16,14 @@ rediscover.
 - The Files tree lives under Workspaces in the optional sidebar. When both are
   open, Workspaces sizes to content (or a user-pinned height); drag the split
   between sections to resize. Files takes the remainder.
+- The Git section sits under Files for the active workspace (hidden for SSH
+  and non-git folders). Its collapse state and pinned body height persist in
+  `settings.json` (`git_collapsed`, `git_section_height`); its top edge is the
+  resize handle. Enter on a row opens a read-only diff tab (`LiveTab::Diff`,
+  model `diff_model.rs`, loader `diff_load.rs`, drawing `diff_rows.rs`) in
+  `content.focused`, reusing an open tab for the same path. Diff tabs are not
+  persisted: restart drops them and the Git section reopens them. They reload
+  on the git-dirt FS debounce. Auto layout is split at 860px pane width and up.
 - Attention is per terminal tab: static warning after BEL or inferred
   idle-after-output; pulsing info while that terminal is in an agent-sized
   burst. The latter is local inference, not an agent completion event. Working
@@ -123,7 +131,13 @@ rediscover.
 - Markdown emphasis highlighting depends on `injection.include-children` and
   styled text runs, not just a grammar and colors.
 - Overlay scrollbars require caret-follow calculations to reserve the bar.
-- Git dirt stays flush-right; hover actions must occupy the same gutter.
+- Git dirt is a right-edge tick centered on the workspace row (filled: tree
+  differs from HEAD; hollow: only the index does). Hover actions occupy the
+  same gutter and replace the tick while hovering. Dirt comes from
+  `git status --porcelain=v1 -z`, not net numstat: a tree whose staged and
+  unstaged changes cancel (`MM`, net zero vs HEAD) is IndexOnly, never clean.
+  Status runs with `--no-optional-locks` so measuring cannot touch
+  `.git/index` and re-trigger its own watcher.
 - A completed `project install` updates the app on disk, but a running process
   keeps the old binary. Never kill Xenon to force the switch.
 - Do not make `CFBundleExecutable` a shell script: TCC/FDA follow the signed

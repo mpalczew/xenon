@@ -12,6 +12,8 @@ pub(crate) enum ResizeEdge {
     Sidebar,
     /// Vertical split between Workspaces list and Files tree in the sidebar.
     SidebarSections,
+    /// Top edge of the Git section (drags its body height).
+    SidebarGit,
     /// Content split: axis + first child's leaf id (for ratio updates).
     Content {
         axis: SplitAxis,
@@ -39,6 +41,13 @@ pub(crate) const FILES_HEADER_H: f32 = 52.;
 pub(crate) const MIN_WORKSPACES_BODY: f32 = 48.;
 /// Minimum Files tree body height when both sections are open.
 pub(crate) const MIN_FILES_BODY: f32 = 96.;
+
+/// Git section header height (sidebar).
+pub(crate) const GIT_HEADER_H: f32 = 52.;
+/// Git file row height.
+pub(crate) const GIT_ROW_H: f32 = 28.;
+const MIN_GIT_BODY: f32 = 56.;
+const MAX_GIT_CONTENT: f32 = 260.;
 
 struct ResizeGhost;
 
@@ -116,6 +125,31 @@ pub(crate) fn row_resize_handle(
         .child(div().h(px(1.)).w_full().bg(color))
 }
 
+/// Handle on the top edge of its parent (the Git section's resize edge).
+pub(crate) fn row_resize_handle_top(
+    id: impl Into<gpui::ElementId>,
+    edge: ResizeEdge,
+    color: Hsla,
+) -> impl IntoElement {
+    div()
+        .id(id)
+        .absolute()
+        .left_0()
+        .top(px(-(HANDLE_W / 2.)))
+        .h(px(HANDLE_W))
+        .w_full()
+        .flex()
+        .items_center()
+        .cursor_row_resize()
+        .occlude()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_drag(edge, |_edge, _, _, cx| {
+            cx.stop_propagation();
+            cx.new(|_| ResizeGhost)
+        })
+        .child(div().h(px(1.)).w_full().bg(color))
+}
+
 pub(crate) fn resolve_drag(edge: ResizeEdge, raw: f32, available: f32) -> DragResult {
     if raw < SNAP_PX {
         return DragResult::ClosePrimary;
@@ -125,7 +159,9 @@ pub(crate) fn resolve_drag(edge: ResizeEdge, raw: f32, available: f32) -> DragRe
             let max = (available - MIN_MAIN).clamp(MIN_SIDEBAR, MAX_SIDEBAR);
             DragResult::Width(raw.clamp(MIN_SIDEBAR, max))
         }
-        ResizeEdge::SidebarSections | ResizeEdge::Content { .. } => DragResult::Width(raw),
+        ResizeEdge::SidebarSections | ResizeEdge::SidebarGit | ResizeEdge::Content { .. } => {
+            DragResult::Width(raw)
+        }
     }
 }
 
@@ -143,4 +179,20 @@ pub(crate) fn workspaces_body_content_height(workspace_count: usize, row_h: f32)
     // rows + the thin drop strip; the list intentionally has no trailing pad.
     let content = workspace_count as f32 * row_h + 2.;
     content.max(MIN_WORKSPACES_BODY)
+}
+
+/// Content-sized Git body height: a Clean card, or rows up to a cap.
+pub(crate) fn git_body_content_height(files: usize) -> f32 {
+    if files == 0 {
+        return 64.;
+    }
+    (files as f32 * GIT_ROW_H + 8.).clamp(MIN_GIT_BODY, MAX_GIT_CONTENT)
+}
+
+/// Clamp a dragged Git body height so Workspaces and Files keep their minimums.
+pub(crate) fn resolve_git_height(raw: f32, sidebar_h: f32) -> f32 {
+    let max =
+        (sidebar_h - WORKSPACES_HEADER_H - MIN_WORKSPACES_BODY - FILES_HEADER_H - GIT_HEADER_H)
+            .max(MIN_GIT_BODY);
+    raw.clamp(MIN_GIT_BODY, max)
 }

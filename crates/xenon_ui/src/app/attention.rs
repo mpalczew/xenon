@@ -149,6 +149,10 @@ impl XenonApp {
     }
 
     pub(crate) fn workspace_status(&self, id: WorkspaceId, cx: &App) -> Option<WorkspaceDot> {
+        #[cfg(feature = "visual-tests")]
+        if let Some(dot) = self.services.visual_status.get(&id) {
+            return Some(*dot);
+        }
         let root = self.contents.get(&id).and_then(|c| c.root.as_ref())?;
         let mut tabs = Vec::new();
         root.for_each_terminal(&mut |tab, view| {

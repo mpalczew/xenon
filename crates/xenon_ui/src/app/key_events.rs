@@ -15,6 +15,7 @@ impl XenonApp {
             || self.on_browser_menu_key(event, window, cx)
             || self.on_workspace_menu_key(event, window, cx)
             || self.on_browser_key(event, window, cx)
+            || self.on_git_key(event, window, cx)
         {
             cx.stop_propagation();
         }

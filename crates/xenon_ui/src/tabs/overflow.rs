@@ -320,7 +320,7 @@ pub(crate) fn overflow_label(tab: &LiveTab, index: usize, cx: &App) -> String {
                 title
             }
         }
-        LiveTab::Editor { name, .. } => name.clone(),
+        LiveTab::Editor { name, .. } | LiveTab::Diff { name, .. } => name.clone(),
     }
 }
 

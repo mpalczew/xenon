@@ -21,8 +21,13 @@ helpers remain part of the shared vocabulary.
 The workspace rail uses a compact two-line row: folder icon and workspace name
 on the first line, with the shortened root path (`$HOME` rendered as `~`) below
 it. Workspace names use the UI font at medium weight; paths use muted UI text.
-The active row uses the accent surface plus a left edge that carries the working
-pulse. Section headers remain clickable/collapsible, but their chevrons are
+The active row uses the accent surface plus an accent left edge.
+Agent status is a separate short line in the margin left of the row (blue and
+pulsing while working, yellow when it needs you; it shows on the active row
+too). Git dirt is a short centered tick on the right edge in the theme's
+`version_control.modified` color (pulled darker on light themes): filled when
+the working tree differs from HEAD, hollow when only the index does, absent
+when clean. Hover actions replace the tick in the same gutter. Section headers remain clickable/collapsible, but their chevrons are
 intentionally hidden to match the quiet reference shell. The full path remains
 available as the row tooltip. The rail does not add a descriptive status bar
 beneath the tabs.
@@ -30,6 +35,25 @@ beneath the tabs.
 Maintained preview: `visual-review/xenon-design-system.html` and
 `visual-review/xenon-mocks.html`. Native evidence is captured by
 `scripts/visual-tests`.
+
+## Git section and diff tab
+
+The sidebar's third section, under Files, for the active workspace. Header: GIT,
+branch, and a file-count pill that stays visible when collapsed. Rows: round
+tinted status badges (one for the index letter and one for the working-tree
+letter when both are set, so `MM` shows two), file name colored by change kind
+(modified, added, deleted struck through, renamed with its source, untracked),
+dimmed directory, and a five-cell green/red change bar. A clean tree shows a
+two-line card: Clean, then Matches HEAD and the branch. The row under the
+keyboard cursor uses the standard selection edge and fill.
+
+The diff tab is read-only: a header with the path, `HEAD → working tree`, an
+Auto / Split / Unified control, `+N -M` totals, and a Read-only lock. Rows use
+`diff.plus` / `diff.minus` for signs and a 14% tint for line fills; changed
+words inside a paired line get the theme's word-added / word-deleted color.
+Tree-sitter colors the code. Auto is split at 860px of pane width and up.
+When HEAD and the working tree match but the index differs, two labeled
+sections show Staged (HEAD | Index) and Unstaged (Index | Working tree).
 
 ## Color strategy
 

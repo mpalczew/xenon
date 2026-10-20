@@ -121,6 +121,12 @@ pub struct AppSettings {
     /// Left panel Files section expanded.
     #[serde(default = "default_true")]
     pub files_open: bool,
+    /// Left panel Git section collapsed.
+    #[serde(default)]
+    pub git_collapsed: bool,
+    /// Pinned Git section body height (px); `None` = size to content.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_section_height: Option<f32>,
     /// Global width of the left sidebar (px).
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: f32,
@@ -170,6 +176,8 @@ impl Default for AppSettings {
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
+            git_collapsed: false,
+            git_section_height: None,
             sidebar_width: 240.0,
             workspaces_section_height: None,
             window: None,

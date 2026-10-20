@@ -188,7 +188,7 @@ impl XenonApp {
                 cx.listener(|this, _: &RunTask, window, cx| this.open_task_picker(window, cx)),
             )
             .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| {
-                this.browser_focused = false;
+                this.clear_sidebar_focus();
                 this.toggle_browser(cx);
             }))
             .on_action(cx.listener(|this, _: &crate::ToggleTerminal, window, cx| {
@@ -256,6 +256,12 @@ impl XenonApp {
         .on_action(cx.listener(|this, _: &FocusBrowser, window, cx| {
             this.focus_browser(window, cx);
         }))
+        .on_action(cx.listener(|this, _: &crate::FocusGit, window, cx| {
+            this.toggle_git_focus(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &crate::CycleDiffLayout, _, cx| {
+            this.cycle_diff_layout(cx);
+        }))
         .on_action(cx.listener(|this, _: &FocusNextPane, window, cx| {
             this.focus_next_pane(window, cx);
         }))
@@ -318,7 +324,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         match *event.drag(cx) {
-            ResizeEdge::Sidebar | ResizeEdge::SidebarSections => {
+            ResizeEdge::Sidebar | ResizeEdge::SidebarSections | ResizeEdge::SidebarGit => {
                 let edge = *event.drag(cx);
                 self.on_resize_drag(event, event.bounds.origin.x, edge, cx);
             }
