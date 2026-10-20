@@ -84,10 +84,9 @@ Homebrew is planned. Today you build from source (release build + app bundle).
 | **Xcode CLT** | usual macOS build tools |
 
 Missing `cmake` or the Metal toolchain fails inside `wasmtime` / `gpui_macos`.
-If the toolchain is installed but `xcrun -sdk macosx metal` still can't find it,
-export `TOOLCHAINS=<id>` with the "Toolchain Identifier" from
-`xcodebuild -showComponent MetalToolchain` (e.g.
-`com.apple.dt.toolchain.Metal.32023.921.5`).
+If it shows as installed but `xcrun -sdk macosx metal --version` still reports
+it missing, run `xcodebuild -downloadComponent MetalToolchain` again; that
+re-registers it.
 
 ### Build and install
 
