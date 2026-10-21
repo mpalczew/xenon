@@ -58,9 +58,9 @@ run test-determinism scripts/check-test-determinism
 run ssh-helper env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     -s crates/xenon_ssh/src -p helper_test.py
 run fmtcheck cargo fmt --all --check
+run lint-shape scripts/check-rust-shape
 run lint cargo clippy --profile precommit --workspace --all-targets -- \
     -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines
-run lint-shape scripts/check-rust-shape
 if ((${#test_args[@]})); then
     run test cargo test --profile precommit "${test_args[@]}"
 fi
