@@ -332,18 +332,6 @@ impl XenonApp {
         }
     }
 
-    fn on_content_drag(
-        &mut self,
-        event: &DragMoveEvent<ResizeEdge>,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if matches!(*event.drag(cx), ResizeEdge::Content { .. }) {
-            let edge = *event.drag(cx);
-            self.on_resize_drag(event, event.bounds.origin.x, edge, cx);
-        }
-    }
-
     fn render_main(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let content = self.active_content();
@@ -354,7 +342,6 @@ impl XenonApp {
             .size_full()
             .min_w_0()
             .min_h_0()
-            .on_drag_move(cx.listener(Self::on_content_drag))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
@@ -396,15 +383,21 @@ impl XenonApp {
                 first,
                 second,
             } => {
-                let first_leaf = first.leaf_ids().first().copied().unwrap_or(PaneId(0));
-                let edge = ResizeEdge::Content {
-                    axis: *axis,
-                    first_leaf,
-                };
+                let split = first.leaf_ids().last().copied().unwrap_or(PaneId(0));
+                let edge = ResizeEdge::Content { axis: *axis, split };
+                // Measure against this split's own bounds, not the whole content area.
+                let on_drag = cx.listener(move |this, event: &DragMoveEvent<ResizeEdge>, _, cx| {
+                    if let ResizeEdge::Content { split: s, .. } = *event.drag(cx)
+                        && s == split
+                    {
+                        this.on_resize_drag(event, event.bounds.origin.x, edge, cx);
+                    }
+                });
                 let first_el = self.render_live_node(first, window, cx);
                 let second_el = self.render_live_node(second, window, cx);
                 match axis {
                     SplitAxis::Horizontal => div()
+                        .on_drag_move(on_drag)
                         .flex()
                         .flex_row()
                         .flex_1()
@@ -421,7 +414,7 @@ impl XenonApp {
                                 .w(relative(*ratio))
                                 .child(first_el)
                                 .child(crate::resize::col_resize_handle(
-                                    format!("split-h-{}", first_leaf.0),
+                                    format!("split-h-{}", split.0),
                                     edge,
                                     colors.border,
                                 )),
@@ -429,6 +422,7 @@ impl XenonApp {
                         .child(div().flex().flex_1().min_w_0().min_h_0().child(second_el))
                         .into_any_element(),
                     SplitAxis::Vertical => div()
+                        .on_drag_move(on_drag)
                         .flex()
                         .flex_col()
                         .flex_1()
@@ -445,7 +439,7 @@ impl XenonApp {
                                 .h(relative(*ratio))
                                 .child(first_el)
                                 .child(crate::resize::row_resize_handle(
-                                    format!("split-v-{}", first_leaf.0),
+                                    format!("split-v-{}", split.0),
                                     edge,
                                     colors.border,
                                 )),

@@ -172,7 +172,7 @@ impl XenonApp {
                     cx.notify();
                 }
             }
-            ResizeEdge::Content { axis, first_leaf } => {
+            ResizeEdge::Content { axis, split } => {
                 let pos = match axis {
                     SplitAxis::Horizontal => {
                         f32::from(event.event.position.x - event.bounds.origin.x)
@@ -192,7 +192,7 @@ impl XenonApp {
                 if let Some(id) = self.active
                     && let Some(content) = self.contents.get_mut(&id)
                     && let Some(root) = content.root.as_mut()
-                    && root.set_ratio_for_split(first_leaf, ratio)
+                    && root.set_ratio_for_split(split, ratio)
                 {
                     self.layout_dirty = true;
                     cx.notify();

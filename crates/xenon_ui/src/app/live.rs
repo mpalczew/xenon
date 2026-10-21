@@ -202,8 +202,9 @@ impl LiveNode {
         }
     }
 
-    /// Set ratio on the split whose first child is the leaf `first_child_leaf`.
-    pub(crate) fn set_ratio_for_split(&mut self, first_child_leaf: PaneId, ratio: f32) -> bool {
+    /// Set ratio on the split whose first child ends with leaf `key`. That leaf
+    /// is unique per split: each split sits between exactly one adjacent leaf pair.
+    pub(crate) fn set_ratio_for_split(&mut self, key: PaneId, ratio: f32) -> bool {
         match self {
             Self::Leaf(_) => false,
             Self::Split {
@@ -212,12 +213,11 @@ impl LiveNode {
                 second,
                 ..
             } => {
-                if matches!(first.as_ref(), LiveNode::Leaf(l) if l.id == first_child_leaf) {
+                if first.leaf_ids().last() == Some(&key) {
                     *r = ratio.clamp(0.15, 0.85);
                     return true;
                 }
-                first.set_ratio_for_split(first_child_leaf, ratio)
-                    || second.set_ratio_for_split(first_child_leaf, ratio)
+                first.set_ratio_for_split(key, ratio) || second.set_ratio_for_split(key, ratio)
             }
         }
     }
@@ -448,3 +448,7 @@ pub(crate) fn fix_active_idx(active: &mut usize, removed: usize, len: usize) {
         *active = len.saturating_sub(1);
     }
 }
+
+#[cfg(test)]
+#[path = "live_tests.rs"]
+mod tests;
