@@ -132,6 +132,10 @@ rediscover.
 - GPUI allows one `.hover` per element and asserts in debug builds. Design
   system controls own theirs: pass `ActionButton::hover_text` /
   `hover_background` instead of chaining `.hover` after `action_button`.
+- GPUI `on_drag_move` fires on every listener for that drag type, hovered or
+  not, and `event.bounds` is the listener's own element. Filter by a unique
+  drag key and register on the element whose bounds the math needs (pane
+  dividers: on each split, keyed by the last leaf before the divider).
 - Markdown YAML metadata requires the pulldown-cmark metadata option; otherwise
   the closing fence can become a setext heading.
 - Markdown emphasis highlighting depends on `injection.include-children` and
