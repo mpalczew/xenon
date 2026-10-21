@@ -4,15 +4,17 @@
 mod content;
 mod ids;
 mod session;
+mod split;
 mod tasks;
 mod workspace;
 
 pub use content::{
-    ContentLayout, DEFAULT_SPLIT_RATIO, DropEdge, LeafPane, MAX_NEST_DEPTH, PaneId, PaneNode,
-    SplitAxis, TabId, TabState,
+    ContentLayout, DropEdge, LeafPane, MAX_NEST_DEPTH, MAX_SPLIT_CHILDREN, MIN_SIZE, PaneId,
+    PaneNode, SplitAxis, TabId, TabState,
 };
 pub use ids::WorkspaceId;
 pub use session::{DEFAULT_SIDEBAR_WIDTH, Point, SessionState, clamp_sidebar};
+pub use split::{SplitTree, flatten_split, move_boundary, normalize_sizes};
 pub use tasks::{
     ShellTask, find_tasks_json, load_shell_tasks, parse_shell_tasks, workspace_for_tasks_json,
 };

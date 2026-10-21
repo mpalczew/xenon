@@ -1,7 +1,7 @@
 //! Agent/CLI file open: location + pane, never steal terminal focus.
 
 use super::*;
-use xenon_core::{MAX_NEST_DEPTH, TabId};
+use xenon_core::{SplitAxis, TabId};
 use xenon_store::{OpenFileSpec, OpenPane};
 
 impl XenonApp {
@@ -98,12 +98,9 @@ impl XenonApp {
             let Some(pane) = c.focused else {
                 return false;
             };
-            let depth = c
-                .root
+            c.root
                 .as_ref()
-                .and_then(|r| r.nest_depth(pane))
-                .unwrap_or(0);
-            depth < MAX_NEST_DEPTH
+                .is_some_and(|r| r.can_split(pane, SplitAxis::Horizontal))
                 && c.root
                     .as_ref()
                     .and_then(|r| r.find_leaf(pane))

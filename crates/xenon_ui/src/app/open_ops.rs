@@ -1,7 +1,7 @@
 //! Open editor tabs into the focused leaf or a new split sibling.
 
 use super::*;
-use xenon_core::{DEFAULT_SPLIT_RATIO, MAX_NEST_DEPTH, SplitAxis, TabId};
+use xenon_core::{SplitAxis, TabId};
 
 impl XenonApp {
     pub(super) fn build_workspace_editor(
@@ -74,12 +74,9 @@ impl XenonApp {
             let Some(pane) = c.focused else {
                 return false;
             };
-            let depth = c
-                .root
+            c.root
                 .as_ref()
-                .and_then(|r| r.nest_depth(pane))
-                .unwrap_or(0);
-            depth < MAX_NEST_DEPTH
+                .is_some_and(|r| r.can_split(pane, SplitAxis::Horizontal))
                 && c.root
                     .as_ref()
                     .and_then(|r| r.find_leaf(pane))
@@ -262,12 +259,11 @@ impl XenonApp {
         let Some(src_pane) = content.focused else {
             return false;
         };
-        let depth = content
+        if !content
             .root
             .as_ref()
-            .and_then(|r| r.nest_depth(src_pane))
-            .unwrap_or(0);
-        if depth >= MAX_NEST_DEPTH {
+            .is_some_and(|r| r.can_split(src_pane, SplitAxis::Horizontal))
+        {
             return false;
         }
         let Some(src) = content
@@ -282,17 +278,16 @@ impl XenonApp {
             return false;
         }
         let new_pane = content.next_pane_id();
-        let replacement = LiveNode::Split {
-            axis: SplitAxis::Horizontal,
-            ratio: DEFAULT_SPLIT_RATIO,
-            first: Box::new(LiveNode::Leaf(src)),
-            second: Box::new(LiveNode::Leaf(LiveLeaf {
+        let replacement = LiveNode::pair(
+            SplitAxis::Horizontal,
+            LiveNode::Leaf(src),
+            LiveNode::Leaf(LiveLeaf {
                 id: new_pane,
                 tabs: vec![tab],
                 active: 0,
                 parked: false,
-            })),
-        };
+            }),
+        );
         if let Some(root) = content.root.as_mut()
             && !root.replace_leaf(src_pane, replacement)
         {

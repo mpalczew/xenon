@@ -196,14 +196,15 @@ impl XenonApp {
             }
             xenon_core::PaneNode::Split {
                 axis,
-                ratio,
-                first,
-                second,
+                children,
+                sizes,
             } => LiveNode::Split {
                 axis: *axis,
-                ratio: *ratio,
-                first: Box::new(self.materialize_node(first, root, workspace, cx)),
-                second: Box::new(self.materialize_node(second, root, workspace, cx)),
+                children: children
+                    .iter()
+                    .map(|c| self.materialize_node(c, root, workspace, cx))
+                    .collect(),
+                sizes: sizes.clone(),
             },
         }
     }

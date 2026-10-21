@@ -144,6 +144,23 @@ pub(super) fn split_right(app: &mut XenonApp, window: &mut Window, cx: &mut Cont
     cx.notify();
 }
 
+/// Four panes side by side: one flat split with dividers between neighbours.
+pub(super) fn split_row(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
+    populate(app, window, cx);
+    open_rel(app, "NOTES.md", window, cx);
+    for _ in 0..3 {
+        app.split_right(window, cx);
+    }
+    cx.notify();
+}
+
+/// A row whose last pane is split vertically.
+pub(super) fn split_mixed(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
+    split_row(app, window, cx);
+    app.split_down(window, cx);
+    cx.notify();
+}
+
 pub(super) fn reserved_empty(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
     app.park_empty_pane(SplitAxis::Horizontal, window, cx);

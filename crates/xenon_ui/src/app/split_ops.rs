@@ -3,7 +3,7 @@
 use super::*;
 mod lookup;
 use live::fix_active_idx;
-use xenon_core::{DropEdge, MAX_NEST_DEPTH, PaneId, SplitAxis, TabId};
+use xenon_core::{DropEdge, PaneId, SplitAxis, TabId};
 
 impl XenonApp {
     /// Split focused leaf: move active tab to new sibling; spawn term if source empty.
@@ -26,12 +26,11 @@ impl XenonApp {
             let Some(src_pane) = content.focused else {
                 return;
             };
-            let depth = content
+            if !content
                 .root
                 .as_ref()
-                .and_then(|r| r.nest_depth(src_pane))
-                .unwrap_or(0);
-            if depth >= MAX_NEST_DEPTH {
+                .is_some_and(|r| r.can_split(src_pane, axis))
+            {
                 xenon_design_system::show_toast(super::toasts::split_limit(), cx);
                 return;
             }
@@ -82,22 +81,21 @@ impl XenonApp {
             return;
         };
         let new_pane = content.next_pane_id();
-        let replacement = LiveNode::Split {
+        let replacement = LiveNode::pair(
             axis,
-            ratio: 0.5,
-            first: Box::new(LiveNode::Leaf(LiveLeaf {
+            LiveNode::Leaf(LiveLeaf {
                 id: src_pane,
                 tabs: source_tabs,
                 active: 0,
                 parked: false,
-            })),
-            second: Box::new(LiveNode::Leaf(LiveLeaf {
+            }),
+            LiveNode::Leaf(LiveLeaf {
                 id: new_pane,
                 tabs: vec![moved],
                 active: 0,
                 parked: false,
-            })),
-        };
+            }),
+        );
         if let Some(root) = content.root.as_mut()
             && !root.replace_leaf(src_pane, replacement)
         {
@@ -199,13 +197,12 @@ impl XenonApp {
             return;
         };
         let root_path = self.workspace_root(ws);
-        let depth = self
+        let can_split = self
             .contents
             .get(&ws)
             .and_then(|c| c.root.as_ref())
-            .and_then(|r| r.nest_depth(target))
-            .unwrap_or(0);
-        if depth >= MAX_NEST_DEPTH {
+            .is_some_and(|r| r.can_split(target, edge.axis()));
+        if !can_split {
             self.move_tab_to_pane(tab, target, window, cx);
             return;
         }
@@ -301,12 +298,7 @@ impl XenonApp {
         } else {
             (LiveNode::Leaf(target_leaf), LiveNode::Leaf(new_leaf))
         };
-        let split = LiveNode::Split {
-            axis: edge.axis(),
-            ratio: 0.5,
-            first: Box::new(first),
-            second: Box::new(second),
-        };
+        let split = LiveNode::pair(edge.axis(), first, second);
         if let Some(root) = content.root.as_mut() {
             root.replace_leaf(target, split);
         }

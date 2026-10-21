@@ -1,7 +1,7 @@
 //! Operations for intentionally empty panes in the content tree.
 
 use super::*;
-use xenon_core::{MAX_NEST_DEPTH, PaneId, SplitAxis};
+use xenon_core::{PaneId, SplitAxis};
 
 impl XenonApp {
     /// Add a deliberately empty sibling to the right or below the focused pane.
@@ -19,22 +19,21 @@ impl XenonApp {
         if content.root.is_none() {
             let first = content.next_pane_id();
             let second = PaneId(first.0.saturating_add(1));
-            content.root = Some(LiveNode::Split {
+            content.root = Some(LiveNode::pair(
                 axis,
-                ratio: 0.5,
-                first: Box::new(LiveNode::Leaf(LiveLeaf {
+                LiveNode::Leaf(LiveLeaf {
                     id: first,
                     tabs: Vec::new(),
                     active: 0,
                     parked: false,
-                })),
-                second: Box::new(LiveNode::Leaf(LiveLeaf {
+                }),
+                LiveNode::Leaf(LiveLeaf {
                     id: second,
                     tabs: Vec::new(),
                     active: 0,
                     parked: true,
-                })),
-            });
+                }),
+            ));
             content.focused = Some(first);
             self.save_layout(ws);
             cx.notify();
@@ -43,30 +42,30 @@ impl XenonApp {
         let Some(source) = content.focused else {
             return;
         };
-        let Some((depth, mut source_leaf)) = content
-            .root
-            .as_ref()
-            .and_then(|root| Some((root.nest_depth(source)?, root.find_leaf(source)?.clone())))
-        else {
+        let Some((can_split, mut source_leaf)) = content.root.as_ref().and_then(|root| {
+            Some((
+                root.can_split(source, axis),
+                root.find_leaf(source)?.clone(),
+            ))
+        }) else {
             return;
         };
-        if depth >= MAX_NEST_DEPTH {
+        if !can_split {
             xenon_design_system::show_toast(super::toasts::split_limit(), cx);
             return;
         }
         source_leaf.parked = false;
         let new_pane = content.next_pane_id();
-        let replacement = LiveNode::Split {
+        let replacement = LiveNode::pair(
             axis,
-            ratio: 0.5,
-            first: Box::new(LiveNode::Leaf(source_leaf)),
-            second: Box::new(LiveNode::Leaf(LiveLeaf {
+            LiveNode::Leaf(source_leaf),
+            LiveNode::Leaf(LiveLeaf {
                 id: new_pane,
                 tabs: Vec::new(),
                 active: 0,
                 parked: true,
-            })),
-        };
+            }),
+        );
         if content
             .root
             .as_mut()

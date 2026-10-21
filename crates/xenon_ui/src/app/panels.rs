@@ -188,11 +188,11 @@ impl XenonApp {
                 if avail < 1.0 {
                     return;
                 }
-                let ratio = (pos / avail).clamp(0.15, 0.85);
+                let frac = pos / avail;
                 if let Some(id) = self.active
                     && let Some(content) = self.contents.get_mut(&id)
                     && let Some(root) = content.root.as_mut()
-                    && root.set_ratio_for_split(split, ratio)
+                    && root.set_boundary_for_split(split, frac)
                 {
                     self.layout_dirty = true;
                     cx.notify();
@@ -246,9 +246,10 @@ fn install_ssh_sessions(
                 }
             }
         }
-        xenon_core::PaneNode::Split { first, second, .. } => {
-            install_ssh_sessions(first, workspace, sessions);
-            install_ssh_sessions(second, workspace, sessions);
+        xenon_core::PaneNode::Split { children, .. } => {
+            for child in children {
+                install_ssh_sessions(child, workspace, sessions);
+            }
         }
     }
 }

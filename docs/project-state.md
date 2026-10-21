@@ -7,6 +7,12 @@ rediscover.
 ## Current model
 
 - A workspace is a checkout root plus a saved pane-tree session.
+- The pane tree is N-ary: `Split { axis, children, sizes }`, sizes are
+  fractions summing to 1 (min 0.1), no child splits on its parent's axis (the
+  helper `xenon_core::flatten_split` splices and collapses). A divider moves only
+  its two neighbours; it is keyed by the last leaf before it. `MAX_NEST_DEPTH`
+  counts axis alternations, `MAX_SPLIT_CHILDREN` caps a row. Old saved
+  `first/second/ratio` layouts load through a serde shim and are rewritten flat.
 - SSH workspaces use a bundled Python file helper over OpenSSH and tmux-owned
   persistent terminals. Scope and requirements: [SSH workspaces](ssh-workspaces.md).
 - There is no user-facing stream concept. Parallel agents use terminal tabs

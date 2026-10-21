@@ -160,9 +160,10 @@ fn collect_terminal_ids(node: &LiveNode, out: &mut std::collections::HashSet<Tab
                 }
             }
         }
-        LiveNode::Split { first, second, .. } => {
-            collect_terminal_ids(first, out);
-            collect_terminal_ids(second, out);
+        LiveNode::Split { children, .. } => {
+            for child in children {
+                collect_terminal_ids(child, out);
+            }
         }
     }
 }

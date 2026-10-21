@@ -14,7 +14,7 @@ pub(crate) enum ResizeEdge {
     SidebarSections,
     /// Top edge of the Git section (drags its body height).
     SidebarGit,
-    /// Content split: axis + last leaf of the split's first child (unique per split).
+    /// Content divider: axis + last leaf before it (unique per divider).
     Content {
         axis: SplitAxis,
         split: PaneId,

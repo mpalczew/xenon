@@ -395,9 +395,10 @@ fn collect_editor_tabs_under(node: &LiveNode, path: &Path, is_dir: bool, out: &m
                 }
             }
         }
-        LiveNode::Split { first, second, .. } => {
-            collect_editor_tabs_under(first, path, is_dir, out);
-            collect_editor_tabs_under(second, path, is_dir, out);
+        LiveNode::Split { children, .. } => {
+            for child in children {
+                collect_editor_tabs_under(child, path, is_dir, out);
+            }
         }
     }
 }

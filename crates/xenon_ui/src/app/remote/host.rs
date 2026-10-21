@@ -254,9 +254,10 @@ pub(super) fn collect_terminals(node: &LiveNode, f: &mut dyn FnMut(TabId, &Entit
                 }
             }
         }
-        LiveNode::Split { first, second, .. } => {
-            collect_terminals(first, f);
-            collect_terminals(second, f);
+        LiveNode::Split { children, .. } => {
+            for child in children {
+                collect_terminals(child, f);
+            }
         }
     }
 }
@@ -267,8 +268,6 @@ fn find_terminal_cwd(node: &PaneNode, tab: TabId) -> Option<String> {
             TabState::Terminal { id, cwd, .. } if *id == tab => Some(cwd.display().to_string()),
             _ => None,
         }),
-        PaneNode::Split { first, second, .. } => {
-            find_terminal_cwd(first, tab).or_else(|| find_terminal_cwd(second, tab))
-        }
+        PaneNode::Split { children, .. } => children.iter().find_map(|c| find_terminal_cwd(c, tab)),
     }
 }

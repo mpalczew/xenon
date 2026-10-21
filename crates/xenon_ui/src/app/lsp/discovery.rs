@@ -55,9 +55,10 @@ pub(super) fn collect_editors(node: &LiveNode, root: &Path, out: &mut Vec<Entity
                 }
             }
         }
-        LiveNode::Split { first, second, .. } => {
-            collect_editors(first, root, out);
-            collect_editors(second, root, out);
+        LiveNode::Split { children, .. } => {
+            for child in children {
+                collect_editors(child, root, out);
+            }
         }
     }
 }

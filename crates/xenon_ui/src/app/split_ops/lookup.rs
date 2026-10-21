@@ -16,9 +16,9 @@ impl LiveNode {
                     None
                 }
             }
-            Self::Split { first, second, .. } => first
-                .find_leaf_mut_with_editor(view)
-                .or_else(|| second.find_leaf_mut_with_editor(view)),
+            Self::Split { children, .. } => children
+                .iter_mut()
+                .find_map(|c| c.find_leaf_mut_with_editor(view)),
         }
     }
 }

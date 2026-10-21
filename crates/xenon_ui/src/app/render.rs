@@ -379,74 +379,81 @@ impl XenonApp {
             LiveNode::Leaf(leaf) => self.render_leaf(leaf, window, cx),
             LiveNode::Split {
                 axis,
-                ratio,
-                first,
-                second,
+                children,
+                sizes,
             } => {
-                let split = first.leaf_ids().last().copied().unwrap_or(PaneId(0));
-                let edge = ResizeEdge::Content { axis: *axis, split };
-                // Measure against this split's own bounds, not the whole content area.
-                let on_drag = cx.listener(move |this, event: &DragMoveEvent<ResizeEdge>, _, cx| {
-                    if let ResizeEdge::Content { split: s, .. } = *event.drag(cx)
-                        && s == split
-                    {
-                        this.on_resize_drag(event, event.bounds.origin.x, edge, cx);
-                    }
-                });
-                let first_el = self.render_live_node(first, window, cx);
-                let second_el = self.render_live_node(second, window, cx);
-                match axis {
-                    SplitAxis::Horizontal => div()
-                        .on_drag_move(on_drag)
-                        .flex()
-                        .flex_row()
-                        .flex_1()
-                        .size_full()
-                        .min_w_0()
-                        .min_h_0()
-                        .child(
-                            div()
-                                .relative()
-                                .flex()
-                                .flex_col()
-                                .min_w_0()
-                                .min_h_0()
-                                .w(relative(*ratio))
-                                .child(first_el)
-                                .child(crate::resize::col_resize_handle(
-                                    format!("split-h-{}", split.0),
-                                    edge,
-                                    colors.border,
-                                )),
-                        )
-                        .child(div().flex().flex_1().min_w_0().min_h_0().child(second_el))
-                        .into_any_element(),
-                    SplitAxis::Vertical => div()
-                        .on_drag_move(on_drag)
+                let horizontal = matches!(axis, SplitAxis::Horizontal);
+                // One drag listener per split; each divider is keyed by the last
+                // leaf before it and measured in this split's own bounds.
+                let keys: Vec<PaneId> = children
+                    .iter()
+                    .map(|c| c.leaf_ids().last().copied().unwrap_or(PaneId(0)))
+                    .collect();
+                let axis = *axis;
+                let on_drag = {
+                    let keys = keys[..keys.len().saturating_sub(1)].to_vec();
+                    cx.listener(move |this, event: &DragMoveEvent<ResizeEdge>, _, cx| {
+                        if let ResizeEdge::Content { split: s, .. } = *event.drag(cx)
+                            && keys.contains(&s)
+                        {
+                            this.on_resize_drag(
+                                event,
+                                event.bounds.origin.x,
+                                ResizeEdge::Content { axis, split: s },
+                                cx,
+                            );
+                        }
+                    })
+                };
+                let last = children.len().saturating_sub(1);
+                let mut container = div()
+                    .on_drag_move(on_drag)
+                    .flex()
+                    .flex_1()
+                    .size_full()
+                    .min_w_0()
+                    .min_h_0();
+                container = if horizontal {
+                    container.flex_row()
+                } else {
+                    container.flex_col()
+                };
+                for (i, child) in children.iter().enumerate() {
+                    let el = self.render_live_node(child, window, cx);
+                    let mut slot = div()
+                        .relative()
                         .flex()
                         .flex_col()
-                        .flex_1()
-                        .size_full()
                         .min_w_0()
                         .min_h_0()
-                        .child(
-                            div()
-                                .relative()
-                                .flex()
-                                .flex_col()
-                                .min_w_0()
-                                .min_h_0()
-                                .h(relative(*ratio))
-                                .child(first_el)
-                                .child(crate::resize::row_resize_handle(
-                                    format!("split-v-{}", split.0),
-                                    edge,
-                                    colors.border,
-                                )),
-                        )
-                        .child(div().flex().flex_1().min_w_0().min_h_0().child(second_el))
-                        .into_any_element(),
+                        .child(el);
+                    slot = if horizontal {
+                        slot.w(relative(sizes[i]))
+                    } else {
+                        slot.h(relative(sizes[i]))
+                    };
+                    if i < last {
+                        let edge = ResizeEdge::Content {
+                            axis,
+                            split: keys[i],
+                        };
+                        slot = if horizontal {
+                            slot.child(crate::resize::col_resize_handle(
+                                format!("split-h-{}", keys[i].0),
+                                edge,
+                                colors.border,
+                            ))
+                        } else {
+                            slot.child(crate::resize::row_resize_handle(
+                                format!("split-v-{}", keys[i].0),
+                                edge,
+                                colors.border,
+                            ))
+                        };
+                    }
+                    container = container.child(slot);
                 }
+                container.into_any_element()
             }
         }
     }
