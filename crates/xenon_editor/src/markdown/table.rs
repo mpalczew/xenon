@@ -8,7 +8,7 @@ use gpui::{
 };
 use pulldown_cmark::Alignment;
 
-use super::selectable::SelectableBlock;
+use super::selectable::{Links, SelectableBlock};
 use super::state::PreviewState;
 
 #[derive(Default)]
@@ -25,12 +25,14 @@ impl Table {
         &mut self,
         text: String,
         highlights: Vec<(Range<usize>, HighlightStyle)>,
+        links: Links,
         source_range: Range<usize>,
     ) {
         self.in_cell = false;
         self.current.cells.push(TableCell {
             text: SharedString::from(text),
             highlights,
+            links,
             header: self.in_head,
             source_range,
         });
@@ -50,6 +52,7 @@ pub(super) struct TableRow {
 pub(super) struct TableCell {
     pub text: SharedString,
     pub highlights: Vec<(Range<usize>, HighlightStyle)>,
+    pub links: Links,
     pub header: bool,
     pub source_range: Range<usize>,
 }
@@ -114,7 +117,8 @@ fn table_row(
             cell.highlights,
             paint.host.clone(),
             paint.selection,
-        );
+        )
+        .with_links(cell.links);
         block_ix += 1;
         element = element.child(table_cell_shell(
             child.into_any_element(),

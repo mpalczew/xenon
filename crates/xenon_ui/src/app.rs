@@ -42,6 +42,7 @@ mod browser_menu;
 mod content_ops;
 mod deferred;
 pub(crate) mod dirty_close;
+mod doc_links;
 mod editors;
 mod empty_pane_ops;
 mod empty_state;

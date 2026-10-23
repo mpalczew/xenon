@@ -40,6 +40,7 @@ exceptions listed under "Linux differences" below.
 | Settings: search · back out | ⌘F or just type · Escape (dropdown, then search, then window) |
 | Connect Phone sheet · copy link · keep awake while connected · close | ⌘⇧M · ⌘C · ⌘K · Escape / Return |
 | LSP definition / diagnostics | F12 / F8 / ⇧F8 |
+| Markdown: follow link or `path` code span under cursor (source mode; click in preview) | F12 / `gd` / ⌘-click |
 
 Toasts never take focus or Escape. A toast's action shows its shortcut and
 that shortcut runs it from anywhere while the toast is visible. ⌘Z undoes a

@@ -61,9 +61,13 @@ impl HeadingNav {
 
     /// Scroll so outline entry `ix` sits at the top.
     pub(crate) fn jump(&self, ix: usize) {
-        let Some(&block) = self.blocks.get(ix) else {
-            return;
-        };
+        if let Some(&block) = self.blocks.get(ix) {
+            self.jump_block(block);
+        }
+    }
+
+    /// Scroll so scroll-container child `block` sits at the top.
+    pub(crate) fn jump_block(&self, block: usize) {
         let Some(item) = self.scroll.bounds_for_item(block) else {
             self.scroll.scroll_to_item(block);
             return;

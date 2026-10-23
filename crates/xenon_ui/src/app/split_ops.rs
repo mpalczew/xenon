@@ -362,6 +362,9 @@ impl XenonApp {
                 EditorEvent::GoToDefinition { path, row, col } => {
                     this.request_definition(path.clone(), *row, *col, cx);
                 }
+                EditorEvent::OpenLink { path, target } => {
+                    this.open_doc_link(path, target, cx);
+                }
                 EditorEvent::Focused => {
                     if let Some((workspace, tab)) = this.locate_editor(&view) {
                         this.adopt_tab_as_focused(workspace, tab, cx);

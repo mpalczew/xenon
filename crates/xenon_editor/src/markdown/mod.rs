@@ -12,6 +12,7 @@
 //! pane has room, an outline of headings sits to the right (`[` / `]` step).
 
 mod builder;
+mod link;
 mod nav;
 mod outline;
 mod select;
@@ -20,6 +21,7 @@ mod state;
 mod table;
 mod yaml;
 
+pub use link::{LinkTarget, heading_offset, link_at};
 pub use state::{PreviewEvent, PreviewState};
 
 use gpui::{
@@ -48,6 +50,8 @@ pub struct PreviewRender {
     /// Outline shown beside the column (block index per heading).
     pub outline_blocks: Vec<usize>,
     pub outline_shown: bool,
+    /// Every heading's slug and block index, for `#anchor` links.
+    pub anchors: Vec<(String, usize)>,
     /// The pane has not been laid out yet; render again next frame.
     pub needs_layout: bool,
 }
@@ -84,6 +88,10 @@ pub fn render(
         source_ranges,
         outline,
     } = builder.finish();
+    let anchors = outline
+        .iter()
+        .map(|entry| (link::slug(&entry.title), entry.block))
+        .collect();
     let entries = outline::entries(&outline);
     let nav = host.read(cx).nav();
     let fits = nav.outline_fits(measure(base) + PAD * 2. + OUTLINE_W, OUTLINE_W);
@@ -112,6 +120,7 @@ pub fn render(
         source: SharedString::from(source.to_string()),
         outline_blocks,
         outline_shown,
+        anchors,
         needs_layout: fits.is_none(),
     }
 }

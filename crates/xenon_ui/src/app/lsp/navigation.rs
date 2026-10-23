@@ -36,6 +36,13 @@ impl XenonApp {
         let Some(workspace) = self.active else {
             return;
         };
+        // Markdown has no language server: F12 / `gd` / ⌘-click follow the link.
+        if let Some(view) = self.editor_for_path(&path)
+            && let Some(dest) = view.read(cx).markdown_link_at(row, col)
+        {
+            view.update(cx, |view, cx| view.open_link(&dest, cx));
+            return;
+        }
         let Some((root, family)) = self.lsp_context(&path) else {
             self.show_toast(toasts::no_language_server(), cx);
             return;

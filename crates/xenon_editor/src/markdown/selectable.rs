@@ -11,12 +11,23 @@ use gpui::{
 use super::select::highlights_with_selection;
 use super::state::{PreviewClick, PreviewState};
 
+/// Clickable ranges in a block's text and their destinations.
+pub type Links = Vec<(Range<usize>, SharedString)>;
+
+fn link_at(links: &Links, offset: usize) -> Option<SharedString> {
+    links
+        .iter()
+        .find(|(range, _)| range.contains(&offset))
+        .map(|(_, dest)| dest.clone())
+}
+
 /// One selectable text run in the preview, keyed by document-order block index.
 pub struct SelectableBlock {
     id: ElementId,
     block_ix: usize,
     text: SharedString,
     highlights: Vec<(Range<usize>, HighlightStyle)>,
+    links: Links,
     host: Entity<PreviewState>,
     selection_color: Hsla,
 }
@@ -34,9 +45,16 @@ impl SelectableBlock {
             block_ix,
             text,
             highlights,
+            links: Vec::new(),
             host,
             selection_color,
         }
+    }
+
+    /// Clickable ranges (links, path-like code spans) in `text`.
+    pub fn with_links(mut self, links: Links) -> Self {
+        self.links = links;
+        self
     }
 }
 
@@ -111,13 +129,25 @@ impl Element for SelectableBlock {
         let pending = host.read(cx).sel().pending;
 
         if hitbox.is_hovered(window) {
-            window.set_cursor_style(CursorStyle::IBeam, hitbox);
+            let on_link = !pending
+                && text_layout
+                    .index_for_position(window.mouse_position())
+                    .ok()
+                    .and_then(|offset| link_at(&self.links, offset))
+                    .is_some();
+            let cursor = if on_link {
+                CursorStyle::PointingHand
+            } else {
+                CursorStyle::IBeam
+            };
+            window.set_cursor_style(cursor, hitbox);
         }
 
         {
             let host = host.clone();
             let text_layout = text_layout.clone();
             let hitbox = hitbox.clone();
+            let links = std::mem::take(&mut self.links);
             window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
                 if phase != DispatchPhase::Bubble || event.button != MouseButton::Left {
                     return;
@@ -125,9 +155,9 @@ impl Element for SelectableBlock {
                 if !hitbox.is_hovered(window) {
                     return;
                 }
-                let offset = text_layout
-                    .index_for_position(event.position)
-                    .unwrap_or_else(|e| e);
+                let hit = text_layout.index_for_position(event.position);
+                let link = hit.ok().and_then(|offset| link_at(&links, offset));
+                let offset = hit.unwrap_or_else(|e| e);
                 let shift = event.modifiers.shift;
                 let clicks = event.click_count.max(1);
                 host.update(cx, |state, cx| {
@@ -137,6 +167,7 @@ impl Element for SelectableBlock {
                             offset,
                             count: clicks,
                             shift,
+                            link,
                         },
                         cx,
                     );

@@ -11,14 +11,15 @@ use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use theme::Theme;
 
 use super::nav::OutlineEntry;
+mod code;
 mod definition;
 
-use super::selectable::SelectableBlock;
+use super::link::code_is_path;
+use super::selectable::{Links, SelectableBlock};
 use super::state::PreviewState;
 use super::table::{Table, TablePaint, render_table};
 use super::yaml::{MetaPaint, render_metadata};
-use super::{code_block_width, heading_size, prose_slot, wide_block, wide_slot};
-use crate::highlight;
+use super::{heading_size, prose_slot};
 
 pub(super) struct Builder {
     theme: Arc<Theme>,
@@ -39,7 +40,10 @@ pub(super) struct Builder {
     bold: u32,
     italic: u32,
     strike: u32,
-    link: u32,
+    /// Open `[text](dest)` links: inline start offset + destination.
+    open_links: Vec<(usize, SharedString)>,
+    /// Clickable ranges in `inline` (links and path-like code spans).
+    links: Links,
     code: Option<(String, String)>,
     metadata: Option<String>,
     table: Option<Table>,
@@ -96,7 +100,8 @@ impl Builder {
             bold: 0,
             italic: 0,
             strike: 0,
-            link: 0,
+            open_links: Vec::new(),
+            links: Vec::new(),
             code: None,
             metadata: None,
             table: None,
@@ -156,6 +161,7 @@ impl Builder {
         &mut self,
         text: SharedString,
         highlights: Vec<(Range<usize>, HighlightStyle)>,
+        links: Links,
         source_range: Range<usize>,
     ) -> AnyElement {
         let ix = self.plain.len();
@@ -168,6 +174,7 @@ impl Builder {
             self.host.clone(),
             self.selection_color,
         )
+        .with_links(links)
         .into_any_element()
     }
     fn push_meta_nl(&mut self) {
@@ -196,7 +203,13 @@ impl Builder {
                     background_color: Some(self.code_bg),
                     ..Default::default()
                 };
+                let start = self.inline.len();
                 self.push(&text, Some(style));
+                if self.open_links.is_empty() && code_is_path(&text) {
+                    let range = start..self.inline.len();
+                    self.links
+                        .push((range, SharedString::from(text.to_string())));
+                }
             }
             Event::FootnoteReference(label) => {
                 let style = HighlightStyle {
@@ -234,7 +247,9 @@ impl Builder {
             Tag::Emphasis => self.italic += 1,
             Tag::Strong => self.bold += 1,
             Tag::Strikethrough => self.strike += 1,
-            Tag::Link { .. } => self.link += 1,
+            Tag::Link { dest_url, .. } => self
+                .open_links
+                .push((self.inline.len(), SharedString::from(dest_url.to_string()))),
             Tag::FootnoteDefinition(label) => {
                 self.inline.push_str(&format!("[^{label}]: "));
             }
@@ -246,6 +261,7 @@ impl Builder {
             Tag::DefinitionListTitle | Tag::DefinitionListDefinition => {
                 self.inline.clear();
                 self.highlights.clear();
+                self.links.clear();
             }
             Tag::Table(alignments) => {
                 self.table = Some(Table {
@@ -270,6 +286,7 @@ impl Builder {
                 self.cell_source = Some(range);
                 self.inline.clear();
                 self.highlights.clear();
+                self.links.clear();
             }
             _ => {}
         }
@@ -304,7 +321,13 @@ impl Builder {
             TagEnd::Emphasis => self.italic = self.italic.saturating_sub(1),
             TagEnd::Strong => self.bold = self.bold.saturating_sub(1),
             TagEnd::Strikethrough => self.strike = self.strike.saturating_sub(1),
-            TagEnd::Link => self.link = self.link.saturating_sub(1),
+            TagEnd::Link => {
+                if let Some((start, dest)) = self.open_links.pop()
+                    && start < self.inline.len()
+                {
+                    self.links.push((start..self.inline.len(), dest));
+                }
+            }
             TagEnd::FootnoteDefinition => {
                 self.flush_block(px(f32::from(self.base) * 0.9), false, None, range)
             }
@@ -312,6 +335,7 @@ impl Builder {
                 self.def_title = Some(std::mem::take(&mut self.inline).trim().to_string());
                 self.def_title_source = Some(range);
                 self.highlights.clear();
+                self.links.clear();
             }
             TagEnd::DefinitionListDefinition => self.flush_definition(range),
             TagEnd::TableCell => self.finish_table_cell(range),
@@ -333,13 +357,14 @@ impl Builder {
         }
     }
     fn inline_style(&self) -> Option<HighlightStyle> {
-        if self.bold == 0 && self.italic == 0 && self.strike == 0 && self.link == 0 {
+        let link = !self.open_links.is_empty();
+        if self.bold == 0 && self.italic == 0 && self.strike == 0 && !link {
             return None;
         }
         Some(HighlightStyle {
             font_weight: (self.bold > 0).then_some(FontWeight::BOLD),
             font_style: (self.italic > 0).then_some(FontStyle::Italic),
-            color: (self.link > 0).then_some(self.accent),
+            color: link.then_some(self.accent),
             strikethrough: (self.strike > 0).then_some(StrikethroughStyle {
                 thickness: px(1.),
                 color: None,
@@ -364,11 +389,13 @@ impl Builder {
         if self.inline.trim().is_empty() {
             self.inline.clear();
             self.highlights.clear();
+            self.links.clear();
             return;
         }
         let text = SharedString::from(std::mem::take(&mut self.inline));
         let highlights = std::mem::take(&mut self.highlights);
-        let child = self.push_selectable(text, highlights, source_range);
+        let links = std::mem::take(&mut self.links);
+        let child = self.push_selectable(text, highlights, links, source_range);
         let mut block = div()
             .my_1()
             .w_full()
@@ -382,37 +409,6 @@ impl Builder {
             block = block.pl(pad);
         }
         self.push_block(block.child(child));
-    }
-    fn flush_code(&mut self, source_range: Range<usize>) {
-        let Some((lang, mut code)) = self.code.take() else {
-            return;
-        };
-        if code.ends_with('\n') {
-            code.pop();
-        }
-        let content = code_block_width(&code, self.base);
-        let highlights: Vec<_> = highlight::spans_for_lang(&lang, &code)
-            .into_iter()
-            .map(|span| {
-                let style = HighlightStyle {
-                    color: self.code_color(span.name),
-                    ..Default::default()
-                };
-                (span.start..span.end, style)
-            })
-            .collect();
-        let child = self.push_selectable(SharedString::from(code), highlights, source_range);
-        let code_block = wide_block(content, self.base)
-            .my_2()
-            .p_2()
-            .rounded_md()
-            .bg(self.code_bg)
-            .font_family(self.mono.clone())
-            .text_size(self.base)
-            .child(child);
-        let ix = self.blocks.len();
-        self.blocks
-            .push(wide_slot(code_block, content, ix, self.base));
     }
     fn flush_metadata(&mut self, source_range: Range<usize>) {
         let Some(body) = self.metadata.take() else {
@@ -450,6 +446,7 @@ impl Builder {
         table.finish_cell(
             std::mem::take(&mut self.inline),
             std::mem::take(&mut self.highlights),
+            std::mem::take(&mut self.links),
             source_range,
         );
     }
@@ -468,12 +465,5 @@ impl Builder {
             self.source_ranges.extend(ranges);
             self.push_block(element);
         }
-    }
-
-    fn code_color(&self, name: &str) -> Option<Hsla> {
-        self.theme
-            .syntax()
-            .style_for_name(name)
-            .and_then(|s| s.color)
     }
 }

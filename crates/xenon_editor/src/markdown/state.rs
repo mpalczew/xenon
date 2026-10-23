@@ -10,10 +10,12 @@ use super::select::{
     selected_markdown, word_range_at,
 };
 
-/// Fired when selection or scroll changes so the parent editor can re-render.
+/// Fired when selection or scroll changes so the parent editor can re-render,
+/// or when a link was clicked (click without drag).
 pub enum PreviewEvent {
     SelectionChanged,
     Scrolled,
+    OpenLink(SharedString),
 }
 
 #[derive(Default)]
@@ -26,6 +28,10 @@ pub struct PreviewState {
     source_ranges: Vec<Range<usize>>,
     sel: PreviewSel,
     nav: HeadingNav,
+    /// Every heading's slug and scroll-child index, for `#anchor` links.
+    anchors: Vec<(String, usize)>,
+    /// Link under the last plain click; opens on mouse-up unless it became a drag.
+    pending_link: Option<SharedString>,
 }
 
 /// Left-click payload for preview selection.
@@ -34,6 +40,8 @@ pub(crate) struct PreviewClick {
     pub offset: usize,
     pub count: usize,
     pub shift: bool,
+    /// Link destination under the click, if any.
+    pub link: Option<SharedString>,
 }
 
 impl EventEmitter<PreviewEvent> for PreviewState {}
@@ -48,8 +56,26 @@ impl PreviewState {
     }
 
     /// Record the outline the last render showed (block index per heading).
-    pub(crate) fn sync_outline(&mut self, blocks: Vec<usize>, outline_shown: bool) {
+    pub(crate) fn sync_outline(
+        &mut self,
+        blocks: Vec<usize>,
+        outline_shown: bool,
+        anchors: Vec<(String, usize)>,
+    ) {
         self.nav.sync(blocks, outline_shown);
+        self.anchors = anchors;
+    }
+
+    /// Scroll to the heading whose slug is `anchor`; false when none matches.
+    pub(crate) fn jump_to_anchor(&mut self, anchor: &str, cx: &mut Context<Self>) -> bool {
+        let want = super::link::slug(anchor);
+        let Some(&(_, block)) = self.anchors.iter().find(|(slug, _)| *slug == want) else {
+            return false;
+        };
+        self.nav.jump_block(block);
+        cx.emit(PreviewEvent::Scrolled);
+        cx.notify();
+        true
     }
 
     pub(crate) fn jump_to_heading(&mut self, ix: usize, cx: &mut Context<Self>) {
@@ -122,6 +148,7 @@ impl PreviewState {
             .get(caret.block)
             .map(|s| s.as_ref())
             .unwrap_or("");
+        self.pending_link = click.link.filter(|_| click.count == 1 && !click.shift);
         match click.count {
             2 => {
                 let range = word_range_at(text, caret.offset);
@@ -190,6 +217,11 @@ impl PreviewState {
         }
         self.sel.pending = false;
         cx.emit(PreviewEvent::SelectionChanged);
+        if let Some(link) = self.pending_link.take()
+            && self.sel.is_empty()
+        {
+            cx.emit(PreviewEvent::OpenLink(link));
+        }
         cx.notify();
     }
 }

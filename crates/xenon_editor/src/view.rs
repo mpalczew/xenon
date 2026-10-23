@@ -10,6 +10,7 @@ mod find_session;
 mod image;
 mod input;
 mod layout;
+mod links;
 mod lsp;
 mod menu;
 mod remote;
@@ -32,7 +33,7 @@ use crate::buffer::{Buffer, OpenError};
 use crate::element;
 use crate::highlight;
 use crate::image_viewer::ImageViewer;
-use crate::markdown::{PreviewEvent, PreviewState};
+use crate::markdown::{LinkTarget, PreviewEvent, PreviewState};
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use find_session::FindSession;
@@ -133,6 +134,11 @@ pub enum EditorEvent {
     },
     /// Mouse (or other user action) claimed keyboard focus on this view.
     Focused,
+    /// A markdown link to a file or URL was followed from `path`.
+    OpenLink {
+        path: PathBuf,
+        target: LinkTarget,
+    },
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -197,8 +203,9 @@ impl EditorView {
 
     fn from_content(content: Content, autofocus: bool, cx: &mut Context<Self>) -> Self {
         let preview_state = cx.new(|_| PreviewState::default());
-        let _preview_sel_sub =
-            cx.subscribe(&preview_state, |_, _, _: &PreviewEvent, cx| cx.notify());
+        let _preview_sel_sub = cx.subscribe(&preview_state, |this, _, event: &PreviewEvent, cx| {
+            this.on_preview_event(event, cx)
+        });
         let mut view = Self {
             remote: None,
             content,
@@ -385,7 +392,11 @@ impl EditorView {
             window.request_animation_frame();
         }
         self.preview_state.update(cx, |state, cx| {
-            state.sync_outline(rendered.outline_blocks, rendered.outline_shown);
+            state.sync_outline(
+                rendered.outline_blocks,
+                rendered.outline_shown,
+                rendered.anchors,
+            );
             state.sync_doc(
                 rendered.source,
                 rendered.plain_blocks,
