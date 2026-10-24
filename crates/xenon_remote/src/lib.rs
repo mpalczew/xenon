@@ -18,6 +18,7 @@ pub use host::{ConnId, HostRequest, HostTx, InputRoute, InputSink, Outbox, PairE
 pub use pairing::{PAIRING_TTL, PairingCode};
 pub use protocol::{
     ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, NamedKey, PairRequest, PairResponse,
-    ServerMsg, StyleWire, TerminalInfo, ThemeWire, WorkspaceInfo, style_flags,
+    Secret, ServerMsg, StyleWire, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo, ThemeWire,
+    WorkspaceInfo, style_flags,
 };
 pub use server::{RemoteServer, StartError};

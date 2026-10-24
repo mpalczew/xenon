@@ -13,9 +13,9 @@ use xenon_ui::{
     AddWorkspace, CloseEditor, CloseWorkspace, CommandPalette, Copy, CopyClean, CopyCode, Cut,
     DecreaseFontSize, FilePalette, FocusBrowser, FocusEditor, FocusNextPane, FocusTerminal, GoBack,
     GoForward, IncreaseFontSize, KeyboardHelp, NewTerminal, NewWorkspace, NextTab, NextWorkspace,
-    OpenFile, Paste, PrevTab, PrevWorkspace, Quit, ResetFontSize, RunTask, Save, SelectAll,
-    ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleSoftWrap, ToggleTerminal,
-    ToggleThemes, XenonApp,
+    OpenFile, Paste, PrevTab, PrevWorkspace, Quit, ResetFontSize, RunBuildTask, RunTask, Save,
+    SelectAll, ToggleBrowser, ToggleEditor, ToggleSettings, ToggleSidebar, ToggleSoftWrap,
+    ToggleTerminal, ToggleThemes, XenonApp,
 };
 
 fn main() {
@@ -179,6 +179,7 @@ fn wire_menus(cx: &mut App) {
             MenuItem::action("Go to File…", FilePalette),
             MenuItem::action("Command Palette…", CommandPalette),
             MenuItem::action("Run Task…", RunTask),
+            MenuItem::action("Run Build Task", RunBuildTask),
             MenuItem::separator(),
             MenuItem::action("Save", Save),
             MenuItem::separator(),

@@ -292,6 +292,9 @@ impl TextInputView {
     }
 
     fn copy(&self, cx: &mut Context<Self>) {
+        if self.config.masked {
+            return;
+        }
         let selected = self.value.selected_text();
         if !selected.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(selected.to_owned()));
@@ -299,6 +302,9 @@ impl TextInputView {
     }
 
     fn cut(&mut self, cx: &mut Context<Self>) {
+        if self.config.masked {
+            return;
+        }
         let selected = self.value.selected_text().to_owned();
         if !selected.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(selected));
@@ -372,18 +378,20 @@ impl Render for TextInputView {
             self.geometry = Some(self.geometry_for_bounds(bounds, window));
         }
         let colors = cx.theme().colors().clone();
-        let caret =
-            (focused && self.blink.visible() && self.value.selection().is_empty()).then(|| {
-                let utf16 = self.value.selected_utf16().end;
-                self.geometry.as_ref().map_or_else(
-                    || {
-                        let (x, y) =
-                            geometry::field_insets(self.config.appearance, window.rem_size());
-                        point(x, y)
-                    },
-                    |geometry| geometry.caret_offset(self.value.text(), utf16),
-                )
-            });
+        let caret = (!self.config.masked
+            && focused
+            && self.blink.visible()
+            && self.value.selection().is_empty())
+        .then(|| {
+            let utf16 = self.value.selected_utf16().end;
+            self.geometry.as_ref().map_or_else(
+                || {
+                    let (x, y) = geometry::field_insets(self.config.appearance, window.rem_size());
+                    point(x, y)
+                },
+                |geometry| geometry.caret_offset(self.value.text(), utf16),
+            )
+        });
         let field = text_field(FieldChrome {
             value: &self.value,
             placeholder: &self.config.placeholder,
@@ -393,6 +401,7 @@ impl Render for TextInputView {
             caret,
             line_height: window.line_height(),
             appearance: self.config.appearance,
+            masked: self.config.masked.then_some(focused),
             overflow: self
                 .soft_limit
                 .map(|limit| (limit, cx.theme().status().warning)),

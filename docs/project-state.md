@@ -61,6 +61,11 @@ rediscover.
 
 ## Load-bearing choices
 
+- VS Code tasks.json compatibility is settled in `docs/designs/vscode-tasks.md`:
+  each task is its own process in a Xenon task tab (never typed into a shell),
+  extension-contributed types and `command` inputs are listed as unsupported,
+  and `runOn: folderOpen` never runs without a per-workspace approval keyed to
+  a hash of the tasks it covers (stored in the data dir, not the repo).
 - `.vscode/tasks.json` exposes only the `xenon` and `install` (`bin/install`) tasks.
   Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent
   extra task labels. Local builds share one `--profile dogfood` target

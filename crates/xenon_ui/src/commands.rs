@@ -21,6 +21,7 @@ pub enum CommandId {
     NewFolder,
     GoToFile,
     RunTask,
+    RunBuildTask,
     Save,
     SaveAs,
     FindInFile,
@@ -96,7 +97,7 @@ macro_rules! cmd {
     };
 }
 
-const fn all_commands() -> [CommandEntry; 64] {
+const fn all_commands() -> [CommandEntry; 65] {
     [
         cmd!(NextWorkspace, "Next Workspace", "⌘⌥↓", "Navigate"),
         cmd!(PrevWorkspace, "Previous Workspace", "⌘⌥↑", "Navigate"),
@@ -137,6 +138,7 @@ const fn all_commands() -> [CommandEntry; 64] {
         cmd!(NewFolder, "New Folder…", "⌘⌥⇧F", "Create"),
         cmd!(OpenFile, "Open File…", "⌘O", "Create"),
         cmd!(RunTask, "Run Task…", "⌘⇧R", "Create"),
+        cmd!(RunBuildTask, "Run Build Task", "⌘⇧B", "Create"),
         cmd!(ToggleSidebar, "Toggle Sidebar", "⌘B", "View"),
         cmd!(ToggleBrowser, "Toggle File Tree", "⌘E", "View"),
         cmd!(ToggleTerminal, "Focus/New Terminal", "⌘J", "View"),
@@ -172,7 +174,7 @@ const fn all_commands() -> [CommandEntry; 64] {
 
 /// Full catalog for palette + help.
 pub fn catalog() -> &'static [CommandEntry] {
-    static ENTRIES: [CommandEntry; 64] = all_commands();
+    static ENTRIES: [CommandEntry; 65] = all_commands();
     &ENTRIES
 }
 

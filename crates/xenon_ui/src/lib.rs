@@ -21,6 +21,7 @@ mod resize;
 mod settings;
 mod sidebar;
 mod tabs;
+mod task_input;
 mod task_picker;
 mod theme_picker;
 mod toolbar;
@@ -63,6 +64,9 @@ actions!(
         NewWorkspace,
         FilePalette,
         RunTask,
+        RunBuildTask,
+        AllowFolderTasks,
+        DenyFolderTasks,
         CloseEditor,
         CloseOtherTabs,
         CopyPath,

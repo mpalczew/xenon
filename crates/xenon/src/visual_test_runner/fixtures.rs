@@ -63,8 +63,16 @@ pub fn build() -> Result<Fixture> {
         r#"{
   "version": "2.0.0",
   "tasks": [
-    { "label": "demo-build", "type": "shell", "command": "echo build", "detail": "Build the demo" },
-    { "label": "demo-test", "type": "shell", "command": "echo test", "detail": "Run every demo check, including the slow simulator suites that only pass on a machine with the full toolchain installed" }
+    { "label": "demo-build", "type": "shell", "command": "echo build", "detail": "Build the demo",
+      "group": { "kind": "build", "isDefault": true } },
+    { "label": "demo-test", "type": "shell", "command": "echo test", "group": "test",
+      "detail": "Run every demo check, including the slow simulator suites that only pass on a machine with the full toolchain installed" },
+    { "label": "demo-greet", "type": "process", "command": "/bin/echo", "args": ["hello", "${input:who}"] },
+    { "label": "demo-ci", "dependsOn": ["demo-build", "demo-test"], "dependsOrder": "sequence" },
+    { "label": "demo-lint", "type": "npm", "script": "lint" }
+  ],
+  "inputs": [
+    { "id": "who", "type": "promptString", "description": "Who to greet", "default": "world" }
   ]
 }"#,
     )?;

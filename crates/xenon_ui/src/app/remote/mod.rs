@@ -14,6 +14,7 @@ pub(crate) mod pairing_sheet;
 mod session;
 mod settings_api;
 mod status;
+mod tasks;
 #[cfg(feature = "visual-tests")]
 mod visual;
 mod wire;
@@ -386,6 +387,12 @@ impl XenonApp {
                 reply,
             } => {
                 let _ = reply.send(self.list_remote_terminals(&workspace_id, cx));
+            }
+            HostRequest::ListTasks {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(self.list_remote_tasks(&workspace_id, cx));
             }
             HostRequest::CreateTerminal {
                 workspace_id,

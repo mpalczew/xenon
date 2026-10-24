@@ -34,4 +34,6 @@ pub(super) struct AppServices {
     pub focus_guard: Vec<Subscription>,
     pub keymap_watcher: Option<notify::RecommendedWatcher>,
     pub keymap_task: Option<Task<()>>,
+    /// Task runs, pending inputs, and the folderOpen consent card.
+    pub tasks: super::task_runs::TaskRuns,
 }

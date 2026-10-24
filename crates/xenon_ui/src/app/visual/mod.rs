@@ -15,6 +15,7 @@ mod remote;
 mod settings;
 mod ssh;
 mod ssh_picker;
+mod tasks;
 mod worklist;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +61,11 @@ pub enum Scene {
     CommandPalette,
     KeyboardHelp,
     TaskPicker,
+    TaskInputText,
+    TaskInputPassword,
+    TaskInputPick,
+    TaskTrust,
+    TaskTab,
     WorkspacePicker,
     SshWorkspacePicker,
     SshHostPicker,
@@ -149,6 +155,11 @@ pub const SCENES: &[Scene] = &[
     Scene::CommandPalette,
     Scene::KeyboardHelp,
     Scene::TaskPicker,
+    Scene::TaskInputText,
+    Scene::TaskInputPassword,
+    Scene::TaskInputPick,
+    Scene::TaskTrust,
+    Scene::TaskTab,
     Scene::WorkspacePicker,
     Scene::SshWorkspacePicker,
     Scene::SshHostPicker,
@@ -240,6 +251,11 @@ impl Scene {
             Self::CommandPalette => "overlay_command_palette",
             Self::KeyboardHelp => "overlay_keyboard_help",
             Self::TaskPicker => "overlay_task_picker",
+            Self::TaskInputText => "overlay_task_input_text",
+            Self::TaskInputPassword => "overlay_task_input_password",
+            Self::TaskInputPick => "overlay_task_input_pick",
+            Self::TaskTrust => "overlay_task_trust",
+            Self::TaskTab => "content_task_tab",
             Self::WorkspacePicker => "overlay_workspace_picker",
             Self::SshWorkspacePicker => "overlay_ssh_workspace_picker",
             Self::SshHostPicker => "overlay_ssh_host_picker",
@@ -351,6 +367,11 @@ pub fn apply_scene(
         Scene::CommandPalette => overlays::command_palette(app, window, cx),
         Scene::KeyboardHelp => overlays::keyboard_help(app, window, cx),
         Scene::TaskPicker => overlays::task_picker(app, window, cx),
+        Scene::TaskInputText | Scene::TaskInputPassword | Scene::TaskInputPick => {
+            tasks::task_input(app, scene, window, cx)
+        }
+        Scene::TaskTrust => tasks::task_trust(app, window, cx),
+        Scene::TaskTab => tasks::task_tab(app, window, cx),
         Scene::WorkspacePicker => overlays::workspace_picker(app, window, cx),
         Scene::SshWorkspacePicker => overlays::ssh_workspace_picker(app, window, cx),
         Scene::SshHostPicker

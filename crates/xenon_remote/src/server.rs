@@ -15,7 +15,7 @@ use anyhow::{Result, anyhow};
 
 use crate::host::{ConnId, HostRequest, HostTx, PairError};
 use crate::http;
-use crate::protocol::{PairRequest, PairResponse, TerminalInfo, WorkspaceInfo};
+use crate::protocol::{PairRequest, PairResponse, TaskInfo, TerminalInfo, WorkspaceInfo};
 use crate::rate_limit::RateLimiter;
 use crate::uploads;
 use crate::ws;
@@ -364,6 +364,21 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
             })
             .and_then(|r| r);
         return match terminals {
+            Ok(list) => write_json(stream, &list),
+            Err(e) => http::write_json_error(stream, 404, &e),
+        };
+    }
+    if tail == "tasks" {
+        if req.method != "GET" {
+            return http::write_json_error(stream, 404, "not found");
+        }
+        let tasks: Result<Vec<TaskInfo>, String> =
+            ask(&shared.host, |reply| HostRequest::ListTasks {
+                workspace_id,
+                reply,
+            })
+            .and_then(|r| r);
+        return match tasks {
             Ok(list) => write_json(stream, &list),
             Err(e) => http::write_json_error(stream, 404, &e),
         };

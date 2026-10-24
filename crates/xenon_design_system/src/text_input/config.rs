@@ -6,6 +6,8 @@ pub struct TextInputConfig {
     pub min_height: Pixels,
     pub appearance: TextInputAppearance,
     pub key_behavior: TextInputKeyBehavior,
+    /// Paint bullets instead of the text and refuse copy/cut (passwords).
+    pub masked: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -31,6 +33,7 @@ impl TextInputConfig {
             min_height: px(28.),
             appearance: TextInputAppearance::Inline,
             key_behavior: TextInputKeyBehavior::SubmitAndCancel,
+            masked: false,
         }
     }
 
@@ -41,6 +44,7 @@ impl TextInputConfig {
             min_height,
             appearance: TextInputAppearance::Bordered,
             key_behavior: TextInputKeyBehavior::SubmitAndCancel,
+            masked: false,
         }
     }
 

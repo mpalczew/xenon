@@ -338,6 +338,7 @@ impl XenonApp {
     pub(crate) fn text_field_open(&self) -> bool {
         self.finder.is_some()
             || self.task_picker.is_some()
+            || self.services.tasks.input.is_some()
             || self.workspace_picker.is_some()
             || self.workspace_create.is_some()
             || self.command_palette.is_some()

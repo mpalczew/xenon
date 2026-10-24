@@ -129,6 +129,7 @@ impl XenonApp {
             CommandId::NewFolder => self.new_folder_here(cx),
             CommandId::GoToFile => self.open_palette(window, cx),
             CommandId::RunTask => self.open_task_picker(window, cx),
+            CommandId::RunBuildTask => self.run_build_task(window, cx),
             CommandId::CaptureWorklist => self.capture_worklist(window, cx),
             CommandId::OpenWorklist => self.open_worklist(cx),
             CommandId::DismissToast => {

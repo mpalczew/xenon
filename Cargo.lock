@@ -9453,8 +9453,11 @@ dependencies = [
 name = "xenon_core"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "serde",
  "serde_json",
+ "serde_json_lenient",
+ "sha2",
  "uuid",
  "xenon_ssh",
 ]
@@ -9642,6 +9645,7 @@ name = "xenon_terminal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-channel 2.5.0",
  "collections",
  "gpui",
  "image",

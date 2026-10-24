@@ -177,6 +177,10 @@ All HTTP served from the existing hand-rolled server; `/ws` upgrade routed by pe
 **Modified: `GET /api/workspaces/{id}/terminals`**
 - Adds `dot` per tab. Opening a closed workspace must not change the Mac's active workspace (restore previous active after reopen).
 
+**New: `GET /api/workspaces/{id}/tasks`** — the workspace's tasks.json, for the phone's Tasks list.
+- Bearer auth like the other lists; opens a closed workspace without changing the Mac's active one.
+- Out: `[{ "label", "detail"?, "command", "group"?: "build"|"test", "default"?: true, "unsupported"?: "reason" }]`. `command` is the line that will run (variables expanded where known, `${input:..}` as written); hidden tasks are omitted.
+
 **New: `GET /manifest.webmanifest`, `/icon-192.png`, `/icon-512.png`, `/apple-touch-icon.png`** — static, embedded, no auth.
 
 **New: `POST /api/uploads`** — phone image attach (📎 or paste).
@@ -200,6 +204,8 @@ Client → server:
 {"t":"key","key":"enter|esc|ctrl-c|tab|shift-tab|up|down|left|right|backspace"}
 {"t":"history","before":-40,"count":200}    // lines above viewport, negative = scrollback
 {"t":"fit","cols":52,"rows":30}             // phone viewport in cells; Decision A
+{"t":"runTask","workspaceId":"…","label":"build"}   // same path as the Mac's Run Task picker
+{"t":"taskInput","token":4,"value":"…"}     // answer to a taskInput; no value cancels the run
 ```
 
 Server → client:
@@ -212,8 +218,11 @@ Server → client:
 {"t":"history","before":-40,"lines":[[["…",0]]],"more":true}
 {"t":"dots","workspaces":{"<id>":"attention"}}          // pushed on change
 {"t":"closed","reason":"tab-closed|revoked|server-stopping"}
+{"t":"taskInput","token":4,"id":"who","description":"…","default":"world","kind":"text|password|pick","options":[{"label":"…","value":"…"}]}
+{"t":"taskStarted","workspaceId":"…","label":"build","tabId":9}   // attach to this tab
 {"t":"error","msg":"…"}
 ```
+Task runs: `runTask` resolves, orders (`dependsOn`) and presents exactly like the Mac picker and runs against the main window; it never changes the Mac's tab or focus. Questions go only to the connection that started the run and are answered with that token from that connection (anything else is ignored). A `password` answer is masked on the page, cleared once sent, never stored, and `Debug`-redacted on the Mac. folderOpen approval is Mac-only; a paired device can already type into terminals, so running tasks adds no privilege. See `docs/designs/vscode-tasks.md`.
 Close codes: `4401` unauthorized, `4404` tab gone, `4409` replaced (same device attached elsewhere → allowed; not used v2).
 
 **Modified: `HostRequest` (xenon_remote ↔ xenon_ui)**

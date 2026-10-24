@@ -9,6 +9,7 @@ impl XenonApp {
     pub(super) fn dismiss_palettes(&mut self, cx: &mut Context<Self>) {
         self.finder = None;
         self.task_picker = None;
+        self.services.tasks.input = None;
         self.workspace_picker = None;
         self.workspace_create = None;
         self.command_palette = None;

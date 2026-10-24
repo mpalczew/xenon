@@ -20,6 +20,7 @@ mod phone_click;
 mod remote;
 mod remote_io;
 mod render;
+mod task_run;
 #[cfg(feature = "visual-tests")]
 mod visual;
 pub(crate) use input::pty_input_bytes;
@@ -120,6 +121,12 @@ pub enum TerminalEvent {
     Exited,
     /// Per-tab "close when process exits" policy changed (may reschedule close).
     AutoCloseChanged,
+    /// A task terminal's process finished: its exit code (`None` when killed
+    /// by a signal).
+    TaskFinished(Option<i32>),
+    /// New output on a terminal that asked for it (`watch_output`), coalesced
+    /// with repaints.
+    Output,
     /// A file path was cmd-clicked in the terminal; app picks editor vs system
     /// default (e.g. `.html` → browser) from the path type.
     OpenPath(PathBuf),
@@ -149,6 +156,10 @@ pub struct TerminalView {
     root_name: String,
     /// The shell exited; the view stays but is marked dead.
     exited: bool,
+    /// Set for task terminals once the process exits: its exit code.
+    task_exit: Option<Option<i32>>,
+    /// Emit `TerminalEvent::Output` as output arrives (background tasks).
+    watch_output: bool,
     /// What to do when this tab's process exits (seeded from app settings).
     auto_close: TerminalAutoClose,
     /// Bumped when `auto_close` changes so pending delayed closes abort.
@@ -178,6 +189,7 @@ pub struct TerminalView {
     /// Coalesces scrollback search refreshes while output is streaming.
     _find_refresh_task: Task<()>,
     _spawn: Task<()>,
+    _task_wait: Task<()>,
     /// Coalesces PTY wakeups into one UI repaint per interval.
     _repaint_task: Task<()>,
     repaint_scheduled: bool,
@@ -208,7 +220,7 @@ impl TerminalView {
         env: Vec<(String, String)>,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::with_shell(working_dir, env, Shell::System, cx)
+        Self::with_shell(working_dir, env, Shell::System, None, cx)
     }
 
     pub fn ssh(command: String, cx: &mut Context<Self>) -> Self {
@@ -220,6 +232,7 @@ impl TerminalView {
                 args: vec!["-lc".into(), command],
                 title_override: Some("SSH".into()),
             },
+            None,
             cx,
         )
     }
@@ -228,6 +241,7 @@ impl TerminalView {
         working_dir: Option<PathBuf>,
         env: Vec<(String, String)>,
         shell: Shell,
+        completion: Option<async_channel::Sender<Option<std::process::ExitStatus>>>,
         cx: &mut Context<Self>,
     ) -> Self {
         let root_name = working_dir
@@ -235,7 +249,7 @@ impl TerminalView {
             .and_then(|dir| dir.file_name())
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let builder = build(working_dir, env, shell, cx);
+        let builder = build(working_dir, env, shell, completion, cx);
         let spawn = cx.spawn(async move |view, cx| {
             let result = builder.await;
             view.update(cx, |view, cx| view.resolve(result, cx)).ok();
@@ -247,6 +261,9 @@ impl TerminalView {
             cursor_blink: xenon_design_system::CursorBlink::default(),
             root_name,
             exited: false,
+            task_exit: None,
+            watch_output: false,
+            _task_wait: Task::ready(()),
             auto_close: xenon_settings::terminal_auto_close(cx),
             auto_close_token: 0,
             pending_inject: None,
@@ -389,6 +406,9 @@ impl TerminalView {
                 .await;
             view.update(cx, |view, cx| {
                 view.repaint_scheduled = false;
+                if view.watch_output {
+                    cx.emit(TerminalEvent::Output);
+                }
                 cx.notify();
             })
             .ok();
@@ -1075,6 +1095,7 @@ fn build(
     working_dir: Option<PathBuf>,
     env: Vec<(String, String)>,
     shell: Shell,
+    completion: Option<async_channel::Sender<Option<std::process::ExitStatus>>>,
     cx: &App,
 ) -> Task<Result<TerminalBuilder>> {
     // zed's terminal only detects file-path hyperlinks when given non-empty path
@@ -1095,7 +1116,7 @@ fn build(
         path_timeout,
         false,
         0,
-        None,
+        completion,
         cx,
         Vec::new(),
         PathStyle::local(),

@@ -36,6 +36,13 @@ impl Render for XenonApp {
             }))
             .child(self.toast.clone());
         let task_picker = self.task_picker.clone();
+        let task_input = self
+            .services
+            .tasks
+            .input
+            .as_ref()
+            .map(|(view, _)| view.clone());
+        let trust_prompt = self.render_trust_prompt(cx);
         let workspace_picker = self.workspace_picker.clone();
         let workspace_create = self.workspace_create.clone();
         let command_palette = self.command_palette.clone();
@@ -75,6 +82,8 @@ impl Render for XenonApp {
             .children(finder)
             .children(worklist_capture)
             .children(task_picker)
+            .children(task_input)
+            .children(trust_prompt)
             .children(workspace_picker)
             .children(workspace_create)
             .children(command_palette)
@@ -187,6 +196,15 @@ impl XenonApp {
             .on_action(
                 cx.listener(|this, _: &RunTask, window, cx| this.open_task_picker(window, cx)),
             )
+            .on_action(cx.listener(|this, _: &crate::RunBuildTask, window, cx| {
+                this.run_build_task(window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &crate::AllowFolderTasks, _, cx| {
+                this.answer_folder_tasks(true, cx)
+            }))
+            .on_action(cx.listener(|this, _: &crate::DenyFolderTasks, _, cx| {
+                this.answer_folder_tasks(false, cx)
+            }))
             .on_action(cx.listener(|this, _: &ToggleBrowser, _, cx| {
                 this.clear_sidebar_focus();
                 this.toggle_browser(cx);

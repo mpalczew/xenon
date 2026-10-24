@@ -1,5 +1,6 @@
-//! Run Task palette: fuzzy-pick a VS Code shell task. Enter starts a new
-//! terminal tab and injects; cmd-enter injects into the current terminal.
+//! Run Task palette: fuzzy-pick a VS Code task. Return runs it as its
+//! presentation says; cmd-return runs it in a new tab of its own. Every row
+//! shows the real command line, so a label cannot hide what runs.
 
 use gpui::{
     App, AppContext, Context, EventEmitter, FocusHandle, Focusable, IntoElement, KeyDownEvent,
@@ -7,7 +8,6 @@ use gpui::{
 };
 use nucleo::{Config, Matcher};
 use theme::ActiveTheme;
-use xenon_core::ShellTask;
 use xenon_design_system::{
     PaletteInput, PaletteOverlay, QueryRow, palette_input, palette_overlay, query_hint, query_row,
 };
@@ -17,16 +17,44 @@ use crate::palette::{
     step_selection,
 };
 
+/// One picker row, prepared by the model (`app/tasks.rs`).
+#[derive(Clone, Debug)]
+pub struct TaskRow {
+    pub label: String,
+    /// The command line as it will run (variables expanded where known).
+    pub command_line: String,
+    /// The task's own `detail` text.
+    pub detail: Option<String>,
+    /// Chip text, e.g. "build · default".
+    pub tag: Option<String>,
+    /// Why it cannot run here; such rows are listed dimmed.
+    pub unsupported: Option<String>,
+}
+
+impl TaskRow {
+    fn subtitle(&self) -> String {
+        if let Some(reason) = &self.unsupported {
+            return reason.clone();
+        }
+        match &self.detail {
+            Some(detail) => format!("$ {}  ·  {detail}", self.command_line),
+            None => format!("$ {}", self.command_line),
+        }
+    }
+}
+
 pub enum TaskPickerEvent {
-    /// Run in the current terminal.
-    Run(ShellTask),
-    /// Open a new terminal tab, then run.
-    RunInNew(ShellTask),
+    /// Run per the task's presentation settings.
+    Run(String),
+    /// Run in a new tab of its own, revealed.
+    RunInNewTab(String),
+    /// The row cannot run; the string says why.
+    Unsupported(String),
     Dismissed,
 }
 
 pub struct TaskPickerView {
-    tasks: Vec<ShellTask>,
+    tasks: Vec<TaskRow>,
     query: String,
     results: Vec<usize>,
     selected: usize,
@@ -41,7 +69,7 @@ pub struct TaskPickerView {
 impl EventEmitter<TaskPickerEvent> for TaskPickerView {}
 
 impl TaskPickerView {
-    pub fn new(tasks: Vec<ShellTask>, error: Option<String>, cx: &mut Context<Self>) -> Self {
+    pub fn new(tasks: Vec<TaskRow>, error: Option<String>, cx: &mut Context<Self>) -> Self {
         let input = cx.new(|cx| {
             xenon_design_system::TextInputView::new(
                 xenon_design_system::TextInputConfig::single_line(
@@ -97,24 +125,30 @@ impl TaskPickerView {
         cx.notify();
     }
 
-    fn confirm(&mut self, new_terminal: bool, cx: &mut Context<Self>) {
-        let Some(&idx) = self.results.get(self.selected) else {
+    fn confirm(&mut self, new_tab: bool, cx: &mut Context<Self>) {
+        let Some(task) = self
+            .results
+            .get(self.selected)
+            .and_then(|&idx| self.tasks.get(idx))
+        else {
             return;
         };
-        let Some(task) = self.tasks.get(idx).cloned() else {
-            return;
-        };
-        if new_terminal {
-            cx.emit(TaskPickerEvent::RunInNew(task));
+        if let Some(reason) = &task.unsupported {
+            cx.emit(TaskPickerEvent::Unsupported(format!(
+                "{}: {reason}",
+                task.label
+            )));
+        } else if new_tab {
+            cx.emit(TaskPickerEvent::RunInNewTab(task.label.clone()));
         } else {
-            cx.emit(TaskPickerEvent::Run(task));
+            cx.emit(TaskPickerEvent::Run(task.label.clone()));
         }
     }
 
     fn on_nav(&mut self, key: &str, _shift: bool, platform: bool, cx: &mut Context<Self>) {
         match key {
             "escape" => cx.emit(TaskPickerEvent::Dismissed),
-            "enter" => self.confirm(!platform, cx),
+            "enter" => self.confirm(platform, cx),
             "up" => self.move_selection(-1, cx),
             "down" => self.move_selection(1, cx),
             _ => return,
@@ -164,17 +198,21 @@ impl Render for TaskPickerView {
                     ("task-row", i),
                     QueryRow {
                         title: task.label.clone(),
-                        detail: None,
-                        subtitle: task.detail.clone(),
+                        detail: task
+                            .unsupported
+                            .as_ref()
+                            .map(|_| "unsupported".to_string())
+                            .or_else(|| task.tag.clone()),
+                        subtitle: Some(task.subtitle()),
                         selected: i == self.selected,
-                        enabled: true,
+                        enabled: task.unsupported.is_none(),
                         hits,
                     },
                     cx,
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.selected = i;
-                    this.confirm(true, cx);
+                    this.confirm(false, cx);
                 }))
                 .into_any_element()
             })
@@ -201,7 +239,7 @@ impl Render for TaskPickerView {
                     }),
                     query_hint(
                         &xenon_design_system::shortcut_text(
-                            "return runs in a new terminal  ·  ⌘return current  ·  esc closes",
+                            "return runs  ·  ⌘return runs in a new tab  ·  esc closes",
                         ),
                         cx,
                     )

@@ -14,6 +14,7 @@ mod links;
 mod lsp;
 mod menu;
 mod remote;
+mod selected;
 #[cfg(feature = "visual-tests")]
 mod visual;
 mod worklist;

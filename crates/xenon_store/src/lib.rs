@@ -17,6 +17,7 @@ mod ipc;
 mod remote_devices;
 mod settings;
 mod skill;
+mod task_trust;
 mod terminal;
 pub use cli::{CliCommand, parse_cli};
 pub use ipc::{
@@ -35,6 +36,7 @@ pub use skill::{
     SkillStatus, decline_skill, install_skill, refresh_on_launch, remove_skill,
     should_prompt_skill, skill_home, skill_status,
 };
+pub use task_trust::{TaskTrust, set_task_trust, task_trust};
 pub use terminal::TerminalAutoClose;
 
 /// Serializes tests that mutate process-global data-dir env vars.

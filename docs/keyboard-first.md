@@ -19,6 +19,10 @@ exceptions listed under "Linux differences" below.
 | Open workspace picker: `ss` → `ssh://`, complete a host or remote folder (never opens) | ⇥ (↩ also completes a host row and opens a folder row; Esc closes) |
 | Open file | ⌘P (↩ this pane, ⌘↩ / ⌃↩ new pane to the right) |
 | Commands / help / task | ⌘⇧P / ⌘⇧/ / ⌘⇧R |
+| Run build task (default build task, else the only one, else the picker) | ⌘⇧B |
+| Task picker: run per its presentation · run in a new tab · close | ↩ · ⌘↩ · Escape |
+| Task input prompt (`inputs`): answer · cancel the run · choose (pick lists) | ↩ · Escape · ↑/↓ |
+| folderOpen consent card (non-modal, shown until answered): allow · don't allow | ⌘⌥↩ · ⌘⌥⌫ |
 | Save / Save As | ⌘S / ⌘⇧S |
 | Capture task / open worklist | ⌘⇧K / ⌘⌥K |
 | Toast: undo capture / dismiss | ⌘Z / ⌘. |

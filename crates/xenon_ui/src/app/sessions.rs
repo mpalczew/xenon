@@ -30,6 +30,7 @@ impl XenonApp {
         self.persist_active();
         self.nav_seed_active(id, cx);
         self.save_layout(id);
+        self.check_folder_open_tasks(id, cx);
         cx.notify();
     }
 
@@ -239,8 +240,19 @@ impl XenonApp {
         } else {
             cx.new(|cx| TerminalView::new(Some(root), env, cx))
         };
+        self.wire_terminal(&terminal, cx);
+        terminal
+    }
+
+    /// Route a terminal's events (attention, exit, path opens, task results)
+    /// into the app. Every terminal tab, shell or task, goes through here.
+    pub(super) fn wire_terminal(
+        &mut self,
+        terminal: &Entity<TerminalView>,
+        cx: &mut Context<Self>,
+    ) {
         self._bell_subs
-            .push(cx.subscribe(&terminal, move |this, view, event, cx| {
+            .push(cx.subscribe(terminal, move |this, view, event, cx| {
                 let owner = this.locate_terminal(&view);
                 match event {
                     TerminalEvent::Bell => {
@@ -272,6 +284,10 @@ impl XenonApp {
                         this.refresh_terminal_status(cx);
                         this.on_terminal_exited(view.clone(), cx);
                     }
+                    TerminalEvent::TaskFinished(code) => {
+                        this.on_task_finished(view.clone(), *code, cx)
+                    }
+                    TerminalEvent::Output => this.on_task_output(view.clone(), cx),
                     TerminalEvent::AutoCloseChanged => {
                         this.on_terminal_auto_close_changed(view.clone(), cx)
                     }
@@ -290,7 +306,6 @@ impl XenonApp {
                     }
                 }
             }));
-        terminal
     }
 
     pub(crate) fn select_workspace(

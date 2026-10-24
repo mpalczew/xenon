@@ -89,6 +89,12 @@ fn host_loop(rx: async_channel::Receiver<HostRequest>, mock: Arc<MockHost>) {
                     Err("not found".into())
                 });
             }
+            HostRequest::ListTasks {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(mock_tasks(&workspace_id));
+            }
             HostRequest::Connected { out, .. } => {
                 out.try_send(ServerMsg::Ready {
                     theme: ThemeWire {
@@ -105,6 +111,20 @@ fn host_loop(rx: async_channel::Receiver<HostRequest>, mock: Arc<MockHost>) {
             HostRequest::InputSent { .. } | HostRequest::Disconnected { .. } => {}
         }
     }
+}
+
+fn mock_tasks(workspace_id: &str) -> Result<Vec<crate::protocol::TaskInfo>, String> {
+    if workspace_id != "ws-1" {
+        return Err("not found".into());
+    }
+    Ok(vec![crate::protocol::TaskInfo {
+        label: "build".into(),
+        detail: None,
+        command: "make".into(),
+        group: Some("build".into()),
+        default: true,
+        unsupported: None,
+    }])
 }
 
 fn start_mock() -> (RemoteServer, Arc<MockHost>) {
@@ -143,6 +163,10 @@ fn pairing_then_bearer_lists() {
         Some(TOKEN),
     );
     assert!(terms.contains(r#""tabId":7"#), "{terms}");
+    let anon_tasks = request(port, "GET", "/api/workspaces/ws-1/tasks", None, None);
+    assert!(anon_tasks.starts_with("HTTP/1.1 401"), "{anon_tasks}");
+    let tasks = request(port, "GET", "/api/workspaces/ws-1/tasks", None, Some(TOKEN));
+    assert!(tasks.contains(r#""command":"make""#), "{tasks}");
     let created = request(
         port,
         "POST",

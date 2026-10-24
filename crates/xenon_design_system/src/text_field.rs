@@ -22,6 +22,8 @@ pub(crate) struct FieldChrome<'a> {
     pub appearance: TextInputAppearance,
     /// Soft grapheme limit and the color that tints text past it.
     pub overflow: Option<(usize, Hsla)>,
+    /// Masked field: `Some(focused)` paints bullets and a static caret.
+    pub masked: Option<bool>,
 }
 
 pub(crate) fn text_field(field: FieldChrome<'_>) -> impl IntoElement + use<> {
@@ -35,8 +37,23 @@ pub(crate) fn text_field(field: FieldChrome<'_>) -> impl IntoElement + use<> {
         line_height,
         appearance,
         overflow,
+        masked,
     } = field;
-    let text = if value.text().is_empty() {
+    let text = if let Some(focused) = masked {
+        let dots = "•".repeat(value.text().graphemes(true).count());
+        let shown = if focused { format!("{dots}▏") } else { dots };
+        if value.text().is_empty() && !focused {
+            div()
+                .text_color(colors.text_muted)
+                .child(placeholder.to_owned())
+                .into_any_element()
+        } else {
+            div()
+                .text_color(colors.text)
+                .child(shown)
+                .into_any_element()
+        }
+    } else if value.text().is_empty() {
         div()
             .text_color(colors.text_muted)
             .child(placeholder.to_owned())

@@ -223,3 +223,17 @@ fn slot_dirs_share_remote_devices() {
         assert_eq!(crate::load_remote_devices().unwrap(), devices);
     });
 }
+
+#[test]
+fn task_trust_is_keyed_to_the_hash() {
+    with_data_dir(|| {
+        let root = std::path::Path::new("/w/app");
+        assert_eq!(crate::task_trust(root, "h1"), crate::TaskTrust::Unknown);
+        crate::set_task_trust(root, "h1", true).unwrap();
+        assert_eq!(crate::task_trust(root, "h1"), crate::TaskTrust::Allowed);
+        assert_eq!(crate::task_trust(root, "h2"), crate::TaskTrust::Unknown);
+        crate::set_task_trust(root, "h2", false).unwrap();
+        assert_eq!(crate::task_trust(root, "h2"), crate::TaskTrust::Denied);
+        assert_eq!(crate::task_trust(root, "h1"), crate::TaskTrust::Unknown);
+    });
+}

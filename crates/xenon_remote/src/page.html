@@ -96,6 +96,26 @@ html.in-session { background:var(--chrome); }
 .note { color:var(--muted); font-size:15px; padding:28px 16px; text-align:center; }
 .note.err { color:var(--err); }
 
+/* ===== Tasks ===== */
+.task .path { font-family:var(--mono); font-size:12px; }
+.task.unsupported { opacity:.5; }
+.task .why { font-size:12px; color:var(--muted); white-space:normal; }
+.tag.group { background:var(--accent-dim); color:var(--accent); }
+.sheet { position:fixed; inset:0; z-index:9; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.45); }
+.sheet .card { width:100%; max-width:520px; background:var(--panel-2); border-top:1px solid var(--line); border-radius:16px 16px 0 0; padding:16px 16px max(16px, var(--sab)); display:flex; flex-direction:column; gap:10px; max-height:80dvh; }
+.sheet h2 { margin:0; font-size:17px; }
+.sheet .sub { color:var(--muted); font-size:13px; margin:0; }
+.sheet input[type="text"], .sheet input[type="password"] { height:44px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--text); font:16px var(--ui); padding:0 12px; outline:0; }
+.sheet input:focus { border-color:var(--focus-line); }
+.sheet .opts { overflow-y:auto; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:10px; }
+.sheet .opt { text-align:left; min-height:44px; padding:10px 12px; border-bottom:1px solid var(--hair); font-size:16px; }
+.sheet .opt:last-child { border-bottom:0; }
+.sheet .opt[aria-selected="true"] { background:var(--accent-dim); color:var(--accent); font-weight:600; }
+.sheet .row2 { display:flex; gap:10px; }
+.sheet .row2 .btn { flex:1; }
+.btn.sec { background:var(--panel); color:var(--text); }
+.sheet .sec-note { color:var(--muted); font-size:12px; margin:0; }
+
 /* ===== Session ===== */
 .banner { flex:none; margin:8px 10px 0; padding:9px 12px; border-radius:10px; background:var(--warn-dim); color:var(--warn); font-size:13px; font-weight:600; display:flex; gap:8px; align-items:center; }
 .spin { width:13px; height:13px; flex:none; border-radius:50%; border:2px solid var(--warn); border-right-color:transparent; animation:spin .9s linear infinite; }
@@ -172,6 +192,7 @@ html.in-session { background:var(--chrome); }
 .fixture *, .fixture *::after { animation:none !important; transition:none !important; }
 /* Headless Chrome lays out at >=500px wide; pin fixtures to an iPhone 15 box. */
 .fixture #app { right:auto; width:390px; top:0; height:844px; }
+.fixture .sheet { right:auto; width:390px; height:844px; bottom:auto; }
 </style>
 </head>
 <body>
@@ -215,6 +236,11 @@ html.in-session { background:var(--chrome); }
   <section id="v-terms" class="view" hidden>
     <div class="hdr"><button type="button" class="back" data-back aria-label="Back to workspaces">‹</button><div class="title" id="terms-title"></div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
     <div class="scroll" id="terms"></div>
+  </section>
+
+  <section id="v-tasks" class="view" hidden>
+    <div class="hdr"><button type="button" class="back" data-back aria-label="Back to terminals">‹</button><div class="title" id="tasks-title">Tasks</div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="scroll" id="tasks"></div>
   </section>
 
   <section id="v-session" class="view" hidden>
@@ -263,6 +289,16 @@ html.in-session { background:var(--chrome); }
       <button type="submit" class="send" id="send" aria-label="Send">↑</button>
     </form>
   </section>
+</div>
+<div id="task-input" class="sheet" role="dialog" aria-modal="true" aria-labelledby="ti-title" hidden>
+  <form class="card" id="ti-form" autocomplete="off">
+    <h2 id="ti-title"></h2>
+    <p class="sub" id="ti-sub"></p>
+    <input id="ti-field" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-labelledby="ti-title">
+    <div class="opts" id="ti-opts" role="listbox" aria-labelledby="ti-title" hidden></div>
+    <p class="sec-note" id="ti-note" hidden>Hidden here. Sent to your Mac over your tailnet and handed to the task. Never stored on this phone.</p>
+    <div class="row2"><button type="button" class="btn sec" id="ti-cancel">Cancel</button><button type="submit" class="btn pri" id="ti-ok">OK</button></div>
+  </form>
 </div>
 <div id="toast" role="status" hidden></div>
 <span id="probe" aria-hidden="true"></span>
@@ -431,7 +467,7 @@ const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
   fixture: false, themed: false, view: null,
   ws: null, connected: false, attempt: 0, retryTimer: 0, pongTimer: 0,
-  workspaces: [], recentOpen: false,
+  workspaces: [], recentOpen: false, tasks: [], taskInput: null, runningTask: null,
   wsSel: null, terminals: [], skippedList: false,
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
@@ -548,6 +584,8 @@ function onMsg(m) {
     case "history": return renderHistory(m.lines || []);
     case "dots": return onDots(m);
     case "closed": return onClosed(m.reason);
+    case "taskInput": return onTaskInput(m);
+    case "taskStarted": return onTaskStarted(m);
     case "error": return toast(m.msg || "Error");
     case "pong": return;
   }
@@ -596,7 +634,7 @@ function onVisible() {
 // ===== Navigation =====
 function show(view) {
   S.view = view;
-  for (const v of ["paired", "code", "list", "terms", "session"]) $("v-" + v).hidden = v !== view;
+  for (const v of ["paired", "code", "list", "terms", "tasks", "session"]) $("v-" + v).hidden = v !== view;
   document.documentElement.classList.toggle("in-session", view === "session");
   if (view === "session") scheduleFit(0);
 }
@@ -726,7 +764,8 @@ function renderTerminals() {
     '<button type="button" class="close-tab" data-close="' + i + '" aria-label="Close terminal">Close</button></div>'
   ).join("");
   const empty = S.terminals.length ? "" : '<div class="note">No terminal tabs in this workspace.</div>';
-  $("terms").innerHTML = '<button type="button" class="newterm" id="new-term">New terminal</button>' + empty + rows;
+  $("terms").innerHTML = '<button type="button" class="newterm" id="new-term">New terminal</button>' +
+    '<button type="button" class="newterm" id="open-tasks">Tasks</button>' + empty + rows;
 }
 
 async function closeTerminal(tab) {
@@ -766,6 +805,118 @@ async function closeTerminal(tab) {
     S.closing = false;
   }
 }
+
+// ===== Tasks =====
+function taskRow(t, i) {
+  const tags = (t.group ? '<span class="tag group">' + esc(t.group + (t.default ? " · default" : "")) + "</span>" : "");
+  const cmd = t.unsupported
+    ? '<div class="why">' + esc(t.unsupported) + "</div>"
+    : '<div class="path">$ ' + esc(t.command) + "</div>" + (t.detail ? '<div class="why">' + esc(t.detail) + "</div>" : "");
+  return '<button type="button" class="ws task' + (t.unsupported ? " unsupported" : "") + '" data-task="' + i + '"' + (t.unsupported ? " disabled" : "") + ">" +
+    '<div class="body"><div class="name">' + esc(t.label) + "</div>" + cmd + "</div>" +
+    '<div class="meta">' + tags + '</div><div class="chev" aria-hidden="true">›</div></button>';
+}
+
+function renderTasks() {
+  if (!S.tasks.length) { $("tasks").innerHTML = '<div class="note">No tasks in .vscode/tasks.json.</div>'; return; }
+  $("tasks").innerHTML = S.tasks.map(taskRow).join("");
+}
+
+async function openTasks() {
+  if (!S.wsSel) return;
+  S.tasks = [];
+  $("tasks-title").textContent = S.wsSel.name + " › Tasks";
+  $("tasks").innerHTML = '<div class="note">Loading…</div>';
+  show("tasks");
+  try {
+    S.tasks = (await api("/api/workspaces/" + encodeURIComponent(S.wsSel.id) + "/tasks")) || [];
+    renderTasks();
+  } catch (e) {
+    if (e.message !== "unauthorized") $("tasks").innerHTML = '<div class="note err">' + esc(e.message) + "</div>";
+  }
+}
+
+function runTask(t) {
+  if (!S.wsSel || !t || t.unsupported) return;
+  if (!S.connected) return toast("Not connected to your Mac");
+  S.runningTask = t.label;
+  send({ t: "runTask", workspaceId: S.wsSel.id, label: t.label });
+  toast("Starting " + t.label + "…");
+}
+
+async function onTaskStarted(m) {
+  if (S.runningTask !== m.label || !S.wsSel || S.wsSel.id !== m.workspaceId) return;
+  S.runningTask = null;
+  try {
+    S.terminals = (await api("/api/workspaces/" + encodeURIComponent(m.workspaceId) + "/terminals")) || [];
+  } catch (e) { return; }
+  const tab = S.terminals.find((t) => t.tabId === m.tabId);
+  if (tab) { S.skippedList = false; openSession(tab); }
+}
+
+// A question from a run started here. The answer, a password included, lives
+// only in the form field until sent; it is never put in storage or the DOM tree.
+function onTaskInput(m) {
+  const T = S.taskInput = { token: m.token, kind: m.kind, options: m.options || [], pick: 0 };
+  $("ti-title").textContent = m.description || m.id;
+  $("ti-sub").textContent = m.kind === "pick" ? "Choose one" : "";
+  const field = $("ti-field"), opts = $("ti-opts");
+  field.hidden = m.kind === "pick";
+  field.type = m.kind === "password" ? "password" : "text";
+  field.value = m.kind === "pick" ? "" : (m.default || "");
+  $("ti-note").hidden = m.kind !== "password";
+  opts.hidden = m.kind !== "pick";
+  if (m.kind === "pick") {
+    T.pick = Math.max(0, T.options.findIndex((o) => o.value === m.default || o.label === m.default));
+    renderTaskOptions();
+  }
+  $("task-input").hidden = false;
+  setTimeout(() => { try { (m.kind === "pick" ? opts.querySelector("[aria-selected=true]") : field).focus(); } catch (_) {} }, 30);
+}
+
+function renderTaskOptions() {
+  const T = S.taskInput;
+  $("ti-opts").innerHTML = T.options.map((o, i) =>
+    '<button type="button" class="opt" role="option" data-opt="' + i + '" aria-selected="' + (i === T.pick) + '">' + esc(o.label) + "</button>").join("");
+}
+
+function closeTaskInput(answer) {
+  const T = S.taskInput;
+  if (!T) return;
+  S.taskInput = null;
+  let value;
+  if (answer) value = T.kind === "pick" ? (T.options[T.pick] || {}).value : $("ti-field").value;
+  $("ti-field").value = "";
+  $("task-input").hidden = true;
+  const msg = { t: "taskInput", token: T.token };
+  if (answer && value !== undefined) msg.value = value;
+  send(msg);
+}
+
+function wireTaskInput() {
+  $("ti-form").addEventListener("submit", (e) => { e.preventDefault(); closeTaskInput(true); });
+  $("ti-cancel").addEventListener("click", () => closeTaskInput(false));
+  $("ti-opts").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-opt]");
+    if (!b) return;
+    S.taskInput.pick = +b.dataset.opt;
+    closeTaskInput(true);
+  });
+  $("task-input").addEventListener("keydown", (e) => {
+    const T = S.taskInput;
+    if (!T) return;
+    if (e.key === "Escape") { e.preventDefault(); return closeTaskInput(false); }
+    if (T.kind === "pick" && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      T.pick = clampIdx(T.pick + (e.key === "ArrowDown" ? 1 : -1), T.options.length);
+      renderTaskOptions();
+      const sel = $("ti-opts").querySelector("[aria-selected=true]");
+      if (sel) { sel.focus(); }
+    }
+    if (T.kind === "pick" && e.key === "Enter" && !e.target.closest("[data-opt]")) { e.preventDefault(); closeTaskInput(true); }
+  });
+}
+function clampIdx(i, n) { return Math.max(0, Math.min(n - 1, i)); }
 
 async function createTerminal() {
   if (!S.wsSel || S.creating) return;
@@ -1223,11 +1374,17 @@ function wireEvents() {
   });
   $("terms").addEventListener("click", (e) => {
     if (e.target.closest("#new-term")) return createTerminal();
+    if (e.target.closest("#open-tasks")) return openTasks();
     const closer = e.target.closest("[data-close]");
     if (closer) return closeTerminal(S.terminals[+closer.dataset.close]);
     const row = e.target.closest("[data-tab]");
     if (row) openSession(S.terminals[+row.dataset.tab]);
   });
+  $("tasks").addEventListener("click", (e) => {
+    const row = e.target.closest("[data-task]");
+    if (row) runTask(S.tasks[+row.dataset.task]);
+  });
+  wireTaskInput();
   $("new-session").addEventListener("click", createTerminal);
   $("close-session").addEventListener("click", () => {
     const tab = S.terminals.find((t) => S.want && t.tabId === S.want.tabId);
@@ -1332,6 +1489,13 @@ function wireEvents() {
 
 // ===== Fixtures (visual tests; no network) =====
 const FX = {
+  tasks: [
+    { label: "demo-build", command: "cargo build --release", detail: "Build the demo", group: "build", default: true },
+    { label: "demo-test", command: "cargo test", group: "test" },
+    { label: "deploy", command: "./deploy.sh '${input:token}'", detail: "Needs a token" },
+    { label: "demo-ci", command: "(runs demo-build, demo-test)" },
+    { label: "demo-lint", command: "", unsupported: 'type "npm" comes from a VS Code extension; Xenon runs shell and process tasks' },
+  ],
   styles: {
     0: {}, 1: { fg: "#98c379" }, 2: { fg: "#dcdfe4", f: 1 }, 3: { fg: "#5c6370" }, 4: { fg: "#d19a66" },
     5: { fg: "#c678dd", f: 1 }, 6: { fg: "#c678dd" }, 7: { fg: "#61afef" }, 8: { fg: "#e06c75" },
@@ -1450,6 +1614,31 @@ window.xenonFixture = function (name) {
       live(true);
       S.workspaces = FX.workspaces;
       show("list"); renderHost(); renderWorkspaces();
+      break;
+    case "tasks":
+      live(true);
+      S.workspaces = FX.workspaces; S.wsSel = FX.workspaces[0];
+      S.tasks = FX.tasks;
+      $("tasks-title").textContent = S.wsSel.name + " › Tasks";
+      show("tasks"); renderTasks();
+      break;
+    case "task_input_password":
+      live(true);
+      S.workspaces = FX.workspaces; S.wsSel = FX.workspaces[0];
+      S.tasks = FX.tasks;
+      $("tasks-title").textContent = S.wsSel.name + " › Tasks";
+      show("tasks"); renderTasks();
+      onTaskInput({ token: 1, id: "token", description: "Deploy token", kind: "password" });
+      $("ti-field").value = "s3cret-value";
+      break;
+    case "task_input_pick":
+      live(true);
+      S.workspaces = FX.workspaces; S.wsSel = FX.workspaces[0];
+      S.tasks = FX.tasks;
+      $("tasks-title").textContent = S.wsSel.name + " › Tasks";
+      show("tasks"); renderTasks();
+      onTaskInput({ token: 2, id: "env", description: "Which environment?", kind: "pick", default: "staging",
+        options: [{ label: "development", value: "development" }, { label: "staging", value: "staging" }, { label: "production", value: "production" }] });
       break;
     case "session":
       live(true);

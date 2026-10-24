@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use async_channel::Sender;
 
-use crate::protocol::{ClientMsg, PairResponse, ServerMsg, TerminalInfo, WorkspaceInfo};
+use crate::protocol::{ClientMsg, PairResponse, ServerMsg, TaskInfo, TerminalInfo, WorkspaceInfo};
 
 /// One WebSocket connection, unique for the server's lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -105,6 +105,11 @@ pub enum HostRequest {
     ListTerminals {
         workspace_id: String,
         reply: SyncSender<Result<Vec<TerminalInfo>, String>>,
+    },
+    /// The workspace's tasks.json tasks, resolved for display.
+    ListTasks {
+        workspace_id: String,
+        reply: SyncSender<Result<Vec<TaskInfo>, String>>,
     },
     /// Open a shell in that workspace. Does not change the Mac's screen.
     CreateTerminal {

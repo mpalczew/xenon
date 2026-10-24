@@ -180,6 +180,13 @@ impl XenonApp {
                 }
             }
             ClientMsg::Fit { cols, rows } => self.remote_fit(conn, cols, rows, cx),
+            ClientMsg::RunTask {
+                workspace_id,
+                label,
+            } => self.remote_run_task(conn, workspace_id, label, cx),
+            ClientMsg::TaskInput { token, value } => {
+                self.answer_task_input(token, Some(conn.0), value.map(|v| v.0), cx)
+            }
             ClientMsg::Hello { .. } | ClientMsg::Ping => {}
         }
     }

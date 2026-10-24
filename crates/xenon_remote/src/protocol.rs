@@ -43,6 +43,53 @@ pub struct TerminalInfo {
     pub dot: Option<Dot>,
 }
 
+/// One task in `GET /api/workspaces/{id}/tasks`. `command` is the line that
+/// will run (variables expanded where Xenon can, `${input:...}` left as
+/// written), so a label cannot hide it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskInfo {
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub command: String,
+    /// `build` or `test`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub default: bool,
+    /// Why it cannot run in Xenon; such tasks are listed but not runnable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unsupported: Option<String>,
+}
+
+/// A value that must not reach logs: serializes as a plain string, prints
+/// as `Secret(..)`.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Secret(pub String);
+
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Secret(..)")
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TaskInputKind {
+    Text,
+    /// Masked on the phone; never stored there.
+    Password,
+    Pick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskOptionWire {
+    pub label: String,
+    pub value: String,
+}
+
 /// `POST /pair`: the 6-digit code or the QR fragment secret.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -150,6 +197,20 @@ pub enum ClientMsg {
     },
     /// Liveness probe; answered with `pong` by the server thread itself.
     Ping,
+    /// Run a task of that workspace on the Mac, exactly as the Mac's Run Task
+    /// picker would. Questions come back as `taskInput`.
+    #[serde(rename_all = "camelCase")]
+    RunTask {
+        workspace_id: String,
+        label: String,
+    },
+    /// Answer to `taskInput`; no `value` cancels the run.
+    #[serde(rename_all = "camelCase")]
+    TaskInput {
+        token: u64,
+        #[serde(default)]
+        value: Option<Secret>,
+    },
 }
 
 /// Theme colors so the page matches the Mac terminal.
@@ -258,6 +319,25 @@ pub enum ServerMsg {
     Closed {
         reason: ClosedReason,
     },
+    /// A run started from this phone needs an input answered (`taskInput`).
+    #[serde(rename_all = "camelCase")]
+    TaskInput {
+        token: u64,
+        id: String,
+        description: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        default: Option<String>,
+        kind: TaskInputKind,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        options: Vec<TaskOptionWire>,
+    },
+    /// The task's terminal exists: attach to `tab_id` like any terminal.
+    #[serde(rename_all = "camelCase")]
+    TaskStarted {
+        workspace_id: String,
+        label: String,
+        tab_id: u64,
+    },
     Error {
         msg: String,
     },
@@ -313,6 +393,61 @@ mod tests {
             ClientMsg::Key {
                 key: NamedKey::PageUp
             }
+        );
+    }
+
+    #[test]
+    fn task_messages_roundtrip_and_hide_secrets() {
+        let run: ClientMsg =
+            serde_json::from_str(r#"{"t":"runTask","workspaceId":"w","label":"build"}"#).unwrap();
+        assert_eq!(
+            run,
+            ClientMsg::RunTask {
+                workspace_id: "w".into(),
+                label: "build".into()
+            }
+        );
+        let answer: ClientMsg =
+            serde_json::from_str(r#"{"t":"taskInput","token":4,"value":"hunter2"}"#).unwrap();
+        assert_eq!(
+            answer,
+            ClientMsg::TaskInput {
+                token: 4,
+                value: Some(Secret("hunter2".into()))
+            }
+        );
+        assert!(!format!("{answer:?}").contains("hunter2"));
+        let cancel: ClientMsg = serde_json::from_str(r#"{"t":"taskInput","token":4}"#).unwrap();
+        assert_eq!(
+            cancel,
+            ClientMsg::TaskInput {
+                token: 4,
+                value: None
+            }
+        );
+        let ask = ServerMsg::TaskInput {
+            token: 4,
+            id: "pw".into(),
+            description: "Password".into(),
+            default: None,
+            kind: TaskInputKind::Password,
+            options: vec![],
+        };
+        assert_eq!(
+            serde_json::to_string(&ask).unwrap(),
+            r#"{"t":"taskInput","token":4,"id":"pw","description":"Password","kind":"password"}"#
+        );
+        let info = TaskInfo {
+            label: "b".into(),
+            detail: None,
+            command: "make".into(),
+            group: Some("build".into()),
+            default: true,
+            unsupported: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&info).unwrap(),
+            r#"{"label":"b","command":"make","group":"build","default":true}"#
         );
     }
 
