@@ -19,8 +19,7 @@ GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 
 ## Build and check
 
-- Run `bin/check` before finishing (silent on pass; gates: policy, ssh-helper,
-  rust; `bin/check all` runs every gate). Plain cargo at the workspace root.
+- Plain cargo at the workspace root.
   Author sessions pass `--profile dogfood` to build/test/clippy/run.
   `scripts/health` is the full gate (also CI, Linux CI included). The
   pre-commit hook (`scripts/install-hooks`) is the commit gate.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Silent on pass, output only on failure. Reuses the gates of scripts/health.
 #   bin/check          gates whose paths changed vs main (working tree included)
-#   bin/check <gate>   one gate: policy | ssh-helper | rust
+#   bin/check <gate>   one gate: policy | ssh-helper | rust | harness
 #   bin/check all      every gate
 set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,6 +21,22 @@ step() {
     rm -f "$log"
     exit 1
   fi
+}
+
+check_harness() {
+  local bad
+  bad="$(git ls-files .claude | rg -vx '\.claude/skills' || true)"
+  if [ -e .claude/skills ] || [ -L .claude/skills ]; then
+    if [ ! -L .claude/skills ] || [ "$(readlink .claude/skills)" != "../.agents/skills" ]; then
+      bad="$bad"$'\n'".claude/skills"
+    fi
+  fi
+  bad="$(printf '%s\n' "$bad" | sed '/^$/d')"
+  [ -z "$bad" ] || { printf '%s\n' "$bad"; return 1; }
+}
+
+gate_harness() {
+  step harness ".claude holds only the skills link" check_harness
 }
 
 gate_policy() {
@@ -55,15 +71,15 @@ gate_rust() {
 changed="$( { git diff --name-only main; git ls-files --others --exclude-standard; } 2>/dev/null | sort -u)"
 
 case "${1:-}" in
-all) gates=(policy ssh-helper rust) ; changed="" ;;
-policy | ssh-helper | rust) gates=("$1") ;;
+all) gates=(harness policy ssh-helper rust) ; changed="" ;;
+policy | ssh-helper | rust | harness) gates=("$1") ;;
 "")
-  gates=()
+  gates=(harness)
   [ -n "$changed" ] && gates+=(policy)
   rg -q '^crates/xenon_ssh/' <<<"$changed" && gates+=(ssh-helper)
   rg -q '^(crates/|third_party/|Cargo\.|rust-toolchain|rustfmt\.toml|clippy\.toml|scripts/(check-rust-shape|rust-shape))' <<<"$changed" && gates+=(rust)
   ;;
-*) echo "usage: bin/check [policy|ssh-helper|rust|all]" >&2; exit 2 ;;
+*) echo "usage: bin/check [policy|ssh-helper|rust|harness|all]" >&2; exit 2 ;;
 esac
 
 for g in "${gates[@]}"; do "gate_$g"; done
