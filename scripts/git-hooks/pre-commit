@@ -27,17 +27,14 @@ mkdir -p "$work"
 # Sync by content so unchanged files keep their mtimes and cargo stays incremental.
 rsync -a --checksum --delete "$snapshot/" "$work/"
 
+# shellcheck source=../lib/checks.sh
+source "$root/scripts/lib/checks.sh"
+
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX
 cd "$work"
 
 run() {
-    local name="$1"
-    shift
-    echo "xenon $name..."
-    if ! "$@"; then
-        echo "xenon $name: FAILED" >&2
-        exit 1
-    fi
+    checks_quiet "$@" || exit 1
 }
 
 # Crates under crates/<name>/ touched by the commit; root manifest/lock means all.
