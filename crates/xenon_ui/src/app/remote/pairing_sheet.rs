@@ -84,9 +84,9 @@ impl XenonApp {
         let code = runtime.devices.pairing_code(now).clone();
         let settings = xenon_store::load_settings().unwrap_or_default();
         let hostname = normalize_hostname(&settings.remote_hostname);
-        let host = runtime.reach.phone_host(runtime.network, &hostname);
+        let host = runtime.reach.phone_host(&hostname);
         let base = network::base_url(&host, runtime.port);
-        let reachable = runtime.reach.reachable(runtime.network) || !hostname.is_empty();
+        let reachable = runtime.reach.reachable() || !hostname.is_empty();
         Some(SheetModel {
             url: reachable.then(|| pairing_url(&base, &code.secret)),
             digits: code.display_digits(),
@@ -274,13 +274,13 @@ fn sheet_steps(model: &SheetModel, cx: &App) -> impl IntoElement + use<> {
                     .bg(crate::chrome::status_color(cx, true).opacity(0.14))
                     .text_color(crate::chrome::status_color(cx, true))
                     .type_role(TypeRole::ControlLabel, cx)
-                    .child("Tailscale isn’t running on this Mac, so your phone can’t reach Xenon away from home."),
+                    .child("Tailscale isn’t running on this Mac, so your phone can’t reach Xenon."),
             )
             .child(
                 div()
                     .type_role(TypeRole::Supporting, cx)
                     .text_color(muted)
-                    .child("Open Tailscale and sign in; this sheet updates on its own. Or allow Tailscale + LAN in Settings to use Xenon on home Wi-Fi."),
+                    .child("Open Tailscale (or your Headscale client) and sign in; this sheet updates on its own. The phone remote only listens on your tailnet."),
             );
     }
     let secs = model.expires_in.as_secs();

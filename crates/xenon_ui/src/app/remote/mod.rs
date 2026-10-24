@@ -24,7 +24,6 @@ use std::time::Instant;
 
 use gpui::{Global, WeakEntity};
 use xenon_remote::{ConnId, HostRequest, PairError, PairResponse, RemoteServer, StartError};
-use xenon_store::RemoteNetwork;
 
 use devices::DeviceBook;
 use keep_awake::Inhibitor;
@@ -63,14 +62,13 @@ pub(crate) struct MobileRemoteInfo {
     pub enabled: bool,
     /// On, but another Xenon (the other a/b slot) holds the port for now.
     pub waiting: bool,
-    pub network: RemoteNetwork,
     /// Opt-in: hold the machine awake while a phone is connected.
     pub keep_awake: bool,
     /// User override for the phone URL host (empty = automatic).
     pub hostname: String,
     /// `http://host:port` the phone should open, when running.
     pub base_url: Option<String>,
-    /// A phone can reach us from off this Mac (Tailscale, or LAN when allowed).
+    /// A phone can reach us from off this Mac (over the tailnet).
     pub reachable: bool,
     pub devices: Vec<DeviceRow>,
     pub connected: usize,
@@ -91,7 +89,6 @@ pub(crate) struct RemoteRuntime {
     _server: RemoteServer,
     /// Port the phone URL uses (the server's; fixed in visual tests).
     port: u16,
-    network: RemoteNetwork,
     reach: Reachability,
     host_name: String,
     devices: DeviceBook,
@@ -174,7 +171,7 @@ impl XenonApp {
         let reach = Reachability::probe_local();
         let (tx, rx) = async_channel::unbounded::<HostRequest>();
         let port = effective_port(settings.remote_port);
-        let server = match RemoteServer::start(&reach.bind_ips(settings.remote_network), port, tx) {
+        let server = match RemoteServer::start(&reach.bind_ips(), port, tx) {
             Ok(server) => server,
             Err(StartError::PortBusy) => {
                 self.wait_for_remote_port(cx);
@@ -193,7 +190,6 @@ impl XenonApp {
         self.services.remote = Some(RemoteRuntime {
             port: server.port,
             _server: server,
-            network: settings.remote_network,
             reach,
             host_name: String::new(),
             devices: DeviceBook::load(),
@@ -223,7 +219,7 @@ impl XenonApp {
         self.publish_remote_info(cx);
     }
 
-    /// Restart with fresh settings (network / port changed).
+    /// Restart with fresh settings (address / port changed).
     pub(crate) fn restart_mobile_remote(&mut self, cx: &mut Context<Self>) {
         if self.remote_running() {
             self.stop_mobile_remote(cx);
@@ -250,16 +246,15 @@ impl XenonApp {
         let mut info = MobileRemoteInfo {
             enabled: self.remote_running(),
             waiting: self.remote_waiting(),
-            network: settings.remote_network,
             keep_awake: settings.remote_keep_awake_while_connected,
             hostname: hostname.clone(),
             ..Default::default()
         };
         let devices = match &self.services.remote {
             Some(runtime) => {
-                let host = runtime.reach.phone_host(runtime.network, &hostname);
+                let host = runtime.reach.phone_host(&hostname);
                 info.base_url = Some(network::base_url(&host, runtime.port));
-                info.reachable = runtime.reach.reachable(runtime.network);
+                info.reachable = runtime.reach.reachable();
                 info.connected = runtime.conns.len();
                 runtime.devices.devices().to_vec()
             }

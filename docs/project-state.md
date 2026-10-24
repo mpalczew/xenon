@@ -66,6 +66,12 @@ rediscover.
   extension-contributed types and `command` inputs are listed as unsupported,
   and `runOn: folderOpen` never runs without a per-workspace approval keyed to
   a hash of the tasks it covers (stored in the data dir, not the repo).
+- The phone remote is tailnet-only (settled 2026-10-24): it binds the
+  Tailscale/CGNAT address (100.64.0.0/10, Headscale included) and loopback, never
+  a LAN or wildcard address. Plain HTTP on Wi-Fi would expose the device token
+  and let anyone rewrite the page, and an open-source app cannot depend on a
+  hosted relay, so the user's tailnet is the encrypted transport. Saved
+  `remote_network` values are ignored.
 - `.vscode/tasks.json` exposes only the `xenon` and `install` (`bin/install`) tasks.
   Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent
   extra task labels. Local builds share one `--profile dogfood` target

@@ -1,15 +1,12 @@
-//! Settings › Phone Remote: on/off, network, keep-awake opt-in, address override,
+//! Settings › Phone Remote: on/off, keep-awake opt-in, address override,
 //! pairing, and paired devices (revoke one or all).
 
 use std::rc::Rc;
 
 use gpui::{App, SharedString};
-use xenon_store::RemoteNetwork;
 
 use super::row::{ActionKind, Control, Field, Group, RowAction, SettingRow, Tone};
 use crate::app::remote::{self, DeviceRow, MobileRemoteInfo};
-
-const NETWORKS: [RemoteNetwork; 2] = [RemoteNetwork::Tailscale, RemoteNetwork::TailscaleAndLan];
 
 pub(super) fn groups(cx: &App) -> Vec<Group> {
     let info = remote::mobile_remote_info(cx);
@@ -30,10 +27,6 @@ pub(super) fn is_on(cx: &App) -> bool {
 
 fn server_rows(info: &MobileRemoteInfo) -> Vec<SettingRow> {
     let port = remote::effective_port(xenon_store::load_settings().unwrap_or_default().remote_port);
-    let selected = NETWORKS
-        .iter()
-        .position(|n| *n == info.network)
-        .unwrap_or(0);
     vec![
         SettingRow::new(
             "phone-remote",
@@ -48,14 +41,10 @@ fn server_rows(info: &MobileRemoteInfo) -> Vec<SettingRow> {
         SettingRow::new(
             "phone-network",
             "Network",
-            Control::Choice {
-                options: vec!["Tailscale".into(), "Tailscale + LAN".into()],
-                selected,
-                pick: Rc::new(|index, _, cx| remote::settings_set_network(NETWORKS[index], cx)),
-            },
+            Control::Value("Your tailnet only".into()),
         )
-        .detail("LAN also opens the port on your Wi-Fi")
-        .keywords("wifi lan tailscale"),
+        .detail("Tailscale or Headscale carries the encryption; plain HTTP on Wi-Fi would not")
+        .keywords("wifi lan tailscale headscale tailnet"),
         SettingRow::new(
             "phone-keep-awake",
             remote::KEEP_AWAKE_LABEL,

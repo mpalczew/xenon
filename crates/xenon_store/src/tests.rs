@@ -97,7 +97,6 @@ fn settings_round_trip() {
                 WindowState::Maximized,
             )),
             remote_enabled: true,
-            remote_network: crate::RemoteNetwork::TailscaleAndLan,
             remote_keep_awake_while_connected: true,
             remote_port: 17890,
             remote_hostname: "macbook.tailnet.ts.net".into(),
@@ -235,5 +234,21 @@ fn task_trust_is_keyed_to_the_hash() {
         crate::set_task_trust(root, "h2", false).unwrap();
         assert_eq!(crate::task_trust(root, "h2"), crate::TaskTrust::Denied);
         assert_eq!(crate::task_trust(root, "h1"), crate::TaskTrust::Unknown);
+    });
+}
+
+#[test]
+fn legacy_lan_network_setting_reads_as_tailscale_only() {
+    with_data_dir(|| {
+        let path = crate::data_dir().join("settings.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            r#"{ "remote_enabled": true, "remote_network": "tailscale_and_lan" }"#,
+        )
+        .unwrap();
+        let settings = load_settings().unwrap();
+        assert!(settings.remote_enabled);
+        assert!(!path.with_extension("corrupt").exists());
     });
 }

@@ -10,7 +10,7 @@
 
 | Piece | Path | Today |
 |---|---|---|
-| HTTP server | `crates/xenon_remote/src/server.rs` | Hand-rolled HTTP/1.1, thread per connection, binds `0.0.0.0:17890` |
+| HTTP server | `crates/xenon_remote/src/server.rs` | Hand-rolled HTTP/1.1, thread per connection, bound `0.0.0.0:17890` (v1; v2 binds the tailnet IP and loopback only) |
 | Auth | `xenon_remote/src/auth.rs`, `server.rs:TicketStore` | Shared password (UUID) → 12h in-memory ticket; `?token=` in URL; no rate limit |
 | Host bridge | `xenon_remote/src/host.rs` `HostRequest` | `async_channel` → GPUI task → `XenonApp::handle_remote_request` (`xenon_ui/src/app/remote/mod.rs`) |
 | Frame | `xenon_ui/src/app/remote/host.rs:capture_remote_frame` | `TerminalView::viewport_cells` (chars only) → `viewport_lines` → 5×7 mono PNG (`png_frame.rs`). Seq bumps every call → `since` 204 never fires |
@@ -31,7 +31,7 @@
 
 **In scope (v2):**
 
-1. **Reach** — Tailscale-first: listen on Tailscale IP + loopback by default; LAN opt-in. Detect Tailscale by interface (100.64.0.0/10), not CLI.
+1. **Reach** — tailnet only: listen on the Tailscale/CGNAT interface IP (100.64.0.0/10, which also covers Headscale) plus loopback, nothing else. There is no LAN option. Detect it by interface, not CLI. Why: the server speaks plain HTTP, so on a shared Wi-Fi anyone could read the device token and rewrite the page; Xenon is open source and cannot depend on a hosted relay, so the encrypted transport is the user's own tailnet (Tailscale or Headscale).
 2. **Discover / connect** — persisted enabled state; `Connect Phone…` command + keybinding opens a pairing sheet with QR; sidebar status indicator (off / on / phone connected); optional keep-awake while a phone is connected (opt-in, off by default).
 3. **Read** — cell-grid frames (text + resolved RGB + attrs + cursor) rendered as real text on the phone; WebSocket push on PTY wakeup with row deltas; scrollback on demand.
 4. **Fit** — phone-sized PTY while the phone drives (Decision A).
@@ -61,7 +61,7 @@
 - Over cellular + Tailscale: workspace list shows which agents are working / waiting. Open one → crisp colored text matching the Mac, cursor visible, Unicode and box-drawing correct, scroll back through history.
 - Claude Code permission prompt answerable with key strip; ^C interrupts; Esc cancels; ⇧Tab cycles mode.
 - Idle terminal: zero frames sent (verified by counter). Busy terminal: ≤ 30 frames/s, row deltas only.
-- Port not reachable on a non-Tailscale LAN IP unless LAN opt-in is on.
+- Port is never bound on a LAN or wildcard address, only on the tailnet IP and loopback.
 - `scripts/health` green; visual tests updated for pairing sheet, sidebar indicator, phone session page.
 
 **Open questions:** see "Decisions" at the end (B needs a spike).
@@ -75,7 +75,7 @@
 - Command palette: **Connect Phone…** (enables remote if off, opens pairing sheet). Keybinding: `cmd-shift-m`-class, final pick checked against `docs/keyboard-first.md`.
 - Existing **Toggle Mobile Remote** stays (no sheet).
 - Sidebar footer indicator (only when enabled): phone glyph, muted = listening, accent = ≥1 device connected. Enter/click opens the pairing sheet. Tooltip: "Phone remote on · 1 device connected".
-- Settings › Remote: toggle, network (Tailscale / Tailscale + LAN), keep-awake opt-in, QR, URL copy, paired devices list with Revoke, Rotate password.
+- Settings › Remote: toggle, a read-only "Network: Your tailnet only" row, keep-awake opt-in, QR, URL copy, paired devices list with Revoke, Rotate password.
 
 **Pairing sheet (Mac, modal, keyboard-first)**
 
@@ -133,14 +133,14 @@ QR encodes `http://<tailscale-host>:<port>/pair#<one-time pairing code>` (fragme
 - `NamedKey` — `Esc | CtrlC | Tab | ShiftTab | Up | Down | Left | Right | Enter | Backspace`. Maps to a `gpui::Keystroke` on host → `try_keystroke` (app-cursor aware).
 - `DeviceId` (uuid), `DeviceToken` (32 random bytes, base64url; only SHA-256 stored), `PairingCode` (6 digits + 128-bit URL secret; single use; TTL 10 min).
 - `Device` — `id, label (from UA, e.g. "iPhone Safari"), token_hash, created_at, last_seen_at`.
-- `RemoteNetwork` — `Tailscale | TailscaleAndLan`.
+- ~~`RemoteNetwork`~~ — removed (2026-10-24): tailnet-only, no choice to model. A saved `"remote_network"` key (including `tailscale_and_lan`) is ignored on read, with no error and no prompt.
 - `AttachId` — per-WS-connection subscription handle on host.
 - `PhoneFit` — `cols, rows: u16` requested by an attach. Invariant: clamped 20..=300 × 8..=200.
 - `SizeOverride` (on `TerminalView`) — `Option<(u16, u16)>`; when `Some`, the element lays out that grid instead of its bounds.
 
 **Modified**
 
-- `AppSettings` — add `remote_enabled: bool`, `remote_network: RemoteNetwork`, `remote_keep_awake_while_connected: bool (default false; the earlier `remote_keep_awake` key is ignored, not migrated)`. `remote_hostname` kept (override for URL).
+- `AppSettings` — add `remote_enabled: bool`, `remote_keep_awake_while_connected: bool (default false; the earlier `remote_keep_awake` key is ignored, not migrated)`. `remote_hostname` kept (override for URL).
 - `MobileRemoteInfo` (global) — add `connected_devices: usize`, `tailscale: Option<TailscaleAddr>`, `pairing: Option<PairingCode>`.
 - `HostRequest` — remove `CaptureFrame`; add `Attach`, `Detach`, `Key`, `History`, `Pair` (see contracts).
 - `TerminalView` — add `cell_snapshot(&self, cx, palette) -> Option<CellFrame>` and `history_lines(before, count)` (scrollback read).
@@ -255,7 +255,6 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 **`~/.xenon/settings.json`** — add, all `#[serde(default)]`:
 ```json
 "remote_enabled": false,
-"remote_network": "tailscale",
 "remote_keep_awake_while_connected": false
 ```
 `remote_password` retained as the root secret (rotate = revoke all devices). No longer displayed or put in URLs.
@@ -293,7 +292,7 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 **Async boundaries:** GPUI main thread (snapshot, diff, keystroke) ↔ `async_channel` ↔ per-connection OS thread (socket I/O). Diff runs on main thread; cost is O(rows × cols) only when dirty — acceptable at 120×40. If profiling shows jank, move diff to the WS thread by sending snapshots instead.
 
 **Trust boundaries:**
-- Listener: bound only to Tailscale IP (+ loopback; + LAN IPs iff opt-in). Tailscale ACLs are the outer gate.
+- Listener: bound only to the Tailscale/CGNAT IP (100.64.0.0/10) and loopback; never a LAN or wildcard address. Plain HTTP is safe only because the tailnet (Tailscale or Headscale, WireGuard) encrypts the path; a LAN listener would expose the device token and let anyone on the Wi-Fi rewrite the page. Tailscale ACLs are the outer gate. Password prompts for tasks (`inputs`) rely on the same boundary, so no LAN fallback or per-prompt refusal exists.
 - `/pair`: rate-limited, single-use code.
 - `/ws` + `/api/*`: device token (hash lookup) before any host request; Origin check on upgrade.
 - Host validates `workspace_id`/`tab_id` exist on every message; PTY resize only via `fit`, clamped to 20..=300 cols / 8..=200 rows, and only while the Mac-idle rule holds.
@@ -317,6 +316,10 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 **D. Key row → two rows: `Esc ^C Tab ⇧Tab` / `← ↑ ↓ → 1 2 3`, tall `⏎` spanning both on the right.** All keys visible (a single scrolling row hid 1/2/3). 1/2/3 answer Claude Code's numbered prompts; y/n typed on the system keyboard.
 
 **E. Mac banner while phone drives.** Terminal pane shows a one-line banner "Sized for iPhone (45×30) · type here to take it back" above the narrow grid; tab label gets a phone mark. Mock-reviewed 2026-09-29.
+
+## Decision (2026-10-24): tailnet only
+
+The LAN opt-in (`RemoteNetwork::TailscaleAndLan`, Settings › Remote › Network) is removed. The listener binds the Tailscale/CGNAT address and loopback only. Reason: plain HTTP on a LAN lets anyone on the Wi-Fi read the device token and rewrite the page, and an open-source app cannot lean on a hosted relay, so the user's own tailnet (Tailscale or Headscale) is the encrypted transport. Existing settings files that say LAN load as tailnet-only.
 
 ## Implementation notes (2026-09-29)
 

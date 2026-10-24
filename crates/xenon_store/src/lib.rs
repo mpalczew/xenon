@@ -29,8 +29,7 @@ pub use remote_devices::{
 };
 pub use settings::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME, DEFAULT_REMOTE_PORT,
-    DEFAULT_UI_FONT_FAMILY, LspCommand, LspSettings, RemoteNetwork, ThemeMode, WindowGeometry,
-    WindowState,
+    DEFAULT_UI_FONT_FAMILY, LspCommand, LspSettings, ThemeMode, WindowGeometry, WindowState,
 };
 pub use skill::{
     SkillStatus, decline_skill, install_skill, refresh_on_launch, remove_skill,

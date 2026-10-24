@@ -30,7 +30,7 @@
 
 **In scope (v1):**
 
-1. Local HTTP(+WS) server inside Xenon (bind configurable; default Tailscale/LAN reachable, not public internet).
+1. Local HTTP(+WS) server inside Xenon (bind configurable; tailnet only (Tailscale or Headscale), never LAN or public internet; superseded by mobile-remote-v2).
 2. Auth: bearer/token (generated or pasted once; rotate/disable from Mac).
 3. **Selector:** list workspaces → list **terminal** tabs (id, title/cwd, active hint).
 4. **Viewport stream:** updating **screenshot of the visible PTY grid** (cols×rows as on Mac). Not scrollback. Not full chrome.
@@ -48,7 +48,7 @@
 | True terminal emulator on phone (xterm.js, CSI client) | Screenshot is the surface |
 | Mouse/clicks on grid, paste special, file open | Keys + text first |
 | Multi-phone sessions, presence, conflict UI | Single operator assumed |
-| Public internet / reverse proxy / Cloudflare | Tailscale (or LAN) assumed |
+| Public internet / reverse proxy / Cloudflare | Tailscale (or Headscale) assumed; no LAN listener |
 | Native iOS app | Safari v1 |
 | Create/close/split tabs from phone | Select existing only |
 
@@ -188,7 +188,7 @@ Optional: `AppSettings` fields `remote_enabled`, `remote_port`, `remote_token` (
 ### Trust
 
 - Token checked before any list/frame/input.
-- Bind not `0.0.0.0` without explicit opt-in if we default to Tailscale IP or localhost+proxy; document “Tailscale only.”
+- Never bind `0.0.0.0` or a LAN address: tailnet IP and loopback only (“Tailscale only”, no opt-in).
 - No PTY resize path from remote handlers.
 
 **Async:** WS I/O off UI thread; inject and frame capture hop onto gpui as today for terminal access.

@@ -15,16 +15,6 @@ pub(crate) fn settings_toggle_remote(cx: &mut App) {
     with_main(cx, |app, cx| app.toggle_mobile_remote(cx));
 }
 
-pub(crate) fn settings_set_network(network: RemoteNetwork, cx: &mut App) {
-    if let Err(e) = xenon_store::update_settings(|s| s.remote_network = network) {
-        log::warn!("save remote network: {e}");
-    }
-    with_main(cx, |app, cx| {
-        app.restart_mobile_remote(cx);
-        app.publish_remote_info(cx);
-    });
-}
-
 pub(crate) fn settings_toggle_keep_awake(cx: &mut App) {
     with_main(cx, |app, cx| app.toggle_keep_awake(cx));
 }

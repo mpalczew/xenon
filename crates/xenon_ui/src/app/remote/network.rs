@@ -1,10 +1,9 @@
 //! Where the phone remote listens and how the phone reaches it: Tailscale
 //! address (by interface, no CLI needed), MagicDNS name, and the pairing URL.
+//! The tailnet (Tailscale or Headscale) is the only network path.
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::process::Command;
-
-use xenon_store::RemoteNetwork;
 
 /// CLI locations: `tailscale` on PATH (Linux packages, Homebrew), then the
 /// macOS standalone and Mac App Store locations.
@@ -25,8 +24,6 @@ pub(crate) struct Reachability {
     pub tailscale_ip: Option<Ipv4Addr>,
     /// MagicDNS name, e.g. `mbp.tail7c2e.ts.net`.
     pub magic_dns: Option<String>,
-    /// First private LAN IPv4 (for the LAN opt-in).
-    pub lan_ip: Option<Ipv4Addr>,
 }
 
 impl Reachability {
@@ -37,46 +34,38 @@ impl Reachability {
         Self {
             tailscale_ip: addrs.iter().copied().find(is_tailscale),
             magic_dns: None,
-            lan_ip: addrs.iter().copied().find(|ip| ip.is_private()),
         }
     }
 
-    /// Addresses the server binds for `network`: specific interfaces only
-    /// (never 0.0.0.0), loopback always.
-    pub(crate) fn bind_ips(&self, network: RemoteNetwork) -> Vec<IpAddr> {
-        let lan = match network {
-            RemoteNetwork::TailscaleAndLan => self.lan_ip,
-            RemoteNetwork::Tailscale => None,
-        };
+    /// Addresses the server binds: this Mac's Tailscale/CGNAT address
+    /// (100.64.0.0/10, so Headscale too) and loopback. Never `0.0.0.0` and
+    /// never a LAN address: plain HTTP on Wi-Fi would let anyone there read
+    /// the device token and rewrite the page.
+    pub(crate) fn bind_ips(&self) -> Vec<IpAddr> {
         self.tailscale_ip
             .into_iter()
-            .chain(lan)
             .chain([Ipv4Addr::LOCALHOST])
             .map(IpAddr::V4)
             .collect()
     }
 
-    /// Best host for the phone: override, MagicDNS, Tailscale IP, LAN, loopback.
-    pub(crate) fn phone_host(&self, network: RemoteNetwork, override_host: &str) -> String {
+    /// Best host for the phone: override, MagicDNS, Tailscale IP, loopback.
+    pub(crate) fn phone_host(&self, override_host: &str) -> String {
         if !override_host.is_empty() {
             return override_host.to_string();
         }
         if let Some(name) = &self.magic_dns {
             return name.clone();
         }
-        if let Some(ip) = self.tailscale_ip {
-            return ip.to_string();
-        }
-        match (network, self.lan_ip) {
-            (RemoteNetwork::TailscaleAndLan, Some(ip)) => ip.to_string(),
-            _ => Ipv4Addr::LOCALHOST.to_string(),
+        match self.tailscale_ip {
+            Some(ip) => ip.to_string(),
+            None => Ipv4Addr::LOCALHOST.to_string(),
         }
     }
 
     /// The phone can reach us from off this Mac.
-    pub(crate) fn reachable(&self, network: RemoteNetwork) -> bool {
+    pub(crate) fn reachable(&self) -> bool {
         self.tailscale_ip.is_some()
-            || (network == RemoteNetwork::TailscaleAndLan && self.lan_ip.is_some())
     }
 }
 
@@ -189,13 +178,12 @@ mod tests {
         Reachability {
             tailscale_ip: Some(Ipv4Addr::new(100, 101, 2, 3)),
             magic_dns: Some("mbp.tail7c2e.ts.net".into()),
-            lan_ip: Some(Ipv4Addr::new(192, 168, 1, 9)),
         }
     }
 
     #[test]
-    fn tailscale_mode_binds_tailnet_and_loopback_only() {
-        let ips = tailnet().bind_ips(RemoteNetwork::Tailscale);
+    fn binds_tailnet_and_loopback_only() {
+        let ips = tailnet().bind_ips();
         assert_eq!(
             ips,
             vec![
@@ -203,21 +191,8 @@ mod tests {
                 IpAddr::V4(Ipv4Addr::LOCALHOST)
             ]
         );
-        let offline = Reachability::default().bind_ips(RemoteNetwork::Tailscale);
+        let offline = Reachability::default().bind_ips();
         assert_eq!(offline, vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
-    }
-
-    #[test]
-    fn lan_mode_adds_the_lan_address_only() {
-        let ips = tailnet().bind_ips(RemoteNetwork::TailscaleAndLan);
-        assert_eq!(
-            ips,
-            vec![
-                IpAddr::V4(Ipv4Addr::new(100, 101, 2, 3)),
-                IpAddr::V4(Ipv4Addr::new(192, 168, 1, 9)),
-                IpAddr::V4(Ipv4Addr::LOCALHOST)
-            ]
-        );
     }
 
     #[test]

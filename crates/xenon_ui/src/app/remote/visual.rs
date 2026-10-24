@@ -24,7 +24,6 @@ impl XenonApp {
             Reachability {
                 tailscale_ip: Some(Ipv4Addr::new(100, 101, 2, 3)),
                 magic_dns: Some("mbp.tail7c2e.ts.net".into()),
-                lan_ip: None,
             }
         } else {
             Reachability::default()
@@ -41,7 +40,6 @@ impl XenonApp {
         self.services.remote = Some(RemoteRuntime {
             _server: server,
             port: xenon_store::DEFAULT_REMOTE_PORT,
-            network: RemoteNetwork::Tailscale,
             reach,
             host_name: "MacBook Pro".into(),
             devices,
