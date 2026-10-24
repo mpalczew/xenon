@@ -10,6 +10,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && out=$(bin/check 2>&1) || { echo \"$out\" >&2; exit 2; }",
+            "timeout": 120
+          }
+        ]
+      }
     ]
   }
 }

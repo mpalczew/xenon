@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Silent on pass, output only on failure. Reuses the gates of scripts/health.
+#   bin/check          gates whose paths changed vs main (working tree included)
+#   bin/check <gate>   one gate: policy | ssh-helper | rust
+#   bin/check all      every gate
+set -uo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+step() {
+  local gate="$1" name="$2" log rc=0
+  shift 2
+  log="$(mktemp)"
+  "$@" >"$log" 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "✓ $gate: $name"
+    rm -f "$log"
+  else
+    cat "$log"
+    echo "✗ $gate: $name" >&2
+    rm -f "$log"
+    exit 1
+  fi
+}
+
+gate_policy() {
+  step policy public-surface scripts/check-public-surface
+  step policy ui-boundaries scripts/check-ui-boundaries
+  step policy zed-pins scripts/check-zed-pins
+  step policy attribution scripts/check-attribution
+  step policy test-determinism scripts/check-test-determinism
+}
+
+gate_ssh-helper() {
+  step ssh-helper unittest env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+    -s crates/xenon_ssh/src -p helper_test.py
+}
+
+gate_rust() {
+  step rust fmt cargo fmt --all --check
+  step rust shape scripts/check-rust-shape
+  step rust clippy cargo clippy --profile dogfood --workspace --all-targets -- -D warnings \
+    -D clippy::cognitive_complexity -D clippy::too_many_lines
+  local args=(--workspace) crate
+  if [ -n "${changed:-}" ] && ! rg -qx 'Cargo\.(toml|lock)|rust-toolchain\.toml' <<<"$changed"; then
+    args=()
+    while read -r crate; do
+      [ -n "$crate" ] && args+=(-p "$crate")
+    done < <(sed -n 's#^crates/\([^/]*\)/.*#\1#p' <<<"$changed" | sort -u)
+    [ ${#args[@]} -eq 0 ] && args=(--workspace)
+  fi
+  step rust test cargo test --profile dogfood "${args[@]}"
+}
+
+changed="$( { git diff --name-only main; git ls-files --others --exclude-standard; } 2>/dev/null | sort -u)"
+
+case "${1:-}" in
+all) gates=(policy ssh-helper rust) ; changed="" ;;
+policy | ssh-helper | rust) gates=("$1") ;;
+"")
+  gates=()
+  [ -n "$changed" ] && gates+=(policy)
+  rg -q '^crates/xenon_ssh/' <<<"$changed" && gates+=(ssh-helper)
+  rg -q '^(crates/|third_party/|Cargo\.|rust-toolchain|rustfmt\.toml|clippy\.toml|scripts/(check-rust-shape|rust-shape))' <<<"$changed" && gates+=(rust)
+  ;;
+*) echo "usage: bin/check [policy|ssh-helper|rust|all]" >&2; exit 2 ;;
+esac
+
+for g in "${gates[@]}"; do "gate_$g"; done
