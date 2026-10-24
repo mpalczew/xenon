@@ -61,9 +61,9 @@ rediscover.
 
 ## Load-bearing choices
 
-- `.vscode/tasks.json` exposes only `project xenon` and `project install`.
+- `.vscode/tasks.json` exposes only the `xenon` and `install` (`bin/install`) tasks.
   Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent
-  extra `project` labels. Local builds share one `--profile dogfood` target
+  extra task labels. Local builds share one `--profile dogfood` target
   tree; the pre-commit hook is the gate, `scripts/health` the full/CI run.
 - Linux X11: `third_party/gpui_linux` is zed `ced90fc` plus one fix. Portal
   appearance callbacks must drop the `X11Client` borrow before they call back,
@@ -148,7 +148,7 @@ rediscover.
   unstaged changes cancel (`MM`, net zero vs HEAD) is IndexOnly, never clean.
   Status runs with `--no-optional-locks` so measuring cannot touch
   `.git/index` and re-trigger its own watcher.
-- A completed `project install` updates the app on disk, but a running process
+- A completed `bin/install` updates the app on disk, but a running process
   keeps the old binary. Never kill Xenon to force the switch.
 - Do not make `CFBundleExecutable` a shell script: TCC/FDA follow the signed
   Mach-O in `Xenon.app`, not `/bin/bash`. The stub is a small signed binary.

@@ -26,7 +26,7 @@ Editor syntax highlighting is thinner than the stack allows:
 | G4 | High-value languages get stock injections where crates export them |
 | G5 | Priority languages get custom or augmented queries where stock is weak / missing |
 | G6 | Unit tests cover markdown bold + at least one injection (HTML script or JS regex) + non-regression for existing language smoke tests |
-| G7 | `project install` once at end of haul for dogfood |
+| G7 | `bin/install` once at end of haul for dogfood |
 
 ## Non-goals
 
@@ -214,7 +214,7 @@ Use injections for all configs (empty string remains no-op).
 
 - `cargo test -p xenon_editor --lib`
 - `cargo clippy -p xenon_editor -- -D warnings` if project uses it for this crate
-- `project install` once
+- `bin/install` once
 - Offer commit/push (do not commit without user request)
 
 ## Testing strategy
@@ -242,7 +242,7 @@ Use injections for all configs (empty string remains no-op).
 - [x] Stage 3: Markdown injection + queries
 - [x] Stage 4: Multi-lang injections
 - [x] Stage 5: Priority query garden — stock sufficient after 1–4; theme `emphasis` → italic for dogfood
-- [x] Stage 6: Verify + `project install`
+- [x] Stage 6: Verify + `bin/install`
 
 ## Self-review (plan)
 

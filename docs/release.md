@@ -9,7 +9,7 @@ and attention, stable installation, and continued daily dogfood.
 - [ ] Workspaces, terminal tabs, editors, and any PTY harness form a coherent
       daily path.
 - [ ] Attention/status is reliable enough to help, or its limits are explicit.
-- [x] `project install` uses stable codesigning and preserves TCC grants.
+- [x] `bin/install` uses stable codesigning and preserves TCC grants.
 - [x] Xenon remains the author's daily driver.
 
 ## Packaging

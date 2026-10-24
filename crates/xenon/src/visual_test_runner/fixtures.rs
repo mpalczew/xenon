@@ -135,7 +135,7 @@ Xenon is a macOS agent shell for driving coding agents. The left rail lists work
 Run cargo directly. The full gate is `scripts/health`, which runs the format check, clippy, the shape check, and the tests. Run it before committing.
 
 ```bash
-cargo clippy --workspace --all-targets -- -D warnings && scripts/health && project install
+cargo clippy --workspace --all-targets -- -D warnings && scripts/health && bin/install
 ```
 
 - Prerequisites: `cmake` and the Xcode Metal Toolchain.

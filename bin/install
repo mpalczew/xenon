@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Bundle Xenon.app (dogfood profile) into ~/Applications, install ~/bin/xenon, then prune target/.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+XENON_PROFILE="${XENON_PROFILE:-dogfood}" scripts/release/install "$@"
+scripts/prune-target

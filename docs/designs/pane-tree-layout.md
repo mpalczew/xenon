@@ -107,7 +107,7 @@ Two typed columns + two stacks → **one tree of mixed leaf panes**. Touches cor
 - Empty panes reuse that same existing empty state. A pane-level × appears only when the pane is empty and the tree has more than one leaf; it removes that exact pane.
 - Old session JSON loads without data loss of layout intent (see migration).
 - No fixed terminal|editor columns remain as the product model in code paths for the main content area.
-- `cargo test` (core + store) green; `project install` dogfoodable.
+- `cargo test` (core + store) green; `bin/install` dogfoodable.
 
 **Open questions (resolved in this doc where possible):**
 

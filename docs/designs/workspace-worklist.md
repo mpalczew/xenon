@@ -73,6 +73,6 @@ The [single Snazzy editor mock](../../visual-review/workspace-queue.html) shows 
 
 ## Verification and boundaries
 
-Review capture (empty, filled, and with the section chip), the List tab (populated, sectioned in dark and light, a folded section, inline section rename, empty virtual, and inline Add in dark and light themes), item edit, Markdown mode, and toolbar hint in native visual scenes. Exercise storage conflicts, external edits, undo, keyboard input, and same-file saves in tests. Run `scripts/health` and native visual tests, then install with `project install`.
+Review capture (empty, filled, and with the section chip), the List tab (populated, sectioned in dark and light, a folded section, inline section rename, empty virtual, and inline Add in dark and light themes), item edit, Markdown mode, and toolbar hint in native visual scenes. Exercise storage conflicts, external edits, undo, keyboard input, and same-file saves in tests. Run `scripts/health` and native visual tests, then install with `bin/install`.
 
 Due dates, priorities, ownership, background task runners, sync, and search across workspaces are outside this version. The mock demonstrates the interaction; native behavior and this spec define the current app.

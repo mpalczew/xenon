@@ -41,7 +41,7 @@
 - Settings: optional fields on `AppSettings` with `#[serde(default)]`.
 - Keyboard-first: action + binding + Escape/no-op when unavailable.
 - Async work via gpui tasks; never block paint/input on network/process I/O.
-- Dogfood via `project install` once haul is complete.
+- Dogfood via `bin/install` once haul is complete.
 
 ### Explicit absences (load-bearing)
 
@@ -101,7 +101,7 @@
 | G7 | Diagnostics for the active file show as underline + gutter; next/prev diagnostic moves cursor |
 | G8 | Typing stays smooth (async requests, cancel on cursor move / new edit) |
 | G9 | Unit tests cover position encoding (UTF-16), jump stack, and JSON-RPC framing; no GUI automation required |
-| G10 | `project install` once at end of haul for dogfood |
+| G10 | `bin/install` once at end of haul for dogfood |
 
 **Open questions (resolved in this doc unless flagged):**
 
@@ -671,7 +671,7 @@ edit. This is the conservative behavior available without pull diagnostics.
 | 6 | publishDiagnostics + underline/gutter + F8 | G7 |
 | 7 | TypeScript resolve order (TLS then vtsls) + same flows | G2 |
 | 8 | Theme keys, status copy, tests for UTF-16 + NavStack | G9 |
-| 9 | `project install` | G10 |
+| 9 | `bin/install` | G10 |
 
 Do not interleave completions or rename.
 
