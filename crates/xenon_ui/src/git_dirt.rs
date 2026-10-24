@@ -242,8 +242,6 @@ fn fill_counts(root: &Path, files: &mut [GitFile]) {
             file.added = added;
             file.removed = removed;
         } else {
-            // Net zero against HEAD (index-only, or staged then reverted):
-            // show the staged and unstaged changes added together.
             let staged = staged.get_or_insert_with(|| {
                 numstat(
                     root,

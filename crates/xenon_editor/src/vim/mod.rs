@@ -21,7 +21,6 @@ mod count_tests;
 mod tests;
 
 pub use ex::{ExDraft, ExEffect};
-// handle_ex_key / append_ex_char live on VimState in ex.rs
 pub use motion::Motion;
 pub use object::Object;
 pub use register::Registers;
@@ -86,7 +85,7 @@ pub struct VimState {
     /// Count captured when the operator was typed; multiplied with the motion count.
     operator_count: usize,
     operator: Option<Operator>,
-    awaiting_object: Option<bool>, // Some(around) after i/a following operator
+    awaiting_object: Option<bool>,
     awaiting_find: Option<FindKind>,
     awaiting_replace: bool,
     register_pending: bool,
@@ -157,7 +156,6 @@ impl VimState {
 
     pub(crate) fn enter_insert(&mut self, buffer: &mut Buffer) {
         self.mode = Mode::Insert;
-        // Group every keystroke until Esc into one undo step (classic vim / Zed).
         buffer.set_undo_group(true);
         self.insert_start = Some(buffer.cursor());
         self.insert_text.clear();
@@ -183,7 +181,6 @@ impl VimState {
         if let Some(bi) = self.block_insert.take()
             && !text.is_empty()
         {
-            // Replicate the typed text onto the other block rows (visual-block I/A).
             block_ops::apply_block_insert(buffer, &bi, &text);
             self.last_change = Some(LastChange::Insert { text });
         } else if !text.is_empty() {
@@ -233,7 +230,6 @@ impl VimState {
         if self.mode == Mode::Insert {
             return HandleResult::default();
         }
-        // Arrows in normal/visual.
         if let Some(motion) = arrow_motion(key) {
             return self.do_motion(buffer, motion, 1);
         }
@@ -249,10 +245,9 @@ impl VimState {
             return self.append_search_char(buffer, text);
         }
         if self.mode == Mode::Insert {
-            return HandleResult::default(); // view inserts
+            return HandleResult::default();
         }
         if text.chars().count() != 1 {
-            // Multi-char paste-like: ignore in normal.
             return handled(false);
         }
         let ch = text.chars().next().unwrap();

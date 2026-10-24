@@ -107,26 +107,21 @@ const SHARED: &[Row] = &[
 /// Linux keys that collide once `cmd` becomes `ctrl`: (context, action,
 /// keystroke after substitution, replacement).
 const LINUX_MOVED: &[(Option<&str>, &str, &str, &str)] = &[
-    // ctrl-z is the shell's suspend; undo-capture keeps a chord of its own.
     (None, "xenon::UndoToast", "ctrl-z", "ctrl-alt-z"),
-    // ctrl-shift-c is copy in a Linux terminal (zed does the same).
     (
         None,
         "xenon_clipboard::CopyClean",
         "ctrl-shift-c",
         "ctrl-shift-y",
     ),
-    // ctrl-alt-t opens a terminal on Ubuntu before any app sees it.
     (
         None,
         "xenon::ToggleThemes",
         "ctrl-alt-t",
         "ctrl-alt-shift-t",
     ),
-    // ctrl-[ is Escape (vim, terminals), so history moves like zed's.
     (None, "xenon::GoBack", "ctrl-[", "ctrl-alt--"),
     (None, "xenon::GoForward", "ctrl-]", "ctrl-alt-_"),
-    // Terminal find follows zed; ctrl-f / ctrl-g belong to readline and TUIs.
     (
         Some("Terminal"),
         "xenon_terminal::Find",
@@ -146,7 +141,6 @@ const LINUX_MOVED: &[(Option<&str>, &str, &str, &str)] = &[
 const LINUX_TERMINAL: &[(&str, Option<&str>)] = &[
     ("ctrl-shift-c", Some("xenon_clipboard::Copy")),
     ("ctrl-shift-v", Some("xenon_clipboard::Paste")),
-    // `null` here lets the key reach the PTY instead of the app binding.
     ("ctrl-c", None),
     ("ctrl-x", None),
     ("ctrl-v", None),

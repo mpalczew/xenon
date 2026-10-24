@@ -173,7 +173,6 @@ pub fn run(line: &str, buffer: &mut Buffer, mut ctx: ExContext<'_>) -> ExEffect 
         return ExEffect::Message(String::new());
     }
 
-    // Quit-after-write before plain write (`wq` must not match `w`).
     if is_cmd(rest, "wq", 2) || is_cmd(rest, "xit", 1) || is_cmd(rest, "exit", 2) {
         return ExEffect::WriteQuit {
             force: has_bang(rest),

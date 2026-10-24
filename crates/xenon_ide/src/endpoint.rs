@@ -93,7 +93,6 @@ impl Drop for Endpoint {
     fn drop(&mut self) {
         self.closed.store(true, Ordering::SeqCst);
         lock::remove(&self.lock_path);
-        // Wake the blocking accept so its thread observes `closed` and exits.
         let _ = TcpStream::connect(("127.0.0.1", self.port));
     }
 }
@@ -155,7 +154,6 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<()> {
         .expect("IDE clients lock poisoned")
         .push(tx);
     let roots = [shared.root.clone()];
-    // Non-blocking so we can interleave outbound selection notifications.
     ws.get_mut().set_nonblocking(true)?;
     loop {
         match ws.read() {

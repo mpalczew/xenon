@@ -44,8 +44,6 @@ impl XenonApp {
         let dragging = cx.has_active_drag();
         let drop_line = colors.drop_target_border;
 
-        // While a tab is dragged, overlay hit-targets so terminal/editor content
-        // does not swallow the drop. Center = move; edges = split.
         let drop_overlay = dragging.then(|| self.tab_drop_overlay(pane_id, ws, drop_line, cx));
         let body = div()
             .relative()

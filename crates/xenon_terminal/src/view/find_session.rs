@@ -98,7 +98,6 @@ impl TerminalView {
             return;
         }
         if self.find.as_ref().is_some_and(|f| f.match_count == 0) {
-            // No cached matches (e.g. first ⌘G) — rescan then jump on completion.
             self.rescan_find(true, cx);
             return;
         }
@@ -244,7 +243,6 @@ impl TerminalView {
         } else if let Some(i) = keep.filter(|&i| i < count) {
             Some(i)
         } else if jump {
-            // Prefer the last match (closest to the live prompt / cursor).
             Some(count - 1)
         } else {
             Some(0)

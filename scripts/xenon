@@ -142,7 +142,6 @@ RUNTIME_EXCLUDES=(
     --exclude='xenon.log'
 )
 
-# Drop any residual runtime files after a copy.
 strip_runtime_files() {
     local dir="$1"
     [[ -n "$dir" && -d "$dir" ]] || return 0
@@ -159,8 +158,6 @@ copy_state_dir() {
     strip_runtime_files "$dst"
 }
 
-# Print "slot pid" lines for every live instance, prefer pidfiles then pgrep.
-# Pidfiles are only trusted when the process's real slot (env) matches.
 running_instances() {
     local slot pid seen="" pf claimed
     for slot in a b; do
@@ -175,7 +172,6 @@ running_instances() {
             rm -f "$pf"
             continue
         fi
-        # Slot-aware: a copied/stale pidfile must not mint a second instance.
         if claimed="$(pid_slot "$pid" 2>/dev/null)" && [[ "$claimed" == "$slot" ]]; then
             printf '%s %s\n' "$slot" "$pid"
             seen+=" $pid "
@@ -258,8 +254,6 @@ slot_data_dir() {
     esac
 }
 
-# Run the app for `slot` with optional path args. Backgrounds the GUI process.
-# Path handoff to a live instance exits quickly; cold start keeps running.
 launch_slot() {
     local slot="$1"
     shift
@@ -281,8 +275,6 @@ launch_slot() {
     fi
 }
 
-# Which of the running a/b slots was launched second (last written to ACTIVE_FILE).
-# Falls back to any running a/b slot if the marker is missing or stale.
 second_slot() {
     local lines prefer line slot
     lines="$(running_instances)"
@@ -291,7 +283,6 @@ second_slot() {
         printf '%s\n' "$prefer"
         return
     fi
-    # Marker not among live a/b — pick the first a/b instance.
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         slot="${line%% *}"
@@ -305,7 +296,6 @@ second_slot() {
     return 1
 }
 
-# PID of a live a/b slot instance, if any.
 pid_for_slot() {
     local want="$1" line slot pid
     while IFS= read -r line; do
@@ -320,7 +310,6 @@ pid_for_slot() {
     return 1
 }
 
-# Raise a process by unix pid (fallback when IPC handoff is unavailable).
 raise_pid() {
     local pid="$1"
     [[ "$pid" =~ ^[0-9]+$ ]] || return 1
@@ -330,7 +319,6 @@ raise_pid() {
     osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null
 }
 
-# Focus a live slot: mark it active and IPC-Activate via a short-lived app spawn.
 activate_slot() {
     local slot="$1"
     local dir upper log handoff live i
@@ -347,8 +335,6 @@ activate_slot() {
     mkdir -p "$dir"
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
-    # Empty argv → try_handoff(Activate) then exit. Bound wait so a failed handoff
-    # cannot leave a third long-lived primary in the foreground of this shell.
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
         "$APP" >>"$log" 2>&1 &
     handoff=$!
@@ -358,7 +344,6 @@ activate_slot() {
         i=$((i + 1))
     done
     if kill -0 "$handoff" 2>/dev/null; then
-        # Still alive: treat as failed handoff, drop the extra process, raise live.
         kill "$handoff" 2>/dev/null || true
         wait "$handoff" 2>/dev/null || true
         if [[ -n "$live" ]] && raise_pid "$live"; then
@@ -369,14 +354,12 @@ activate_slot() {
         return 1
     fi
     wait "$handoff" 2>/dev/null || true
-    # Handoff process exited; also nudge via System Events if we know the pid.
     if [[ -n "$live" ]]; then
         raise_pid "$live" 2>/dev/null || true
     fi
     echo "focused Xenon slot $slot"
 }
 
-# Pick which slot should receive path opens (never flips).
 target_slot_for_paths() {
     local lines count line running
     lines="$(running_instances)"
@@ -394,7 +377,6 @@ target_slot_for_paths() {
             esac
             ;;
         *)
-            # Prefer last active if it is among the running set.
             local prefer
             prefer="$(last_slot)"
             if printf '%s\n' "$lines" | sed '/^$/d' | awk '{print $1}' | grep -qx "$prefer"; then
@@ -407,7 +389,6 @@ target_slot_for_paths() {
     esac
 }
 
-# Resolve relative path args against the caller's cwd (app also canonicalizes).
 resolve_path_args() {
     local arg abs
     for arg in "$@"; do
@@ -434,7 +415,6 @@ open_paths() {
             exit 1
             ;;
     esac
-    # Single-instance IPC lives in the app; this just targets the right data dir.
     launch_slot "$slot" "${abs_args[@]}"
 }
 
@@ -448,8 +428,6 @@ main() {
         status) status; exit 0 ;;
         -h | --help | help) usage; exit 0 ;;
         open)
-            # Never flip A/B. Honor XENON_DATA_DIR from a Xenon PTY so the
-            # parent instance gets the file even when another slot is last-active.
             if [[ -z "${XENON_DATA_DIR:-}" ]]; then
                 slot="$(target_slot_for_paths)"
                 case "$slot" in
@@ -467,7 +445,6 @@ main() {
             exec "$APP" "$@"
             ;;
         *)
-            # Path / open mode — never flip A/B.
             open_paths "$@"
             exit 0
             ;;
@@ -487,7 +464,6 @@ main() {
             running="${line%% *}"
             case "$running" in
                 a | b)
-                    # Count is already slot-aware; no second pidfile probe.
                     slot="$(other_slot "$running")"
                     copy_state "$running" "$slot"
                     launch_slot "$slot"
@@ -500,7 +476,6 @@ main() {
             esac
             ;;
         *)
-            # Both slots already up: bring the last-launched (second) to front.
             if slot="$(second_slot)"; then
                 activate_slot "$slot"
             else

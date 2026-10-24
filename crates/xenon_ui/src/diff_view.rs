@@ -145,7 +145,6 @@ impl DiffView {
             };
             format!("→ {name} · {}px", self.width.round() as i32)
         });
-        // Path (dimmed directory, strong name) as one truncating text run.
         let path_text = format!("{dir}{name}");
         let dir_len = dir.len();
         let path = gpui::StyledText::new(path_text.clone()).with_highlights([

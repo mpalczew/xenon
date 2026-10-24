@@ -77,8 +77,6 @@ mod macos {
     const TASK_VM_INFO: i32 = 22;
     const KERN_SUCCESS: KernReturn = 0;
 
-    // task_vm_info's fields are laid out as 64-bit values except for the two
-    // 32-bit values following virtual_size. These offsets match the macOS SDK.
     #[repr(C)]
     struct TaskVmInfo {
         fields: [u64; 40],
@@ -113,8 +111,6 @@ mod macos {
             resident_bytes: info.fields[2],
             compressed_bytes: info.fields[15],
             footprint_bytes: footprint,
-            // There is no separate phys-footprint peak field. The ledger peak
-            // follows min_address and max_address.
             peak_footprint_bytes: footprint.max(info.fields[21]),
         }
     }

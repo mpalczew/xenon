@@ -36,7 +36,6 @@ impl XenonApp {
         let Some(workspace) = self.active else {
             return;
         };
-        // Markdown has no language server: F12 / `gd` / ⌘-click follow the link.
         if let Some(view) = self.editor_for_path(&path)
             && let Some(dest) = view.read(cx).markdown_link_at(row, col)
         {

@@ -61,7 +61,6 @@ pub(crate) fn walk_with_progress(
         }
     }
 
-    // Final snapshot (even if identical to last partial).
     let _ = on_partial(&entries);
     entries
 }
@@ -71,7 +70,6 @@ fn keep_entry(entry: &ignore::DirEntry) -> bool {
     let Some(name) = name.to_str() else {
         return true;
     };
-    // Only skip directories by semantic name; files like `.claude.json` stay.
     let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
     if is_dir && should_skip_dir(name) {
         return false;
@@ -84,7 +82,6 @@ fn keep_entry(entry: &ignore::DirEntry) -> bool {
 pub(crate) fn should_skip_dir(name: &str) -> bool {
     matches!(
         name,
-        // VCS / package managers
         ".git"
             | ".svn"
             | ".hg"
@@ -93,7 +90,6 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
             | "vendor"
             | "Pods"
             | ".bundle"
-            // Build outputs
             | "target"
             | "dist"
             | "build"
@@ -104,7 +100,6 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
             | ".turbo"
             | ".parcel-cache"
             | ".sass-cache"
-            // Tool caches / SDKs (home-scale killers)
             | ".cache"
             | ".cargo"
             | ".rustup"
@@ -122,12 +117,10 @@ pub(crate) fn should_skip_dir(name: &str) -> bool {
             | ".dartServer"
             | ".dart-tool"
             | ".cocoapods"
-            // macOS system trees under $HOME
             | "Library"
             | "Applications"
             | ".Trash"
             | "DerivedData"
-            // Python
             | "__pycache__"
             | ".tox"
             | ".venv"

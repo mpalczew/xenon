@@ -22,14 +22,12 @@ fn main() {
     init_logging();
     let command = parse_cli(std::env::args().skip(1));
     let request = command.to_request();
-    // Single-instance handoff: a live primary for this data dir takes the request.
     if try_handoff_request(&request) {
         return;
     }
     let listener = match bind_server() {
         Ok(l) => Some(l),
         Err(error) => {
-            // Race: another primary bound first — hand off and exit.
             if try_handoff_request(&request) {
                 return;
             }
@@ -130,7 +128,6 @@ fn start_ipc(listener: std::os::unix::net::UnixListener, cx: &mut gpui::Context<
             if result.is_err() {
                 break;
             }
-            // Bring the shell forward after an external open request.
             cx.update(|cx| cx.activate(true));
         }
     })

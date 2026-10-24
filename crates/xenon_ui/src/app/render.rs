@@ -368,7 +368,6 @@ impl XenonApp {
                     }
                 }),
             )
-            // Keep drop overlays painted for the whole tab drag.
             .on_drag_move(cx.listener(|_, _: &DragMoveEvent<DragTab>, _, cx| {
                 cx.notify();
             }));
@@ -401,8 +400,6 @@ impl XenonApp {
                 sizes,
             } => {
                 let horizontal = matches!(axis, SplitAxis::Horizontal);
-                // One drag listener per split; each divider is keyed by the last
-                // leaf before it and measured in this split's own bounds.
                 let keys: Vec<PaneId> = children
                     .iter()
                     .map(|c| c.leaf_ids().last().copied().unwrap_or(PaneId(0)))

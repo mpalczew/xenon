@@ -81,7 +81,6 @@ impl UndoStack {
 
     /// Pop the last step. Returns edits (reverse apply order) and version to restore.
     pub fn undo(&mut self) -> Option<(Vec<Edit>, u64)> {
-        // Finalize an unfinished group so Esc was not required to record it.
         self.end_group();
         let tx = self.past.pop()?;
         let version_before = tx.version_before;
@@ -144,11 +143,10 @@ mod tests {
                 old: String::new(),
                 new: "b".into(),
             },
-            0, // ignored; only first edit's version_before sticks
+            0,
         );
         stack.end_group();
         let (undone, version_before) = stack.undo().unwrap();
-        // Reverse order for apply: undo b then a.
         assert_eq!(undone.len(), 2);
         assert_eq!(undone[0].new, "b");
         assert_eq!(undone[1].new, "a");

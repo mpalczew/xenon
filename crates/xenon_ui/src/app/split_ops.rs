@@ -53,7 +53,6 @@ impl XenonApp {
 
         let source_tabs = if remaining.is_empty() {
             let Some(root_path) = root_path else {
-                // Restore moved tab.
                 if let Some(content) = self.contents.get_mut(&ws)
                     && let Some(leaf) = content
                         .root
@@ -217,9 +216,6 @@ impl XenonApp {
             found
         };
 
-        // Peel tab out of source. If that empties the leaf:
-        // - same pane (edge-split the only tab): leave a fresh terminal there
-        // - other pane: unsplit the empty source
         let tab_state = {
             let content = self.contents.get_mut(&ws).unwrap();
             let leaf = content
@@ -243,9 +239,7 @@ impl XenonApp {
             .is_some_and(|l| l.tabs.is_empty());
 
         if source_empty && src_pane == target {
-            // Only-tab edge drop on its own pane: same as toolbar split.
             let Some(root_path) = root_path else {
-                // Restore tab.
                 if let Some(content) = self.contents.get_mut(&ws)
                     && let Some(leaf) = content
                         .root
@@ -280,8 +274,6 @@ impl XenonApp {
         let Some(content) = self.contents.get_mut(&ws) else {
             return;
         };
-        // Target may have been removed if it was the empty source we unsplit
-        // (only when src != target). Re-resolve.
         let target_leaf = match content.root.as_ref().and_then(|r| r.find_leaf(target)) {
             Some(l) => l.clone(),
             None => return,
@@ -379,7 +371,6 @@ impl XenonApp {
         _force: bool,
         cx: &mut Context<Self>,
     ) {
-        // Dirty checks happen in the editor (`:q` vs `:q!`); shell just drops the tab.
         let Some(id) = self.active else {
             return;
         };

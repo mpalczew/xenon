@@ -75,8 +75,6 @@ impl XenonApp {
                 .filter(|_| files().count() == 1)
                 .map(|m| &m.path)
         };
-        // `docs/release.md` among several `release.md`s: the one whose
-        // trailing components match the token.
         let token_path = Path::new(token.trim_start_matches("./"));
         let mut by_suffix = exact.iter().filter(|rel| rel.ends_with(token_path));
         let suffix_match = by_suffix.next().filter(|_| by_suffix.next().is_none());

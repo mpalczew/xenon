@@ -12,7 +12,6 @@ pub(super) fn terminal_grid(app: &mut XenonApp, window: &mut Window, cx: &mut Co
 pub(super) fn phone_driving(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     terminal_grid(app, window, cx);
     app.visual_remote(true, cx);
-    // The phone fit lands in `after_terminal_ready`, once the fixture printed.
 }
 
 pub(super) fn focus_terminal_tab(

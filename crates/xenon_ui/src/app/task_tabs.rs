@@ -14,7 +14,6 @@ impl XenonApp {
         let mut env = self.terminal_env(folder);
         env.extend(task.env.iter().map(|(k, v)| (k.clone(), v.clone())));
         let (program, args) = if task.presentation.echo {
-            // Echo the (secret-free) command line, then become the task.
             let mut args = vec![
                 "-c".to_string(),
                 "printf '\\033[2m> %s\\033[0m\\n\\n' \"$1\"; shift; exec \"$@\"".to_string(),
@@ -30,7 +29,6 @@ impl XenonApp {
         let (cwd, label) = (task.cwd.clone(), task.label.clone());
         let view = cx.new(|cx| TerminalView::task(program, args, cwd, env, label, cx));
         view.update(cx, |view, cx| {
-            // A task tab keeps its output; `presentation.close` closes it on success.
             view.set_auto_close(xenon_store::TerminalAutoClose::Off, cx);
             if task.is_background {
                 view.watch_output();

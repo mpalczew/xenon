@@ -115,17 +115,12 @@ impl WorkspaceCandidate {
     /// Lower is better. Known workspaces always beat discovery.
     pub(super) fn rank_tier(&self) -> u8 {
         match self {
-            // User typed an existing path (or ~ expansion).
             Self::Path { found: false, .. } => 0,
-            // Open or closed history — prefer these over FS discovery.
             Self::Open { .. } | Self::Closed { missing: false, .. } => 1,
             Self::Path { found: true, .. } | Self::Remote { .. } => 2,
             Self::Closed { missing: true, .. } => 3,
-            // `ssh`, `ssh:`, `ssh:/` can only mean the scheme.
             Self::Scheme { leads: true, .. } => 0,
-            // `s`, `ss`: compete with known workspaces on basename and MRU.
             Self::Scheme { leads: false, .. } => 1,
-            // Hosts rank below every local match.
             Self::Host { .. } => 4,
         }
     }

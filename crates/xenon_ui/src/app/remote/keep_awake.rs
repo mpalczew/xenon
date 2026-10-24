@@ -89,7 +89,6 @@ fn keep_awake_command() -> Command {
 
 impl Drop for KeepAwake {
     fn drop(&mut self) {
-        // Our own child only.
         let _ = self.child.kill();
         let _ = self.child.wait();
     }

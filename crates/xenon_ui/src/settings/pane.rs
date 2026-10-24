@@ -29,7 +29,6 @@ impl SettingsView {
                 .trigger_bounds
                 .opens_up(id, window.viewport_size().height);
             if self.opens_up.is_none() {
-                // Opened before its trigger painted: decide next frame.
                 cx.notify();
             }
         }
@@ -88,7 +87,6 @@ impl SettingsView {
             .pt_4()
             .pb_5()
             .on_click(cx.listener(|this, _, window, cx| this.dismiss_dropdown(window, cx)))
-            // Children keep their height; a long page or result list scrolls instead of squashing.
             .children(
                 children
                     .into_iter()

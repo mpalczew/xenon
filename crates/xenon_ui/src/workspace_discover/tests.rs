@@ -29,13 +29,11 @@ fn project_roots_rank_before_folders_inside_a_repo() {
 fn visit_cap_stops() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    // Many siblings so BFS would be large without a cap.
     for i in 0..100 {
         fs::create_dir_all(root.join(format!("p{i}/skills"))).unwrap();
     }
     let mut out = Vec::new();
     walk_for_name(root, "skills", &mut out);
-    // With many exact matches we stop early; must not hang / collect unbounded.
     assert!(out.len() <= MAX_COLLECT);
     assert!(exact_count(&out) >= 1);
 }

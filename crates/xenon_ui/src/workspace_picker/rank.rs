@@ -20,7 +20,6 @@ fn cmp_candidates(
     a.rank_tier()
         .cmp(&b.rank_tier())
         .then_with(|| basename_rank(a, needle).cmp(&basename_rank(b, needle)))
-        // MRU: higher last_opened first.
         .then_with(|| b.last_opened().cmp(&a.last_opened()))
         .then_with(|| path_component_count(a.root()).cmp(&path_component_count(b.root())))
         .then_with(|| a.root().as_os_str().len().cmp(&b.root().as_os_str().len()))
@@ -69,7 +68,6 @@ mod tests {
 
     #[test]
     fn known_beats_discovered_even_when_basename_weaker() {
-        // personalfiles (prefix) closed vs exact-named discover "personal"
         let mut rows = vec![
             found("/Users/me/src/other/personal"),
             closed("personalfiles", "/Users/me/src/personalfiles", 100),

@@ -5,7 +5,7 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, Window, anchored, deferred, div, px,
 };
 use theme::ActiveTheme;
-use xenon_core::{PaneId, TabId};
+use xenon_core::TabId;
 
 use crate::app::{TabContextMenu, XenonApp};
 use crate::chrome::Shortcut;
@@ -24,7 +24,6 @@ enum TabMenuAction {
 impl XenonApp {
     pub(crate) fn open_tab_menu(
         &mut self,
-        pane: PaneId,
         tab: TabId,
         position: Point<Pixels>,
         cx: &mut Context<Self>,
@@ -34,7 +33,6 @@ impl XenonApp {
         }
         self.browser_menu = None;
         self.overflow_menu = None;
-        let _ = pane; // caller supplies pane for activate-before-menu if needed later
         self.tab_menu = Some(TabContextMenu {
             tab,
             position,

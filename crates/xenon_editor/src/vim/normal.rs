@@ -9,7 +9,6 @@ use crate::buffer::Buffer;
 use crate::selection;
 
 impl VimState {
-    // Key dispatch table: one match over the normal-mode alphabet.
     #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
     pub(in crate::vim) fn handle_normal_char(
         &mut self,
@@ -62,7 +61,6 @@ impl VimState {
             return handled(false);
         }
 
-        // Counts.
         if ch.is_ascii_digit() && (ch != '0' || self.count > 0) {
             self.count = self
                 .count
@@ -71,7 +69,6 @@ impl VimState {
             return handled(false);
         }
 
-        // `g` prefix: `gg`, `gd`, `gJ` (invalid second key clears the prefix).
         if self.pending_g {
             self.pending_g = false;
             return match ch {
@@ -110,7 +107,6 @@ impl VimState {
                 _ => handled(false),
             };
         }
-        // `z` prefix: `zz` centers the cursor line.
         if self.pending_z {
             self.pending_z = false;
             return match ch {
@@ -147,7 +143,6 @@ impl VimState {
                 handled(false)
             }
             'a' if !self.mode.is_visual() && self.operator.is_none() => {
-                // After current char, but never past EOL onto the next line.
                 let c = buffer.cursor();
                 let rope = buffer.rope();
                 if c < rope.len_chars() && rope.char(c) != '\n' {
@@ -156,7 +151,6 @@ impl VimState {
                 self.enter_insert(buffer);
                 handled(false)
             }
-            // Visual-block insert at left / right edge of the rectangle.
             'I' if self.mode == Mode::VisualBlock => self.block_insert(buffer, true),
             'A' if self.mode == Mode::VisualBlock => self.block_insert(buffer, false),
             'I' if !self.mode.is_visual() => {
@@ -166,14 +160,12 @@ impl VimState {
                 handled(false)
             }
             'A' if !self.mode.is_visual() => {
-                // Insert at exclusive EOL (before the newline, if any).
                 let pos = motion::line_end_exclusive(buffer.rope(), buffer.cursor());
                 buffer.set_cursor_raw(pos);
                 self.enter_insert(buffer);
                 handled(false)
             }
             'o' if !self.mode.is_visual() => {
-                // Newline + insert text = one undo step until Esc.
                 buffer.set_undo_group(true);
                 let end = motion::line_end_exclusive(buffer.rope(), buffer.cursor());
                 buffer.set_cursor_raw(end);
@@ -196,7 +188,6 @@ impl VimState {
                     self.block_anchor = None;
                     self.mode = Mode::Normal;
                 } else {
-                    // From block: drop to char visual on the head char.
                     self.block_anchor = None;
                     self.mode = Mode::Visual;
                     let c = buffer.cursor();
@@ -246,7 +237,6 @@ impl VimState {
                     handled(false)
                 }
             }
-            // Join lines (`J`); count is total lines fused (default 2).
             'J' if self.mode.is_visual() => self.join_visual(buffer, true),
             'J' => {
                 let lines = if self.count == 0 {
@@ -256,7 +246,6 @@ impl VimState {
                 };
                 self.join_lines(buffer, lines, true)
             }
-            // `D` = `d$`, `C` = `c$`, `Y` = `yy`, `S` = `cc`.
             'D' if !self.mode.is_visual() => {
                 self.count = 0;
                 self.operator = Some(Operator::Delete);
@@ -271,7 +260,6 @@ impl VimState {
             'S' if !self.mode.is_visual() && self.operator.is_none() => {
                 self.apply_linewise_now(buffer, Operator::Change)
             }
-            // Indent / outdent / reindent.
             '>' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Indent),
             '<' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Outdent),
             '=' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Reindent),
@@ -334,7 +322,6 @@ impl VimState {
             'P' => self.paste(buffer, true),
             'o' if self.mode.is_visual() => self.visual_swap_ends(buffer),
             'r' if self.mode.is_visual() => {
-                // Visual `rX` replaces selection with char — treat as await then expand.
                 self.awaiting_replace = true;
                 handled(false)
             }
@@ -347,7 +334,6 @@ impl VimState {
                 handled(false)
             }
             'u' => {
-                // Each `u` is one change; count undoes that many (vim `3u`).
                 let mut any = false;
                 for _ in 0..count {
                     if !buffer.undo() {
@@ -375,7 +361,6 @@ impl VimState {
             'N' => self.search_again(buffer, false),
             '*' => self.search_word(buffer),
             's' if self.mode.is_visual() => self.visual_operator(buffer, Operator::Change),
-            // Normal `s` = change one char (like `cl`).
             's' if !self.mode.is_visual() && self.operator.is_none() => {
                 let n = count.max(1);
                 self.count = 0;
@@ -392,7 +377,6 @@ impl VimState {
                 self.enter_insert(buffer);
                 edited()
             }
-            // i/a as object prefix after operator
             'i' if self.operator.is_some() => {
                 self.awaiting_object = Some(false);
                 handled(false)

@@ -156,7 +156,6 @@ impl EditorView {
 
     pub fn cut_selection(&mut self, cx: &mut Context<Self>) {
         if self.preview {
-            // Read-only preview: cut degenerates to copy.
             self.copy_selection(cx);
             return;
         }

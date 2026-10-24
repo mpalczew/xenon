@@ -109,13 +109,11 @@ impl Registers {
                 let lower = name.to_ascii_lowercase();
                 let entry = self.named.entry(lower).or_default();
                 entry.text.push_str(text);
-                // Vim: result is linewise if either side is linewise.
                 entry.linewise = entry.linewise || linewise;
                 entry.blockwise = entry.blockwise || blockwise;
                 self.unnamed = entry.clone();
             }
             '+' | '*' => {
-                // System clipboard is handled by the view; still keep unnamed in sync.
                 self.unnamed = content;
             }
             '_' => {}

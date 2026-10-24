@@ -138,7 +138,6 @@ impl FinderView {
         self.searching = true;
 
         self._query_task = Some(cx.spawn(async move |this, cx| {
-            // Empty query is cheap (slice); skip debounce so open feels instant.
             if !query.is_empty() {
                 cx.background_executor().timer(QUERY_DEBOUNCE).await;
             }
@@ -178,7 +177,6 @@ impl FinderView {
     }
 
     fn confirm(&mut self, beside: bool, cx: &mut Context<Self>) {
-        // Ignore Enter while results belong to a previous query.
         if !self.results_ready() {
             return;
         }
@@ -228,7 +226,6 @@ impl FinderView {
         } else if self.results.is_empty() {
             "No matching files"
         } else {
-            // Non-empty list; label unused by scroll_results when rows exist.
             ""
         }
     }
@@ -245,8 +242,6 @@ impl Render for FinderView {
         let colors = cx.theme().colors().clone();
         let layout = PaletteLayout::default();
         let empty = self.empty_label();
-        // Keep prior rows visible while a newer query is in flight (large
-        // indexes take tens of ms; clearing looks like "list emptied").
         let rows: Vec<_> = self
             .results
             .iter()

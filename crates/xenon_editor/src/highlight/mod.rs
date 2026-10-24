@@ -72,7 +72,6 @@ pub const HIGHLIGHT_NAMES: &[&str] = &[
     "variable.member",
     "variable.special",
     "variant",
-    // Markdown / markup (tree-sitter-md and friends); mapped by `theme_key`.
     "text.title",
     "text.emphasis",
     "text.strong",
@@ -227,7 +226,6 @@ mod tests {
     fn highlights_js_regex_injection() {
         let source = "const re = /ab+c/;\n";
         let spans = spans_for_path(Path::new("a.js"), source);
-        // Regex pattern injects into tree-sitter-regex (per-char captures).
         let names: Vec<_> = spans
             .iter()
             .map(|s| (s.name, &source[s.start..s.end]))

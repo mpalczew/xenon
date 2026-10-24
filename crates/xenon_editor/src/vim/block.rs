@@ -58,7 +58,6 @@ pub fn char_ranges(rope: &Rope, corners: BlockCorners) -> Vec<Range<usize>> {
         let start = rope.line_to_char(row);
         let len = line_content_len(rope, row);
         if corners.min_col >= len {
-            // Entirely past EOL — no chars selected on this line.
             continue;
         }
         let col_end = (corners.max_col + 1).min(len);
@@ -144,7 +143,6 @@ mod tests {
     fn visual_block_yank_delete_paste() {
         let mut buffer = buffer_with("abcd\nefgh\nijkl\n");
         let mut vim = VimState::default();
-        // Ctrl-v on 'a', extend to 'f' (row1 col1) → columns 0..=1, rows 0..=1.
         assert!(vim.toggle_visual_block(&mut buffer).handled);
         assert_eq!(vim.mode, Mode::VisualBlock);
         vim.handle_char(&mut buffer, "j");
@@ -153,13 +151,10 @@ mod tests {
         assert_eq!(ranges.len(), 2);
         assert_eq!(buffer.rope().slice(ranges[0].clone()).to_string(), "ab");
         assert_eq!(buffer.rope().slice(ranges[1].clone()).to_string(), "ef");
-        // Yank block.
         assert!(!vim.handle_char(&mut buffer, "y").edited);
         assert_eq!(vim.mode, Mode::Normal);
-        // Move to end (`G` → start of last content line 'i'), paste blockwise after cursor.
         vim.handle_char(&mut buffer, "G");
         assert!(vim.handle_char(&mut buffer, "p").edited);
-        // col 0 'i', p → col 1: "i"+"ab"+"jkl" and next line pad+ef.
         assert_eq!(buffer.text(), "abcd\nefgh\niabjkl\n ef");
     }
 }

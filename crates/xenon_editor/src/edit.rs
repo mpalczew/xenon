@@ -112,7 +112,6 @@ impl Buffer {
                 self.set_anchor_raw(Some(cursor));
             }
         } else {
-            // Collapse to the edge in the direction of movement when a selection exists.
             if let Some(range) = self.selection_range() {
                 let target = match motion {
                     Motion::Left
@@ -128,7 +127,6 @@ impl Buffer {
                 };
                 self.clear_selection();
                 self.set_cursor_raw(target);
-                // Arrow once collapses; don't also apply the motion.
                 if matches!(
                     motion,
                     Motion::Left | Motion::Right | Motion::Up | Motion::Down
@@ -194,7 +192,6 @@ fn word_left(rope: &ropey::Rope, cursor: usize) -> usize {
     if cursor == 0 {
         return 0;
     }
-    // Skip one char left into the previous run, then to its start.
     let at = cursor - 1;
     selection::word_range_at(rope, at).start
 }
@@ -205,7 +202,6 @@ fn word_right(rope: &ropey::Rope, cursor: usize) -> usize {
         return len;
     }
     let end = selection::word_range_at(rope, cursor).end;
-    // Skip spaces after the word so ⌥→ lands on the next token.
     let mut i = end;
     while i < len && rope.char(i).is_whitespace() && rope.char(i) != '\n' {
         i += 1;

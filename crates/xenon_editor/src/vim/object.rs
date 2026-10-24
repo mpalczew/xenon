@@ -70,7 +70,6 @@ fn find_pair(
         return None;
     }
     let cursor = cursor.min(len - 1);
-    // Search backward for open.
     let mut depth = 0usize;
     let mut open_at = None;
     let mut i = cursor + 1;
@@ -91,7 +90,6 @@ fn find_pair(
         }
     }
     let open_at = open_at?;
-    // Search forward for close.
     depth = 0;
     let mut j = open_at + 1;
     let mut close_at = None;

@@ -88,7 +88,6 @@ pub fn apply_substitute(
     let first = first_line.min(n_lines.saturating_sub(1));
     let last = last_line.min(n_lines.saturating_sub(1)).max(first);
 
-    // Collect (char_start, char_end, replacement) in reverse so edits stay valid.
     let mut ops: Vec<(usize, usize, String)> = Vec::new();
     let mut replacements = 0usize;
     let mut lines_changed = 0usize;
@@ -101,7 +100,6 @@ pub fn apply_substitute(
         } else {
             buffer.rope().len_chars()
         };
-        // Work on line content without trailing newline for regex, but map offsets.
         let full = buffer.rope().slice(line_start..line_end).to_string();
         let (content, nl) = if full.ends_with('\n') {
             (&full[..full.len() - 1], true)
@@ -143,7 +141,6 @@ pub fn apply_substitute(
         return Ok(SubstituteOutcome::default());
     }
 
-    // Apply right-to-left; one undo group for the whole :s.
     buffer.set_undo_group(true);
     ops.sort_by_key(|b| std::cmp::Reverse(b.0));
     for (start, end, rep) in ops {
@@ -175,7 +172,6 @@ fn split_on_slash(s: &str) -> Vec<String> {
         } else if ch == '/' {
             parts.push(std::mem::take(&mut cur));
             if parts.len() == 2 {
-                // Rest is flags (may contain no more structural slashes needed).
                 cur.extend(chars);
                 parts.push(cur);
                 return parts;
@@ -231,7 +227,6 @@ fn expand_into(out: &mut String, raw: &str, caps: &Captures, prev: &str, allow_t
                 Some('~') => push_cased(out, &mut case, '~'),
                 Some('r') => push_cased(out, &mut case, '\r'),
                 Some('t') => push_cased(out, &mut case, '\t'),
-                // Vim: \n in replacement is NUL.
                 Some('n') => push_cased(out, &mut case, '\0'),
                 Some('0') => push_group(out, &mut case, caps, 0),
                 Some(d) if d.is_ascii_digit() => {
@@ -248,7 +243,6 @@ fn expand_into(out: &mut String, raw: &str, caps: &Captures, prev: &str, allow_t
             },
             '&' => push_group(out, &mut case, caps, 0),
             '~' if allow_tilde => {
-                // Re-expand previous replacement against this match (no nested ~).
                 expand_into(out, prev, caps, "", false);
             }
             other => push_cased(out, &mut case, other),

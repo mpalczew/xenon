@@ -1,5 +1,3 @@
-// Keyboard regressions that need a real window: focus must survive transient
-// surfaces closing, or every app shortcut goes dead.
 
 type Check = fn(&mut gpui::VisualTestAppContext) -> anyhow::Result<()>;
 
@@ -64,7 +62,6 @@ fn settings_keys_reach_rows(cx: &mut gpui::VisualTestAppContext) -> anyhow::Resu
         cx.run_until_parked();
     }
     let after = cx.update(|cx| xenon_settings::wrap_prose(cx));
-    // Put it back for anything that runs later.
     cx.simulate_keystrokes(settings.into(), "space");
     cx.run_until_parked();
     anyhow::ensure!(after != before, "⌘3 ↓ ↓ Space did not toggle Wrap prose");

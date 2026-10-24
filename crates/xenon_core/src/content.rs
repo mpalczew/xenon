@@ -120,7 +120,6 @@ struct SplitRepr {
     children: Vec<PaneNode>,
     #[serde(default)]
     sizes: Vec<f32>,
-    // Legacy binary shape.
     ratio: Option<f32>,
     first: Option<Box<PaneNode>>,
     second: Option<Box<PaneNode>>,
@@ -153,7 +152,6 @@ impl PaneNode {
                 children,
                 sizes,
             },
-            // Empty split: an empty parked leaf keeps the type total.
             Err(Some(only)) => only,
             Err(None) => PaneNode::Leaf(LeafPane {
                 id: PaneId(1),
@@ -272,7 +270,6 @@ mod tests {
                 ..
             }
         ));
-        // Always writes the new shape.
         let out = serde_json::to_value(&node).unwrap();
         assert!(out.get("first").is_none() && out.get("children").is_some());
     }

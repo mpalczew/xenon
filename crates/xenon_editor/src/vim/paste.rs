@@ -51,7 +51,6 @@ pub(in crate::vim) fn paste_linewise(
         let at = line.end + 1;
         (at, at)
     } else {
-        // Last line has no trailing newline: open a new line below first.
         text.insert(0, '\n');
         (line.end, line.end + 1)
     };

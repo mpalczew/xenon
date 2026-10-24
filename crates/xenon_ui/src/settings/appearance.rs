@@ -67,7 +67,6 @@ fn swatches(appearance: Appearance, current: &str, cx: &App) -> Vec<Swatch> {
         Appearance::Light => LIGHT_PICKS,
     };
     let mut names: Vec<&str> = picks.to_vec();
-    // Keep the live theme visible even when it is not a curated pick.
     if !names.contains(&current) {
         names.pop();
         names.insert(0, current);

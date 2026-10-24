@@ -39,7 +39,6 @@ pub(crate) fn parse(source: &str) -> Parsed {
     for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { level, .. }) if list_depth == 0 && quote_depth == 0 => {
-                // The first `#` is the document title; later `#` and `##` start sections.
                 if level == HeadingLevel::H1 && !seen_title {
                     seen_title = true;
                 } else if matches!(level, HeadingLevel::H1 | HeadingLevel::H2) {

@@ -118,7 +118,6 @@ pub(crate) fn computer_name() -> String {
 }
 
 fn is_tailscale(ip: &Ipv4Addr) -> bool {
-    // CGNAT range 100.64.0.0/10.
     let [a, b, ..] = ip.octets();
     a == 100 && (64..128).contains(&b)
 }

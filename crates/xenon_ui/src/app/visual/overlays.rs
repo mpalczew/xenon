@@ -83,8 +83,8 @@ pub(super) fn theme_panel_preview(
 
 pub(super) fn tab_menu(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
-    if let Some((pane, tab)) = focused_tab(app) {
-        app.open_tab_menu(pane, tab, menu_point(), cx);
+    if let Some((_, tab)) = focused_tab(app) {
+        app.open_tab_menu(tab, menu_point(), cx);
     }
 }
 

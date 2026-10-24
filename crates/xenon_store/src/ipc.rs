@@ -133,7 +133,6 @@ pub fn bind_server() -> std::io::Result<UnixListener> {
     std::fs::create_dir_all(&dir)?;
     let path = socket_path();
     if path.exists() {
-        // Stale file from a crashed primary — remove and rebind.
         let _ = std::fs::remove_file(&path);
     }
     UnixListener::bind(&path)
@@ -152,7 +151,6 @@ pub fn serve_forever(listener: UnixListener, tx: impl Fn(IpcRequest) + Send + 's
                     log::debug!("ipc client: {error}");
                 }
             }
-            // Clean up socket when the listener loop ends.
             let _ = std::fs::remove_file(socket_path());
         })
         .expect("spawn xenon-ipc thread");
@@ -212,7 +210,6 @@ pub fn parse_cli_paths(args: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
         } else {
             cwd.join(path)
         };
-        // Prefer canonicalize when the path exists; keep joined path otherwise.
         out.push(abs.canonicalize().unwrap_or(abs));
     }
     out

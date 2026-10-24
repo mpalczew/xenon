@@ -27,7 +27,7 @@ pub fn handle(text: &str, roots: &[PathBuf], commands: &Sender<IdeCommand>) -> O
         _ => None,
     };
 
-    let id = id?; // notifications (no id) get no reply
+    let id = id?;
     let reply = match result {
         Some(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
         None => json!({

@@ -111,7 +111,6 @@ impl Feed {
 
 impl Drop for Feed {
     fn drop(&mut self) {
-        // The hook held the other sender; with both gone the worker exits.
         self.state.io.set_wake_hook(self.hook_id, None);
     }
 }

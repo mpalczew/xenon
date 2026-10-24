@@ -418,7 +418,6 @@ impl EditorView {
         selectable_row(format!("worklist-row-{index}"), selected, colors)
             .items_start()
             .mb_1()
-            // Whole row, not just the text: the row padding looks and hovers clickable.
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.worklist_cursor = Cursor::Item(index);
                 if editable {

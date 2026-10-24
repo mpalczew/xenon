@@ -63,7 +63,6 @@ impl ImageViewer {
     pub(super) fn sync_from_disk(&mut self) -> bool {
         let current = fs::metadata(&self.path).and_then(|m| m.modified()).ok();
         if current.is_none() {
-            // Deleted: keep last decoded frame; nothing new to show.
             return false;
         }
         if current == self.disk_mtime {

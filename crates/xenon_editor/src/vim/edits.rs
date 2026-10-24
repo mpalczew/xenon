@@ -62,7 +62,6 @@ impl VimState {
             self.mode = Mode::Normal;
             return handled(false);
         }
-        // Cursor at first selected line, then join.
         let line_start = buffer.rope().line_to_char(start_line);
         buffer.set_cursor_raw(line_start);
         buffer.clear_selection();
@@ -79,7 +78,6 @@ impl VimState {
         count: usize,
     ) -> HandleResult {
         let step = delta.saturating_mul(count.max(1) as i64);
-        // Store full step so `.` repeats the same bump (including count).
         self.last_change = Some(LastChange::Number { delta: step });
         self.count = 0;
         let Some((range, value)) = find_number(buffer.rope(), buffer.cursor()) else {
@@ -94,7 +92,6 @@ impl VimState {
             old,
             new: new.clone(),
         });
-        // Cursor on last digit of the new number (vim).
         buffer.set_cursor_raw(range.start + new.chars().count().saturating_sub(1));
         buffer.clear_selection();
         edited()
@@ -115,7 +112,6 @@ impl VimState {
         let start = range.start.min(len);
         let end = range.end.min(len).max(start);
         let first = rope.char_to_line(start);
-        // Exclusive end: last line is the one containing end-1 when range is non-empty.
         let last = if end > start {
             rope.char_to_line(end.saturating_sub(1)).max(first)
         } else {
@@ -126,14 +122,12 @@ impl VimState {
         } else {
             String::new()
         };
-        // Bottom-up so earlier offsets stay valid.
         let mut any = false;
         for row in (first..=last).rev() {
             if shift_line(buffer, row, op, &prev_indent) {
                 any = true;
             }
         }
-        // Cursor on first non-blank of the first shifted line.
         let line = selection::line_range_at(buffer.rope(), buffer.rope().line_to_char(first));
         buffer.set_cursor_raw(first_non_blank(buffer.rope(), line.start, line.end));
         buffer.clear_selection();
@@ -174,9 +168,7 @@ fn join_once(buffer: &mut Buffer, space: bool) -> Option<usize> {
         return None;
     }
     let cur = selection::line_range_at(rope, cursor);
-    // Need a newline between lines.
     if cur.end >= len || rope.char(cur.end) != '\n' {
-        // Last physical line with no trailing newline, or empty.
         return None;
     }
     let next_start = cur.end + 1;
@@ -184,7 +176,6 @@ fn join_once(buffer: &mut Buffer, space: bool) -> Option<usize> {
         return None;
     }
     let next = selection::line_range_at(rope, next_start.min(len.saturating_sub(1)));
-    // Leading whitespace on the next line (to strip).
     let mut body = next.start;
     while body < next.end {
         let c = rope.char(body);
@@ -200,7 +191,6 @@ fn join_once(buffer: &mut Buffer, space: bool) -> Option<usize> {
         });
     let right_empty = body >= next.end;
     let insert_space = space && !left_empty && !right_empty;
-    // Delete from newline through leading ws of next; maybe insert a space.
     let del_start = cur.end;
     let del_end = body;
     let old = rope.slice(del_start..del_end).to_string();
@@ -214,7 +204,6 @@ fn join_once(buffer: &mut Buffer, space: bool) -> Option<usize> {
         old,
         new,
     });
-    // Cursor on the join point (space, or first char of the former next line).
     Some(del_start)
 }
 
@@ -242,7 +231,6 @@ fn shift_line(buffer: &mut Buffer, row: usize, op: Operator, prev_indent: &str) 
         return false;
     }
     let line = selection::line_range_at(rope, rope.line_to_char(row));
-    // Skip blank lines for indent/outdent (vim leaves them alone).
     let is_blank = (line.start..line.end).all(|i| {
         let c = rope.char(i);
         c == ' ' || c == '\t'
@@ -262,7 +250,6 @@ fn shift_line(buffer: &mut Buffer, row: usize, op: Operator, prev_indent: &str) 
         Operator::Outdent => {
             let mut remove = 0usize;
             let i = line.start;
-            // Prefer removing a leading tab, else up to SHIFTWIDTH spaces.
             if i < line.end && rope.char(i) == '\t' {
                 remove = 1;
             } else {
@@ -282,7 +269,6 @@ fn shift_line(buffer: &mut Buffer, row: usize, op: Operator, prev_indent: &str) 
             true
         }
         Operator::Reindent => {
-            // Match previous line indent; blank lines stay blank.
             if is_blank {
                 return false;
             }
@@ -319,7 +305,6 @@ fn find_number(rope: &ropey::Rope, cursor: usize) -> Option<(std::ops::Range<usi
     let line = selection::line_range_at(rope, cursor);
     let digit_at = |i: usize| i < line.end && rope.char(i).is_ascii_digit();
 
-    // Start of the digit run: under cursor, or first digit to the right on this line.
     let mut digits = if digit_at(cursor) {
         let mut s = cursor;
         while s > line.start && rope.char(s - 1).is_ascii_digit() {
@@ -337,7 +322,6 @@ fn find_number(rope: &ropey::Rope, cursor: usize) -> Option<(std::ops::Range<usi
         i
     };
 
-    // Optional leading `-` immediately before the digits.
     if digits > line.start && rope.char(digits - 1) == '-' {
         digits -= 1;
     }
@@ -412,7 +396,6 @@ mod tests {
     fn ctrl_a_increments_number() {
         let mut buffer = buffer_with("val 41 end\n");
         let mut vim = VimState::default();
-        // Cursor on 'v'; Ctrl-a finds 41 after.
         assert!(vim.change_number(&mut buffer, 1, 1).edited);
         assert_eq!(buffer.text(), "val 42 end\n");
     }

@@ -39,7 +39,6 @@ impl XenonApp {
     }
 
     pub(super) fn show_browser(&mut self, cx: &mut Context<Self>) {
-        // Tree lives in the left workspace panel — ensure the panel is open.
         self.sidebar_collapsed = false;
         if !self.reveal_active_file(cx) {
             self.file_browser.open();
@@ -237,8 +236,6 @@ impl XenonApp {
         };
         self.dismiss_palettes(cx);
         self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
-        // Cache first (instant open); force=true re-walks in the background.
-        // A synchronous rebuild on every open would stall large roots ($HOME).
         self.reindex(root.clone(), true, cx);
         let index = self.file_indexes.get(&root).cloned();
         let recents = self
@@ -259,12 +256,10 @@ impl XenonApp {
     ) {
         match event {
             FinderEvent::Selected(relative) => {
-                // open_editor queues Editor focus via pending_focus.
                 self.deferred.restore_pane = None;
                 if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
                     self.open_editor(root.join(relative), true, cx);
                 } else {
-                    // No open: still leave the finder without a focus void.
                     self.finder = None;
                     self.deferred.pending_focus = Some(FocusOwner::Terminal);
                     cx.notify();
@@ -281,8 +276,6 @@ impl XenonApp {
                 }
             }
             FinderEvent::RevealDir(relative) => {
-                // Was: clear restore, drop finder, never re-focus → void.
-                // Directory reveal owns the Files tree; focus it next frame.
                 self.deferred.restore_pane = None;
                 if let Some(root) = self.active.and_then(|id| self.workspace_root(id)) {
                     self.reveal_dir(&root, &root.join(relative), cx);
@@ -294,7 +287,6 @@ impl XenonApp {
             }
             FinderEvent::Dismissed => {
                 self.finder = None;
-                // Re-focus the pre-finder pane on the next render (which has a Window).
                 self.deferred.pending_focus = self
                     .deferred
                     .restore_pane

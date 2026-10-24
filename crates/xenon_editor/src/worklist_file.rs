@@ -72,7 +72,6 @@ impl WorklistFile {
     }
 
     pub fn write(&self, expected: Option<&[u8]>, updated: &[u8]) -> Result<()> {
-        // Re-resolve before mutation; a replaced symlink cannot redirect the write.
         let current = Self::new(&self.root)?;
         ensure!(current.path == self.path, "worklist path changed; retry");
         ensure!(

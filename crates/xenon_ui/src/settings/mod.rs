@@ -81,7 +81,6 @@ impl SettingsView {
         });
         let filter_sub = cx.subscribe_in(&filter_input, window, Self::on_filter_event);
         let search_sub = cx.subscribe_in(&search, window, Self::on_search_event);
-        // Full system font scans are deferred and never run on paint / key path.
         cx.spawn(async move |this, cx| {
             this.update(cx, |_this, cx| {
                 crate::dropdown::warm_mono_font_families(cx);

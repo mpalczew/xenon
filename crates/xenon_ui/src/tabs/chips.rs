@@ -162,7 +162,7 @@ impl XenonApp {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    this.open_tab_menu(pane, tab_id, event.position, cx);
+                    this.open_tab_menu(tab_id, event.position, cx);
                 }),
             )
             .on_drag(
@@ -273,7 +273,7 @@ impl XenonApp {
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    this.open_tab_menu(pane, tab_id, event.position, cx);
+                    this.open_tab_menu(tab_id, event.position, cx);
                 }),
             )
             .on_drag(

@@ -123,7 +123,6 @@ impl FileIndex {
         let mut out = Vec::with_capacity(MAX_RESULTS.min(self.entries.len()));
         let mut used: HashMap<&str, ()> = HashMap::new();
 
-        // Recents first (most-recent → oldest), only if still in the index.
         let mut ordered: Vec<(&PathBuf, u32)> = recent_rank.iter().map(|(p, r)| (p, *r)).collect();
         ordered.sort_by_key(|(_, r)| *r);
         for (path, _) in ordered {
@@ -212,7 +211,6 @@ impl BasenameRank {
 fn recent_ranks(recents: &[PathBuf]) -> HashMap<PathBuf, u32> {
     let mut ranks = HashMap::with_capacity(recents.len());
     for (i, path) in recents.iter().enumerate() {
-        // First occurrence wins (list is most-recent first).
         ranks.entry(path.clone()).or_insert(i as u32);
     }
     ranks
@@ -233,7 +231,6 @@ fn compare_matches(
     b_path_exact
         .cmp(&a_path_exact)
         .then_with(|| BasenameRank::of(&a.path, query).cmp(&BasenameRank::of(&b.path, query)))
-        // Among equally good matches, prefer recently opened.
         .then_with(|| recent_of(&a.path, recent).cmp(&recent_of(&b.path, recent)))
         .then_with(|| b.score.cmp(&a.score))
         .then_with(|| path_components(&a.path).cmp(&path_components(&b.path)))

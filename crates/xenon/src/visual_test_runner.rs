@@ -82,7 +82,6 @@ fn run_tests() -> anyhow::Result<()> {
         }
     }
 
-    // After the scenes: it writes .xenon/worklist.md into the shared fixture.
     if only.wants("keyboard")
         && let Err(error) = keyboard::run_all(&mut cx)
     {
@@ -238,8 +237,6 @@ fn run_scene(
         let settings = window
             .update(cx, |app, _, _| app.visual_settings_window())?
             .ok_or_else(|| anyhow!("{name}: settings window missing"))?;
-        // Park the pointer in empty pane space: a leftover position from an
-        // earlier scene would otherwise hover a sidebar row at random.
         cx.simulate_mouse_move(
             settings.into(),
             gpui::point(px(810.0), px(550.0)),

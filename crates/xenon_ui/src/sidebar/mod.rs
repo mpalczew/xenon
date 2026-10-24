@@ -93,8 +93,6 @@ impl XenonApp {
             ws_rows.push(self.workspace_list_end_drop(cx).into_any_element());
         }
 
-        // When Files is open: workspaces-first height (content or pinned), drag to resize.
-        // When Files is closed: workspaces fill the column.
         let share_column = files_open && has_active;
         let body_h = share_column.then(|| {
             self.workspaces_section_height().unwrap_or_else(|| {
@@ -286,7 +284,6 @@ impl XenonApp {
         let group = format!("ws-{id}");
         let drop_line = colors.drop_target_border;
         let path_tip = SharedString::from(path.to_string());
-        // Neutral strong edge: blue is the working line, yellow needs-you.
         let edge_color = if active {
             colors.text
         } else {
@@ -437,7 +434,6 @@ impl XenonApp {
         } else {
             colors.editor_background
         };
-        // Fixed equal slots so pencil / x share the same center grid as the gutter.
         div()
             .absolute()
             .right(px(2.))
@@ -505,7 +501,6 @@ pub(super) fn icon_button(
         colors.element_hover
     };
     let hover_foreground = if danger { danger_color } else { colors.text };
-    // Equal hit targets; glyph centered in a fixed box so pencil/x share baseline.
     let mut btn = xenon_design_system::action_button(
         id,
         xenon_design_system::ActionButton::icon(

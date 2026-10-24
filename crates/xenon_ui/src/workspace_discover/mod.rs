@@ -51,7 +51,6 @@ pub(crate) fn path_is_dir(path: &Path) -> bool {
     if path.is_dir() {
         return true;
     }
-    // `~` or non-normalized paths.
     resolve_existing_dir(path).is_some()
 }
 
@@ -139,11 +138,9 @@ pub(crate) fn parse_discover_query(raw: &str) -> Option<DiscoverQuery> {
     if q.is_empty() {
         return None;
     }
-    // Whole query is an existing path.
     if let Some(root) = expand_user_path(q).and_then(|p| resolve_existing_dir(&p)) {
         return Some(DiscoverQuery::Exact(root));
     }
-    // First token path-like + rest = needle.
     if let Some((first, rest)) = q.split_once(char::is_whitespace) {
         let rest = rest.trim();
         if !rest.is_empty()
@@ -155,7 +152,6 @@ pub(crate) fn parse_discover_query(raw: &str) -> Option<DiscoverQuery> {
             });
         }
     }
-    // Bare name (no leading / or ~) or unresolved path fragment.
     if expand_user_path(q).is_none() && !q.starts_with('/') {
         return Some(DiscoverQuery::Name(q.to_string()));
     }
@@ -327,7 +323,6 @@ fn push_found(
         out.push(candidate);
         return;
     }
-    // Cap full: still accept a better match by replacing the worst one.
     if let Some((i, worst)) = out.iter().enumerate().max_by(|a, b| found_order(a.1, b.1))
         && found_order(&candidate, worst).is_lt()
     {
@@ -352,7 +347,6 @@ fn should_skip_dir(name: &str) -> bool {
             | ".tox"
             | ".venv"
             | "venv"
-            // Large content trees that are never workspace roots.
             | "shows"
             | "Library"
             | "Applications"

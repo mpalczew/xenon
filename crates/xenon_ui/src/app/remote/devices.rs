@@ -75,7 +75,6 @@ impl DeviceBook {
         if !self.pairing.as_ref().is_some_and(|c| c.matches(code, now)) {
             return None;
         }
-        // Single use; the sheet issues a fresh one if it is still open.
         self.pairing = None;
         let id = uuid_simple();
         let token = new_device_token();
@@ -140,7 +139,6 @@ impl DeviceBook {
 }
 
 fn uuid_simple() -> String {
-    // Token generator shape without its length: a fresh id, not a secret.
     new_device_token()[..32].to_string()
 }
 
@@ -174,7 +172,6 @@ mod tests {
         let device = book.pair(&code, "iPhone", now).unwrap();
         book.revoke_all();
         assert!(book.authenticate(&device.token).is_none());
-        // Old codes die with it: a fresh one is issued on next use.
         assert!(book.pair("000000", "x", now).is_none());
     }
 }

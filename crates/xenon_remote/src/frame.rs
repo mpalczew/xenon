@@ -261,9 +261,7 @@ mod tests {
         assert_eq!(add[&1].fg.as_deref(), Some("#ff0000"));
         let (_, lines) = frame(&msgs);
         assert_eq!(lines[0].1, vec![("ab".into(), 0), ("cd".into(), 1)]);
-        // Unchanged screen: nothing to send.
         assert!(enc.encode(&s).is_empty());
-        // A forced full frame re-declares styles (the old ones may be lost).
         enc.force_full();
         assert!(matches!(enc.encode(&s)[0], ServerMsg::Styles { .. }));
     }

@@ -84,7 +84,6 @@ fn recents_break_ties_among_equal_basename_matches() {
     fs::write(root.join("b/util.rs"), "").unwrap();
 
     let index = FileIndex::build(root);
-    // Without recents, order is path heuristics (a before b).
     let plain = index.query("util.rs", &[]);
     assert!(
         plain.iter().any(|m| m.path == *"a/util.rs")

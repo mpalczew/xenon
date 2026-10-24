@@ -34,7 +34,6 @@ pub fn build() -> Result<Fixture> {
         demo_root.join("NOTES.md"),
         "# Notes\n\n- terminal first\n- `cmd-p` opens files\n\n```rust\nfn ok() {}\n```\n",
     )?;
-    // Outside the demo workspace so the Files tree in other shots is unchanged.
     fs::create_dir_all(root.join("docs"))?;
     fs::write(root.join("docs/GUIDE.md"), GUIDE_MD)?;
     fs::write(

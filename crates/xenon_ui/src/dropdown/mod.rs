@@ -127,8 +127,6 @@ pub(crate) fn dropdown_control(
         } else {
             trigger(props.id, props.selected, props.open, cx).into_any_element()
         })
-        // Zero-height strip on the chosen edge of the trigger: the popover origin,
-        // so the list opens this frame (no bounds-tracker wait).
         .when(props.open, |panel| {
             let list = option_list(
                 ListProps {
@@ -146,23 +144,27 @@ pub(crate) fn dropdown_control(
                 (relative(1.), Anchor::TopLeft, px(4.))
             };
             panel.child(
-                div().absolute().top(edge).left_0().w_full().h(px(0.)).child(
-                    deferred(
-                        anchored()
-                            .anchor(anchor)
-                            .offset(point(px(0.), gap))
-                            // Never flip on its own: flipping would cover the field.
-                            .snap_to_window()
-                            .child(div().occlude().w(px(PANEL_WIDTH)).child(list)),
-                    )
-                    .with_priority(100),
-                ),
+                div()
+                    .absolute()
+                    .top(edge)
+                    .left_0()
+                    .w_full()
+                    .h(px(0.))
+                    .child(
+                        deferred(
+                            anchored()
+                                .anchor(anchor)
+                                .offset(point(px(0.), gap))
+                                .snap_to_window()
+                                .child(div().occlude().w(px(PANEL_WIDTH)).child(list)),
+                        )
+                        .with_priority(100),
+                    ),
             )
         })
 }
 
 fn popup_max_height(viewport_height: Pixels) -> Pixels {
-    // Half the window so either drop-down or flip-up can fit.
     let half = viewport_height / 2. - px(8.);
     half.max(px(LIST_MIN)).min(px(LIST_MAX))
 }
@@ -329,7 +331,6 @@ fn option_row(
     cx: &mut gpui::Context<SettingsView>,
 ) -> impl IntoElement {
     let colors = cx.theme().colors().clone();
-    // Same multi-channel selection language as elevated palettes / sidebar.
     let paint = crate::chrome::list_selection(&colors, highlighted);
     let background = if highlighted {
         paint.background

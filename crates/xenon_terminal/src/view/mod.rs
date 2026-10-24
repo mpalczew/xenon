@@ -341,8 +341,6 @@ impl TerminalView {
                 self._subscriptions
                     .push(cx.subscribe(&terminal, Self::on_terminal_event));
                 self.state = State::Ready(terminal);
-                // Run Task often adds a tab then injects immediately; flush what
-                // was queued while the PTY was still spawning.
                 if let Some(text) = self.pending_inject.take() {
                     self.send_text(&text, cx);
                 }
@@ -374,12 +372,7 @@ impl TerminalView {
                     cx.emit(TerminalEvent::Working);
                 }
                 self.arm_idle_check(cx);
-                // Scrollback moved; refresh match ranges without jumping, but
-                // do not restart the scan for every PTY chunk.
                 self.schedule_find_refresh(cx);
-                // PTY output can arrive much faster than the display can paint.
-                // Keep the latest terminal state and publish one repaint at a
-                // time so output cannot crowd keyboard events off the UI queue.
                 self.schedule_repaint(cx);
             }
             Event::CloseTerminal => {
@@ -437,8 +430,6 @@ impl TerminalView {
             terminal::MaybeNavigationTarget::PathLike(path_like) => {
                 match resolve_clicked_path(path_like) {
                     Some(path) => cx.emit(TerminalEvent::OpenPath(path)),
-                    // Not on disk relative to the PTY cwd (e.g. a bare `grid.rs`): let
-                    // the app fuzzy-resolve it against the workspace index.
                     None => cx.emit(TerminalEvent::ResolvePath(
                         strip_line_suffix(&path_like.maybe_path).to_string(),
                     )),
@@ -615,7 +606,6 @@ impl TerminalView {
             return None;
         };
         let terminal = terminal.read(cx);
-        // Bounds come from last layout (set_size); cell glyphs from live term.
         let snap = terminal.last_content();
         let cols = snap.terminal_bounds.num_columns() as u16;
         let rows = snap.terminal_bounds.num_lines() as u16;
@@ -656,11 +646,9 @@ impl TerminalView {
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        // Find bar owns keys when its input is focused.
         if self.find_bar_focused(window) {
             return;
         }
-        // Esc closes find when the terminal body is focused.
         if event.keystroke.key == "escape" && self.find_is_open() {
             self.close_find(window, cx);
             cx.stop_propagation();
@@ -1129,16 +1117,11 @@ mod mouse_policy_tests {
 
     #[test]
     fn cmd_steals_mouse_from_tui() {
-        // Click in app + ⌘: hover/click must not report to the program.
         assert!(inject_shift_for_host_drag(true, true, false, true, false));
-        // Click in app, no modifier: TUI keeps the mouse.
         assert!(!inject_shift_for_host_drag(true, true, false, false, false));
-        // Option-drag and Select text still steal.
         assert!(inject_shift_for_host_drag(true, true, true, false, false));
         assert!(inject_shift_for_host_drag(false, true, false, false, false));
-        // No mouse reporting: nothing to steal.
         assert!(!inject_shift_for_host_drag(true, false, false, true, false));
-        // Option released mid-drag: keep stealing until mouse-up.
         assert!(inject_shift_for_host_drag(true, true, false, false, true));
         assert!(!inject_shift_for_host_drag(true, false, false, false, true));
     }

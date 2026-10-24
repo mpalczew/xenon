@@ -259,7 +259,7 @@ fn cursor_bounds(
     }
     let display_line = cursor.point.line + offset;
     if display_line < 0 || display_line >= rows {
-        return None; // Scrolled out of the viewport.
+        return None;
     }
     let cell_origin = point(
         origin.x + cell_w * (cursor.point.column as f32),

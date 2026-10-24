@@ -304,7 +304,6 @@ impl XenonApp {
                     .and(a.fit)
                     .map(|(cols, rows)| (cols, rows, c.device_id.clone()))
             })
-            // Each dimension's minimum, so every phone's screen holds the grid.
             .reduce(|(c1, r1, d1), (c2, r2, _)| (c1.min(c2), r1.min(r2), d1))
             .map(|(cols, rows, device)| PhoneFit {
                 cols,

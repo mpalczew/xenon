@@ -46,7 +46,6 @@ impl XenonApp {
         match event {
             CommandPaletteEvent::Run(id) => {
                 self.command_palette = None;
-                // Restore before the command runs (drain order: focus then command).
                 self.deferred.pending_focus = self
                     .deferred
                     .restore_pane

@@ -168,9 +168,6 @@ impl CodexIdeServer {
             .to_ascii_lowercase();
         let selection = Arc::new(Mutex::new(None));
         let contexts = Arc::new(Mutex::new(HashMap::new()));
-        // A forced exit can leave the Unix socket path behind after its
-        // listener is gone. Reclaim only a path that is provably unreachable;
-        // a live listener remains untouched and is handled as a follower below.
         let stale_socket = socket_path.exists()
             && matches!(
                 std::os::unix::net::UnixStream::connect(&socket_path),
@@ -327,7 +324,6 @@ mod tests {
         let (tx, _rx) = async_channel::unbounded();
         let a = PathBuf::from("/xenon-test/a");
         let b = PathBuf::from("/xenon-test/b");
-        // Built by hand: `start` would also join the live Codex IPC socket.
         let mut server = IdeServer {
             endpoints: HashMap::new(),
             commands: tx,

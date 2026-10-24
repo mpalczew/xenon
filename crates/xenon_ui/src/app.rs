@@ -160,9 +160,6 @@ pub struct XenonApp {
     browser_focused: bool,
     /// Sidebar Git section: collapse, size, keyboard cursor.
     pub(crate) git: GitSectionState,
-    // Per-root fuzzy index shared by cmd-p and cmd-click resolution, built off
-    // the UI thread. `index_tasks` keeps in-flight builds alive, keyed by root so
-    // a new build for the same root replaces (cancels) the previous one.
     file_indexes: HashMap<PathBuf, Arc<FileIndex>>,
     index_tasks: HashMap<PathBuf, Task<()>>,
     /// Per-workspace recently opened editor paths (workspace-relative, MRU first).
@@ -189,7 +186,6 @@ pub struct XenonApp {
     files_section_animation: Option<Task<()>>,
     /// Dedicated settings window (cmd-,). None when closed or not yet opened.
     settings_window: Option<WindowHandle<SettingsView>>,
-    // Workspace being renamed inline, plus its editing field.
     renaming: Option<(RenameTarget, Entity<RenameView>)>,
     _rename_sub: Option<Subscription>,
     /// Right-click menu on a terminal or editor tab.
@@ -210,10 +206,8 @@ pub struct XenonApp {
     _workspace_create_sub: Option<Subscription>,
     _command_palette_sub: Option<Subscription>,
     _theme_picker_sub: Option<Subscription>,
-    // Per-terminal-tab attention (sidebar + tab chips). Workspace row is derived.
     attention: AttentionMap,
     _bell_subs: Vec<Subscription>,
-    // Editor selection → Claude IDE `selection_changed` push.
     _selection_subs: Vec<Subscription>,
     lsp: LspState,
     services: AppServices,
@@ -243,7 +237,6 @@ impl XenonApp {
     }
 
     fn queue_save_window_bounds(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // Trailing debounce: each move/resize restarts the timer; only the last wins.
         self.services.bounds_save_generation = self.services.bounds_save_generation.wrapping_add(1);
         let token = self.services.bounds_save_generation;
         self.services.bounds_save_task = Some(cx.spawn_in(window, async move |this, cx| {

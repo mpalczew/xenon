@@ -66,7 +66,6 @@ impl Orchestrator {
             );
         }
         let planned: Vec<String> = nodes.keys().cloned().collect();
-        // Sequence ordering adds an edge from each dependency to its predecessor.
         for def in &set.tasks {
             if def.depends_sequence && planned.contains(&def.label) {
                 for pair in def.depends_on.windows(2) {
@@ -88,7 +87,6 @@ impl Orchestrator {
     }
 
     fn check_cycles(&self) -> Result<(), String> {
-        // Kahn: repeatedly remove nodes with no remaining needs.
         let mut remaining: BTreeMap<&str, Vec<&str>> = self
             .nodes
             .iter()

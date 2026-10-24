@@ -152,7 +152,6 @@ impl XenonApp {
             log::info!("phone remote: port busy, waiting for the other Xenon");
             self.services.remote_port_busy_logged = true;
         }
-        // One attempt per task: a still-busy retry re-enters here and re-arms.
         self.services.remote_port_wait = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(PORT_RETRY).await;
             this.update(cx, |app, cx| {
@@ -319,7 +318,7 @@ impl XenonApp {
         let probe_network = runtime.ticks % NETWORK_EVERY == 0;
         self.broadcast_remote_dots(cx);
         if self.pairing_sheet.is_some() {
-            cx.notify(); // Countdown.
+            cx.notify();
         }
         if probe_network {
             self.reprobe_remote_network(cx);
@@ -416,7 +415,6 @@ impl XenonApp {
 
     fn authenticate_remote(&mut self, token: &str) -> Option<String> {
         let runtime = self.services.remote.as_mut()?;
-        // The other a/b slot may have revoked or paired devices meanwhile.
         runtime.devices.reload();
         let id = runtime.devices.authenticate(token)?;
         if runtime.devices.touch(&id)

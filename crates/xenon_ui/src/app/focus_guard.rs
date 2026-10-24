@@ -20,13 +20,11 @@ impl XenonApp {
         let home = window.window_handle();
         let replaying = std::rc::Rc::new(std::cell::Cell::new(false));
         let stranded_key = cx.intercept_keystrokes(move |event, window, cx| {
-            // A replay never repairs again, so a key can only be replayed once.
             if window.window_handle() != home || replaying.get() {
                 return;
             }
             let Some(app) = app.upgrade() else { return };
             if app.update(cx, |this, cx| this.ensure_keys_reach_app(window, cx)) {
-                // This key's dispatch path was fixed before the repair; replay it.
                 cx.stop_propagation();
                 let keystroke = event.keystroke.clone();
                 let replaying = replaying.clone();
@@ -51,7 +49,6 @@ impl XenonApp {
             window.focused(cx)
         );
         self.focus_workspace_leaf(Some(window), cx);
-        // The leaf itself may not be in the rendered frame; the shell always is.
         if !self.focus.contains_focused(window, cx) {
             self.focus.focus(window, cx);
         }

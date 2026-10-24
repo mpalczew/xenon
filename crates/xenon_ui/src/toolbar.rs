@@ -116,7 +116,6 @@ impl XenonApp {
             .child(tool_button(
                 ToolButton {
                     id: "tb-split-right",
-                    // Reversed vs earlier assign: Horizontal glyph = left|right panes.
                     glyph: Icon::SplitSquareHorizontal,
                     command: CommandId::SplitRight,
                     active: false,
@@ -394,8 +393,8 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     action_button(
         id,
         ActionButton::icon(icon(glyph, px(ICON)))
-                .hover_background(colors.element_hover)
-                .hover_text(colors.text),
+            .hover_background(colors.element_hover)
+            .hover_text(colors.text),
         cx,
         move |event, window: &mut Window, cx| {
             window.dispatch_action(boxed.boxed_clone(), cx);
@@ -419,7 +418,6 @@ fn tool_button(button: ToolButton, cx: &mut Context<XenonApp>) -> impl IntoEleme
     .bg(background)
     .text_color(fg)
     .aria_label(hint.clone())
-    // A click must not pull focus off the terminal or editor.
     .capture_any_mouse_down(|_, window, _| {
         window.prevent_default();
     })

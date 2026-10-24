@@ -158,7 +158,6 @@ pub(crate) fn warm_ui_font_families(cx: &App) {
         *guard = Some(if list.is_empty() {
             seed_ui_families()
         } else {
-            // Ensure system UI is always first / present.
             let mut out = list;
             let sys = SharedString::from(".SystemUIFont");
             if !out.iter().any(|n| n.as_ref() == sys.as_ref()) {

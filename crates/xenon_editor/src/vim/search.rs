@@ -242,7 +242,6 @@ impl VimState {
             return;
         };
         let mut pattern = draft.pattern;
-        // Empty `/` reuses the last pattern (classic vim).
         if pattern.is_empty() {
             if let Some(prev) = &self.search {
                 pattern = prev.pattern.clone();
@@ -253,7 +252,6 @@ impl VimState {
             }
         }
         self.search = Some(SearchState::new(pattern.clone(), draft.forward));
-        // Keep the incsearch landing spot when we already matched; otherwise jump.
         if draft.has_match {
             return;
         }
@@ -289,7 +287,6 @@ impl VimState {
             let from = buffer.cursor();
             pos = find(buffer.rope(), &pattern, from, forward);
             if let Some(p) = pos {
-                // Advance cursor so the next count iteration can leave this match.
                 buffer.set_cursor_raw(p);
             } else {
                 break;

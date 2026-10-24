@@ -69,7 +69,6 @@ async fn watch_git_dirt(
     tx: async_channel::Sender<DirtMsg>,
     rx: async_channel::Receiver<DirtMsg>,
 ) {
-    // Measure and install the watcher off the UI thread: both are sync I/O.
     let measured_roots = roots.clone();
     let snapshot = cx
         .background_executor()
@@ -90,7 +89,6 @@ async fn watch_git_dirt(
 
     let mut pending_roots: Option<Vec<(WorkspaceId, PathBuf)>> = None;
     loop {
-        // Apply a SetRoots deferred from an FS debounce, if any.
         if let Some(new_roots) = pending_roots.take() {
             if apply_set_roots(&app, cx, &mut watcher, &mut roots, new_roots)
                 .await
@@ -128,7 +126,6 @@ async fn apply_set_roots(
     roots: &mut Vec<(WorkspaceId, PathBuf)>,
     new_roots: Vec<(WorkspaceId, PathBuf)>,
 ) -> Result<(), ()> {
-    // Unwatch/watch is sync FSEvents work; never do it on the UI executor.
     let old = std::mem::take(roots);
     let old_ids: HashSet<WorkspaceId> = old.iter().map(|(id, _)| *id).collect();
     let mut owned = watcher.take();
@@ -145,7 +142,6 @@ async fn apply_set_roots(
     *roots = next_roots;
     let open: HashSet<WorkspaceId> = roots.iter().map(|(id, _)| *id).collect();
     prune_closed(app, cx, &open)?;
-    // Close-only: prune is enough. Remeasure only newly opened roots.
     let added: Vec<_> = roots
         .iter()
         .filter(|(id, _)| !old_ids.contains(id))
@@ -188,7 +184,6 @@ async fn handle_fs_burst(
                 }
             }
             DirtMsg::SetRoots(new_roots) => {
-                // Last SetRoots wins if several land during the debounce.
                 deferred_roots = Some(new_roots);
             }
         }

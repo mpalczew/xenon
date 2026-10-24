@@ -23,12 +23,10 @@ impl EditorView {
             }
             return;
         }
-        // Find bar owns keys when its input is focused.
         if self.find_bar_focused(window) {
             return;
         }
         self.cursor_blink.reset(cx, Self::blink_tick);
-        // Esc closes find when editor body is focused.
         if keystroke.key == "escape" && self.find_is_open() {
             self.close_find(window, cx);
             cx.stop_propagation();
@@ -71,7 +69,6 @@ impl EditorView {
             return;
         }
         if self.preview {
-            // Preview is read-only: select-all (above), copy, heading steps, and Esc/menu.
             if self.command_chord(keystroke, cx) && keystroke.key == "c" {
                 self.copy_selection(cx);
                 cx.stop_propagation();
@@ -107,7 +104,6 @@ impl EditorView {
             self.recompute_highlights();
             self.emit_buffer_changed(cx);
         } else {
-            // Move/Extend: push selection to Claude IDE bridge.
             self.emit_selection(cx);
             self.emit_cursor(cx);
         }
@@ -154,10 +150,8 @@ impl EditorView {
                 cx.notify();
                 return true;
             }
-            // Stay in draft prompt; don't fall through to buffer edits.
             return true;
         }
-        // Ctrl chords (not Cmd): number bump, visual-block.
         if keystroke.modifiers.control
             && !keystroke.modifiers.platform
             && !keystroke.modifiers.alt
@@ -202,7 +196,6 @@ impl EditorView {
             cx.notify();
             return true;
         }
-        // Insert-mode editing keys still use EditCommand.
         self.vim.mode != Mode::Insert
     }
 
@@ -249,8 +242,6 @@ impl EditorView {
         } else if result.handled {
             self.emit_cursor(cx);
         }
-        // If vim consumed the key as a command (e.g. `i` entering insert), do not
-        // also insert that character. Only plain typing in insert returns false.
         result.handled
     }
 
@@ -344,11 +335,9 @@ impl EditorView {
                 self.dragging = true;
             }
         }
-        // Mouse selection drops visual mode back to normal if vim is on.
         if xenon_settings::vim_mode(cx) && self.vim.mode.is_visual() {
             self.vim.mode = Mode::Normal;
         }
-        // Double/triple click finish selection without a drag; emit now.
         if click_count >= 2 {
             self.emit_selection(cx);
         }
@@ -387,7 +376,6 @@ impl EditorView {
     ) {
         if self.dragging {
             self.dragging = false;
-            // Collapse empty drag selections.
             if let Content::Text(buffer) = &mut self.content
                 && buffer.selection_range().is_none()
             {
@@ -400,7 +388,6 @@ impl EditorView {
 }
 
 fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand> {
-    // ⌘/⌥ navigation common on macOS (line / file / word).
     let motion = if keystroke.modifiers.platform {
         match keystroke.key.as_str() {
             "left" => Some(Motion::LineStart),
@@ -416,7 +403,6 @@ fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand>
             _ => None,
         }
     } else if cfg!(not(target_os = "macos")) && keystroke.modifiers.control {
-        // Linux/IDE convention: ctrl moves by word, ctrl-home/end by file.
         match keystroke.key.as_str() {
             "left" => Some(Motion::WordLeft),
             "right" => Some(Motion::WordRight),

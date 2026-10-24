@@ -237,7 +237,6 @@ fn websocket_hello_ready_and_forwarding() {
         }
     );
 
-    // Host push reaches the phone.
     mock.outboxes.lock().unwrap()[0].try_send(ServerMsg::History {
         lines: vec!["old".into()],
     });
@@ -311,7 +310,6 @@ fn busy_port_is_reported_and_freed_on_drop() {
     let second = RemoteServer::start(&["127.0.0.1".parse().unwrap()], port, tx.clone());
     assert!(matches!(second, Err(StartError::PortBusy)));
     drop(server);
-    // Drop joined the listener: the port is free immediately.
     let third = RemoteServer::start(&["127.0.0.1".parse().unwrap()], port, tx);
     assert!(third.is_ok());
 }
@@ -329,7 +327,7 @@ fn upload(port: u16, content_type: &str, body: &[u8], token: Option<&str>) -> St
         body.len()
     );
     stream.write_all(head.as_bytes()).unwrap();
-    let _ = stream.write_all(body); // A refused upload may close before the body lands.
+    let _ = stream.write_all(body);
     let mut raw = Vec::new();
     let _ = stream.read_to_end(&mut raw);
     String::from_utf8_lossy(&raw).into_owned()

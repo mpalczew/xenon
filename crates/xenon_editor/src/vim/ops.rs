@@ -31,7 +31,6 @@ impl VimState {
             return self.visual_operator(buffer, op);
         }
         if self.operator == Some(op) {
-            // dd / cc / yy / >> / << / == — same as operator + line motion `_`.
             return self.finish_motion(buffer, Motion::Line, count);
         }
         self.begin_operator(op);
@@ -74,7 +73,6 @@ impl VimState {
             self.operator_count = 0;
             self.count = 0;
             let effective = op_count.saturating_mul(count);
-            // Indent family is always linewise in classic vim (`>w` still whole lines).
             let force_line = matches!(
                 op,
                 Operator::Indent | Operator::Outdent | Operator::Reindent
@@ -97,12 +95,10 @@ impl VimState {
             return self.apply_range(buffer, op, range, force_line || motion.is_linewise());
         }
         if self.mode == Mode::VisualBlock {
-            // Head moves; anchor corner stays put. Desired column is free to go past EOL.
             let target = motion::apply(buffer.rope(), buffer.cursor(), &motion, count);
             buffer.set_cursor_raw(target);
             buffer.clear_selection();
         } else if self.mode.is_visual() {
-            // Motions run from the inclusive head (cursor is exclusive end in char visual).
             let from = if self.mode == Mode::Visual {
                 visual_head_pos(buffer)
             } else {
@@ -121,12 +117,10 @@ impl VimState {
                 }
                 buffer.set_selection(start, end);
             } else {
-                // Half-open range; fixed inclusive start is prior.start (or current head).
                 let prior = buffer.selection_range();
                 let fixed = prior.as_ref().map(|r| r.start).unwrap_or(from);
                 let excl = visual_excl_end(buffer, target);
                 if excl <= fixed {
-                    // Moving left of fixed: select target..=fixed.
                     let fixed_excl = visual_excl_end(buffer, fixed);
                     buffer.set_selection(target, fixed_excl);
                 } else {
@@ -149,7 +143,6 @@ impl VimState {
         object: Object,
     ) -> HandleResult {
         let Some(op) = self.operator.take() else {
-            // Visual object expand
             if let Some(range) = object.range(buffer.rope(), buffer.cursor()) {
                 buffer.set_selection(range.start, range.end);
                 self.mode = Mode::Visual;
@@ -224,7 +217,6 @@ impl VimState {
                     system_clipboard = Some(text.clone());
                 }
                 self.registers.delete(&text, linewise);
-                // `c` delete + insert until Esc is one undo step (vim).
                 if op == Operator::Change {
                     buffer.set_undo_group(true);
                 }
@@ -367,7 +359,6 @@ impl VimState {
         before: bool,
     ) -> HandleResult {
         if self.mode == Mode::VisualBlock {
-            // Paste register into the block: keep register, delete to black hole.
             let content = self.registers.paste();
             self.registers.set_pending('_');
             let _ = self.block_operator(buffer, Operator::Delete);

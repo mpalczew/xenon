@@ -59,8 +59,6 @@ impl XenonApp {
             )
         });
         let entity = cx.entity();
-        // Pin trailing chrome (+, wrap, md preview). Overflow count sits in the
-        // chip row so + stays visible.
         div()
             .flex()
             .items_center()

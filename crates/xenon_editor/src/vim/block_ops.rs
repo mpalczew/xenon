@@ -16,7 +16,6 @@ impl VimState {
             self.block_anchor = None;
             return handled(false);
         };
-        // Indent family acts on whole lines covered by the block.
         if matches!(
             op,
             Operator::Indent | Operator::Outdent | Operator::Reindent
@@ -56,7 +55,6 @@ impl VimState {
                 if op == Operator::Change {
                     buffer.set_undo_group(true);
                 }
-                // Delete bottom-up so earlier offsets stay valid.
                 for range in ranges.into_iter().rev() {
                     if range.start < range.end {
                         buffer.replace_range(range, "");
@@ -101,12 +99,10 @@ impl VimState {
         let other_rows: Vec<usize> = (corners.min_row..=corners.max_row)
             .filter(|&r| r != typed_row)
             .collect();
-        // Place cursor on top line at insert column (pad if past EOL).
         let rope = buffer.rope();
         let line_start = rope.line_to_char(typed_row.min(rope.len_lines().saturating_sub(1)));
         let len = block::line_content_len(rope, typed_row);
         if col > len {
-            // Pad top line so insert sits at the block column.
             let pad: String = std::iter::repeat_n(' ', col - len).collect();
             buffer.set_cursor_raw(line_start + len);
             buffer.clear_selection();
@@ -192,14 +188,12 @@ pub(in crate::vim) fn paste_blockwise(
         col = col.saturating_add(1);
     }
     let need_rows = start_row + parts.len();
-    // Ensure enough lines exist (rope always has ≥1 line).
     while buffer.rope().len_lines() < need_rows {
         let len = buffer.rope().len_chars();
         buffer.set_cursor_raw(len);
         buffer.clear_selection();
         buffer.replace_selection("\n");
     }
-    // Bottom-up so earlier row inserts do not shift later targets.
     for (i, part) in parts.iter().enumerate().rev() {
         let row = start_row + i;
         let line_start = buffer.rope().line_to_char(row);

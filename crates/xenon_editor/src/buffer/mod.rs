@@ -195,8 +195,6 @@ impl Buffer {
         if edit.old.is_empty() && edit.new.is_empty() {
             return;
         }
-        // One version bump per undo step: first edit in an open group, or each
-        // ungrouped edit. Later keystrokes in the same insert session share it.
         let version_before = if self.undo.group_has_edits() {
             self.version.saturating_sub(1)
         } else {

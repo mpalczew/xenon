@@ -301,7 +301,6 @@ fn options_of(v: Option<&Value>) -> TaskOptions {
 
 fn presentation_of(t: &Map<String, Value>) -> Presentation {
     let mut p = Presentation::default();
-    // Legacy 0.1.0 fields first; `presentation` wins.
     match t.get("showOutput").and_then(Value::as_str) {
         Some("silent") => p.reveal = Reveal::Silent,
         Some("never") => p.reveal = Reveal::Never,

@@ -42,7 +42,6 @@ impl Readiness {
             Some(b) => (compile(&b.begins), compile(&b.ends), b.active_on_start),
             None => (None, None, false),
         };
-        // Without a begins pattern there is nothing to wait for before ends.
         let active = active_on_start || begins.is_none();
         Self {
             begins,

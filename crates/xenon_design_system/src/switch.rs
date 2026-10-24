@@ -77,7 +77,6 @@ fn knob(id: &ElementId, on: bool, animate: bool, tracks: [Hsla; 2]) -> AnyElemen
         Animation::new(Duration::from_millis(180)),
         move |face, t| face.left(px(INSET + start + (rest - start) * settle(t))),
     );
-    // The track color crossfades under the knob.
     div()
         .absolute()
         .top_0()

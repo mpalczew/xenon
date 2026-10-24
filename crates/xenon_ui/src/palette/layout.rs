@@ -104,7 +104,6 @@ pub(crate) fn reveal_selected(scroll: &ScrollHandle, selected: usize) {
         return;
     }
 
-    // No child metrics yet (first open / empty handle): estimate from a row.
     let row = px(PALETTE_ROW_H);
     let view_h = if viewport.size.height > px(0.) {
         viewport.size.height

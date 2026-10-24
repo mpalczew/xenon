@@ -87,7 +87,6 @@ fn display_token(token: &str, platform: Platform) -> String {
     match Chord::from_glyphs(&normalized) {
         Some(_) => {
             let shown = display_for(&normalized, platform);
-            // macOS keeps the author's words (`⌘return`) unless the user rebound it.
             if platform == Platform::Mac && shown == normalized {
                 token.to_owned()
             } else {

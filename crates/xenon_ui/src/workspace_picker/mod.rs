@@ -163,7 +163,6 @@ impl WorkspacePickerView {
     }
 
     fn add_exact_path(&self, results: &mut Vec<WorkspaceCandidate>) {
-        // Cheap existence check first; canonicalize only on confirm.
         let Some(expanded) = expand_user_path(&self.query) else {
             return;
         };
@@ -253,9 +252,7 @@ impl WorkspacePickerView {
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
-        // Include missing closed rows so ⌘⌫ can target them.
         if delta > 0 && self.typed_folder_selected() {
-            // The typed folder is the row above the list; stepping down leaves it.
             self.moved = true;
             cx.notify();
             return;
@@ -328,7 +325,6 @@ impl WorkspacePickerView {
         };
         self.known.retain(|c| c.workspace_id() != Some(id));
         self.refilter();
-        // Keep selection in range after drop.
         if self.selected >= self.results.len() && !self.results.is_empty() {
             self.selected = self.results.len() - 1;
         }

@@ -32,7 +32,6 @@ fn undo_to_saved_state_clears_dirty() {
     assert!(buffer.undo());
     assert_eq!(buffer.text(), "hello");
     assert!(!buffer.is_dirty());
-    // Redo dirties again; second undo cleans again.
     assert!(buffer.redo());
     assert_eq!(buffer.text(), "hello!");
     assert!(buffer.is_dirty());
@@ -109,7 +108,7 @@ fn deleted_file_marks_dirty() {
     let file = file_with("gone\n");
     let path = file.path().to_path_buf();
     let mut buffer = Buffer::open(&path).unwrap();
-    drop(file); // removes the temp file
+    drop(file);
     assert_eq!(buffer.check_external().unwrap(), ExternalState::Deleted);
     assert!(buffer.is_dirty());
 }

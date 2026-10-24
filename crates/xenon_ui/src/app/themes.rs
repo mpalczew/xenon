@@ -47,7 +47,6 @@ impl XenonApp {
     ) {
         match event {
             ThemePickerEvent::Dismissed => {
-                // The panel already kept or reverted; do not revert again.
                 self.theme_picker = None;
                 self.restore_focus_after_theme_picker(cx);
             }

@@ -97,8 +97,6 @@ impl XenonApp {
             cx.propagate();
             return;
         };
-        // The file may have changed since the card was drawn: approve only
-        // what is on disk now if it is what the user saw.
         let current = self.load_tasks(prompt.workspace).ok();
         let still_same = current
             .as_ref()

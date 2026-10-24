@@ -21,7 +21,6 @@ pub(crate) fn load(root: &Path, file: &GitFile) -> DiffDoc {
         paths.insert(0, from);
     }
     let against_head = git_diff(root, &["HEAD"], &paths);
-    // Only an empty net diff needs the two halves.
     let (staged, unstaged) = if against_head.trim().is_empty() {
         (
             git_diff(root, &["--cached"], &paths),

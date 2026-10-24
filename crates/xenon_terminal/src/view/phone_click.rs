@@ -30,8 +30,6 @@ impl TerminalView {
                 if cell_w == px(0.) || line_h == px(0.) {
                     return false;
                 }
-                // num_columns rounds the same way the grid is built. A plain
-                // cast drops the last cell when n * cell / cell is n - epsilon.
                 let cols = bounds.num_columns() as u16;
                 let rows = bounds.num_lines() as u16;
                 (bounds.bounds.origin, cell_w, line_h, cols, rows)

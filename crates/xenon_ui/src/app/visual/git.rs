@@ -88,8 +88,6 @@ pub(super) fn sidebar_markers(
         .map(|w| w.id)
         .filter(|id| Some(*id) != app.active)
         .collect();
-    // demo: selected, working, dirty. agents: needs you, dirty.
-    // homelab: working, index-only. library: idle, dirty. aipm: clean.
     let plan = [
         (
             WorkspaceDot::Attention("Idle after busy output"),
@@ -112,7 +110,6 @@ pub(super) fn sidebar_markers(
         };
         app.services.git_dirt.insert(*id, git);
     }
-    // library is idle (no status) with a dirty tree; aipm is clean and quiet.
     if let [_, _, library, aipm] = others[..] {
         app.services.visual_status.remove(&library);
         app.services.visual_status.remove(&aipm);

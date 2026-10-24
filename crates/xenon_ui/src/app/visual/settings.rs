@@ -10,7 +10,6 @@ pub(super) fn page(app: &mut XenonApp, scene: Scene, cx: &mut Context<XenonApp>)
     let (page, query) = match scene {
         Scene::SettingsEditor => (SettingsPage::Editor, ""),
         Scene::SettingsLanguageServers => (SettingsPage::LanguageServers, ""),
-        // A broad query: results must overflow and scroll, not squash.
         Scene::SettingsSearch => (SettingsPage::Appearance, "k"),
         _ => (SettingsPage::Appearance, ""),
     };

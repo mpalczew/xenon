@@ -367,7 +367,6 @@ fn paint_qr(bounds: Bounds<Pixels>, width: usize, dark: &[bool], window: &mut Wi
             bounds.origin.x + module * x as f32,
             bounds.origin.y + module * y as f32,
         );
-        // Slight overlap hides hairline seams between adjacent modules.
         let side = module + px(0.5);
         window.paint_quad(fill(Bounds::new(origin, size(side, side)), gpui::black()));
     }

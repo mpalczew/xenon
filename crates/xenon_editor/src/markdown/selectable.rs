@@ -187,23 +187,18 @@ impl Element for SelectableBlock {
                     return;
                 }
                 let layout_bounds = text_layout.bounds();
-                // Prefer exact hit; for vertical bands (stacked paragraphs) allow
-                // x past ends so drag keeps updating. Side-by-side table cells use
-                // contains so neighbors do not steal each other.
                 let in_band = event.position.y >= layout_bounds.top()
                     && event.position.y <= layout_bounds.bottom();
                 let exact = layout_bounds.contains(&event.position);
                 if !exact && !in_band {
                     return;
                 }
-                if in_band && !exact {
-                    // Another block may own this x (table cell). Only claim if x is
-                    // inside our horizontal span (with a small edge grace).
-                    if event.position.x < layout_bounds.left()
-                        || event.position.x > layout_bounds.right()
-                    {
-                        return;
-                    }
+                if in_band
+                    && !exact
+                    && (event.position.x < layout_bounds.left()
+                        || event.position.x > layout_bounds.right())
+                {
+                    return;
                 }
                 let offset = text_layout
                     .index_for_position(event.position)

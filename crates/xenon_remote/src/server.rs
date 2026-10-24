@@ -200,7 +200,7 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
         };
         if shared.active.fetch_add(1, Ordering::SeqCst) >= MAX_CONNECTIONS {
             shared.active.fetch_sub(1, Ordering::SeqCst);
-            continue; // Dropped: too many open connections.
+            continue;
         }
         let shared = shared.clone();
         thread::spawn(move || {

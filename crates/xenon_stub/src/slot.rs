@@ -97,7 +97,6 @@ mod tests {
                 slot: None,
             }
         );
-        // A marker naming a slot whose dir is missing also falls back.
         fs::write(home.join(".xenon-active-slot"), "b").unwrap();
         assert_eq!(
             resolve_slot_launch(&home, None).data_dir,

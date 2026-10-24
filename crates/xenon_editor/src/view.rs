@@ -351,8 +351,6 @@ impl EditorView {
         let size = px(xenon_settings::editor_font(cx).size);
         let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
         let delta = event.delta.pixel_delta(line_height);
-        // Lower-bound only; the upper bound needs the viewport height, so `layout`
-        // clamps it against the content each frame.
         self.scroll_top = (self.scroll_top - delta.y).max(px(0.));
         self.scroll_left = (self.scroll_left - delta.x).max(px(0.));
         cx.notify();
@@ -435,7 +433,6 @@ impl Render for EditorView {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
-        // Catch disk changes when this view paints (focus/tab switch).
         self.sync_from_disk(cx);
         let cursor_focused = self.focus.is_focused(window)
             && window.is_window_active()

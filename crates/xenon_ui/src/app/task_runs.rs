@@ -171,8 +171,6 @@ impl XenonApp {
             root_label: req.label,
             new_tab: req.new_tab,
             origin: req.origin,
-            // File variables read the Mac's active editor pane, which only
-            // belongs to the workspace on screen.
             editor: (self.active == Some(req.workspace))
                 .then(|| self.editor_info(cx))
                 .flatten(),
@@ -220,7 +218,6 @@ impl XenonApp {
                 .and_then(|r| r.plan.loaded.get(&label))
                 .is_some_and(|d| d.command.is_none());
             if composite {
-                // Only dependsOn: nothing to run once its dependencies are done.
                 if let Some(run) = self.run_mut(run_id) {
                     queue.extend(run.plan.orch.satisfied(&label));
                 }
@@ -379,7 +376,6 @@ impl XenonApp {
                 return;
             };
             let fresh: Vec<&str> = lines.iter().skip(*seen).map(String::as_str).collect();
-            // The last line may still be growing: look at it again next time.
             *seen = lines.len().saturating_sub(1);
             let ready = readiness.feed(&fresh);
             l.ready |= ready;

@@ -33,8 +33,6 @@ impl SettingsView {
             cx.stop_propagation();
             return;
         }
-        // Keys a focused child input left alone (plain characters, space) bubble
-        // here; they belong to that input, not to row navigation or type-to-search.
         if modifiers.control
             || modifiers.alt
             || modifiers.function
@@ -116,7 +114,6 @@ impl SettingsView {
             Control::Field { field, value, .. } => self.begin_field_edit(field, value, window, cx),
             Control::Action(action) => (action.run)(window, cx),
             Control::None | Control::Value(_) => {
-                // Search results jump to their page; plain rows have nothing to do.
                 if !self.query.is_empty() {
                     self.reveal(located.page, located.index, window, cx);
                 }

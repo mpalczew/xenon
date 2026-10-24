@@ -19,7 +19,6 @@ pub fn build_search(query: &str, options: FindOptions) -> Result<Option<Search>,
     if query.is_empty() {
         return Ok(None);
     }
-    // Bare `.` matches everything in regex mode; treat as no-op (matches zed).
     if options.regex && query == "." {
         return Ok(None);
     }
@@ -31,8 +30,6 @@ pub fn build_search(query: &str, options: FindOptions) -> Result<Option<Search>,
     if options.whole_word {
         pattern = format!(r"\b(?:{pattern})\b");
     }
-    // Alacritty smartcase: CI unless the pattern has an uppercase letter.
-    // Force CI by lowercasing when Match case is off.
     if !options.case_sensitive {
         pattern = pattern.to_lowercase();
     }
@@ -61,7 +58,6 @@ mod tests {
     #[test]
     fn search_building_and_stepping() {
         assert!(matches!(build_search("", FindOptions::default()), Ok(None)));
-        // `+` is regex meta; a literal search must escape it and still build.
         assert!(
             build_search("a+", FindOptions::default())
                 .unwrap()

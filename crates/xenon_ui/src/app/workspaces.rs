@@ -18,13 +18,11 @@ impl XenonApp {
         }
         if let Some(workspace_id) = self.workspace_for_path(&path) {
             self.focus_workspace(workspace_id, cx);
-        } else if self.active.is_none() {
-            // No current workspace: open the file's parent as a workspace root.
-            if let Some(parent) = path.parent() {
-                self.register_workspace(parent.to_path_buf(), cx);
-            }
+        } else if self.active.is_none()
+            && let Some(parent) = path.parent()
+        {
+            self.register_workspace(parent.to_path_buf(), cx);
         }
-        // Else: keep current workspace even when the file is outside it.
         self.open_editor(path, true, cx);
     }
 
@@ -98,8 +96,6 @@ impl XenonApp {
                 last_opened: rec.last_opened.unwrap_or(0),
             });
         }
-        // Keyboard: jump among open workspaces, excluding the current one.
-        // Plus: only closed/discover — open ones are already in the sidebar.
         if mode == WorkspacePickerMode::Keyboard {
             for rec in &self.registry.workspaces {
                 if current == Some(rec.id) {
@@ -199,8 +195,6 @@ impl XenonApp {
                 self.workspace_picker = None;
                 self.deferred.restore_pane = None;
                 self.apply_workspace_pick(candidate, cx);
-                // Overlay is gone; land on the active workspace's leaf, not the
-                // previous workspace. No Window here — drain on next paint.
                 self.focus_workspace_leaf(None, cx);
             }
             WorkspacePickerEvent::Forget(id) => {
@@ -260,7 +254,6 @@ impl XenonApp {
             }
             WorkspaceCandidate::Closed { id, .. } => self.reopen_workspace(*id, cx),
             WorkspaceCandidate::Path { root, .. } => self.register_workspace(root.clone(), cx),
-            // The picker handles these itself (step into a host, open over SSH).
             WorkspaceCandidate::Host { .. }
             | WorkspaceCandidate::Scheme { .. }
             | WorkspaceCandidate::Remote { .. } => {}
@@ -309,7 +302,6 @@ impl XenonApp {
             self.reopen_workspace(record.id, cx);
             return;
         }
-        // Drop stale closed entries with same basename but missing path.
         let basename = root.file_name().map(|n| n.to_os_string());
         if let Some(base) = basename {
             self.registry.closed_workspaces.retain(|rec| {
@@ -403,7 +395,6 @@ impl XenonApp {
         self.sessions.remove(&id);
         self.attention.clear_workspace(id);
         self.recent_files.remove(&id);
-        // Drop the finder index for this root so it can be rebuilt if reopened.
         self.file_indexes.remove(&record.root);
         self.index_tasks.remove(&record.root);
         self.services.git_dirt.remove(&id);
@@ -429,7 +420,6 @@ impl XenonApp {
             }
         }
         cx.notify();
-        // Yield once so the sidebar/main panel repaint, then drop PTYs/editors.
         cx.spawn(async move |_app, cx| {
             cx.background_executor()
                 .timer(std::time::Duration::ZERO)
@@ -460,7 +450,6 @@ impl XenonApp {
         else {
             return false;
         };
-        // Never reopen a root that no longer exists on disk.
         if self.registry.closed_workspaces[index].ssh.is_none()
             && !crate::workspace_discover::path_is_dir(&self.registry.closed_workspaces[index].root)
         {

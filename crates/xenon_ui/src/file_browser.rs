@@ -216,9 +216,7 @@ fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool, bool)> {
             let name = entry.file_name().to_string_lossy().into_owned();
             let path = entry.path();
             let ft = entry.file_type().ok();
-            // DirEntry::file_type is the link itself, not the target.
             let is_symlink = ft.as_ref().is_some_and(|t| t.is_symlink());
-            // Follow the link so symlink→dir still expands as a folder.
             let is_dir = if is_symlink {
                 path.is_dir()
             } else {

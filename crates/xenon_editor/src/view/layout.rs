@@ -73,7 +73,6 @@ fn layout(
         Content::Image(_) | Content::Unsupported { .. } => 0,
     };
     let content_height = line_height * (lines as f32);
-    // Wrapped height is known only after layout. Don't clamp to buffer lines first.
     let max_scroll = if soft_wrap {
         px(f32::MAX / 4.)
     } else {

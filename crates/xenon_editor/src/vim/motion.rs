@@ -85,7 +85,6 @@ impl Motion {
 pub fn apply(rope: &Rope, cursor: usize, motion: &Motion, count: usize) -> usize {
     let count = count.max(1);
     if matches!(motion, Motion::Line) {
-        // `_` / `dd`: count 1 is this line; extra count walks down.
         let mut pos = cursor;
         for _ in 1..count {
             pos = vertical(rope, pos, 1);
@@ -102,7 +101,6 @@ pub fn apply(rope: &Rope, cursor: usize, motion: &Motion, count: usize) -> usize
 fn step(rope: &Rope, cursor: usize, motion: &Motion) -> usize {
     let len = rope.len_chars();
     match motion {
-        // Classic vim: h/l do not wrap across lines (no whichwrap).
         Motion::Left => {
             if len == 0 {
                 0
@@ -115,7 +113,6 @@ fn step(rope: &Rope, cursor: usize, motion: &Motion) -> usize {
             if len == 0 {
                 0
             } else {
-                // Last content char (never the newline); `l` does not wrap.
                 let max = line_end(rope, cursor);
                 if cursor >= max { cursor } else { cursor + 1 }
             }
@@ -335,7 +332,6 @@ pub fn operator_range(
     motion: &Motion,
     count: usize,
 ) -> std::ops::Range<usize> {
-    // `$` / `D`: through last content char only — never the newline (no line join).
     if matches!(motion, Motion::LineEnd) {
         let end = line_end_exclusive(rope, cursor);
         let start = cursor.min(end);
@@ -347,7 +343,6 @@ pub fn operator_range(
         let b = selection::line_range_at(rope, target);
         let start = a.start.min(b.start);
         let end_line = selection::line_range_at(rope, target.max(cursor));
-        // Include newline after the last line when possible.
         let mut end = end_line.end.max(a.end);
         if end < rope.len_chars() && rope.char(end) == '\n' {
             end += 1;
@@ -359,11 +354,11 @@ pub fn operator_range(
     } else {
         (target, cursor)
     };
-    if matches!(motion.kind(), MotionKind::Inclusive) && end < rope.len_chars() {
-        // Inclusive endpoint is a character index; include it, but never a newline.
-        if rope.char(end) != '\n' {
-            end = (end + 1).min(rope.len_chars());
-        }
+    if matches!(motion.kind(), MotionKind::Inclusive)
+        && end < rope.len_chars()
+        && rope.char(end) != '\n'
+    {
+        end = (end + 1).min(rope.len_chars());
     }
     if start == end && end < rope.len_chars() && rope.char(end) != '\n' {
         end += 1;

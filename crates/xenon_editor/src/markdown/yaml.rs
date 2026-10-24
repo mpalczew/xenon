@@ -56,7 +56,6 @@ fn pairs_panel(
         .flex_col()
         .gap_2();
     for (key, value) in pairs {
-        // Keys/values share the frontmatter source range (block-granular copy).
         let key_s = SharedString::from(key);
         let val_s = SharedString::from(value);
         plains.push(key_s.clone());
@@ -178,7 +177,6 @@ pub(super) fn split_simple_yaml_pairs(body: &str) -> Option<Vec<(String, String)
         current_key = Some(key.to_string());
 
         let rest = rest.trim();
-        // Drop common block/fold markers; keep any remaining same-line value.
         let rest = rest
             .strip_prefix(">-")
             .or_else(|| rest.strip_prefix("|-"))

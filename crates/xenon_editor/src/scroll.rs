@@ -86,7 +86,6 @@ pub fn follow_viewport(
     let h_bar = content_width > view_w;
     if h_bar {
         view_h = (view_h - bar).max(px(0.));
-        // H track can force a V bar that was not needed on the full height.
         if !v_bar && content_height > view_h {
             view_w = (text_width - bar).max(px(0.));
         }
@@ -162,7 +161,6 @@ mod tests {
 
     #[test]
     fn down_past_bottom_scrolls() {
-        // Viewport shows rows 0..9 (10 lines of height 10 = 100).
         let next = keep_row_visible(px(0.), 10, px(10.), px(100.));
         assert_eq!(next, px(10.));
     }
@@ -176,8 +174,6 @@ mod tests {
 
     #[test]
     fn newline_at_bottom_clears_horizontal_bar() {
-        // Full height 100, H bar 8 → follow height 92. Cursor row 9 (y 90..100)
-        // must scroll so row bottom is at 92, not under the bar.
         let bar = px(8.);
         let (_w, view_h) = follow_viewport(px(200.), px(100.), px(400.), px(50.), bar);
         assert_eq!(view_h, px(92.));

@@ -11,7 +11,6 @@ use gpui::{App, Global, actions};
 use xenon_store::AppSettings;
 pub use xenon_store::{DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
-// Shared edit actions (app menu, keybindings, context menus).
 actions!(
     xenon_clipboard,
     [Cut, Copy, CopyClean, CopyCode, Paste, SelectAll]
@@ -77,7 +76,6 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
         dark: settings.dark_theme.clone(),
     });
     if healed {
-        // Persist alias / fallback so settings.json stops shipping a bad name.
         save(cx);
     }
 }

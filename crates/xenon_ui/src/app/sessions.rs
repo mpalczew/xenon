@@ -105,7 +105,6 @@ impl XenonApp {
             root: Some(live_root),
             focused: session.content.focused,
         };
-        // Repair focus
         let leaves = content.leaf_ids();
         if content.focused.is_none_or(|f| !leaves.contains(&f)) {
             content.focused = leaves.first().copied();
@@ -164,7 +163,6 @@ impl XenonApp {
                     }
                 }
                 if tabs.is_empty() && !leaf.parked {
-                    // Keep leaf valid with a terminal.
                     let view = self.spawn_terminal_for(
                         root.to_path_buf(),
                         (workspace, TabId(leaf.id.0.saturating_mul(1000) + 1)),
@@ -270,7 +268,6 @@ impl XenonApp {
                         if let Some((workspace, tab)) = owner {
                             this.flag_attention(workspace, tab, AttentionReason::IdleSettled, cx);
                         }
-                        // Sibling may still be working; still repaint this tab's pip.
                         this.refresh_terminal_status(cx);
                     }
                     TerminalEvent::Interacted => {

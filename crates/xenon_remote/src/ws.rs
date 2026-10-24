@@ -95,7 +95,7 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
 /// Browsers always send Origin on WebSocket; it must be this server.
 fn same_origin(req: &Request) -> bool {
     let Some(origin) = req.headers.get("origin") else {
-        return true; // Non-browser client (tests, curl).
+        return true;
     };
     let host = req.headers.get("host").map(String::as_str).unwrap_or("");
     origin == &format!("http://{host}")
@@ -161,7 +161,6 @@ impl Session {
                     return Ok(());
                 }
             }
-            // Drain buffered input as well as the kernel socket before waiting again.
             loop {
                 match read(socket) {
                     Read::Msg(ClientMsg::Ping) => send(socket, &ServerMsg::Pong)?,
@@ -183,7 +182,6 @@ impl Session {
             self.poll
                 .registry()
                 .reregister(&mut self.readiness, Token(0), interest)?;
-            // The timeout only checks server shutdown; input and output wake immediately.
             match self.poll.poll(&mut events, Some(Duration::from_secs(1))) {
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
                 result => result?,
@@ -298,7 +296,6 @@ fn read(socket: &mut WebSocket<TcpStream>) -> Read {
                 std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
             ) =>
         {
-            // Flush any queued pong the read produced.
             let _ = socket.flush();
             Read::Idle
         }

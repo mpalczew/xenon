@@ -176,7 +176,6 @@ pub(crate) fn resolve_section_height(raw: f32, sidebar_h: f32) -> f32 {
 
 /// Content-sized Workspaces list height (no artificial cap).
 pub(crate) fn workspaces_body_content_height(workspace_count: usize, row_h: f32) -> f32 {
-    // rows + the thin drop strip; the list intentionally has no trailing pad.
     let content = workspace_count as f32 * row_h + 2.;
     content.max(MIN_WORKSPACES_BODY)
 }

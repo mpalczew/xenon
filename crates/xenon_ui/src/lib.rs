@@ -86,7 +86,6 @@ actions!(
         TogglePreview,
         ToggleSoftWrap,
         ToggleMemory,
-        // Keyboard-first navigation
         FocusTerminal,
         FocusEditor,
         FocusBrowser,

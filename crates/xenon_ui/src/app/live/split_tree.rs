@@ -47,7 +47,6 @@ impl LiveNode {
                 *sizes = s;
             }
             Err(Some(only)) => *self = only,
-            // Unreachable: a split always has children.
             Err(None) => {}
         }
     }
@@ -58,7 +57,6 @@ impl LiveNode {
             Self::Leaf(l) => (l.id == leaf).then_some((0, None)),
             Self::Split { axis, children, .. } => children.iter().find_map(|c| {
                 let (depth, parent) = c.split_context(leaf)?;
-                // The nearest enclosing split is the parent.
                 Some((depth + 1, parent.or(Some((*axis, children.len())))))
             }),
         }

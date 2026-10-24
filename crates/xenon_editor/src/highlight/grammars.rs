@@ -45,7 +45,6 @@ static MARKDOWN_INLINE: LazyLock<Option<HighlightConfiguration>> = LazyLock::new
         Language::new(tree_sitter_md::INLINE_LANGUAGE),
         "markdown_inline",
         include_str!("../../queries/markdown/highlights_inline.scm"),
-        // Inline HTML / latex injections from upstream if present; empty is fine.
         tree_sitter_md::INJECTION_QUERY_INLINE,
     )
 });

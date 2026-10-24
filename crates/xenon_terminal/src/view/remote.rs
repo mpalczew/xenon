@@ -208,7 +208,6 @@ impl TerminalView {
             return;
         }
         if was_active {
-            // Next paint lays out at the desktop size again.
             cx.notify();
         }
         self.arm_phone_fit_timer(cx);

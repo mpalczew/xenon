@@ -69,7 +69,6 @@ impl ToastView {
             toast,
             generation: self.generation,
             remaining: LIFETIME,
-            // Frozen captures hold the countdown full so pixels stay deterministic.
             since: (!crate::motion_frozen(cx)).then(Instant::now),
         });
         self.schedule(cx);

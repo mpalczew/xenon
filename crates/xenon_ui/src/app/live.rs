@@ -257,7 +257,6 @@ impl LiveContent {
 fn snapshot_node(node: &LiveNode) -> PaneNode {
     match node {
         LiveNode::Leaf(leaf) => {
-            // Diff tabs are not restored; keep the active index on saved tabs.
             let tabs: Vec<TabState> = leaf.tabs.iter().filter_map(snapshot_tab).collect();
             let kept_before = leaf.tabs[..leaf.active.min(leaf.tabs.len())]
                 .iter()
