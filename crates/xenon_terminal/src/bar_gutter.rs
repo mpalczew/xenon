@@ -1,11 +1,17 @@
 const BAR_GLYPHS: [char; 11] = ['▎', '▍', '▌', '▋', '▊', '▉', '█', '│', '┃', '║', '|'];
 
 /// Strip a quote bar (whitespace, one bar glyph, optional space) that prefixes
-/// every non-empty line. Skipped when any line also ends in a bar glyph (box,
-/// Markdown table, cursor block), where other logic owns the layout.
+/// every non-empty line. The first line may lack it: a selection that starts
+/// mid-line skips the gutter. Skipped when any line also ends in a bar glyph
+/// (box, Markdown table, cursor block), where other logic owns the layout.
 pub(super) fn strip(lines: &mut [String]) -> bool {
     let mut bar = None;
-    for line in lines.iter().filter(|l| !l.trim().is_empty()) {
+    let mut content = lines.iter().filter(|l| !l.trim().is_empty()).peekable();
+    let bare_first = content.peek().is_some_and(|l| !starts_with_bar(l));
+    if bare_first {
+        content.next();
+    }
+    for line in content {
         let first = line
             .trim_start()
             .chars()
@@ -19,11 +25,16 @@ pub(super) fn strip(lines: &mut [String]) -> bool {
         }
     }
     let Some(bar) = bar else { return false };
-    for line in lines.iter_mut().filter(|l| !l.trim().is_empty()) {
+    let content = lines.iter_mut().filter(|l| !l.trim().is_empty());
+    for line in content.skip(usize::from(bare_first)) {
         let rest = &line.trim_start()[bar.len_utf8()..];
         *line = rest.strip_prefix(' ').unwrap_or(rest).to_string();
     }
     true
+}
+
+fn starts_with_bar(line: &str) -> bool {
+    line.trim_start().starts_with(BAR_GLYPHS)
 }
 
 /// Join consecutive text lines into paragraphs, except before list items.
@@ -57,6 +68,10 @@ mod tests {
         assert_eq!(
             clean_agent_output(sample),
             "Stop your WhatsApp/wacli sync and disable every routine that uses it. Then zip your memory folder (all memory/log files), all of /workspace including wacli-store, and your Status and Queue board files. Save it to my Mac's Downloads as grok-rescue-2026-10-01.zip. Reply with the file name and confirm wacli is stopped."
+        );
+        assert_eq!(
+            clean_agent_output("I deregistered it\n  ▎ from my account today.\n  ▎ Thanks."),
+            "I deregistered it from my account today. Thanks."
         );
     }
 
