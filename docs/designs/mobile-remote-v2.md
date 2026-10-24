@@ -321,6 +321,15 @@ Host pushes frames/dots through `out`; the WS thread never polls the host for fr
 
 The LAN opt-in (`RemoteNetwork::TailscaleAndLan`, Settings › Remote › Network) is removed. The listener binds the Tailscale/CGNAT address and loopback only. Reason: plain HTTP on a LAN lets anyone on the Wi-Fi read the device token and rewrite the page, and an open-source app cannot lean on a hosted relay, so the user's own tailnet (Tailscale or Headscale) is the encrypted transport. Existing settings files that say LAN load as tailnet-only.
 
+Rejected:
+- LAN certificates (self-signed, mkcert): each phone needs a profile install, set to full trust.
+- In-page encryption over HTTP: `crypto.subtle` needs a secure context, and the page itself can be swapped.
+- Vendor tunnels (VS Code, Cloudflare): the vendor can read the traffic.
+- WebRTC and E2E relays (Happy, Paseo): both need hosted infrastructure.
+- Native iOS app with a pinned key: a second product to build and ship.
+
+An optional, self-hostable E2E relay could later be offered as a paid hosted add-on alongside the tailnet path, never in place of it.
+
 ## Implementation notes (2026-09-29)
 
 - Scrollback (Decision B): zed's terminal exposes only plain text beyond the
