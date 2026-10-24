@@ -3,6 +3,8 @@
 #   bin/check          gates whose paths changed vs main (working tree included)
 #   bin/check <gate>   one gate: policy | ssh-helper | rust | harness
 #   bin/check all      every gate
+#   bin/check --staged pre-commit: harness only (reads the index); the hook checks the
+#                      other gates in a snapshot of the index (scripts/git-hooks/pre-commit)
 set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
@@ -67,6 +69,11 @@ gate_rust() {
   fi
   step rust test cargo test --profile dogfood "${args[@]}"
 }
+
+if [ "${1:-}" = --staged ]; then
+  gate_harness
+  exit 0
+fi
 
 changed="$( { git diff --name-only main; git ls-files --others --exclude-standard; } 2>/dev/null | sort -u)"
 

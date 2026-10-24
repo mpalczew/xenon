@@ -6,7 +6,7 @@
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
-"$root/bin/check"
+"$root/bin/check" --staged
 work="$root/target/precommit-tree"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/target}"
 lock="$root/target/precommit.lock"
