@@ -3,7 +3,8 @@
 use super::motion;
 use super::paste::visual_excl_end;
 use super::{
-    FindKind, HandleResult, LastChange, Mode, Motion, Object, Operator, VimState, edited, handled,
+    FindKind, HandleResult, LastChange, Mode, Motion, Object, ObjectScope, Operator, VimState,
+    edited, handled,
 };
 use crate::buffer::Buffer;
 use crate::selection;
@@ -52,9 +53,9 @@ impl VimState {
             self.awaiting_replace = false;
             return self.replace_char(buffer, ch);
         }
-        if let Some(around) = self.awaiting_object {
+        if let Some(scope) = self.awaiting_object {
             self.awaiting_object = None;
-            if let Some(object) = parse_object(ch, around) {
+            if let Some(object) = parse_object(ch, scope == ObjectScope::Around) {
                 return self.apply_object(buffer, object);
             }
             self.clear_pending();
@@ -378,11 +379,11 @@ impl VimState {
                 edited()
             }
             'i' if self.operator.is_some() => {
-                self.awaiting_object = Some(false);
+                self.awaiting_object = Some(ObjectScope::Inner);
                 handled(false)
             }
             'a' if self.operator.is_some() => {
-                self.awaiting_object = Some(true);
+                self.awaiting_object = Some(ObjectScope::Around);
                 handled(false)
             }
             _ => handled(false),

@@ -78,6 +78,12 @@ pub enum Operator {
     Reindent,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::vim) enum ObjectScope {
+    Inner,
+    Around,
+}
+
 #[derive(Default)]
 pub struct VimState {
     pub mode: Mode,
@@ -85,7 +91,7 @@ pub struct VimState {
     /// Count captured when the operator was typed; multiplied with the motion count.
     operator_count: usize,
     operator: Option<Operator>,
-    awaiting_object: Option<bool>,
+    awaiting_object: Option<ObjectScope>,
     awaiting_find: Option<FindKind>,
     awaiting_replace: bool,
     register_pending: bool,

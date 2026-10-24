@@ -16,14 +16,16 @@ pub struct ProcessMemory {
 pub fn process_memory() -> ProcessMemory {
     #[cfg(target_os = "macos")]
     {
-        return macos::process_memory();
+        macos::process_memory()
     }
     #[cfg(target_os = "linux")]
     {
-        return linux::process_memory();
+        linux::process_memory()
     }
-    #[allow(unreachable_code)]
-    ProcessMemory::default()
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        ProcessMemory::default()
+    }
 }
 
 /// Write a complete, redacted snapshot atomically for local tools to inspect.
