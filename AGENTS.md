@@ -21,9 +21,8 @@ GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 
 - Plain cargo at the workspace root.
   Author sessions pass `--profile dogfood` to build/test/clippy/run.
-  `scripts/health` is the full gate (also CI, Linux CI included). The
+  `scripts/health` is the full gate. The
   pre-commit hook (`scripts/install-hooks`) is the commit gate.
-- Red main gets fixed first (a SessionStart hook runs `scripts/ci-status`).
 
 ## Gotchas
 

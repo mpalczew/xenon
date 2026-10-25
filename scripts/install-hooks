@@ -4,4 +4,4 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 git -C "$root" config core.hooksPath scripts/git-hooks
 # Drop the old pre-commit-framework shim (it lives in the real .git/hooks).
 rm -f "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)/hooks/pre-commit"
-echo "core.hooksPath = scripts/git-hooks (pre-commit, pre-push)"
+echo "core.hooksPath = scripts/git-hooks (pre-commit)"
