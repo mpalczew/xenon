@@ -121,6 +121,8 @@ rediscover.
   handlers. Printable key handlers must return unhandled.
 - In-app menus are `xenon_design_system::menu_item` only; the row requires a
   `Shortcut`. Command chords come from `commands::shortcut`.
+- A `deferred(anchored())` popup never dismisses on outside click by itself;
+  give it `on_mouse_down_out` (or a full-window dismiss layer) plus Escape.
 - App-level Cut/Copy/Paste no-op while a query overlay or rename field is open.
   Palettes bind those actions through `bind_query_chrome`.
 - Palette and content teardown must route focus to a live surface or the shell.
