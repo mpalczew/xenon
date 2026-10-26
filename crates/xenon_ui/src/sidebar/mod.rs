@@ -224,6 +224,10 @@ impl XenonApp {
                                     .border_color(colors.border)
                                     .bg(colors.panel_background)
                                     .on_click(cx.listener(|_, _, _, cx| cx.stop_propagation()))
+                                    .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                                        this.workspace_menu = None;
+                                        cx.notify();
+                                    }))
                                     .child(
                                         crate::tabs::menu::menu_item(
                                             "workspace-menu-new",
