@@ -82,6 +82,43 @@ pub(super) fn shape_body(
         .unwrap_or_default()
 }
 
+/// A wrap that starts a row on an emphasis or code marker with text before it
+/// splits the marker from the word it closes. GPUI breaks before any non-word
+/// character, so narrow the column until no row starts that way.
+fn splits_marker(text: &str, lines: &[WrappedLine]) -> bool {
+    for (line, src) in lines.iter().zip(text.split('\n')) {
+        for (start, _) in super::hit::row_bounds(line).into_iter().skip(1) {
+            let b = src.as_bytes();
+            if matches!(b.get(start), Some(b'*' | b'`')) && start > 0 && b[start - 1] != b' ' {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub(super) fn shape_prose(
+    text: &str,
+    runs: &[TextRun],
+    size: Pixels,
+    wrap: Pixels,
+    sys: &Arc<gpui::WindowTextSystem>,
+) -> Vec<WrappedLine> {
+    let mut width = wrap;
+    let mut lines = shape_body(text, runs, size, Some(width), sys);
+    if !text.contains(['*', '`']) {
+        return lines;
+    }
+    for _ in 0..24 {
+        if !splits_marker(text, &lines) {
+            break;
+        }
+        width -= size * 0.5;
+        lines = shape_body(text, runs, size, Some(width), sys);
+    }
+    lines
+}
+
 pub(super) fn text_runs(
     display: &Display,
     block: &Block,

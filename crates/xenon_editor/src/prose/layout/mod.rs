@@ -126,9 +126,23 @@ pub fn layout(
             .map(|s| s.width)
             .unwrap_or(mono_size * 0.6)
     };
-    let avail = (input.width - px(PAD_X * 2.)).max(px(120.));
+    // Hanging heading marks (`### `) sit left of the column; keep them on screen.
+    let gutter = {
+        let id = sys.resolve_font(&input.body_font);
+        let big = input.size * heading_scale(1);
+        let hash = sys
+            .advance(id, big, '#')
+            .map(|s| s.width)
+            .unwrap_or(big * 0.7);
+        let gap = sys
+            .advance(id, big, ' ')
+            .map(|s| s.width)
+            .unwrap_or(big * 0.25);
+        (hash * 3. + gap).max(px(PAD_X))
+    };
+    let avail = (input.width - gutter - px(PAD_X)).max(px(120.));
     let col_w = (ch * input.measure).min(avail);
-    let col_x = ((input.width - col_w) / 2.).max(px(PAD_X).min(input.width / 2.));
+    let col_x = ((input.width - col_w) / 2.).max(gutter.min(input.width / 2.));
     let base_lh = px(f32::from(input.size) * input.line_height);
     let list_indent = input.size * 1.7;
     let quote_indent = input.size * 1.25;
@@ -216,7 +230,12 @@ pub fn layout(
                 }
                 let runs = text_runs(display, block, input, size, tinted || verbatim);
                 let font_size = size;
-                bl.lines = shape_body(&display.body, &runs, font_size, wrap, &sys);
+                bl.lines = match wrap {
+                    Some(w) if !(tinted || verbatim) => {
+                        shape_prose(&display.body, &runs, font_size, w, &sys)
+                    }
+                    _ => shape_body(&display.body, &runs, font_size, wrap, &sys),
+                };
                 let mut start = 0;
                 let mut top_off = bl.text_top;
                 for line in &bl.lines {
