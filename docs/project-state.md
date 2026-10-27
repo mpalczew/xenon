@@ -177,6 +177,9 @@ rediscover.
   not cover them; Apple binaries (`curl`, `ssh`, `nc`) are exempt. Same bug in
   Ghostty (discussions 13438/13476). Workaround: use Tailscale names, which
   are not "local network".
+- Phone page: setting `disabled` on a focused input blurs it, and iOS never
+  gives focus back. `renderStale()` remembers the focused input and refocuses
+  it on reconnect; any new disable-while-stale input needs the same.
 - In this codebase, “browser” is the Files tree, not a web view.
 - GPUI (pinned Zed rev) has no webview primitive. The window is one Metal
   `NSView`. A native WKWebView / wry child view composites above the GPU
