@@ -16,6 +16,7 @@ pub const FIXTURES: &[&str] = &[
     "session",
     "session_low_bandwidth",
     "session_keys",
+    "session_appearance_dark",
     "reconnecting",
 ];
 

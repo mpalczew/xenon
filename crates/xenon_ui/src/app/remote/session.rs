@@ -2,9 +2,7 @@
 //! forward input, apply phone fit, and push status dots.
 
 use super::*;
-use xenon_remote::{
-    ClientMsg, ClosedReason, InputRoute, NamedKey, Outbox, Rgb, ServerMsg, ThemeWire,
-};
+use xenon_remote::{ClientMsg, ClosedReason, InputRoute, NamedKey, Outbox, ServerMsg};
 use xenon_terminal::PhoneFit;
 
 use super::feed::Feed;
@@ -17,6 +15,8 @@ const FIT_ROWS: std::ops::RangeInclusive<u16> = 8..=200;
 pub(super) struct Conn {
     pub device_id: String,
     low_bandwidth: bool,
+    /// The page's chosen appearance; `None` follows the Mac's active theme.
+    pub(super) appearance: Option<theme::Appearance>,
     pub(super) out: Outbox,
     /// Where this connection's typing goes once a terminal is attached.
     input: InputRoute,
@@ -29,7 +29,7 @@ pub(super) struct Attach {
     tab: TabId,
     pub(super) view: WeakEntity<TerminalView>,
     /// Off-thread input/output path; created once the PTY is ready.
-    feed: Option<Feed>,
+    pub(super) feed: Option<Feed>,
     fit: Option<(u16, u16)>,
     flush: Option<Task<()>>,
     _observe: Subscription,
@@ -43,6 +43,7 @@ impl Conn {
         Self {
             device_id: device_id.into(),
             low_bandwidth: false,
+            appearance: None,
             out,
             input: InputRoute::default(),
             attach: None,
@@ -92,16 +93,12 @@ impl XenonApp {
         (out, input): (Outbox, InputRoute),
         cx: &mut Context<Self>,
     ) {
-        let [bg, fg, cursor] = xenon_terminal::remote_theme_colors(cx);
+        let theme_wire = super::appearance::theme_wire(&xenon_terminal::remote_theme_for(None, cx));
         let Some(runtime) = self.services.remote.as_mut() else {
             return;
         };
         out.try_send(ServerMsg::Ready {
-            theme: ThemeWire {
-                bg: Rgb(bg[0], bg[1], bg[2]).hex(),
-                fg: Rgb(fg[0], fg[1], fg[2]).hex(),
-                cursor: Rgb(cursor[0], cursor[1], cursor[2]).hex(),
-            },
+            theme: theme_wire,
             device_id: device_id.clone(),
             host_name: runtime.host_name.clone(),
         });
@@ -110,6 +107,7 @@ impl XenonApp {
             Conn {
                 device_id,
                 low_bandwidth: false,
+                appearance: None,
                 out,
                 input,
                 attach: None,
@@ -153,6 +151,7 @@ impl XenonApp {
                     }
                 }
             }
+            ClientMsg::Appearance { appearance } => self.remote_appearance(conn, appearance, cx),
             ClientMsg::Detach => self.remote_detach(conn, cx),
             ClientMsg::Text { data } => {
                 if let Some(view) = self.attached_view(conn) {
@@ -362,7 +361,7 @@ impl XenonApp {
         let Some(c) = self.conn_mut(conn) else {
             return;
         };
-        let (low_bandwidth, out) = (c.low_bandwidth, c.out.clone());
+        let (low_bandwidth, appearance, out) = (c.low_bandwidth, c.appearance, c.out.clone());
         let Some(attach) = c.attach.as_mut() else {
             return;
         };
@@ -373,7 +372,8 @@ impl XenonApp {
             attach.feed = Some(feed);
         }
         if let Some(feed) = attach.feed.as_ref() {
-            feed.io().refresh_theme(cx);
+            feed.io()
+                .set_theme(xenon_terminal::remote_theme_for(appearance, cx));
             feed.poke();
         }
     }

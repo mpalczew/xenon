@@ -7,8 +7,9 @@
 
 use std::time::Instant;
 
-use gpui::{Modifiers, Rgba, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px};
+use gpui::{Modifiers, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px};
 
+use super::remote_theme::rgb;
 use super::*;
 use crate::color::convert_color;
 
@@ -79,23 +80,6 @@ pub struct PhoneFit {
     pub cols: u16,
     pub rows: u16,
     pub device: SharedString,
-}
-
-/// Terminal background, foreground, and cursor colors for the phone page.
-pub fn remote_theme_colors(cx: &App) -> [[u8; 3]; 3] {
-    let theme = cx.theme();
-    let colors = theme.colors();
-    [
-        rgb(colors.terminal_background),
-        rgb(colors.terminal_foreground),
-        rgb(theme.players().local().cursor),
-    ]
-}
-
-fn rgb(color: gpui::Hsla) -> [u8; 3] {
-    let c: Rgba = color.into();
-    let byte = |v: f32| (v.clamp(0., 1.) * 255.).round() as u8;
-    [byte(c.r), byte(c.g), byte(c.b)]
 }
 
 impl TerminalView {

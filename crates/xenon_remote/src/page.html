@@ -62,7 +62,7 @@ html.in-session { background:var(--chrome); }
 #v-session > .hdr .acts { flex:1 0 100%; display:flex; justify-content:flex-end; align-items:center; gap:2px; }
 #v-session > .hdr .keys-btn, #v-session > .hdr .new-btn { height:30px; padding:0 8px; font-size:14px; }
 .keys-btn:disabled, .new-btn:disabled, .close-tab:disabled { opacity:.45; }
-.remote-options { display:flex; justify-content:flex-end; padding:0 8px; border-bottom:1px solid var(--line); }
+.remote-options { display:flex; justify-content:flex-end; gap:2px; padding:0 8px; border-bottom:1px solid var(--line); }
 .termrow { display:flex; align-items:stretch; border-bottom:1px solid var(--hair); }
 .termrow .ws { flex:1; border-bottom:0; min-width:0; }
 .close-tab { flex:none; padding:0 14px; color:var(--err); font-size:15px; font-weight:600; }
@@ -246,7 +246,7 @@ html.in-session { background:var(--chrome); }
   <section id="v-session" class="view" hidden>
     <div class="hdr"><button type="button" class="back" data-back aria-label="Back">‹</button><div class="title" id="sess-title"></div><div class="conn off" role="img" aria-label="Disconnected"></div><div class="acts"><button type="button" class="new-btn" id="new-session" aria-label="New terminal">New</button><button type="button" class="keys-btn" id="mode-btn" aria-pressed="false" aria-label="Editable field">Field</button><button type="button" class="keys-btn" id="hide-kb" aria-label="Hide keyboard">Hide</button><button type="button" class="keys-btn" id="close-session" aria-label="Close terminal">Close</button><button type="button" class="keys-btn" id="keys-btn" aria-pressed="false" aria-label="Show keys">Keys</button></div></div>
     <div class="banner" id="reconnect" role="status" hidden><div class="spin" aria-hidden="true"></div><span id="reconnect-txt">Reconnecting…</span></div>
-    <div class="remote-options"><button type="button" class="keys-btn" id="bandwidth-btn" aria-pressed="false" aria-label="Low bandwidth mode">Low bandwidth</button></div>
+    <div class="remote-options"><button type="button" class="keys-btn" id="bandwidth-btn" aria-pressed="false" aria-label="Low bandwidth mode">Low bandwidth</button><button type="button" class="keys-btn" id="appearance-btn" aria-label="Appearance: Auto. Tap to change">Auto</button></div>
     <div id="termwrap">
       <div id="term" role="log" aria-label="Terminal" aria-live="off"><div id="hist"></div><div id="screen"></div></div>
       <div id="starting" hidden>Starting…</div>
@@ -462,7 +462,7 @@ const Core = (() => {
 // </core>
 
 // ===== State =====
-const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth" };
+const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
   fixture: false, themed: false, view: null,
@@ -475,6 +475,7 @@ const S = {
   wheelAcc: 0, repeat: null, creating: false, closing: false, suppressCloseToast: false,
   inputMode: "field",
   lowBandwidth: false,
+  appearance: "auto", stale: false, refocus: null,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -579,6 +580,7 @@ function send(msg) {
 function onMsg(m) {
   switch (m.t) {
     case "ready": return onReady(m);
+    case "theme": return applyTheme(m.theme);
     case "styles": return addStyles(m.add);
     case "frame": S.lastUpdate = Date.now(); return renderFrame(m);
     case "history": return renderHistory(m.lines || []);
@@ -597,9 +599,12 @@ function onReady(m) {
   // Each socket starts a fresh style table on the Mac.
   S.styles = {};
   $("term-styles").textContent = "";
-  applyTheme(m.theme);
+  // Only take the Mac theme when it already matches the chosen appearance (no flash);
+  // otherwise the Mac sends a `theme` for it right after `appearance`.
+  if (m.theme && Core.scheme(m.theme).light === (resolvedAppearance() === "light")) applyTheme(m.theme);
   if (m.hostName) { S.hostName = m.hostName; store(KEY.host, S.hostName); renderHost(); }
   setConnected(true);
+  sendAppearance();
   if (S.want) sendAttach();
 }
 
@@ -940,11 +945,41 @@ function setScheme(light, accent) {
   if (accent) root.style.setProperty("--accent", accent); else root.style.removeProperty("--accent");
 }
 
+/** "dark" or "light": the chosen appearance, or the device's when on auto. */
+function resolvedAppearance() {
+  if (S.appearance === "dark" || S.appearance === "light") return S.appearance;
+  const mq = window.matchMedia && matchMedia("(prefers-color-scheme: light)");
+  return mq && mq.matches ? "light" : "dark";
+}
+
+/** Tell the Mac which colors to resolve cells against. */
+function sendAppearance() {
+  send({ t: "appearance", appearance: resolvedAppearance() });
+}
+
+function setAppearance(mode, persist) {
+  S.appearance = mode === "dark" || mode === "light" ? mode : "auto";
+  if (persist && !S.fixture) store(KEY.appearance, S.appearance);
+  const label = { auto: "Auto", dark: "Dark", light: "Light" }[S.appearance];
+  const btn = $("appearance-btn");
+  btn.textContent = label;
+  btn.setAttribute("aria-label", "Appearance: " + label + ". Tap to change");
+  if (!S.themed) setScheme(resolvedAppearance() === "light", null);
+  sendAppearance();
+}
+
+function cycleAppearance() {
+  setAppearance({ auto: "dark", dark: "light", light: "auto" }[S.appearance], true);
+}
+
 /** Before `ready`, chrome follows the OS appearance. */
 function followSystemScheme() {
   const mq = window.matchMedia && matchMedia("(prefers-color-scheme: light)");
   if (!mq) return;
-  const apply = () => { if (!S.themed) setScheme(mq.matches, null); };
+  const apply = () => {
+    if (!S.themed) setScheme(resolvedAppearance() === "light", null);
+    if (S.appearance === "auto") sendAppearance();
+  };
   apply();
   if (mq.addEventListener) mq.addEventListener("change", apply);
 }
@@ -1124,9 +1159,20 @@ function setKeys(on) {
 
 function renderStale() {
   const stale = !S.connected && !S.fixtureLive;
+  // Disabling blurs the inputs; put focus back when the socket is live again.
+  if (stale && !S.stale) {
+    const a = document.activeElement;
+    S.refocus = a && (a.id === "direct" || a.id === "msg") ? a.id : null;
+  }
+  S.stale = stale;
   for (const id of ["termwrap", "keys", "input"]) $(id).classList.toggle("stale", stale);
   for (const el of document.querySelectorAll("#keys button, #input button, #input input, #keys-btn, #new-session, #new-term, #mode-btn, #hide-kb, #close-session, #direct, .close-tab")) el.disabled = stale;
   $("reconnect").hidden = !stale || !S.token && !S.fixture;
+  if (!stale && S.refocus) {
+    const id = S.refocus;
+    S.refocus = null;
+    if (S.view === "session") { try { $(id).focus(); } catch (_) {} }
+  }
   renderAgo();
 }
 
@@ -1221,6 +1267,28 @@ function onDirectKey(e) {
   }
   const named = { Enter: "enter", Escape: "esc", Backspace: "backspace", Tab: "tab", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
   if (named) { e.preventDefault(); send({ t: "key", key: named }); }
+}
+
+const MODIFIER_KEYS = ["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn", "FnLock", "AltGraph", "OS", "Dead"];
+
+/** Hardware keyboard with nothing focused: route the key to the terminal input instead of dropping it. */
+function onStrayKey(e) {
+  if (S.view !== "session" || !S.connected || S.taskInput || e.defaultPrevented || e.isComposing) return;
+  const a = document.activeElement;
+  if (a && a !== document.body && a.id !== "term") return;
+  if (MODIFIER_KEYS.includes(e.key)) return;
+  const printable = e.key.length === 1 && !e.ctrlKey && !e.metaKey;
+  if (S.inputMode === "direct") {
+    onDirectKey(e);
+    if (!e.defaultPrevented && printable) { e.preventDefault(); send({ t: "text", data: e.key }); }
+    if (e.defaultPrevented) focusDirect();
+    return;
+  }
+  if (!printable) return;
+  e.preventDefault();
+  const msg = $("msg");
+  try { msg.focus(); } catch (_) {}
+  msg.setRangeText(e.key, msg.selectionStart ?? msg.value.length, msg.selectionEnd ?? msg.value.length, "end");
 }
 
 function onMsgKeyDown(e) {
@@ -1391,6 +1459,7 @@ function wireEvents() {
     if (tab) closeTerminal(tab);
   });
   $("bandwidth-btn").addEventListener("click", () => setLowBandwidth(!S.lowBandwidth));
+  $("appearance-btn").addEventListener("click", cycleAppearance);
   $("mode-btn").addEventListener("click", () => setInputMode(S.inputMode === "direct" ? "field" : "direct"));
   $("hide-kb").addEventListener("click", hideKeyboard);
   $("keys-btn").addEventListener("click", () => setKeys($("keys").hidden));
@@ -1459,7 +1528,8 @@ function wireEvents() {
     if (was.drag) return;
     const t = e.changedTouches[0];
     if (!t) return;
-    if (sendClick(t.clientX, t.clientY)) focusDirect();
+    sendClick(t.clientX, t.clientY);
+    focusDirect();
   }, { passive: true });
   term.addEventListener("touchcancel", () => {
     tap = null;
@@ -1468,7 +1538,8 @@ function wireEvents() {
   });
   term.addEventListener("click", (e) => {
     if (ignoreClick) { ignoreClick = false; return; }
-    if (sendClick(e.clientX, e.clientY)) focusDirect();
+    sendClick(e.clientX, e.clientY);
+    focusDirect();
   });
   term.addEventListener("wheel", (e) => {
     if (gridTallerThanView()) return;
@@ -1477,6 +1548,7 @@ function wireEvents() {
   }, { passive: false });
   $("live").onclick = () => setFollow(true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.view !== "session") goBack(); });
+  document.addEventListener("keydown", onStrayKey);
   document.addEventListener("visibilitychange", onVisible);
   window.addEventListener("resize", onViewport);
   if (window.visualViewport) {
@@ -1653,6 +1725,11 @@ window.xenonFixture = function (name) {
       live(true);
       fixtureSession(FX.permission, null, FX.stylesLight);
       break;
+    case "session_appearance_dark":
+      live(true);
+      fixtureSession(FX.permission, null);
+      setAppearance("dark", false);
+      break;
     case "reconnecting":
       live(true);
       fixtureSession(FX.idle, { r: FX.idle.length - 3, c: 4 });
@@ -1676,6 +1753,7 @@ function boot() {
   wireEvents();
   setInputMode(store(KEY.mode) === "direct" ? "direct" : "field");
   setLowBandwidth(store(KEY.bandwidth) === "true");
+  setAppearance(store(KEY.appearance), false);
   followSystemScheme();
   onViewport();
   const secret = location.pathname === "/pair" && location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "";

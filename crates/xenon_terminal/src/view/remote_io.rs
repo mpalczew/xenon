@@ -10,7 +10,7 @@ use super::remote::snapshot_from_content;
 use super::{ScreenSnapshot, State, TerminalView};
 
 /// `Send + Sync` handle on one terminal: write input and read screens without
-/// the GPUI thread. Colors resolve against the theme last seen by `refresh_theme`.
+/// the GPUI thread. Colors resolve against the theme last given to `set_theme`.
 #[derive(Clone)]
 pub struct RemoteIo {
     handle: RemoteHandle,
@@ -46,10 +46,10 @@ impl RemoteIo {
         snapshot_from_content(&self.handle.content(), &theme)
     }
 
-    /// Follow the active theme (call from the UI thread, where it lives).
-    pub fn refresh_theme(&self, cx: &App) {
+    /// Resolve cell colors against `theme` from now on.
+    pub fn set_theme(&self, theme: Arc<theme::Theme>) {
         if let Ok(mut current) = self.theme.lock() {
-            *current = cx.theme().clone();
+            *current = theme;
         }
     }
 

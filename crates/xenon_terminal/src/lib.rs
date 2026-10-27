@@ -39,6 +39,6 @@ pub use terminal;
 pub use view::{
     CellAttrs, Find, FindNext, FindPrevious, LOCAL_QUIET, PhoneFit, RemoteIo, ScreenCell,
     ScreenCursor, ScreenCursorShape, ScreenSnapshot, TerminalEvent, TerminalView, WIDE_SPACER,
-    agent_title, remote_theme_colors,
+    agent_title, remote_theme_colors, remote_theme_for,
 };
 pub use viewport::viewport_lines;

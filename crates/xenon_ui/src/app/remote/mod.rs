@@ -4,6 +4,7 @@
 
 use super::*;
 
+mod appearance;
 mod devices;
 mod feed;
 mod host;

@@ -116,7 +116,7 @@ QR encodes `http://<tailscale-host>:<port>/pair#<one-time pairing code>` (fragme
 | Too many auth failures | 429 "Try again in a minute" | Log line (no secret) |
 | Tailscale absent | — | Sheet + Settings warning; loopback only |
 
-**Visual (phone)**: theme background/foreground from Mac theme; `ui-monospace` (SF Mono); dark by default. Font ~13px; phone computes cols/rows from its viewport and sends `fit` on attach and on rotate/resize.
+**Visual (phone)**: colors come from the Mac theme for the page's appearance (Auto = device `prefers-color-scheme`, or forced Dark/Light via the options-row button; the Mac resolves the saved dark/light theme when the active one differs, `appearance` / `theme` messages); `ui-monospace` (SF Mono). Font ~13px; phone computes cols/rows from its viewport and sends `fit` on attach and on rotate/resize.
 
 ---
 
@@ -345,7 +345,7 @@ An optional, self-hostable E2E relay could later be offered as a paid hosted add
 - Heartbeat: the page sends `{"t":"ping"}` every 15s; the socket thread answers
   `{"t":"pong"}`. The page treats 5s of silence after a ping as a dead socket.
 - Tab chip shows `title · iPhone` while a phone fit is active (no icon).
-- The page picks light/dark chrome from the Mac terminal theme's background.
+- The page sends its resolved appearance (`appearance`: dark/light, from the persisted Auto/Dark/Light setting) after `ready`; the Mac answers with `theme` and resolves cell colors against that appearance's theme. Chrome light/dark follows that theme's background.
 - a/b slots: the second instance waits for the port and takes over within
   5s of the first releasing it; devices are shared via `~/.xenon-shared`
   (`XENON_SHARED_DIR` from `scripts/xenon`, else inferred from the slot dir).
