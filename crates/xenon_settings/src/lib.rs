@@ -5,6 +5,7 @@
 mod faces;
 mod fonts;
 mod mono_font;
+mod prose;
 mod wrap;
 
 use gpui::{App, Global, actions};
@@ -26,7 +27,11 @@ pub use mono_font::{
     canonicalize as canonicalize_mono_family, display_name as display_mono_family,
     ensure as ensure_mono_family, is_family as is_monospace_family,
 };
-pub use xenon_store::{TerminalAutoClose, ThemeMode};
+pub use prose::{prose, prose_font, prose_markers, update_prose};
+pub use xenon_store::{
+    MarkdownMode, ProseFilePrefs, ProseFont, ProseMarkers, ProseSettings, TerminalAutoClose,
+    ThemeMode, prose_file_prefs, set_prose_file_prefs,
+};
 
 pub const MIN_FONT_SIZE: f32 = 8.0;
 pub const MAX_FONT_SIZE: f32 = 32.0;
@@ -68,6 +73,7 @@ pub fn apply(settings: &AppSettings, cx: &mut App) {
     faces::set_faces(editor, terminal, ui, cx);
     set_show_line_numbers(cx, settings.show_line_numbers);
     wrap::apply(settings, cx);
+    prose::apply(settings, cx);
     set_vim_mode(cx, settings.vim_mode);
     set_terminal_auto_close(cx, settings.terminal_auto_close);
     cx.set_global(ThemePreference {
@@ -98,6 +104,7 @@ pub fn snapshot(cx: &App) -> AppSettings {
     settings.ui_font_family = ui.family;
     settings.show_line_numbers = show_line_numbers(cx);
     wrap::write(&mut settings, cx);
+    prose::write(&mut settings, cx);
     settings.vim_mode = vim_mode(cx);
     settings.theme = theme.mode;
     settings.light_theme = theme.light;
@@ -133,6 +140,7 @@ pub fn save(cx: &App) {
         settings.show_line_numbers = snapshot.show_line_numbers;
         settings.wrap_prose = snapshot.wrap_prose;
         settings.wrap_code = snapshot.wrap_code;
+        settings.prose = snapshot.prose.clone();
         settings.vim_mode = snapshot.vim_mode;
         settings.theme = snapshot.theme;
         settings.light_theme.clone_from(&snapshot.light_theme);

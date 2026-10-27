@@ -1,17 +1,5 @@
 //! Editor canvas layout: theme spans, scroll follow, click hit-test cache.
 
-use crate::markdown::{PreviewRender, PreviewState};
-
-/// Markdown preview using the current editor font settings.
-pub(crate) fn markdown_preview(
-    source: &str,
-    host: gpui::Entity<PreviewState>,
-    cx: &gpui::App,
-) -> PreviewRender {
-    let face = xenon_settings::editor_font(cx);
-    crate::markdown::render(source, gpui::px(face.size), &face.family, host, cx)
-}
-
 impl super::EditorView {
     pub fn is_dirty(&self) -> bool {
         if let Some(dirty) = self.remote_is_dirty() {
@@ -41,6 +29,7 @@ use crate::mouse::ClickLayout;
 pub(super) fn editor_canvas(
     view: Entity<EditorView>,
     focus: FocusHandle,
+    register_input: bool,
 ) -> impl gpui::IntoElement {
     canvas(
         {
@@ -52,7 +41,9 @@ pub(super) fn editor_canvas(
             let focused = focus.is_focused(window) && window.is_window_active();
             let show_cursor = !focused || view.read(cx).cursor_blink.visible();
             element::paint(&editor_layout, cursor_color, show_cursor, window, cx);
-            window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
+            if register_input {
+                window.handle_input(&focus, ElementInputHandler::new(bounds, view), cx);
+            }
         },
     )
     .size_full()

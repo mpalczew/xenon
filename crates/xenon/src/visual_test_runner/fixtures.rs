@@ -36,6 +36,7 @@ pub fn build() -> Result<Fixture> {
     )?;
     fs::create_dir_all(root.join("docs"))?;
     fs::write(root.join("docs/GUIDE.md"), GUIDE_MD)?;
+    fs::write(demo_root.join("ESSAY.md"), ESSAY_MD)?;
     fs::write(
         demo_root.join("WRAP.md"),
         "# Wrap\n\nThe preview already wraps prose. Source does not. A wrap toggle folds this paragraph to the pane and leaves the file as a single line.\n\nNext paragraph stays short.\n",
@@ -159,4 +160,53 @@ Plain typed text arrives through an input handler registered during paint, not t
 ## Rules
 
 Every surface must work from the keyboard. Mouse is additive, never required for a complete flow.
+";
+
+const ESSAY_MD: &str = "<!-- SOURCE: notes/agents.md -->
+<!-- FLAG: check the 40% claim before publishing -->
+<!-- tone: dry, short sentences -->
+
+# Agents like a team
+
+The best agent setup I have used looks less like a tool and more like a small
+team. One agent **plans**, one *writes*, one ~~guesses~~ reviews, and I read
+what they leave behind in [the log](https://example.com/log).[^1]
+
+## What changed
+
+> A good review is a conversation, not a verdict.  
+> It ends when both sides can say what they learned.
+
+- Write the brief first
+  - Name the output
+  - Name the reader
+- Keep each agent to one job
+- Run the checks yourself
+
+1. Draft in the open
+2. Cut a third
+3. Ship on Tuesday
+
+- [x] Outline the argument
+- [ ] Verify the numbers
+- [ ] Write the ending
+
+## Receipts
+
+```rust
+fn plan(goal: &str) -> Vec<String> {
+    vec![format!(\"read {goal}\")]
+}
+```
+
+| Agent | Job      | Cost |
+| ----- | -------- | ---- |
+| plan  | outline  | low  |
+| write | draft    | high |
+
+---
+
+![the xenon mark](logo.png)
+
+[^1]: The log is a plain text file.
 ";

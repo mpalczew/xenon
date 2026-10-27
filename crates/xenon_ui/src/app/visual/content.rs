@@ -1,6 +1,8 @@
 use gpui::{Context, Window, px};
 
-use super::{XenonApp, ensure_terminal, open_rel, populate};
+use xenon_store::ThemeMode;
+
+use super::{Scene, XenonApp, ensure_terminal, open_rel, populate};
 
 pub(super) fn terminal_grid(app: &mut XenonApp, window: &mut Window, cx: &mut Context<XenonApp>) {
     populate(app, window, cx);
@@ -55,7 +57,53 @@ pub(super) fn markdown_preview(
 ) {
     populate(app, window, cx);
     open_rel(app, "../docs/GUIDE.md", window, cx);
-    app.toggle_preview(cx);
+    cx.notify();
+}
+
+/// The Markdown writing view on a substack-shaped essay.
+pub(super) fn prose(
+    app: &mut XenonApp,
+    scene: Scene,
+    window: &mut Window,
+    cx: &mut Context<XenonApp>,
+) {
+    use xenon_settings::{MarkdownMode, ProseMarkers};
+    let theme = if scene == Scene::ProseDark {
+        ThemeMode::Dark
+    } else {
+        ThemeMode::Light
+    };
+    super::set_theme(theme, "One Dark", "One Light", cx);
+    xenon_settings::update_prose(cx, |p| {
+        p.markers = if scene == Scene::ProseHideMarkers {
+            ProseMarkers::Hide
+        } else {
+            ProseMarkers::Dim
+        };
+    });
+    populate(app, window, cx);
+    open_rel(app, "ESSAY.md", window, cx);
+    if let Some(editor) = app.active_editor() {
+        editor.update(cx, |editor, cx| {
+            editor.set_markdown_mode(
+                if scene == Scene::ProseSplit {
+                    MarkdownMode::Split
+                } else {
+                    MarkdownMode::Prose
+                },
+                cx,
+            );
+            if editor.is_paper() == (scene == Scene::ProseNoPaper) {
+                editor.toggle_paper(cx);
+            }
+            if editor.comments_open() == (scene != Scene::ProseCommentsOpen) {
+                editor.toggle_comments_fold(cx);
+            }
+            if scene == Scene::ProseFullScreen {
+                editor.toggle_full_screen(cx);
+            }
+        });
+    }
     cx.notify();
 }
 

@@ -171,6 +171,8 @@ pub struct XenonApp {
     /// Overlay focus restore + window-deferred palette/command work.
     deferred: DeferredUi,
     sidebar_collapsed: bool,
+    /// Prose full screen: sidebar, toolbar and tab strip are hidden.
+    writing_full_screen: bool,
     /// Global live sidebar width (px); persisted in app settings.
     sidebar_width: f32,
     /// True after a width drag until flushed to the session.

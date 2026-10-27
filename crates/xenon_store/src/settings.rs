@@ -141,6 +141,9 @@ pub struct AppSettings {
     pub remote_hostname: String,
     #[serde(default)]
     pub lsp: LspSettings,
+    /// Markdown prose mode look.
+    #[serde(default)]
+    pub prose: crate::ProseSettings,
 }
 
 impl Default for AppSettings {
@@ -172,6 +175,7 @@ impl Default for AppSettings {
             remote_port: default_remote_port(),
             remote_hostname: String::new(),
             lsp: LspSettings::default(),
+            prose: crate::ProseSettings::default(),
         }
     }
 }

@@ -165,15 +165,34 @@ the check wipes in over 700ms after a 300ms rest, then a ring expands for
 900ms; an accent glow behind it breathes on a 5s loop. Reduce Motion and
 visual captures show the finished state. The worklist uses it when empty.
 
-## Markdown preview
+## Markdown prose
 
-Prose reads in a centered column about 72 characters wide (46× the editor font
-size) with 32px padding; narrower panes shrink it. Code blocks keep their own
-width between the column and 64× the font size, centered, and scroll sideways
-past that. When the pane has room and the document has two or more headings
-(H1–H3), an "On this page" outline sits to the right: `selectable_row` rows in
-the Control label role, the current section selected. Clicking a row or
-pressing `[` / `]` scrolls to that heading.
+Markdown files open in Prose: you type in the rendered view and the file
+text is the only document. Modes sit in a quiet status strip under the editor
+(counts left, Paper and Full, then Prose / Split / Source with their keys); the
+active one carries ink color, semibold, and a tint. Split shows source left and
+prose right over the same buffer, caret and scroll following.
+
+Prose reads in a centered column 66 characters wide (settings: 40 to 120) in a
+serif (Auto: serif on Paper, the interface face otherwise), 18px at 1.55 line
+height. Syntax stays as real text in a dim ink at least 3:1 on the page, never
+hidden until the caret arrives: heading `#`s hang in the left margin, list
+markers sit in the indent, quote marks hang left of a 2px rule and the quote is
+italic, a trailing two-space break shows a dim return arrow. Task boxes are
+checkboxes (click or ⌘Return flips one character; done items are struck and
+muted). Code and tables are monospace on a tint, table pipes dim, fences
+highlighted by language. `---` draws a hairline. An image alone in a paragraph
+shows below its line (dashed placeholder when it will not load). Markers: Hide
+draws only the result (bullets as dots, task boxes alone, table separator as a
+line).
+
+Leading `<!-- -->` lines fold into one chip ("3 comments", with a flag mark when
+one says FLAG); click or Return toggles it, remembered per file.
+
+Paper is a document surface, not chrome: `#f8f4ec` page and `#2b2722` ink in
+light, `#16140f` and `#ddd5c6` in dark, on by default for Markdown and applied
+to all three modes. Full screen (⌥F) hides sidebar, toolbar, tab strip and
+status strip; Escape or ⌥F restores them.
 
 ## Toasts
 

@@ -101,6 +101,10 @@ fn settings_round_trip() {
             remote_port: 17890,
             remote_hostname: "macbook.tailnet.ts.net".into(),
             lsp: crate::LspSettings::default(),
+            prose: crate::ProseSettings {
+                markers: crate::ProseMarkers::Hide,
+                ..Default::default()
+            },
         };
         save_settings(&settings).unwrap();
         assert_eq!(load_settings().unwrap(), settings);

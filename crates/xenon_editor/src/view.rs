@@ -13,6 +13,7 @@ mod layout;
 mod links;
 mod lsp;
 mod menu;
+mod prose;
 mod remote;
 mod selected;
 #[cfg(feature = "visual-tests")]
@@ -24,9 +25,9 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{
-    AnyElement, App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point, Render,
-    ScrollWheelEvent, Styled, Subscription, Task, Window, actions, div, px,
+    App, AppContext, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, MouseButton, ParentElement, Pixels, Point, Render, ScrollWheelEvent, Styled,
+    Subscription, Task, Window, actions, div, px,
 };
 use theme::ActiveTheme;
 
@@ -34,7 +35,7 @@ use crate::buffer::{Buffer, OpenError};
 use crate::element;
 use crate::highlight;
 use crate::image_viewer::ImageViewer;
-use crate::markdown::{LinkTarget, PreviewEvent, PreviewState};
+use crate::markdown::LinkTarget;
 use crate::mouse::{ClickLayout, ClickTracker};
 use crate::vim::VimState;
 use find_session::FindSession;
@@ -42,7 +43,20 @@ use menu::is_supported_image;
 use xenon_design_system::CursorBlink;
 use xenon_settings::{Copy, Cut, Paste, SelectAll};
 
-actions!(xenon_editor, [Find, FindNext, FindPrevious]);
+actions!(
+    xenon_editor,
+    [
+        Find,
+        FindNext,
+        FindPrevious,
+        ProseMode,
+        SplitMode,
+        SourceMode,
+        TogglePaper,
+        ToggleFullScreen,
+        ToggleTask
+    ]
+);
 
 pub(super) const LINE_HEIGHT_MULTIPLIER: f32 = 1.3;
 pub(super) const ZOOM_STEP: f32 = 1.2;
@@ -64,8 +78,8 @@ pub struct EditorView {
     autofocus: bool,
     focused_once: bool,
     cursor_blink: CursorBlink,
-    /// Render the markdown preview instead of the source (markdown files only).
-    preview: bool,
+    /// Markdown prose mode state (mode, Paper, layout cache).
+    pub(super) prose: prose::ProseUi,
     worklist_document: bool,
     worklist_raw: bool,
     worklist_cursor: worklist::Cursor,
@@ -79,9 +93,6 @@ pub struct EditorView {
     worklist_edit: Option<Entity<crate::item_editor::ItemEditor>>,
     worklist_input_sub: Vec<Subscription>,
     worklist_error: Option<String>,
-    /// Selection host for markdown preview (plain blocks + carets).
-    preview_state: Entity<PreviewState>,
-    _preview_sel_sub: Subscription,
     pub(super) click_layout: Option<ClickLayout>,
     click_tracker: ClickTracker,
     dragging: bool,
@@ -135,6 +146,10 @@ pub enum EditorEvent {
     },
     /// Mouse (or other user action) claimed keyboard focus on this view.
     Focused,
+    /// Prose full screen was toggled: the shell hides or restores its chrome.
+    FullScreen {
+        on: bool,
+    },
     /// A markdown link to a file or URL was followed from `path`.
     OpenLink {
         path: PathBuf,
@@ -203,10 +218,6 @@ impl EditorView {
     }
 
     fn from_content(content: Content, autofocus: bool, cx: &mut Context<Self>) -> Self {
-        let preview_state = cx.new(|_| PreviewState::default());
-        let _preview_sel_sub = cx.subscribe(&preview_state, |this, _, event: &PreviewEvent, cx| {
-            this.on_preview_event(event, cx)
-        });
         let mut view = Self {
             remote: None,
             content,
@@ -222,7 +233,7 @@ impl EditorView {
             autofocus,
             focused_once: false,
             cursor_blink: CursorBlink::default(),
-            preview: false,
+            prose: Default::default(),
             worklist_document: false,
             worklist_raw: false,
             worklist_cursor: worklist::Cursor::Item(0),
@@ -233,8 +244,6 @@ impl EditorView {
             worklist_edit: None,
             worklist_input_sub: Vec::new(),
             worklist_error: None,
-            preview_state,
-            _preview_sel_sub,
             click_layout: None,
             click_tracker: ClickTracker::default(),
             dragging: false,
@@ -281,12 +290,6 @@ impl EditorView {
 
     /// ⌘A — select entire buffer (or all rendered preview text when previewing).
     pub fn select_all(&mut self, cx: &mut Context<Self>) {
-        if self.preview {
-            self.preview_state
-                .update(cx, |state, cx| state.select_all(cx));
-            cx.notify();
-            return;
-        }
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
@@ -327,19 +330,19 @@ impl EditorView {
         )
     }
 
-    /// Toggle between source and rendered markdown (no-op for non-markdown).
+    /// Toggle between Prose and Source for markdown (no-op elsewhere).
     pub fn toggle_preview(&mut self, cx: &mut Context<Self>) {
-        if self.is_markdown() {
-            self.preview = !self.preview;
-            self.preview_state
-                .update(cx, |state, cx| state.clear_selection(cx));
-            self.context_menu = None;
-            cx.notify();
-        }
+        let to = if self.markdown_mode() == xenon_settings::MarkdownMode::Source {
+            xenon_settings::MarkdownMode::Prose
+        } else {
+            xenon_settings::MarkdownMode::Source
+        };
+        self.set_markdown_mode(to, cx);
     }
 
+    /// Whether a rendered (prose) pane is showing.
     pub fn is_previewing(&self) -> bool {
-        self.preview
+        self.shows_prose_pane()
     }
 
     fn on_scroll(
@@ -375,70 +378,19 @@ impl Focusable for EditorView {
     }
 }
 
-impl EditorView {
-    fn render_preview(
-        &mut self,
-        alert: Option<impl IntoElement + 'static>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let colors = cx.theme().colors().clone();
-        let menu = self
-            .context_menu
-            .map(|position| self.render_preview_context_menu(position, &colors, cx));
-        let rendered = layout::markdown_preview(&self.text(), self.preview_state.clone(), cx);
-        if rendered.needs_layout {
-            window.request_animation_frame();
-        }
-        self.preview_state.update(cx, |state, cx| {
-            state.sync_outline(
-                rendered.outline_blocks,
-                rendered.outline_shown,
-                rendered.anchors,
-            );
-            state.sync_doc(
-                rendered.source,
-                rendered.plain_blocks,
-                rendered.source_ranges,
-                cx,
-            );
-        });
-        div()
-            .track_focus(&self.focus)
-            .key_context("Editor")
-            .on_key_down(cx.listener(Self::on_key))
-            .on_action(cx.listener(|this, _: &Copy, _, cx| {
-                this.copy_selection(cx);
-            }))
-            .on_action(cx.listener(|this, _: &SelectAll, _, cx| {
-                this.select_all(cx);
-            }))
-            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_preview_mouse_down))
-            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
-            .relative()
-            .size_full()
-            .flex()
-            .flex_col()
-            .bg(colors.editor_background)
-            .children(alert)
-            .child(div().flex_1().min_h_0().child(rendered.element))
-            .children(menu)
-            .into_any_element()
-    }
-}
-
 impl Render for EditorView {
+    #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.autofocus && !self.focused_once {
             self.focus.focus(window, cx);
             self.focused_once = true;
         }
         self.sync_from_disk(cx);
+        self.ensure_prose_prefs();
         let cursor_focused = self.focus.is_focused(window)
             && window.is_window_active()
             && matches!(self.content, Content::Text(_))
-            && (!self.worklist_document || self.worklist_raw)
-            && !self.preview;
+            && (!self.worklist_document || self.worklist_raw);
         self.cursor_blink
             .update_focus(cursor_focused, cx, Self::blink_tick);
         let colors = cx.theme().colors().clone();
@@ -455,9 +407,6 @@ impl Render for EditorView {
             return self.render_worklist(window, cx).into_any_element();
         }
         let alert = self.disk_alert_bar(cx);
-        if self.preview {
-            return self.render_preview(alert, window, cx);
-        }
         let mode_bar = self.vim_mode_bar(&colors, cx);
         let menu = self
             .context_menu
@@ -472,9 +421,44 @@ impl Render for EditorView {
                 .text_color(colors.text_muted)
                 .child(status)
         });
+        let markdown = self.is_md_prose_capable();
+        let strip = self.prose_strip(cx);
+        let prose_active = self.prose_active();
+        let source = self.shows_source_pane().then(|| {
+            div()
+                .flex_1()
+                .min_w_0()
+                .min_h_0()
+                .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+                .on_mouse_move(cx.listener(Self::on_mouse_move))
+                .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+                .on_scroll_wheel(cx.listener(Self::on_scroll))
+                .child(layout::editor_canvas(
+                    cx.entity(),
+                    self.focus.clone(),
+                    !prose_active,
+                ))
+        });
+        let prose = self.shows_prose_pane().then(|| {
+            div()
+                .flex_1()
+                .min_w_0()
+                .min_h_0()
+                .on_mouse_down(MouseButton::Left, cx.listener(Self::on_prose_mouse_down))
+                .on_mouse_move(cx.listener(Self::on_prose_mouse_move))
+                .on_mouse_up(MouseButton::Left, cx.listener(Self::on_prose_mouse_up))
+                .on_scroll_wheel(cx.listener(Self::on_prose_scroll))
+                .child(self.prose_pane(prose_active, cx))
+        });
+        let split = source.is_some() && prose.is_some();
+        let divider = split.then(|| div().w(px(1.)).h_full().flex_none().bg(colors.border));
         div()
             .track_focus(&self.focus)
-            .key_context("Editor")
+            .key_context(if markdown {
+                "Editor Markdown"
+            } else {
+                "Editor"
+            })
             .on_key_down(cx.listener(Self::on_key))
             .on_action(cx.listener(|this, _: &Cut, _, cx| {
                 this.cut_selection(cx);
@@ -500,16 +484,24 @@ impl Render for EditorView {
             .on_action(cx.listener(|this, _: &FindPrevious, _, cx| {
                 this.find_previous(cx);
             }))
-            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_action(cx.listener(|this, _: &ProseMode, _, cx| {
+                this.set_markdown_mode(xenon_settings::MarkdownMode::Prose, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SplitMode, _, cx| {
+                this.set_markdown_mode(xenon_settings::MarkdownMode::Split, cx);
+            }))
+            .on_action(cx.listener(|this, _: &SourceMode, _, cx| {
+                this.set_markdown_mode(xenon_settings::MarkdownMode::Source, cx);
+            }))
+            .on_action(cx.listener(|this, _: &TogglePaper, _, cx| this.toggle_paper(cx)))
+            .on_action(cx.listener(|this, _: &ToggleFullScreen, _, cx| this.toggle_full_screen(cx)))
+            .on_action(cx.listener(|this, _: &ToggleTask, _, cx| this.toggle_task(cx)))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
-            .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .on_scroll_wheel(cx.listener(Self::on_scroll))
             .relative()
             .size_full()
             .flex()
             .flex_col()
-            .bg(colors.editor_background)
+            .bg(self.page_background(cx))
             .children(alert)
             .children(
                 self.worklist_document
@@ -521,9 +513,14 @@ impl Render for EditorView {
                 div()
                     .flex_1()
                     .min_h_0()
-                    .child(layout::editor_canvas(cx.entity(), self.focus.clone())),
+                    .flex()
+                    .flex_row()
+                    .children(source)
+                    .children(divider)
+                    .children(prose),
             )
             .children(mode_bar)
+            .children(strip)
             .children(menu)
             .into_any_element()
     }

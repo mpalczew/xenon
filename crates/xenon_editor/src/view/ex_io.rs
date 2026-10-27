@@ -138,13 +138,6 @@ impl EditorView {
     }
 
     pub fn copy_selection(&self, cx: &mut Context<Self>) {
-        if self.preview {
-            let text = self.preview_state.read(cx).selected_text();
-            if !text.is_empty() {
-                cx.write_to_clipboard(ClipboardItem::new_string(text));
-            }
-            return;
-        }
         let Content::Text(buffer) = &self.content else {
             return;
         };
@@ -155,10 +148,7 @@ impl EditorView {
     }
 
     pub fn cut_selection(&mut self, cx: &mut Context<Self>) {
-        if self.preview {
-            self.copy_selection(cx);
-            return;
-        }
+        self.end_typing();
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
@@ -172,9 +162,7 @@ impl EditorView {
     }
 
     pub fn paste_clipboard(&mut self, cx: &mut Context<Self>) {
-        if self.preview {
-            return;
-        }
+        self.end_typing();
         let Some(item) = cx.read_from_clipboard() else {
             return;
         };

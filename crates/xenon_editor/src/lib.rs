@@ -10,6 +10,7 @@ mod image_viewer;
 pub mod item_editor;
 mod markdown;
 mod mouse;
+mod prose;
 mod scroll;
 mod selection;
 mod undo;

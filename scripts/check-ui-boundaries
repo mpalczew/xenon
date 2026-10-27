@@ -12,6 +12,7 @@ for path in "${owners[@]}"; do
     case "$path" in
         crates/xenon_editor/src/view/entity_input.rs|\
         crates/xenon_editor/src/view/layout.rs|\
+        crates/xenon_editor/src/view/prose/canvas.rs|\
         crates/xenon_terminal/src/view/input.rs|\
         crates/xenon_terminal/src/view/render.rs) ;;
         *) printf 'UI input belongs in xenon_design_system: %s\n' "$path" >&2; exit 1 ;;

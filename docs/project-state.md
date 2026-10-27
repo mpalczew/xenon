@@ -53,8 +53,8 @@ rediscover.
   -n`). Dock click while running activates; it does not spawn the other
   slot. Public ship without the marker file is one instance at `~/.xenon`.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` /
-  `.pdf` hand off to the system default app. Markdown preview stays a GPUI
-  document. Agent computer-use stays in the harness (Playwright, Chrome,
+  `.pdf` hand off to the system default app. Markdown prose mode is a GPUI
+  document (see Markdown prose below). Agent computer-use stays in the harness (Playwright, Chrome,
   browser MCP). Revisit an in-app preview only if GPUI grows an overlay-safe
   webview, or a time-boxed spike plus dogfood evidence that the system-browser
   hop is a weekly blocker.
@@ -186,6 +186,33 @@ rediscover.
   scene, so palettes and menus draw behind the page. Zed’s wry experiment
   (PR 52447) hit this and did not merge. Do not add a webview surface unless
   upstream GPUI composites under overlays.
+
+## Markdown prose mode
+
+- One buffer. Prose, Split and Source are views of the same ropey buffer; every
+  prose key is a plain `Edit` on file text (`crates/xenon_editor/src/prose/edit.rs`).
+  Never re-serialize from the rendered model. Typing round-trips byte-exact;
+  checked against every `~/src/substack` article (1600 Enter and Backspace plans,
+  300k caret positions, zero stray byte changes).
+- Pipeline: `prose::model` (pulldown leaves to blocks that cover every source
+  line) -> `display` (shown text plus offset map) -> `layout` (GPUI shaping, caret
+  and hit-test) -> `paint`. Offsets are chars in the buffer and UTF-8 bytes in
+  pulldown; `Index::byte_to_char` is the only conversion. Display bytes are a
+  third space: only `Display::locate`/`src_at` cross it.
+- Bind ⌥1/⌥2/⌥3/⌥P/⌥F in the `Markdown` key context only. The editor root sets
+  `key_context("Editor Markdown")` for `.md`; a global ⌥-letter would break
+  macOS option typing and terminal readline.
+- Paper hexes live only in `prose/style.rs`. Marker ink is darkened until it has
+  3:1 against the page (the specified light `#a39a8b` on `#f8f4ec` is about
+  2.5:1). Per-file mode, Paper and comment fold persist in
+  `prose-files.json`; look settings live in `settings.json` under `prose`.
+- IME: marked text is a char range in the buffer (`EditorView.prose.marked`)
+  with UTF-16 conversion at the input-handler boundary; one composition is one
+  undo step in both views. Typing in prose coalesces a word into one undo step.
+- The old read-only preview (and its outline, `[` / `]` heading steps) was
+  removed; ⌘⇧V toggles Prose/Source. Only `markdown/link.rs` remains.
+- Deferred: list renumbering after Enter mid-list, small URL font, outline
+  navigation, IME candidate placement outside prose, remote (SSH) documents.
 
 ## Open product work
 

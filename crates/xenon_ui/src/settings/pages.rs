@@ -75,6 +75,107 @@ pub(super) fn editor(cx: &App) -> Vec<Group> {
         .detail("Soft wrap every other file")
         .keywords("soft wrap lines"),
     ])]
+    .into_iter()
+    .chain(markdown(cx))
+    .collect()
+}
+
+const PROSE_SIZES: [f32; 5] = [16.0, 17.0, 18.0, 20.0, 22.0];
+const PROSE_LINE_HEIGHTS: [f32; 4] = [1.4, 1.55, 1.7, 1.9];
+const PROSE_MEASURES: [f32; 4] = [56.0, 66.0, 76.0, 90.0];
+const PROSE_FONTS: [xenon_settings::ProseFont; 4] = [
+    xenon_settings::ProseFont::Auto,
+    xenon_settings::ProseFont::Serif,
+    xenon_settings::ProseFont::Sans,
+    xenon_settings::ProseFont::Mono,
+];
+
+fn nearest(values: &[f32], current: f32) -> usize {
+    values
+        .iter()
+        .enumerate()
+        .min_by(|a, b| (a.1 - current).abs().total_cmp(&(b.1 - current).abs()))
+        .map_or(0, |(i, _)| i)
+}
+
+fn prose_choice(
+    id: &'static str,
+    label: &'static str,
+    options: Vec<String>,
+    selected: usize,
+    pick: impl Fn(usize, &mut xenon_store::ProseSettings) + 'static,
+) -> SettingRow {
+    SettingRow::new(
+        id,
+        label,
+        Control::Choice {
+            options: options.into_iter().map(Into::into).collect(),
+            selected,
+            pick: Rc::new(move |index, _, cx| {
+                xenon_settings::update_prose(cx, |p| pick(index, p));
+                xenon_terminal::refresh_windows(cx);
+            }),
+        },
+    )
+}
+
+/// Markdown writing mode: how prose text looks.
+fn markdown(cx: &App) -> Vec<Group> {
+    let p = xenon_settings::prose(cx);
+    vec![Group::titled(
+        "Markdown writing",
+        vec![
+            prose_choice(
+                "prose-markers",
+                "Markers",
+                vec!["Dim".into(), "Hide".into()],
+                usize::from(p.markers == xenon_settings::ProseMarkers::Hide),
+                |i, p| {
+                    p.markers = if i == 1 {
+                        xenon_settings::ProseMarkers::Hide
+                    } else {
+                        xenon_settings::ProseMarkers::Dim
+                    }
+                },
+            )
+            .detail("Dim keeps # * and [] visible as faint text; Hide draws only the result")
+            .keywords("markdown syntax prose hide"),
+            prose_choice(
+                "prose-font",
+                "Writing font",
+                vec!["Auto".into(), "Serif".into(), "Sans".into(), "Mono".into()],
+                PROSE_FONTS.iter().position(|f| *f == p.font).unwrap_or(0),
+                |i, p| p.font = PROSE_FONTS[i],
+            )
+            .detail("Auto is serif on Paper and the interface face otherwise")
+            .keywords("markdown prose serif"),
+            prose_choice(
+                "prose-size",
+                "Writing size",
+                PROSE_SIZES.iter().map(|v| format!("{v:.0}")).collect(),
+                nearest(&PROSE_SIZES, p.size),
+                |i, p| p.size = PROSE_SIZES[i],
+            )
+            .keywords("markdown prose font size"),
+            prose_choice(
+                "prose-line-height",
+                "Line height",
+                PROSE_LINE_HEIGHTS.iter().map(|v| format!("{v}")).collect(),
+                nearest(&PROSE_LINE_HEIGHTS, p.line_height),
+                |i, p| p.line_height = PROSE_LINE_HEIGHTS[i],
+            )
+            .keywords("markdown prose leading"),
+            prose_choice(
+                "prose-measure",
+                "Column width",
+                PROSE_MEASURES.iter().map(|v| format!("{v:.0}")).collect(),
+                nearest(&PROSE_MEASURES, p.measure),
+                |i, p| p.measure = PROSE_MEASURES[i],
+            )
+            .detail("Characters per line")
+            .keywords("markdown prose measure"),
+        ],
+    )]
 }
 
 fn switch_row(id: &'static str, label: &'static str, on: bool, toggle: fn(&mut App)) -> SettingRow {

@@ -32,6 +32,15 @@ impl EditorView {
             cx.stop_propagation();
             return;
         }
+        if keystroke.key == "escape"
+            && self.prose.chrome_hidden
+            && !self.find_is_open()
+            && !xenon_settings::vim_mode(cx)
+        {
+            self.toggle_full_screen(cx);
+            cx.stop_propagation();
+            return;
+        }
         if matches!(self.content, Content::Image(_)) {
             if !keystroke.modifiers.secondary() {
                 return;
@@ -50,6 +59,7 @@ impl EditorView {
             return;
         }
         if self.command_chord(keystroke, cx) && keystroke.key == "z" {
+            self.end_typing();
             let edited = if keystroke.modifiers.shift {
                 self.redo_edit()
             } else {
@@ -68,16 +78,11 @@ impl EditorView {
             cx.stop_propagation();
             return;
         }
-        if self.preview {
-            if self.command_chord(keystroke, cx) && keystroke.key == "c" {
-                self.copy_selection(cx);
+        if self.prose_active() {
+            if self.on_prose_key(event, cx) {
                 cx.stop_propagation();
             }
-            if let Some(delta) = heading_step(keystroke) {
-                self.preview_state
-                    .update(cx, |state, cx| state.step_heading(delta, cx));
-                cx.stop_propagation();
-            }
+            cx.notify();
             return;
         }
         if keystroke.modifiers.control && keystroke.key == "r" {
@@ -268,18 +273,6 @@ impl EditorView {
         }
     }
 
-    pub(super) fn on_preview_mouse_down(
-        &mut self,
-        event: &MouseDownEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !mouse::is_primary_down(event) {
-            return;
-        }
-        self.claim_keyboard(window, cx);
-    }
-
     pub(super) fn on_mouse_down(
         &mut self,
         event: &MouseDownEvent,
@@ -291,6 +284,10 @@ impl EditorView {
         }
         self.cursor_blink.reset(cx, Self::blink_tick);
         self.dismiss_menu(cx);
+        self.end_typing();
+        if self.is_md_prose_capable() && self.prose.mode == xenon_settings::MarkdownMode::Split {
+            self.prose.active_prose = false;
+        }
         let Content::Text(buffer) = &mut self.content else {
             self.claim_keyboard(window, cx);
             cx.notify();
@@ -440,16 +437,4 @@ fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand>
         "end" => EditCommand::Move(Motion::LineEnd),
         _ => return None,
     })
-}
-
-/// `[` / `]` with no modifiers: previous / next heading in the preview.
-fn heading_step(keystroke: &gpui::Keystroke) -> Option<i32> {
-    if keystroke.modifiers.modified() {
-        return None;
-    }
-    match keystroke.key.as_str() {
-        "[" => Some(-1),
-        "]" => Some(1),
-        _ => None,
-    }
 }

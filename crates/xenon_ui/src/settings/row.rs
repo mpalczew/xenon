@@ -140,6 +140,13 @@ impl Group {
     pub fn untitled(rows: Vec<SettingRow>) -> Self {
         Self { title: None, rows }
     }
+
+    pub fn titled(title: &'static str, rows: Vec<SettingRow>) -> Self {
+        Self {
+            title: Some(title.into()),
+            rows,
+        }
+    }
 }
 
 /// One keyboard-reachable row and where it lives.

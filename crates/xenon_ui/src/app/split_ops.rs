@@ -357,6 +357,10 @@ impl XenonApp {
                 EditorEvent::OpenLink { path, target } => {
                     this.open_doc_link(path, target, cx);
                 }
+                EditorEvent::FullScreen { on } => {
+                    this.writing_full_screen = *on;
+                    cx.notify();
+                }
                 EditorEvent::Focused => {
                     if let Some((workspace, tab)) = this.locate_editor(&view) {
                         this.adopt_tab_as_focused(workspace, tab, cx);

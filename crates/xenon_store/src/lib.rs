@@ -14,6 +14,7 @@ use xenon_core::{Registry, SessionState, WorkspaceId};
 
 mod cli;
 mod ipc;
+mod prose;
 mod remote_devices;
 mod settings;
 mod skill;
@@ -23,6 +24,10 @@ pub use cli::{CliCommand, parse_cli};
 pub use ipc::{
     IpcRequest, IpcResponse, OpenFileSpec, OpenPane, bind_server, parse_cli_paths, send_request,
     serve_forever, socket_path, try_handoff, try_handoff_request,
+};
+pub use prose::{
+    MarkdownMode, ProseFilePrefs, ProseFont, ProseMarkers, ProseSettings, prose_file_prefs,
+    set_prose_file_prefs,
 };
 pub use remote_devices::{
     RemoteDevice, RemoteDevices, load_remote_devices, save_remote_devices, shared_dir,
