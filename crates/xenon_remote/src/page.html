@@ -1261,6 +1261,7 @@ function stopRepeat() {
 function onDirectKey(e) {
   if (e.isComposing) return;
   if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); send({ t: "key", key: "shift-tab" }); return; }
+  if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); send({ t: "key", key: "shift-enter" }); return; }
   if (e.ctrlKey && !e.metaKey && !e.altKey) {
     const k = e.key.toLowerCase();
     if (k === "c" || k === "d" || k === "u") { e.preventDefault(); send({ t: "key", key: "ctrl-" + k }); return; }
@@ -1295,7 +1296,7 @@ function onMsgKeyDown(e) {
   if (e.key === "Backspace" && !e.target.value) send({ t: "key", key: "backspace" });
   if (e.key === "Enter" && !e.isComposing) {
     e.preventDefault();
-    submitText(e);
+    if (e.shiftKey) newlineText(); else submitText(e);
   }
 }
 
@@ -1317,6 +1318,14 @@ function submitText(e) {
   const wait = Core.enterDelay(text.length > 0);
   const fire = () => send({ t: "key", key: "enter" });
   if (wait) setTimeout(fire, wait); else fire();
+}
+
+/** Shift+Enter: flush the field into the prompt, then a newline (LF) instead of submit. */
+function newlineText() {
+  const input = $("msg");
+  if (input.value && !send({ t: "text", data: input.value })) return;
+  input.value = "";
+  send({ t: "key", key: "shift-enter" });
 }
 
 function renderDigits() {

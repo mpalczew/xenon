@@ -114,6 +114,8 @@ pub struct PairResponse {
 #[serde(rename_all = "kebab-case")]
 pub enum NamedKey {
     Enter,
+    /// Newline inside a prompt (LF), not submit.
+    ShiftEnter,
     Esc,
     CtrlC,
     Tab,
@@ -134,6 +136,7 @@ impl NamedKey {
     pub fn keystroke(self) -> &'static str {
         match self {
             Self::Enter => "enter",
+            Self::ShiftEnter => "shift-enter",
             Self::Esc => "escape",
             Self::CtrlC => "ctrl-c",
             Self::Tab => "tab",
