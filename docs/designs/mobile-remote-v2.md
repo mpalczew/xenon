@@ -201,7 +201,7 @@ Client → server:
 {"t":"hello","token":"…"}
 {"t":"attach","workspaceId":"…","tabId":7}
 {"t":"text","data":"fix the test"}          // raw, no implicit Enter
-{"t":"key","key":"enter|esc|ctrl-c|tab|shift-tab|up|down|left|right|backspace"}
+{"t":"key","key":"enter|shift-enter|esc|ctrl-c|tab|shift-tab|up|down|left|right|backspace"}
 {"t":"history","before":-40,"count":200}    // lines above viewport, negative = scrollback
 {"t":"fit","cols":52,"rows":30}             // phone viewport in cells; Decision A
 {"t":"runTask","workspaceId":"…","label":"build"}   // same path as the Mac's Run Task picker

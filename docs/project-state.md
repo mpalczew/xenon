@@ -180,6 +180,9 @@ rediscover.
 - Phone page: setting `disabled` on a focused input blurs it, and iOS never
   gives focus back. `renderStale()` remembers the focused input and refocuses
   it on reconnect; any new disable-while-stale input needs the same.
+- Phone text cannot carry a newline: `pty_input_bytes` turns `\n` into `\r`,
+  which submits in Claude Code. A prompt newline is the `shift-enter` named key
+  (LF via the terminal key map).
 - In this codebase, “browser” is the Files tree, not a web view.
 - GPUI (pinned Zed rev) has no webview primitive. The window is one Metal
   `NSView`. A native WKWebView / wry child view composites above the GPU
