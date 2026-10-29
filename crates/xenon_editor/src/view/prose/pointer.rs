@@ -35,6 +35,9 @@ impl EditorView {
             return;
         }
         self.claim_keyboard(window, cx);
+        if self.vim.mode.is_visual() {
+            self.vim.mode = crate::vim::Mode::Normal;
+        }
         if self.prose.mode == MarkdownMode::Split {
             self.prose.active_prose = true;
         }

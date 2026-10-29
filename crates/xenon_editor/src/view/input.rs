@@ -79,7 +79,8 @@ impl EditorView {
             return;
         }
         if self.prose_active() {
-            if self.on_prose_key(event, cx) {
+            let vim = xenon_settings::vim_mode(cx) && self.prose_vim_key(event, cx);
+            if vim || self.on_prose_key(event, cx) {
                 cx.stop_propagation();
             }
             cx.notify();
@@ -132,7 +133,11 @@ impl EditorView {
     }
 
     /// Returns true if the keystroke was fully consumed (caller should return).
-    fn route_vim_keystroke(&mut self, keystroke: &gpui::Keystroke, cx: &mut Context<Self>) -> bool {
+    pub(super) fn route_vim_keystroke(
+        &mut self,
+        keystroke: &gpui::Keystroke,
+        cx: &mut Context<Self>,
+    ) -> bool {
         // `/` and `:` drafts: take printable key_char here. Claiming "handled" on
         // KeyDown without consuming key_char blocks IME insertText on macOS.
         if self.vim.search_draft.is_some() || self.vim.ex_draft.is_some() {

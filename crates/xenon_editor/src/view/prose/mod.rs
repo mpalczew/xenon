@@ -183,3 +183,4 @@ mod motion;
 mod pointer;
 mod strip;
 mod toggles;
+mod vim;

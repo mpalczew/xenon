@@ -26,6 +26,12 @@ impl XenonApp {
         drop(self.services.focus_guard.remove(0));
     }
 
+    /// The active editor's text and (row, col) caret.
+    pub fn visual_editor_state(&self, cx: &gpui::App) -> Option<(String, (u32, u32))> {
+        let editor = self.active_editor()?.read(cx);
+        Some((editor.text_snapshot()?.1, editor.cursor_position()?))
+    }
+
     pub fn visual_command_palette_open(&self) -> bool {
         self.command_palette.is_some()
     }

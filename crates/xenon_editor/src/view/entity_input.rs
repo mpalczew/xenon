@@ -69,11 +69,19 @@ impl EntityInputHandler for EditorView {
         if text.is_empty() {
             return;
         }
-        if xenon_settings::vim_mode(cx) && !self.prose_active() && self.handle_vim_char(text, cx) {
+        let vim = xenon_settings::vim_mode(cx);
+        if vim && self.prose_active() && self.prose_vim_char(text, cx) {
+            cx.notify();
+            return;
+        }
+        if vim && !self.prose_active() && self.handle_vim_char(text, cx) {
             cx.notify();
             return;
         }
         if self.prose_active() {
+            if vim {
+                self.vim.note_insert_text(text);
+            }
             self.prose_type(text, cx);
             return;
         }

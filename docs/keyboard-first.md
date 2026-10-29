@@ -41,6 +41,7 @@ exceptions listed under "Linux differences" below.
 | Markdown: toggle Prose and Source | ⌘⇧V |
 | Markdown: Paper · Full screen (Escape or ⌥F restores) · flip task box | ⌥P · ⌥F · ⌘Return |
 | Markdown prose: Enter · soft break · outdent/indent item | Return (continues lists and quotes) · ⇧Return · ⇧Tab / Tab |
+| Markdown prose with vim on: vim acts on the source; Insert keeps the prose keys above; bare `j`/`k` move one display row; Escape leaves Insert (⌥F leaves full screen) | vim keys |
 | Wrap lines | ⌥Z |
 | Themes panel · browse · keep · revert | ⌘⌥T · ↑/↓ family, ←/→ dark/light (live) · Return · Escape |
 | Settings: page · row · value · toggle | ⌘1–⌘7 · ↑/↓ · ←/→ (segments, sizes, theme swatches) · Space/Return |

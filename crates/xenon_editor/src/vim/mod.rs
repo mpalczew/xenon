@@ -201,6 +201,21 @@ impl VimState {
         }
     }
 
+    /// Normal mode with nothing pending but an optional count: a bare `j`/`k`
+    /// here is a plain move the prose view may take as a display-row move.
+    pub(crate) fn bare_normal(&self) -> bool {
+        self.mode == Mode::Normal
+            && self.operator.is_none()
+            && self.awaiting_object.is_none()
+            && self.awaiting_find.is_none()
+            && !self.awaiting_replace
+            && !self.register_pending
+            && !self.pending_g
+            && !self.pending_z
+            && self.search_draft.is_none()
+            && self.ex_draft.is_none()
+    }
+
     /// Count prefix for Ctrl-chord commands (`5Ctrl-a`); resets after read.
     pub(crate) fn count_for_ctrl(&mut self) -> usize {
         let n = self.count;
