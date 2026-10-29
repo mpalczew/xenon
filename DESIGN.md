@@ -190,7 +190,8 @@ Leading `<!-- -->` lines fold into one chip ("3 comments", with a flag mark when
 one says FLAG); click or Return toggles it, remembered per file.
 
 Paper is a document surface, not chrome: `#f8f4ec` page and `#2b2722` ink in
-light, `#16140f` and `#ddd5c6` in dark, on by default for Markdown and applied
+light, `#16140f` and `#ddd5c6` in dark, with honey selection (`#edb950` light,
+`#73571e` dark; the theme fill disappears on the page), on by default for Markdown and applied
 to all three modes. Full screen (⌥F) hides sidebar, toolbar, tab strip and
 status strip; Escape or ⌥F restores them.
 

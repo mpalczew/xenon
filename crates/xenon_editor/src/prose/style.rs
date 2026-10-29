@@ -26,10 +26,12 @@ const MARKER_CONTRAST: f32 = 3.0;
 
 pub fn palette(colors: &ThemeColors, light: bool, paper: bool, caret: Hsla) -> Palette {
     if paper {
-        let (bg, ink, marker, tint, rule) = if light {
-            (0xf8f4ec, 0x2b2722, 0xa39a8b, 0xf0eadf, 0xe0d8c8)
+        // Selection is honey, not the theme's chrome fill, which vanishes on
+        // the warm page; dark keeps ink at 4.6:1 on it.
+        let (bg, ink, marker, tint, rule, selection) = if light {
+            (0xf8f4ec, 0x2b2722, 0xa39a8b, 0xf0eadf, 0xe0d8c8, 0xedb950)
         } else {
-            (0x16140f, 0xddd5c6, 0x6f685c, 0x1f1c15, 0x2e2a20)
+            (0x16140f, 0xddd5c6, 0x6f685c, 0x1f1c15, 0x2e2a20, 0x73571e)
         };
         let bg: Hsla = rgb(bg).into();
         let ink: Hsla = rgb(ink).into();
@@ -42,7 +44,7 @@ pub fn palette(colors: &ThemeColors, light: bool, paper: bool, caret: Hsla) -> P
             accent: colors.text_accent,
             tint: rgb(tint).into(),
             rule: rgb(rule).into(),
-            selection: colors.element_selected,
+            selection: rgb(selection).into(),
             caret,
         }
     } else {
