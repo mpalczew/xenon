@@ -11,6 +11,9 @@ else
 fi
 APP="$APP_BIN"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
+# Task terminals run this as `bash -c`, the session leader; its exit HUPs the
+# app it backgrounded. An ignored HUP survives fork/exec, so set it up front.
+trap '' HUP
 # State both slots must see (phone-remote paired devices): not copied per slot.
 SHARED_DIR="$HOME/.xenon-shared"
 
@@ -264,7 +267,7 @@ launch_slot() {
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        "$APP" "$@" >>"$log" 2>&1 &
+        "$APP" "$@" </dev/null >>"$log" 2>&1 &
     pid=$!
     printf '%s\n' "$pid" >"$dir/xenon.pid"
     disown "$pid" 2>/dev/null || true
@@ -336,7 +339,7 @@ activate_slot() {
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        "$APP" >>"$log" 2>&1 &
+        "$APP" </dev/null >>"$log" 2>&1 &
     handoff=$!
     i=0
     while kill -0 "$handoff" 2>/dev/null && ((i < 25)); do
