@@ -79,11 +79,7 @@ impl EditorView {
             return;
         }
         if self.prose_active() {
-            let vim = xenon_settings::vim_mode(cx) && self.prose_vim_key(event, cx);
-            if vim || self.on_prose_key(event, cx) {
-                cx.stop_propagation();
-            }
-            cx.notify();
+            self.prose_key_down(event, cx);
             return;
         }
         if keystroke.modifiers.control && keystroke.key == "r" {

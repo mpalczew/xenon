@@ -9,12 +9,20 @@ use super::super::{Content, EditorView};
 use crate::vim::Mode;
 
 impl EditorView {
+    /// Key-down in prose. A vim claim returns without stopping propagation:
+    /// printable keys still have to reach `insertText` as typed text.
+    pub(in crate::view) fn prose_key_down(&mut self, event: &KeyDownEvent, cx: &mut Context<Self>) {
+        if xenon_settings::vim_mode(cx) && self.prose_vim_key(event, cx) {
+            return;
+        }
+        if self.on_prose_key(event, cx) {
+            cx.stop_propagation();
+        }
+        cx.notify();
+    }
+
     /// Returns true when vim took the key; false lets prose handle it.
-    pub(in crate::view) fn prose_vim_key(
-        &mut self,
-        event: &KeyDownEvent,
-        cx: &mut Context<Self>,
-    ) -> bool {
+    fn prose_vim_key(&mut self, event: &KeyDownEvent, cx: &mut Context<Self>) -> bool {
         let k = &event.keystroke;
         let drafting = self.vim.search_draft.is_some() || self.vim.ex_draft.is_some();
         if self.vim.mode == Mode::Insert && !drafting && k.key != "escape" {
