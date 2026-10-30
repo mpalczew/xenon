@@ -18,6 +18,10 @@ pub fn exec_gui(gui: &Path, args: &[OsString]) -> ! {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
+        // Own session: a Xenon launched from another Xenon's terminal must
+        // outlive that Xenon tearing its terminals down. Fails only for a
+        // group leader, which keeps today's behavior.
+        unsafe { libc::setsid() };
         let error = Command::new(gui).args(args).exec();
         eprintln!("xenon: failed to exec {}: {error}", gui.display());
         std::process::exit(127);
