@@ -57,6 +57,7 @@ run ssh-helper env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
     -s crates/xenon_ssh/src -p helper_test.py
 run fmtcheck cargo fmt --all --check
 run lint-shape scripts/check-rust-shape
+run metal scripts/ensure-metal
 run lint cargo clippy --profile precommit --workspace --all-targets -- \
     -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines
 if ((${#test_args[@]})); then

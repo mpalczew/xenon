@@ -6,6 +6,7 @@ source "$root/scripts/release/codesign.sh"
 
 # XENON_PROFILE=dogfood is the author's incremental local profile (bin/install).
 profile="${XENON_PROFILE:-release}"
+"$root/scripts/ensure-metal"
 (cd "$root" && cargo build --profile "$profile" -p xenon -p xenon_stub)
 
 # Harnesses build in worktrees with a shared CARGO_TARGET_DIR; cargo resolves it from $root.
