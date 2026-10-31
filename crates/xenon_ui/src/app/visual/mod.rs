@@ -59,7 +59,6 @@ pub enum Scene {
     ProseSplit,
     ProseHideMarkers,
     ProseCommentsOpen,
-    ProseFullScreen,
     ImageViewer,
     Unsupported,
     EditorFind,
@@ -160,7 +159,6 @@ pub const SCENES: &[Scene] = &[
     Scene::ProseSplit,
     Scene::ProseHideMarkers,
     Scene::ProseCommentsOpen,
-    Scene::ProseFullScreen,
     Scene::ImageViewer,
     Scene::Unsupported,
     Scene::EditorFind,
@@ -263,7 +261,6 @@ impl Scene {
             Self::ProseSplit => "content_prose_split",
             Self::ProseHideMarkers => "content_prose_hide_markers",
             Self::ProseCommentsOpen => "content_prose_comments_open",
-            Self::ProseFullScreen => "content_prose_full_screen",
             Self::ImageViewer => "content_image_viewer",
             Self::Unsupported => "content_unsupported",
             Self::EditorFind => "content_editor_find",
@@ -385,8 +382,7 @@ pub fn apply_scene(
         | Scene::ProseDark
         | Scene::ProseSplit
         | Scene::ProseHideMarkers
-        | Scene::ProseCommentsOpen
-        | Scene::ProseFullScreen => content::prose(app, scene, window, cx),
+        | Scene::ProseCommentsOpen => content::prose(app, scene, window, cx),
         Scene::ImageViewer => content::image_viewer(app, window, cx),
         Scene::Unsupported => content::unsupported(app, window, cx),
         Scene::EditorFind => content::editor_find(app, window, cx),

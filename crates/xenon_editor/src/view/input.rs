@@ -32,15 +32,6 @@ impl EditorView {
             cx.stop_propagation();
             return;
         }
-        if keystroke.key == "escape"
-            && self.prose.chrome_hidden
-            && !self.find_is_open()
-            && !xenon_settings::vim_mode(cx)
-        {
-            self.toggle_full_screen(cx);
-            cx.stop_propagation();
-            return;
-        }
         if matches!(self.content, Content::Image(_)) {
             if !keystroke.modifiers.secondary() {
                 return;

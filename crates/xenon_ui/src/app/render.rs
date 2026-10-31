@@ -17,15 +17,7 @@ impl Render for XenonApp {
         let ui = xenon_settings::ui_font(cx);
         window.set_rem_size(px(ui.size));
         let colors = cx.theme().colors().clone();
-        if self.writing_full_screen
-            && !self
-                .active_editor()
-                .is_some_and(|view| view.read(cx).is_full_screen())
-        {
-            self.writing_full_screen = false;
-        }
-        let sidebar =
-            (!self.sidebar_collapsed && !self.writing_full_screen).then(|| self.render_sidebar(cx));
+        let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));
         let main = self.render_main(window, cx);
         let finder = self.finder.clone();
         let worklist_capture = self
@@ -37,7 +29,7 @@ impl Render for XenonApp {
             .top_0()
             .bottom_0()
             .right_0()
-            .left(px(if self.sidebar_visible() && !self.writing_full_screen {
+            .left(px(if self.sidebar_visible() {
                 self.sidebar_width
             } else {
                 0.
@@ -146,7 +138,7 @@ impl XenonApp {
         colors: theme::ThemeColors,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let reopen_sidebar = !self.sidebar_visible() && !self.writing_full_screen;
+        let reopen_sidebar = !self.sidebar_visible();
         div()
             .relative()
             .flex()
@@ -380,9 +372,7 @@ impl XenonApp {
                 cx.notify();
             }));
 
-        if !self.writing_full_screen {
-            panel = panel.child(self.render_toolbar(cx));
-        }
+        panel = panel.child(self.render_toolbar(cx));
 
         match content.and_then(|c| c.root.as_ref()) {
             Some(root) => {

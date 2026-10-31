@@ -99,9 +99,6 @@ pub(super) fn prose(
             if editor.comments_open() == (scene != Scene::ProseCommentsOpen) {
                 editor.toggle_comments_fold(cx);
             }
-            if scene == Scene::ProseFullScreen {
-                editor.toggle_full_screen(cx);
-            }
             if matches!(scene, Scene::ProseLight | Scene::ProseDark) {
                 // Heading word into the body, over bold: the Paper selection fill.
                 editor.set_selection_range((4, 16), (7, 30), cx);

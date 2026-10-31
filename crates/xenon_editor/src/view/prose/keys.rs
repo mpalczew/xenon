@@ -27,10 +27,6 @@ impl EditorView {
         let cursor = buffer.cursor();
         let selection = buffer.selection_range();
         if key == "escape" {
-            if self.prose.chrome_hidden {
-                self.toggle_full_screen(cx);
-                return true;
-            }
             if selection.is_some() {
                 self.move_to(cursor, false, false, cx);
                 return true;

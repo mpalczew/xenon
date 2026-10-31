@@ -256,6 +256,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         match self.font_target(window, cx) {
+            FontPane::Prose => xenon_settings::nudge_prose_font_size(cx, delta),
             FontPane::Editor => xenon_settings::nudge_editor_font_size(cx, delta),
             FontPane::Terminal => xenon_settings::nudge_terminal_font_size(cx, delta),
         }
@@ -265,6 +266,7 @@ impl XenonApp {
 
     pub(super) fn reset_font_size(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.font_target(window, cx) {
+            FontPane::Prose => xenon_settings::reset_prose_font_size(cx),
             FontPane::Editor => xenon_settings::reset_editor_font_size(cx),
             FontPane::Terminal => xenon_settings::reset_terminal_font_size(cx),
         }
@@ -274,6 +276,13 @@ impl XenonApp {
 
     fn font_target(&mut self, window: &Window, cx: &Context<Self>) -> FontPane {
         let target = match self.current_focus_owner(window, cx) {
+            FocusOwner::Editor
+                if self
+                    .active_editor()
+                    .is_some_and(|view| view.read(cx).zooms_prose()) =>
+            {
+                FontPane::Prose
+            }
             FocusOwner::Editor => FontPane::Editor,
             FocusOwner::Terminal => FontPane::Terminal,
             FocusOwner::Browser | FocusOwner::Git | FocusOwner::Diff | FocusOwner::Shell => {

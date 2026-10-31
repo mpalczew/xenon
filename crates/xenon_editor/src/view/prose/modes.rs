@@ -1,4 +1,4 @@
-//! Prose modes, Paper, full screen and per-file prefs.
+//! Prose modes, Paper and per-file prefs.
 
 use gpui::Context;
 use xenon_settings::{MarkdownMode, ProseFilePrefs};
@@ -69,6 +69,11 @@ impl EditorView {
                 MarkdownMode::Split => self.prose.active_prose,
                 MarkdownMode::Source => false,
             }
+    }
+
+    /// ⌘+ / ⌘− scale the prose body, not the editor font, while prose has keys.
+    pub fn zooms_prose(&self) -> bool {
+        self.prose_active()
     }
 
     pub(in crate::view) fn shows_prose_pane(&self) -> bool {

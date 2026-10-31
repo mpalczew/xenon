@@ -39,9 +39,10 @@ exceptions listed under "Linux differences" below.
 | Agent skill prompt | Return install · Escape not now · ←/→ buttons |
 | Markdown mode: Prose / Split / Source (Split again swaps the active pane) | ⌥1 / ⌥2 / ⌥3 |
 | Markdown: toggle Prose and Source | ⌘⇧V |
-| Markdown: Paper · Full screen (Escape or ⌥F restores) · flip task box | ⌥P · ⌥F · ⌘Return |
+| Markdown: Paper · flip task box | ⌥P · ⌘Return |
+| Markdown prose: body size bigger · smaller · reset | ⌘= · ⌘− · ⌘0 |
 | Markdown prose: Enter · soft break · outdent/indent item | Return (continues lists and quotes) · ⇧Return · ⇧Tab / Tab |
-| Markdown prose with vim on: vim acts on the source; Insert keeps the prose keys above; bare `j`/`k` move one display row; Escape leaves Insert (⌥F leaves full screen) | vim keys |
+| Markdown prose with vim on: vim acts on the source; Insert keeps the prose keys above; bare `j`/`k` move one display row; Escape leaves Insert | vim keys |
 | Wrap lines | ⌥Z |
 | Themes panel · browse · keep · revert | ⌘⌥T · ↑/↓ family, ←/→ dark/light (live) · Return · Escape |
 | Settings: page · row · value · toggle | ⌘1–⌘7 · ↑/↓ · ←/→ (segments, sizes, theme swatches) · Space/Return |

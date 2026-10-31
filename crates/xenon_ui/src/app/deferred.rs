@@ -19,12 +19,14 @@ pub(super) enum FocusOwner {
     Shell,
 }
 
-/// Content surface for cmd-+ / cmd-- font zoom (editor and terminal only).
+/// Content surface for cmd-+ / cmd-- font zoom (editor, prose, terminal).
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub(super) enum FontPane {
     #[default]
     Terminal,
     Editor,
+    /// Markdown prose pane: zoom sizes the prose body.
+    Prose,
 }
 
 /// Queued focus + palette/command work that needs a `Window` on the next paint.

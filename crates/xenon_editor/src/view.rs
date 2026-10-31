@@ -53,7 +53,6 @@ actions!(
         SplitMode,
         SourceMode,
         TogglePaper,
-        ToggleFullScreen,
         ToggleTask
     ]
 );
@@ -146,10 +145,6 @@ pub enum EditorEvent {
     },
     /// Mouse (or other user action) claimed keyboard focus on this view.
     Focused,
-    /// Prose full screen was toggled: the shell hides or restores its chrome.
-    FullScreen {
-        on: bool,
-    },
     /// A markdown link to a file or URL was followed from `path`.
     OpenLink {
         path: PathBuf,
@@ -494,7 +489,6 @@ impl Render for EditorView {
                 this.set_markdown_mode(xenon_settings::MarkdownMode::Source, cx);
             }))
             .on_action(cx.listener(|this, _: &TogglePaper, _, cx| this.toggle_paper(cx)))
-            .on_action(cx.listener(|this, _: &ToggleFullScreen, _, cx| this.toggle_full_screen(cx)))
             .on_action(cx.listener(|this, _: &ToggleTask, _, cx| this.toggle_task(cx)))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_down))
             .relative()

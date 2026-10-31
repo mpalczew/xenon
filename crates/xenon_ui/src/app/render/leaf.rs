@@ -74,7 +74,7 @@ impl XenonApp {
                     }
                 }),
             )
-            .children((!self.writing_full_screen).then_some(tabs))
+            .child(tabs)
             .child(body)
             .into_any_element()
     }

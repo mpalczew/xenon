@@ -84,7 +84,6 @@ const SHARED: &[Row] = &[
     (Some("Markdown"), "alt-2", "xenon_editor::SplitMode"),
     (Some("Markdown"), "alt-3", "xenon_editor::SourceMode"),
     (Some("Markdown"), "alt-p", "xenon_editor::TogglePaper"),
-    (Some("Markdown"), "alt-f", "xenon_editor::ToggleFullScreen"),
     (Some("Markdown"), "cmd-enter", "xenon_editor::ToggleTask"),
     (Some("EditorFind"), "cmd-f", "xenon_editor::Find"),
     (Some("EditorFind"), "cmd-g", "xenon_editor::FindNext"),

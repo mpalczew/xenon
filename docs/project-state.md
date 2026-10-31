@@ -209,7 +209,7 @@ rediscover.
   and hit-test) -> `paint`. Offsets are chars in the buffer and UTF-8 bytes in
   pulldown; `Index::byte_to_char` is the only conversion. Display bytes are a
   third space: only `Display::locate`/`src_at` cross it.
-- Bind ⌥1/⌥2/⌥3/⌥P/⌥F in the `Markdown` key context only. The editor root sets
+- Bind ⌥1/⌥2/⌥3/⌥P in the `Markdown` key context only. The editor root sets
   `key_context("Editor Markdown")` for `.md`; a global ⌥-letter would break
   macOS option typing and terminal readline.
 - Paper hexes live only in `prose/style.rs`. Marker ink is darkened until it has

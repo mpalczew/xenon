@@ -11,10 +11,10 @@ use super::super::EditorView;
 use crate::prose::style;
 
 impl EditorView {
-    /// Status strip for markdown files: counts left, Paper/Full, modes right.
+    /// Status strip for markdown files: counts left, Paper, modes right.
     #[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
     pub(in crate::view) fn prose_strip(&mut self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !self.is_md_prose_capable() || self.prose.chrome_hidden {
+        if !self.is_md_prose_capable() {
             return None;
         }
         self.ensure_prose_prefs();
@@ -63,11 +63,6 @@ impl EditorView {
             button("prose-paper", format!("Paper {}", key("P")), paper)
                 .on_click(move |_, _, cx| this.update(cx, |v, cx| v.toggle_paper(cx)))
         };
-        let full_btn = {
-            let this = this.clone();
-            button("prose-full", format!("Full {}", key("F")), false)
-                .on_click(move |_, _, cx| this.update(cx, |v, cx| v.toggle_full_screen(cx)))
-        };
         Some(
             div()
                 .flex()
@@ -89,8 +84,7 @@ impl EditorView {
                         .items_center()
                         .gap_2()
                         .child(format!("{words} words \u{b7} {mins} min"))
-                        .child(paper_btn)
-                        .child(full_btn),
+                        .child(paper_btn),
                 )
                 .child(
                     div()

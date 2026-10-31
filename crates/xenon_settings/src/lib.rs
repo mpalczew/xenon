@@ -27,7 +27,9 @@ pub use mono_font::{
     canonicalize as canonicalize_mono_family, display_name as display_mono_family,
     ensure as ensure_mono_family, is_family as is_monospace_family,
 };
-pub use prose::{prose, prose_font, prose_markers, update_prose};
+pub use prose::{
+    nudge_prose_font_size, prose, prose_font, prose_markers, reset_prose_font_size, update_prose,
+};
 pub use xenon_store::{
     MarkdownMode, ProseFilePrefs, ProseFont, ProseMarkers, ProseSettings, TerminalAutoClose,
     ThemeMode, prose_file_prefs, set_prose_file_prefs,
