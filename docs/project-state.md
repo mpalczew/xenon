@@ -163,6 +163,13 @@ rediscover.
   `.git/index` and re-trigger its own watcher.
 - A completed `bin/install` updates the app on disk, but a running process
   keeps the old binary. Never kill Xenon to force the switch.
+- Quitting Xenon kills what its terminals started. The stub `setsid`s before
+  exec so a Xenon launched from another Xenon's terminal (slot flip) outlives
+  it; ignoring SIGHUP alone was not enough.
+- No crash handler. A vanished instance: panics land in the slot's
+  `xenon.log` (stderr goes there); SIGSEGV/abort leave an `.ips` in
+  `~/Library/Logs/DiagnosticReports`; neither means a signal or clean exit, and
+  `log show --predicate 'eventMessage CONTAINS "<pid>"'` dates it.
 - Do not make `CFBundleExecutable` a shell script: TCC/FDA follow the signed
   Mach-O in `Xenon.app`, not `/bin/bash`. The stub is a small signed binary.
 - TUI mouse reporting sends clicks to the PTY. ⌘-click open injects shift (so
