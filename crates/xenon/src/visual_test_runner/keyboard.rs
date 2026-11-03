@@ -1,7 +1,7 @@
 type Check = fn(&mut gpui::VisualTestAppContext) -> anyhow::Result<()>;
 
 pub(crate) fn run_all(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
-    let checks: [(&str, Check); 6] = [
+    let checks: [(&str, Check); 7] = [
         (
             "keyboard_worklist_escape",
             shortcuts_survive_worklist_escape,
@@ -17,6 +17,7 @@ pub(crate) fn run_all(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()>
         ),
         ("keyboard_stranded_key_replay", stranded_key_is_replayed),
         ("keyboard_prose_vim", prose_takes_vim_keys),
+        ("keyboard_prose_mode_scroll", mode_switch_keeps_scroll),
     ];
     let mut failed = Vec::new();
     for (name, check) in checks {
@@ -195,5 +196,60 @@ fn prose_takes_vim_keys(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<(
     if !vim_was {
         cx.update(xenon_settings::toggle_vim_mode);
     }
+    result
+}
+
+/// Source ↔ prose keeps the reader on the same part of the file.
+fn mode_switch_keeps_scroll(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<()> {
+    use anyhow::{anyhow, ensure};
+    use xenon_settings::MarkdownMode;
+
+    let window = crate::open_window(cx)?;
+    window.update(cx, |app, window, cx| {
+        xenon_ui::apply_scene(app, xenon_ui::Scene::ProseLight, window, cx);
+    })?;
+    cx.run_until_parked();
+    let editor = window
+        .update(cx, |app, _, _| app.visual_editor())?
+        .ok_or_else(|| anyhow!("no active editor"))?;
+    let render = |cx: &mut gpui::VisualTestAppContext| -> anyhow::Result<()> {
+        cx.update_window(window.into(), |_, window, _| window.refresh())?;
+        cx.run_until_parked();
+        Ok(())
+    };
+    let top = |cx: &mut gpui::VisualTestAppContext| {
+        cx.update(|cx| editor.read(cx).visual_top_line())
+            .ok_or_else(|| anyhow!("no top line"))
+    };
+    let filler: String = (1..=120)
+        .map(|i| format!("## Part {i}\n\nParagraph {i} runs long enough to read as body text.\n\n"))
+        .collect();
+    let result = (|| {
+        editor.update(cx, |e, cx| {
+            e.set_markdown_mode(MarkdownMode::Source, cx);
+            e.visual_insert(&filler, cx);
+        });
+        render(cx)?;
+        editor.update(cx, |e, cx| e.visual_scroll_source(200, cx));
+        render(cx)?;
+        let source = top(cx)?;
+        ensure!(source >= 150, "source did not scroll: top line {source}");
+        editor.update(cx, |e, cx| e.set_markdown_mode(MarkdownMode::Prose, cx));
+        render(cx)?;
+        let prose = top(cx)?;
+        ensure!(
+            prose.abs_diff(source) <= 2,
+            "prose opened at line {prose}, source was at {source}"
+        );
+        editor.update(cx, |e, cx| e.set_markdown_mode(MarkdownMode::Source, cx));
+        render(cx)?;
+        let back = top(cx)?;
+        ensure!(
+            back.abs_diff(prose) <= 2,
+            "source came back at line {back}, prose was at {prose}"
+        );
+        Ok(())
+    })();
+    editor.update(cx, |e, cx| e.set_markdown_mode(MarkdownMode::Prose, cx));
     result
 }

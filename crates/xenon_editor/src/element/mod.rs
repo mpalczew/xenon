@@ -89,6 +89,8 @@ pub struct LayoutInput<'a> {
     pub follow_cursor: bool,
     /// When true, center the cursor line (`zz`); wins over `follow_cursor`.
     pub center_cursor: bool,
+    /// Put this buffer `(line, col)` on the top row; wins over both above.
+    pub top_line: Option<(usize, usize)>,
     pub soft_wrap: bool,
 }
 

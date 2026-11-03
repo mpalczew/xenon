@@ -32,6 +32,10 @@ impl XenonApp {
         Some((editor.text_snapshot()?.1, editor.cursor_position()?))
     }
 
+    pub fn visual_editor(&self) -> Option<gpui::Entity<xenon_editor::EditorView>> {
+        self.active_editor()
+    }
+
     pub fn visual_command_palette_open(&self) -> bool {
         self.command_palette.is_some()
     }

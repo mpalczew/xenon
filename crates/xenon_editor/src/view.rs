@@ -73,6 +73,8 @@ pub struct EditorView {
     pub(super) last_cursor: Option<(usize, usize)>,
     /// Next layout should center the cursor line (`zz`).
     pub(super) scroll_center_once: bool,
+    /// Char offset the next source layout puts on the top row.
+    pub(super) scroll_anchor: Option<usize>,
     focus: FocusHandle,
     autofocus: bool,
     focused_once: bool,
@@ -223,6 +225,7 @@ impl EditorView {
             scroll_top: px(0.),
             scroll_left: px(0.),
             scroll_center_once: false,
+            scroll_anchor: None,
             last_cursor: None,
             focus: cx.focus_handle(),
             autofocus,

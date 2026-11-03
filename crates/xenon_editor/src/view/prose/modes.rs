@@ -4,6 +4,7 @@ use gpui::Context;
 use xenon_settings::{MarkdownMode, ProseFilePrefs};
 
 use super::super::{Content, EditorView};
+use crate::prose::layout::Hit;
 
 impl EditorView {
     pub fn is_md_prose_capable(&self) -> bool {
@@ -47,6 +48,8 @@ impl EditorView {
         }
         self.ensure_prose_prefs();
         self.end_typing();
+        let (had_prose, had_source) = (self.shows_prose_pane(), self.shows_source_pane());
+        let anchor = self.top_anchor();
         if mode == MarkdownMode::Split && self.prose.mode == MarkdownMode::Split {
             self.prose.active_prose = !self.prose.active_prose;
         } else {
@@ -54,11 +57,45 @@ impl EditorView {
         }
         self.prose.mode = mode;
         self.prose.layout_key = None;
-        self.prose.last_cursor = None;
-        self.last_cursor = None;
+        // A pane that just appeared opens where the reader was; one that stays keeps its scroll.
+        // Without an anchor it falls back to bringing the caret into view.
+        if self.shows_prose_pane() && !had_prose {
+            self.prose.anchor = anchor;
+            self.prose.last_cursor = None;
+        }
+        if self.shows_source_pane() && !had_source {
+            self.scroll_anchor = anchor;
+            self.last_cursor = None;
+        }
         self.context_menu = None;
         self.save_prose_prefs();
         cx.notify();
+    }
+
+    /// Char offset at the top of the pane the reader is looking at.
+    pub(in crate::view) fn top_anchor(&self) -> Option<usize> {
+        if self.prose_active() {
+            let layout = self.prose.layout.as_ref()?;
+            let y = self.prose.scroll;
+            let bi = layout.block_at_y(y);
+            let bl = layout.blocks.get(bi)?;
+            return Some(match layout.hit(bl.x, y.max(bl.y + bl.text_top)) {
+                Hit::Pos(pos) => pos,
+                Hit::Check(_) | Hit::Chip => layout.proj.block(bi).src.start,
+            });
+        }
+        let Content::Text(buffer) = &self.content else {
+            return None;
+        };
+        let click = self.click_layout.as_ref()?;
+        let visual = (click.scroll_top / click.line_height).floor().max(0.) as usize;
+        let (line, col) = match click.wrap_rows.as_deref() {
+            Some(rows) => crate::element::buffer_at(rows, visual, 0),
+            None => (visual, 0),
+        };
+        let rope = buffer.rope();
+        let line = line.min(rope.len_lines().saturating_sub(1));
+        Some(rope.line_to_char(line) + col)
     }
 
     /// Whether keystrokes and typed text act through the prose projection.

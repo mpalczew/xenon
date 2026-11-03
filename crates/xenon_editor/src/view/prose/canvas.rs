@@ -191,7 +191,12 @@ pub(in crate::view) fn prepare(
         v.prose.bounds = bounds;
         let max = (layout.height - bounds.size.height).max(px(0.));
         let mut scroll = v.prose.scroll.min(max);
-        if v.prose.last_cursor != Some(cursor) {
+        if let Some(anchor) = v.prose.anchor.take() {
+            v.prose.last_cursor = Some(cursor);
+            if let Some(c) = layout.caret(anchor) {
+                scroll = c.y.min(max).max(px(0.));
+            }
+        } else if v.prose.last_cursor != Some(cursor) {
             v.prose.last_cursor = Some(cursor);
             if let Some(c) = layout.caret(cursor) {
                 let margin = c.h * 2.;

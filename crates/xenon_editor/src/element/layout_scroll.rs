@@ -22,7 +22,9 @@ pub(super) fn scroll_offsets(
         sizes.content_height,
         crate::scroll::scrollbar_reserve(),
     );
-    if input.center_cursor {
+    if let Some((line, _)) = input.top_line {
+        top = metrics.line_height * (line as f32);
+    } else if input.center_cursor {
         top = crate::scroll::center_row(input.cursor.0, metrics.line_height, height);
         left = crate::scroll::keep_col_visible(left, input.cursor.1, sizes.cell, width);
     } else if input.follow_cursor {

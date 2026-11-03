@@ -49,7 +49,9 @@ pub(super) fn layout(
         crate::scroll::scrollbar_reserve(),
     );
     let mut scroll_top = input.scroll_top;
-    if input.center_cursor {
+    if let Some((line, col)) = input.top_line {
+        scroll_top = metrics.line_height * (locate(&rows, line, col).0 as f32);
+    } else if input.center_cursor {
         scroll_top = crate::scroll::center_row(visual, metrics.line_height, view_h);
     } else if input.follow_cursor {
         scroll_top =

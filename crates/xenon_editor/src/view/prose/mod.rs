@@ -28,6 +28,8 @@ pub(crate) struct ProseUi {
     pub bounds: Bounds<Pixels>,
     pub goal_x: Option<Pixels>,
     last_cursor: Option<usize>,
+    /// Char offset the next prose layout puts at the top.
+    anchor: Option<usize>,
     /// Split mode: keys act on the prose pane (else the source pane).
     pub active_prose: bool,
     pub marked: Option<Range<usize>>,
@@ -50,6 +52,7 @@ impl Default for ProseUi {
             bounds: Bounds::default(),
             goal_x: None,
             last_cursor: None,
+            anchor: None,
             active_prose: true,
             marked: None,
             typing: false,

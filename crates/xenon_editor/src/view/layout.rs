@@ -69,7 +69,7 @@ fn layout(
     } else {
         (content_height - bounds.size.height).max(px(0.))
     };
-    let (follow_cursor, center_cursor) = scroll_intent(view, max_scroll, cx);
+    let (follow_cursor, center_cursor, top_line) = scroll_intent(view, max_scroll, cx);
 
     let show_line_numbers = xenon_settings::show_line_numbers(cx);
     let editor_layout = {
@@ -130,6 +130,7 @@ fn layout(
                 show_line_numbers,
                 follow_cursor,
                 center_cursor,
+                top_line,
                 soft_wrap,
             },
             element::TextMetrics {
@@ -154,16 +155,30 @@ fn layout(
     editor_layout
 }
 
-/// `(follow_cursor, center_cursor)` for this layout pass.
-fn scroll_intent(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) -> (bool, bool) {
+/// `(follow_cursor, center_cursor, top_line)` for this layout pass.
+fn scroll_intent(
+    view: &Entity<EditorView>,
+    max_scroll: Pixels,
+    cx: &mut App,
+) -> (bool, bool, Option<(usize, usize)>) {
     view.update(cx, |view, _| {
         view.scroll_top = view.scroll_top.min(max_scroll);
+        if let Some(anchor) = view.scroll_anchor.take()
+            && let Content::Text(buffer) = &view.content
+        {
+            view.scroll_center_once = false;
+            view.last_cursor = Some(buffer.cursor_position());
+            let rope = buffer.rope();
+            let anchor = anchor.min(rope.len_chars());
+            let line = rope.char_to_line(anchor);
+            return (false, false, Some((line, anchor - rope.line_to_char(line))));
+        }
         if view.scroll_center_once {
             view.scroll_center_once = false;
             if let Content::Text(buffer) = &view.content {
                 view.last_cursor = Some(buffer.cursor_position());
             }
-            return (false, true);
+            return (false, true, None);
         }
         let follow = match &view.content {
             Content::Text(buffer) => {
@@ -176,7 +191,7 @@ fn scroll_intent(view: &Entity<EditorView>, max_scroll: Pixels, cx: &mut App) ->
             }
             Content::Image(_) | Content::Unsupported { .. } => false,
         };
-        (follow, false)
+        (follow, false, None)
     })
 }
 

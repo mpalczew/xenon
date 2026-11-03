@@ -32,6 +32,22 @@ impl EditorView {
         cx.notify();
     }
 
+    /// Buffer line at the top of the pane that has keys.
+    pub fn visual_top_line(&self) -> Option<usize> {
+        let Content::Text(buffer) = &self.content else {
+            return None;
+        };
+        Some(buffer.rope().char_to_line(self.top_anchor()?))
+    }
+
+    /// Scroll the source pane so `line` (one visual row each) is on top.
+    pub fn visual_scroll_source(&mut self, line: usize, cx: &mut Context<Self>) {
+        if let Some(click) = &self.click_layout {
+            self.scroll_top = click.line_height * (line as f32);
+        }
+        cx.notify();
+    }
+
     pub fn visual_open_menu(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         self.context_menu = Some(position);
         cx.notify();
