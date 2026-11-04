@@ -26,10 +26,16 @@ prepare_linux_runtime() {
             *libwayland-client.so.0*) return 0 ;;
         esac
     fi
-    local lib_dir
-    lib_dir="$(pkg-config --variable=libdir wayland-client 2>/dev/null || true)"
-    [[ -f "$lib_dir/libwayland-client.so.0" ]] || return 0
-    export LD_LIBRARY_PATH="$lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    local package lib_dir
+    local -a lib_dirs=()
+    for package in wayland-client vulkan; do
+        lib_dir="$(pkg-config --variable=libdir "$package" 2>/dev/null || true)"
+        [[ -d "$lib_dir" ]] && lib_dirs+=("$lib_dir")
+    done
+    [[ ${#lib_dirs[@]} -gt 0 ]] || return 0
+    local joined
+    joined="$(IFS=:; printf '%s' "${lib_dirs[*]}")"
+    export LD_LIBRARY_PATH="$joined${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 }
 
 prepare_linux_runtime
