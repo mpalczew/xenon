@@ -16,7 +16,7 @@
 | Frame        | `xenon_ui/src/app/remote/host.rs:capture_remote_frame` | `TerminalView::viewport_cells` (chars only) → `viewport_lines` → 5×7 mono PNG (`png_frame.rs`). Seq bumps every call → `since` 204 never fires |
 | Input        | `TerminalView::inject_text`                            | Page always appends `\r`; no named keys. `try_keystroke` exists (`xenon_terminal/src/view/mod.rs:609`) and respects app-cursor mode            |
 | Resize       | `TerminalView::ensure_grid_size`                       | Only heals never-laid-out PTYs; desktop layout owns size                                                                                       |
-| Attention    | `xenon_ui/src/app/attention.rs`                        | Per-tab `Working` / `Attention(Bell                                                                                                            |
+| Attention    | `xenon_ui/src/app/attention.rs`                        | Per-tab `Working` / `Attention(Bell\|IdleSettled)` → workspace dot                                                                             |
 | Settings     | `xenon_store/src/settings.rs:118-131`                  | `remote_password`, `remote_port`, `remote_hostname`. No `remote_enabled`                                                                       |
 | Settings UI  | `xenon_ui/src/settings/remote_section.rs`              | Toggle + click-to-copy URLs                                                                                                                    |
 | Tailscale    | `remote/mod.rs:tailscale_ipv4`                         | Shells `tailscale ip -4` (not on PATH for App Store Tailscale)                                                                                 |
