@@ -11,6 +11,28 @@ else
 fi
 APP="$APP_BIN"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
+
+# Some Linux distributions, including NixOS, expose the Wayland development
+# package through pkg-config without adding its runtime library to ldconfig.
+# GPUI loads libwayland-client at runtime, so make the installed client
+# discoverable before an A/B slot starts a fresh process.
+prepare_linux_runtime() {
+    [[ "$(uname -s)" == Linux ]] || return 0
+    [[ -n "${WAYLAND_DISPLAY:-}" ]] || return 0
+    if command -v ldconfig >/dev/null 2>&1; then
+        local libraries
+        libraries="$(ldconfig -p 2>/dev/null || true)"
+        case "$libraries" in
+            *libwayland-client.so.0*) return 0 ;;
+        esac
+    fi
+    local lib_dir
+    lib_dir="$(pkg-config --variable=libdir wayland-client 2>/dev/null || true)"
+    [[ -f "$lib_dir/libwayland-client.so.0" ]] || return 0
+    export LD_LIBRARY_PATH="$lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+}
+
+prepare_linux_runtime
 # Task terminals run this as `bash -c`, the session leader; its exit HUPs the
 # app it backgrounded. An ignored HUP survives fork/exec, so set it up front.
 trap '' HUP
