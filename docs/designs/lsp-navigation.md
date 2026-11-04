@@ -385,8 +385,8 @@ mapping table with highlight extensions where possible).
 **`ServerId`** — `(WorkspaceId, LanguageFamily)` e.g. `Rust` | `TypeScript`
 (TS+TSX+JS+JSX one server).
 
-**`LspServer`** — child process + JSON-RPC state:
-`Starting | Running | Failed | Stopped`. Holds initialize result capabilities.
+**`LspServer`** — child process + JSON-RPC state: `Starting | Running | Failed |
+Stopped`. Holds initialize result capabilities.
 
 **`LspDocument`** — `uri`, `language_id`, `version: i32` (LSP version; bump on each
 didChange), last synced text fingerprint optional.

@@ -110,8 +110,8 @@ later). Zoom is browser gesture on the viewport, not server resize.
 **New (session-local, not durable product state):**
 
 - `RemoteServer` — bound addr, token hash, enabled flag.
-- `RemoteSession` — authenticated phone connection(s); optional
-  `selected: Option<(WorkspaceId, TabId)>`.
+- `RemoteSession` — authenticated phone connection(s); optional `selected:
+  Option<(WorkspaceId, TabId)>`.
 - `ViewportFrame` — snapshot of **visible** grid only:
   - `workspace: WorkspaceId`
   - `tab: TabId`

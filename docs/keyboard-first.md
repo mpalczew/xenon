@@ -85,7 +85,7 @@ creates using the named folder under the selected parent; Tab does not complete 
 While that field is focused, ⌘V pastes into the name, not the tab behind it.
 
 Tabs and panes stay separate verbs. ⌃⇥ cycles tabs in the focused leaf. The overflow
-count (`N ▾`) lists every tab in that leaf; arrows, Return, Delete, and Escape operate
+count (``N ▾``) lists every tab in that leaf; arrows, Return, Delete, and Escape operate
 the list while it is open. ⌃` cycles leaves, then Files. Do not make ⌃⇥ wrap across
 panes (VS Code / Zed / IntelliJ use ⌃⇥ as an MRU picker, not sequential wrap). ⌘1/2/3
 stay last-terminal / last-editor / Files.

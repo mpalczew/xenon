@@ -9,11 +9,11 @@ metadata:
 # Xenon
 
 If `XENON_DATA_DIR` is set, Xenon has provided a target instance for this process. When
-the user wants to see a file ("open it", "show me", "open in the editor"), run
-`xenon open`. Never use Cursor, VS Code, TextEdit, or `open -t`, and do not print the
-file into chat; that keeps sensitive contents out of the transcript. Do not open files
-the user did not ask to see. To update a worklist, edit `.xenon/worklist.md` directly;
-opening it is unnecessary.
+the user wants to see a file ("open it", "show me", "open in the editor"), run `xenon
+open`. Never use Cursor, VS Code, TextEdit, or `open -t`, and do not print the file into
+chat; that keeps sensitive contents out of the transcript. Do not open files the user
+did not ask to see. To update a worklist, edit `.xenon/worklist.md` directly; opening it
+is unnecessary.
 
 ## Open a file
 
@@ -49,13 +49,13 @@ split by idea, not at an arbitrary character. Preserve code and links intact:
   - Keep the existing storage account.
 ```
 
-Sections are optional Markdown headings. The first `#` heading is the file's title
-(`# Worklist`), not a section. Any later `##` (preferred) or `#` heading starts a
-section, for example `## Now`, `## Next`, `## Someday`; `###` and deeper are ordinary
-text. Items above the first section stay unsectioned at the top. When the file has
-sections, add a new item at the end of the section it belongs to, and leave existing
-items in their sections. Only create a section when the user asks or the file already
-groups work that way.
+Sections are optional Markdown headings. The first `#` heading is the file's title (`#
+Worklist`), not a section. Any later `##` (preferred) or `#` heading starts a section,
+for example `## Now`, `## Next`, `## Someday`; `###` and deeper are ordinary text. Items
+above the first section stay unsectioned at the top. When the file has sections, add a
+new item at the end of the section it belongs to, and leave existing items in their
+sections. Only create a section when the user asks or the file already groups work that
+way.
 
 Use `- [ ]` for an open work item and `- [x]` for a completed one. Put context in
 bullets beneath the item; do not create a separate note type for new entries. Preserve

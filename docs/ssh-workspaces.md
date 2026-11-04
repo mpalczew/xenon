@@ -43,12 +43,12 @@ are not restored after quitting Xenon. Remote text files are limited to 16 MiB. 
 badges, Run Task, Save As, and file creation/rename/deletion from the tree are not
 supported; use the remote terminal for filesystem and git operations.
 
-Each terminal attaches to its own tmux session on the host's `xenon` tmux server
-(`tmux -L xenon`). SSH failures retry the same session; reopening saved terminal tabs
-also reattaches. Closing a tab or workspace detaches and leaves its remote processes
-running. Exiting the remote shell ends that session. Sessions are ordinary tmux sessions
-and can be accessed outside Xenon with `tmux -L xenon list-sessions` and
-`tmux -L xenon attach -t <session>`.
+Each terminal attaches to its own tmux session on the host's `xenon` tmux server (`tmux
+-L xenon`). SSH failures retry the same session; reopening saved terminal tabs also
+reattaches. Closing a tab or workspace detaches and leaves its remote processes running.
+Exiting the remote shell ends that session. Sessions are ordinary tmux sessions and can
+be accessed outside Xenon with `tmux -L xenon list-sessions` and `tmux -L xenon attach
+-t <session>`.
 
 ## Implementation
 

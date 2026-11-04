@@ -132,9 +132,9 @@ git clone https://github.com/mpalczew/xenon.git && cd xenon
 ```
 
 Installs `~/.local/share/xenon/xenon-bin`, the launcher `~/.local/bin/xenon`, and a
-`.desktop` entry + icon (`XENON_APP_DIR`, `XENON_BIN_DIR` override). Update with
-`git pull && ./scripts/release/install`. Needs a Vulkan-capable GPU driver. Shortcuts
-use Ctrl where macOS uses ⌘; quit is `ctrl-q`.
+`.desktop` entry + icon (`XENON_APP_DIR`, `XENON_BIN_DIR` override). Update with `git
+pull && ./scripts/release/install`. Needs a Vulkan-capable GPU driver. Shortcuts use
+Ctrl where macOS uses ⌘; quit is `ctrl-q`.
 
 ### Dev loop
 

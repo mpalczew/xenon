@@ -161,27 +161,23 @@ viewport and sends `fit` on attach and on rotate/resize.
 
 **New (in `xenon_remote`, pure where possible)**
 
-- `CellFrame` — one terminal snapshot.
-  `cols: u16, rows: u16, cursor: Cursor, lines: Vec<Line>, seq: FrameSeq`. Invariant:
-  `lines.len() == rows`.
+- `CellFrame` — one terminal snapshot. `cols: u16, rows: u16, cursor: Cursor, lines:
+  Vec<Line>, seq: FrameSeq`. Invariant: `lines.len() == rows`.
 - `Line` — `spans: Vec<Span>`; adjacent cells with identical style merged. Trailing
   default-style blanks trimmed.
 - `Span` — `text: String, style: StyleId`.
 - `Style` — `fg: Rgb, bg: Rgb, flags: StyleFlags (bold|italic|underline|dim|strike)`.
   Inverse resolved on host (fg/bg swapped). Interned per connection → `StyleId`.
 - `Cursor` — `row, col: u16, shape: Block|Bar|Underline, visible: bool`.
-- `FrameDiff` — pure:
-  `(prev: Option<&CellFrame>, next: &CellFrame) -> Option<FramePatch>`; `None` when
-  identical.
-  `FramePatch { seq, cols, rows, cursor, changed: Vec<(u16, Line)>, full: bool }`.
-  `full` when dims change or no prev.
-- `NamedKey` —
-  `Esc | CtrlC | Tab | ShiftTab | Up | Down | Left | Right | Enter | Backspace`. Maps to
-  a `gpui::Keystroke` on host → `try_keystroke` (app-cursor aware).
+- `FrameDiff` — pure: `(prev: Option<&CellFrame>, next: &CellFrame) ->
+  Option<FramePatch>`; `None` when identical. `FramePatch { seq, cols, rows, cursor,
+  changed: Vec<(u16, Line)>, full: bool }`. `full` when dims change or no prev.
+- `NamedKey` — `Esc | CtrlC | Tab | ShiftTab | Up | Down | Left | Right | Enter |
+  Backspace`. Maps to a `gpui::Keystroke` on host → `try_keystroke` (app-cursor aware).
 - `DeviceId` (uuid), `DeviceToken` (32 random bytes, base64url; only SHA-256 stored),
   `PairingCode` (6 digits + 128-bit URL secret; single use; TTL 10 min).
-- `Device` —
-  `id, label (from UA, e.g. "iPhone Safari"), token_hash, created_at, last_seen_at`.
+- `Device` — `id, label (from UA, e.g. "iPhone Safari"), token_hash, created_at,
+  last_seen_at`.
 - ~~`RemoteNetwork`~~ — removed (2026-10-24): tailnet-only, no choice to model. A saved
   `"remote_network"` key (including `tailscale_and_lan`) is ignored on read, with no
   error and no prompt.
@@ -193,11 +189,11 @@ viewport and sends `fit` on attach and on rotate/resize.
 
 **Modified**
 
-- `AppSettings` — add `remote_enabled: bool`,
-  `remote_keep_awake_while_connected: bool (default false; the earlier`remote_keep_awake`key is ignored, not migrated)`.
+- `AppSettings` — add `remote_enabled: bool`, `remote_keep_awake_while_connected: bool
+  (default false; the earlier`remote_keep_awake`key is ignored, not migrated)`.
   `remote_hostname` kept (override for URL).
-- `MobileRemoteInfo` (global) — add `connected_devices: usize`,
-  `tailscale: Option<TailscaleAddr>`, `pairing: Option<PairingCode>`.
+- `MobileRemoteInfo` (global) — add `connected_devices: usize`, `tailscale:
+  Option<TailscaleAddr>`, `pairing: Option<PairingCode>`.
 - `HostRequest` — remove `CaptureFrame`; add `Attach`, `Detach`, `Key`, `History`,
   `Pair` (see contracts).
 - `TerminalView` — add `cell_snapshot(&self, cx, palette) -> Option<CellFrame>` and
@@ -212,10 +208,9 @@ viewport and sends `fit` on attach and on rotate/resize.
 **Transitions**
 
 - Server: `Off → Listening` (enable / launch with `remote_enabled`) → `Off` (disable).
-  Keep-awake hold is held iff
-  `Listening && remote_keep_awake_while_connected && connected phones >= 1`: acquired on
-  the first connection, released on the last disconnect, when the setting is turned off,
-  or when the remote stops.
+  Keep-awake hold is held iff `Listening && remote_keep_awake_while_connected &&
+  connected phones >= 1`: acquired on the first connection, released on the last
+  disconnect, when the setting is turned off, or when the remote stops.
 - Pairing: `None → Issued` (sheet opened) → `Consumed` (phone pairs) or `Expired` (10
   min / sheet closed... stays valid until TTL so typing on a PWA works after closing
   sheet).
@@ -256,10 +251,9 @@ Tasks list.
 
 - Bearer auth like the other lists; opens a closed workspace without changing the Mac's
   active one.
-- Out:
-  `[{ "label", "detail"?, "command", "group"?: "build"|"test", "default"?: true, "unsupported"?: "reason" }]`.
-  `command` is the line that will run (variables expanded where known, `${input:..}` as
-  written); hidden tasks are omitted.
+- Out: `[{ "label", "detail"?, "command", "group"?: "build"|"test", "default"?: true,
+  "unsupported"?: "reason" }]`. `command` is the line that will run (variables expanded
+  where known, `${input:..}` as written); hidden tasks are omitted.
 
 **New: `GET /manifest.webmanifest`, `/icon-192.png`, `/icon-512.png`,
 `/apple-touch-icon.png`** — static, embedded, no auth.

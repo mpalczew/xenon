@@ -46,10 +46,9 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   that `exec`s `xenon-bin`. Cold start from Dock/Spotlight/login: no data-dir env → last
   slot from `~/.xenon-active-slot` when `~/.xenon-a`/`~/.xenon-b` exists, else ship
   `~/.xenon`. Env already set is not overridden, so the CLI still execs the stub with
-  slot env (0/1/2 and `xenon open` do not flip via `open
-  -n`). Dock click while
-  running activates; it does not spawn the other slot. Public ship without the marker
-  file is one instance at `~/.xenon`.
+  slot env (0/1/2 and `xenon open` do not flip via `open -n`). Dock click while running
+  activates; it does not spawn the other slot. Public ship without the marker file is
+  one instance at `~/.xenon`.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` / `.pdf`
   hand off to the system default app. Markdown prose mode is a GPUI document (see
   Markdown prose below). Agent computer-use stays in the harness (Playwright, Chrome,
@@ -161,8 +160,8 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   alone was not enough.
 - No crash handler. A vanished instance: panics land in the slot's `xenon.log` (stderr
   goes there); SIGSEGV/abort leave an `.ips` in `~/Library/Logs/DiagnosticReports`;
-  neither means a signal or clean exit, and
-  `log show --predicate 'eventMessage CONTAINS "<pid>"'` dates it.
+  neither means a signal or clean exit, and `log show --predicate 'eventMessage CONTAINS
+  "<pid>"'` dates it.
 - Do not make `CFBundleExecutable` a shell script: TCC/FDA follow the signed Mach-O in
   `Xenon.app`, not `/bin/bash`. The stub is a small signed binary.
 - TUI mouse reporting sends clicks to the PTY. ⌘-click open injects shift (so reporting
