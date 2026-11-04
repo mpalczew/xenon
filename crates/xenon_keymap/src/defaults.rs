@@ -148,7 +148,6 @@ const LINUX_TERMINAL: &[(&str, Option<&str>)] = &[
     ("ctrl-shift-v", Some("xenon_clipboard::Paste")),
     ("ctrl-c", None),
     ("ctrl-x", None),
-    ("ctrl-v", None),
     ("ctrl-b", None),
     ("ctrl-e", None),
     ("ctrl-o", None),
@@ -263,6 +262,8 @@ mod tests {
             assert_eq!(found.map(|e| e.action.clone()), Some(None), "{key}");
         }
         assert!(flat(&linux).contains("Terminal\tctrl-shift-c\txenon_clipboard::Copy"));
+        assert!(flat(&linux).contains("-\tctrl-v\txenon_clipboard::Paste"));
+        assert!(flat(&linux).contains("Terminal\tctrl-shift-v\txenon_clipboard::Paste"));
     }
 
     #[test]

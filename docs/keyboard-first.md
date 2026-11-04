@@ -146,11 +146,13 @@ Linux uses Ctrl where the tables say ⌘, plus:
 | Themes | ⌘⌥T | Ctrl+Alt+Shift+T (Ctrl+Alt+T opens a terminal on Ubuntu) |
 | Navigation back / forward | ⌘[ / ⌘] | Ctrl+Alt+- / Ctrl+Alt+_ (Ctrl+[ is Escape) |
 | Terminal find / next / previous | ⌘F / ⌘G / ⌘⇧G | Ctrl+Shift+F / F3 / Shift+F3 |
-| Terminal copy / paste | ⌘C / ⌘V | Ctrl+Shift+C / Ctrl+Shift+V |
+| Terminal copy / paste | ⌘C / ⌘V | Ctrl+Shift+C / Ctrl+V (or Ctrl+Shift+V) |
 | Quit | ⌘Q | Ctrl+Q |
 
-In the focused terminal, Ctrl+C, X, V, B, E, O, and S reach the shell or TUI
-instead of the app shortcut (Ctrl+C is SIGINT; Ctrl+B, E, O follow zed). Other
+In the focused terminal, Ctrl+C, X, B, E, O, and S reach the shell or TUI
+instead of the app shortcut (Ctrl+C is SIGINT; Ctrl+B, E, O follow zed). Ctrl+V
+is Xenon paste, which prevents terminal TUIs from treating it as image paste.
+Other
 Ctrl chords that are not listed here, such as Ctrl+D, Z, R, A, K, U, L, and
 Ctrl+G, were never app shortcuts and go to the PTY. App shortcuts win over the
 shell for Ctrl+P, N, W, J, `\`, and the rest of the tables. Editor word and file
