@@ -45,7 +45,9 @@ Type=Application
 Name=Xenon
 Comment=Agent shell for driving coding agents
 Exec=$bin_dir/xenon %F
-Icon=xenon
+# Use the installed file directly. Some launchers do not search the user's
+# hicolor directory when resolving a desktop entry's theme icon.
+Icon=$icon_dir/xenon.png
 Terminal=false
 Categories=Development;TerminalEmulator;
 StartupWMClass=xenon
