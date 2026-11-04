@@ -1,0 +1,6 @@
+# Commits listed here are ignored by `git blame` (git blame --ignore-revs-file,
+# or set `git config blame.ignoreRevsFile .git-blame-ignore-revs`). Use this for
+# large mechanical reformats that would otherwise swamp blame history.
+
+# format: adopt dprint for markdown and config files
+2a5d72bc29b8e9475fe0535a2108f0746572ddfd
