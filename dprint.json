@@ -20,7 +20,7 @@
     "**/Cargo.lock"
   ],
   "plugins": [
-    "https://plugins.dprint.dev/markdown-0.22.1.wasm",
+    "https://plugins.dprint.dev/markdown-0.28.2.wasm",
     "npm:@dprint/json@0.25.2"
   ]
 }
