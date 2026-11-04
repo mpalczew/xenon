@@ -2,20 +2,20 @@
 
 ## Done
 
-| Item | Result |
-|------|--------|
-| DeferredUi peel | Overlay focus queue |
-| Terminal modules | `attention` / `paths` |
+| Item                     | Result                        |
+| ------------------------ | ----------------------------- |
+| DeferredUi peel          | Overlay focus queue           |
+| Terminal modules         | `attention` / `paths`         |
 | Settings selection paint | Shared chrome, still a window |
 
 ## Still later (not crate hygiene)
 
-| Item | Notes |
-|------|--------|
-| **Find replace** | Feature never built: in-buffer find (⌘F) ships; **replace** (⌘⌥F / replace all) does not exist. Separate product work. |
-| **Homebrew** | Public ship distribution |
-| **Screenshots / notarization** | Public packaging polish; see `docs/release.md` |
-| **Deeper peels** | See below |
+| Item                           | Notes                                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| **Find replace**               | Feature never built: in-buffer find (⌘F) ships; **replace** (⌘⌥F / replace all) does not exist. Separate product work. |
+| **Homebrew**                   | Public ship distribution                                                                                               |
+| **Screenshots / notarization** | Public packaging polish; see `docs/release.md`                                                                         |
+| **Deeper peels**               | See below                                                                                                              |
 
 ## Deeper peels (what that means)
 

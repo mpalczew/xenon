@@ -5,149 +5,146 @@ Strategic product context for agents and design work. Visual system lives in
 
 ## Register
 
-**product** — design serves the tool. Familiar IDE bones are a feature.
-Signature is multi-agent workflow + native speed, not marketing chrome.
+**product** — design serves the tool. Familiar IDE bones are a feature. Signature is
+multi-agent workflow + native speed, not marketing chrome.
 
 ## One-liner
 
-Fast native macOS **anti-IDE shell**: gets out of the way so you can live in
-many coding agents (any harness) across workspaces. Not a chat panel bolted
-onto an editor. Not a vendor-locked agent UI.
+Fast native macOS **anti-IDE shell**: gets out of the way so you can live in many coding
+agents (any harness) across workspaces. Not a chat panel bolted onto an editor. Not a
+vendor-locked agent UI.
 
 ## Origin
 
-Started from frustration with available options. Author stack shift: left
-Cursor+auto and VS Code+Claude extension for this shell plus mostly Grok, some
-Kimi, some Claude. Cursor-like agent layout is close in spirit, but locked to
-one harness and heavier. Terminal multiplexers have no workspace/project model.
-This is the missing layer: multi-workspace, any terminal harness, instant feel.
+Started from frustration with available options. Author stack shift: left Cursor+auto
+and VS Code+Claude extension for this shell plus mostly Grok, some Kimi, some Claude.
+Cursor-like agent layout is close in spirit, but locked to one harness and heavier.
+Terminal multiplexers have no workspace/project model. This is the missing layer:
+multi-workspace, any terminal harness, instant feel.
 
 ## Category (how we talk about it)
 
-| Layer | Meaning |
-|-------|---------|
-| **Primary** | Agent shell / multi-agent workbench |
-| **Anti-IDE (marketing + product)** | The chrome disappears. Seamless switch Claude Code ↔ Grok ↔ Kimi ↔ anything in a PTY. No harness religion. |
-| **IDE (usage)** | "I live here all day." For the author it replaced VS Code. Not a claim of full VS Code feature parity on day one. |
-| **Not** | Single-vendor agent UI, cloud collab IDE, or tmux with lipstick |
+| Layer                              | Meaning                                                                                                           |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Primary**                        | Agent shell / multi-agent workbench                                                                               |
+| **Anti-IDE (marketing + product)** | The chrome disappears. Seamless switch Claude Code ↔ Grok ↔ Kimi ↔ anything in a PTY. No harness religion.        |
+| **IDE (usage)**                    | "I live here all day." For the author it replaced VS Code. Not a claim of full VS Code feature parity on day one. |
+| **Not**                            | Single-vendor agent UI, cloud collab IDE, or tmux with lipstick                                                   |
 
-Most software engineers are becoming prompt engineers (or resisting that). The
-trend is accelerating. A daily-driver shell for parallel agent work is the bet.
+Most software engineers are becoming prompt engineers (or resisting that). The trend is
+accelerating. A daily-driver shell for parallel agent work is the bet.
 
 ## Naming
 
-App: `Xenon.app`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` /
-`XENON_SLOT`. Bundle id `dev.xenon.xenon`. Crate paths `crates/xenon_*`.
-GitHub: `mpalczew/xenon` (public). Checklist: `docs/release.md`.
+App: `Xenon.app`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` / `XENON_SLOT`.
+Bundle id `dev.xenon.xenon`. Crate paths `crates/xenon_*`. GitHub: `mpalczew/xenon`
+(public). Checklist: `docs/release.md`.
 
 ## Anti-IDE (product rule, not slogan)
 
-Chrome gets out of the way. Seamless switch between harnesses (Claude Code,
-Grok, Kimi, anything in a PTY). No vendor religion. Status exists so agents
-are not lost; UI stays quiet. Defaults never imply one model vendor.
-Marketing that is true: **the anti-IDE for people who run agents.**
+Chrome gets out of the way. Seamless switch between harnesses (Claude Code, Grok, Kimi,
+anything in a PTY). No vendor religion. Status exists so agents are not lost; UI stays
+quiet. Defaults never imply one model vendor. Marketing that is true: **the anti-IDE for
+people who run agents.**
 
 ## Wedge → beachhead → north star
 
-| Horizon | Claim |
-|---------|--------|
-| **Wedge (now)** | People already running several agents / checkouts who are drowning in windows and tabs |
-| **Beachhead** | macOS; terminal harnesses (Claude Code and anything that runs in a PTY); multi-workspace |
+| Horizon              | Claim                                                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Wedge (now)**      | People already running several agents / checkouts who are drowning in windows and tabs                     |
+| **Beachhead**        | macOS; terminal harnesses (Claude Code and anything that runs in a PTY); multi-workspace                   |
 | **North star (~5y)** | Default place serious people run agent fleets; "everyone who drives agents" is aspiration, not launch copy |
 
 ## Users
 
 - **Primary:** super power users juggling multiple agent sessions and workspaces.
-- **Secondary (bounce-prevention only):** migrants from Cursor / VS Code / Studio.
-  Do not chase full IDE parity for them until primary users are ecstatic.
-- **Alex (primary):** runs multiple agents across workspaces and harnesses.
-  Needs instant recognition of the active workspace, tab, dirty buffer, and
-  attention state. Ambiguous selection or typing latency is a deal-breaker.
-- **Night driver (primary):** works in a dim room and needs status to be
-  legible without reading every label. Prefers cool dark chrome.
-- **Jordan (bounce prevention):** migrates from Cursor, VS Code, or Studio and
-  expects familiar tab and selection behavior. Do not chase full IDE parity.
-- **HN target:** already juggles several agent sessions in terminals or IDE
-  windows and wants a native, harness-neutral shell. Success means weekly use
-  and substantive engagement, not a one-time star.
-- **Anti-persona:** casual single-file editing and collaborative cloud IDE use
-  are not the v1 wedge.
+- **Secondary (bounce-prevention only):** migrants from Cursor / VS Code / Studio. Do
+  not chase full IDE parity for them until primary users are ecstatic.
+- **Alex (primary):** runs multiple agents across workspaces and harnesses. Needs
+  instant recognition of the active workspace, tab, dirty buffer, and attention state.
+  Ambiguous selection or typing latency is a deal-breaker.
+- **Night driver (primary):** works in a dim room and needs status to be legible without
+  reading every label. Prefers cool dark chrome.
+- **Jordan (bounce prevention):** migrates from Cursor, VS Code, or Studio and expects
+  familiar tab and selection behavior. Do not chase full IDE parity.
+- **HN target:** already juggles several agent sessions in terminals or IDE windows and
+  wants a native, harness-neutral shell. Success means weekly use and substantive
+  engagement, not a one-time star.
+- **Anti-persona:** casual single-file editing and collaborative cloud IDE use are not
+  the v1 wedge.
 
 ## Job to be done (JTBD)
 
 **JTBD** = job to be done (the outcome the product is hired for).
 
-> Run several agent-driven workstreams in parallel without losing track of
-> which agent is where, what it is waiting on, and what I still own.
+> Run several agent-driven workstreams in parallel without losing track of which agent
+> is where, what it is waiting on, and what I still own.
 
-How that shows up in the UI: active workspace, active terminal/editor tab,
-attention when an agent needs you, dirty buffers. **Today attention/status is
-incomplete and has real technical hurdles; it does not work well enough yet.**
-It is still central: when it works, it directly helps real daily work.
+How that shows up in the UI: active workspace, active terminal/editor tab, attention
+when an agent needs you, dirty buffers. **Today attention/status is incomplete and has
+real technical hurdles; it does not work well enough yet.** It is still central: when it
+works, it directly helps real daily work.
 
 ## Product model
 
 - **Workspace** = project / checkout root + saved session (layout, tabs).
-- **Content layout:** a **pane tree** of tab stacks. Terminals and
-  editors are the same kind of surface. Open file → tab in the focused pane
-  (not an automatic split). Split horizontal/vertical on demand via toolbar,
-  tab drag-and-drop (edge = split, center = move tab), or keyboard. Closing the
-  last tab in a split pane **unsplits** unless it is an intentional reserved
-  empty pane; reserved panes persist as layout slots and can be removed with
-  their pane-level ×. When the content area is fully empty, show the existing
-  empty state (keep the area; teach ⌘N / open). Sidebar (workspaces +
-  files) is optional chrome, not a third content column. This replaced the
-  older fixed terminal|editor split. Detail: `docs/designs/pane-tree-layout.md`.
-- **Harness-agnostic shell:** any agent that speaks a terminal. Zero special
-  config for a default Claude install. Not a deep multi-provider control plane
-  (yet); the vision is the shell, not reimplementing every harness UI.
-- **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not
-  a drawer.
+- **Content layout:** a **pane tree** of tab stacks. Terminals and editors are the same
+  kind of surface. Open file → tab in the focused pane (not an automatic split). Split
+  horizontal/vertical on demand via toolbar, tab drag-and-drop (edge = split, center =
+  move tab), or keyboard. Closing the last tab in a split pane **unsplits** unless it is
+  an intentional reserved empty pane; reserved panes persist as layout slots and can be
+  removed with their pane-level ×. When the content area is fully empty, show the
+  existing empty state (keep the area; teach ⌘N / open). Sidebar (workspaces + files) is
+  optional chrome, not a third content column. This replaced the older fixed
+  terminal|editor split. Detail: `docs/designs/pane-tree-layout.md`.
+- **Harness-agnostic shell:** any agent that speaks a terminal. Zero special config for
+  a default Claude install. Not a deep multi-provider control plane (yet); the vision is
+  the shell, not reimplementing every harness UI.
+- **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer.
 
 ## Differentiators
 
-1. **Multi-agent, multi-workspace, multi-harness (via PTY)** as the core model,
-   not a bolt-on chat panel. Parallel agents live as terminal tabs and/or
-   separate workspaces. Closest analogue: Cursor agent view, but you can switch
-   harnesses freely.
-2. **Session continuity with the real CLI.** Agents run in a real terminal.
-   Start Claude (or Grok, Kimi, …) in Xenon, continue the same session in
-   Terminal.app / another host / another machine that has the harness. The
-   agent is not trapped inside an IDE-private protocol.
-3. **Everything feels instant.** Native Rust / GPUI. Typing and switching must
-   stay better than Electron-class tools (e.g. Studio feels like a downgrade).
-   Protect latency; no decorative motion tax.
-4. **macOS-native daily driver** with a clean install path (**Homebrew** for
-   public install; stable codesign so TCC grants survive reinstall).
+1. **Multi-agent, multi-workspace, multi-harness (via PTY)** as the core model, not a
+   bolt-on chat panel. Parallel agents live as terminal tabs and/or separate workspaces.
+   Closest analogue: Cursor agent view, but you can switch harnesses freely.
+2. **Session continuity with the real CLI.** Agents run in a real terminal. Start Claude
+   (or Grok, Kimi, …) in Xenon, continue the same session in Terminal.app / another host
+   / another machine that has the harness. The agent is not trapped inside an
+   IDE-private protocol.
+3. **Everything feels instant.** Native Rust / GPUI. Typing and switching must stay
+   better than Electron-class tools (e.g. Studio feels like a downgrade). Protect
+   latency; no decorative motion tax.
+4. **macOS-native daily driver** with a clean install path (**Homebrew** for public
+   install; stable codesign so TCC grants survive reinstall).
 
 ### Anti-pattern we refuse: IDE-owned agent sessions (Zed ACP lesson)
 
-Zed (and similar) often talk to agents over an **editor-owned protocol** (ACP,
-panel agent, etc.). That can feel polished **inside** the app, but there is
-**no interop**: a session started in the IDE cannot be continued on the
-command line as the same process/session. Skills, resumes, and harness
-ecosystems that live on the CLI are second-class or forked.
+Zed (and similar) often talk to agents over an **editor-owned protocol** (ACP, panel
+agent, etc.). That can feel polished **inside** the app, but there is **no interop**: a
+session started in the IDE cannot be continued on the command line as the same
+process/session. Skills, resumes, and harness ecosystems that live on the CLI are
+second-class or forked.
 
 Xenon inverts that:
 
 - **Harness is primary** (PTY + files on disk).
 - **IDE is optional garnish** for harnesses that speak Claude’s IDE bridge
   (`~/.claude/ide/*.lock` WebSocket MCP): open file, workspace roots, etc.
-- Other harnesses still work without that bridge; Claude gets the bridge when
-  useful. Skills / AGENTS.md / resume paths stay the harness’s own.
+- Other harnesses still work without that bridge; Claude gets the bridge when useful.
+  Skills / AGENTS.md / resume paths stay the harness’s own.
 
 Market this: **anti-IDE shell where the agent is free to leave.**
 
 ## Competitive frame
 
-| People use today | Gap Xenon fills |
-|------------------|-----------------|
-| Many terminal tabs / tmux | No workspace model; weak editor; no attention model |
+| People use today             | Gap Xenon fills                                              |
+| ---------------------------- | ------------------------------------------------------------ |
+| Many terminal tabs / tmux    | No workspace model; weak editor; no attention model          |
 | Cursor / Studio / VS Code AI | Strong single-flow agent UX; often one harness; heavier feel |
-| Multiple IDE windows | Context soup; slow context switch |
+| Multiple IDE windows         | Context soup; slow context switch                            |
 
-**Positioning:** the missing layer between a terminal multiplexer and an AI
-IDE: a fast native shell for many agent sessions across workspaces.
+**Positioning:** the missing layer between a terminal multiplexer and an AI IDE: a fast
+native shell for many agent sessions across workspaces.
 
 ## Release goals
 
@@ -155,32 +152,32 @@ Visions are directional. Goals are concrete.
 
 - Open source (GPL-3.0).
 - Public ship; Hacker News when the wedge is obvious in a few minutes of use.
-- **Primary success signal:** substantive issues and PRs from people who care
-  enough to engage the codebase. That is the "this is the one" metric.
-- **Author proof (already true):** real daily work runs through Xenon; hard to
-  imagine leaving. Keep that bar.
-- **Lesser signal:** install counts / "still using after 2 weeks" without
-  deeper engagement. Useful, not decisive.
-- Context: many OSS projects are drowning in agent-generated noise and have
-  little time to approve PRs. Prefer quality engagement over vanity volume.
+- **Primary success signal:** substantive issues and PRs from people who care enough to
+  engage the codebase. That is the "this is the one" metric.
+- **Author proof (already true):** real daily work runs through Xenon; hard to imagine
+  leaving. Keep that bar.
+- **Lesser signal:** install counts / "still using after 2 weeks" without deeper
+  engagement. Useful, not decisive.
+- Context: many OSS projects are drowning in agent-generated noise and have little time
+  to approve PRs. Prefer quality engagement over vanity volume.
 
 ## Name (release gate)
 
-The public rename to Xenon is complete in the app, binary, data directory,
-crate paths, and GitHub (`mpalczew/xenon`, public). Remaining packaging:
-Homebrew and notarization. See `docs/release.md`.
+The public rename to Xenon is complete in the app, binary, data directory, crate paths,
+and GitHub (`mpalczew/xenon`, public). Remaining packaging: Homebrew and notarization.
+See `docs/release.md`.
 
 ## Brand personality
 
-Cool, dense, calm cockpit. Power-user confident, not playful mascot. Themes are
-product surface: trust defaults, screenshot identity, and personality.
+Cool, dense, calm cockpit. Power-user confident, not playful mascot. Themes are product
+surface: trust defaults, screenshot identity, and personality.
 
 ## Visual direction (chrome)
 
-- **Option 2 now:** selection language, elevation, shared chrome primitives,
-  theme-aware attention, consistent icons.
-- **Option 3-lite:** agent-cockpit bias (workspace attention, terminal status,
-  cool density) without a full IA rewrite yet.
+- **Option 2 now:** selection language, elevation, shared chrome primitives, theme-aware
+  attention, consistent icons.
+- **Option 3-lite:** agent-cockpit bias (workspace attention, terminal status, cool
+  density) without a full IA rewrite yet.
 - **Default dark:** One Dark. Neon Noir stays in the pack for screenshots.
 - **Default light:** One Light with a white canvas (not a gray slab).
 - **True Black:** opt-in pure black; selection must stay multi-channel.
@@ -200,19 +197,19 @@ product surface: trust defaults, screenshot identity, and personality.
 1. **Status is never optional.** Active workspace, active tab, attention, dirty:
    multi-channel (fill + type and/or indicator). Invest until this is reliable.
 2. **Speed is product.** Instant feedback over choreography.
-3. **Workspaces are the unit of work.** Chrome reinforces that hierarchy; tabs
-   are the multi-surface inside a workspace.
+3. **Workspaces are the unit of work.** Chrome reinforces that hierarchy; tabs are the
+   multi-surface inside a workspace.
 4. **Shell first, IDE bones second.** Tabs / tree / cmd-p stay familiar; the
    multi-workspace agent cockpit is the new idea.
-5. **Themes must not break structure.** Elevation and selection survive every
-   bundled theme, including True Black.
+5. **Themes must not break structure.** Elevation and selection survive every bundled
+   theme, including True Black.
 6. **Empty states teach once.** Short power-user copy; no forced tours.
-7. **Harness-agnostic by default.** Prefer zero-config terminal integration
-   over harness-specific lock-in.
-8. **Keyboard-first (mouseless).** Every complete flow is operable without a
-   mouse. Design actions + keybindings + focus + Escape first; mouse is additive.
-   Prefer in-app palettes for frequent power-user work; native pickers are Browse…
-   escape hatches, not the only path. Agent rule: `AGENTS.md` § Keyboard-first.
+7. **Harness-agnostic by default.** Prefer zero-config terminal integration over
+   harness-specific lock-in.
+8. **Keyboard-first (mouseless).** Every complete flow is operable without a mouse.
+   Design actions + keybindings + focus + Escape first; mouse is additive. Prefer in-app
+   palettes for frequent power-user work; native pickers are Browse… escape hatches, not
+   the only path. Agent rule: `AGENTS.md` § Keyboard-first.
 
 ## Accessibility
 
@@ -227,7 +224,7 @@ product surface: trust defaults, screenshot identity, and personality.
 - Replacing every agent harness's own UI.
 - Full Option 3 agent-rail redesign until Option 2 chrome system exists.
 - Deep multi-provider control plane (shell stays primary).
-- Full Chrome replacement and agent-driven in-app browsing remain out of scope.
-  A focused WebKit tab for opening links is in scope; see
+- Full Chrome replacement and agent-driven in-app browsing remain out of scope. A
+  focused WebKit tab for opening links is in scope; see
   `docs/designs/embedded-browser.md`.
 - Agent-driven in-app browser (the harness owns computer-use).

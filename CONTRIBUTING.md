@@ -1,15 +1,15 @@
 # Contributing to Xenon
 
-Thanks for caring enough to engage the codebase. Xenon is an early public
-macOS **anti-IDE** shell for people who run coding agents. The success metric
-is **substantive** issues and PRs—not vanity volume.
+Thanks for caring enough to engage the codebase. Xenon is an early public macOS
+**anti-IDE** shell for people who run coding agents. The success metric is
+**substantive** issues and PRs—not vanity volume.
 
 ## What is welcome
 
-- Fixes and features that improve the **multi-agent daily path**: workspaces,
-  terminals, splits, session continuity, keyboard-first flows, latency.
-- Clear bug reports with reproduction steps (macOS version, harness, what you
-  ran, what you expected).
+- Fixes and features that improve the **multi-agent daily path**: workspaces, terminals,
+  splits, session continuity, keyboard-first flows, latency.
+- Clear bug reports with reproduction steps (macOS version, harness, what you ran, what
+  you expected).
 - Design-aligned UX work after reading [`PRODUCT.md`](PRODUCT.md) and
   [`DESIGN.md`](DESIGN.md).
 
@@ -17,11 +17,11 @@ is **substantive** issues and PRs—not vanity volume.
 
 Please skip or heavily curate:
 
-- Unsolicited bulk refactors, drive-by dependency bumps, or “AI polish” diffs
-  that do not fix a real problem.
+- Unsolicited bulk refactors, drive-by dependency bumps, or “AI polish” diffs that do
+  not fix a real problem.
 - Issues that only restate the README without a reproduction.
-- PRs that change product positioning or chrome system without engaging
-  `PRODUCT.md` / `DESIGN.md`.
+- PRs that change product positioning or chrome system without engaging `PRODUCT.md` /
+  `DESIGN.md`.
 - Generated noise that the maintainer cannot review in one focused pass.
 
 ## Build and test
@@ -56,5 +56,5 @@ Details and signing notes: [`README.md`](README.md).
 
 ## Communication
 
-Open an issue for discussion when the change is large or product-shaped.
-PRs that improve the multi-harness shell are the preferred form of help.
+Open an issue for discussion when the change is large or product-shaped. PRs that
+improve the multi-harness shell are the preferred form of help.
