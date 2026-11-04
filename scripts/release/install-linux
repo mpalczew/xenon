@@ -56,6 +56,11 @@ echo "installed $data_home/applications/xenon.desktop"
 
 command -v update-desktop-database >/dev/null 2>&1 &&
     update-desktop-database "$data_home/applications" 2>/dev/null || true
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+elif command -v kbuildsycoca5 >/dev/null 2>&1; then
+    kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
+fi
 command -v gtk-update-icon-cache >/dev/null 2>&1 &&
     gtk-update-icon-cache -q -t "$data_home/icons/hicolor" 2>/dev/null || true
 case ":$PATH:" in
