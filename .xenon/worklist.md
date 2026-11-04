@@ -13,3 +13,6 @@
 - [x] Close a terminal from the phone
   - Close in the workspace the phone is viewing.
   - The Mac moves to the next tab only when that tab was showing.
+- [x] Adopt dprint for markdown and json files
+  - Rust files and Cargo manifests stay on rustfmt, untouched.
+  - `bin/check` gained a path-gated `dprint check` gate.
