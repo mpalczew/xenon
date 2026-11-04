@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Silent on pass, output only on failure. Reuses the gates of scripts/health.
 #   bin/check          gates whose paths changed vs main (working tree included)
-#   bin/check <gate>   one gate: policy | ssh-helper | rust | harness
+#   bin/check <gate>   one gate: policy | ssh-helper | rust | harness | dprint
 #   bin/check all      every gate
 #   bin/check --staged pre-commit: harness only (reads the index); the hook checks the
 #                      other gates in a snapshot of the index (scripts/git-hooks/pre-commit)
@@ -54,6 +54,10 @@ gate_ssh-helper() {
     -s crates/xenon_ssh/src -p helper_test.py
 }
 
+gate_dprint() {
+  step dprint check dprint check
+}
+
 gate_rust() {
   step rust fmt cargo fmt --all --check
   step rust shape scripts/check-rust-shape
@@ -78,15 +82,16 @@ fi
 changed="$( { git diff --name-only main; git ls-files --others --exclude-standard; } 2>/dev/null | sort -u)"
 
 case "${1:-}" in
-all) gates=(harness policy ssh-helper rust) ; changed="" ;;
-policy | ssh-helper | rust | harness) gates=("$1") ;;
+all) gates=(harness policy ssh-helper dprint rust) ; changed="" ;;
+policy | ssh-helper | rust | harness | dprint) gates=("$1") ;;
 "")
   gates=(harness)
   [ -n "$changed" ] && gates+=(policy)
   rg -q '^crates/xenon_ssh/' <<<"$changed" && gates+=(ssh-helper)
+  rg -q '\.(md|mdc|json|jsonc)$' <<<"$changed" && gates+=(dprint)
   rg -q '^(crates/|third_party/|Cargo\.|rust-toolchain|rustfmt\.toml|clippy\.toml|scripts/(check-rust-shape|rust-shape))' <<<"$changed" && gates+=(rust)
   ;;
-*) echo "usage: bin/check [policy|ssh-helper|rust|harness|all]" >&2; exit 2 ;;
+*) echo "usage: bin/check [policy|ssh-helper|rust|harness|dprint|all]" >&2; exit 2 ;;
 esac
 
 for g in "${gates[@]}"; do "gate_$g"; done
