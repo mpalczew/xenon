@@ -5,6 +5,9 @@
       "label": "xenon",
       "type": "shell",
       "command": "~/bin/xenon",
+      "linux": {
+        "command": "~/.local/bin/xenon"
+      },
       "detail": "launch Xenon via the slot launcher"
     },
     {
