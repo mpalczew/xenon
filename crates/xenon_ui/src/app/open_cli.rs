@@ -18,19 +18,45 @@ impl XenonApp {
             log::warn!("open_cli_file: not a file: {}", path.display());
             return;
         }
-        if let Some(workspace_id) = self.workspace_for_path(&path) {
-            self.focus_workspace(workspace_id, cx);
-        } else if self.active.is_none()
-            && let Some(parent) = path.parent()
-        {
-            self.register_workspace(parent.to_path_buf(), cx);
-        }
+        self.route_cli_file(&path, cx);
         let spec = OpenFileSpec { path, ..spec };
         match spec.pane {
             OpenPane::Focused => self.open_spec_in_focused(&spec, cx),
             OpenPane::SplitRight => self.open_spec_split_right(&spec, cx),
             OpenPane::Sibling => self.open_spec_sibling(&spec, cx),
         }
+    }
+
+    /// Pick the workspace a CLI/agent file open lands in. The longest open
+    /// workspace root containing the file wins. Otherwise the file opens in
+    /// the current workspace, even when it lies outside every root (`/tmp`,
+    /// `~/.cache`). Closed workspaces never reopen for a file: a closed `~`
+    /// would otherwise claim every file under home. With no current
+    /// workspace, the file's folder becomes one.
+    pub(super) fn route_cli_file(&mut self, path: &Path, cx: &mut Context<Self>) {
+        if let Some(workspace_id) = self.workspace_for_path(path) {
+            self.focus_workspace(workspace_id, cx);
+        } else if self.active.is_none()
+            && let Some(parent) = path.parent()
+        {
+            self.register_workspace(parent.to_path_buf(), cx);
+        }
+    }
+
+    /// Longest open workspace root that is a prefix of `path`.
+    fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let mut best: Option<(usize, WorkspaceId)> = None;
+        for rec in &self.registry.workspaces {
+            let root = rec.root.canonicalize().unwrap_or_else(|_| rec.root.clone());
+            if path.starts_with(&root) {
+                let len = root.as_os_str().len();
+                if best.is_none_or(|(best_len, _)| len > best_len) {
+                    best = Some((len, rec.id));
+                }
+            }
+        }
+        best.map(|(_, id)| id)
     }
 
     fn open_spec_in_focused(&mut self, spec: &OpenFileSpec, cx: &mut Context<Self>) {

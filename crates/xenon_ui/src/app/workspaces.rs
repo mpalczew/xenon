@@ -4,8 +4,7 @@ use crate::workspace_picker::{WorkspaceCandidate, WorkspacePickerEvent, Workspac
 impl XenonApp {
     /// CLI / IPC: open a directory as a workspace, or a file in the best workspace.
     ///
-    /// File rules: longest matching open/closed workspace root wins; if none,
-    /// open in the current workspace (still opens even when outside the root).
+    /// File rules: see [`Self::route_cli_file`].
     pub fn open_cli_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         let path = path.canonicalize().unwrap_or(path);
         if path.is_dir() {
@@ -16,35 +15,8 @@ impl XenonApp {
             log::warn!("open_cli_path: not a file or directory: {}", path.display());
             return;
         }
-        if let Some(workspace_id) = self.workspace_for_path(&path) {
-            self.focus_workspace(workspace_id, cx);
-        } else if self.active.is_none()
-            && let Some(parent) = path.parent()
-        {
-            self.register_workspace(parent.to_path_buf(), cx);
-        }
+        self.route_cli_file(&path, cx);
         self.open_editor(path, true, cx);
-    }
-
-    /// Longest registry root (open or closed) that is a prefix of `path`.
-    pub(super) fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
-        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-        let mut best: Option<(usize, WorkspaceId)> = None;
-        for rec in self
-            .registry
-            .workspaces
-            .iter()
-            .chain(self.registry.closed_workspaces.iter())
-        {
-            let root = rec.root.canonicalize().unwrap_or_else(|_| rec.root.clone());
-            if path.starts_with(&root) {
-                let len = root.as_os_str().len();
-                if best.is_none_or(|(best_len, _)| len > best_len) {
-                    best = Some((len, rec.id));
-                }
-            }
-        }
-        best.map(|(_, id)| id)
     }
 
     pub(super) fn focus_workspace(&mut self, id: WorkspaceId, cx: &mut Context<Self>) {

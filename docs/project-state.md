@@ -76,6 +76,9 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   callbacks must drop the `X11Client` borrow before they call back, or `with_common`
   panics while `xdg-desktop-portal` is running. Re-copy that crate from the pin and
   re-apply the fix when bumping zed.
+- `xenon open` / IDE openFile on a file: the longest open workspace root containing it
+  wins; otherwise it opens in the current workspace, even outside every root. Closed
+  workspaces never reopen for a file (a closed `~` would claim all of home).
 - Known open/closed workspaces outrank filesystem discovery. Workspace MRU is persisted;
   file MRU is an in-memory tiebreaker only.
 - Cmd-P serves its cached index immediately and refreshes in the background. It still
