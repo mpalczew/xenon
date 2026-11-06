@@ -53,11 +53,13 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) {
         match target {
-            SizeTarget::Ui => xenon_settings::nudge_ui_font_size(cx, delta),
-            SizeTarget::Editor => xenon_settings::nudge_editor_font_size(cx, delta),
-            SizeTarget::Terminal => xenon_settings::nudge_terminal_font_size(cx, delta),
+            SizeTarget::Ui => xenon_design_system::settings::nudge_ui_font_size(cx, delta),
+            SizeTarget::Editor => xenon_design_system::settings::nudge_editor_font_size(cx, delta),
+            SizeTarget::Terminal => {
+                xenon_design_system::settings::nudge_terminal_font_size(cx, delta)
+            }
         }
-        xenon_settings::save(cx);
+        xenon_design_system::settings::save(cx);
         xenon_terminal::refresh_windows(cx);
         cx.notify();
     }
@@ -125,19 +127,21 @@ impl SettingsView {
 }
 
 fn apply_family(id: DropdownId, value: String, cx: &mut App) {
-    let mut settings = xenon_settings::snapshot(cx);
+    let mut settings = xenon_design_system::settings::snapshot(cx);
     match id {
         DropdownId::Ui => {
-            settings.ui_font_family = xenon_settings::ensure_ui_family(&value, cx);
+            settings.ui_font_family = xenon_design_system::settings::ensure_ui_family(&value, cx);
         }
         DropdownId::Editor => {
-            settings.editor_font_family = xenon_settings::ensure_mono_family(&value, cx);
+            settings.editor_font_family =
+                xenon_design_system::settings::ensure_mono_family(&value, cx);
         }
         DropdownId::Terminal => {
-            settings.terminal_font_family = xenon_settings::ensure_mono_family(&value, cx);
+            settings.terminal_font_family =
+                xenon_design_system::settings::ensure_mono_family(&value, cx);
         }
     }
-    xenon_settings::apply(&settings, cx);
-    xenon_settings::save(cx);
+    xenon_design_system::settings::apply(&settings, cx);
+    xenon_design_system::settings::save(cx);
     xenon_terminal::refresh_windows(cx);
 }

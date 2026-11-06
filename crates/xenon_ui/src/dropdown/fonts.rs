@@ -86,7 +86,7 @@ pub(crate) fn warm_mono_font_families(cx: &App) {
             .into_iter()
             .filter(|name| {
                 let n = name.as_ref();
-                !is_virtual_family(n) && xenon_settings::is_monospace_family(n, cx)
+                !is_virtual_family(n) && xenon_design_system::settings::is_monospace_family(n, cx)
             })
             .collect::<Vec<SharedString>>()
     }))

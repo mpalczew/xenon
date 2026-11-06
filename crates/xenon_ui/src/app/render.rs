@@ -14,7 +14,7 @@ impl Render for XenonApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_window_title(&self.window_title());
         self.drain_deferred_ui(window, cx);
-        let ui = xenon_settings::ui_font(cx);
+        let ui = xenon_design_system::settings::ui_font(cx);
         window.set_rem_size(px(ui.size));
         let colors = cx.theme().colors().clone();
         let sidebar = (!self.sidebar_collapsed).then(|| self.render_sidebar(cx));

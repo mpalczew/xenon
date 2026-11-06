@@ -3,16 +3,16 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::diff_model::{DiffDoc, DiffSection, LineKind, MAX_LINES, parse_unified};
-use crate::git_dirt::GitFile;
+use crate::diff::{DiffDoc, DiffSection, Highlighter, LineKind, MAX_LINES, parse_unified};
+use crate::status::GitFile;
 
 /// Diff for one status entry, read from git and the working tree. Blocking:
 /// call off the UI thread.
-pub(crate) fn load(root: &Path, file: &GitFile) -> DiffDoc {
+pub fn load(root: &Path, file: &GitFile, highlight: Highlighter) -> DiffDoc {
     let path = file.path.as_str();
     if file.is_untracked() {
         return match std::fs::read(root.join(path)) {
-            Ok(bytes) => all_added(path, &bytes),
+            Ok(bytes) => all_added(path, &bytes, highlight),
             Err(error) => note_doc(format!("Can’t read {path}: {error}")),
         };
     }
@@ -29,14 +29,20 @@ pub(crate) fn load(root: &Path, file: &GitFile) -> DiffDoc {
     } else {
         Default::default()
     };
-    compose(path, &against_head, &staged, &unstaged)
+    compose(path, &against_head, &staged, &unstaged, highlight)
 }
 
 /// Build the document from git's three views of one file: HEAD against the
 /// working tree, and (when that is empty) the staged and unstaged halves.
-pub(crate) fn compose(path: &str, against_head: &str, staged: &str, unstaged: &str) -> DiffDoc {
+pub fn compose(
+    path: &str,
+    against_head: &str,
+    staged: &str,
+    unstaged: &str,
+    highlight: Highlighter,
+) -> DiffDoc {
     if !against_head.trim().is_empty() {
-        let section = section(None, "HEAD", "Working tree", path, against_head);
+        let section = section(None, "HEAD", "Working tree", path, against_head, highlight);
         return doc(
             "HEAD → working tree",
             None,
@@ -59,6 +65,7 @@ pub(crate) fn compose(path: &str, against_head: &str, staged: &str, unstaged: &s
             "Index (staged)",
             path,
             staged,
+            highlight,
         ),
         section(
             Some(("Unstaged", "working tree vs index")),
@@ -66,6 +73,7 @@ pub(crate) fn compose(path: &str, against_head: &str, staged: &str, unstaged: &s
             "Working tree (= HEAD)",
             path,
             unstaged,
+            highlight,
         ),
     ];
     doc(
@@ -125,14 +133,16 @@ fn doc(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn section(
     title: Option<(&str, &str)>,
     left: &str,
     right: &str,
     path: &str,
     unified: &str,
+    highlight: Highlighter,
 ) -> DiffSection {
-    let hunks = parse_unified(path, unified);
+    let hunks = parse_unified(path, unified, highlight);
     let count = |kind| {
         hunks
             .iter()
@@ -151,7 +161,7 @@ fn section(
 }
 
 /// Untracked or added file: every line is an addition.
-pub(crate) fn all_added(path: &str, bytes: &[u8]) -> DiffDoc {
+pub fn all_added(path: &str, bytes: &[u8], highlight: Highlighter) -> DiffDoc {
     if bytes.contains(&0) {
         return doc(
             "untracked · new file",
@@ -168,6 +178,6 @@ pub(crate) fn all_added(path: &str, bytes: &[u8]) -> DiffDoc {
         unified.push_str(line);
         unified.push('\n');
     }
-    let section = section(None, "—", "Working tree", path, &unified);
+    let section = section(None, "—", "Working tree", path, &unified, highlight);
     doc("untracked · new file", None, vec![section], None)
 }

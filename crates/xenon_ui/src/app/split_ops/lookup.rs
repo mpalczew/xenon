@@ -1,28 +1,5 @@
 use super::*;
 
-impl LiveNode {
-    pub(super) fn find_leaf_mut_with_editor(
-        &mut self,
-        view: &Entity<EditorView>,
-    ) -> Option<&mut LiveLeaf> {
-        match self {
-            Self::Leaf(l) => {
-                if l.tabs
-                    .iter()
-                    .any(|t| t.as_editor().is_some_and(|v| v == view))
-                {
-                    Some(l)
-                } else {
-                    None
-                }
-            }
-            Self::Split { children, .. } => children
-                .iter_mut()
-                .find_map(|c| c.find_leaf_mut_with_editor(view)),
-        }
-    }
-}
-
 impl XenonApp {
     pub(crate) fn sync_editors_for_paths(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
         if paths.is_empty() {

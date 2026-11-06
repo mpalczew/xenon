@@ -1,16 +1,7 @@
 //! Live pane-tree mutations: open, close, split, move, focus.
 
 use super::*;
-use live::fix_active_idx;
-use xenon_core::{PaneId, TabId};
-
-enum DropTabOutcome {
-    FocusPane(PaneId),
-    Unsplit,
-    Empty,
-    /// The closed tab was not the one on screen. The pane index moved; focus did not.
-    Kept,
-}
+use xenon_core::{CloseOutcome, PaneId, TabId};
 
 /// Which content surface should receive find commands (palette path).
 pub(super) enum FindSurface {
@@ -363,52 +354,12 @@ impl XenonApp {
                         })
                 })
             });
-        let outcome = {
-            let Some(content) = self.contents.get_mut(&workspace) else {
-                return;
-            };
-            let focused_before = content.focused;
-            let Some(root) = content.root.as_mut() else {
-                return;
-            };
-            let Some((pane, idx)) = root.find_tab(tab) else {
-                return;
-            };
-            let was_showing = focused_before == Some(pane)
-                && root
-                    .find_leaf(pane)
-                    .is_some_and(|leaf| leaf.active_tab().is_some_and(|active| active.id() == tab));
-            let Some(leaf) = root.find_leaf_mut(pane) else {
-                return;
-            };
-            leaf.tabs.remove(idx);
-            if !leaf.tabs.is_empty() || leaf.parked {
-                if !leaf.tabs.is_empty() {
-                    fix_active_idx(&mut leaf.active, idx, leaf.tabs.len());
-                }
-                if was_showing {
-                    content.focused = Some(pane);
-                    DropTabOutcome::FocusPane(pane)
-                } else {
-                    DropTabOutcome::Kept
-                }
-            } else if content.leaf_ids().len() <= 1 {
-                content.root = None;
-                content.focused = None;
-                DropTabOutcome::Empty
-            } else {
-                content.unsplit_empty(pane);
-                if !was_showing
-                    && let Some(prev) = focused_before
-                    && content
-                        .root
-                        .as_ref()
-                        .is_some_and(|root| root.find_leaf(prev).is_some())
-                {
-                    content.focused = Some(prev);
-                }
-                DropTabOutcome::Unsplit
-            }
+        let Some(outcome) = self
+            .contents
+            .get_mut(&workspace)
+            .and_then(|content| content.close_tab(tab))
+        else {
+            return;
         };
         if let Some(path) = closed_editor_path {
             self.lsp_detach_path(&path);
@@ -417,19 +368,19 @@ impl XenonApp {
         self.nav_prune_tab(workspace, tab);
         self.save_layout(workspace);
         match outcome {
-            DropTabOutcome::FocusPane(pane) => {
+            CloseOutcome::FocusPane(pane) => {
                 if self.active == Some(workspace) {
                     self.focus_leaf_now_or_later(pane, window, cx);
                 }
             }
-            DropTabOutcome::Unsplit => {
+            CloseOutcome::Unsplit => {
                 if self.active == Some(workspace)
                     && let Some(fid) = self.contents.get(&workspace).and_then(|c| c.focused)
                 {
                     self.focus_leaf_now_or_later(fid, window, cx);
                 }
             }
-            DropTabOutcome::Empty => {
+            CloseOutcome::Empty => {
                 if self.active == Some(workspace) {
                     log::info!(
                         "focus transition: last tab closed; window_active={}; gpui_focus_before={:?}; target={:?}",
@@ -442,7 +393,7 @@ impl XenonApp {
                     self.focus_after_teardown(window, cx);
                 }
             }
-            DropTabOutcome::Kept => {}
+            CloseOutcome::Kept => {}
         }
         cx.notify();
     }

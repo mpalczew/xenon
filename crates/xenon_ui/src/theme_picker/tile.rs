@@ -43,7 +43,7 @@ pub(super) fn tile(
         .border_color(ring)
         .bg(colors.editor_background)
         .text_color(colors.editor_foreground)
-        .font_family(xenon_settings::editor_font(cx).family)
+        .font_family(xenon_design_system::settings::editor_font(cx).family)
         .text_size(px(11.))
         .line_height(px(15.))
         .overflow_hidden()

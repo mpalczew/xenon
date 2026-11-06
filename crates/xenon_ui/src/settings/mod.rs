@@ -259,7 +259,7 @@ impl Render for SettingsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_window_title("Settings");
         self.focus_on_open.focus_after_open(window, cx);
-        let ui = xenon_settings::ui_font(cx);
+        let ui = xenon_design_system::settings::ui_font(cx);
         window.set_rem_size(gpui::px(ui.size));
         let colors = cx.theme().colors().clone();
         let selected = self.query.is_empty().then_some(self.page);

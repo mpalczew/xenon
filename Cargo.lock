@@ -9443,6 +9443,7 @@ dependencies = [
  "serde",
  "serde_json",
  "xenon_core",
+ "xenon_design_system",
  "xenon_settings",
  "xenon_store",
  "xenon_terminal",
@@ -9467,6 +9468,7 @@ name = "xenon_design_system"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "log",
  "lucide-icons",
  "objc2-app-kit 0.2.2",
  "theme",
@@ -9549,6 +9551,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon_git"
+version = "0.1.0"
+
+[[package]]
 name = "xenon_ide"
 version = "0.1.0"
 dependencies = [
@@ -9607,7 +9613,6 @@ dependencies = [
 name = "xenon_settings"
 version = "0.1.0"
 dependencies = [
- "gpui",
  "log",
  "xenon_store",
 ]
@@ -9660,6 +9665,7 @@ dependencies = [
  "theme",
  "theme_settings",
  "util",
+ "xenon_core",
  "xenon_design_system",
  "xenon_settings",
 ]
@@ -9688,6 +9694,7 @@ dependencies = [
  "xenon_design_system",
  "xenon_editor",
  "xenon_finder",
+ "xenon_git",
  "xenon_ide",
  "xenon_keymap",
  "xenon_lsp",

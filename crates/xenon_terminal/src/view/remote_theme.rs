@@ -16,7 +16,7 @@ pub fn remote_theme_for(appearance: Option<theme::Appearance>, cx: &App) -> Arc<
     if active.appearance == wanted {
         return active;
     }
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     let name = match wanted {
         theme::Appearance::Dark => settings.dark_theme,
         theme::Appearance::Light => settings.light_theme,

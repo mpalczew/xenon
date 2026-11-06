@@ -89,14 +89,16 @@ mod worklist;
 mod workspace_create_ops;
 mod workspaces;
 
-pub(crate) use attention::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
 use deferred::{DeferredUi, FocusOwner, FontPane};
 pub(crate) use git_section::GitSectionState;
-pub(crate) use live::{DragTab, LiveContent, LiveLeaf, LiveNode, LiveTab};
+pub(crate) use live::{
+    DragTab, LiveContent, LiveContentExt, LiveLeaf, LiveNode, LiveNodeExt, LiveTab,
+};
 use lsp::LspState;
 use nav_history::NavHistory;
 pub(crate) use remote::RemoteFooter;
 use services::AppServices;
+pub(crate) use xenon_core::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
 
 /// Open tab context menu (right-click on a tab chip).
 #[derive(Clone, Debug)]

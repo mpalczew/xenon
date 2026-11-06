@@ -12,7 +12,7 @@ impl EditorView {
     /// Key-down in prose. A vim claim returns without stopping propagation:
     /// printable keys still have to reach `insertText` as typed text.
     pub(in crate::view) fn prose_key_down(&mut self, event: &KeyDownEvent, cx: &mut Context<Self>) {
-        if xenon_settings::vim_mode(cx) && self.prose_vim_key(event, cx) {
+        if xenon_design_system::settings::vim_mode(cx) && self.prose_vim_key(event, cx) {
             return;
         }
         if self.on_prose_key(event, cx) {

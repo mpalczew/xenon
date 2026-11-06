@@ -6,7 +6,7 @@ use xenon_ide::IdeServer;
 
 use super::git_dirt::DirtMsg;
 use super::remote::RemoteRuntime;
-use crate::git_dirt::GitStatus;
+use xenon_git::status::GitStatus;
 
 /// Long-lived integrations and background work owned by the application.
 #[derive(Default)]

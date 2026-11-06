@@ -1,26 +1,17 @@
-//! N-ary split operations on the live pane tree.
+//! Split rules on a pane tree: depth and fan-out limits, flattening, divider
+//! drags, and replacing or removing a leaf.
 
-use super::*;
-use xenon_core::{MAX_NEST_DEPTH, MAX_SPLIT_CHILDREN, SplitTree};
+use crate::content::{
+    LeafPane, MAX_NEST_DEPTH, MAX_SPLIT_CHILDREN, PaneId, PaneNode, SplitAxis, TabState,
+};
+use crate::pane_tree::PaneTree;
+use crate::split::{flatten_split, move_boundary};
 
-impl SplitTree for LiveNode {
-    fn into_axis_parts(self, axis: SplitAxis) -> Result<(Vec<Self>, Vec<f32>), Self> {
-        match self {
-            Self::Split {
-                axis: a,
-                children,
-                sizes,
-            } if a == axis => Ok((children, sizes)),
-            other => Err(other),
-        }
-    }
-}
-
-impl LiveNode {
+impl<T> PaneTree<T> {
     /// Two-child split with equal halves. Splice it into the tree with
     /// [`Self::replace_leaf`], which flattens same-axis nesting.
-    pub(crate) fn pair(axis: SplitAxis, first: LiveNode, second: LiveNode) -> LiveNode {
-        LiveNode::Split {
+    pub fn pair(axis: SplitAxis, first: Self, second: Self) -> Self {
+        Self::Split {
             axis,
             children: vec![first, second],
             sizes: vec![0.5, 0.5],
@@ -28,7 +19,7 @@ impl LiveNode {
     }
 
     /// Restore the split invariants everywhere below `self`.
-    pub(crate) fn normalize(&mut self) {
+    pub fn normalize(&mut self) {
         let Self::Split {
             axis,
             children,
@@ -41,7 +32,7 @@ impl LiveNode {
         for child in children.iter_mut() {
             child.normalize();
         }
-        match xenon_core::flatten_split(axis, std::mem::take(children), std::mem::take(sizes)) {
+        match flatten_split(axis, std::mem::take(children), std::mem::take(sizes)) {
             Ok((c, s)) => {
                 *children = c;
                 *sizes = s;
@@ -63,7 +54,7 @@ impl LiveNode {
     }
 
     /// Whether splitting `leaf` along `axis` stays within the depth and fan-out limits.
-    pub(crate) fn can_split(&self, leaf: PaneId, axis: SplitAxis) -> bool {
+    pub fn can_split(&self, leaf: PaneId, axis: SplitAxis) -> bool {
         let Some((depth, parent)) = self.split_context(leaf) else {
             return false;
         };
@@ -76,7 +67,7 @@ impl LiveNode {
     /// Drag the divider after the child whose last leaf is `key` to `pos`, a
     /// fraction of the split's own extent. Only that child and the next change.
     /// The last leaf is unique per divider.
-    pub(crate) fn set_boundary_for_split(&mut self, key: PaneId, pos: f32) -> bool {
+    pub fn set_boundary_for_split(&mut self, key: PaneId, pos: f32) -> bool {
         let Self::Split {
             children, sizes, ..
         } = self
@@ -87,44 +78,17 @@ impl LiveNode {
             .iter()
             .position(|c| c.leaf_ids().last() == Some(&key))
         {
-            return xenon_core::move_boundary(sizes, i, pos);
+            return move_boundary(sizes, i, pos);
         }
         children
             .iter_mut()
             .any(|c| c.set_boundary_for_split(key, pos))
     }
 
-    /// Replace leaf `id`; same-axis splits are spliced into their parent.
-    pub(crate) fn replace_leaf(&mut self, id: PaneId, replacement: LiveNode) -> bool {
-        let found = self.replace_leaf_inner(id, replacement);
-        if found {
-            self.normalize();
-        }
-        found
-    }
-
-    fn replace_leaf_inner(&mut self, id: PaneId, replacement: LiveNode) -> bool {
-        match self {
-            Self::Leaf(l) if l.id == id => {
-                *self = replacement;
-                true
-            }
-            Self::Leaf(_) => false,
-            Self::Split { children, .. } => {
-                for c in children {
-                    if c.replace_leaf_inner(id, replacement.clone()) {
-                        return true;
-                    }
-                }
-                false
-            }
-        }
-    }
-
     /// Remove leaf `empty` from its split, giving its slot to the previous
     /// neighbour (else the next). Returns the neighbour's first leaf, or `None`
     /// when `empty` is not under a split here.
-    pub(super) fn remove_leaf(&mut self, empty: PaneId) -> Option<PaneId> {
+    pub(crate) fn remove_leaf(&mut self, empty: PaneId) -> Option<PaneId> {
         let Self::Split {
             children, sizes, ..
         } = self
@@ -145,7 +109,7 @@ impl LiveNode {
     }
 
     /// A leaf next to `id` in its parent split (the next one, else the previous).
-    pub(crate) fn sibling_of(&self, id: PaneId) -> Option<PaneId> {
+    pub fn sibling_of(&self, id: PaneId) -> Option<PaneId> {
         let Self::Split { children, .. } = self else {
             return None;
         };
@@ -157,5 +121,63 @@ impl LiveNode {
             return children[n].leaf_ids().first().copied();
         }
         children.iter().find_map(|c| c.sibling_of(id))
+    }
+
+    /// Saved form. `keep` converts a tab to its persisted state, or `None` to
+    /// leave it out; a leaf whose tabs were all dropped stays as a parked pane.
+    pub fn snapshot(&self, keep: &dyn Fn(&T) -> Option<TabState>) -> PaneNode {
+        match self {
+            Self::Leaf(leaf) => {
+                let tabs: Vec<TabState> = leaf.tabs.iter().filter_map(keep).collect();
+                let kept_before = leaf.tabs[..leaf.active.min(leaf.tabs.len())]
+                    .iter()
+                    .filter(|tab| keep(tab).is_some())
+                    .count();
+                PaneNode::Leaf(LeafPane {
+                    id: leaf.id,
+                    active: kept_before.min(tabs.len().saturating_sub(1)),
+                    parked: leaf.parked || (tabs.is_empty() && !leaf.tabs.is_empty()),
+                    tabs,
+                })
+            }
+            Self::Split {
+                axis,
+                children,
+                sizes,
+            } => PaneNode::Split {
+                axis: *axis,
+                children: children.iter().map(|c| c.snapshot(keep)).collect(),
+                sizes: sizes.clone(),
+            },
+        }
+    }
+}
+
+impl<T: Clone> PaneTree<T> {
+    /// Replace leaf `id`; same-axis splits are spliced into their parent.
+    pub fn replace_leaf(&mut self, id: PaneId, replacement: Self) -> bool {
+        let found = self.replace_leaf_inner(id, replacement);
+        if found {
+            self.normalize();
+        }
+        found
+    }
+
+    fn replace_leaf_inner(&mut self, id: PaneId, replacement: Self) -> bool {
+        match self {
+            Self::Leaf(l) if l.id == id => {
+                *self = replacement;
+                true
+            }
+            Self::Leaf(_) => false,
+            Self::Split { children, .. } => {
+                for c in children {
+                    if c.replace_leaf_inner(id, replacement.clone()) {
+                        return true;
+                    }
+                }
+                false
+            }
+        }
     }
 }

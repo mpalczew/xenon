@@ -321,7 +321,7 @@ fn footer(cx: &mut Context<ThemePickerView>) -> impl IntoElement + use<> {
 }
 
 fn showing_appearance(cx: &App) -> Appearance {
-    match xenon_settings::snapshot(cx).theme {
+    match xenon_design_system::settings::snapshot(cx).theme {
         ThemeMode::Light => Appearance::Light,
         ThemeMode::Dark => Appearance::Dark,
         ThemeMode::System => theme::SystemAppearance::global(cx).0,
@@ -329,7 +329,7 @@ fn showing_appearance(cx: &App) -> Appearance {
 }
 
 fn live_theme_name(cx: &App) -> String {
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     match showing_appearance(cx) {
         Appearance::Light => settings.light_theme,
         Appearance::Dark => settings.dark_theme,
@@ -337,6 +337,6 @@ fn live_theme_name(cx: &App) -> String {
 }
 
 fn saved_names(cx: &App) -> [String; 2] {
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     [settings.dark_theme, settings.light_theme]
 }

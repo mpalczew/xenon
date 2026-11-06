@@ -55,7 +55,7 @@ fn layout(
     window: &mut Window,
     cx: &mut App,
 ) -> element::EditorLayout {
-    let face = xenon_settings::editor_font(cx);
+    let face = xenon_design_system::settings::editor_font(cx);
     let size = px(face.size);
     let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
     let soft_wrap = text_wraps(view, cx);
@@ -71,7 +71,7 @@ fn layout(
     };
     let (follow_cursor, center_cursor, top_line) = scroll_intent(view, max_scroll, cx);
 
-    let show_line_numbers = xenon_settings::show_line_numbers(cx);
+    let show_line_numbers = xenon_design_system::settings::show_line_numbers(cx);
     let editor_layout = {
         let view = view.read(cx);
         let theme = cx.theme();
@@ -198,7 +198,7 @@ fn scroll_intent(
 fn text_wraps(view: &Entity<EditorView>, cx: &App) -> bool {
     let view = view.read(cx);
     match &view.content {
-        Content::Text(_) => xenon_settings::editor_wraps(view.path(), cx),
+        Content::Text(_) => xenon_design_system::settings::editor_wraps(view.path(), cx),
         Content::Image(_) | Content::Unsupported { .. } => false,
     }
 }

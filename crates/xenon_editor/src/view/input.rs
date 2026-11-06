@@ -82,7 +82,7 @@ impl EditorView {
             cx.notify();
             return;
         }
-        if xenon_settings::vim_mode(cx) && self.route_vim_keystroke(keystroke, cx) {
+        if xenon_design_system::settings::vim_mode(cx) && self.route_vim_keystroke(keystroke, cx) {
             return;
         }
         let extend = keystroke.modifiers.shift;
@@ -115,7 +115,8 @@ impl EditorView {
     /// The platform's command chord (cmd on macOS, ctrl elsewhere). With vim
     /// mode on, ctrl keeps its vim meaning off macOS.
     fn command_chord(&self, keystroke: &gpui::Keystroke, cx: &gpui::App) -> bool {
-        let vim_owns_ctrl = cfg!(not(target_os = "macos")) && xenon_settings::vim_mode(cx);
+        let vim_owns_ctrl =
+            cfg!(not(target_os = "macos")) && xenon_design_system::settings::vim_mode(cx);
         keystroke.modifiers.secondary() && !vim_owns_ctrl
     }
 
@@ -324,7 +325,7 @@ impl EditorView {
                 self.dragging = true;
             }
         }
-        if xenon_settings::vim_mode(cx) && self.vim.mode.is_visual() {
+        if xenon_design_system::settings::vim_mode(cx) && self.vim.mode.is_visual() {
             self.vim.mode = Mode::Normal;
         }
         if click_count >= 2 {

@@ -13,9 +13,10 @@ use xenon_design_system::{TypeRole, Typography};
 use super::marks::kind_color;
 use super::widgets::{id_hash, path_tooltip};
 use crate::app::XenonApp;
-use crate::git_dirt::{BarCell, GitFile, GitStatus, change_bar};
 use crate::icons::icon;
 use crate::resize::{GIT_HEADER_H, GIT_ROW_H};
+use xenon_git::bar::{BarCell, change_bar};
+use xenon_git::status::{GitFile, GitStatus};
 
 impl XenonApp {
     /// The Git section under Files; `None` without a git status (SSH,
@@ -213,7 +214,7 @@ impl XenonApp {
                 } else {
                     gpui::FontWeight::NORMAL
                 })
-                .when(file.kind() == crate::git_dirt::ChangeKind::Deleted, |d| {
+                .when(file.kind() == xenon_git::status::ChangeKind::Deleted, |d| {
                     d.line_through()
                 })
                 .child(file.name().to_string()),

@@ -80,7 +80,7 @@ pub(super) fn live_preview(cx: &App) -> impl IntoElement + use<> {
 
 fn rail(cx: &App) -> impl IntoElement + use<> {
     let colors = cx.theme().colors();
-    let ui = xenon_settings::ui_font(cx);
+    let ui = xenon_design_system::settings::ui_font(cx);
     let size = px(ui.size * SCALE);
     let row = |name: &'static str, active: bool| {
         let paint = xenon_design_system::list_selection(colors, active);
@@ -113,10 +113,10 @@ fn rail(cx: &App) -> impl IntoElement + use<> {
 
 fn editor(cx: &App) -> impl IntoElement + use<> {
     let colors = cx.theme().colors();
-    let face = xenon_settings::editor_font(cx);
+    let face = xenon_design_system::settings::editor_font(cx);
     let size = face.size * SCALE;
-    let numbers = xenon_settings::show_line_numbers(cx);
-    let wrap = xenon_settings::wrap_code(cx);
+    let numbers = xenon_design_system::settings::show_line_numbers(cx);
+    let wrap = xenon_design_system::settings::wrap_code(cx);
     let mut pane = div()
         .flex_1()
         .min_w_0()
@@ -177,7 +177,7 @@ fn style_for(scope: &str, cx: &App) -> HighlightStyle {
 
 fn terminal(cx: &App) -> impl IntoElement + use<> {
     let colors = cx.theme().colors();
-    let face = xenon_settings::terminal_font(cx);
+    let face = xenon_design_system::settings::terminal_font(cx);
     let size = face.size * SCALE;
     let line = |text: &'static str, color: Hsla| div().text_color(color).child(text);
     div()

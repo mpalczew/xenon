@@ -6,7 +6,7 @@ use theme::{ActiveTheme, ThemeColors};
 
 use super::widgets::{ACTIONS_W, ROW_H};
 use crate::app::WorkspaceDot;
-use crate::git_dirt::{ChangeKind, DirtState};
+use xenon_git::status::{ChangeKind, DirtState};
 
 /// Status colors read on dark, but the stock yellow vanishes on a light
 /// canvas; there it is pulled down to a legible lightness.

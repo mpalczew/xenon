@@ -1,7 +1,7 @@
 //! FS-event driven git dirtiness for the sidebar.
 //!
 //! Watches each open workspace root (recursive). Events are debounced, then
-//! only the affected workspaces are re-measured via `git_dirt::measure`.
+//! only the affected workspaces are re-measured via `xenon_git::measure::measure`.
 //!
 //! The watcher is long-lived: open/close/reopen only diffs roots (unwatch /
 //! watch) instead of tearing down FSEvents. Dropping a recursive watcher on
@@ -14,7 +14,7 @@ use std::time::Duration;
 use notify::{RecursiveMode, Watcher};
 
 use super::*;
-use crate::git_dirt::{self, GitStatus};
+use xenon_git::status::GitStatus;
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
 
@@ -51,7 +51,7 @@ impl XenonApp {
         }));
     }
 
-    pub(crate) fn workspace_dirt(&self, id: WorkspaceId) -> crate::git_dirt::DirtState {
+    pub(crate) fn workspace_dirt(&self, id: WorkspaceId) -> xenon_git::status::DirtState {
         self.workspace_git(id)
             .map(|git| git.state)
             .unwrap_or_default()
@@ -309,7 +309,7 @@ fn mark_workspace(
 fn measure_all(roots: &[(WorkspaceId, PathBuf)]) -> HashMap<WorkspaceId, GitStatus> {
     let mut map = HashMap::new();
     for (id, root) in roots {
-        if let Some(status) = git_dirt::measure(root) {
+        if let Some(status) = xenon_git::measure::measure(root) {
             map.insert(*id, status);
         }
     }

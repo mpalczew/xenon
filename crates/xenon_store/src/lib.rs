@@ -14,6 +14,7 @@ use xenon_core::{Registry, SessionState, WorkspaceId};
 
 mod cli;
 mod ipc;
+mod open_spec;
 mod prose;
 mod remote_devices;
 mod settings;

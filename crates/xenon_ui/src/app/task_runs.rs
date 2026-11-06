@@ -441,7 +441,7 @@ fn settings_config(cx: &App) -> BTreeMap<String, String> {
         }
     }
     let mut out = BTreeMap::new();
-    if let Ok(value) = serde_json::to_value(xenon_settings::snapshot(cx)) {
+    if let Ok(value) = serde_json::to_value(xenon_design_system::settings::snapshot(cx)) {
         walk("", &value, &mut out);
     }
     out

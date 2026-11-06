@@ -457,11 +457,11 @@ pub fn apply_scene(
 }
 
 pub(super) fn set_theme(mode: ThemeMode, dark: &str, light: &str, cx: &mut Context<XenonApp>) {
-    let mut settings = xenon_settings::snapshot(cx);
+    let mut settings = xenon_design_system::settings::snapshot(cx);
     settings.theme = mode;
     settings.dark_theme = dark.to_string();
     settings.light_theme = light.to_string();
-    xenon_settings::apply(&settings, cx);
+    xenon_design_system::settings::apply(&settings, cx);
     xenon_terminal::apply_theme(cx);
     cx.notify();
 }

@@ -37,7 +37,7 @@ impl EditorView {
         colors: &theme::ThemeColors,
         cx: &App,
     ) -> Option<impl IntoElement + use<>> {
-        xenon_settings::vim_mode(cx).then(|| {
+        xenon_design_system::settings::vim_mode(cx).then(|| {
             let label = if let Some(draft) = &self.vim.ex_draft {
                 format!(":{}", draft.line)
             } else if let Some(draft) = &self.vim.search_draft {

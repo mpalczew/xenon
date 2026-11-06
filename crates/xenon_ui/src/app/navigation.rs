@@ -4,7 +4,7 @@
 
 use super::*;
 use xenon_core::PaneId;
-use xenon_settings::{Copy, CopyClean, CopyCode, Cut, Paste};
+use xenon_design_system::settings::{Copy, CopyClean, CopyCode, Cut, Paste};
 
 /// Cap on per-workspace recently opened paths used for cmd-p ranking.
 const MAX_RECENT_FILES: usize = 64;
@@ -256,21 +256,23 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         match self.font_target(window, cx) {
-            FontPane::Prose => xenon_settings::nudge_prose_font_size(cx, delta),
-            FontPane::Editor => xenon_settings::nudge_editor_font_size(cx, delta),
-            FontPane::Terminal => xenon_settings::nudge_terminal_font_size(cx, delta),
+            FontPane::Prose => xenon_design_system::settings::nudge_prose_font_size(cx, delta),
+            FontPane::Editor => xenon_design_system::settings::nudge_editor_font_size(cx, delta),
+            FontPane::Terminal => {
+                xenon_design_system::settings::nudge_terminal_font_size(cx, delta)
+            }
         }
-        xenon_settings::save(cx);
+        xenon_design_system::settings::save(cx);
         window.refresh();
     }
 
     pub(super) fn reset_font_size(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.font_target(window, cx) {
-            FontPane::Prose => xenon_settings::reset_prose_font_size(cx),
-            FontPane::Editor => xenon_settings::reset_editor_font_size(cx),
-            FontPane::Terminal => xenon_settings::reset_terminal_font_size(cx),
+            FontPane::Prose => xenon_design_system::settings::reset_prose_font_size(cx),
+            FontPane::Editor => xenon_design_system::settings::reset_editor_font_size(cx),
+            FontPane::Terminal => xenon_design_system::settings::reset_terminal_font_size(cx),
         }
-        xenon_settings::save(cx);
+        xenon_design_system::settings::save(cx);
         window.refresh();
     }
 

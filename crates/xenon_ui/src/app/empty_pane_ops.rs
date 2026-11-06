@@ -1,7 +1,7 @@
 //! Operations for intentionally empty panes in the content tree.
 
 use super::*;
-use xenon_core::{PaneId, SplitAxis};
+use xenon_core::{PaneId, ParkOutcome, SplitAxis};
 
 impl XenonApp {
     /// Add a deliberately empty sibling to the right or below the focused pane.
@@ -16,65 +16,20 @@ impl XenonApp {
         let Some(content) = self.contents.get_mut(&ws) else {
             return;
         };
-        if content.root.is_none() {
-            let first = content.next_pane_id();
-            let second = PaneId(first.0.saturating_add(1));
-            content.root = Some(LiveNode::pair(
-                axis,
-                LiveNode::Leaf(LiveLeaf {
-                    id: first,
-                    tabs: Vec::new(),
-                    active: 0,
-                    parked: false,
-                }),
-                LiveNode::Leaf(LiveLeaf {
-                    id: second,
-                    tabs: Vec::new(),
-                    active: 0,
-                    parked: true,
-                }),
-            ));
-            content.focused = Some(first);
-            self.save_layout(ws);
-            cx.notify();
-            return;
-        }
-        let Some(source) = content.focused else {
-            return;
-        };
-        let Some((can_split, mut source_leaf)) = content.root.as_ref().and_then(|root| {
-            Some((
-                root.can_split(source, axis),
-                root.find_leaf(source)?.clone(),
-            ))
-        }) else {
-            return;
-        };
-        if !can_split {
-            xenon_design_system::show_toast(super::toasts::split_limit(), cx);
-            return;
-        }
-        source_leaf.parked = false;
-        let new_pane = content.next_pane_id();
-        let replacement = LiveNode::pair(
-            axis,
-            LiveNode::Leaf(source_leaf),
-            LiveNode::Leaf(LiveLeaf {
-                id: new_pane,
-                tabs: Vec::new(),
-                active: 0,
-                parked: true,
-            }),
-        );
-        if content
-            .root
-            .as_mut()
-            .is_some_and(|root| root.replace_leaf(source, replacement))
-        {
-            content.focused = Some(source);
-            self.save_layout(ws);
-            self.focus_leaf_active(source, window, cx);
-            cx.notify();
+        match content.park_empty(axis) {
+            ParkOutcome::Unchanged => {}
+            ParkOutcome::NoRoom => {
+                xenon_design_system::show_toast(super::toasts::split_limit(), cx);
+            }
+            ParkOutcome::Created => {
+                self.save_layout(ws);
+                cx.notify();
+            }
+            ParkOutcome::Added(source) => {
+                self.save_layout(ws);
+                self.focus_leaf_active(source, window, cx);
+                cx.notify();
+            }
         }
     }
 
@@ -99,15 +54,9 @@ impl XenonApp {
         let Some(content) = self.contents.get_mut(&ws) else {
             return;
         };
-        if !content
-            .root
-            .as_ref()
-            .and_then(|root| root.find_leaf(pane))
-            .is_some_and(|leaf| leaf.tabs.is_empty() && content.leaf_ids().len() > 1)
-        {
+        if !content.remove_empty_leaf(pane) {
             return;
         }
-        content.unsplit_empty(pane);
         self.save_layout(ws);
         self.focus_after_teardown(Some(window), cx);
         cx.notify();

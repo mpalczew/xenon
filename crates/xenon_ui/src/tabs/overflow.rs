@@ -316,11 +316,7 @@ pub(crate) fn overflow_label(app: &XenonApp, tab: &LiveTab, index: usize) -> Str
             let title = app
                 .terminal_chrome(view)
                 .map_or_else(|| "terminal".to_string(), |chrome| chrome.title.clone());
-            if matches!(title.as_str(), "bash" | "zsh" | "fish") {
-                format!("{title} · {}", index + 1)
-            } else {
-                title
-            }
+            xenon_core::terminal_tab_label(&title, index)
         }
         LiveTab::Editor { name, .. } | LiveTab::Diff { name, .. } => name.clone(),
     }

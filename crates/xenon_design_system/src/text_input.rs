@@ -1,12 +1,12 @@
 //! A complete native text control: input, focus, editing, and presentation.
 
+use crate::settings::{Copy, Cut, Paste};
 use gpui::{
     App, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, Styled, Window, div, point,
     px,
 };
 use theme::ActiveTheme;
-use xenon_settings::{Copy, Cut, Paste};
 
 use crate::text_field::{FieldChrome, text_field};
 use crate::{CursorBlink, FocusOnOpen, MultilineText};

@@ -39,7 +39,7 @@ impl TypeRole {
 pub trait Typography: Styled + Sized {
     fn type_role(self, role: TypeRole, cx: &App) -> Self {
         let (size, line_height, weight) = role.metrics();
-        let ui = xenon_settings::ui_font(cx);
+        let ui = crate::settings::ui_font(cx);
         let scaled = size * ui.size / 14.;
         let text = self
             .text_size(px(scaled))
@@ -47,7 +47,7 @@ pub trait Typography: Styled + Sized {
             .font_weight(weight)
             .text_color(role.color(cx.theme().colors()));
         match role {
-            TypeRole::Code => text.font_family(xenon_settings::editor_font(cx).family),
+            TypeRole::Code => text.font_family(crate::settings::editor_font(cx).family),
             _ => text.font_family(ui.family),
         }
     }

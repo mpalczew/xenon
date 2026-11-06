@@ -126,11 +126,7 @@ impl XenonApp {
             title.to_string()
         };
         let title_owned = title.to_string();
-        let display_title = if matches!(title, "bash" | "zsh" | "fish") {
-            format!("{title} · {}", index + 1)
-        } else {
-            title_owned.clone()
-        };
+        let display_title = xenon_core::terminal_tab_label(title, index);
         div()
             .id(SharedString::from(format!("tab-{}-{}", pane.0, index)))
             .group(group.clone())

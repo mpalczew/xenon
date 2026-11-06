@@ -8,6 +8,5 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-gpui.workspace = true
 xenon_store.workspace = true
 log = "0.4"

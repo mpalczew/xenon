@@ -69,7 +69,7 @@ impl EntityInputHandler for EditorView {
         if text.is_empty() {
             return;
         }
-        let vim = xenon_settings::vim_mode(cx);
+        let vim = xenon_design_system::settings::vim_mode(cx);
         if vim && self.prose_active() && self.prose_vim_char(text, cx) {
             cx.notify();
             return;
@@ -88,7 +88,7 @@ impl EntityInputHandler for EditorView {
         let Content::Text(buffer) = &mut self.content else {
             return;
         };
-        if xenon_settings::vim_mode(cx) {
+        if xenon_design_system::settings::vim_mode(cx) {
             self.vim.note_insert_text(text);
         }
         buffer.apply(EditCommand::Insert(text.to_string()));

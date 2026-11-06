@@ -41,7 +41,7 @@ use crate::vim::VimState;
 use find_session::FindSession;
 use menu::is_supported_image;
 use xenon_design_system::CursorBlink;
-use xenon_settings::{Copy, Cut, Paste, SelectAll};
+use xenon_design_system::settings::{Copy, Cut, Paste, SelectAll};
 
 actions!(
     xenon_editor,
@@ -349,7 +349,7 @@ impl EditorView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let size = px(xenon_settings::editor_font(cx).size);
+        let size = px(xenon_design_system::settings::editor_font(cx).size);
         let line_height = element::line_height(size, LINE_HEIGHT_MULTIPLIER);
         let delta = event.delta.pixel_delta(line_height);
         self.scroll_top = (self.scroll_top - delta.y).max(px(0.));

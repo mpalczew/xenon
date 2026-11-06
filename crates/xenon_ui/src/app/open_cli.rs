@@ -1,7 +1,7 @@
 //! Agent/CLI file open: location + pane, never steal terminal focus.
 
 use super::*;
-use xenon_core::{SplitAxis, TabId};
+use xenon_core::{FileRoute, SplitAxis, TabId};
 use xenon_store::{OpenFileSpec, OpenPane};
 
 impl XenonApp {
@@ -27,41 +27,19 @@ impl XenonApp {
         }
     }
 
-    /// Pick the workspace a CLI/agent file open lands in. The longest open
-    /// workspace root containing the file wins. Otherwise the file opens in
-    /// the current workspace, even when it lies outside every root (`/tmp`,
-    /// `~/.cache`). Closed workspaces never reopen for a file: a closed `~`
-    /// would otherwise claim every file under home. With no current
-    /// workspace, the file's folder becomes one.
+    /// Pick the workspace a CLI/agent file open lands in; rules live in
+    /// [`xenon_core::Registry::route_file`].
     pub(super) fn route_cli_file(&mut self, path: &Path, cx: &mut Context<Self>) {
-        if let Some(workspace_id) = self.workspace_for_path(path) {
-            self.focus_workspace(workspace_id, cx);
-        } else if self.active.is_none()
-            && let Some(parent) = path.parent()
-        {
-            self.register_workspace(parent.to_path_buf(), cx);
+        match self.registry.route_file(path, self.active) {
+            FileRoute::Workspace(workspace_id) => self.focus_workspace(workspace_id, cx),
+            FileRoute::NewWorkspace(root) => self.register_workspace(root, cx),
+            FileRoute::Current => {}
         }
-    }
-
-    /// Longest open workspace root that is a prefix of `path`.
-    fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
-        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-        let mut best: Option<(usize, WorkspaceId)> = None;
-        for rec in &self.registry.workspaces {
-            let root = rec.root.canonicalize().unwrap_or_else(|_| rec.root.clone());
-            if path.starts_with(&root) {
-                let len = root.as_os_str().len();
-                if best.is_none_or(|(best_len, _)| len > best_len) {
-                    best = Some((len, rec.id));
-                }
-            }
-        }
-        best.map(|(_, id)| id)
     }
 
     fn open_spec_in_focused(&mut self, spec: &OpenFileSpec, cx: &mut Context<Self>) {
-        let at = spec_cursor(spec);
-        let focus = takes_editor_focus(spec.pane);
+        let at = spec.cursor();
+        let focus = spec.pane.takes_editor_focus();
         if let Err(error) = self.open_editor_at(spec.path.clone(), focus, at, cx) {
             log::error!("open failed: {error}");
             return;
@@ -167,7 +145,7 @@ impl XenonApp {
         let Some(end_line) = spec.end_line else {
             return;
         };
-        let Some(start) = spec_cursor(spec) else {
+        let Some(start) = spec.cursor() else {
             return;
         };
         let Some(id) = self.active else {
@@ -195,32 +173,18 @@ impl XenonApp {
     }
 }
 
-/// `--pane focused` is the one policy that should take GPUI focus.
-pub(super) fn takes_editor_focus(pane: OpenPane) -> bool {
-    matches!(pane, OpenPane::Focused)
-}
-
-fn spec_cursor(spec: &OpenFileSpec) -> Option<(u32, u32)> {
-    spec.line.map(|line| {
-        (
-            line.saturating_sub(1),
-            spec.column.unwrap_or(1).saturating_sub(1),
-        )
-    })
-}
-
 fn apply_location_to_view(
     view: &Entity<EditorView>,
     spec: &OpenFileSpec,
     cx: &mut Context<XenonApp>,
 ) {
     if let Some(end_line) = spec.end_line
-        && let Some(start) = spec_cursor(spec)
+        && let Some(start) = spec.cursor()
     {
         apply_range_to_view(view, start, end_line, cx);
         return;
     }
-    if let Some((row, col)) = spec_cursor(spec) {
+    if let Some((row, col)) = spec.cursor() {
         view.update(cx, |editor, cx| editor.set_cursor_position(row, col, cx));
     }
 }
@@ -240,16 +204,4 @@ fn apply_range_to_view(
     view.update(cx, |editor, cx| {
         editor.set_selection_range(start, (end_row, end_col), cx);
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_focused_pane_steals_editor_focus() {
-        assert!(takes_editor_focus(OpenPane::Focused));
-        assert!(!takes_editor_focus(OpenPane::Sibling));
-        assert!(!takes_editor_focus(OpenPane::SplitRight));
-    }
 }

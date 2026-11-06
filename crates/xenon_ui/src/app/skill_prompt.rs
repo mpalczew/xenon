@@ -41,7 +41,7 @@ impl XenonApp {
         if self.finder.is_some() || self.command_palette.is_some() {
             return;
         }
-        if !xenon_terminal::agent_title(title) {
+        if !xenon_core::agent_title(title) {
             return;
         }
         if !should_prompt_skill() {

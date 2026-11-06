@@ -14,10 +14,10 @@ use gpui::{
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 
-use crate::diff_model::{DiffDoc, Layout, LayoutMode};
 use crate::diff_rows::{self, Paint};
-use crate::git_dirt::GitFile;
 use crate::icons::icon;
+use xenon_git::diff::{DiffDoc, Layout, LayoutMode};
+use xenon_git::status::GitFile;
 
 pub(crate) struct DiffView {
     root: PathBuf,
@@ -79,7 +79,7 @@ impl DiffView {
         self.load = Some(cx.spawn(async move |this, cx| {
             let doc = cx
                 .background_executor()
-                .spawn(async move { crate::diff_load::load(&root, &file) })
+                .spawn(async move { xenon_git::load::load(&root, &file, syntax_highlight) })
                 .await;
             this.update(cx, |this, cx| {
                 this.doc = Some(Arc::new(doc));
@@ -341,4 +341,15 @@ impl Render for DiffView {
                     .child(self.body(layout, &paint, cx)),
             )
     }
+}
+
+/// Syntax colours for diff lines, from the editor's highlighter.
+pub(crate) fn syntax_highlight(
+    path: &std::path::Path,
+    text: &str,
+) -> Vec<(usize, usize, &'static str)> {
+    xenon_editor::syntax_spans_for_path(path, text)
+        .into_iter()
+        .map(|span| (span.start, span.end, span.name))
+        .collect()
 }

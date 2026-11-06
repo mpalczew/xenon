@@ -5,7 +5,7 @@ use gpui::ScrollHandle;
 
 use super::*;
 use crate::diff_view::DiffView;
-use crate::git_dirt::GitFile;
+use xenon_git::status::GitFile;
 
 const ANIMATION: Duration = Duration::from_millis(180);
 
@@ -37,7 +37,7 @@ impl GitSectionState {
 
 impl XenonApp {
     /// Status of the active workspace; `None` for SSH and non-git folders.
-    pub(crate) fn active_git(&self) -> Option<&crate::git_dirt::GitStatus> {
+    pub(crate) fn active_git(&self) -> Option<&xenon_git::status::GitStatus> {
         self.workspace_git(self.active?)
     }
 
@@ -260,8 +260,8 @@ impl XenonApp {
     pub(crate) fn open_scene_diff(
         &mut self,
         file: GitFile,
-        mode: crate::diff_model::LayoutMode,
-        doc: crate::diff_model::DiffDoc,
+        mode: xenon_git::diff::LayoutMode,
+        doc: xenon_git::diff::DiffDoc,
         beside: bool,
         cx: &mut Context<Self>,
     ) {
@@ -333,29 +333,5 @@ impl LiveTab {
             Self::Diff { view, .. } => Some(view),
             _ => None,
         }
-    }
-}
-
-impl LiveNode {
-    pub(crate) fn find_diff_path(&self, path: &str) -> Option<(xenon_core::PaneId, usize)> {
-        let mut found = None;
-        self.for_each_leaf(&mut |leaf| {
-            if found.is_none() {
-                found = leaf
-                    .tabs
-                    .iter()
-                    .position(|t| t.diff_path() == Some(path))
-                    .map(|i| (leaf.id, i));
-            }
-        });
-        found
-    }
-
-    pub(crate) fn diff_views(&self) -> Vec<Entity<crate::diff_view::DiffView>> {
-        let mut views = Vec::new();
-        self.for_each_leaf(&mut |leaf| {
-            views.extend(leaf.tabs.iter().filter_map(LiveTab::as_diff).cloned());
-        });
-        views
     }
 }

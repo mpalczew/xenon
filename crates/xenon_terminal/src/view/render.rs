@@ -31,16 +31,18 @@ impl Render for TerminalView {
                 this.copy_selection(cx);
                 cx.notify();
             }))
-            .on_action(
-                cx.listener(|this, _: &xenon_settings::CopyClean, window, cx| {
+            .on_action(cx.listener(
+                |this, _: &xenon_design_system::settings::CopyClean, window, cx| {
                     this.copy_clean_selection(window, cx);
+                    cx.notify();
+                },
+            ))
+            .on_action(
+                cx.listener(|this, _: &xenon_design_system::settings::CopyCode, _, cx| {
+                    this.copy_code_selection(cx);
                     cx.notify();
                 }),
             )
-            .on_action(cx.listener(|this, _: &xenon_settings::CopyCode, _, cx| {
-                this.copy_code_selection(cx);
-                cx.notify();
-            }))
             .on_action(cx.listener(|this, _: &Paste, _, cx| {
                 this.note_local_input(cx);
                 this.paste_clipboard(cx);
@@ -307,7 +309,7 @@ fn grid_canvas(
     let layout_view = view.clone();
     canvas(
         move |bounds, window, cx| {
-            let face = xenon_settings::terminal_font(cx);
+            let face = xenon_design_system::settings::terminal_font(cx);
             let font = grid::terminal_font(&face.family);
             let fit = layout_view
                 .read(cx)
@@ -316,7 +318,7 @@ fn grid_canvas(
             layout(&terminal, &font, face.size, bounds, fit, window, cx)
         },
         move |bounds, (grid_layout, divider), window, cx| {
-            let size = px(xenon_settings::terminal_font(cx).size);
+            let size = px(xenon_design_system::settings::terminal_font(cx).size);
             let line_height = grid::line_height(size, LINE_HEIGHT_MULTIPLIER);
             let focused = focus.is_focused(window) && window.is_window_active();
             let show_cursor = !focused || view.read(cx).cursor_blink.visible();

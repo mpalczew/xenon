@@ -67,7 +67,7 @@ impl TriggerBounds {
 
 /// The chosen family as its trigger shows it; the open filter's placeholder.
 pub(crate) fn current_label(id: DropdownId, cx: &gpui::App) -> String {
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     let family = match id {
         DropdownId::Ui => settings.ui_font_family,
         DropdownId::Editor => settings.editor_font_family,

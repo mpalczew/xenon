@@ -22,6 +22,7 @@ gpui.workspace = true
 xenon_core.workspace = true
 xenon_store.workspace = true
 xenon_finder.workspace = true
+xenon_git.workspace = true
 xenon_terminal.workspace = true
 xenon_editor.workspace = true
 xenon_ide.workspace = true

@@ -169,7 +169,8 @@ impl EditorView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let lh = px(xenon_settings::prose(cx).size * xenon_settings::prose(cx).line_height);
+        let lh = px(xenon_design_system::settings::prose(cx).size
+            * xenon_design_system::settings::prose(cx).line_height);
         let delta = event.delta.pixel_delta(lh);
         self.prose.scroll = (self.prose.scroll - delta.y).max(px(0.));
         cx.stop_propagation();

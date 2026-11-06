@@ -7,7 +7,7 @@ use gpui::{
 };
 use theme::{ActiveTheme, ThemeColors};
 
-use crate::diff_model::{DiffLine, DiffSection, Hunk, Layout, LineKind};
+use xenon_git::diff::{DiffLine, DiffSection, Hunk, Layout, LineKind};
 
 const GUTTER_W: f32 = 44.;
 const SIGN_W: f32 = 16.;
@@ -25,7 +25,7 @@ pub(crate) struct Paint {
 impl Paint {
     pub(crate) fn new(cx: &App) -> Self {
         let colors = cx.theme().colors().clone();
-        let font = xenon_settings::editor_font(cx);
+        let font = xenon_design_system::settings::editor_font(cx);
         let syntax = cx.theme().syntax();
         let sign_color = |name: &str, fallback: Hsla| {
             syntax

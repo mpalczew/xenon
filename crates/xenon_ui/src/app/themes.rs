@@ -79,12 +79,12 @@ impl XenonApp {
 
 /// Store a theme in its light/dark slot. Repaint only when that slot is on screen.
 pub(crate) fn apply_named_theme(name: &str, appearance: Appearance, cx: &mut App) {
-    let mut settings = xenon_settings::snapshot(cx);
+    let mut settings = xenon_design_system::settings::snapshot(cx);
     match appearance {
         Appearance::Light => settings.light_theme = name.to_string(),
         Appearance::Dark => settings.dark_theme = name.to_string(),
     }
-    xenon_settings::apply(&settings, cx);
-    xenon_settings::save(cx);
+    xenon_design_system::settings::apply(&settings, cx);
+    xenon_design_system::settings::save(cx);
     xenon_terminal::apply_theme(cx);
 }

@@ -26,6 +26,7 @@ xenon_store = { path = "crates/xenon_store" }
 xenon_terminal = { path = "crates/xenon_terminal" }
 xenon_editor = { path = "crates/xenon_editor" }
 xenon_finder = { path = "crates/xenon_finder" }
+xenon_git = { path = "crates/xenon_git" }
 xenon_ui = { path = "crates/xenon_ui" }
 xenon_ide = { path = "crates/xenon_ide" }
 xenon_lsp = { path = "crates/xenon_lsp" }

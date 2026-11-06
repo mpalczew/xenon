@@ -29,7 +29,7 @@ struct WorkspaceRows {
     active: bool,
     /// Workspace status pip (`None` = quiet).
     status: Option<WorkspaceDot>,
-    dirt: crate::git_dirt::DirtState,
+    dirt: xenon_git::status::DirtState,
 }
 
 struct WorkspaceHeader<'a> {
@@ -39,7 +39,7 @@ struct WorkspaceHeader<'a> {
     active: bool,
     status: Option<WorkspaceDot>,
     /// How far the workspace root has drifted from HEAD.
-    dirt: crate::git_dirt::DirtState,
+    dirt: xenon_git::status::DirtState,
 }
 
 struct WorkspaceTitle<'a> {

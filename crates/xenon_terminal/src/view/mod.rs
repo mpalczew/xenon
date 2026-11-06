@@ -7,12 +7,10 @@
 //! `try_keystroke` on key-down. Both mirror zed's terminal_view
 //! (GPL-3.0-or-later); see ATTRIBUTION.md.
 //!
-//! Xenon-only pieces live in submodules (`attention`, `paths`, find) so adapted
+//! Xenon-only pieces live in submodules (`paths`, find) so adapted
 //! zed patterns stay easier to re-sync.
 
-mod attention;
 mod chrome;
-pub use attention::agent_title;
 mod find_bar;
 mod find_session;
 mod input;
@@ -40,7 +38,6 @@ use std::time::{Duration, Instant};
 use xenon_design_system::{Toast, show_toast};
 
 use anyhow::Result;
-use attention::{IDLE_AFTER, agent_busy_signal};
 use find_session::FindSession;
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, ElementInputHandler, Entity,
@@ -57,12 +54,14 @@ use terminal::terminal_settings::{AlternateScroll, CursorShape, TerminalSettings
 use terminal::{Terminal, TerminalBuilder};
 use theme::ActiveTheme;
 use util::paths::PathStyle;
+use xenon_core::{IDLE_AFTER, agent_busy_signal};
 
 use crate::clipboard::{
     clean_agent_output, extract_code, terminal_clipboard_text, terminal_paths_text,
 };
 use crate::grid;
-use xenon_settings::{Copy, Cut, Paste, TerminalAutoClose};
+use xenon_design_system::settings::{Copy, Cut, Paste};
+use xenon_settings::TerminalAutoClose;
 
 actions!(xenon_terminal, [Find, FindNext, FindPrevious]);
 
@@ -272,7 +271,7 @@ impl TerminalView {
             task_exit: None,
             watch_output: false,
             _task_wait: Task::ready(()),
-            auto_close: xenon_settings::terminal_auto_close(cx),
+            auto_close: xenon_design_system::settings::terminal_auto_close(cx),
             auto_close_token: 0,
             pending_inject: None,
             context_menu: None,
@@ -486,19 +485,8 @@ impl TerminalView {
     pub fn title(&self, cx: &App) -> String {
         match &self.state {
             State::Ready(terminal) => {
-                // zed's default title is `{cwd} — {process}`. Drop the cwd prefix
-                // only while it still equals the spawn dir (redundant with the
-                // sidebar); a cd'd-into subdir is kept, as is a program-set title.
                 let title = terminal.read(cx).title(false);
-                let title = match title.split_once(" — ") {
-                    Some((dir, rest)) if dir == self.root_name => rest,
-                    _ => title.as_str(),
-                };
-                if title.is_empty() {
-                    "terminal".into()
-                } else {
-                    title.to_string()
-                }
+                xenon_core::clean_terminal_title(&title, &self.root_name)
             }
             State::Pending => "terminal".into(),
             State::Failed(_) => "error".into(),

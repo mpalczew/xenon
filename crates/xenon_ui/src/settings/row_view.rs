@@ -205,7 +205,7 @@ fn font_controls(
     state: &PaintState<'_>,
     cx: &mut Context<SettingsView>,
 ) -> AnyElement {
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     let (selected, points, options) = match family {
         crate::dropdown::DropdownId::Ui => (
             settings.ui_font_family,

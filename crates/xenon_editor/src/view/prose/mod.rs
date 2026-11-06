@@ -77,7 +77,7 @@ fn load_image(path: &std::path::Path) -> LoadedImage {
 
 impl EditorView {
     fn hide_markers(&self, cx: &App) -> bool {
-        xenon_settings::prose_markers(cx) == xenon_settings::ProseMarkers::Hide
+        xenon_design_system::settings::prose_markers(cx) == xenon_settings::ProseMarkers::Hide
     }
 
     fn fresh_projection(&self, cx: &App) -> Option<Projection> {

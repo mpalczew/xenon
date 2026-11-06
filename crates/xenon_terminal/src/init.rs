@@ -77,7 +77,7 @@ pub fn preview_theme(name: &str, cx: &mut App) {
 /// slot, and the fix is persisted.
 fn heal_missing_themes(cx: &mut App) {
     let registry = theme::ThemeRegistry::global(cx);
-    let mut settings = xenon_settings::snapshot(cx);
+    let mut settings = xenon_design_system::settings::snapshot(cx);
     let mut healed = false;
     for (slot, default) in [
         (&mut settings.dark_theme, xenon_settings::DEFAULT_DARK_THEME),
@@ -93,8 +93,8 @@ fn heal_missing_themes(cx: &mut App) {
         }
     }
     if healed {
-        xenon_settings::apply(&settings, cx);
-        xenon_settings::save(cx);
+        xenon_design_system::settings::apply(&settings, cx);
+        xenon_design_system::settings::save(cx);
     }
 }
 
@@ -111,7 +111,7 @@ pub fn theme_names(appearance: theme::Appearance, cx: &App) -> Vec<SharedString>
 }
 
 fn active_theme_name(cx: &App) -> String {
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     let appearance = match settings.theme {
         ThemeMode::Light => theme::Appearance::Light,
         ThemeMode::Dark => theme::Appearance::Dark,

@@ -20,7 +20,7 @@ const LIGHT_PICKS: [&str; 5] = [
 const MODES: [ThemeMode; 3] = [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark];
 
 pub(super) fn groups(cx: &App) -> Vec<Group> {
-    let settings = xenon_settings::snapshot(cx);
+    let settings = xenon_design_system::settings::snapshot(cx);
     let showing = showing_appearance(settings.theme, cx);
     let (slot, other, other_name) = match showing {
         Appearance::Dark => ("Dark theme", "Light theme", settings.light_theme.clone()),
@@ -132,10 +132,10 @@ fn showing_appearance(mode: ThemeMode, cx: &App) -> Appearance {
 }
 
 fn apply_mode(mode: ThemeMode, cx: &mut App) {
-    let mut settings = xenon_settings::snapshot(cx);
+    let mut settings = xenon_design_system::settings::snapshot(cx);
     settings.theme = mode;
-    xenon_settings::apply(&settings, cx);
-    xenon_settings::save(cx);
+    xenon_design_system::settings::apply(&settings, cx);
+    xenon_design_system::settings::save(cx);
     xenon_terminal::apply_theme(cx);
 }
 

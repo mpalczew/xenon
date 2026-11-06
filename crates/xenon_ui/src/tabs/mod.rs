@@ -265,7 +265,7 @@ impl XenonApp {
             }
             view.path().to_path_buf()
         };
-        let wrapping = xenon_settings::editor_wraps(&path, cx);
+        let wrapping = xenon_design_system::settings::editor_wraps(&path, cx);
         let colors = colors.clone();
         Some(
             xenon_design_system::action_button(

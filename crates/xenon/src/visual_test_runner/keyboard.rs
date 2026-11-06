@@ -71,13 +71,13 @@ fn settings_keys_reach_rows(cx: &mut gpui::VisualTestAppContext) -> anyhow::Resu
     let settings = window
         .update(cx, |app, _, _| app.visual_settings_window())?
         .ok_or_else(|| anyhow::anyhow!("settings window missing"))?;
-    let before = cx.update(|cx| xenon_settings::wrap_prose(cx));
+    let before = cx.update(|cx| xenon_design_system::settings::wrap_prose(cx));
     for keys in ["cmd-3", "down", "down", "space"] {
         cx.simulate_keystrokes(settings.into(), keys);
         cx.update_window(settings.into(), |_, window, _| window.refresh())?;
         cx.run_until_parked();
     }
-    let after = cx.update(|cx| xenon_settings::wrap_prose(cx));
+    let after = cx.update(|cx| xenon_design_system::settings::wrap_prose(cx));
     cx.simulate_keystrokes(settings.into(), "space");
     cx.run_until_parked();
     anyhow::ensure!(after != before, "⌘3 ↓ ↓ Space did not toggle Wrap prose");
@@ -155,9 +155,9 @@ fn prose_takes_vim_keys(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<(
     })?;
     cx.run_until_parked();
     window.update(cx, |app, window, cx| app.visual_focus_editor(window, cx))?;
-    let vim_was = cx.update(|cx| xenon_settings::vim_mode(cx));
+    let vim_was = cx.update(|cx| xenon_design_system::settings::vim_mode(cx));
     if !vim_was {
-        cx.update(xenon_settings::toggle_vim_mode);
+        cx.update(xenon_design_system::settings::toggle_vim_mode);
     }
     let state = |cx: &mut gpui::VisualTestAppContext| {
         window
@@ -194,7 +194,7 @@ fn prose_takes_vim_keys(cx: &mut gpui::VisualTestAppContext) -> anyhow::Result<(
         Ok(())
     })();
     if !vim_was {
-        cx.update(xenon_settings::toggle_vim_mode);
+        cx.update(xenon_design_system::settings::toggle_vim_mode);
     }
     result
 }

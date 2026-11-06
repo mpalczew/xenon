@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
+use super::LiveNodeExt as _;
 use gpui::{App, Context, Entity};
 use lsp_types::Position;
 use xenon_editor::{EditorDiagnostic, EditorDiagnosticSeverity, EditorView};

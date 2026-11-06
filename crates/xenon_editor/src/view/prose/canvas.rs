@@ -24,15 +24,17 @@ pub(in crate::view) fn settings_hash(
     light: bool,
 ) -> u64 {
     use std::hash::{Hash, Hasher};
-    let s = xenon_settings::prose(cx);
+    let s = xenon_design_system::settings::prose(cx);
     let mut h = std::collections::hash_map::DefaultHasher::new();
     (s.markers as u8, s.font as u8, paper, comments_open, light).hash(&mut h);
     s.size.to_bits().hash(&mut h);
     s.line_height.to_bits().hash(&mut h);
     s.measure.to_bits().hash(&mut h);
-    let e = xenon_settings::editor_font(cx);
+    let e = xenon_design_system::settings::editor_font(cx);
     (e.family.clone(), e.size.to_bits()).hash(&mut h);
-    xenon_settings::ui_font(cx).family.hash(&mut h);
+    xenon_design_system::settings::ui_font(cx)
+        .family
+        .hash(&mut h);
     h.finish()
 }
 
@@ -113,7 +115,7 @@ pub(in crate::view) fn prepare(
         )
     };
     let palette = style::palette(theme.colors(), light, paper, theme.players().local().cursor);
-    let settings = xenon_settings::prose(cx);
+    let settings = xenon_design_system::settings::prose(cx);
     let key = (
         mutation,
         f32::from(bounds.size.width).round() as u32,
@@ -130,8 +132,8 @@ pub(in crate::view) fn prepare(
         None => {
             let hide = settings.markers == xenon_settings::ProseMarkers::Hide;
             let proj = Projection::build(&rope, comments_open, hide);
-            let ui = xenon_settings::ui_font(cx);
-            let editor = xenon_settings::editor_font(cx);
+            let ui = xenon_design_system::settings::ui_font(cx);
+            let editor = xenon_design_system::settings::editor_font(cx);
             let body_family: String = match settings.font {
                 ProseFont::Mono => editor.family.clone(),
                 ProseFont::Sans => ui.family.clone(),

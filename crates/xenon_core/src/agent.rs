@@ -1,20 +1,20 @@
-//! Detect agent-like work from PTY wakeup cadence.
+//! Agent detection from PTY wakeup cadence.
 //!
-//! Named harness titles need fewer wakeups; anonymous shells need a heavier burst
-//! so `npm install` noise does not light the workspace working / done dots.
+//! Named harness titles need fewer wakeups; anonymous shells need a heavier
+//! burst so `npm install` noise does not light the workspace working / done dots.
 
 use std::time::Duration;
 
 /// Output must be quiet this long before a terminal counts as settled.
-pub(super) const IDLE_AFTER: Duration = Duration::from_millis(2500);
+pub const IDLE_AFTER: Duration = Duration::from_millis(2500);
 /// Named-harness title: settled burst this large counts as agent work.
-pub(super) const BUSY_WAKEUPS: u32 = 15;
+pub const BUSY_WAKEUPS: u32 = 15;
 /// No harness name in title: require a heavier burst.
-pub(super) const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
+pub const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
 
 /// Burst this large counts as agent work: pulse while output continues, then
 /// the settle timer marks the workspace done.
-pub(super) fn agent_busy_signal(busy: u32, title: &str) -> bool {
+pub fn agent_busy_signal(busy: u32, title: &str) -> bool {
     if busy == 0 {
         return false;
     }

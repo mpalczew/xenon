@@ -45,32 +45,32 @@ pub(super) fn editor(cx: &App) -> Vec<Group> {
         switch_row(
             "line-numbers",
             "Line numbers",
-            xenon_settings::show_line_numbers(cx),
-            xenon_settings::toggle_line_numbers,
+            xenon_design_system::settings::show_line_numbers(cx),
+            xenon_design_system::settings::toggle_line_numbers,
         )
         .detail("Show row numbers in text editors")
         .keywords("gutter"),
         switch_row(
             "vim-mode",
             "Vim mode",
-            xenon_settings::vim_mode(cx),
-            xenon_settings::toggle_vim_mode,
+            xenon_design_system::settings::vim_mode(cx),
+            xenon_design_system::settings::toggle_vim_mode,
         )
         .detail("Modal editing in the text editor")
         .keywords("modal keys"),
         switch_row(
             "wrap-prose",
             "Wrap prose",
-            xenon_settings::wrap_prose(cx),
-            xenon_settings::toggle_wrap_prose,
+            xenon_design_system::settings::wrap_prose(cx),
+            xenon_design_system::settings::toggle_wrap_prose,
         )
         .detail("Soft wrap Markdown and plain text. The file is not rewritten.")
         .keywords("soft wrap lines"),
         switch_row(
             "wrap-code",
             "Wrap code",
-            xenon_settings::wrap_code(cx),
-            xenon_settings::toggle_wrap_code,
+            xenon_design_system::settings::wrap_code(cx),
+            xenon_design_system::settings::toggle_wrap_code,
         )
         .detail("Soft wrap every other file")
         .keywords("soft wrap lines"),
@@ -112,7 +112,7 @@ fn prose_choice(
             options: options.into_iter().map(Into::into).collect(),
             selected,
             pick: Rc::new(move |index, _, cx| {
-                xenon_settings::update_prose(cx, |p| pick(index, p));
+                xenon_design_system::settings::update_prose(cx, |p| pick(index, p));
                 xenon_terminal::refresh_windows(cx);
             }),
         },
@@ -121,7 +121,7 @@ fn prose_choice(
 
 /// Markdown writing mode: how prose text looks.
 fn markdown(cx: &App) -> Vec<Group> {
-    let p = xenon_settings::prose(cx);
+    let p = xenon_design_system::settings::prose(cx);
     vec![Group::titled(
         "Markdown writing",
         vec![
@@ -181,14 +181,14 @@ fn markdown(cx: &App) -> Vec<Group> {
 fn switch_row(id: &'static str, label: &'static str, on: bool, toggle: fn(&mut App)) -> SettingRow {
     let toggle: Run = Rc::new(move |_: &mut Window, cx: &mut App| {
         toggle(cx);
-        xenon_settings::save(cx);
+        xenon_design_system::settings::save(cx);
         xenon_terminal::refresh_windows(cx);
     });
     SettingRow::new(id, label, Control::Switch { on, toggle })
 }
 
 pub(super) fn terminal(cx: &App) -> Vec<Group> {
-    let current = xenon_settings::terminal_auto_close(cx);
+    let current = xenon_design_system::settings::terminal_auto_close(cx);
     let selected = EXIT_MODES.iter().position(|m| *m == current).unwrap_or(0);
     vec![Group::untitled(vec![
         SettingRow::new(
@@ -215,10 +215,10 @@ pub(super) fn terminal(cx: &App) -> Vec<Group> {
 }
 
 fn set_auto_close(mode: TerminalAutoClose, cx: &mut App) {
-    let mut settings = xenon_settings::snapshot(cx);
+    let mut settings = xenon_design_system::settings::snapshot(cx);
     settings.terminal_auto_close = mode;
-    xenon_settings::apply(&settings, cx);
-    xenon_settings::save(cx);
+    xenon_design_system::settings::apply(&settings, cx);
+    xenon_design_system::settings::save(cx);
 }
 
 pub(super) fn language_servers() -> Vec<Group> {

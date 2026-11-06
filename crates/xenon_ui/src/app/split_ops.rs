@@ -2,7 +2,6 @@
 
 use super::*;
 mod lookup;
-use live::fix_active_idx;
 use xenon_core::{DropEdge, PaneId, SplitAxis, TabId};
 
 impl XenonApp {
@@ -19,7 +18,7 @@ impl XenonApp {
         };
         let root_path = self.workspace_root(ws);
 
-        let (src_pane, moved, remaining, depth_ok) = {
+        let (src_pane, moved, remaining) = {
             let Some(content) = self.contents.get_mut(&ws) else {
                 return;
             };
@@ -34,33 +33,16 @@ impl XenonApp {
                 xenon_design_system::show_toast(super::toasts::split_limit(), cx);
                 return;
             }
-            let Some(leaf) = content
-                .root
-                .as_mut()
-                .and_then(|r| r.find_leaf_mut(src_pane))
-            else {
+            let Some((moved, remaining)) = content.take_active_for_split(src_pane) else {
                 return;
             };
-            if leaf.tabs.is_empty() {
-                return;
-            }
-            let idx = leaf.active.min(leaf.tabs.len() - 1);
-            let moved = leaf.tabs.remove(idx);
-            let remaining = std::mem::take(&mut leaf.tabs);
-            (src_pane, moved, remaining, true)
+            (src_pane, moved, remaining)
         };
-        let _ = depth_ok;
 
         let source_tabs = if remaining.is_empty() {
             let Some(root_path) = root_path else {
-                if let Some(content) = self.contents.get_mut(&ws)
-                    && let Some(leaf) = content
-                        .root
-                        .as_mut()
-                        .and_then(|r| r.find_leaf_mut(src_pane))
-                {
-                    leaf.tabs.push(moved);
-                    leaf.active = 0;
+                if let Some(content) = self.contents.get_mut(&ws) {
+                    content.put_back(src_pane, moved);
                 }
                 return;
             };
@@ -79,28 +61,9 @@ impl XenonApp {
         let Some(content) = self.contents.get_mut(&ws) else {
             return;
         };
-        let new_pane = content.next_pane_id();
-        let replacement = LiveNode::pair(
-            axis,
-            LiveNode::Leaf(LiveLeaf {
-                id: src_pane,
-                tabs: source_tabs,
-                active: 0,
-                parked: false,
-            }),
-            LiveNode::Leaf(LiveLeaf {
-                id: new_pane,
-                tabs: vec![moved],
-                active: 0,
-                parked: false,
-            }),
-        );
-        if let Some(root) = content.root.as_mut()
-            && !root.replace_leaf(src_pane, replacement)
-        {
+        let Some(new_pane) = content.finish_split(src_pane, axis, source_tabs, moved) else {
             return;
-        }
-        content.focused = Some(new_pane);
+        };
         self.save_layout(ws);
         self.focus_leaf_active(new_pane, window, cx);
         cx.notify();
@@ -120,7 +83,7 @@ impl XenonApp {
         &mut self,
         tab: TabId,
         dest: PaneId,
-        mut insert_at: usize,
+        insert_at: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -130,60 +93,14 @@ impl XenonApp {
         let Some(content) = self.contents.get_mut(&ws) else {
             return;
         };
-        let Some((src_pane, src_idx)) = content.root.as_ref().and_then(|r| r.find_tab(tab)) else {
+        if !content.move_tab(tab, dest, insert_at) {
             return;
-        };
-        if content
-            .root
-            .as_ref()
-            .and_then(|r| r.find_leaf(dest))
-            .is_none()
-        {
-            return;
-        }
-        if src_pane == dest && insert_at != usize::MAX && src_idx < insert_at {
-            insert_at -= 1;
-        }
-        let tab_state = {
-            let leaf = content
-                .root
-                .as_mut()
-                .unwrap()
-                .find_leaf_mut(src_pane)
-                .unwrap();
-            let t = leaf.tabs.remove(src_idx);
-            if !leaf.tabs.is_empty() {
-                fix_active_idx(&mut leaf.active, src_idx, leaf.tabs.len());
-            }
-            t
-        };
-        {
-            let leaf = content.root.as_mut().unwrap().find_leaf_mut(dest).unwrap();
-            leaf.parked = false;
-            let at = if insert_at == usize::MAX {
-                leaf.tabs.len()
-            } else {
-                insert_at.min(leaf.tabs.len())
-            };
-            leaf.tabs.insert(at, tab_state);
-            leaf.active = at;
-        }
-        if content
-            .root
-            .as_ref()
-            .and_then(|r| r.find_leaf(src_pane))
-            .is_some_and(|l| l.tabs.is_empty())
-        {
-            content.unsplit_empty(src_pane);
-        }
-        if let Some(content) = self.contents.get_mut(&ws) {
-            content.focused = Some(dest);
         }
         self.save_layout(ws);
         self.focus_leaf_active(dest, window, cx);
         cx.notify();
     }
-    #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn drop_tab_on_edge(
         &mut self,
         tab: TabId,
@@ -216,19 +133,12 @@ impl XenonApp {
             found
         };
 
-        let tab_state = {
-            let content = self.contents.get_mut(&ws).unwrap();
-            let leaf = content
-                .root
-                .as_mut()
-                .unwrap()
-                .find_leaf_mut(src_pane)
-                .unwrap();
-            let t = leaf.tabs.remove(src_idx);
-            if !leaf.tabs.is_empty() {
-                fix_active_idx(&mut leaf.active, src_idx, leaf.tabs.len());
-            }
-            t
+        let Some(tab_state) = self
+            .contents
+            .get_mut(&ws)
+            .and_then(|content| content.take_tab_at(src_pane, src_idx))
+        else {
+            return;
         };
 
         let source_empty = self
@@ -240,14 +150,8 @@ impl XenonApp {
 
         if source_empty && src_pane == target {
             let Some(root_path) = root_path else {
-                if let Some(content) = self.contents.get_mut(&ws)
-                    && let Some(leaf) = content
-                        .root
-                        .as_mut()
-                        .and_then(|r| r.find_leaf_mut(src_pane))
-                {
-                    leaf.tabs.push(tab_state);
-                    leaf.active = 0;
+                if let Some(content) = self.contents.get_mut(&ws) {
+                    content.put_back(src_pane, tab_state);
                 }
                 return;
             };
@@ -258,14 +162,8 @@ impl XenonApp {
                 .unwrap_or(TabId(1));
             let term_id = TabId(term_id.0.max(tab_state.id().0.saturating_add(1)));
             let view = self.spawn_terminal_for(root_path, (ws, term_id), cx);
-            if let Some(content) = self.contents.get_mut(&ws)
-                && let Some(leaf) = content
-                    .root
-                    .as_mut()
-                    .and_then(|r| r.find_leaf_mut(src_pane))
-            {
-                leaf.tabs.push(LiveTab::Terminal { id: term_id, view });
-                leaf.active = 0;
+            if let Some(content) = self.contents.get_mut(&ws) {
+                content.put_back(src_pane, LiveTab::Terminal { id: term_id, view });
             }
         } else if source_empty && let Some(content) = self.contents.get_mut(&ws) {
             content.unsplit_empty(src_pane);
@@ -274,27 +172,9 @@ impl XenonApp {
         let Some(content) = self.contents.get_mut(&ws) else {
             return;
         };
-        let target_leaf = match content.root.as_ref().and_then(|r| r.find_leaf(target)) {
-            Some(l) => l.clone(),
-            None => return,
+        let Some(new_pane) = content.finish_edge_drop(target, edge, tab_state) else {
+            return;
         };
-        let new_pane = content.next_pane_id();
-        let new_leaf = LiveLeaf {
-            id: new_pane,
-            tabs: vec![tab_state],
-            active: 0,
-            parked: false,
-        };
-        let (first, second) = if edge.tab_in_first() {
-            (LiveNode::Leaf(new_leaf), LiveNode::Leaf(target_leaf))
-        } else {
-            (LiveNode::Leaf(target_leaf), LiveNode::Leaf(new_leaf))
-        };
-        let split = LiveNode::pair(edge.axis(), first, second);
-        if let Some(root) = content.root.as_mut() {
-            root.replace_leaf(target, split);
-        }
-        content.focused = Some(new_pane);
         self.save_layout(ws);
         self.focus_leaf_active(new_pane, window, cx);
         cx.notify();

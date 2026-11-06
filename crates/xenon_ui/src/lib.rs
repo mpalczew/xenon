@@ -5,14 +5,11 @@ mod app;
 mod chrome;
 mod command_palette;
 mod commands;
-mod diff_load;
-mod diff_model;
 mod diff_rows;
 mod diff_view;
 mod dropdown;
 mod file_browser;
 mod finder;
-mod git_dirt;
 mod icons;
 mod keymap;
 mod palette;
@@ -43,7 +40,7 @@ use gpui::{App, actions};
 
 pub use app::XenonApp;
 pub(crate) use icons::preview_icon;
-pub use xenon_settings::{Copy, CopyClean, CopyCode, Cut, Paste, SelectAll};
+pub use xenon_design_system::settings::{Copy, CopyClean, CopyCode, Cut, Paste, SelectAll};
 
 actions!(
     xenon,
@@ -114,7 +111,7 @@ actions!(
 );
 
 pub fn init(cx: &mut App) {
-    xenon_settings::load_embedded_fonts(cx);
+    xenon_design_system::settings::load_embedded_fonts(cx);
     icons::load_icon_font(cx);
     keymap::install(cx);
 }

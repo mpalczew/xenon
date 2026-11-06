@@ -30,6 +30,7 @@ mod palette_input;
 mod pulse;
 mod query_row;
 mod selectable_row;
+pub mod settings;
 mod switch;
 mod text_field;
 mod text_input;

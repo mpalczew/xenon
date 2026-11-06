@@ -4,10 +4,14 @@
 
 use std::path::Path;
 
+/// Syntax colouring supplied by the frontend: for a file path and source text,
+/// `(start, end, color key)` byte spans. The model attaches them to diff lines.
+pub type Highlighter = fn(&Path, &str) -> Vec<(usize, usize, &'static str)>;
+
 /// Auto switches to side-by-side at or above this pane width.
 pub const AUTO_SPLIT_MIN_PX: f32 = 860.;
 /// Past this many diff lines the rest is cut off.
-pub(crate) const MAX_LINES: usize = 6000;
+pub const MAX_LINES: usize = 6000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineKind {
@@ -85,7 +89,7 @@ pub enum Layout {
 }
 
 impl LayoutMode {
-    pub(crate) fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Self::Auto => "Auto",
             Self::Split => "Split",
@@ -93,7 +97,7 @@ impl LayoutMode {
         }
     }
 
-    pub(crate) fn next(self) -> Self {
+    pub fn next(self) -> Self {
         match self {
             Self::Auto => Self::Split,
             Self::Split => Self::Unified,
@@ -101,7 +105,7 @@ impl LayoutMode {
         }
     }
 
-    pub(crate) fn resolve(self, width_px: f32) -> Layout {
+    pub fn resolve(self, width_px: f32) -> Layout {
         match self {
             Self::Split => Layout::Split,
             Self::Unified => Layout::Unified,
@@ -116,7 +120,7 @@ type Ranges = Vec<(usize, usize)>;
 
 /// Parse unified-diff text into hunks. Headers before the first `@@` are
 /// ignored.
-pub(crate) fn parse_unified(path: &str, text: &str) -> Vec<Hunk> {
+pub fn parse_unified(path: &str, text: &str, highlight: Highlighter) -> Vec<Hunk> {
     let mut raw: Vec<(String, Vec<RawLine>)> = Vec::new();
     let (mut old_no, mut new_no) = (0u32, 0u32);
     let mut total = 0;
@@ -164,7 +168,7 @@ pub(crate) fn parse_unified(path: &str, text: &str) -> Vec<Hunk> {
         total += 1;
     }
     raw.into_iter()
-        .map(|(header, lines)| build_hunk(path, header, lines))
+        .map(|(header, lines)| build_hunk(path, header, lines, highlight))
         .collect()
 }
 
@@ -179,7 +183,7 @@ fn parse_hunk_starts(rest: &str) -> (u32, u32) {
     (start('-'), start('+'))
 }
 
-fn build_hunk(path: &str, header: String, raw: Vec<RawLine>) -> Hunk {
+fn build_hunk(path: &str, header: String, raw: Vec<RawLine>, highlight: Highlighter) -> Hunk {
     let rows = pair_rows(&raw);
     let mut emphasis: Vec<Vec<(usize, usize)>> = vec![Vec::new(); raw.len()];
     for row in &rows {
@@ -193,8 +197,8 @@ fn build_hunk(path: &str, header: String, raw: Vec<RawLine>) -> Hunk {
         }
     }
     let syntax = [
-        line_syntax(path, &raw, |k| k != LineKind::Added),
-        line_syntax(path, &raw, |k| k != LineKind::Removed),
+        line_syntax(path, &raw, highlight, |k| k != LineKind::Added),
+        line_syntax(path, &raw, highlight, |k| k != LineKind::Removed),
     ];
     let lines = raw
         .into_iter()
@@ -254,7 +258,12 @@ type LineSpans = std::collections::HashMap<usize, Vec<(usize, usize, &'static st
 
 /// Syntax spans per line index, highlighting one side (old or new) of the
 /// hunk as a continuous snippet.
-fn line_syntax(path: &str, raw: &[RawLine], keep: impl Fn(LineKind) -> bool) -> LineSpans {
+fn line_syntax(
+    path: &str,
+    raw: &[RawLine],
+    highlight: Highlighter,
+    keep: impl Fn(LineKind) -> bool,
+) -> LineSpans {
     let mut joined = String::new();
     let mut starts = Vec::new();
     for (i, (kind, _, _, text)) in raw.iter().enumerate() {
@@ -265,7 +274,7 @@ fn line_syntax(path: &str, raw: &[RawLine], keep: impl Fn(LineKind) -> bool) -> 
         }
     }
     let mut out = LineSpans::new();
-    let spans = xenon_editor::syntax_spans_for_path(Path::new(path), &joined);
+    let spans = highlight(Path::new(path), &joined);
     if spans.is_empty() {
         return out;
     }
@@ -273,8 +282,10 @@ fn line_syntax(path: &str, raw: &[RawLine], keep: impl Fn(LineKind) -> bool) -> 
         let end = start + len;
         let local: Vec<_> = spans
             .iter()
-            .filter(|s| s.start < end && s.end > start)
-            .map(|s| (s.start.max(start) - start, s.end.min(end) - start, s.name))
+            .filter(|&&(s_start, s_end, _)| s_start < end && s_end > start)
+            .map(|&(s_start, s_end, name)| {
+                (s_start.max(start) - start, s_end.min(end) - start, name)
+            })
             .collect();
         out.insert(i, local);
     }
@@ -386,7 +397,7 @@ mod tests {
     fn unified_pairs_changed_lines_and_marks_words() {
         let text = "diff --git a/x.txt b/x.txt\n--- a/x.txt\n+++ b/x.txt\n\
                     @@ -3,3 +3,3 @@ ctx\n keep\n-holds git flush\n+one marker flush\n tail\n";
-        let hunks = parse_unified("x.txt", text);
+        let hunks = parse_unified("x.txt", text, |_, _| Vec::new());
         assert_eq!(hunks.len(), 1);
         let hunk = &hunks[0];
         assert_eq!(hunk.rows.len(), 3);

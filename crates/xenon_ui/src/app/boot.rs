@@ -19,7 +19,7 @@ impl XenonApp {
         let registry = xenon_store::load_registry().unwrap_or_default();
         let settings = xenon_store::load_settings().unwrap_or_default();
         let (lsp, lsp_events) = LspState::new(settings.lsp.clone());
-        xenon_settings::apply(&settings, cx);
+        xenon_design_system::settings::apply(&settings, cx);
         xenon_terminal::apply_theme(cx);
         let toast = xenon_design_system::toast_host(px(crate::toolbar::TOOLBAR_HEIGHT), window, cx);
         let mut app = Self::from_loaded(

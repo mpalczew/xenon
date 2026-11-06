@@ -74,7 +74,7 @@ pub(super) fn prose(
         ThemeMode::Light
     };
     super::set_theme(theme, "One Dark", "One Light", cx);
-    xenon_settings::update_prose(cx, |p| {
+    xenon_design_system::settings::update_prose(cx, |p| {
         p.markers = if scene == Scene::ProseHideMarkers {
             ProseMarkers::Hide
         } else {

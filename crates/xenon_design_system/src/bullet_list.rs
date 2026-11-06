@@ -12,7 +12,7 @@ pub struct BulletLine {
 }
 
 pub fn bullet_list(lines: Vec<BulletLine>, cx: &App) -> impl IntoElement {
-    let size = 14. * xenon_settings::ui_font(cx).size / 14.;
+    let size = 14. * crate::settings::ui_font(cx).size / 14.;
     let line_height = px(size * 1.25);
     div()
         .flex()

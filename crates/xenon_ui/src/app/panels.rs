@@ -35,7 +35,7 @@ impl XenonApp {
         let mut content = self
             .contents
             .get(&id)
-            .map(|c| c.snapshot())
+            .map(|c| c.snapshot_layout())
             .unwrap_or_default();
         if let Some(root) = &mut content.root {
             install_ssh_sessions(root, id, &self.services.ssh_sessions);

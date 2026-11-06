@@ -7,9 +7,9 @@ use xenon_store::ThemeMode;
 
 use super::{Scene, XenonApp, populate, set_theme};
 use crate::app::WorkspaceDot;
-use crate::diff_load::compose;
-use crate::diff_model::LayoutMode;
-use crate::git_dirt::{DirtState, GitFile, GitStatus};
+use xenon_git::diff::LayoutMode;
+use xenon_git::load::compose;
+use xenon_git::status::{DirtState, GitFile, GitStatus};
 
 fn theme(light: bool, cx: &mut Context<XenonApp>) {
     let mode = if light {
@@ -168,7 +168,7 @@ const WIDGETS_DIFF: &str =
 +/// Right-edge gutter for workspace rows: one dirty tick, flush right.
  /// `min_w` matches hover-action width so absolute actions never cover the title.
  pub(super) fn workspace_dirt_gutter(
--    dirt: Option<crate::git_dirt::DirtLabels>,
+-    dirt: Option<xenon_git::status::DirtLabels>,
 +    dirt: DirtState,
      group: &str,
      colors: &theme::ThemeColors,
@@ -183,7 +183,7 @@ const WIDGETS_DIFF: &str =
 -        .children(dirt.map(|labels| {
 -            div()
 -                .group_hover(group, |s| s.invisible())
--                .child(crate::git_dirt::badge(labels, colors.version_control_added))
+-                .child(xenon_git::status::badge(labels, colors.version_control_added))
 -        }))
 +        .justify_end()
 +        .children(tick(dirt, &group, colors))
@@ -233,7 +233,13 @@ pub(super) fn diff(
             let unstaged = reverse(&staged);
             (
                 path,
-                compose(path, "", &staged, &unstaged),
+                compose(
+                    path,
+                    "",
+                    &staged,
+                    &unstaged,
+                    crate::diff_view::syntax_highlight,
+                ),
                 LayoutMode::Auto,
                 false,
             )
@@ -247,7 +253,13 @@ pub(super) fn diff(
             };
             (
                 path,
-                compose(path, WIDGETS_DIFF, "", ""),
+                compose(
+                    path,
+                    WIDGETS_DIFF,
+                    "",
+                    "",
+                    crate::diff_view::syntax_highlight,
+                ),
                 mode,
                 scene == Scene::DiffNarrowAuto,
             )

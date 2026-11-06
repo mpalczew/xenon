@@ -219,8 +219,8 @@ impl XenonApp {
         path: Option<&std::path::Path>,
         cx: &mut Context<Self>,
     ) {
-        xenon_settings::toggle_editor_wrap(path, cx);
-        xenon_settings::save(cx);
+        xenon_design_system::settings::toggle_editor_wrap(path, cx);
+        xenon_design_system::settings::save(cx);
         cx.notify();
     }
 
