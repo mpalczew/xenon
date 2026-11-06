@@ -49,6 +49,7 @@ impl TerminalView {
             self.exited = true;
             cx.emit(TerminalEvent::Exited);
         }
+        self.sync_chrome(cx);
         cx.notify();
     }
 

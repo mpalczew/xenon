@@ -19,7 +19,7 @@ use xenon_core::{Active, Registry, SessionState, TabId, WorkspaceId, WorkspaceRe
 use xenon_editor::{EditorEvent, EditorView};
 use xenon_finder::{FileIndex, Finder};
 use xenon_ide::{IdeCommand, IdeServer, SelectionSnapshot};
-use xenon_terminal::{TerminalEvent, TerminalView};
+use xenon_terminal::{TerminalChrome, TerminalEvent, TerminalView};
 
 use crate::file_browser::{FileBrowser, TreeRow, dir_marker, file_icon};
 use crate::finder::{FinderEvent, FinderView};
@@ -208,6 +208,9 @@ pub struct XenonApp {
     _theme_picker_sub: Option<Subscription>,
     attention: AttentionMap,
     _bell_subs: Vec<Subscription>,
+    /// What chrome shows per terminal view, so drawing never reads the views
+    /// themselves (see `xenon_terminal::TerminalChrome`).
+    terminal_chrome: HashMap<gpui::EntityId, TerminalChrome>,
     _selection_subs: Vec<Subscription>,
     lsp: LspState,
     services: AppServices,

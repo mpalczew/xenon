@@ -61,7 +61,7 @@ impl XenonApp {
                 name: w.name.clone(),
                 path: w.display_root(),
                 active: active == Some(w.id),
-                status: self.workspace_status(w.id, cx),
+                status: self.workspace_status(w.id),
                 dirt: self.workspace_dirt(w.id),
             })
             .collect();

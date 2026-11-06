@@ -148,7 +148,7 @@ impl XenonApp {
         self.clear_tab_attention(workspace, tab, cx);
     }
 
-    pub(crate) fn workspace_status(&self, id: WorkspaceId, cx: &App) -> Option<WorkspaceDot> {
+    pub(crate) fn workspace_status(&self, id: WorkspaceId) -> Option<WorkspaceDot> {
         #[cfg(feature = "visual-tests")]
         if let Some(dot) = self.services.visual_status.get(&id) {
             return Some(*dot);
@@ -156,9 +156,38 @@ impl XenonApp {
         let root = self.contents.get(&id).and_then(|c| c.root.as_ref())?;
         let mut tabs = Vec::new();
         root.for_each_terminal(&mut |tab, view| {
-            tabs.push((view.read(cx).is_working(), self.attention.reason(id, tab)));
+            tabs.push((self.terminal_working(view), self.attention.reason(id, tab)));
         });
         workspace_dot_from_tabs(tabs)
+    }
+
+    /// Cached chrome summary for a terminal view; drawing reads this, never the view.
+    pub(crate) fn terminal_chrome(&self, view: &Entity<TerminalView>) -> Option<&TerminalChrome> {
+        self.terminal_chrome.get(&view.entity_id())
+    }
+
+    pub(crate) fn terminal_working(&self, view: &Entity<TerminalView>) -> bool {
+        self.terminal_chrome(view)
+            .is_some_and(|chrome| chrome.working)
+    }
+
+    /// Redraw only when the change is visible: status flips show in the sidebar
+    /// everywhere, titles and phone owners only on the active workspace's chips.
+    pub(super) fn on_terminal_chrome(
+        &mut self,
+        entity: gpui::EntityId,
+        owner: Option<(WorkspaceId, TabId)>,
+        chrome: TerminalChrome,
+        cx: &mut Context<Self>,
+    ) {
+        let old = self.terminal_chrome.insert(entity, chrome.clone());
+        let status_changed = old
+            .as_ref()
+            .is_none_or(|old| old.working != chrome.working || old.exited != chrome.exited);
+        let on_screen = owner.is_some_and(|(workspace, _)| self.active == Some(workspace));
+        if status_changed || on_screen {
+            cx.notify();
+        }
     }
 
     /// Always notify: a sibling can keep the workspace working while this tab

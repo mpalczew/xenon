@@ -129,6 +129,7 @@ impl XenonApp {
             _theme_picker_sub: None,
             attention: AttentionMap::default(),
             _bell_subs: Vec::new(),
+            terminal_chrome: HashMap::new(),
             _selection_subs: Vec::new(),
             lsp,
             services: AppServices::default(),

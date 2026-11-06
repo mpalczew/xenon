@@ -7,6 +7,7 @@ use super::{State, TerminalView};
 impl TerminalView {
     pub fn visual_set_working(&mut self, working: bool, cx: &mut Context<Self>) {
         self.working = working;
+        self.sync_chrome(cx);
         cx.notify();
     }
 

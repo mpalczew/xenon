@@ -249,6 +249,13 @@ impl XenonApp {
         terminal: &Entity<TerminalView>,
         cx: &mut Context<Self>,
     ) {
+        let entity = terminal.entity_id();
+        self.terminal_chrome
+            .insert(entity, terminal.read(cx).chrome(cx));
+        self._bell_subs
+            .push(cx.observe_release(terminal, move |this, _, _| {
+                this.terminal_chrome.remove(&entity);
+            }));
         self._bell_subs
             .push(cx.subscribe(terminal, move |this, view, event, cx| {
                 let owner = this.locate_terminal(&view);
@@ -285,6 +292,9 @@ impl XenonApp {
                         this.on_task_finished(view.clone(), *code, cx)
                     }
                     TerminalEvent::Output => this.on_task_output(view.clone(), cx),
+                    TerminalEvent::ChromeChanged(chrome) => {
+                        this.on_terminal_chrome(view.entity_id(), owner, chrome.clone(), cx)
+                    }
                     TerminalEvent::AutoCloseChanged => {
                         this.on_terminal_auto_close_changed(view.clone(), cx)
                     }

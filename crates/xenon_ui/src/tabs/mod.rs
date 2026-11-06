@@ -41,7 +41,7 @@ impl XenonApp {
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
         let pane = leaf.id;
-        let packed = self.packed_tabs(leaf, cx);
+        let packed = self.packed_tabs(leaf);
         let chips = self.mixed_tab_chips(leaf, &packed.visible, focused, cx);
         let wrap = self.wrap_lines_btn(leaf, pane, &colors, cx);
         let preview = self.md_preview_btn(leaf, pane, &colors, cx);
@@ -54,7 +54,7 @@ impl XenonApp {
                 pane,
                 packed.hidden.len(),
                 overflow_open,
-                overflow::hidden_status(self, leaf, &packed.hidden, cx),
+                overflow::hidden_status(self, leaf, &packed.hidden),
                 cx,
             )
         });
@@ -137,15 +137,15 @@ impl XenonApp {
             let is_active = index == active;
             let chip = match tab {
                 LiveTab::Terminal { id, view } => {
-                    let term = view.read(cx);
-                    let title = match term.active_phone_fit() {
-                        Some(fit) => format!("{} · {}", term.title(cx), fit.device),
-                        None => term.title(cx),
+                    let chrome = self.terminal_chrome(view).cloned().unwrap_or_default();
+                    let title = match &chrome.phone_device {
+                        Some(device) => format!("{} · {device}", chrome.title),
+                        None => chrome.title.clone(),
                     };
-                    let exited = term.is_exited();
+                    let exited = chrome.exited;
                     let tab_id = *id;
                     let attention = ws.and_then(|id| self.tab_attention(id, tab_id));
-                    let status = workspace_dot(term.is_working(), attention);
+                    let status = workspace_dot(chrome.working, attention);
                     self.mixed_term_chip(
                         pane,
                         index,

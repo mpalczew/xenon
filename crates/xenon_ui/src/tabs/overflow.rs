@@ -20,12 +20,12 @@ use crate::{
 };
 
 impl XenonApp {
-    pub(crate) fn packed_tabs(&self, leaf: &LiveLeaf, cx: &App) -> PackedTabs {
+    pub(crate) fn packed_tabs(&self, leaf: &LiveLeaf) -> PackedTabs {
         let widths: Vec<f32> = leaf
             .tabs
             .iter()
             .enumerate()
-            .map(|(i, tab)| chip_width(&overflow_label(tab, i, cx)))
+            .map(|(i, tab)| chip_width(&overflow_label(self, tab, i)))
             .collect();
         let avail = self
             .tab_strip_widths
@@ -171,7 +171,7 @@ impl XenonApp {
         let selected = menu.selected;
         let position = menu.position;
         let leaf = self.active_content()?.root.as_ref()?.find_leaf(pane)?;
-        let hidden = self.packed_tabs(leaf, cx).hidden;
+        let hidden = self.packed_tabs(leaf).hidden;
         let hidden_ids: Vec<TabId> = hidden
             .iter()
             .filter_map(|&i| leaf.tabs.get(i).map(|t| t.id()))
@@ -233,8 +233,8 @@ impl XenonApp {
     ) -> impl IntoElement + use<> {
         let paint = chrome::list_selection(colors, selected);
         let tab_id = tab.id();
-        let title = overflow_label(tab, index, cx);
-        let status = overflow_tab_status(self, tab, cx);
+        let title = overflow_label(self, tab, index);
+        let status = overflow_tab_status(self, tab);
         let (bg, fg) = if selected {
             (paint.background, paint.foreground)
         } else if hidden {
@@ -310,10 +310,12 @@ impl XenonApp {
     }
 }
 
-pub(crate) fn overflow_label(tab: &LiveTab, index: usize, cx: &App) -> String {
+pub(crate) fn overflow_label(app: &XenonApp, tab: &LiveTab, index: usize) -> String {
     match tab {
         LiveTab::Terminal { view, .. } => {
-            let title = view.read(cx).title(cx);
+            let title = app
+                .terminal_chrome(view)
+                .map_or_else(|| "terminal".to_string(), |chrome| chrome.title.clone());
             if matches!(title.as_str(), "bash" | "zsh" | "fish") {
                 format!("{title} · {}", index + 1)
             } else {
@@ -328,7 +330,6 @@ pub(crate) fn hidden_status(
     app: &XenonApp,
     leaf: &LiveLeaf,
     hidden: &[usize],
-    cx: &App,
 ) -> Option<WorkspaceDot> {
     let mut working = false;
     let mut attention = None;
@@ -336,7 +337,7 @@ pub(crate) fn hidden_status(
         let Some(tab) = leaf.tabs.get(index) else {
             continue;
         };
-        let Some(dot) = overflow_tab_status(app, tab, cx) else {
+        let Some(dot) = overflow_tab_status(app, tab) else {
             continue;
         };
         match dot {
@@ -351,13 +352,13 @@ pub(crate) fn hidden_status(
     }
 }
 
-fn overflow_tab_status(app: &XenonApp, tab: &LiveTab, cx: &App) -> Option<WorkspaceDot> {
+fn overflow_tab_status(app: &XenonApp, tab: &LiveTab) -> Option<WorkspaceDot> {
     let LiveTab::Terminal { id, view } = tab else {
         return None;
     };
     let ws = app.active?;
     let attention = app.tab_attention(ws, *id);
-    workspace_dot(view.read(cx).is_working(), attention)
+    workspace_dot(app.terminal_working(view), attention)
 }
 
 fn overflow_row_pip(status: Option<WorkspaceDot>, cx: &App) -> gpui::AnyElement {

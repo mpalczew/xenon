@@ -11,6 +11,7 @@
 //! zed patterns stay easier to re-sync.
 
 mod attention;
+mod chrome;
 pub use attention::agent_title;
 mod find_bar;
 mod find_session;
@@ -24,6 +25,7 @@ mod render;
 mod task_run;
 #[cfg(feature = "visual-tests")]
 mod visual;
+pub use chrome::TerminalChrome;
 pub(crate) use input::pty_input_bytes;
 pub use remote::{
     CellAttrs, LOCAL_QUIET, PhoneFit, ScreenCell, ScreenCursor, ScreenCursorShape, ScreenSnapshot,
@@ -123,6 +125,8 @@ pub enum TerminalEvent {
     Exited,
     /// Per-tab "close when process exits" policy changed (may reschedule close).
     AutoCloseChanged,
+    /// Title, working, exited or phone owner changed; the app caches it for chrome.
+    ChromeChanged(TerminalChrome),
     /// A task terminal's process finished: its exit code (`None` when killed
     /// by a signal).
     TaskFinished(Option<i32>),
@@ -209,6 +213,8 @@ pub struct TerminalView {
     local_input_at: Option<Instant>,
     /// Re-applies the phone fit once the Mac has been quiet.
     _phone_fit_timer: Task<()>,
+    /// Last summary sent to the app (`chrome`).
+    chrome_sent: Option<TerminalChrome>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -286,6 +292,7 @@ impl TerminalView {
             working: false,
             _idle_check: Task::ready(()),
             phone_fit: None,
+            chrome_sent: None,
             local_input_at: None,
             _phone_fit_timer: Task::ready(()),
             _subscriptions: Vec::new(),
@@ -352,6 +359,7 @@ impl TerminalView {
                 self.state = State::Failed(error.to_string());
             }
         }
+        self.sync_chrome(cx);
         cx.notify();
     }
 
@@ -388,6 +396,7 @@ impl TerminalView {
             Event::TitleChanged | Event::BreadcrumbsChanged => cx.notify(),
             _ => {}
         }
+        self.sync_chrome(cx);
     }
 
     fn schedule_repaint(&mut self, cx: &mut Context<Self>) {
@@ -459,6 +468,7 @@ impl TerminalView {
         if was_working || agent_busy_signal(busy, &title) {
             cx.emit(TerminalEvent::Finished);
         }
+        self.sync_chrome(cx);
     }
 
     /// True while this terminal is in an agent-sized output burst.
@@ -503,6 +513,7 @@ impl TerminalView {
         self.working = false;
         self.wakeups = 0;
         cx.emit(TerminalEvent::Interacted);
+        self.sync_chrome(cx);
     }
 
     fn blink_tick(&mut self, generation: u64, cx: &mut Context<Self>) -> bool {

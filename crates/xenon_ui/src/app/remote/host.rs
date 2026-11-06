@@ -17,13 +17,13 @@ pub(super) fn wire_dot(dot: WorkspaceDot) -> Dot {
 }
 
 impl XenonApp {
-    pub(super) fn list_remote_workspaces(&self, cx: &App) -> Vec<WorkspaceInfo> {
+    pub(super) fn list_remote_workspaces(&self) -> Vec<WorkspaceInfo> {
         let open = self.registry.workspaces.iter().map(|w| WorkspaceInfo {
             id: w.id.to_string(),
             name: w.name.clone(),
             open: true,
             root: tilde(&w.root),
-            dot: self.workspace_status(w.id, cx).map(wire_dot),
+            dot: self.workspace_status(w.id).map(wire_dot),
             terminals: self.terminal_count(w.id),
         });
         let mut closed: Vec<_> = self.registry.closed_workspaces.iter().collect();

@@ -35,7 +35,7 @@ impl XenonApp {
             .filter_map(|w| {
                 Some((
                     w.id.to_string(),
-                    host::wire_dot(self.workspace_status(w.id, cx)?),
+                    host::wire_dot(self.workspace_status(w.id)?),
                 ))
             })
             .collect();

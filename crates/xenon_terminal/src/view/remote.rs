@@ -173,6 +173,7 @@ impl TerminalView {
         self.phone_fit = fit;
         self.apply_size_override(cx);
         self.arm_phone_fit_timer(cx);
+        self.sync_chrome(cx);
         cx.notify();
     }
 
@@ -192,6 +193,7 @@ impl TerminalView {
             return;
         }
         if was_active {
+            self.sync_chrome(cx);
             cx.notify();
         }
         self.arm_phone_fit_timer(cx);
@@ -211,6 +213,7 @@ impl TerminalView {
             cx.background_executor().timer(wait).await;
             view.update(cx, |view, cx| {
                 view.apply_size_override(cx);
+                view.sync_chrome(cx);
                 cx.notify();
             })
             .ok();

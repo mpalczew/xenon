@@ -375,7 +375,7 @@ impl XenonApp {
                 let _ = reply.send(self.pair_remote(&code, &label, cx));
             }
             HostRequest::ListWorkspaces { reply } => {
-                let _ = reply.send(self.list_remote_workspaces(cx));
+                let _ = reply.send(self.list_remote_workspaces());
             }
             HostRequest::ListTerminals {
                 workspace_id,
