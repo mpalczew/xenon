@@ -1,0 +1,102 @@
+#!/usr/bin/env -S python3 -I
+"""Agent-verifiability check for the xenon_gtk spike.
+
+usage: scripts/xenon-gtk-verify [path/to/xenon_gtk] [screenshot.png]
+
+Launches the spike under its own app id, finds its window and terminal through AT-SPI
+(pyatspi), types a command by activating the app.feed-child action over D-Bus (Wayland
+has no portable synthetic key input, and AT-SPI key injection does not reach a Wayland
+window), then reads the terminal text back over AT-SPI until the command's output shows
+up. Also asks the app for an offscreen PNG (app.screenshot) so the window can be looked
+at. Closes only the process it started, by PID. Exit code 0 on success.
+"""
+import os
+import subprocess
+import sys
+import time
+
+import gi
+import pyatspi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+binary = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/target/dogfood/xenon_gtk"
+png = sys.argv[2] if len(sys.argv) > 2 else "/tmp/xenon-gtk-verify.png"
+app_id = f"dev.xenon.GtkSpike.verify{os.getpid()}"
+MARKER = "verify-ok"
+
+
+def wait_for(fn, what, timeout=20.0):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        v = fn()
+        if v:
+            return v
+        time.sleep(0.2)
+    raise SystemExit(f"FAIL: timed out waiting for {what}")
+
+
+def find(acc, pred):
+    if pred(acc):
+        return acc
+    for i in range(acc.childCount):
+        try:
+            r = find(acc.getChildAtIndex(i), pred)
+        except Exception:
+            continue
+        if r:
+            return r
+    return None
+
+
+def find_app(pid):
+    desk = pyatspi.Registry.getDesktop(0)
+    for i in range(desk.childCount):
+        a = desk.getChildAtIndex(i)
+        try:
+            if a and a.get_process_id() == pid:
+                return a
+        except Exception:
+            pass
+    return None
+
+
+proc = subprocess.Popen(
+    [binary],
+    env={**os.environ, "XENON_GTK_APP_ID": app_id},
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
+)
+try:
+    app = wait_for(lambda: find_app(proc.pid), "app on the accessibility bus")
+    win = wait_for(
+        lambda: find(app, lambda a: a.getRoleName() == "frame" and "Xenon GTK Spike" in a.name),
+        "window",
+    )
+    print("window:", win.name)
+    term = wait_for(
+        lambda: find(app, lambda a: a.getRoleName() == "terminal"), "terminal accessible"
+    )
+    # VTE publishes accessible text when screen contents change, so type first, then read.
+
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    group = Gio.DBusActionGroup.get(bus, app_id, "/" + app_id.replace(".", "/"))
+    # $((...)) makes the output differ from the typed text, so a hit is the real result.
+    group.activate_action(
+        "feed-child", GLib.Variant("s", f"echo $((6*7))-{MARKER}\n")
+    )
+    bus.flush_sync(None)
+    want = f"42-{MARKER}"
+    got = wait_for(
+        lambda: want in term.queryText().getText(0, -1), f"{want!r} in terminal text"
+    )
+    print(f"PASS: typed a command, read {want!r} back through AT-SPI")
+
+    group.activate_action("screenshot", GLib.Variant("s", png))
+    wait_for(lambda: os.path.exists(png) and os.path.getsize(png) > 0, "screenshot file")
+    print("screenshot:", png)
+finally:
+    proc.terminate()
+    proc.wait(timeout=10)

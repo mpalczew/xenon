@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Idle budget for one process: CPU %, main-thread wakeups/s, RSS.
+
+usage: scripts/idle-budget <pid> [settle_s=20] [sample_s=15]
+
+Waits settle_s, then samples /proc for sample_s and prints:
+  cpu%      (utime+stime delta of the whole process / wall time, one core = 100)
+  wakeups/s (voluntary_ctxt_switches delta of the main thread, tid == pid)
+  all-thread wakeups/s (same, summed over every thread, for context)
+  rss MiB   (VmRSS at the end of the sample)
+Read-only: it never signals or touches the target process.
+"""
+import os
+import sys
+import time
+
+
+def cpu_ticks(pid):
+    with open(f"/proc/{pid}/stat") as f:
+        rest = f.read().rsplit(")", 1)[1].split()
+    return int(rest[11]) + int(rest[12])  # utime + stime (fields 14, 15)
+
+
+def vol_switches(pid, tid):
+    with open(f"/proc/{pid}/task/{tid}/status") as f:
+        for line in f:
+            if line.startswith("voluntary_ctxt_switches:"):
+                return int(line.split()[1])
+    return 0
+
+
+def all_threads(pid):
+    return sum(vol_switches(pid, t) for t in os.listdir(f"/proc/{pid}/task"))
+
+
+def rss_mib(pid):
+    with open(f"/proc/{pid}/status") as f:
+        for line in f:
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1]) / 1024
+    return 0.0
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    pid = int(sys.argv[1])
+    settle = float(sys.argv[2]) if len(sys.argv) > 2 else 20
+    sample = float(sys.argv[3]) if len(sys.argv) > 3 else 15
+    if not os.path.exists(f"/proc/{pid}"):
+        sys.exit(f"no such pid {pid}")
+    time.sleep(settle)
+    hz = os.sysconf("SC_CLK_TCK")
+    t0, c0 = time.monotonic(), cpu_ticks(pid)
+    m0, a0 = vol_switches(pid, pid), all_threads(pid)
+    time.sleep(sample)
+    t1, c1 = time.monotonic(), cpu_ticks(pid)
+    m1, a1 = vol_switches(pid, pid), all_threads(pid)
+    dt = t1 - t0
+    print(
+        f"pid {pid}: cpu {100 * (c1 - c0) / hz / dt:.2f}%  "
+        f"wakeups {(m1 - m0) / dt:.1f}/s (main thread)  "
+        f"{(a1 - a0) / dt:.1f}/s (all threads)  "
+        f"rss {rss_mib(pid):.0f} MiB  "
+        f"[settle {settle:g}s, sample {dt:.1f}s]"
+    )
+
+
+main()
