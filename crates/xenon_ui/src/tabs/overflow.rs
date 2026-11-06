@@ -425,15 +425,7 @@ fn overflow_status_pip(status: WorkspaceDot, corner: bool, cx: &App) -> gpui::An
     }
     #[cfg(not(feature = "visual-tests"))]
     if matches!(status, WorkspaceDot::Working) {
-        use gpui::AnimationExt;
-        return pip
-            .with_animation(
-                "overflow-working-pip",
-                gpui::Animation::new(std::time::Duration::from_millis(1400))
-                    .repeat()
-                    .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
-                move |this, delta| this.opacity(delta),
-            )
+        return xenon_design_system::working_pulse(pip, |this, delta| this.opacity(delta))
             .into_any_element();
     }
     pip.into_any_element()

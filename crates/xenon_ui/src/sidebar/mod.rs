@@ -5,8 +5,6 @@ use gpui::{
     StatefulInteractiveElement, Styled, Window, anchored, deferred, div, point,
     prelude::FluentBuilder, px,
 };
-#[cfg(not(feature = "visual-tests"))]
-use gpui::{Animation, AnimationExt};
 use lucide_icons::Icon;
 use theme::ActiveTheme;
 use xenon_core::WorkspaceId;
@@ -293,7 +291,7 @@ impl XenonApp {
         } else {
             gpui::transparent_black()
         };
-        let status_line = status.map(|dot| self.status_line_element(id, dot, cx));
+        let status_line = status.map(|dot| self.status_line_element(dot, cx));
         let row = xenon_design_system::selectable_row(
             ("ws-row", id_hash(id.to_string())),
             active,
@@ -326,29 +324,16 @@ impl XenonApp {
     }
 
     /// Left-edge agent line; the working one pulses quietly.
-    fn status_line_element(
-        &self,
-        id: WorkspaceId,
-        status: WorkspaceDot,
-        cx: &Context<Self>,
-    ) -> gpui::AnyElement {
+    fn status_line_element(&self, status: WorkspaceDot, cx: &Context<Self>) -> gpui::AnyElement {
         let line = marks::status_line(status, cx);
         #[cfg(not(feature = "visual-tests"))]
         if matches!(status, WorkspaceDot::Working) {
             let color = crate::chrome::status_color(cx, false);
-            return line
-                .with_animation(
-                    ("workspace-status", id_hash(id.to_string())),
-                    Animation::new(std::time::Duration::from_millis(1400))
-                        .repeat()
-                        .with_easing(|delta| {
-                            (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)
-                        }),
-                    move |this, delta| this.bg(color.opacity(delta)),
-                )
-                .into_any_element();
+            return xenon_design_system::working_pulse(line, move |this, delta| {
+                this.bg(color.opacity(delta))
+            })
+            .into_any_element();
         }
-        let _ = id;
         line.into_any_element()
     }
 

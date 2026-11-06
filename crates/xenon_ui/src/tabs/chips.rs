@@ -1,7 +1,5 @@
 //! Individual terminal/editor tab chips.
 
-#[cfg(not(feature = "visual-tests"))]
-use gpui::{Animation, AnimationExt};
 use gpui::{
     App, AppContext, Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
@@ -47,14 +45,8 @@ fn tab_status_rail(status: WorkspaceDot, selected: bool, cx: &App) -> Option<gpu
     #[cfg(not(feature = "visual-tests"))]
     if matches!(status, WorkspaceDot::Working) {
         return Some(
-            rail.with_animation(
-                "tab-working-rail",
-                Animation::new(std::time::Duration::from_millis(1400))
-                    .repeat()
-                    .with_easing(|delta| (delta * std::f32::consts::TAU).sin().mul_add(0.25, 0.75)),
-                move |this, delta| this.opacity(delta),
-            )
-            .into_any_element(),
+            xenon_design_system::working_pulse(rail, |this, delta| this.opacity(delta))
+                .into_any_element(),
         );
     }
     Some(rail.into_any_element())

@@ -33,7 +33,7 @@ pub fn all_clear(id: impl Into<ElementId>, copy: AllClear, cx: &App) -> gpui::Di
         .items_center()
         .justify_center()
         .gap_2()
-        .child(glow(&id, accent, animate))
+        .child(glow(accent, animate))
         .child(mark(&id, cx, animate))
         .child(
             div()
@@ -79,7 +79,7 @@ pub fn key_chip(
         .child(label.into())
 }
 
-fn glow(id: &ElementId, accent: Hsla, animate: bool) -> AnyElement {
+fn glow(accent: Hsla, animate: bool) -> AnyElement {
     let halo = div().size(px(160.)).rounded_full().shadow(vec![BoxShadow {
         color: accent.opacity(0.2),
         offset: point(px(0.), px(0.)),
@@ -88,11 +88,10 @@ fn glow(id: &ElementId, accent: Hsla, animate: bool) -> AnyElement {
         inset: false,
     }]);
     let halo = if animate {
-        halo.with_animation(
-            child_id(id, "glow"),
-            Animation::new(Duration::from_millis(5000))
-                .repeat()
-                .with_easing(|t| (t * std::f32::consts::TAU).cos().mul_add(0.15, 0.85)),
+        crate::slow_pulse(
+            halo,
+            Duration::from_millis(5000),
+            |t| (t * std::f32::consts::TAU).cos().mul_add(0.15, 0.85),
             |halo, t| halo.opacity(t),
         )
         .into_any_element()
