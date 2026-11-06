@@ -42,6 +42,17 @@ prepare_linux_runtime
 # Task terminals run this as `bash -c`, the session leader; its exit HUPs the
 # app it backgrounded. An ignored HUP survives fork/exec, so set it up front.
 trap '' HUP
+# Closing a Xenon terminal SIGTERMs its shell's process group, and a background
+# job of a non-interactive shell stays in that group. Start the app in its own
+# session so quitting the Xenon that ran this task leaves the new one alive.
+# `setsid` execs in place (the job is no group leader), so $! stays the app pid.
+DETACH=()
+if command -v setsid >/dev/null 2>&1; then
+    DETACH=(setsid)
+elif command -v perl >/dev/null 2>&1; then
+    # shellcheck disable=SC2016 # perl code, expanded by perl
+    DETACH=(perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV or die "exec: $!\n"' --)
+fi
 # State both slots must see (phone-remote paired devices): not copied per slot.
 SHARED_DIR="$HOME/.xenon-shared"
 
@@ -295,7 +306,7 @@ launch_slot() {
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        "$APP" "$@" </dev/null >>"$log" 2>&1 &
+        ${DETACH[@]+"${DETACH[@]}"} "$APP" "$@" </dev/null >>"$log" 2>&1 &
     pid=$!
     printf '%s\n' "$pid" >"$dir/xenon.pid"
     disown "$pid" 2>/dev/null || true
@@ -367,7 +378,7 @@ activate_slot() {
     log="$dir/xenon.log"
     printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        "$APP" </dev/null >>"$log" 2>&1 &
+        ${DETACH[@]+"${DETACH[@]}"} "$APP" </dev/null >>"$log" 2>&1 &
     handoff=$!
     i=0
     while kill -0 "$handoff" 2>/dev/null && ((i < 25)); do
