@@ -5,7 +5,10 @@
       "label": "xenon",
       "type": "shell",
       "command": "~/bin/xenon",
-      "detail": "launch Xenon via the slot launcher"
+      "detail": "launch Xenon via the slot launcher",
+      "presentation": {
+        "close": true
+      }
     },
     {
       "label": "install",
