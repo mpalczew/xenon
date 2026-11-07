@@ -3,10 +3,9 @@
 //! caret, which markup to hide. All offsets are `char` offsets, which is what
 //! GTK text buffers use.
 //!
-//! This is the stock-widget cousin of the GPUI prose projection in
-//! `xenon_editor`: same parser (pulldown-cmark), the same idea (markup is
-//! drawn dim, or hidden except in the block the caret is in), but it only
-//! describes styled ranges; it never lays anything out.
+//! It parses with pulldown-cmark: markup is drawn dim, or hidden except in the
+//! block the caret is in. It only describes styled ranges; it never lays
+//! anything out.
 
 use std::ops::Range;
 

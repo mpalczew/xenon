@@ -33,7 +33,6 @@ the GTK app yet; `.xenon/worklist.md` lists what is missing.
 | Next pane (leaves, then Files)                                                                                                                 | ⌃`                                                         |
 | Workspace next / previous / close                                                                                                              | ⌘⌥↓ / ⌘⌥↑ / ⌘⌥W                                            |
 | Tab next / previous / close                                                                                                                    | ⌃⇥ / ⌃⇧⇥ / ⌘W (this leaf only)                             |
-| Navigation back / forward                                                                                                                      | ⌘[ / ⌘]                                                    |
 | Find next / previous                                                                                                                           | ⌘G / ⌘⇧G                                                   |
 | Copy Clean                                                                                                                                     | ⌘⇧C                                                        |
 | Agent skill prompt                                                                                                                             | Return install · Escape not now · ←/→ buttons              |
@@ -103,7 +102,7 @@ wins:
   {
     "bindings": {
       "ctrl-alt-p": "xenon::FilePalette",
-      "cmd-shift-n": null
+      "cmd-shift-p": null
     }
   },
   {
@@ -132,7 +131,6 @@ Linux uses Ctrl where the tables say ⌘, plus:
 | ------------------------------- | ------------------------------------------------ |
 | Undo capture (toast)            | Ctrl+Alt+Z (Ctrl+Z is the shell's suspend)       |
 | Copy Clean                      | Ctrl+Shift+Y (Ctrl+Shift+C copies in a terminal) |
-| Navigation back / forward       | Ctrl+Alt+- / Ctrl+Alt+_ (Ctrl+[ is Escape)       |
 | Terminal find / next / previous | Ctrl+Shift+F / F3 / Shift+F3                     |
 | Terminal copy / paste           | Ctrl+Shift+C / Ctrl+V (or Ctrl+Shift+V)          |
 | Quit                            | Ctrl+Q                                           |
