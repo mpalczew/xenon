@@ -12,7 +12,6 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 - `docs/project-state.md` - cross-cutting decisions.
 - `docs/keyboard-first.md` - keyboard map and focus model.
 - `docs/designs/mobile-remote-v2.md` - phone remote.
-- `docs/release.md` - release checklist.
 - `ATTRIBUTION.md` - copied source; each copy gets an entry and a file-header marker.
 
 ## Commands
