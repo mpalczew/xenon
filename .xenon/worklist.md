@@ -21,6 +21,8 @@
 
 ## Next
 
+- [ ] GTK: an open file updates when it changes on disk, as in the GPUI editor
+  - Unsaved edits: show a conflict instead of reloading.
 - [ ] GTK: wording pass, copying GPUI text word for word
   - Mac words become generic; nothing else changes.
   - Key hints use GPUI's format with Linux chords from the key map.
