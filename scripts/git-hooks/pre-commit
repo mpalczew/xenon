@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Checks the staged snapshot in a private tree; never touches the working tree,
 # index, or stash. The per-commit gate; scripts/health is the full run (CI).
-# Own profile (target/precommit): sharing dogfood with the real tree serves stale
+# Own target dir (target/precommit): sharing target/ with the real tree serves stale
 # artifacts, since path crates hash relative to the workspace root.
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
 "$root/bin/check" --staged
 work="$root/target/precommit-tree"
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/target}"
+export CARGO_TARGET_DIR="$root/target/precommit"
 lock="$root/target/precommit.lock"
 
 mkdir -p "$root/target"
@@ -43,5 +43,5 @@ run zed-pins scripts/check-zed-pins
 run attribution scripts/check-attribution
 run fmtcheck cargo fmt --all --check
 run lint-shape scripts/check-rust-shape
-run lint cargo clippy --profile precommit --workspace --all-targets -- \
+run lint cargo clippy --workspace --all-targets -- \
     -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines

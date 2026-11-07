@@ -131,25 +131,13 @@ notify-types = { git = "https://github.com/zed-industries/notify", rev = "faecbc
 gpui_linux = { path = "third_party/gpui_linux" }
 terminal = { path = "third_party/terminal" }
 
+# Local builds are the only builds: optimized (opt-level 3) so the app is usable,
+# incremental, no LTO. Packed debuginfo, because unpacked writes one .o per
+# codegen unit into target/debug/deps and Cargo never removes the old ones.
 [profile.dev]
-# unpacked writes one .o per codegen unit into target/debug/deps, and Cargo
-# never removes the old ones.
-split-debuginfo = "packed"
-debug = "limited"
-
-# Local profile for everything the author builds: install, health, hook, visual
-# tests. One target/dogfood tree, incremental, no LTO. Public builds keep release.
-[profile.dogfood]
-inherits = "release"
+opt-level = 3
 incremental = true
 codegen-units = 256
 lto = false
 debug = "line-tables-only"
 split-debuginfo = "packed"
-
-# Pre-commit hook only. Its snapshot tree must not share artifacts with the real
-# tree: path crates hash relative to the workspace root, so a shared profile dir
-# lets each tree's build pass as fresh for the other (stale tests).
-[profile.precommit]
-inherits = "dev"
-debug = false

@@ -131,7 +131,7 @@ fn percent_decode(raw: &str) -> String {
 
 /// An inline code span that names a file: `docs/release.md`, `src/main.rs:40`,
 /// `~/bin/xenon`. Needs a separator or a file extension and no spaces, so
-/// `cargo`, `--profile dogfood` and `Vec<T>` stay plain code.
+/// `cargo`, `--release` and `Vec<T>` stay plain code.
 pub fn code_is_path(code: &str) -> bool {
     let code = code.trim();
     if code.is_empty() || code.len() > 240 || code.contains(char::is_whitespace) {

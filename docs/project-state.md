@@ -68,7 +68,7 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   the encrypted transport. Saved `remote_network` values are ignored.
 - `.vscode/tasks.json` exposes only the `xenon` and `install` (`bin/install`) tasks.
   Build/fmt/lint/health run via cargo or `scripts/*`; do not invent extra task
-  labels. Local builds share one `--profile dogfood` target tree; the pre-commit hook is
+  labels. Every local build uses the plain `dev` profile (optimized, incremental) in `target/debug`; the pre-commit hook is
   the gate, `scripts/health` the full run.
 - Linux X11: `third_party/gpui_linux` is zed `ced90fc` plus one fix. Portal appearance
   callbacks must drop the `X11Client` borrow before they call back, or `with_common`

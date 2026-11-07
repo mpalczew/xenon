@@ -93,8 +93,7 @@ git clone https://github.com/mpalczew/xenon.git && cd xenon
 
 Installs the GTK app as `~/.local/share/xenon/xenon-bin`, the slot launcher as
 `~/.local/bin/xenon` (and `~/bin/xenon` when that directory exists), and a `.desktop`
-entry with an icon. `XENON_APP_DIR`, `XENON_BIN_DIR` and `XENON_PROFILE` (default
-`dogfood`) override. Update with `git pull && ./scripts/release/install`. Quit is
+entry with an icon. `XENON_APP_DIR` and `XENON_BIN_DIR` override. Update with `git pull && ./scripts/release/install`. Quit is
 `ctrl-q`.
 
 Start Xenon with `xenon`. State lives in two slot directories, `~/.xenon-a` and

@@ -7,8 +7,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-profile="${XENON_PROFILE:-dogfood}"
-(cd "$root" && cargo build --profile "$profile" -p xenon_gtk)
+(cd "$root" && cargo build -p xenon_gtk)
 target="${CARGO_TARGET_DIR:-target}"
 [[ "$target" == /* ]] || target="$root/$target"
 
@@ -18,7 +17,7 @@ bin_dir="${XENON_BIN_DIR:-$HOME/.local/bin}"
 mkdir -p "$app_dir" "$bin_dir" "$data_home/applications"
 
 # Replace via rename so a running instance keeps its old inode.
-install -m 755 "$target/$profile/xenon_gtk" "$app_dir/xenon-bin.new"
+install -m 755 "$target/debug/xenon_gtk" "$app_dir/xenon-bin.new"
 mv -f "$app_dir/xenon-bin.new" "$app_dir/xenon-bin"
 echo "installed $app_dir/xenon-bin"
 

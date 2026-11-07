@@ -55,7 +55,7 @@ gate_dprint() {
 gate_rust() {
   step rust fmt cargo fmt --all --check
   step rust shape scripts/check-rust-shape
-  step rust clippy cargo clippy --profile dogfood --workspace --all-targets -- -D warnings \
+  step rust clippy cargo clippy --workspace --all-targets -- -D warnings \
     -D clippy::cognitive_complexity -D clippy::too_many_lines
 }
 

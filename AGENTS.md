@@ -18,8 +18,7 @@ terminals and editors. GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 
 ## Build and check
 
-- Plain cargo at the workspace root. Author sessions pass `--profile dogfood` to
-  build/test/clippy/run. `scripts/health` is the full gate. The pre-commit hook
+- Plain cargo at the workspace root. `scripts/health` is the full gate. The pre-commit hook
   (`scripts/install-hooks`) is the commit gate.
 
 ## Gotchas
@@ -41,6 +40,6 @@ terminals and editors. GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 - Keyboard-first: every flow works from the keyboard (action, binding, focus, Escape).
   Mouse is additive.
 - Copied source gets an `ATTRIBUTION.md` entry and a file-header marker.
-- Finish: `XENON_PROFILE=dogfood scripts/release/install && scripts/prune-target` once
+- Finish: `scripts/release/install && scripts/prune-target` once
   at the end, then commit and push this session's paths. List leftover dirty paths and
   whose they are.
