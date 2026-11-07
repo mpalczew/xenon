@@ -64,7 +64,6 @@ fn mode_buttons() -> (gtk::Box, Vec<(LayoutMode, gtk::ToggleButton)>, gtk::Box) 
     let mut modes: Vec<(LayoutMode, gtk::ToggleButton)> = Vec::new();
     for mode in [LayoutMode::Auto, LayoutMode::Split, LayoutMode::Unified] {
         let button = gtk::ToggleButton::with_label(mode.label());
-        button.add_css_class("xmode");
         button.set_focusable(false);
         if let Some((_, first)) = modes.first() {
             button.set_group(Some(first));
@@ -76,6 +75,8 @@ fn mode_buttons() -> (gtk::Box, Vec<(LayoutMode, gtk::ToggleButton)>, gtk::Box) 
     let ro = gtk::Label::new(Some("Read-only"));
     let pill = gtk::Box::new(gtk::Orientation::Horizontal, 5);
     pill.add_css_class("xpill");
+    pill.add_css_class("caption");
+    pill.add_css_class("dim-label");
     pill.append(&lock);
     pill.append(&ro);
     (modes_box, modes, pill)
@@ -93,11 +94,12 @@ impl DiffView {
         path_label.set_use_markup(true);
         path_label.set_xalign(0.0);
         path_label.set_ellipsize(gtk::pango::EllipsizeMode::Start);
-        path_label.add_css_class("xdiff-path");
         let sub_label = gtk::Label::new(None);
-        sub_label.add_css_class("xdiff-muted");
+        sub_label.add_css_class("dim-label");
+        sub_label.add_css_class("caption");
         let auto_label = gtk::Label::new(None);
-        auto_label.add_css_class("xdiff-muted");
+        auto_label.add_css_class("dim-label");
+        auto_label.add_css_class("caption");
         let plus = gtk::Label::new(None);
         plus.add_css_class("xk-added");
         let minus = gtk::Label::new(None);
@@ -338,7 +340,7 @@ impl DiffView {
         let layout = self.resolve();
         self.layout.set(layout);
         let page = doc.build(layout);
-        self.fill(&app, &page);
+        self.fill(&page);
         *self.hunks.borrow_mut() = page.hunks.iter().map(|h| (h.line, h.target)).collect();
         self.current
             .set(self.current.get().min(page.hunks.len().saturating_sub(1)));

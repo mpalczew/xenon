@@ -37,7 +37,7 @@ impl Prose {
         self.view.set_bottom_margin(60);
         let margin = self.column_margin(&p);
         let look = self.look(app, &p, margin);
-        self.tags.style(&app.palette.borrow(), &look);
+        self.tags.style(&self.view, &look);
         self.margin.set(margin);
         self.view.set_left_margin(margin);
         self.view.set_right_margin(margin);
@@ -118,7 +118,7 @@ impl Prose {
         self.view.set_left_margin(margin);
         self.view.set_right_margin(margin);
         let look = self.look(&app, &p, margin);
-        self.tags.style(&app.palette.borrow(), &look);
+        self.tags.style(&self.view, &look);
         self.images.schedule_move(self);
     }
 }

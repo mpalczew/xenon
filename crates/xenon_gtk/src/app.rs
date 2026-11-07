@@ -21,7 +21,6 @@ use crate::palette::Palette as Launcher;
 use crate::pane::PaneView;
 use crate::sidebar::Sidebar;
 use crate::term::TermView;
-use crate::theme::Palette;
 
 /// Widgets of one workspace: its root holder and its panes.
 pub(crate) struct Slot {
@@ -39,7 +38,6 @@ pub(crate) struct App {
     pub settings: RefCell<UiSettings>,
     /// Terminal face that exists on this machine (the saved one may not).
     pub mono: RefCell<String>,
-    pub palette: RefCell<Palette>,
     pub css: gtk::CssProvider,
     pub sidebar: Sidebar,
     pub split: gtk::Paned,
@@ -268,7 +266,7 @@ impl App {
             let s = self.settings.borrow();
             (self.mono.borrow().clone(), s.terminal.size)
         };
-        view.restyle(&family, size, &self.palette.borrow());
+        view.restyle(&family, size, crate::theme::dark());
     }
 
     /// Everything that shows status or selection, repainted from the model.

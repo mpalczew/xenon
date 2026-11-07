@@ -96,7 +96,8 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
     let list = gtk::Box::new(gtk::Orientation::Vertical, 4);
     list.add_css_class("xhints");
     let heading = gtk::Label::new(Some("Useful shortcuts"));
-    heading.add_css_class("xhints-head");
+    heading.add_css_class("caption-heading");
+    heading.add_css_class("dim-label");
     heading.set_xalign(0.0);
     list.append(&heading);
     let entries = if has_workspace {
@@ -107,11 +108,11 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
     for (label, keys) in entries {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 16);
         let name = gtk::Label::new(Some(label));
-        name.add_css_class("xhints-name");
+        name.add_css_class("dim-label");
         name.set_xalign(0.0);
         name.set_hexpand(true);
         let chord = gtk::Label::new(Some(&xenon_keymap::display_keys(keys)));
-        chord.add_css_class("xhints-keys");
+        chord.add_css_class("caption-heading");
         row.append(&name);
         row.append(&chord);
         list.append(&row);
@@ -132,7 +133,6 @@ pub(crate) fn placeholder(state: &TabState) -> gtk::Widget {
         TabState::Terminal { .. } => ("terminal".into(), String::new()),
     };
     let page = adw::StatusPage::new();
-    page.add_css_class("xplaceholder");
     page.set_icon_name(Some("text-x-generic-symbolic"));
     page.set_title(&title);
     page.set_description(Some(&detail));

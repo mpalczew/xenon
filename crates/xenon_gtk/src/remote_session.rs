@@ -44,8 +44,8 @@ impl App {
     /// wants them. The phone always gets the Mac's colors: cell colors come
     /// from VTE's palette, so a page theme of its own would not match them.
     pub(crate) fn remote_colors(&self) -> [[u8; 3]; 3] {
-        let (fg, bg, _) = self.palette.borrow().terminal();
-        [rgb(&bg), rgb(&fg), rgb(&fg)]
+        let (fg, bg, _) = crate::theme::terminal(crate::theme::dark());
+        [rgb(bg), rgb(fg), rgb(fg)]
     }
 
     fn remote_defaults(&self) -> (Rgb, Rgb) {

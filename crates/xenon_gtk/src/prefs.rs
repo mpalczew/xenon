@@ -1,7 +1,7 @@
 //! The Settings window (Ctrl+,): its own top-level window, transient for the
 //! main one, with a sidebar of pages (`AdwNavigationSplitView`) beside the
-//! `AdwPreferencesPage`s. Ctrl+1 to Ctrl+5 jump to a page, Escape (or Ctrl+W)
-//! closes, or backs out of the theme picker first, and focus returns to where
+//! `AdwPreferencesPage`s. Ctrl+1 to Ctrl+4 jump to a page, Escape (or Ctrl+W)
+//! closes and focus returns to where
 //! it was. `app.settings` opens it, or raises it when it is already open.
 
 use std::cell::RefCell;
@@ -11,9 +11,9 @@ use adw::prelude::*;
 use gtk::glib;
 
 use crate::app::App;
-use crate::{prefs_agents, prefs_pages, prefs_picker, prefs_theme};
+use crate::{prefs_agents, prefs_pages};
 
-const PAGES: [&str; 5] = ["appearance", "fonts", "editor", "agents", "phone"];
+const PAGES: [&str; 4] = ["fonts", "editor", "agents", "phone"];
 
 /// The open Settings window and the parts the pages talk to.
 #[derive(Clone)]
@@ -27,15 +27,6 @@ pub(crate) struct Shell {
 impl Shell {
     pub(crate) fn add_toast(&self, text: &str) {
         self.toasts.add_toast(adw::Toast::new(text));
-    }
-
-    /// Show a sub page (the theme picker) over the page list.
-    pub(crate) fn push(&self, page: &adw::NavigationPage) {
-        self.nav.push(page);
-    }
-
-    pub(crate) fn pop(&self) {
-        self.nav.pop();
     }
 
     pub(crate) fn close(&self) {
@@ -87,7 +78,6 @@ impl App {
             nav: adw::NavigationView::new(),
             stack: adw::ViewStack::new(),
         };
-        add_page(&shell.stack, &prefs_theme::page(self, &shell));
         add_page(&shell.stack, &prefs_pages::fonts(self));
         add_page(&shell.stack, &prefs_pages::editor(self));
         let agents = prefs_agents::agents(&shell);
@@ -97,26 +87,15 @@ impl App {
         add_page(&shell.stack, &crate::prefs_phone::page(self));
         build_layout(&shell);
         install_keys(&shell);
-        // One sheet paints every tile in its own theme's colors.
-        let tiles = gtk::CssProvider::new();
-        tiles.load_from_string(&prefs_picker::tile_css(&prefs_theme::tile_names(self)));
-        let display = gtk::prelude::WidgetExt::display(&self.win);
-        gtk::style_context_add_provider_for_display(
-            &display,
-            &tiles,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-        );
         let before = gtk::prelude::RootExt::focus(&self.win).map(|w| w.downgrade());
         let weak = Rc::downgrade(self);
         window.connect_close_request(move |_| {
-            gtk::style_context_remove_provider_for_display(&display, &tiles);
             OPEN.with(|o| *o.borrow_mut() = None);
             crate::prefs_state::forget_all();
             let Some(app) = weak.upgrade() else {
                 return glib::Propagation::Proceed;
             };
             *app.remote.on_change.borrow_mut() = None;
-            app.end_preview();
             match before.as_ref().and_then(|w| w.upgrade()) {
                 Some(widget) if widget.is_mapped() => {
                     widget.grab_focus();
@@ -224,7 +203,6 @@ fn install_keys(shell: &Shell) {
         }
     }
     shell.window.add_controller(controller);
-    // Escape reaches here only when the picker did not take it.
     let closing = gtk::ShortcutController::new();
     for key in ["Escape", "<Control>w"] {
         let weak = shell.window.downgrade();

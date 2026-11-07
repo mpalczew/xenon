@@ -16,6 +16,10 @@ fn rgba(hex: &str, alpha: Option<f32>) -> gdk::RGBA {
     }
 }
 
+fn rgba_of(c: gdk::RGBA, alpha: f32) -> gdk::RGBA {
+    gdk::RGBA::new(c.red(), c.green(), c.blue(), alpha)
+}
+
 fn set_text(label: &gtk::Label, text: Option<&str>) {
     label.set_visible(text.is_some());
     label.set_text(text.unwrap_or_default());
@@ -83,38 +87,26 @@ impl DiffView {
 
     /// Put one view per side in the body; the panes of a split share the
     /// vertical adjustment, so GTK scrolls them together.
-    pub(super) fn fill(&self, app: &App, page: &Page) {
+    pub(super) fn fill(&self, page: &Page) {
         while let Some(child) = self.body.first_child() {
             self.body.remove(&child);
         }
         self.views.borrow_mut().clear();
-        let p = app.palette.borrow();
-        let color = |key: &str, fallback: &str, alpha| rgba(&p.color(key, fallback), alpha);
-        let tint = |key: &str, fallback: &str| color(key, fallback, Some(0.14));
+        let accent = adw::StyleManager::default().accent_color_rgba();
+        // Adwaita palette green_5 and red_3; the accent is the system one.
+        let (green, red) = ("#26a269", "#e01b24");
         let tints = [
-            ("added", tint("version_control.added", "#27a657")),
-            ("removed", tint("version_control.deleted", "#e06c76")),
-            ("filler", color("text.muted", "#808080", Some(0.07))),
-            ("current", color("text.accent", "#74ade8", Some(0.26))),
+            ("added", rgba(green, Some(0.14))),
+            ("removed", rgba(red, Some(0.14))),
+            ("filler", rgba("#808080", Some(0.07))),
+            ("current", rgba_of(accent, 0.26)),
         ];
         let words = [
-            (
-                "w-add",
-                color("version_control.word_added", "#2EA04859", None),
-            ),
-            (
-                "w-del",
-                color("version_control.word_deleted", "#F8514980", None),
-            ),
+            ("w-add", rgba(green, Some(0.35))),
+            ("w-del", rgba(red, Some(0.35))),
         ];
-        let muted = color("text.muted", "#808080", None);
-        let scheme = sourceview::StyleSchemeManager::default().scheme(
-            if adw::StyleManager::default().is_dark() {
-                "Adwaita-dark"
-            } else {
-                "Adwaita"
-            },
-        );
+        let muted = rgba("#808080", None);
+        let scheme = crate::theme::scheme(crate::theme::dark());
         let lang = sourceview::LanguageManager::default()
             .guess_language(Some(std::path::Path::new(&self.path)), None::<&str>);
         let split = page.sides.len() > 1;

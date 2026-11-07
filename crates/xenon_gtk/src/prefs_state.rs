@@ -59,15 +59,11 @@ impl App {
             "open": dialog.is_some(),
             "page": dialog.as_ref().and_then(|d| d.page_name()).map(|n| n.to_string()),
             "dark": adw::StyleManager::default().is_dark(),
-            "preview": crate::prefs_apply::previewing().map(|(n, _)| n),
             "focus": focus,
             "term_font": term.as_ref().and_then(|t| t.term.font_desc()).map(|f| f.to_string()),
             "term_bg": term.as_ref().map(|t| t.term.color_background_for_draw().to_string()),
             "ui_size": live.ui.size,
             "terminal_size": live.terminal.size,
-            "mode": format!("{:?}", live.theme.mode),
-            "dark_theme": live.theme.dark,
-            "light_theme": live.theme.light,
         })
         .to_string();
         drop(live);

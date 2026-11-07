@@ -1,13 +1,11 @@
 //! The text tags of prose mode: one per `xenon_prose::Kind`, created once in
-//! priority order (later wins) and restyled from the theme and the five
+//! priority order (later wins) and restyled from the desktop colors and the five
 //! Markdown writing settings. Pure GTK data, no behavior.
 
 use gtk::glib::translate::IntoGlib;
 use gtk::prelude::*;
 use gtk::{gdk, pango};
 use xenon_prose::Kind;
-
-use crate::theme::Palette;
 
 /// Heading scales, as in the GPUI prose view.
 const HEADING_SCALE: [f64; 4] = [1.7, 1.4, 1.2, 1.08];
@@ -122,18 +120,15 @@ impl Tags {
         }
     }
 
-    /// Colors from the theme and sizes from `look`.
-    pub(crate) fn style(&self, palette: &Palette, look: &Look) {
-        let color = |key: &str, fallback: &str| {
-            gdk::RGBA::parse(palette.color(key, fallback)).unwrap_or(gdk::RGBA::BLACK)
-        };
-        let ink = color("text", "#dddddd");
-        let muted = color("text.muted", "#999999");
-        let accent = color("text.accent", "#74ade8");
+    /// Colors from the desktop and sizes from `look`.
+    pub(crate) fn style(&self, view: &impl IsA<gtk::Widget>, look: &Look) {
+        let ink = view.color();
+        let ink_at = |alpha: f32| gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), alpha);
+        let muted = ink_at(0.65);
+        let accent = adw::StyleManager::default().accent_color_rgba();
         // Washes are the ink at low strength, so they read on any theme.
-        let wash = |alpha: f32| gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), alpha);
-        let (tint, chip) = (wash(0.07), wash(0.11));
-        let rule = color("border", "#808080");
+        let (tint, chip) = (ink_at(0.07), ink_at(0.11));
+        let rule = ink_at(0.3);
         // Markup must stay readable: the muted ink at half strength is too faint.
         let dim = muted;
         let bold = pango::Weight::Bold.into_glib();

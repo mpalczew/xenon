@@ -196,28 +196,6 @@ fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
     app.gtk.add_action(&action);
 }
 
-/// Scripts restyle the window through these.
-fn install_theme_actions(app: &Rc<App>) {
-    // Re-read settings.json and restyle (scripts change the theme this way).
-    let reload = gio::SimpleAction::new("reload-theme", None);
-    let weak = Rc::downgrade(app);
-    reload.connect_activate(move |_, _| {
-        if let Some(app) = weak.upgrade() {
-            app.apply_theme();
-        }
-    });
-    app.gtk.add_action(&reload);
-    // Scripts switch light and dark without opening Settings.
-    string_action(app, "set-theme-mode", |app, mode| {
-        let mode = match mode {
-            "light" => xenon_store::ThemeMode::Light,
-            "dark" => xenon_store::ThemeMode::Dark,
-            _ => xenon_store::ThemeMode::System,
-        };
-        app.change_settings(|s| s.theme.mode = mode);
-    });
-}
-
 fn install_automation(app: &Rc<App>) {
     string_action(app, "feed-child", |app, text| {
         if let Some(view) = app.current_term() {
@@ -295,7 +273,6 @@ fn install_automation(app: &Rc<App>) {
     app.gtk.add_action(&local);
     string_action(app, "palette-text", |app, text| app.launcher.set_text(text));
     string_action(app, "palette-key", |app, key| app.launcher.key(key));
-    install_theme_actions(app);
     string_action(app, "git-key", |app, key| app.sidebar.git.key(key));
     string_action(app, "diff-key", |app, key| {
         if let Some(view) = app.active_diff() {

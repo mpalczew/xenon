@@ -1,243 +1,76 @@
-//! The user's theme, read from the same bundled theme files the GPUI app uses
-//! (`crates/xenon_terminal/assets`), turned into a palette and one CSS sheet.
-//! The sheet restyles libadwaita's named colors, so stock widgets follow the
-//! theme without any painting code of ours.
+//! The look is the desktop's: stock libadwaita colors, backgrounds and accent,
+//! following light and dark through `adw::StyleManager`. What is left is the
+//! static sheet for our own widgets and two small light or dark switches, the
+//! terminal palette here and the GtkSourceView scheme (`scheme`).
 
-use serde_json::Value;
-use xenon_store::{AppSettings, ThemeMode};
+/// Rules for widgets of ours that have no stock equivalent. Colors are
+/// libadwaita's named colors or the text color at low strength.
+pub(crate) const CSS: &str = "\
+vte-terminal { padding: 4px 8px; }
+.xsidebar row.drop-before { box-shadow: 0 -1px 0 1px @accent_color; }
+.xsidebar row.drop-after { box-shadow: 0 1px 0 1px @accent_color; }
+.xdot { min-width: 3px; border-radius: 2px; margin: 2px 6px 2px 0; }
+.xdot.working { background: @accent_color; }
+.xdot.attention { background: @warning_color; }
+.xfiles row.xopen label { color: @accent_color; }
+.xdrop { background: alpha(@accent_color, 0.35); border: 2px solid @accent_color; }
+.xpane { border-top: 2px solid transparent; }
+.xpane:focus-within:not(:only-child) { border-top-color: @accent_color; }
+.xfind { border-bottom: 1px solid @borders; padding: 4px 8px; }
+.xgutter { min-width: 20px; margin-right: 0; }
+.xrow-close { min-width: 20px; min-height: 20px; padding: 0; opacity: 0; }
+row:hover .xrow-close, .xrow-close:focus { opacity: 0.8; }
+row:hover .xtick { opacity: 0; }
+.xhints { border-top: 1px solid @borders; padding-top: 12px; margin-top: 4px; }
+.xtick { min-width: 5px; min-height: 18px; border-radius: 3px; }
+.xtick.dirty { background: @warning_color; }
+.xtick.index { border: 2px solid @warning_color; }
+.xgit-section { border-top: 1px solid @borders; }
+.xdeleted { text-decoration: line-through; }
+.xbadge { min-width: 18px; min-height: 18px; border-radius: 9px; padding: 0; }
+.xbadge.xk-modified { background: alpha(@warning_color, 0.18); }
+.xbadge.xk-added { background: alpha(@success_color, 0.18); }
+.xbadge.xk-deleted { background: alpha(@error_color, 0.18); }
+.xbadge.xk-renamed { background: alpha(@accent_color, 0.18); }
+.xbadge.xk-conflict { background: alpha(@purple_3, 0.18); }
+.xbadge.xk-untracked { background: alpha(currentColor, 0.1); }
+.xk-modified { color: @warning_color; }
+.xk-added { color: @success_color; }
+.xk-deleted { color: @error_color; }
+.xk-renamed { color: @accent_color; }
+.xk-conflict { color: @purple_3; }
+.xcell { min-width: 4px; min-height: 10px; border-radius: 1px; }
+.xcell.add { background: @success_color; }
+.xcell.del { background: @error_color; }
+.xcell.neutral { background: alpha(currentColor, 0.3); }
+.xdiff-head { border-bottom: 1px solid @borders; padding: 6px 16px; min-height: 28px; }
+.xpill { border: 1px solid @borders; border-radius: 6px; padding: 2px 8px; }
+.xdiff-banner { background: alpha(currentColor, 0.06); border: 1px solid @borders; border-radius: 6px; margin: 12px 16px 0 16px; padding: 8px 12px; }
+.xdiff-note { padding: 14px 16px; }
+.xdiff-half.right { border-left: 1px solid @borders; }
+";
 
-const FAMILIES: [&str; 11] = [
-    include_str!("../../xenon_terminal/assets/one.json"),
-    include_str!("../../xenon_terminal/assets/nord.json"),
-    include_str!("../../xenon_terminal/assets/solarized.json"),
-    include_str!("../../xenon_terminal/assets/high_contrast.json"),
-    include_str!("../../xenon_terminal/assets/neon.json"),
-    include_str!("../../xenon_terminal/assets/tokyo.json"),
-    include_str!("../../xenon_terminal/assets/mithril.json"),
-    include_str!("../../xenon_terminal/assets/imperial.json"),
-    include_str!("../../xenon_terminal/assets/gruvbox.json"),
-    include_str!("../../xenon_terminal/assets/true_black.json"),
-    include_str!("../../xenon_terminal/assets/hotdog.json"),
-];
-
-const ANSI: [&str; 8] = [
-    "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-];
-
-pub(crate) struct Palette {
-    style: Value,
-    /// A light theme (status colors are pulled darker to stay legible).
-    light: bool,
+/// The GtkSourceView scheme that goes with the desktop's light or dark.
+pub(crate) fn scheme(dark: bool) -> Option<sourceview::StyleScheme> {
+    sourceview::StyleSchemeManager::default().scheme(if dark { "Adwaita-dark" } else { "Adwaita" })
 }
 
-impl Palette {
-    /// A color from the theme as `#rrggbb[aa]`, or `fallback` when missing.
-    pub(crate) fn color(&self, key: &str, fallback: &str) -> String {
-        self.style
-            .get(key)
-            .and_then(Value::as_str)
-            .map_or_else(|| fallback.to_string(), str::to_string)
-    }
-
-    /// A syntax color (`keyword`, `string`) as `#rrggbb[aa]`.
-    pub(crate) fn syntax(&self, name: &str) -> Option<String> {
-        self.style
-            .get("syntax")?
-            .get(name)?
-            .get("color")?
-            .as_str()
-            .map(str::to_string)
-    }
-
-    /// Terminal foreground, background, and the 16 ANSI colors.
-    pub(crate) fn terminal(&self) -> (String, String, Vec<String>) {
-        let fg = self.color("terminal.foreground", "#d8dee9");
-        let bg = self.color("terminal.background", "#000000");
-        let mut ansi: Vec<String> = ANSI
-            .iter()
-            .map(|n| self.color(&format!("terminal.ansi.{n}"), "#888888"))
-            .collect();
-        ansi.extend(
-            ANSI.iter()
-                .map(|n| self.color(&format!("terminal.ansi.bright_{n}"), "#cccccc")),
-        );
-        (fg, bg, ansi)
-    }
-
-    /// The sheet that themes the whole app (one long format string).
-    #[allow(clippy::too_many_lines)]
-    pub(crate) fn css(&self) -> String {
-        let c = |key: &str| self.color(key, "#808080");
-        let (bg, panel, fg, muted) = (
-            c("background"),
-            c("panel.background"),
-            c("text"),
-            c("text.muted"),
-        );
-        let (accent, border, selected) = (c("text.accent"), c("border"), c("element.selected"));
-        let (warning, info, hover) = (c("warning"), c("info"), c("element.hover"));
-        let elevated = c("elevated_surface.background");
-        let (added, deleted, renamed, conflict) = (
-            c("version_control.added"),
-            c("version_control.deleted"),
-            self.color("version_control.renamed", "#74ade8"),
-            self.color("version_control.conflict", "#dec184"),
-        );
-        let modified = c("version_control.modified");
-        // Status yellow vanishes on a light canvas: pull it down there.
-        let modified = if self.light {
-            format!("shade({modified}, 0.62)")
-        } else {
-            modified
-        };
-        let (editor_bg, editor_fg) = (
-            self.color("editor.background", &bg),
-            self.color("editor.foreground", &fg),
-        );
-        let element_bg = c("element.background");
-        format!(
-            "@define-color window_bg_color {bg}; @define-color window_fg_color {fg};\n\
-             @define-color view_bg_color {bg}; @define-color view_fg_color {fg};\n\
-             @define-color headerbar_bg_color {panel}; @define-color headerbar_fg_color {fg};\n\
-             @define-color headerbar_border_color {border};\n\
-             @define-color headerbar_backdrop_color {panel};\n\
-             @define-color sidebar_bg_color {panel}; @define-color sidebar_fg_color {fg};\n\
-             @define-color popover_bg_color {elevated}; @define-color popover_fg_color {fg};\n\
-             @define-color dialog_bg_color {elevated}; @define-color dialog_fg_color {fg};\n\
-             @define-color card_bg_color {panel}; @define-color card_fg_color {fg};\n\
-             @define-color accent_bg_color {accent}; @define-color accent_color {accent};\n\
-             @define-color accent_fg_color {bg};\n\
-             headerbar {{ box-shadow: none; border-bottom: 1px solid {border}; background-color: {panel}; color: {fg}; }}\n\
-             headerbar:backdrop {{ background-color: {panel}; color: {muted}; }}\n\
-             headerbar:backdrop windowtitle {{ opacity: 0.8; }}\n\
-             headerbar button.flat {{ min-width: 30px; min-height: 30px; padding: 0; border-radius: 6px; color: {muted}; }}\n\
-             headerbar button.flat:hover {{ color: {fg}; background: {hover}; }}\n\
-             headerbar windowtitle .title {{ font-weight: 600; font-size: 0.95em; }}\n\
-             headerbar windowtitle .subtitle {{ font-size: 0.8em; color: {muted}; opacity: 1; }}\n\
-             vte-terminal {{ padding: 4px 8px; }}\n\
-             .xsidebar {{ background: {panel}; }}\n\
-             .xsidebar list:not(.navigation-sidebar) row, .xsidebar list:not(.navigation-sidebar) row:selected, .xsidebar list:not(.navigation-sidebar) row:hover, .xsidebar list:not(.navigation-sidebar) row:focus {{ background: transparent; outline: none; }}\n\
-             .xsection-head {{ min-height: 32px; padding: 0 8px 0 12px; }}\n\
-             .xheading {{ color: {muted}; font-size: 0.74em; font-weight: 700; letter-spacing: 0.1em; }}\n\
-             .xsection button.flat {{ min-width: 24px; min-height: 24px; padding: 0; color: {muted}; border-radius: 6px; }}\n\
-             .xsection button.flat:hover {{ color: {fg}; background: {hover}; }}\n\
-             .xsidebar row.drop-before {{ box-shadow: 0 -1px 0 1px {accent}; }}\n\
-             .xsidebar row.drop-after {{ box-shadow: 0 1px 0 1px {accent}; }}\n\
-             .xrow-icon {{ color: {muted}; }}\n\
-             .xdot {{ min-width: 3px; border-radius: 2px; margin: 2px 6px 2px 0; }}\n\
-             .xdot.working {{ background: {info}; }}\n\
-             .xdot.attention {{ background: {warning}; }}\n\
-             .xfiles {{ padding: 2px 0 8px 0; }}\n\
-             .xfiles row {{ border-radius: 6px; margin: 0 8px; min-height: 26px; }}\n\
-             .xfiles row:hover {{ background: {hover}; }}\n\
-             .xfiles row:selected {{ background: {selected}; box-shadow: inset 2px 0 {fg}; border-radius: 0 6px 6px 0; }}\n\
-             .xfiles row.xopen label {{ color: {accent}; font-weight: 600; }}\n\
-             .xfile {{ padding: 2px 8px 2px 0; }}\n\
-             .xfile label {{ font-size: 0.92em; }}\n\
-             .xfile image {{ color: {muted}; -gtk-icon-size: 14px; }}\n\
-             .xfile .xchevron {{ -gtk-icon-size: 10px; opacity: 0.8; min-width: 14px; }}\n\
-             .xfile .xficon {{ min-width: 16px; }}\n\
-             .xfile .xlink {{ font-style: italic; }}\n\
-             .xdrop {{ background: alpha({accent}, 0.35); border: 2px solid {accent}; }}\n\
-             .xpane {{ border-top: 2px solid transparent; }}\n\
-             .xpane:focus-within:not(:only-child) {{ border-top-color: {accent}; }}\n\
-             .xfind {{ background: {panel}; border-bottom: 1px solid {border}; padding: 4px 8px; }}\n\
-             .xplaceholder {{ background: {bg}; color: {muted}; }}\n\
-             .xeditor-scroll {{ background: {bg}; }}\n\
-             .xgutter {{ min-width: 20px; margin-right: 0; }}\n\
-             .xrow-close {{ min-width: 20px; min-height: 20px; padding: 0; opacity: 0; }}\n\
-             row:hover .xrow-close, .xrow-close:focus {{ opacity: 0.8; }}\n\
-             row:hover .xtick {{ opacity: 0; }}\n\
-             .xhints {{ border-top: 1px solid {border}; padding-top: 12px; margin-top: 4px; }}\n\
-             .xhints-head {{ color: {muted}; font-size: 0.82em; margin-bottom: 4px; }}\n\
-             .xhints-name {{ color: {muted}; font-size: 0.85em; }}\n\
-             .xhints-keys {{ font-size: 0.85em; font-weight: 600; }}\n\
-             .xtick {{ min-width: 5px; min-height: 18px; border-radius: 3px; }}\n\
-             .xtick.dirty {{ background: {modified}; }}\n\
-             .xtick.index {{ border: 2px solid {modified}; }}\n\
-             .xsection button.xgit-head {{ margin: 0; padding: 0 12px; min-height: 32px; border-radius: 0; }}\n\
-             .xsection button.xfold {{ padding: 0; min-height: 32px; border-radius: 0; }}\n\
-             .xsection button.xfold:hover {{ background: transparent; }}\n\
-             .xfold:hover .xheading {{ color: {fg}; }}\n\
-             .xgit-section {{ border-top: 1px solid {border}; }}\n\
-             .xgit-branch {{ color: {muted}; font-size: 0.85em; margin-right: 6px; }}\n\
-             .xcount {{ background: {selected}; margin: 0 0 0 0; color: {fg}; font-size: 0.78em; font-weight: 600; border-radius: 10px; padding: 0 7px; min-width: 6px; }}\n\
-             .xgit {{ padding: 2px 0 6px 0; }}\n\
-             .xgit row {{ border-radius: 6px; margin: 0 8px; min-height: 28px; }}\n\
-             .xgit row:hover {{ background: {hover}; }}\n\
-             .xgit row:selected, .xgit row.xopen {{ background: {selected}; box-shadow: inset 2px 0 {fg}; border-radius: 0 6px 6px 0; }}\n\
-             .xgit-row {{ padding: 0 8px; }}\n\
-             .xgit-name {{ font-size: 0.95em; }}\n\
-             .xgit-dir {{ color: {muted}; font-size: 0.82em; }}\n\
-             .xgit-clean {{ padding: 4px 14px 8px 14px; }}\n\
-             .xdeleted {{ text-decoration: line-through; }}\n\
-             .xbadge {{ min-width: 18px; min-height: 18px; border-radius: 9px; font-size: 0.68em; font-weight: 700; padding: 0; }}\n\
-             .xbadge.xk-modified {{ background: alpha({modified}, 0.18); }}\n\
-             .xbadge.xk-added {{ background: alpha({added}, 0.18); }}\n\
-             .xbadge.xk-deleted {{ background: alpha({deleted}, 0.18); }}\n\
-             .xbadge.xk-renamed {{ background: alpha({renamed}, 0.18); }}\n\
-             .xbadge.xk-conflict {{ background: alpha({conflict}, 0.18); }}\n\
-             .xbadge.xk-untracked {{ background: alpha({muted}, 0.18); color: {muted}; }}\n\
-             .xk-modified {{ color: {modified}; }}\n\
-             .xk-added {{ color: {added}; }}\n\
-             .xk-deleted {{ color: {deleted}; }}\n\
-             .xk-renamed {{ color: {renamed}; }}\n\
-             .xk-conflict {{ color: {conflict}; }}\n\
-             .xcell {{ min-width: 4px; min-height: 10px; border-radius: 1px; }}\n\
-             .xcell.add {{ background: {added}; }}\n\
-             .xcell.del {{ background: {deleted}; }}\n\
-             .xcell.neutral {{ background: alpha({muted}, 0.3); }}\n\
-             .xdiff {{ background: {editor_bg}; }}\n\
-             .xdiff-head {{ background: {panel}; border-bottom: 1px solid {border}; padding: 6px 16px; min-height: 28px; }}\n\
-             .xdiff-path {{ font-size: 0.95em; }}\n\
-             .xdiff-muted {{ color: {muted}; font-size: 0.85em; }}\n\
-             .xdiff-head .xmode {{ padding: 2px 10px; min-height: 22px; font-size: 0.85em; }}\n\
-             .xdiff-head .xmode:checked {{ background: {selected}; color: {fg}; font-weight: 600; }}\n\
-             .xpill {{ border: 1px solid {border}; border-radius: 6px; padding: 2px 8px; color: {muted}; font-size: 0.85em; }}\n\
-             .xdiff-banner {{ background: {element_bg}; border: 1px solid {border}; border-radius: 6px; margin: 12px 16px 0 16px; padding: 8px 12px; }}\n\
-             .xdiff-note {{ color: {muted}; padding: 14px 16px; }}\n\
-             textview.xdiff-code, textview.xdiff-code text {{ background: {editor_bg}; color: {editor_fg}; }}\n\
-             .xdiff-half.right {{ border-left: 1px solid {border}; }}\n\
-             paned > separator {{ min-width: 1px; min-height: 1px; background: {border}; }}\n\
-             paned > separator:hover {{ background: {accent}; }}\n"
-        )
-    }
+/// Whether the desktop is showing its dark look.
+pub(crate) fn dark() -> bool {
+    adw::StyleManager::default().is_dark()
 }
 
-/// The palette the settings ask for. `system_dark` says what the OS wants when
-/// the mode is System.
-pub(crate) fn palette(settings: &AppSettings, system_dark: bool) -> Palette {
-    let dark = match settings.theme {
-        ThemeMode::System => system_dark,
-        ThemeMode::Dark => true,
-        ThemeMode::Light => false,
-    };
-    let name = if dark {
-        &settings.dark_theme
+/// Terminal foreground, background and the 16 ANSI colors for light or dark.
+/// The ANSI colors are the Tango palette (public domain, the Tango Desktop
+/// Project); the defaults follow Adwaita's window colors.
+pub(crate) fn terminal(dark: bool) -> (&'static str, &'static str, [&'static str; 16]) {
+    const LIGHT: [&str; 16] = [
+        "#2e3436", "#cc0000", "#4e9a06", "#c4a000", "#3465a4", "#75507b", "#06989a", "#d3d7cf",
+        "#555753", "#ef2929", "#8ae234", "#fce94f", "#729fcf", "#ad7fa8", "#34e2e2", "#eeeeec",
+    ];
+    if dark {
+        ("#ffffff", "#242424", LIGHT)
     } else {
-        &settings.light_theme
-    };
-    find(name)
-        .or_else(|| find(if dark { "One Dark" } else { "One Light" }))
-        .map(|p| Palette { light: !dark, ..p })
-        .unwrap_or(Palette {
-            style: Value::Null,
-            light: !dark,
-        })
-}
-
-pub(crate) fn find(name: &str) -> Option<Palette> {
-    for text in FAMILIES {
-        let family: Value = serde_json::from_str(text).ok()?;
-        for theme in family.get("themes")?.as_array()? {
-            if theme.get("name").and_then(Value::as_str) == Some(name) {
-                let style = theme.get("style")?.clone();
-                return Some(Palette {
-                    style,
-                    light: false,
-                });
-            }
-        }
+        ("#2e3436", "#ffffff", LIGHT)
     }
-    None
 }

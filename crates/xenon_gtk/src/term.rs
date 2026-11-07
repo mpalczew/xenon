@@ -12,7 +12,6 @@ use xenon_core::{TabId, WorkspaceId};
 
 use crate::app::App;
 use crate::find::FindBar;
-use crate::theme::Palette;
 
 pub(crate) struct TermView {
     /// What goes into the pane's stack: find bar above the terminal.
@@ -75,16 +74,16 @@ impl TermView {
     }
 
     /// Font and colors from the current settings and theme.
-    pub(crate) fn restyle(&self, family: &str, size_px: f32, palette: &Palette) {
+    pub(crate) fn restyle(&self, family: &str, size_px: f32, dark: bool) {
         let mut font = gtk::pango::FontDescription::new();
         font.set_family(family);
         font.set_absolute_size(f64::from(size_px) * f64::from(gtk::pango::SCALE));
         self.term.set_font_desc(Some(&font));
-        let (fg, bg, ansi) = palette.terminal();
+        let (fg, bg, ansi) = crate::theme::terminal(dark);
         let ansi: Vec<gdk::RGBA> = ansi.iter().map(|c| parse(c)).collect();
         let refs: Vec<&gdk::RGBA> = ansi.iter().collect();
         self.term
-            .set_colors(Some(&parse(&fg)), Some(&parse(&bg)), &refs);
+            .set_colors(Some(&parse(fg)), Some(&parse(bg)), &refs);
     }
 
     pub(crate) fn spawn(self: &Rc<Self>, cwd: &std::path::Path) {

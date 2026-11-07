@@ -167,8 +167,7 @@ deleted or replaced; "GTK" sizes are what exists now.
   Status: done.
 - **Command palette.** GPUI: `command_palette/`, `commands.rs` (about 480). GTK: not
   started (worklist "Next").
-- **Theme picker.** Live-preview side panel. GPUI: `theme_picker/` (about 530). GTK:
-  inside Settings (`prefs_theme.rs`). Status: done.
+- **Theme picker.** GPUI only. GTK follows the system light and dark; no picker.
 
 ### Settings
 

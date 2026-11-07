@@ -9,7 +9,7 @@ use std::time::Instant;
 use adw::prelude::*;
 use gtk::gio;
 use xenon_settings::{FontProbe, UiSettings};
-use xenon_store::{AppSettings, ThemeMode, WindowState};
+use xenon_store::{AppSettings, WindowState};
 
 use crate::app::App;
 use crate::model::Model;
@@ -47,44 +47,20 @@ pub(crate) fn mono_face(ui: &UiSettings, probe: &PangoProbe) -> String {
     }
 }
 
-fn scheme(mode: ThemeMode) -> adw::ColorScheme {
-    match mode {
-        ThemeMode::System => adw::ColorScheme::Default,
-        ThemeMode::Light => adw::ColorScheme::ForceLight,
-        ThemeMode::Dark => adw::ColorScheme::ForceDark,
-    }
-}
-
 impl App {
-    /// Load the saved theme and restyle everything that shows it. A theme being
-    /// previewed in Settings wins until the preview ends.
+    /// Restyle everything that follows the desktop's light or dark, and the
+    /// settings that show in the sheet.
     pub(crate) fn apply_theme(&self) {
-        let settings = self.settings.borrow().snapshot();
-        let style = adw::StyleManager::default();
-        let preview = crate::prefs_apply::previewing();
-        let (palette, forced) = match preview
-            .as_ref()
-            .and_then(|(n, d)| Some((theme::find(n)?, *d)))
-        {
-            Some((palette, dark)) => (palette, Some(dark)),
-            None => (theme::palette(&settings, style.is_dark()), None),
-        };
-        style.set_color_scheme(match forced {
-            Some(true) => adw::ColorScheme::ForceDark,
-            Some(false) => adw::ColorScheme::ForceLight,
-            None => scheme(settings.theme),
-        });
         let ui = self.settings.borrow().clone();
         let sheet = format!(
             "{}\n{}textview.xeditor, textview.xdiff-code {{ font-family: \"{}\", monospace; font-size: {}px; }}\n{}",
-            palette.css(),
-            crate::prefs_apply::extra_css(&ui.ui, &palette),
+            theme::CSS,
+            crate::prefs_apply::extra_css(&ui.ui),
             ui.editor.family,
             ui.editor.size,
             crate::prose::css(&ui.prose, &self.mono.borrow())
         );
         self.css.load_from_string(&sheet);
-        *self.palette.borrow_mut() = palette;
         for editor in self.editors.borrow().values() {
             editor.restyle(self);
         }
@@ -224,7 +200,6 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         model: RefCell::new(Model::load()),
         mono: RefCell::new(mono_face(&ui, &probe)),
         settings: RefCell::new(ui),
-        palette: RefCell::new(theme::palette(&settings, false)),
         css: gtk::CssProvider::new(),
         sidebar: Sidebar::new(weak.clone()),
         split: gtk::Paned::new(gtk::Orientation::Horizontal),

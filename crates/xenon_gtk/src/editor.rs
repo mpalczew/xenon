@@ -87,7 +87,6 @@ impl EditorView {
         view.set_right_margin(12);
         let scroller = gtk::ScrolledWindow::new();
         scroller.set_child(Some(&view));
-        scroller.add_css_class("xeditor-scroll");
         let prose = prose::is_markdown(path).then(|| Prose::new(app, ws, &view, &scroller, path));
         let mode = prose
             .as_ref()
@@ -308,11 +307,8 @@ impl EditorView {
 
     /// Font, wrap and color scheme from the settings and theme.
     pub(crate) fn restyle(self: &Rc<Self>, app: &App) {
-        let dark = adw::StyleManager::default().is_dark();
-        let name = if dark { "Adwaita-dark" } else { "Adwaita" };
-        if let Some(scheme) = sourceview::StyleSchemeManager::default().scheme(name) {
-            self.buffer.set_style_scheme(Some(&scheme));
-        }
+        self.buffer
+            .set_style_scheme(crate::theme::scheme(crate::theme::dark()).as_ref());
         let prose_on = self.prose.is_some() && self.mode.get() != MarkdownMode::Source;
         if let Some(prose) = &self.prose {
             prose.set_on(prose_on, app);

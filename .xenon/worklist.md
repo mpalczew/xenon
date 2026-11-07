@@ -23,7 +23,7 @@
       Save
 - [ ] GTK: empty screen rows that do nothing yet: Command Palette, Focus Editor,
       Keyboard Shortcuts
-- [ ] GTK: themes follow the system, mostly by deleting code
+- [x] GTK: themes follow the system, mostly by deleting code
   - Delete the Zed themes, the theme picker, the theme lineup and the mode setting.
   - Keep two small switches: terminal palette and GtkSourceView scheme, light or dark.
 - [x] GTK: worklist panel and capture
