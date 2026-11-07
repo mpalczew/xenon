@@ -18,6 +18,7 @@ use gtk::glib;
 use notify::{RecursiveMode, Watcher};
 use xenon_core::WorkspaceId;
 use xenon_git::status::{DirtState, GitStatus};
+use xenon_git::watch::watch_dirs;
 
 use crate::app::App;
 
@@ -135,6 +136,8 @@ pub(crate) fn listen(app: &Rc<App>, rx: async_channel::Receiver<Batch>) {
 struct Worker {
     roots: Roots,
     watcher: Option<notify::RecommendedWatcher>,
+    /// Directories with a watch, so new ones are added once.
+    watched: HashSet<PathBuf>,
     events: mpsc::Sender<Msg>,
     pending: HashSet<WorkspaceId>,
     /// Some root has no watch: fall back to slow polling.
@@ -142,11 +145,38 @@ struct Worker {
 }
 
 impl Worker {
+    /// Keep watches in step with the tree: a new directory that git does not
+    /// ignore gets watched; a removed one is forgotten so it can come back.
+    fn follow_dirs(&mut self, path: &std::path::Path) {
+        if self.watched.contains(path) {
+            if !path.exists() {
+                self.watched.remove(path);
+            }
+            return;
+        }
+        let Some(w) = self.watcher.as_mut() else {
+            return;
+        };
+        if !path.is_dir() || !self.roots.iter().any(|(_, r)| path.starts_with(r)) {
+            return;
+        }
+        for dir in watch_dirs(path, false) {
+            if !self.watched.contains(&dir) && w.watch(&dir, RecursiveMode::NonRecursive).is_ok() {
+                self.watched.insert(dir);
+            }
+        }
+    }
+
     fn take(&mut self, msg: Msg) {
         match msg {
             Msg::SetRoots(next) => {
-                let (added, watched) =
-                    sync_watches(&mut self.watcher, &self.events, &self.roots, &next);
+                let (added, watched) = sync_watches(
+                    &mut self.watcher,
+                    &mut self.watched,
+                    &self.events,
+                    &self.roots,
+                    &next,
+                );
                 self.polling = !watched;
                 self.pending.extend(added);
                 self.roots = next;
@@ -158,6 +188,7 @@ impl Worker {
                 self.pending.extend(self.roots.iter().map(|(id, _)| *id));
             }
             Msg::Fs(path) => {
+                self.follow_dirs(&path);
                 if let Some(ws) = xenon_git::watch::owner_of(&self.roots, &path) {
                     self.pending.insert(ws);
                 }
@@ -170,6 +201,7 @@ fn worker(rx: mpsc::Receiver<Msg>, events: mpsc::Sender<Msg>, out: async_channel
     let mut w = Worker {
         roots: Vec::new(),
         watcher: None,
+        watched: HashSet::new(),
         events,
         pending: HashSet::new(),
         polling: false,
@@ -239,6 +271,7 @@ fn worker(rx: mpsc::Receiver<Msg>, events: mpsc::Sender<Msg>, out: async_channel
 /// Watch added roots, drop removed ones. Returns the added workspaces.
 fn sync_watches(
     watcher: &mut Option<notify::RecommendedWatcher>,
+    watched_dirs: &mut HashSet<PathBuf>,
     events: &mpsc::Sender<Msg>,
     old: &Roots,
     new: &Roots,
@@ -262,13 +295,30 @@ fn sync_watches(
     let old_paths: HashSet<&PathBuf> = old.iter().map(|(_, p)| p).collect();
     let new_paths: HashSet<&PathBuf> = new.iter().map(|(_, p)| p).collect();
     if let Some(w) = watcher.as_mut() {
-        for path in old_paths.difference(&new_paths) {
-            let _ = w.unwatch(path);
+        for root in old_paths.difference(&new_paths) {
+            watched_dirs.retain(|dir| {
+                let inside = dir.starts_with(root);
+                if inside {
+                    let _ = w.unwatch(dir);
+                }
+                !inside
+            });
         }
-        for path in new_paths.difference(&old_paths) {
-            if let Err(error) = w.watch(path, RecursiveMode::Recursive) {
-                eprintln!("[xg] git: cannot watch {}: {error}", path.display());
-                watched = false;
+        for root in new_paths.difference(&old_paths) {
+            for dir in watch_dirs(root, true) {
+                if watched_dirs.contains(&dir) {
+                    continue;
+                }
+                match w.watch(&dir, RecursiveMode::NonRecursive) {
+                    Ok(()) => {
+                        watched_dirs.insert(dir);
+                    }
+                    Err(error) => {
+                        eprintln!("[xg] git: cannot watch {}: {error}", dir.display());
+                        watched = false;
+                        break;
+                    }
+                }
             }
         }
     }
