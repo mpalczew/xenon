@@ -206,7 +206,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     let toasts = adw::ToastOverlay::new();
     let win = adw::ApplicationWindow::builder()
         .application(gtk_app)
-        .title("Xenon (GTK)")
+        .title("Xenon")
         .default_width(width)
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))

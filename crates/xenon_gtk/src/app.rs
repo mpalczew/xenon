@@ -295,7 +295,7 @@ impl App {
             self.title.set_title(&name);
             let label = space_label(&model, ws);
             self.title.set_subtitle(&label);
-            self.win.set_title(Some(&format!("{name} — Xenon (GTK)")));
+            self.win.set_title(Some(&format!("{name} — Xenon")));
         } else {
             self.sidebar.files.set_root(None);
             self.sidebar.git.set(None, None, None);

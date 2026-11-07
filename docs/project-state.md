@@ -106,16 +106,20 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   read-only (changing it would orphan paired phones); LSP on/off and server commands
   apply live.
 - Sidebar paints `editor_background` (canvas). Toolbar stays `panel_background`.
-- The GTK frontend (`crates/xenon_gtk`, Linux) keeps its own state directory,
-  `~/.xenon-gtk` (`XENON_GTK_DATA_DIR`), in the same file formats as the GPUI app, and
-  never writes into a GPUI directory. The GPUI app writes whole files from memory with
-  no cross-process lock or change watching, so two live writers on one directory would
-  overwrite each other; this is the A/B slot design again (own directory, copy to
-  start). First run seeds from the GPUI slot used last (`~/.xenon-active-slot`, else
-  `~/.xenon`), skipping the pid, socket and log; `xenon-gtk --reseed` moves the
-  directory aside and seeds again. Sessions with editor tabs keep them untouched on
-  save, so seeding from a real GPUI session is lossless. Shells it starts do not inherit
-  `XENON_DATA_DIR`, so `xenon open` there still reaches the GPUI instance.
+- The GTK app (`crates/xenon_gtk`, Linux) is the real app. It runs as A/B slots like the
+  GPUI app did: one process per slot (`ApplicationFlags::NON_UNIQUE`), state in `~/.xenon-a`
+  and `~/.xenon-b` (`XENON_DATA_DIR`, `XENON_SLOT`), phone-remote devices in
+  `~/.xenon-shared`. Both slots use the same remote port; the second waits and retries.
+  The app saves on change (sessions, registry, settings), so the launcher copies live
+  state when it flips slots. Window size is written when the window closes.
+- `xenon open` and `xenon <path>` reach a slot over its `ipc.sock` (`xenon_store::ipc`,
+  served by `ipc.rs`). The app writes `xenon.pid` when it takes the socket. Shells keep
+  `XENON_DATA_DIR`, so `xenon open` in a terminal reaches the slot that runs it. Files
+  open in the focused pane; `--pane` and the column are not used yet.
+- The first launcher run after the move to GTK renames `~/.xenon-a` and `~/.xenon-b` to
+  `.gpui-old`, seeds the slot from `~/.xenon-gtk`, and writes `~/.xenon-slots-gtk` as the
+  marker. App id is `dev.xenon.Xenon`; the desktop entry is `xenon.desktop` with
+  `StartupWMClass=dev.xenon.Xenon`.
 - Lilex is bundled and the default mono. GPUI still lists `.ZedMono` / `.ZedSans`
   aliases; the pickers hide those unless the files exist.
 

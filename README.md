@@ -78,23 +78,30 @@ Linux only (Ubuntu 24.04+, Wayland or X11). Today you build from source.
 | ---------------------- | ------------------------------------------------------ |
 | **Rust**               | stable (`rustup`); edition 2024                        |
 | **Build tools**        | `build-essential cmake clang lld pkg-config` and so on |
-| **Vulkan-capable GPU** | driver and `libvulkan`                                 |
+| **GTK 4 stack**        | GTK 4, libadwaita, VTE and GtkSourceView 5 (dev files) |
 
 ### Build and install
 
 ```bash
 sudo apt install build-essential cmake clang lld pkg-config curl git rsync \
-  libasound2-dev libfontconfig-dev libglib2.0-dev libssl-dev libvulkan-dev \
-  libwayland-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
-  libxcb1-dev libxcb-xkb-dev libzstd-dev libsqlite3-dev libgit2-dev libva-dev
+  libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libgtksourceview-5-dev \
+  libssl-dev libzstd-dev libsqlite3-dev libgit2-dev
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust stable
 git clone https://github.com/mpalczew/xenon.git && cd xenon
 ./scripts/release/install
 ```
 
-Installs `~/.local/share/xenon/xenon-bin`, the launcher `~/.local/bin/xenon`, and a
-`.desktop` entry + icon (`XENON_APP_DIR`, `XENON_BIN_DIR` override). Update with `git
-pull && ./scripts/release/install`. Quit is `ctrl-q`.
+Installs the GTK app as `~/.local/share/xenon/xenon-bin`, the slot launcher as
+`~/.local/bin/xenon` (and `~/bin/xenon` when that directory exists), and a `.desktop`
+entry with an icon. `XENON_APP_DIR`, `XENON_BIN_DIR` and `XENON_PROFILE` (default
+`dogfood`) override. Update with `git pull && ./scripts/release/install`. Quit is
+`ctrl-q`.
+
+Start Xenon with `xenon`. State lives in two slot directories, `~/.xenon-a` and
+`~/.xenon-b`. With one instance running, `xenon` copies its state to the other slot and
+starts a new instance there, so a fresh build runs beside the old one. `xenon status`
+lists the instances. `xenon <dir>` and `xenon open path[:line[:col]]` go to the running
+instance. The phone remote and its paired devices are shared (`~/.xenon-shared`).
 
 ### Dev loop
 

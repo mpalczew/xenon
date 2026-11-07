@@ -2,37 +2,11 @@
 set -euo pipefail
 
 # Slot launcher for Xenon.
-# scripts/release/install puts the GUI binary at $XENON_APP_DIR/xenon-bin
+# scripts/release/install puts the GTK app binary at $XENON_APP_DIR/xenon-bin
 # (default ~/.local/share/xenon).
 APP="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
 
-# Some Linux distributions, including NixOS, expose the Wayland development
-# package through pkg-config without adding its runtime library to ldconfig.
-# GPUI loads libwayland-client at runtime, so make the installed client
-# discoverable before an A/B slot starts a fresh process.
-prepare_linux_runtime() {
-    [[ -n "${WAYLAND_DISPLAY:-}" ]] || return 0
-    if command -v ldconfig >/dev/null 2>&1; then
-        local libraries
-        libraries="$(ldconfig -p 2>/dev/null || true)"
-        case "$libraries" in
-            *libwayland-client.so.0*) return 0 ;;
-        esac
-    fi
-    local package lib_dir
-    local -a lib_dirs=()
-    for package in wayland-client vulkan; do
-        lib_dir="$(pkg-config --variable=libdir "$package" 2>/dev/null || true)"
-        [[ -d "$lib_dir" ]] && lib_dirs+=("$lib_dir")
-    done
-    [[ ${#lib_dirs[@]} -gt 0 ]] || return 0
-    local joined
-    joined="$(IFS=:; printf '%s' "${lib_dirs[*]}")"
-    export LD_LIBRARY_PATH="$joined${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-}
-
-prepare_linux_runtime
 # Task terminals run this as `bash -c`, the session leader; its exit HUPs the
 # app it backgrounded. An ignored HUP survives fork/exec, so set it up front.
 trap '' HUP
@@ -121,6 +95,7 @@ RUNTIME_EXCLUDES=(
     --exclude='xenon.pid'
     --exclude='ipc.sock'
     --exclude='xenon.log'
+    --exclude='xenon-gtk.log'
 )
 
 strip_runtime_files() {
@@ -232,6 +207,34 @@ slot_data_dir() {
     esac
 }
 
+# First start of the GTK app: the slot dirs hold GPUI state. Move them aside
+# (never deleted) and seed the slot we start from ~/.xenon-gtk, the GTK app's
+# old state dir. A GPUI instance still running blocks it. The old xenon-gtk
+# instance is not a slot and is never touched.
+MIGRATED_FILE="$HOME/.xenon-slots-gtk"
+
+migrate_once() {
+    [[ ! -e "$MIGRATED_FILE" && -d "$HOME/.xenon-gtk" ]] || return 0
+    if [[ -n "$(running_instances)" ]]; then
+        echo "a Xenon with slot state is running; quit it, then run xenon again to move to the GTK app" >&2
+        exit 1
+    fi
+    local slot dir slot_now
+    for slot in a b; do
+        dir="$(slot_dir "$slot")"
+        [[ -e "$dir" ]] || continue
+        if [[ -e "$dir.gpui-old" ]]; then
+            mv "$dir" "$dir.gpui-old.$(date +%Y%m%d-%H%M%S)"
+        else
+            mv "$dir" "$dir.gpui-old"
+        fi
+    done
+    slot_now="$(last_slot)"
+    copy_state_dir "$HOME/.xenon-gtk" "$(slot_dir "$slot_now")"
+    : >"$MIGRATED_FILE"
+    echo "moved old slot state to .xenon-{a,b}.gpui-old; slot $slot_now seeded from ~/.xenon-gtk"
+}
+
 launch_slot() {
     local slot="$1"
     shift
@@ -244,7 +247,6 @@ launch_slot() {
     XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
         ${DETACH[@]+"${DETACH[@]}"} "$APP" "$@" </dev/null >>"$log" 2>&1 &
     pid=$!
-    printf '%s\n' "$pid" >"$dir/xenon.pid"
     disown "$pid" 2>/dev/null || true
     if [[ $# -gt 0 ]]; then
         echo "Xenon slot $slot ← $* (pid $pid)"
@@ -367,7 +369,7 @@ target_slot_for_paths() {
 }
 
 resolve_path_args() {
-    local arg abs
+    local arg
     for arg in "$@"; do
         case "$arg" in
             /*) printf '%s\n' "$arg" ;;
@@ -401,9 +403,12 @@ main() {
         exit 1
     fi
     case "${1:-}" in
-        "") ;;
         status) status; exit 0 ;;
         -h | --help | help) usage; exit 0 ;;
+    esac
+    migrate_once
+    case "${1:-}" in
+        "") ;;
         open)
             if [[ -z "${XENON_DATA_DIR:-}" ]]; then
                 slot="$(target_slot_for_paths)"

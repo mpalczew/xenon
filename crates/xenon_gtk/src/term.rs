@@ -111,16 +111,10 @@ impl TermView {
 }
 
 /// The environment shells see: ours, minus what only this frontend uses, so a
-/// program started here (`xenon open`, another GTK app) does not inherit it.
+/// program started here does not inherit it. `XENON_DATA_DIR` and `XENON_SLOT` stay, so
+/// `xenon open` in a terminal reaches the slot that runs it.
 fn child_env() -> Vec<String> {
-    const DROP: [&str; 6] = [
-        "TERM",
-        "COLORTERM",
-        "XENON_DATA_DIR",
-        "XENON_SLOT",
-        "XENON_GTK_APP_ID",
-        "XENON_GTK_GSK_DEFAULTED",
-    ];
+    const DROP: [&str; 3] = ["TERM", "COLORTERM", "XENON_GTK_GSK_DEFAULTED"];
     let defaulted_renderer = std::env::var_os("XENON_GTK_GSK_DEFAULTED").is_some();
     let mut env: Vec<String> = std::env::vars()
         .filter(|(k, _)| !DROP.contains(&k.as_str()))

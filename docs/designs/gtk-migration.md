@@ -61,12 +61,13 @@ None of these depend on GPUI. A frontend uses them for the following.
 
 `crates/xenon_gtk` is a daily-usable terminal Xenon: workspaces sidebar, the shared pane
 tree (splits, tabs per pane), working and attention status, search, links, zoom, and the
-keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binary
-`~/.local/bin/xenon-gtk`, entry "Xenon (GTK)", app id `dev.xenon.Gtk`).
+keymap. `scripts/release/install` builds and installs it with the slot launcher (binary
+`xenon-bin`, entry "Xenon", app id `dev.xenon.Xenon`).
 
-- **State.** Own directory `~/.xenon-gtk`, seeded from the GPUI app, never shared live
-  (see `docs/project-state.md`). Cutover can drop the copy step: when GPUI is gone the
-  GTK app is the only writer and can use `~/.xenon` directly.
+- **State.** The slot directories `~/.xenon-a` and `~/.xenon-b`, one process each, as the
+  GPUI app had them. The launcher moves the old GPUI slots aside once and seeds from
+  `~/.xenon-gtk` (see `docs/project-state.md`). `xenon open` is served over each slot's
+  `ipc.sock` (`ipc.rs`).
 - **Shared rules used.** `PaneContent` and the pane moves, `AttentionMap`,
   `workspace_dot`, `agent_busy_signal`, `clean_terminal_title`, `Registry::route_file`,
   `xenon_store` files, `UiSettings`, `xenon_keymap`. New in `xenon_core`:
@@ -102,7 +103,7 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
   (shown when an editor is dirty), and the Command Palette, Focus Editor and Keyboard
   Shortcuts rows' actions (the rows are listed with their keys). prose mode, Markdown),
   SSH workspaces (session kept) and the SSH part of the pickers, command palette, tab
-  drag and drop, divider keyboard resize, the `xenon open` socket server. Phone remote
+  drag and drop, divider keyboard resize. Phone remote
   gaps: tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML has no markup for
   them), cursor hiding, and the phone's own light/dark choice (the phone always gets the
   Mac's terminal colors).

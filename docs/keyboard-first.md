@@ -158,7 +158,7 @@ vim mode on, Ctrl+A, Z, C stay with vim.
 ### GTK frontend
 
 `crates/xenon_gtk` builds its accelerators from the same Linux defaults and
-`~/.xenon-gtk/keymap.json` (the layered file works as above), for the commands it has:
+`keymap.json` in the slot dir (the layered file works as above), for the commands it has:
 new terminal, new and open workspace, tab next, previous and close, close other tabs,
 next pane, workspace next, previous and close, split right and down, reserve empty pane,
 focus terminal (Ctrl+1), focus the Files tree (Ctrl+3), file finder (Ctrl+P), workspace

@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Install Xenon for the current user.
-#   ~/.local/share/xenon/xenon-bin   GUI binary
-#   ~/.local/bin/xenon               slot launcher (scripts/xenon)
+#   ~/.local/share/xenon/xenon-bin   GTK app binary
+#   ~/.local/bin/xenon, ~/bin/xenon  slot launcher (scripts/xenon)
 #   ~/.local/share/applications/xenon.desktop + hicolor icon
+# App id dev.xenon.Xenon. State lives in the slot dirs ~/.xenon-a and ~/.xenon-b.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-(cd "$root" && cargo build --release -p xenon)
+profile="${XENON_PROFILE:-dogfood}"
+(cd "$root" && cargo build --profile "$profile" -p xenon_gtk)
 target="${CARGO_TARGET_DIR:-target}"
 [[ "$target" == /* ]] || target="$root/$target"
 
@@ -16,12 +18,19 @@ bin_dir="${XENON_BIN_DIR:-$HOME/.local/bin}"
 mkdir -p "$app_dir" "$bin_dir" "$data_home/applications"
 
 # Replace via rename so a running instance keeps its old inode.
-install -m 755 "$target/release/xenon" "$app_dir/xenon-bin.new"
+install -m 755 "$target/$profile/xenon_gtk" "$app_dir/xenon-bin.new"
 mv -f "$app_dir/xenon-bin.new" "$app_dir/xenon-bin"
 echo "installed $app_dir/xenon-bin"
 
 install -m 755 "$root/scripts/xenon" "$bin_dir/xenon"
 echo "installed $bin_dir/xenon"
+if [[ -d "$HOME/bin" ]]; then
+    install -m 755 "$root/scripts/xenon" "$HOME/bin/xenon"
+    echo "installed $HOME/bin/xenon"
+fi
+
+# The old GTK-only install.
+rm -f "$data_home/applications/dev.xenon.Gtk.desktop" "$bin_dir/xenon-gtk"
 
 # Icon: 512px when ImageMagick is available, else the 1024px source as-is.
 icon_src="$root/assets/xenon-icon-source.png"
@@ -50,7 +59,7 @@ Exec=$bin_dir/xenon %F
 Icon=$icon_dir/xenon.png
 Terminal=false
 Categories=Development;TerminalEmulator;
-StartupWMClass=xenon
+StartupWMClass=dev.xenon.Xenon
 DESKTOP
 echo "installed $data_home/applications/xenon.desktop"
 

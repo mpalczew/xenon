@@ -3,18 +3,15 @@
 //! directory (see `data.rs`). Product rules live in the shared `xenon_*` crates;
 //! this crate draws.
 //!
-//! Usage: `xenon-gtk [--reseed] [--screenshot PNG] [DIR...]`
-//!   DIR           open each folder as a workspace (a running instance with the
-//!                 same app id receives it instead of starting a second window)
-//!   --reseed      move ~/.xenon-gtk aside and seed again from the GPUI app
+//! Usage: `xenon-bin [--screenshot PNG] [open [--pane P] PATH[:LINE[:COL]] | PATH...]`
+//!   PATH          a folder becomes a workspace, a file opens in the workspace
+//!                 that holds it. A running instance on the same data dir
+//!                 (`XENON_DATA_DIR`, one per A/B slot) receives it over `ipc.sock`.
 //!   --screenshot  render the window to PNG shortly after start, then quit
 //!
-//! Environment: `XENON_GTK_APP_ID` (default `dev.xenon.Gtk`) and
-//! `XENON_GTK_DATA_DIR` (default `~/.xenon-gtk`) let several instances run side
-//! by side. `GSK_RENDERER` wins when set; otherwise `ngl`, which idles near zero.
+//! `GSK_RENDERER` wins when set; otherwise `ngl`, which idles near zero.
 
 use std::cell::RefCell;
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -24,7 +21,6 @@ use gtk::{gio, glib};
 mod actions;
 mod app;
 mod commands;
-mod data;
 mod dialogs;
 mod diff_text;
 mod diff_view;
@@ -38,6 +34,7 @@ mod finder;
 mod git;
 mod git_ops;
 mod git_section;
+mod ipc;
 mod keys;
 mod layout;
 mod links;
@@ -74,26 +71,6 @@ mod workspaces;
 
 use app::App;
 
-#[derive(Default)]
-struct Args {
-    reseed: bool,
-    screenshot: Option<String>,
-    dirs: Vec<PathBuf>,
-}
-
-fn parse_args() -> Args {
-    let mut args = Args::default();
-    let mut it = std::env::args().skip(1);
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--reseed" => args.reseed = true,
-            "--screenshot" => args.screenshot = it.next(),
-            _ => args.dirs.push(PathBuf::from(arg)),
-        }
-    }
-    args
-}
-
 fn main() -> glib::ExitCode {
     // SAFETY: first statements of main, before any thread exists.
     unsafe {
@@ -111,24 +88,42 @@ fn main() -> glib::ExitCode {
             std::env::set_var("XENON_GTK_GSK_DEFAULTED", "1");
         }
     }
-    let args = parse_args();
-    let dir = data::state_dir();
-    eprintln!("[xg] {}", data::prepare(&dir, args.reseed));
-    // SAFETY: still single-threaded; xenon_store reads its data dir from here.
-    unsafe { std::env::set_var("XENON_DATA_DIR", &dir) };
-    if let Some(shared) = data::shared_remote_dir() {
-        // SAFETY: as above. The paired-device list is read where the GPUI app keeps it.
-        unsafe { std::env::set_var("XENON_SHARED_DIR", shared) };
+    // `--screenshot PNG` is ours; everything else is the `xenon open` command line.
+    let mut rest: Vec<String> = std::env::args().skip(1).collect();
+    let shot = rest
+        .iter()
+        .position(|a| a == "--screenshot")
+        .filter(|i| i + 1 < rest.len())
+        .map(|i| {
+            let path = rest.remove(i + 1);
+            rest.remove(i);
+            path
+        });
+    let command = xenon_store::parse_cli(rest);
+    let request = command.to_request();
+    let mut listener = None;
+    if shot.is_none() {
+        if xenon_store::try_handoff_request(&request) {
+            return glib::ExitCode::SUCCESS;
+        }
+        listener = xenon_store::bind_server()
+            .inspect_err(|error| eprintln!("[xg] ipc bind failed: {error}"))
+            .ok();
+        if listener.is_some() {
+            let pid = xenon_store::data_dir().join("xenon.pid");
+            let _ = std::fs::write(pid, std::process::id().to_string());
+        }
     }
 
     adw::init().expect("GTK init failed");
-    let id = std::env::var("XENON_GTK_APP_ID").unwrap_or_else(|_| "dev.xenon.Gtk".into());
+    // One process per slot: no GApplication uniqueness, the slot's socket routes opens.
     let gtk_app = adw::Application::builder()
-        .application_id(id)
-        .flags(gio::ApplicationFlags::HANDLES_OPEN)
+        .application_id("dev.xenon.Xenon")
+        .flags(gio::ApplicationFlags::NON_UNIQUE)
         .build();
     let slot: Rc<RefCell<Option<Rc<App>>>> = Rc::default();
-    let keymap_text = std::fs::read_to_string(dir.join("keymap.json")).unwrap_or_default();
+    let keymap_text =
+        std::fs::read_to_string(xenon_store::data_dir().join("keymap.json")).unwrap_or_default();
     let user_keys = keys::user_entries(&keymap_text);
 
     let ensure = {
@@ -139,46 +134,30 @@ fn main() -> glib::ExitCode {
                 .clone()
         }
     };
-    let shot = args.screenshot.clone();
-    {
-        let ensure = ensure.clone();
-        gtk_app.connect_activate(move |gtk_app| {
-            let app = ensure(gtk_app);
-            app.win.present();
-            if let Some(path) = shot.clone() {
-                glib::timeout_add_local_once(Duration::from_millis(2500), move || {
-                    let quit = app.clone();
-                    let name = path.clone();
-                    screenshot::render_png(&app.win, &path, move |result| {
-                        if let Err(error) = result {
-                            eprintln!("[xg] screenshot {name}: {error}");
-                        }
-                        quit.quit();
-                    });
+    let listener = RefCell::new(listener);
+    let boot = RefCell::new(Some(request));
+    gtk_app.connect_activate(move |gtk_app| {
+        let app = ensure(gtk_app);
+        if let Some(listener) = listener.take() {
+            ipc::serve(&app, listener);
+        }
+        match boot.take() {
+            Some(request) => app.handle_request(request),
+            None => app.win.present(),
+        }
+        if let Some(path) = shot.clone() {
+            glib::timeout_add_local_once(Duration::from_millis(2500), move || {
+                let quit = app.clone();
+                let name = path.clone();
+                screenshot::render_png(&app.win, &path, move |result| {
+                    if let Err(error) = result {
+                        eprintln!("[xg] screenshot {name}: {error}");
+                    }
+                    quit.quit();
                 });
-            }
-        });
-    }
-    {
-        let ensure = ensure.clone();
-        gtk_app.connect_open(move |gtk_app, files, _| {
-            let app = ensure(gtk_app);
-            for file in files {
-                if let Some(path) = file.path() {
-                    let dir = if path.is_dir() {
-                        path
-                    } else {
-                        path.parent().map(PathBuf::from).unwrap_or_default()
-                    };
-                    app.open_workspace(&dir);
-                }
-            }
-            app.win.present();
-        });
-    }
-    // GTK parses its own options from argv, so pass only the folders: with
-    // files given, GApplication calls `open` here or in the running instance.
-    let mut argv = vec![std::env::args().next().unwrap_or_default()];
-    argv.extend(args.dirs.iter().map(|d| d.display().to_string()));
-    gtk_app.run_with_args(&argv)
+            });
+        }
+    });
+    // GTK would parse the command line itself; our arguments are already read.
+    gtk_app.run_with_args::<&str>(&[])
 }
