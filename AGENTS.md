@@ -1,18 +1,17 @@
 # AGENTS.md
 
-Xenon: a native macOS (and experimental Linux) agent shell in Rust on GPUI. Workspaces
-sidebar; pane tree of terminals and tree-sitter editors. GPL-3.0-or-later. Public repo
-`mpalczew/xenon`.
+Xenon: a Linux agent shell in Rust on GTK 4, libadwaita and VTE (`crates/xenon_gtk`).
+The GPUI app is reference-only until it is deleted. Workspaces sidebar; pane tree of
+terminals and editors. GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 
 ## Where truth lives
 
 - Product vision, personas, priorities: `PRODUCT.md`. Visual design: `DESIGN.md`. Read
   both before chrome or UX work; update them when a decision settles.
 - Cross-cutting decisions and gotchas: `docs/project-state.md`.
-- Install, signing, Linux build deps: `README.md`, `scripts/release/`.
+- Install and build deps: `README.md`, `scripts/release/`.
 - Release checklist: `docs/release.md`.
 - Keyboard map and focus model: `docs/keyboard-first.md`.
-- Screenshot scenes: `docs/visual-tests.md`.
 - Claude Code IDE protocol: `crates/xenon_ide/PROTOCOL.md`.
 - Phone remote design: `docs/designs/mobile-remote-v2.md`.
 - Copied/adapted source provenance: `ATTRIBUTION.md`.
@@ -35,8 +34,10 @@ sidebar; pane tree of terminals and tree-sitter editors. GPL-3.0-or-later. Publi
 
 - Views draw, models decide: no product-state branching, ranking, parsing, or policy in
   render code.
-- Painted UI is unfinished until you capture one scene per touched UI state and look at
-  it (`docs/visual-tests.md`).
+- Prefer what the platform and our libraries already provide over our own code whenever
+  possible. The less code we have, the better.
+- No tests. Don't write or run any; build, pass the commit check, and hand the result to
+  the user.
 - Keyboard-first: every flow works from the keyboard (action, binding, focus, Escape).
   Mouse is additive.
 - Copied source gets an `ATTRIBUTION.md` entry and a file-header marker.
