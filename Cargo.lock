@@ -10017,9 +10017,6 @@ dependencies = [
 [[package]]
 name = "xenon_git"
 version = "0.1.0"
-dependencies = [
- "ignore",
-]
 
 [[package]]
 name = "xenon_gtk"
