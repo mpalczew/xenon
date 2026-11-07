@@ -2,24 +2,22 @@
 
 ## Now
 
-- [x] GTK: Files rows more compact; Git folds to one header line when clean
-- [x] GTK: Save button in the toolbar (shown when an editor is dirty)
-- [x] GTK: Connect Phone opens in front of Settings, not behind it
-- [x] GTK: delete the Interface font setting; the app follows the system font
-- [ ] GTK: worklist view (what is still missing: waiting on the user)
+- [ ] Worklist view: the list UI, switchable with Markdown
+- [ ] Delete the GPUI app and every crate and line of code the GTK app doesn't use
+  - The GPUI crates, `third_party/`, its Vim engine and tree-sitter highlighting.
+  - `xenon_ide` (Claude Code and Codex IDE servers), `xenon_lsp` and the Language
+    Servers settings rows.
+  - SSH workspaces: `xenon_ssh`, the SSH page and toasts, `ssh://` in the picker.
+  - Code in shared crates that only GPUI used (the `xenon_git` diff parser and more).
+- [ ] Docs audit: delete anything redundant or out of date
 
 ## Next
 
-- [ ] GTK: toolbar buttons still missing: Go Back, Go Forward, Cut
-- [ ] GTK: empty screen rows that do nothing yet: Command Palette, Focus Editor,
-      Keyboard Shortcuts
-- [ ] GTK: command palette, divider resize from the keyboard
-- [ ] Delete the GPUI frontend, its Vim engine and tree-sitter highlighting
-  - Also delete `xenon_ide` (the Claude Code and Codex IDE servers); not ported.
-  - Then delete the diff parser in `xenon_git` that only GPUI uses.
-  - Also delete SSH workspaces (not ported): `xenon_ssh`, the GTK SSH page and toasts,
-    `ssh://` in the picker.
-- [ ] GTK: `xenon open` honours `--pane` and the column
+- [ ] Toolbar buttons still missing: Go Back, Go Forward, Cut
+- [ ] Empty screen rows that do nothing yet: Command Palette, Focus Editor, Keyboard
+      Shortcuts
+- [ ] Command palette, divider resize from the keyboard
+- [ ] `xenon open` honours `--pane` and the column
 - [ ] Phone remote gaps: tasks, mouse clicks, dim text, OSC 8 links, cursor hiding, the
       phone's own light/dark choice
-- [ ] GTK: LSP, last if at all
+- [ ] Language servers, written new if at all
