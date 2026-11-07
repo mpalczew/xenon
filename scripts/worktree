@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Worktrees for agents working in parallel. Each shares the main checkout's
+# target/, so libraries build once; cargo's lock keeps builds one at a time.
+#   scripts/worktree new NAME    .worktrees/NAME on branch wt/NAME, from main
+#   scripts/worktree done NAME   remove it and its branch, only once merged
+#   scripts/worktree list
+set -euo pipefail
+main="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+dir() { printf '%s/.worktrees/%s\n' "$main" "$1"; }
+
+case "${1:-}" in
+    new)
+        name="${2:?usage: scripts/worktree new NAME}"
+        wt="$(dir "$name")"
+        git -C "$main" worktree add -q -b "wt/$name" "$wt" main
+        mkdir -p "$main/target"
+        ln -s "$main/target" "$wt/target"
+        echo "$wt"
+        ;;
+    done)
+        name="${2:?usage: scripts/worktree done NAME}"
+        wt="$(dir "$name")"
+        if [[ -n "$(git -C "$wt" status --porcelain)" ]]; then
+            echo "$wt has uncommitted changes; not removed" >&2
+            exit 1
+        fi
+        if ! git -C "$main" merge-base --is-ancestor "wt/$name" main; then
+            echo "wt/$name is not merged into main; not removed" >&2
+            exit 1
+        fi
+        [[ -L "$wt/target" ]] && rm "$wt/target"
+        git -C "$main" worktree remove "$wt"
+        git -C "$main" branch -q -d "wt/$name"
+        echo "removed $wt"
+        ;;
+    list) git -C "$main" worktree list ;;
+    *)
+        echo "usage: scripts/worktree new NAME | done NAME | list" >&2
+        exit 2
+        ;;
+esac
