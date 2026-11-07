@@ -112,13 +112,22 @@ impl Sidebar {
     /// the space below the last row sends it to the end.
     fn accept_drops(list: &gtk::ListBox, app: Weak<App>) {
         let target = gtk::DropTarget::new(u32::static_type(), gdk::DragAction::MOVE);
-        let mark = |list: &gtk::ListBox, y: f64| {
+        // Mark where the row would land; `None` clears every mark.
+        let mark = |list: &gtk::ListBox, y: Option<f64>| {
             let rows = list.observe_children().n_items() as i32;
-            let hit = list.row_at_y(y as i32);
+            let hit = y.and_then(|y| list.row_at_y(y as i32));
             for i in 0..rows {
                 if let Some(row) = list.row_at_index(i) {
-                    set_class(&row, "drop-before", hit.as_ref() == Some(&row));
-                    set_class(&row, "drop-after", hit.is_none() && i == rows - 1);
+                    set_class(
+                        &row,
+                        "drop-before",
+                        y.is_some() && hit.as_ref() == Some(&row),
+                    );
+                    set_class(
+                        &row,
+                        "drop-after",
+                        y.is_some() && hit.is_none() && i == rows - 1,
+                    );
                 }
             }
             hit
@@ -126,24 +135,31 @@ impl Sidebar {
         target.connect_motion({
             let list = list.clone();
             move |_, _, y| {
-                mark(&list, y);
+                mark(&list, Some(y));
                 gdk::DragAction::MOVE
             }
         });
         target.connect_leave({
             let list = list.clone();
             move |_| {
-                mark(&list, -1.0);
+                mark(&list, None);
             }
         });
         target.connect_drop({
             let list = list.clone();
             move |_, value, _, y| {
-                let hit = mark(&list, -1.0).or_else(|| list.row_at_y(y as i32));
-                let (Ok(from), Some(app)) = (value.get::<u32>(), app.upgrade()) else {
+                let hit = list.row_at_y(y as i32).map(|r| r.index().max(0) as usize);
+                mark(&list, None);
+                let Ok(from) = value.get::<u32>() else {
                     return false;
                 };
-                app.reorder_workspace(from as usize, hit.map(|r| r.index().max(0) as usize));
+                // Deferred: reordering rebuilds the list mid-drop.
+                let app = app.clone();
+                glib::idle_add_local_once(move || {
+                    if let Some(app) = app.upgrade() {
+                        app.reorder_workspace(from as usize, hit);
+                    }
+                });
                 true
             }
         });
