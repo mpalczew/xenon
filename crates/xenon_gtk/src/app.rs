@@ -46,6 +46,8 @@ pub(crate) struct App {
     pub terms: RefCell<HashMap<(WorkspaceId, TabId), Rc<TermView>>>,
     pub bodies: RefCell<HashMap<(WorkspaceId, TabId), gtk::Widget>>,
     pub pulse_source: RefCell<Option<glib::SourceId>>,
+    /// Last pulse step drawn; -1 after a repaint reset the rails.
+    pub pulse_level: Cell<i32>,
     pub started: Instant,
     pub save_pending: Cell<bool>,
 }
@@ -219,6 +221,7 @@ impl App {
         }
         drop(model);
         self.publish_state();
+        self.pulse_level.set(-1);
         self.ensure_pulse();
     }
 }

@@ -210,12 +210,12 @@ def main():
     # A registry file keeps the app from seeding itself out of the GPUI state.
     with open(os.path.join(state_dir, "workspaces.json"), "w") as f:
         json.dump({"version": 2, "workspaces": [], "closed_workspaces": [], "active": None}, f)
-    ws_a, ws_b = os.path.join(tmp, "alpha"), os.path.join(tmp, "beta")
-    os.makedirs(ws_a)
-    os.makedirs(ws_b)
+    ws_a, ws_b, ws_c = (os.path.join(tmp, n) for n in ("alpha", "beta", "gamma"))
+    for d in (ws_a, ws_b, ws_c):
+        os.makedirs(d)
     app = App(state_dir)
     try:
-        run(app, ws_a, ws_b, state_dir)
+        run(app, ws_a, ws_b, ws_c, state_dir)
     finally:
         app.kill()
         try:
@@ -226,7 +226,7 @@ def main():
     return finish()
 
 
-def run(app, ws_a, ws_b, state_dir):
+def run(app, ws_a, ws_b, ws_c, state_dir):
     # Workspaces.
     app.act("open-dir", ws_a)
     s = app.until(lambda s: active_ws(s) == "alpha" and [len(p) for p in tabs(s)] == [1], "alpha workspace with one terminal")
@@ -279,6 +279,67 @@ def run(app, ws_a, ws_b, state_dir):
     app.shot("03-sidebar-focus")
     app.act("focus-terminal")
 
+    # Key chords through GTK's own event path (send-key): the same shortcut
+    # controllers a real key press reaches, with a terminal focused.
+    total = lambda s: sum(len(p) for p in tabs(s))
+    n0 = total(app.state())
+    app.act("send-key", "ctrl-n")
+    app.until(lambda s: total(s) == n0 + 1, "Ctrl+N adds a tab")
+    check(True, "Ctrl+N opened a terminal tab")
+    app.until(lambda s: all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "new shell up")
+    app.act("send-key", "ctrl-w")
+    app.until(lambda s: total(s) == n0, "Ctrl+W closes the tab")
+    check(True, "Ctrl+W closed the tab")
+    focused = app.state()["focused_pane"]
+    app.act("send-key", "ctrl-`")
+    app.until(lambda s: s["focused_pane"] != focused, "Ctrl+` moves to the next pane")
+    check(True, "Ctrl+` moved focus to the next pane")
+    leaves = len(app.state()["panes"])
+    app.act("send-key", "ctrl-\\")
+    app.until(lambda s: len(s["panes"]) == leaves + 1, "Ctrl+\\ splits right")
+    check(True, "Ctrl+\\ split the pane")
+    app.act("send-key", "ctrl-alt-up")
+    app.until(lambda s: active_ws(s) == "alpha", "Ctrl+Alt+Up goes to the previous workspace")
+    app.act("send-key", "ctrl-alt-down")
+    app.until(lambda s: active_ws(s) == "beta", "Ctrl+Alt+Down goes back")
+    check(True, "Ctrl+Alt+Up / Down switched workspaces")
+    # Keys the shell owns pass through: Ctrl+C interrupts a running command.
+    app.type("sleep 30\n")
+    time.sleep(0.8)
+    app.act("send-key", "ctrl-c")
+    wait_for(lambda: "^C" in app.screen_text(), "Ctrl+C reaches the shell")
+    check(True, "Ctrl+C went to the terminal (interrupted 'sleep 30')")
+
+    # Exit handling: a shell that exits closes its tab after the delay.
+    n1 = total(app.state())
+    app.act("new-terminal")
+    app.until(lambda s: total(s) == n1 + 1 and all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "tab for exit")
+    app.type("exit\n")
+    app.until(lambda s: total(s) == n1, "exited tab auto-closes", 20)
+    check(True, "a shell that exited had its tab closed")
+
+    # Font zoom persists through the shared settings.
+    def font_size():
+        try:
+            return json.load(open(os.path.join(state_dir, "settings.json"))).get("terminal_font_size")
+        except (OSError, ValueError):
+            return None
+
+    base = font_size() or 14.0
+    app.act("zoom-in")
+    wait_for(lambda: font_size() == base + 1, "zoom-in written to settings")
+    app.act("zoom-out")
+    wait_for(lambda: font_size() == base, "zoom-out written to settings")
+    check(True, "zoom in / out changed and saved the terminal font size")
+
+    # A folder link opens as a workspace (routing shared with `xenon open`).
+    app.act("open-link", ws_c)
+    app.until(lambda s: active_ws(s) == "gamma" and len(s["workspaces"]) == 3, "link opened gamma")
+    check(True, "a folder link opened a new workspace")
+    app.act("close-workspace")
+    app.until(lambda s: len(s["workspaces"]) == 2 and active_ws(s) == "beta", "close-workspace")
+    check(True, "close-workspace closed it and fell back to a neighbour")
+
     # Working pulse: a terminal titled like an agent that keeps drawing.
     app.act("new-terminal")
     # A new shell sets its title once it is up; input sent before that is lost.
@@ -308,8 +369,8 @@ def run(app, ws_a, ws_b, state_dir):
     # Find.
     app.type("echo needle-in-haystack\n")
     wait_for(lambda: "needle-in-haystack" in app.screen_text(), "needle printed")
-    app.act("find")
-    time.sleep(0.5)
+    app.act("find-query", "needle")
+    time.sleep(0.8)
     app.shot("06-find")
 
     # Close a tab and a workspace.
@@ -324,7 +385,7 @@ def run(app, ws_a, ws_b, state_dir):
     app.stop()
     check(os.path.exists(os.path.join(state_dir, "workspaces.json")), "registry written")
     sessions = os.listdir(os.path.join(state_dir, "sessions"))
-    check(len(sessions) == 2, f"two session files written ({len(sessions)})")
+    check(len(sessions) == 3, f"a session file per workspace ({len(sessions)})")
     app2 = App(state_dir)
     try:
         s = app2.until(lambda s: len(s["workspaces"]) == 2 and len(s["panes"]) >= 1, "restored workspaces")

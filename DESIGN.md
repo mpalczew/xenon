@@ -236,6 +236,50 @@ slot (Mode does not change), Escape, Revert, ⌘⌥T, or any palette opening put
 saved theme. Settings › Appearance shows five swatches for the on-screen slot and opens
 this panel for the rest.
 
+## GTK frontend
+
+`crates/xenon_gtk` draws the same product on GTK 4, libadwaita and VTE (Linux). The rule
+is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions:
+
+- **Theme.** The saved theme (mode, light and dark family) is read from the same bundled
+  theme files as the GPUI app and turned into one CSS sheet that overrides libadwaita's
+  named colors (window, view, headerbar, popover, accent), so dialogs, toasts, the
+  search entry and scrollbars follow the theme with no per-widget code. Terminal colors
+  come from the theme's `terminal.*` keys. Mode System follows the OS through
+  `AdwStyleManager`. Icons are pinned to Adwaita so symbolic icons exist on every
+  desktop.
+- **Layout.** Header bar (36px: sidebar toggle, title with the workspace name, split
+  buttons), a resizable `GtkPaned` sidebar (`settings.sidebar_width`) and the pane tree
+  as nested `GtkPaned`. A focused pane gets a 2px accent top edge only when the layout
+  has more than one pane (the GPUI ring). Each pane has its own tab strip.
+- **Tabs.** A strip of chips (plain boxes and labels) in a scrolled window, not
+  `AdwTabBar`: the status rail needs a widget we own, and the pane model, not the
+  widget, owns tab order. A chip is label, close button on hover and selection, and a
+  2px rail. Selected: accent rail, text weight 600, `bg` fill. Unselected: muted text;
+  the rail is the warning color (static, needs you) or the info color (pulsing,
+  working). Same rules as above: selected tabs carry no status.
+- **Sidebar.** `GtkListBox` with the navigation-sidebar style neutralised: a two-line
+  row (name semibold, `~` path muted), a 3px status line in the left margin, and for the
+  active row the neutral-text left edge plus `element.selected` fill. Header
+  "WORKSPACES" with a `+` menu button. No Files or Git sections yet.
+- **Pulse.** Working rails and workspace lines fade between five opacity steps over
+  about 1.4s. One 10 Hz timer exists only while something is working; a frame is drawn
+  only when the step changes (about 6 per second), and only the small rail widgets are
+  dirty. Nothing else animates; there are no CSS keyframes, which would tick the frame
+  clock at display rate.
+- **Find.** A `GtkSearchEntry` strip above the terminal (reveal animation 120ms), VTE's
+  own match highlight and wrap-around. Escape closes it and returns to the terminal.
+- **Toasts.** `AdwToastOverlay` for results ("Opened x with the default app", "No room
+  for another split"). Dialogs (new workspace) are `AdwAlertDialog`; Open workspace is
+  the native `GtkFileDialog`. Empty and unsupported states are `AdwStatusPage`.
+- **Motion, scrolling, text.** Smooth pixel scrolling in VTE, GTK's own HiDPI scaling
+  and font rendering. Terminal font and size come from `settings.json` (a face that is
+  not installed falls back to Monospace); zoom writes the size back.
+- **Keys.** Accelerators are generated from `xenon_keymap` (Linux defaults plus the
+  user's `keymap.json`), minus every key the focused terminal hands to the shell
+  (Ctrl+C, X, B, E, O, S). Ctrl+Alt+B toggles the sidebar because Ctrl+B belongs to the
+  shell.
+
 ## Anti-patterns
 
 - Side-stripe decoration on cards (nav selection edge is allowed)

@@ -155,6 +155,25 @@ fn install_automation(app: &Rc<App>) {
             app.open_link(ws, tab, text);
         }
     });
+    // A key chord as the app maps it (`ctrl-n`, `ctrl-tab`): run the action the
+    // accelerator is bound to, or, when nothing is bound (Ctrl+C and the other
+    // keys the shell owns), type it into the terminal. Wayland has no portable
+    // key injection, so this checks the key map without a real key press.
+    string_action(app, "send-key", |app, keystroke| {
+        let parsed = crate::keys::accelerator(keystroke).and_then(|a| gtk::accelerator_parse(&a));
+        let Some((key, mods)) = parsed else {
+            eprintln!("[xg] send-key: cannot parse {keystroke:?}");
+            return;
+        };
+        let bound = app.gtk.actions_for_accel(&gtk::accelerator_name(key, mods));
+        if let Some(action) = bound.first() {
+            let _ = gtk::prelude::WidgetExt::activate_action(&app.win, action, None);
+        } else if let Some(byte) = crate::keys::control_byte(keystroke)
+            && let Some(view) = app.current_term()
+        {
+            view.term.feed_child(&[byte]);
+        }
+    });
     string_action(app, "open-dir", |app, path| {
         app.open_workspace(std::path::Path::new(path))
     });

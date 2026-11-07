@@ -46,6 +46,7 @@ impl TermView {
         term.set_allow_hyperlink(true);
         term.set_audible_bell(false);
         term.set_scroll_on_output(false);
+        term.set_scroll_unit_is_pixels(true);
         term.set_scroll_on_keystroke(true);
         term.set_cursor_blink_mode(vte::CursorBlinkMode::Off);
         let find = FindBar::new(&term);

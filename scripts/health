@@ -18,3 +18,7 @@ checks_quiet lint cargo clippy --profile dogfood --workspace --all-targets -- -D
     -D clippy::too_many_lines
 checks_quiet lint-shape scripts/check-rust-shape
 checks_quiet test cargo test --profile dogfood
+# GTK frontend idle cost (CPU and wakeups); skips itself without a display.
+if [[ "$(uname -s)" == Linux ]]; then
+    checks_quiet gtk-idle scripts/xenon-gtk-idle
+fi

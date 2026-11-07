@@ -76,6 +76,7 @@ impl Palette {
              @define-color accent_bg_color {accent}; @define-color accent_color {accent};\n\
              @define-color accent_fg_color {bg};\n\
              headerbar {{ min-height: 36px; }}\n\
+             vte-terminal {{ padding: 4px 8px; }}\n\
              .xsidebar, .xsidebar row, .xsidebar row:selected, .xsidebar row:hover {{ background: transparent; }}\n\
              .xsidebar {{ background: {bg}; }}\n\
              .xheading {{ color: {muted}; font-size: 0.78em; font-weight: 700; letter-spacing: 0.08em; }}\n\

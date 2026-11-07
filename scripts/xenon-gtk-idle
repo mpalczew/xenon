@@ -1,0 +1,149 @@
+#!/usr/bin/env -S python3 -I
+"""Idle-cost gate for the GTK frontend.
+
+usage: scripts/xenon-gtk-idle [path/to/xenon_gtk]
+
+Starts xenon_gtk under its own app id and a private state dir, opens one
+workspace (one terminal), lets it settle, then runs scripts/idle-budget on
+that PID and fails when the app costs more than a budget while idle:
+  CPU         > IDLE_CPU_MAX   percent of one core (default 1.0)
+  wakeups     > IDLE_WAKE_MAX  per second, main thread (default 20)
+It repeats with one terminal "working" (an agent-titled loop printing), which
+runs the pulse timer, against WORKING_CPU_MAX (default 1.0) percent.
+Closes only the PID it started. Skips (exit 0) with a note when the session
+has no display. Needs a real GDK backend: set GDK_BACKEND/GSK_RENDERER to
+choose one (on a locked Wayland session use GDK_BACKEND=x11 GSK_RENDERER=cairo).
+"""
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BINARY = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/target/dogfood/xenon_gtk"
+APP_ID = f"dev.xenon.GtkIdle{os.getpid()}"
+CPU_MAX = float(os.environ.get("IDLE_CPU_MAX", "1.0"))
+WAKE_MAX = float(os.environ.get("IDLE_WAKE_MAX", "20"))
+WORKING_CPU_MAX = float(os.environ.get("WORKING_CPU_MAX", "1.0"))
+SETTLE = os.environ.get("IDLE_SETTLE", "8")
+SAMPLE = os.environ.get("IDLE_SAMPLE", "10")
+
+
+def pump():
+    ctx = GLib.MainContext.default()
+    while ctx.pending():
+        ctx.iteration(False)
+
+
+def wait_for(fn, what, timeout=20.0):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        pump()
+        v = fn()
+        if v:
+            return v
+        time.sleep(0.1)
+    raise SystemExit(f"FAIL: timed out waiting for {what}")
+
+
+def measure(pid):
+    out = subprocess.run(
+        [f"{ROOT}/scripts/idle-budget", str(pid), SETTLE, SAMPLE],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    print(out)
+    m = re.search(r"cpu ([\d.]+)%\s+wakeups ([\d.]+)/s", out)
+    return float(m.group(1)), float(m.group(2))
+
+
+def main():
+    if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY")):
+        print("skipped: no display (xenon-gtk idle check needs a GDK display)")
+        return 0
+    if not os.path.exists(BINARY):
+        subprocess.run(
+            ["cargo", "build", "--profile", "dogfood", "-p", "xenon_gtk"], cwd=ROOT, check=True
+        )
+    tmp = tempfile.mkdtemp(prefix="xenon-gtk-idle-")
+    state = os.path.join(tmp, "state")
+    work = os.path.join(tmp, "work")
+    os.makedirs(state)
+    os.makedirs(work)
+    # A registry file keeps the app from seeding itself out of the GPUI state.
+    with open(os.path.join(state, "workspaces.json"), "w") as f:
+        json.dump({"version": 2, "workspaces": [], "closed_workspaces": [], "active": None}, f)
+    proc = subprocess.Popen(
+        [BINARY],
+        env={**os.environ, "XENON_GTK_APP_ID": APP_ID, "XENON_GTK_DATA_DIR": state},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    failed = []
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        group = Gio.DBusActionGroup.get(bus, APP_ID, "/" + APP_ID.replace(".", "/"))
+        wait_for(lambda: "open-dir" in (group.list_actions() or []), "app actions")
+
+        def act(name, arg):
+            group.activate_action(name, GLib.Variant("s", arg))
+            bus.flush_sync(None)
+
+        def tabs():
+            pump()
+            v = group.get_action_state("ui-state")
+            return sum(len(p["tabs"]) for p in json.loads(v.get_string())["panes"]) if v else 0
+
+        act("open-dir", work)
+        wait_for(lambda: tabs() == 1, "one terminal")
+        time.sleep(1.5)  # let the shell print its prompt
+        print("idle, one terminal:")
+        cpu, wake = measure(proc.pid)
+        if cpu > CPU_MAX:
+            failed.append(f"idle CPU {cpu:.2f}% > {CPU_MAX}%")
+        if wake > WAKE_MAX:
+            failed.append(f"idle main-thread wakeups {wake:.1f}/s > {WAKE_MAX}/s")
+
+        # A burst gets the terminal flagged as working; the slow tail keeps it
+        # working (output never goes quiet) while costing almost nothing itself,
+        # so what is measured is the pulse.
+        act(
+            "feed-child",
+            "printf '\\033]0;claude\\007'; for i in $(seq 60); do printf .; sleep 0.1; done;"
+            " while :; do printf .; sleep 1; done\n",
+        )
+        wait_for(
+            lambda: '"working"' in (group.get_action_state("ui-state") or GLib.Variant("s", "")).get_string(),
+            "working status",
+            90,
+        )
+        time.sleep(8)  # the burst is over; only the slow tail remains
+        print("one agent working (pulse running):")
+        cpu, _ = measure(proc.pid)
+        if cpu > WORKING_CPU_MAX:
+            failed.append(f"working CPU {cpu:.2f}% > {WORKING_CPU_MAX}%")
+    finally:
+        if proc.poll() is None:
+            proc.send_signal(signal.SIGTERM)
+            proc.wait(timeout=10)
+        shutil.rmtree(tmp, ignore_errors=True)
+    if failed:
+        print("FAIL: " + "; ".join(failed))
+        return 1
+    print("ok: xenon-gtk idle cost within budget")
+    return 0
+
+
+sys.exit(main())

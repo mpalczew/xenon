@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Launcher for the GTK frontend, installed as ~/.local/bin/xenon-gtk.
+# Independent of scripts/xenon: its own app id, its own state directory
+# (~/.xenon-gtk), its own binary. Starting it never touches a GPUI instance.
+#
+#   xenon-gtk            start, or raise the running instance
+#   xenon-gtk DIR...     open each folder as a workspace (a running instance
+#                        receives them; GApplication forwards the request)
+#   xenon-gtk --reseed   move ~/.xenon-gtk aside and seed again from the GPUI app
+#
+# The app starts in its own session so quitting the terminal (or the Xenon
+# whose terminal ran this) never takes it down, and it never takes another
+# instance down. `setsid` execs in place, so $! is the app pid.
+APP_BIN="${XENON_GTK_APP_DIR:-$HOME/.local/share/xenon-gtk}/xenon-gtk-bin"
+DATA_DIR="${XENON_GTK_DATA_DIR:-$HOME/.xenon-gtk}"
+
+if [[ ! -x "$APP_BIN" ]]; then
+    echo "xenon-gtk binary not found: $APP_BIN (run scripts/release/install-gtk)" >&2
+    exit 1
+fi
+mkdir -p "$DATA_DIR"
+# A background job of a non-interactive shell stays in the shell's process
+# group; an ignored HUP survives fork and exec.
+trap '' HUP
+DETACH=()
+if command -v setsid >/dev/null 2>&1; then
+    DETACH=(setsid)
+elif command -v perl >/dev/null 2>&1; then
+    # shellcheck disable=SC2016 # perl code, expanded by perl
+    DETACH=(perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV or die "exec: $!\n"' --)
+fi
+
+XENON_GTK_DATA_DIR="$DATA_DIR" ${DETACH[@]+"${DETACH[@]}"} "$APP_BIN" "$@" \
+    </dev/null >>"$DATA_DIR/xenon-gtk.log" 2>&1 &
+pid=$!
+disown "$pid" 2>/dev/null || true
+echo "xenon-gtk (pid $pid, state $DATA_DIR)"

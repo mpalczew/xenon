@@ -108,6 +108,16 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   read-only (changing it would orphan paired phones); LSP on/off and server commands
   apply live.
 - Sidebar paints `editor_background` (canvas). Toolbar stays `panel_background`.
+- The GTK frontend (`crates/xenon_gtk`, Linux) keeps its own state directory,
+  `~/.xenon-gtk` (`XENON_GTK_DATA_DIR`), in the same file formats as the GPUI app, and
+  never writes into a GPUI directory. The GPUI app writes whole files from memory with
+  no cross-process lock or change watching, so two live writers on one directory would
+  overwrite each other; this is the A/B slot design again (own directory, copy to
+  start). First run seeds from the GPUI slot used last (`~/.xenon-active-slot`, else
+  `~/.xenon`), skipping the pid, socket and log; `xenon-gtk --reseed` moves the
+  directory aside and seeds again. Sessions with editor tabs keep them untouched on
+  save, so seeding from a real GPUI session is lossless. Shells it starts do not inherit
+  `XENON_DATA_DIR`, so `xenon open` there still reaches the GPUI instance.
 - Lilex is bundled and the default mono. GPUI still lists `.ZedMono` / `.ZedSans`
   aliases; the pickers hide those unless the files exist.
 

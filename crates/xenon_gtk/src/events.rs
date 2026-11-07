@@ -15,6 +15,8 @@ use crate::app::App;
 const PULSE_TICK: Duration = Duration::from_millis(100);
 /// One full fade in and out.
 const PULSE_PERIOD_S: f64 = 1.4;
+/// Distinct opacities in a fade.
+const PULSE_LEVELS: i32 = 5;
 
 impl App {
     pub(crate) fn term_output(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
@@ -184,8 +186,16 @@ impl App {
             }
             (ws, tabs)
         };
+        // Five steps per fade: the timer wakes at 10 Hz but a frame is drawn
+        // only when the step changes (about 6 per second), which is what the
+        // idle budget pays for.
         let t = self.started.elapsed().as_secs_f64();
-        let opacity = 0.65 + 0.35 * (t * std::f64::consts::TAU / PULSE_PERIOD_S).cos();
+        let wave = 0.5 + 0.5 * (t * std::f64::consts::TAU / PULSE_PERIOD_S).cos();
+        let level = (wave * (PULSE_LEVELS - 1) as f64).round() as i32;
+        if self.pulse_level.replace(level) == level {
+            return glib::ControlFlow::Continue;
+        }
+        let opacity = 0.3 + 0.7 * f64::from(level) / (PULSE_LEVELS - 1) as f64;
         if let Some(slot) = self.slots.borrow().get(&active) {
             for pane in slot.panes.values() {
                 pane.pulse(&working, opacity);

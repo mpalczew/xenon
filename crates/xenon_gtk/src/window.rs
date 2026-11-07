@@ -139,6 +139,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         terms: RefCell::default(),
         bodies: RefCell::new(HashMap::new()),
         pulse_source: RefCell::new(None),
+        pulse_level: Cell::new(-1),
         started: Instant::now(),
         save_pending: Cell::new(false),
     });
