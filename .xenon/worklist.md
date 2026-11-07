@@ -7,6 +7,9 @@
 - [ ] GTK: sidebar spacing in the Workspaces section
 - [ ] GTK: the old Xenon toolbar and its key hints
   - Split down shows the wrong icon.
+- [ ] GTK: the tab close button shows an icon and closes the tab
+- [ ] GTK: the empty workspace screen matches GPUI word for word
+- [ ] Remove macOS-only code
 - [ ] GTK: Markdown writing mode
   - Rescued as a WIP commit on `worktree-agent-ad3978011b03424c7`.
 - [x] GTK: Settings window (Ctrl+,)
@@ -14,11 +17,21 @@
 
 ## Next
 
-- [ ] GTK: full editor (LSP, diff gutter)
-- [ ] GTK: SSH workspaces and the SSH part of the pickers
-- [ ] GTK: command palette, tab drag and drop, divider resize from the keyboard
+- [ ] GTK: wording pass, copying GPUI text word for word
+  - Mac words become generic; nothing else changes.
+  - Key hints use GPUI's format with Linux chords from the key map.
+  - Remove the "not built yet" notes.
+- [ ] GTK: drop the "(GTK)" suffix from the launcher entry and window title
+- [ ] GTK: Shift+Enter sends a line feed, as the GPUI terminal did
+- [ ] GTK: drag to reorder workspaces
+- [ ] Cutover: the GTK app uses `~/.xenon` directly
+- [ ] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
 - [ ] GTK: `xenon open` socket server
-- [ ] Cutover: drop GPUI and macOS, use `~/.xenon` directly
+- [ ] GTK: worklist panel
+- [ ] GTK: command palette, tab drag and drop, divider resize from the keyboard
+- [ ] GTK: SSH workspaces and the SSH part of the pickers
+- [ ] Delete the GPUI frontend, its Vim engine and tree-sitter highlighting
+- [ ] GTK: LSP, last if at all
 
 ## Done
 
