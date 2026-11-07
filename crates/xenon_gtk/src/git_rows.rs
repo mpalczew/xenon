@@ -59,17 +59,6 @@ fn note_row(row: &Row) -> gtk::ListBoxRow {
     widget
 }
 
-pub(super) fn clean_row(branch: &str) -> gtk::ListBoxRow {
-    let line = Row::new();
-    line.set(
-        Some("object-select-symbolic"),
-        "Clean",
-        &format!("Matches HEAD \u{b7} {branch}"),
-    );
-    line.icon.add_css_class("success");
-    note_row(&line)
-}
-
 pub(super) fn more_row(text: &str) -> gtk::ListBoxRow {
     let line = Row::new();
     line.set(None, "", text);

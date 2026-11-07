@@ -1,6 +1,6 @@
 //! The Git section of the sidebar: branch and count in the header, one row per
 //! changed file (status badges, colored name, muted folder, five-cell change
-//! bar), or a Clean row. Rows come from `xenon_git`'s status; this
+//! bar), or just the header with Clean when there are none. Rows come from `xenon_git`'s status; this
 //! file only makes widgets and moves the keyboard.
 
 use std::cell::{Cell, RefCell};
@@ -13,7 +13,7 @@ use xenon_core::WorkspaceId;
 use xenon_git::status::{GitFile, GitStatus};
 
 use crate::app::App;
-use crate::git_rows::{clean_row, make_row, more_row};
+use crate::git_rows::{make_row, more_row};
 use crate::model::Fold;
 use crate::pane::focus_inside;
 use crate::sidebar_ui::{Row, Section};
@@ -25,6 +25,7 @@ const MAX_ROWS: usize = 400;
 pub(crate) struct GitView {
     pub root: gtk::Box,
     section: Section,
+    clean: gtk::Box,
     branch: gtk::Label,
     count: gtk::Label,
     list: gtk::ListBox,
@@ -47,7 +48,16 @@ impl GitView {
         count.add_css_class("dim-label");
         count.add_css_class("caption");
         count.add_css_class("numeric");
+        let clean = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        let tick = gtk::Image::from_icon_name("object-select-symbolic");
+        tick.add_css_class("success");
+        let word = gtk::Label::new(Some("Clean"));
+        word.add_css_class("caption");
+        clean.append(&tick);
+        clean.append(&word);
+        clean.set_visible(false);
         let trailing = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        trailing.append(&clean);
         trailing.append(&branch);
         trailing.append(&count);
 
@@ -62,6 +72,7 @@ impl GitView {
         let this = Rc::new(Self {
             root,
             section,
+            clean,
             branch,
             count,
             list,
@@ -184,8 +195,10 @@ impl GitView {
         self.branch.set_text(&status.branch);
         self.count.set_text(&status.files.len().to_string());
         self.count.set_visible(!status.files.is_empty());
-        if status.files.is_empty() {
-            self.list.append(&clean_row(&status.branch));
+        let is_clean = status.files.is_empty();
+        self.clean.set_visible(is_clean);
+        self.section.set_foldable(!is_clean);
+        if is_clean {
             return;
         }
         let shown: Vec<GitFile> = status.files.iter().take(MAX_ROWS).cloned().collect();

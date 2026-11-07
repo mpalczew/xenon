@@ -101,6 +101,12 @@ impl Section {
         }));
     }
 
+    /// A section with nothing to list is just its header: no fold arrow, no body.
+    pub(crate) fn set_foldable(&self, foldable: bool) {
+        self.arrow.set_visible(foldable);
+        self.body.set_visible(foldable);
+    }
+
     pub(crate) fn folded(&self) -> bool {
         !self.body.reveals_child()
     }

@@ -163,6 +163,7 @@ impl FilesView {
         let list = gtk::ListView::new(Some(selection.clone()), Some(factory));
         list.set_single_click_activate(true);
         list.add_css_class("navigation-sidebar");
+        list.add_css_class("xfiles");
         let section = Section::new("FILES", Fold::Files, &list, None, &app);
         let this = Rc::new(Self {
             root: section.root.clone(),
