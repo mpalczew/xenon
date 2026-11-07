@@ -11,6 +11,10 @@ hints, tooltips, empty states and settings text. Never reword, invent or drop an
 When both frontends show a string, move it into a GPUI-free crate so both read the same
 one. Text for a GTK-only control is new; say so in the report.
 
+Prefer GTK, libadwaita, VTE and GtkSourceView built-ins over our own widgets, drawing
+and logic, even where the look differs from the GPUI app. Fewer lines beat a pixel
+match. Write our own only when no built-in does the job, and say why in the report.
+
 ## Shared model crates
 
 None of these depend on GPUI. A frontend uses them for the following.
