@@ -155,7 +155,7 @@ impl Doc {
 }
 
 /// Column width in characters for a document: the width its author wrapped
-/// paragraphs at when it is hard-wrapped, otherwise 80.
+/// paragraphs at when it is hard-wrapped, otherwise 66.
 ///
 /// Only paragraph lines that continue on the next line count (a last line is
 /// short by nature); code, tables, headings, quotes, HTML and lines under 30
@@ -163,7 +163,7 @@ impl Doc {
 /// such lines exist and their median is within 80% of their 90th percentile,
 /// which is then the width, plus 2 characters of slack, at most 120.
 pub fn column_width(text: &str) -> f32 {
-    const DEFAULT: f32 = 80.0;
+    const DEFAULT: f32 = 66.0;
     let mut lens = Vec::new();
     let mut fence = false;
     let mut lines = text.lines().peekable();
