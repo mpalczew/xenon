@@ -99,7 +99,7 @@ works, it directly helps real daily work.
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special config for
   a default Claude install. Not a deep multi-provider control plane (yet); the vision is
   the shell, not reimplementing every harness UI.
-- **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer.
+- **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer. Image files (png, jpg, gif, webp, svg and more) open in a tab that shows the picture.
 
 ## Differentiators
 

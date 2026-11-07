@@ -69,6 +69,9 @@ pub(crate) fn decide(text: &str, cwd: &Path) -> Opening {
         Link::Url(url) => Opening::Launch(url),
         Link::Path(path, _) if !path.exists() => Opening::Missing(path),
         Link::Path(path, _) if path.is_dir() => Opening::Reveal(path),
+        Link::Path(path, line) if crate::image::is_image(&path) => {
+            Opening::Editor(path, line.unwrap_or(1))
+        }
         Link::Path(path, line) if crate::editor::check(&path).is_ok() => {
             Opening::Editor(path, line.unwrap_or(1))
         }

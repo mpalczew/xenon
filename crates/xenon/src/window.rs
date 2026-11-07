@@ -226,6 +226,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         recents: RefCell::default(),
         file_indexes: RefCell::default(),
         editors: RefCell::default(),
+        images: RefCell::default(),
         diffs: RefCell::default(),
         git,
         pulse_source: RefCell::new(None),

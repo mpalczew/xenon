@@ -48,6 +48,13 @@ impl App {
                 view.term.grab_focus();
             } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {
                 editor.focus();
+            } else if let Some(body) = app
+                .bodies
+                .borrow()
+                .get(&key)
+                .filter(|_| app.images.borrow().contains_key(&key))
+            {
+                body.grab_focus();
             } else if let Some(diff) = app.diffs.borrow().get(&key).cloned() {
                 diff.focus();
             }
@@ -58,7 +65,8 @@ impl App {
     /// Show `path` in an editor tab of `ws`; files this tab cannot show open in
     /// the default app.
     pub(crate) fn open_editor(self: &Rc<Self>, ws: WorkspaceId, path: &std::path::Path) {
-        if let Err(why) = crate::editor::check(path) {
+        if crate::image::is_image(path) {
+        } else if let Err(why) = crate::editor::check(path) {
             self.toast(&format!("Opening {} outside Xenon: {why}", path.display()));
             self.launch(&gio::File::for_path(path).uri());
             return;

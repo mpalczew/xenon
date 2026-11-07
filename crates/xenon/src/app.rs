@@ -53,6 +53,8 @@ pub(crate) struct App {
     /// Last file index built per workspace, so the finder opens with results.
     pub file_indexes: RefCell<HashMap<WorkspaceId, std::sync::Arc<xenon_finder::FileIndex>>>,
     pub editors: RefCell<HashMap<(WorkspaceId, TabId), Rc<EditorView>>>,
+    /// Image tabs: the monitor that reloads the picture.
+    pub images: RefCell<HashMap<(WorkspaceId, TabId), gtk::gio::FileMonitor>>,
     pub diffs: RefCell<HashMap<(WorkspaceId, TabId), Rc<DiffView>>>,
     pub git: GitHub,
     pub pulse_source: RefCell<Option<glib::SourceId>>,
@@ -191,6 +193,7 @@ impl App {
             self.terms.borrow_mut().remove(&key);
             self.task_tab_gone(key.0, key.1);
             self.editors.borrow_mut().remove(&key);
+            self.images.borrow_mut().remove(&key);
             self.remote_tab_gone(key.0, key.1);
             self.diffs.borrow_mut().remove(&key);
         }
@@ -209,6 +212,13 @@ impl App {
                     }
                     let root = view.root.clone().upcast();
                     self.terms.borrow_mut().insert(key, view);
+                    root
+                }
+                TabKind::Kept(TabState::Editor { path, .. }) if crate::image::is_image(path) => {
+                    let (root, monitor) = crate::image::view(path);
+                    if let Some(monitor) = monitor {
+                        self.images.borrow_mut().insert(key, monitor);
+                    }
                     root
                 }
                 TabKind::Kept(TabState::Editor { path, .. }) => {

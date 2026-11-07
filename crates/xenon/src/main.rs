@@ -36,6 +36,7 @@ mod git;
 mod git_ops;
 mod git_rows;
 mod git_section;
+mod image;
 mod ipc;
 mod keys;
 mod layout;
