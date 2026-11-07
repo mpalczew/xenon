@@ -27,6 +27,10 @@ pub(crate) struct PaneView {
     scroller: gtk::ScrolledWindow,
     stack: gtk::Stack,
     chips: RefCell<HashMap<TabId, Chip>>,
+    ws: WorkspaceId,
+    pane: PaneId,
+    /// "Remove empty pane" on the empty card; shown only with company.
+    remove: RefCell<Option<gtk::Button>>,
 }
 
 impl PaneView {
@@ -34,7 +38,7 @@ impl PaneView {
         let tabs = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let add = gtk::Button::from_icon_name("list-add-symbolic");
         add.add_css_class("flat");
-        add.set_tooltip_text(Some("New terminal (Ctrl+N)"));
+        add.set_tooltip_text(Some(&app.tip("New Terminal", "app.new-terminal")));
         add.set_focusable(false);
         let weak = Rc::downgrade(app);
         add.connect_clicked(move |_| {
@@ -65,6 +69,9 @@ impl PaneView {
             scroller,
             stack,
             chips: RefCell::default(),
+            ws,
+            pane,
+            remove: RefCell::default(),
         })
     }
 
@@ -112,15 +119,37 @@ impl PaneView {
         }
         match leaf.active_tab().and_then(|t| bodies.get(&t.id)) {
             Some(body) => self.stack.set_visible_child(body),
-            None => self.show_empty(),
+            None => self.show_empty(app),
         }
     }
 
-    fn show_empty(&self) {
+    fn show_empty(&self, app: &Rc<App>) {
         if self.stack.child_by_name("empty").is_none() {
-            let hint = gtk::Label::new(Some("Empty pane. Ctrl+N opens a terminal here."));
-            hint.add_css_class("xempty-hint");
-            self.stack.add_named(&hint, Some("empty"));
+            let card = crate::empty::all_clear(app, true);
+            let overlay = gtk::Overlay::new();
+            overlay.set_child(Some(&card));
+            let remove = gtk::Button::from_icon_name("window-close-symbolic");
+            remove.add_css_class("flat");
+            remove.add_css_class("xremove-pane");
+            remove.set_halign(gtk::Align::End);
+            remove.set_valign(gtk::Align::Start);
+            remove.set_margin_top(8);
+            remove.set_margin_end(8);
+            remove.set_focusable(false);
+            remove.set_tooltip_text(Some("Remove empty pane"));
+            let weak = Rc::downgrade(app);
+            let (ws, pane) = (self.ws, self.pane);
+            remove.connect_clicked(move |_| {
+                if let Some(app) = weak.upgrade() {
+                    app.remove_empty_pane(ws, pane);
+                }
+            });
+            self.remove.replace(Some(remove.clone()));
+            overlay.add_overlay(&remove);
+            self.stack.add_named(&overlay, Some("empty"));
+        }
+        if let Some(remove) = self.remove.borrow().as_ref() {
+            remove.set_visible(self.multi.get());
         }
         self.stack.set_visible_child_name("empty");
     }
@@ -221,7 +250,7 @@ fn make_chip(app: &Rc<App>, ws: WorkspaceId, tab: TabId) -> Chip {
     close.add_css_class("xclose");
     close.set_focusable(false);
     close.set_valign(gtk::Align::Center);
-    close.set_tooltip_text(Some("Close tab (Ctrl+W)"));
+    close.set_tooltip_text(Some(&app.tip("Close Tab", "app.close-tab")));
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 2);
     row.set_margin_top(4);
     row.set_valign(gtk::Align::Center);

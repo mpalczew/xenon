@@ -7,9 +7,12 @@ use std::rc::{Rc, Weak};
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use xenon_core::{WorkspaceDot, WorkspaceId};
+use xenon_git::status::DirtState;
 
 use crate::app::App;
 use crate::files::FilesView;
+use crate::git::GitHub;
+use crate::git_section::GitView;
 use crate::model::Model;
 use crate::pane::set_class;
 
@@ -18,13 +21,17 @@ struct Row {
     row: gtk::ListBoxRow,
     body: gtk::Box,
     dot: gtk::Box,
+    tick: gtk::Box,
 }
 
 pub(crate) struct Sidebar {
     pub root: gtk::Box,
     pub files: Rc<FilesView>,
+    pub git: Rc<GitView>,
     split: gtk::Paned,
     pub list: gtk::ListBox,
+    add: gtk::MenuButton,
+    app: Weak<App>,
     rows: RefCell<Vec<Row>>,
 }
 
@@ -54,9 +61,8 @@ impl Sidebar {
         add.set_focusable(false);
         add.set_tooltip_text(Some("New or open workspace"));
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        header.set_margin_start(14);
-        header.set_margin_end(4);
-        header.set_margin_top(6);
+        header.add_css_class("xsection-head");
+        header.add_css_class("xfirst");
         header.append(&title);
         header.append(&add);
 
@@ -72,6 +78,8 @@ impl Sidebar {
             }
         });
         let app_for_files = app.clone();
+        let app_for_git = app.clone();
+        let app_for_rows = app.clone();
         let keys = gtk::EventControllerKey::new();
         let weak = app;
         keys.connect_key_pressed(move |_, key, _, _| {
@@ -102,23 +110,36 @@ impl Sidebar {
         split.set_shrink_end_child(false);
         split.set_resize_start_child(false);
         split.set_wide_handle(false);
+        let git = GitView::new(app_for_git);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("xsidebar");
         root.append(&split);
+        root.append(&git.root);
         split.set_vexpand(true);
         Self {
             root,
             files,
+            git,
             split,
             list,
+            add,
+            app: app_for_rows,
             rows: RefCell::default(),
         }
+    }
+
+    /// Tooltips that show keys; they need the key map, which exists once the
+    /// actions are installed.
+    pub(crate) fn set_hints(&self, app: &App) {
+        self.add
+            .set_tooltip_text(Some(&app.tip("Open Workspace", "app.open-workspace")));
+        self.git.set_hint(&app.tip("Git", "app.focus-git"));
     }
 
     /// Rebuild the rows from the registry and select the active one.
     pub(crate) fn rebuild(&self, model: &Model) {
         // Room for every workspace row (up to a cap), the Files section gets the rest.
-        let wanted = 56 + 48 * model.registry.workspaces.len() as i32;
+        let wanted = 72 + 47 * model.registry.workspaces.len() as i32;
         self.split.set_position(wanted.clamp(110, 380));
         let mut rows = self.rows.borrow_mut();
         while let Some(child) = self.list.first_child() {
@@ -151,6 +172,30 @@ impl Sidebar {
             line.append(&dot);
             line.append(&body);
             body.set_hexpand(true);
+            let tick = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            tick.add_css_class("xtick");
+            tick.set_valign(gtk::Align::Center);
+            tick.set_halign(gtk::Align::End);
+            let close = gtk::Button::from_icon_name("window-close-symbolic");
+            close.add_css_class("flat");
+            close.add_css_class("xrow-close");
+            close.set_focusable(false);
+            close.set_valign(gtk::Align::Center);
+            if let Some(app) = self.app.upgrade() {
+                close.set_tooltip_text(Some(&app.tip("Close", "app.close-workspace")));
+            }
+            let weak = self.app.clone();
+            let id = rec.id;
+            close.connect_clicked(move |_| {
+                if let Some(app) = weak.upgrade() {
+                    app.close_workspace_id(id);
+                }
+            });
+            let gutter = gtk::Overlay::new();
+            gutter.add_css_class("xgutter");
+            gutter.set_child(Some(&tick));
+            gutter.add_overlay(&close);
+            line.append(&gutter);
             let row = gtk::ListBoxRow::new();
             row.set_child(Some(&line));
             self.list.append(&row);
@@ -159,12 +204,13 @@ impl Sidebar {
                 row,
                 body,
                 dot,
+                tick,
             });
         }
     }
 
     /// Select the active row and mark it; paint each row's status.
-    pub(crate) fn paint(&self, model: &Model) {
+    pub(crate) fn paint(&self, model: &Model, git: &GitHub) {
         let active = model.active();
         for r in self.rows.borrow().iter() {
             let selected = Some(r.id) == active;
@@ -184,6 +230,14 @@ impl Sidebar {
                 matches!(dot, Some(WorkspaceDot::Attention(_))),
             );
             r.dot.set_opacity(1.0);
+            let dirt = git.dirt(r.id);
+            set_class(&r.tick, "dirty", dirt == DirtState::Dirty);
+            set_class(&r.tick, "index", dirt == DirtState::IndexOnly);
+            r.tick.set_tooltip_text(match dirt {
+                DirtState::Clean => None,
+                DirtState::Dirty => Some("Changes since HEAD"),
+                DirtState::IndexOnly => Some("Staged changes only"),
+            });
         }
     }
 

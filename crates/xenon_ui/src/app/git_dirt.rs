@@ -256,35 +256,10 @@ fn sync_watches(
 }
 
 fn event_paths(event: notify::Event) -> impl Iterator<Item = PathBuf> {
-    event.paths.into_iter().filter(|path| !is_noise(path))
-}
-
-/// Drop high-churn paths that never affect git dirt for normal projects.
-fn is_noise(path: &Path) -> bool {
-    if is_git_meta(path) {
-        return false;
-    }
-    path.components().any(|c| {
-        matches!(
-            c.as_os_str().to_str(),
-            Some("target" | "node_modules" | "dist" | ".next" | "__pycache__" | ".git")
-        )
-    })
-}
-
-/// Index/HEAD/refs under `.git` affect dirtiness; object packs do not.
-fn is_git_meta(path: &Path) -> bool {
-    let mut parts = path.components().filter_map(|c| c.as_os_str().to_str());
-    while let Some(part) = parts.next() {
-        if part != ".git" {
-            continue;
-        }
-        return matches!(
-            parts.next(),
-            None | Some("index" | "HEAD" | "FETCH_HEAD" | "MERGE_HEAD" | "refs" | "COMMIT_EDITMSG")
-        );
-    }
-    false
+    event
+        .paths
+        .into_iter()
+        .filter(|path| !xenon_git::watch::is_noise(path))
 }
 
 fn mark_workspace(
@@ -292,16 +267,7 @@ fn mark_workspace(
     path: &Path,
     pending: &mut HashSet<WorkspaceId>,
 ) {
-    let mut best: Option<(usize, WorkspaceId)> = None;
-    for (id, root) in roots {
-        if path.starts_with(root) {
-            let len = root.as_os_str().len();
-            if best.is_none_or(|(prev, _)| len > prev) {
-                best = Some((len, *id));
-            }
-        }
-    }
-    if let Some((_, id)) = best {
+    if let Some(id) = xenon_git::watch::owner_of(roots, path) {
         pending.insert(id);
     }
 }

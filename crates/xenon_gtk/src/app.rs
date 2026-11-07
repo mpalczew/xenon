@@ -12,7 +12,9 @@ use gtk::glib;
 use xenon_core::{PaneId, TabId, TabState, WorkspaceId};
 use xenon_settings::UiSettings;
 
+use crate::diff_view::DiffView;
 use crate::editor::EditorView;
+use crate::git::GitHub;
 use crate::layout;
 use crate::model::{Model, TabKind};
 use crate::palette::Palette as Launcher;
@@ -53,6 +55,8 @@ pub(crate) struct App {
     /// Last file index built per workspace, so the finder opens with results.
     pub file_indexes: RefCell<HashMap<WorkspaceId, std::sync::Arc<xenon_finder::FileIndex>>>,
     pub editors: RefCell<HashMap<(WorkspaceId, TabId), Rc<EditorView>>>,
+    pub diffs: RefCell<HashMap<(WorkspaceId, TabId), Rc<DiffView>>>,
+    pub git: GitHub,
     pub pulse_source: RefCell<Option<glib::SourceId>>,
     /// Last pulse step drawn; -1 after a repaint reset the rails.
     pub pulse_level: Cell<i32>,
@@ -113,7 +117,7 @@ impl App {
                     };
                     layout::build(&ctx, root)
                 }
-                None => crate::empty::all_clear(),
+                None => crate::empty::all_clear(self, true),
             };
             widget.set_vexpand(true);
             slot.holder.append(&widget);
@@ -169,6 +173,7 @@ impl App {
             self.terms.borrow_mut().remove(&key);
             self.editors.borrow_mut().remove(&key);
             self.remote_tab_gone(key.0, key.1);
+            self.diffs.borrow_mut().remove(&key);
         }
         for tab in wanted {
             let key = (ws, tab.id);
@@ -188,6 +193,24 @@ impl App {
                     let editor = EditorView::new(self, ws, tab.id, path);
                     let root = editor.root.clone();
                     self.editors.borrow_mut().insert(key, editor);
+                    root
+                }
+                TabKind::Diff { path } => {
+                    let file = self
+                        .git
+                        .status_of(ws)
+                        .and_then(|s| s.files.into_iter().find(|f| &f.path == path))
+                        .unwrap_or_else(|| xenon_git::status::GitFile {
+                            index: ' ',
+                            worktree: 'M',
+                            path: path.clone(),
+                            from: None,
+                            added: 0,
+                            removed: 0,
+                        });
+                    let view = DiffView::new(self, ws, tab.id, cwd.clone(), file);
+                    let root = view.root.clone().upcast();
+                    self.diffs.borrow_mut().insert(key, view);
                     root
                 }
                 TabKind::Kept(state) => crate::empty::placeholder(state),
@@ -216,7 +239,7 @@ impl App {
     /// Everything that shows status or selection, repainted from the model.
     pub(crate) fn paint_all(self: &Rc<Self>) {
         let model = self.model.borrow();
-        self.sidebar.paint(&model);
+        self.sidebar.paint(&model, &self.git);
         if let Some(ws) = model.active() {
             if let Some(space) = model.spaces.get(&ws) {
                 let slots = self.slots.borrow();
@@ -247,20 +270,28 @@ impl App {
                     TabKind::Kept(TabState::Editor { path, .. }) => Some(path.clone()),
                     _ => None,
                 });
+            let local_root_is_some = local_root.is_some();
             self.sidebar.files.set_root(local_root);
             self.sidebar.files.mark_open(open_file);
+            let status = self.git.status_of(ws).filter(|_| local_root_is_some);
+            self.sidebar
+                .git
+                .set(Some(ws), status.as_ref(), self.shown_diff_in(&model, ws));
             self.title.set_title(&name);
             let label = space_label(&model, ws);
             self.title.set_subtitle(&label);
             self.win.set_title(Some(&format!("{name} — Xenon (GTK)")));
         } else {
             self.sidebar.files.set_root(None);
+            self.sidebar.git.set(None, None, None);
             self.title.set_title("Xenon");
             self.title.set_subtitle("");
         }
         drop(model);
+        self.sync_git_roots();
         self.publish_state();
         self.remote_dots();
+        self.publish_diff();
         self.pulse_level.set(-1);
         self.ensure_pulse();
     }

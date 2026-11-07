@@ -8,7 +8,10 @@ Drives a real xenon_gtk window the way an agent would, with no synthetic mouse:
     state for what the app says is on screen (workspaces, panes, tabs, status);
   - AT-SPI (pyatspi) to read terminal text back out of the window;
   - `screenshot` action for offscreen PNGs of each state.
-It covers: create workspaces, split, new tab, keyboard-action navigation, type
+It covers: create workspaces, the Files tree, the finder and workspace picker,
+the Git section and diff tab on a temp repo (status rows, keyboard, hunks, layout,
+open at the hunk line, refresh on file changes, light and dark screenshots),
+split, new tab, keyboard-action navigation, type
 into a terminal and read the output, working pulse, attention dot, find,
 Settings (Ctrl+, opens it; font size and theme change the live terminal and
 persist across a restart; a screenshot of every page and the theme picker,
@@ -25,6 +28,7 @@ Exit code 0 when every check passes.
 """
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -175,6 +179,12 @@ class App:
     def files(self):
         return self.pstate("files-state")
 
+    def git(self):
+        return self.pstate("git-state")
+
+    def diff(self):
+        return self.pstate("diff-state")
+
     def terminals(self):
         shown = lambda a: a.getRoleName() == "terminal" and a.getState().contains(pyatspi.STATE_SHOWING)
         return find_all(self.ax, shown, [])
@@ -230,7 +240,12 @@ def sget(app):
 
 
 def swait(app, pred, what, timeout=10.0):
-    return wait_for(lambda: (lambda s: s if pred(s) else None)(sget(app)), what, timeout)
+    try:
+        return wait_for(lambda: (lambda s: s if pred(s) else None)(sget(app)), what, timeout)
+    except SystemExit:
+        print("settings-state:", json.dumps(sget(app)))
+        print("ui-state:", json.dumps(app.state()))
+        raise
 
 
 def sset(app, key, value):
@@ -553,6 +568,166 @@ def remote_checks(tmp):
         app.kill()
 
 
+def sh(cwd, *args):
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    subprocess.run(["git", *args], cwd=cwd, env=env, check=True, capture_output=True)
+
+
+def set_theme(app, state_dir, mode):
+    """Switch the whole window to light or dark through the Settings action."""
+    app.act("set-theme-mode", mode)
+    swait(app, lambda s: s["mode"].lower() == mode and s["dark"] == (mode == "dark"), f"{mode} mode")
+    time.sleep(0.6)
+
+
+def close_all_tabs(app):
+    """Ctrl+W until the workspace has no tab, waiting for each close."""
+    while True:
+        n = sum(len(p) for p in tabs(app.state()))
+        if n == 0:
+            return
+        app.act("close-tab")
+        app.until(lambda s: sum(len(p) for p in tabs(s)) < n, "a tab closed")
+
+
+def git_checks(app, tmp, state_dir):
+    """The Git section and the diff tab on a temp repo."""
+    set_theme(app, state_dir, "dark")
+    repo = os.path.join(tmp, "delta")
+    os.makedirs(repo)
+    body = "".join(f"line {i}\n" for i in range(1, 121))
+    for name, text in (("app.py", "def f():\n    return 1\n\n" + body), ("old.txt", "going away\n"), ("keep.txt", "same\n")):
+        with open(os.path.join(repo, name), "w") as f:
+            f.write(text)
+    sh(repo, "init", "-q", "-b", "main")
+    sh(repo, "add", ".")
+    sh(repo, "commit", "-q", "-m", "init")
+    # Two hunks far apart in app.py, a deleted file, an untracked file, a staged new file.
+    lines = open(os.path.join(repo, "app.py")).read().split("\n")
+    for i in range(1, 25):
+        lines[i] = f"    changed {i}  # top"
+    for i in range(90, 115):
+        lines[i] = f"line {i - 2} edited"
+    with open(os.path.join(repo, "app.py"), "w") as f:
+        f.write("\n".join(lines))
+    os.remove(os.path.join(repo, "old.txt"))
+    with open(os.path.join(repo, "new.txt"), "w") as f:
+        f.write("fresh\nfile\n")
+    with open(os.path.join(repo, "staged.txt"), "w") as f:
+        f.write("staged\n")
+    sh(repo, "add", "staged.txt")
+
+    app.act("open-dir", repo)
+    app.until(lambda s: active_ws(s) == "delta", "delta workspace")
+    g = wait_for(lambda: (lambda g: g if g.get("visible") and g.get("count") == 4 else None)(app.git()), "git section lists 4 changes")
+    rows = {r["path"]: r for r in g["rows"]}
+    check(set(rows) == {"app.py", "new.txt", "old.txt", "staged.txt"}, f"git section lists the changed files: {sorted(rows)}")
+    check(g["branch"] == "main", "git section shows the branch")
+    check(rows["app.py"]["badges"] == "M" and rows["old.txt"]["badges"] == "D" and rows["new.txt"]["badges"] == "?" and rows["staged.txt"]["badges"] == "A",
+          f"status badges M / D / ? / A: {[(p, r['badges']) for p, r in rows.items()]}")
+    check(rows["app.py"]["added"] == 49 and rows["app.py"]["removed"] == 49, f"line counts for the modified file: {rows['app.py']['added']}/{rows['app.py']['removed']}")
+    check(g["dirt"].get("delta") == "dirty" and g["dirt"].get("beta") == "clean", f"workspace dirt ticks: {g['dirt']}")
+    app.shot("11-git-section-dark")
+
+    # Keyboard: the focus chord, Up/Down, Enter opens the diff.
+    app.act("send-key", "ctrl-alt-g")
+    g = wait_for(lambda: (lambda g: g if g.get("focused") else None)(app.git()), "git section focused by its chord")
+    check(g["selected"] is not None, "the chord put the cursor on a changed file")
+    first = g["selected"]
+    app.act("git-key", "down")
+    g = wait_for(lambda: (lambda g: g if g.get("selected") not in (None, first) else None)(app.git()), "Down moves")
+    check(True, "Down moved the selection")
+    app.act("git-key", "up")
+    g = wait_for(lambda: (lambda g: g if g.get("selected") == first else None)(app.git()), "Up moves back")
+    # Select app.py explicitly.
+    for _ in range(4):
+        if app.git().get("selected") == "app.py":
+            break
+        app.act("git-key", "down")
+        time.sleep(0.2)
+    wait_for(lambda: app.git().get("selected") == "app.py", "app.py selected")
+    app.act("git-key", "enter")
+    s = app.until(lambda s: any(t["label"] == "app.py" for p in s["panes"] for t in p["tabs"]), "diff tab for app.py")
+    d = wait_for(lambda: (lambda d: d if d.get("loaded") else None)(app.diff()), "diff loaded")
+    check(d["path"] == "app.py" and d["hunks"] == 2, f"Enter opened the diff with two hunks: {d.get('hunks')}")
+    check(d["added"] == 49 and d["removed"] == 49, "diff counts +49 -49")
+    check(app.git().get("shown") == "app.py", "the section marks the file whose diff is open")
+    app.shot("12-diff-dark")
+
+    # Hunks: next, previous, scroll moves, and the target line is the changed one.
+    top = d["scroll"]
+    app.act("diff-key", "next-hunk")
+    d = wait_for(lambda: (lambda d: d if d.get("current") == 1 else None)(app.diff()), "next hunk")
+    check(True, "next-hunk moved to the second hunk")
+    wait_for(lambda: app.diff().get("scroll", 0) > top, "scrolled to the second hunk")
+    check(True, "the view scrolled to the second hunk")
+    check(d["targets"] == [2, 91], f"hunk targets are the first changed lines: {d['targets']}")
+    app.shot("13-diff-second-hunk-dark")
+    app.act("diff-key", "prev-hunk")
+    wait_for(lambda: app.diff().get("current") == 0, "previous hunk")
+    check(True, "prev-hunk went back to the first hunk")
+
+    # Layout: Auto -> Split -> Unified.
+    app.act("send-key", "ctrl-alt-shift-d")
+    d = wait_for(lambda: (lambda d: d if d.get("mode") == "Split" else None)(app.diff()), "cycle to split")
+    check(d["layout"] == "split", "the layout chord switched to side by side")
+    time.sleep(0.6)
+    app.shot("14-diff-split-dark")
+    app.act("diff-key", "layout")
+    d = wait_for(lambda: (lambda d: d if d.get("mode") == "Unified" else None)(app.diff()), "cycle to unified")
+    check(d["layout"] == "unified", "the next press switched to unified")
+
+    # Open the file at the hunk line.
+    app.act("diff-key", "next-hunk")
+    wait_for(lambda: app.diff().get("current") == 1, "second hunk again")
+    n_tabs = sum(len(p) for p in tabs(app.state()))
+    app.act("diff-key", "open")
+    s = app.until(lambda s: sum(len(p) for p in tabs(s)) == n_tabs + 1, "editor tab at the hunk")
+    check(True, "open-in-editor made an editor tab for the file")
+    time.sleep(0.8)
+    app.shot("19-editor-at-hunk")
+
+    # Light theme screenshots of the section and the diff.
+    set_theme(app, state_dir, "light")
+    app.shot("15-git-section-light")
+    app.act("prev-tab")
+    wait_for(lambda: app.diff().get("loaded"), "diff tab visible again")
+    time.sleep(0.5)
+    app.shot("16-diff-light")
+    app.act("diff-key", "layout")
+    time.sleep(0.6)
+    app.shot("17-diff-split-light")
+    set_theme(app, state_dir, "dark")
+
+    # Escape returns to the pane; a file change refreshes the list.
+    app.act("send-key", "ctrl-alt-g")
+    wait_for(lambda: app.git().get("focused"), "section focused")
+    app.act("git-key", "escape")
+    wait_for(lambda: not app.git().get("focused"), "escape leaves the section")
+    check(True, "Escape took the cursor back to the pane")
+    with open(os.path.join(repo, "extra.txt"), "w") as f:
+        f.write("more\n")
+    g = wait_for(lambda: (lambda g: g if g.get("count") == 5 else None)(app.git()), "git section picks up a new file", 45)
+    check(True, "a new file showed up in the section after a file system event")
+    os.remove(os.path.join(repo, "extra.txt"))
+    wait_for(lambda: app.git().get("count") == 4, "git section drops the removed file", 45)
+    check(True, "removing it took the row away again")
+
+    # Clean repo: the two-line Clean body.
+    sh(repo, "add", "-A")
+    sh(repo, "commit", "-q", "-m", "all")
+    wait_for(lambda: app.git().get("count") == 0, "section goes clean after a commit", 45)
+    app.shot("18-git-clean")
+    check(app.git()["dirt"].get("delta") == "clean", "the dirt tick clears")
+    close_all_tabs(app)
+    for mode in ("dark", "light"):
+        set_theme(app, state_dir, mode)
+        app.shot(f"20-empty-workspace-{mode}")
+    set_theme(app, state_dir, "dark")
+    app.act("close-workspace")
+    app.until(lambda s: len(s["workspaces"]) == 2 and active_ws(s) == "beta", "back on beta")
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="xenon-gtk-verify-")
     if os.environ.get("VERIFY_ONLY_REMOTE"):
@@ -588,7 +763,10 @@ def main():
     finally:
         app.kill()
         try:
-            print(open(os.path.join(tmp, "app.log")).read()[-2000:])
+            log = open(os.path.join(tmp, "app.log")).read()
+            # A panic message is at the top of a long backtrace; show it first.
+            at = log.find("panicked")
+            print(log[at - 200 : at + 1500] if at >= 0 else log[-2000:])
         except OSError:
             pass
         if not failures:
@@ -598,6 +776,10 @@ def main():
 
 
 def run(app, ws_a, ws_b, ws_c, state_dir):
+    for mode in ("dark", "light"):
+        set_theme(app, state_dir, mode)
+        app.shot(f"00-empty-no-workspace-{mode}")
+    set_theme(app, state_dir, "dark")
     # Workspaces.
     app.act("open-dir", ws_a)
     s = app.until(lambda s: active_ws(s) == "alpha" and [len(p) for p in tabs(s)] == [1], "alpha workspace with one terminal")
@@ -831,6 +1013,8 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
     app.until(lambda s: len(s["workspaces"]) == 2 and active_ws(s) == "beta", "close-workspace")
     check(True, "close-workspace closed it and fell back to a neighbour")
 
+    git_checks(app, os.path.dirname(ws_c), state_dir)
+
     # Working pulse: a terminal titled like an agent that keeps drawing.
     app.act("new-terminal")
     # A new shell sets its title once it is up; input sent before that is lost.
@@ -876,7 +1060,7 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
     app.stop()
     check(os.path.exists(os.path.join(state_dir, "workspaces.json")), "registry written")
     sessions = os.listdir(os.path.join(state_dir, "sessions"))
-    check(len(sessions) == 3, f"a session file per workspace ({len(sessions)})")
+    check(len(sessions) == 4, f"a session file per workspace ({len(sessions)})")
     app2 = App(state_dir)
     try:
         s = app2.until(lambda s: len(s["workspaces"]) == 2 and len(s["panes"]) >= 1, "restored workspaces")

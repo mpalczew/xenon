@@ -76,7 +76,7 @@ impl App {
         });
         let ui = self.settings.borrow().clone();
         let sheet = format!(
-            "{}\n{}textview.xeditor {{ font-family: \"{}\", monospace; font-size: {}px; }}\n",
+            "{}\n{}textview.xeditor, textview.xdiff-code, textview.xdiff-gutter {{ font-family: \"{}\", monospace; font-size: {}px; }}\n",
             palette.css(),
             crate::prefs_apply::extra_css(&ui.ui, &palette),
             ui.editor.family,
@@ -89,6 +89,10 @@ impl App {
         for editor in self.editors.borrow().values() {
             editor.restyle(self);
         }
+        let diffs: Vec<_> = self.diffs.borrow().values().cloned().collect();
+        for view in diffs {
+            view.rebuild();
+        }
         for view in self.terms.borrow().values() {
             self.restyle_term(view);
         }
@@ -96,14 +100,32 @@ impl App {
         self.publish_settings();
     }
 
-    fn tip(&self, text: &str, action: &str) -> String {
-        match self.gtk.accels_for_action(action).first() {
-            Some(accel) => match gtk::accelerator_parse(accel) {
-                Some((key, mods)) => format!("{text} ({})", gtk::accelerator_get_label(key, mods)),
-                None => text.to_string(),
-            },
+    /// The first key bound to `action` as text (`Ctrl+Shift+O`), from the
+    /// keymap in force (defaults plus the user's `keymap.json`).
+    pub(crate) fn chord(&self, action: &str) -> Option<String> {
+        let accel = self.gtk.accels_for_action(action).into_iter().next()?;
+        let (key, mods) = gtk::accelerator_parse(&accel)?;
+        Some(gtk::accelerator_get_label(key, mods).to_string())
+    }
+
+    /// Tooltip text in the GPUI app's form: `Label · chord`.
+    pub(crate) fn tip(&self, text: &str, action: &str) -> String {
+        match self.chord(action) {
+            Some(chord) => format!("{text} \u{b7} {chord}"),
             None => text.to_string(),
         }
+    }
+}
+
+/// Icons Adwaita lacks, compiled in by build.rs.
+fn register_icons() {
+    let bytes =
+        gtk::glib::Bytes::from_static(include_bytes!(concat!(env!("OUT_DIR"), "/xenon.gresource")));
+    if let Ok(resource) = gtk::gio::Resource::from_data(&bytes) {
+        gtk::gio::resources_register(&resource);
+    }
+    if let Some(display) = gtk::gdk::Display::default() {
+        gtk::IconTheme::for_display(&display).add_resource_path("/dev/xenon/gtk/icons");
     }
 }
 
@@ -117,26 +139,55 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         b.set_focusable(false);
         b
     };
-    bar.pack_start(&button(
-        "sidebar-show-symbolic",
-        "app.toggle-sidebar",
-        app.tip("Toggle sidebar", "app.toggle-sidebar"),
-    ));
-    bar.pack_end(&button(
-        "system-search-symbolic",
-        "app.open-finder",
-        app.tip("Find file", "app.open-finder"),
-    ));
-    bar.pack_end(&button(
-        "view-dual-symbolic",
-        "app.split-right",
-        app.tip("Split right", "app.split-right"),
-    ));
-    bar.pack_end(&button(
-        "view-paged-symbolic",
-        "app.split-down",
-        app.tip("Split down", "app.split-down"),
-    ));
+    // GPUI toolbar order (xenon_ui/src/toolbar.rs), left to right. Buttons for
+    // commands GTK does not have yet (Go Back, Go Forward, Cut, Copy Clean,
+    // File Browser, worklist capture and open, Run Task, Save) are not drawn.
+    let left = [
+        (
+            "sidebar-show-symbolic",
+            "app.toggle-sidebar",
+            "Toggle Sidebar",
+        ),
+        ("go-up-symbolic", "app.prev-workspace", "Previous Workspace"),
+        ("go-down-symbolic", "app.next-workspace", "Next Workspace"),
+        (
+            "xenon-split-right-symbolic",
+            "app.split-right",
+            "Split Right",
+        ),
+        ("xenon-split-down-symbolic", "app.split-down", "Split Down"),
+        (
+            "sidebar-show-right-symbolic",
+            "app.park-pane",
+            "Reserve Pane to the Right",
+        ),
+        ("edit-copy-symbolic", "app.copy", "Copy"),
+        ("edit-paste-symbolic", "app.paste", "Paste"),
+    ];
+    for (icon, action, label) in left {
+        bar.pack_start(&button(icon, action, app.tip(label, action)));
+    }
+    let right = [
+        (
+            "utilities-terminal-symbolic",
+            "app.new-terminal",
+            "New Terminal",
+        ),
+        (
+            "system-search-symbolic",
+            "app.open-finder",
+            "Go to File\u{2026}",
+        ),
+        (
+            "window-close-symbolic",
+            "app.close-workspace",
+            "Close Workspace",
+        ),
+        ("emblem-system-symbolic", "app.settings", "Settings"),
+    ];
+    for (icon, action, label) in right.into_iter().rev() {
+        bar.pack_end(&button(icon, action, app.tip(label, action)));
+    }
     bar
 }
 
@@ -145,6 +196,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     if let Some(gtk_settings) = gtk::Settings::default() {
         gtk_settings.set_gtk_icon_theme_name(Some("Adwaita"));
     }
+    register_icons();
     let settings: AppSettings = xenon_store::load_settings().unwrap_or_default();
     let probe = PangoProbe(gtk::Label::new(None).pango_context());
     let (ui, _) = UiSettings::resolve(&settings, &probe);
@@ -159,6 +211,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))
         .build();
+    let (git, git_rx) = crate::git::GitHub::new();
     let app = Rc::new_cyclic(|weak| App {
         gtk: gtk_app.clone(),
         win: win.clone(),
@@ -179,6 +232,8 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         recents: RefCell::default(),
         file_indexes: RefCell::default(),
         editors: RefCell::default(),
+        diffs: RefCell::default(),
+        git,
         pulse_source: RefCell::new(None),
         pulse_level: Cell::new(-1),
         started: Instant::now(),
@@ -199,8 +254,9 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         }
     });
 
+    crate::actions::install(&app, user_keys);
     app.stack
-        .add_named(&crate::empty::all_clear(), Some("none"));
+        .add_named(&crate::empty::all_clear(&app, false), Some("none"));
     app.split.set_start_child(Some(&app.sidebar.root));
     app.split.set_end_child(Some(&app.stack));
     app.split.set_shrink_start_child(false);
@@ -227,8 +283,9 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     }
     crate::latency::watch_frames(&win);
 
-    crate::actions::install(&app, user_keys);
+    crate::git::listen(&app, git_rx);
     connect_window(&app, &win);
+    app.sidebar.set_hints(&app);
     app.sidebar.rebuild(&app.model.borrow());
     app.sidebar.root.append(&app.remote.footer.root);
     start_workspace(&app);
@@ -249,6 +306,9 @@ fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
     win.connect_is_active_notify(move |w| {
         let Some(app) = weak.upgrade() else { return };
         app.model.borrow_mut().window_active = w.is_active();
+        if w.is_active() {
+            app.git_refresh_active();
+        }
         app.model.borrow_mut().dismiss_viewed();
         app.paint_all();
     });

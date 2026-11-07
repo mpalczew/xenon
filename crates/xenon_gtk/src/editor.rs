@@ -133,6 +133,20 @@ impl EditorView {
         }
     }
 
+    /// Put the cursor on 1-based `line` and bring it into view.
+    pub(crate) fn goto_line(&self, line: u32) {
+        let Some(iter) = self.buffer.iter_at_line(line.saturating_sub(1) as i32) else {
+            return;
+        };
+        self.buffer.place_cursor(&iter);
+        let mark = self.buffer.create_mark(None, &iter, true);
+        let view = self.view.clone();
+        glib::idle_add_local_once(move || {
+            view.scroll_to_mark(&mark, 0.1, true, 0.0, 0.3);
+            view.grab_focus();
+        });
+    }
+
     /// Font, wrap and color scheme from the settings and theme.
     pub(crate) fn restyle(self: &Rc<Self>, app: &App) {
         let dark = adw::StyleManager::default().is_dark();

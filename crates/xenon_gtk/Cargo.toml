@@ -12,7 +12,9 @@ xenon_settings.workspace = true
 xenon_keymap.workspace = true
 xenon_finder.workspace = true
 xenon_remote.workspace = true
+xenon_git.workspace = true
 async-channel.workspace = true
+notify.workspace = true
 qrcode = { version = "0.14", default-features = false }
 nucleo.workspace = true
 serde_json.workspace = true

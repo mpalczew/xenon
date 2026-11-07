@@ -45,25 +45,9 @@ impl Model {
         Some(id)
     }
 
-    /// Show `path` in an editor tab: the one already open for it, or a new tab
-    /// in the focused pane. Returns the tab.
-    pub(crate) fn open_editor(&mut self, ws: WorkspaceId, path: &std::path::Path) -> Option<TabId> {
-        let content = self.space_content(ws)?;
-        let mut existing = None;
-        if let Some(root) = content.root.as_ref() {
-            root.for_each_leaf(&mut |leaf| {
-                for tab in &leaf.tabs {
-                    if matches!(&tab.kind, TabKind::Kept(TabState::Editor { path: p, .. }) if p == path)
-                    {
-                        existing = Some(tab.id);
-                    }
-                }
-            });
-        }
-        if let Some(id) = existing {
-            self.select_tab(ws, id);
-            return Some(id);
-        }
+    /// Add a tab to the focused pane (creating the first pane if needed) and
+    /// make it the active one.
+    fn push_tab(&mut self, ws: WorkspaceId, make: impl FnOnce(TabId) -> Tab) -> Option<TabId> {
         let content = self.space_content(ws)?;
         let id = content.next_tab_id();
         if content.root.is_none() {
@@ -80,11 +64,45 @@ impl Model {
             content.focused = content.leaf_ids().first().copied();
         }
         let leaf = content.focused_leaf_mut()?;
-        leaf.tabs.push(Tab {
+        leaf.tabs.push(make(id));
+        leaf.active = leaf.tabs.len() - 1;
+        leaf.parked = false;
+        Some(id)
+    }
+
+    /// The tab of `ws` that `matches`, if any.
+    fn find_tab_where(&mut self, ws: WorkspaceId, matches: impl Fn(&Tab) -> bool) -> Option<TabId> {
+        let content = self.space_content(ws)?;
+        let mut found = None;
+        if let Some(root) = content.root.as_ref() {
+            root.for_each_leaf(&mut |leaf| {
+                for tab in &leaf.tabs {
+                    if matches(tab) {
+                        found = Some(tab.id);
+                    }
+                }
+            });
+        }
+        found
+    }
+
+    /// Show `path` in an editor tab: the one already open for it, or a new tab
+    /// in the focused pane. Returns the tab.
+    pub(crate) fn open_editor(&mut self, ws: WorkspaceId, path: &std::path::Path) -> Option<TabId> {
+        let existing = self.find_tab_where(
+            ws,
+            |tab| matches!(&tab.kind, TabKind::Kept(TabState::Editor { path: p, .. }) if p == path),
+        );
+        if let Some(id) = existing {
+            self.select_tab(ws, id);
+            return Some(id);
+        }
+        let path = path.to_path_buf();
+        self.push_tab(ws, |id| Tab {
             id,
             kind: TabKind::Kept(TabState::Editor {
                 id,
-                path: path.to_path_buf(),
+                path,
                 cursor: Default::default(),
                 scroll_top: 0,
             }),
@@ -92,10 +110,37 @@ impl Model {
             exited: None,
             modified: false,
             phone_device: None,
-        });
-        leaf.active = leaf.tabs.len() - 1;
-        leaf.parked = false;
-        Some(id)
+        })
+    }
+
+    /// Show the diff of `path` (relative to the workspace): the tab already
+    /// open for it, or a new one in the focused pane. The bool says whether
+    /// the tab is new.
+    pub(crate) fn open_diff(&mut self, ws: WorkspaceId, path: &str) -> Option<(TabId, bool)> {
+        let existing = self.find_tab_where(
+            ws,
+            |tab| matches!(&tab.kind, TabKind::Diff { path: p } if p == path),
+        );
+        if let Some(id) = existing {
+            self.select_tab(ws, id);
+            return Some((id, false));
+        }
+        let path = path.to_string();
+        let id = self.push_tab(ws, |id| Tab {
+            id,
+            kind: TabKind::Diff { path },
+            title: String::new(),
+            exited: None,
+            modified: false,
+            phone_device: None,
+        })?;
+        Some((id, true))
+    }
+
+    /// Remove an empty pane that has company (the card's "Remove empty pane").
+    pub(crate) fn remove_empty_pane(&mut self, ws: WorkspaceId, pane: PaneId) -> bool {
+        self.space_content(ws)
+            .is_some_and(|content| content.remove_empty_leaf(pane))
     }
 
     /// Split the focused pane: its active tab moves to the new pane; a pane

@@ -33,7 +33,10 @@ impl App {
                 view.term.grab_focus();
             } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {
                 editor.view.grab_focus();
+            } else if let Some(diff) = app.diffs.borrow().get(&key).cloned() {
+                diff.focus();
             }
+            app.publish_git();
         });
     }
 
@@ -103,6 +106,12 @@ impl App {
             ParkOutcome::NoRoom => self.toast("No room for another split"),
             ParkOutcome::Unchanged => {}
             _ => self.changed(ws),
+        }
+    }
+
+    pub(crate) fn remove_empty_pane(self: &Rc<Self>, ws: WorkspaceId, pane: PaneId) {
+        if self.model.borrow_mut().remove_empty_pane(ws, pane) {
+            self.changed(ws);
         }
     }
 

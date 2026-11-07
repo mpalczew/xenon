@@ -178,14 +178,8 @@ impl XenonApp {
         let colors = cx.theme().colors().clone();
         let tint = kind_color(file.kind(), &colors, cx);
         let path = file.path.clone();
-        let tip = match &file.from {
-            Some(from) => format!("{from} → {}  +{} -{}", file.path, file.added, file.removed),
-            None => format!("{}  +{} -{}", file.path, file.added, file.removed),
-        };
-        let dir = match &file.from {
-            Some(from) => format!("← {from}"),
-            None => file.dir_tail(),
-        };
+        let tip = file.tooltip();
+        let dir = file.detail();
         xenon_design_system::selectable_row(
             ("git-row", id_hash(file.path.clone())),
             selected,

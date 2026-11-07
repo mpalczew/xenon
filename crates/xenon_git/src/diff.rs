@@ -50,6 +50,21 @@ pub struct Hunk {
     pub rows: Vec<SplitRow>,
 }
 
+impl Hunk {
+    /// The new-file line to open in an editor for this hunk: the first added
+    /// line, else where the removal sits (the next surviving line), else the
+    /// header's start.
+    pub fn target_line(&self) -> u32 {
+        let first_change = self.lines.iter().position(|l| l.kind != LineKind::Context);
+        if let Some(i) = first_change
+            && let Some(n) = self.lines[i..].iter().find_map(|l| l.new_no)
+        {
+            return n;
+        }
+        parse_hunk_starts(self.header.strip_prefix("@@ ").unwrap_or(&self.header)).1
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DiffSection {
     /// `("Staged", "index vs HEAD")`; none for a plain HEAD diff.

@@ -34,6 +34,8 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("park-pane", |a| a.park_pane()),
     ("focus-terminal", |a| a.focus_terminal()),
     ("focus-sidebar", |a| a.focus_sidebar()),
+    ("focus-git", |a| a.focus_git()),
+    ("cycle-diff-layout", |a| a.cycle_diff_layout()),
     ("toggle-sidebar", |a| a.toggle_sidebar()),
     ("find", |a| {
         if let Some(view) = a.current_term() {
@@ -92,7 +94,7 @@ impl App {
         self.publish_to("files-state", &self.sidebar.files.snapshot());
     }
 
-    fn publish_to(&self, name: &str, json: &str) {
+    pub(crate) fn publish_to(&self, name: &str, json: &str) {
         let Some(action) = self
             .gtk
             .lookup_action(name)
@@ -137,7 +139,7 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
     install_automation(app);
     crate::remote_ui::install(app);
     crate::prefs_state::install(app);
-    for name in ["palette-state", "files-state"] {
+    for name in ["palette-state", "files-state", "git-state", "diff-state"] {
         app.gtk.add_action(&gio::SimpleAction::new_stateful(
             name,
             None,
@@ -186,6 +188,28 @@ fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
         }
     });
     app.gtk.add_action(&action);
+}
+
+/// Scripts restyle the window through these.
+fn install_theme_actions(app: &Rc<App>) {
+    // Re-read settings.json and restyle (scripts change the theme this way).
+    let reload = gio::SimpleAction::new("reload-theme", None);
+    let weak = Rc::downgrade(app);
+    reload.connect_activate(move |_, _| {
+        if let Some(app) = weak.upgrade() {
+            app.apply_theme();
+        }
+    });
+    app.gtk.add_action(&reload);
+    // Scripts switch light and dark without opening Settings.
+    string_action(app, "set-theme-mode", |app, mode| {
+        let mode = match mode {
+            "light" => xenon_store::ThemeMode::Light,
+            "dark" => xenon_store::ThemeMode::Dark,
+            _ => xenon_store::ThemeMode::System,
+        };
+        app.change_settings(|s| s.theme.mode = mode);
+    });
 }
 
 fn install_automation(app: &Rc<App>) {
@@ -264,6 +288,13 @@ fn install_automation(app: &Rc<App>) {
     app.gtk.add_action(&local);
     string_action(app, "palette-text", |app, text| app.launcher.set_text(text));
     string_action(app, "palette-key", |app, key| app.launcher.key(key));
+    install_theme_actions(app);
+    string_action(app, "git-key", |app, key| app.sidebar.git.key(key));
+    string_action(app, "diff-key", |app, key| {
+        if let Some(view) = app.active_diff() {
+            view.key(key);
+        }
+    });
     string_action(app, "files-key", |app, key| app.sidebar.files.key(key));
     string_action(app, "files-reveal", |app, path| {
         app.sidebar.files.reveal(std::path::Path::new(path));

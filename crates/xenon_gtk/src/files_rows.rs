@@ -74,9 +74,9 @@ fn file_icon(row: &Row) -> &'static str {
 }
 
 pub(crate) fn make_row(row: &Row) -> gtk::ListBoxRow {
-    let line = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let line = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     line.add_css_class("xfile");
-    line.set_margin_start(6 + 14 * row.depth as i32);
+    line.set_margin_start(8 + 16 * row.depth as i32);
     let chevron = gtk::Image::from_icon_name(if row.expanded {
         "pan-down-symbolic"
     } else {

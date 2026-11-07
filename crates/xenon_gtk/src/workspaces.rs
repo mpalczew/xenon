@@ -62,11 +62,20 @@ impl App {
     }
 
     pub(crate) fn close_workspace(self: &Rc<Self>) {
-        let Some(id) = self.model.borrow().active() else {
-            return;
-        };
+        let active = self.model.borrow().active();
+        if let Some(id) = active {
+            self.close_workspace_id(id);
+        }
+    }
+
+    pub(crate) fn close_workspace_id(self: &Rc<Self>, id: xenon_core::WorkspaceId) {
         self.save_session(id);
-        let next = self.model.borrow_mut().close_workspace(id);
+        let previous = self.model.borrow().active();
+        let mut next = self.model.borrow_mut().close_workspace(id);
+        if let Some(prev) = previous.filter(|p| *p != id) {
+            // Closing a row that is not the open one leaves the open one alone.
+            next = Some(prev);
+        }
         let keys: Vec<_> = self
             .terms
             .borrow()

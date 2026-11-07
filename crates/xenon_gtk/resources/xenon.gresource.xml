@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/dev/xenon/gtk">
+    <file>icons/scalable/actions/xenon-split-right-symbolic.svg</file>
+    <file>icons/scalable/actions/xenon-split-down-symbolic.svg</file>
+  </gresource>
+</gresources>

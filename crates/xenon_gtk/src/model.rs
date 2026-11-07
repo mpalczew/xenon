@@ -15,6 +15,11 @@ use xenon_core::{
 #[derive(Clone)]
 pub(crate) enum TabKind {
     Terminal,
+    /// A read-only diff of one changed file (path relative to the workspace).
+    /// Not saved with the session, like the GPUI app's diff tabs.
+    Diff {
+        path: String,
+    },
     Kept(TabState),
 }
 
@@ -70,18 +75,20 @@ impl Tab {
                     name
                 }
             }
+            TabKind::Diff { path } => path.rsplit('/').next().unwrap_or(path).to_string(),
             TabKind::Kept(_) => "tab".into(),
         }
     }
 
-    fn state(&self) -> TabState {
+    fn state(&self) -> Option<TabState> {
         match &self.kind {
-            TabKind::Terminal => TabState::Terminal {
+            TabKind::Terminal => Some(TabState::Terminal {
                 id: self.id,
                 cwd: ".".into(),
                 remote_session: None,
-            },
-            TabKind::Kept(state) => state.clone(),
+            }),
+            TabKind::Diff { .. } => None,
+            TabKind::Kept(state) => Some(state.clone()),
         }
     }
 }
@@ -177,7 +184,7 @@ impl Model {
         if !space.live {
             return Some(space.saved.clone());
         }
-        let content: ContentLayout = space.content.snapshot(&|tab: &Tab| Some(tab.state()));
+        let content: ContentLayout = space.content.snapshot(&|tab: &Tab| tab.state());
         Some(SessionState {
             content,
             ..space.saved.clone()

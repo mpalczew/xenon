@@ -40,9 +40,17 @@ impl App {
         };
         let dialog = crate::prefs::open_dialog();
         let term = self.current_term();
-        let focus = if term.as_ref().is_some_and(|t| t.term.has_focus()) {
+        // `has_focus` is false while the window is not the active one (a compositor
+        // may refuse activation), so the window's focus child counts too.
+        let window_focus = gtk::prelude::RootExt::focus(&self.win);
+        let focus = if term.as_ref().is_some_and(|t| {
+            t.term.has_focus()
+                || window_focus
+                    .as_ref()
+                    .is_some_and(|f| f == t.term.upcast_ref::<gtk::Widget>())
+        }) {
             "terminal"
-        } else if gtk::prelude::RootExt::focus(&self.win).is_some() {
+        } else if window_focus.is_some() {
             "other"
         } else {
             "none"
