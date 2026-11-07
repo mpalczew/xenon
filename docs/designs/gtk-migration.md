@@ -73,4 +73,7 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
   the `xenon open` socket server, phone remote.
 - **Checks.** `scripts/xenon-gtk-verify` drives a real window over D-Bus actions and
   AT-SPI and writes screenshots; `scripts/xenon-gtk-idle` (run by `scripts/health`)
-  fails on idle CPU or wakeups above budget.
+  fails on idle CPU or wakeups above budget; `scripts/xenon-gtk-latency` types into a window
+  and reports input-to-frame time and main-thread CPU (needs an unlocked display; compare
+  `--window 1000x650` with `--maximized`). `XENON_GTK_LATENCY=1` (or `trace`) logs the same
+  per keystroke from any run.
