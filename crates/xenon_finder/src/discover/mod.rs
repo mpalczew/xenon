@@ -15,57 +15,12 @@ const MAX_VISITS: usize = 2_500;
 const MAX_PARENT_DIRS: usize = 4_000;
 
 mod parent;
-pub(crate) use parent::list_parent_candidates;
-
-/// Expand `~` / `~/…` and absolute paths.
-pub(crate) fn expand_user_path(input: &str) -> Option<PathBuf> {
-    let s = input.trim();
-    if s.is_empty() {
-        return None;
-    }
-    if s == "~" {
-        return std::env::var_os("HOME").map(PathBuf::from);
-    }
-    if let Some(rest) = s.strip_prefix("~/") {
-        return std::env::var_os("HOME").map(|home| PathBuf::from(home).join(rest));
-    }
-    if s.starts_with('/') {
-        return Some(PathBuf::from(s));
-    }
-    None
-}
-
-/// Canonical existing directory, or None.
-pub(crate) fn resolve_existing_dir(path: &Path) -> Option<PathBuf> {
-    let path = if path.starts_with("~") {
-        expand_user_path(&path.to_string_lossy())?
-    } else {
-        path.to_path_buf()
-    };
-    let canon = path.canonicalize().ok()?;
-    canon.is_dir().then_some(canon)
-}
-
-/// Fast dir check for UI (no canonicalize). Prefer this on the main thread.
-pub(crate) fn path_is_dir(path: &Path) -> bool {
-    if path.is_dir() {
-        return true;
-    }
-    resolve_existing_dir(path).is_some()
-}
-
-pub(crate) fn same_root(a: &Path, b: &Path) -> bool {
-    if a == b {
-        return true;
-    }
-    match (a.canonicalize(), b.canonicalize()) {
-        (Ok(aa), Ok(bb)) => aa == bb,
-        _ => false,
-    }
-}
+mod paths;
+pub use parent::list_parent_candidates;
+pub use paths::{expand_user_path, path_is_dir, resolve_existing_dir, same_root};
 
 /// Default roots for name-only discovery (only those that exist).
-pub(crate) fn default_search_roots() -> Vec<PathBuf> {
+fn default_search_roots() -> Vec<PathBuf> {
     let home = match std::env::var_os("HOME") {
         Some(h) => PathBuf::from(h),
         None => return Vec::new(),
@@ -79,7 +34,7 @@ pub(crate) fn default_search_roots() -> Vec<PathBuf> {
 
 /// Collect searchable parent folders under the user's home directory.
 /// Hidden folders and known system/build trees are excluded before traversal.
-pub(crate) fn discover_parent_dirs() -> Vec<PathBuf> {
+pub fn discover_parent_dirs() -> Vec<PathBuf> {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
         return Vec::new();
     };
@@ -124,7 +79,7 @@ pub(crate) fn discover_parent_dirs() -> Vec<PathBuf> {
 
 /// How to interpret the palette query for discovery.
 #[derive(Debug, Clone)]
-pub(crate) enum DiscoverQuery {
+pub enum DiscoverQuery {
     /// Exact existing directory from typed path.
     Exact(PathBuf),
     /// `~/src personalfiles` → search under root for needle.
@@ -133,7 +88,7 @@ pub(crate) enum DiscoverQuery {
     Name(String),
 }
 
-pub(crate) fn parse_discover_query(raw: &str) -> Option<DiscoverQuery> {
+pub fn parse_discover_query(raw: &str) -> Option<DiscoverQuery> {
     let q = raw.trim();
     if q.is_empty() {
         return None;
@@ -160,7 +115,7 @@ pub(crate) fn parse_discover_query(raw: &str) -> Option<DiscoverQuery> {
 
 /// Basename match quality for a discovery needle (lower = better).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) enum MatchQuality {
+pub enum MatchQuality {
     /// Basename equals needle (case-insensitive).
     Exact = 0,
     /// Basename starts with needle.
@@ -170,7 +125,7 @@ pub(crate) enum MatchQuality {
 }
 
 impl MatchQuality {
-    pub(crate) fn of_basename(name: &str, needle: &str) -> Option<Self> {
+    pub fn of_basename(name: &str, needle: &str) -> Option<Self> {
         let name_l = name.to_lowercase();
         let needle_l = needle.to_lowercase();
         if needle_l.is_empty() {
@@ -189,7 +144,7 @@ impl MatchQuality {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct FoundRoot {
+pub struct FoundRoot {
     pub path: PathBuf,
     pub git: bool,
     pub quality: MatchQuality,
@@ -199,7 +154,7 @@ pub(crate) struct FoundRoot {
 }
 
 /// On-demand directory discovery (depth + visit capped). Safe for background thread.
-pub(crate) fn discover(query: &DiscoverQuery) -> Vec<FoundRoot> {
+pub fn discover(query: &DiscoverQuery) -> Vec<FoundRoot> {
     match query {
         DiscoverQuery::Exact(path) => vec![FoundRoot {
             git: path.join(".git").exists(),
@@ -354,7 +309,7 @@ fn should_skip_dir(name: &str) -> bool {
 }
 
 /// Needle used for basename ranking in the picker (scoped rest or bare name).
-pub(crate) fn ranking_needle(raw: &str) -> Option<String> {
+pub fn ranking_needle(raw: &str) -> Option<String> {
     match parse_discover_query(raw)? {
         DiscoverQuery::Scoped { needle, .. } | DiscoverQuery::Name(needle) => Some(needle),
         DiscoverQuery::Exact(_) => None,

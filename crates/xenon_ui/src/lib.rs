@@ -25,7 +25,7 @@ mod toolbar;
 mod toolbar_tooltip;
 mod worklist_capture;
 mod workspace_create;
-mod workspace_discover;
+use xenon_finder::discover as workspace_discover;
 mod workspace_picker;
 
 pub use settings::SettingsView;

@@ -12,7 +12,7 @@ const MAX_PARENT_RESULTS: usize = 40;
 
 /// `Some` when `query` is `~` / `~/…` / absolute. Empty query and bare names
 /// are `None` so the view can keep its home-list fuzzy filter.
-pub(crate) fn list_parent_candidates(query: &str) -> Option<Vec<PathBuf>> {
+pub fn list_parent_candidates(query: &str) -> Option<Vec<PathBuf>> {
     let q = query.trim();
     if q.is_empty() {
         return None;

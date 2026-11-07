@@ -13,7 +13,9 @@ use std::sync::Arc;
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32Str};
 
+pub mod discover;
 mod remote;
+pub mod tree;
 mod walk;
 
 /// Cap on results returned to the UI for a single query.

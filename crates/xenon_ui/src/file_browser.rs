@@ -207,29 +207,10 @@ pub(crate) fn file_icon(row: &TreeRow) -> Icon {
 }
 
 fn sorted_entries(dir: &Path) -> Vec<(PathBuf, String, bool, bool)> {
-    let Ok(read) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut entries: Vec<_> = read
-        .flatten()
-        .map(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let path = entry.path();
-            let ft = entry.file_type().ok();
-            let is_symlink = ft.as_ref().is_some_and(|t| t.is_symlink());
-            let is_dir = if is_symlink {
-                path.is_dir()
-            } else {
-                ft.is_some_and(|t| t.is_dir())
-            };
-            (path, name, is_dir, is_symlink)
-        })
-        .collect();
-    entries.sort_by(|a, b| {
-        b.2.cmp(&a.2)
-            .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
-    });
-    entries
+    xenon_finder::tree::list_dir(dir)
+        .into_iter()
+        .map(|e| (e.path, e.name, e.is_dir, e.is_symlink))
+        .collect()
 }
 
 #[cfg(test)]
