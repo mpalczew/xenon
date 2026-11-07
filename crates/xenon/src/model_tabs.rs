@@ -206,7 +206,7 @@ impl Model {
     }
 
     /// A tab dropped on the `edge` of pane `target`: split there and move the
-    /// tab into the new pane, as the GPUI app did. Without room to split, the
+    /// tab into the new pane. Without room to split, the
     /// tab joins the pane instead.
     pub(crate) fn drop_on_edge(
         &mut self,

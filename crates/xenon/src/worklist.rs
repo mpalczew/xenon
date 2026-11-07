@@ -3,7 +3,7 @@
 //! The file model (parse, edit, sections) is `xenon_store::worklist`. Opening
 //! shows the file in the list view (`worklist_list.rs`) or, by choice, the
 //! Markdown writing mode; capture is a stock `adw::Dialog` that saves as you
-//! type, as the GPUI capture did.
+//! type.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

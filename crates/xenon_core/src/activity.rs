@@ -4,7 +4,7 @@
 
 use crate::agent::agent_busy_signal;
 
-/// One terminal's burst state. Same rules the GPUI terminal view applies.
+/// One terminal's burst state.
 #[derive(Clone, Debug, Default)]
 pub struct TerminalActivity {
     wakeups: u32,

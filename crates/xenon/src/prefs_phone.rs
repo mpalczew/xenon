@@ -10,7 +10,7 @@ use xenon_remote::{DeviceBook, DeviceRow, RemoteStatus, ago};
 
 use crate::app::App;
 
-/// The line under the switch while the remote is off, as GPUI words it.
+/// The line under the switch while the remote is off.
 fn off_hint(app: &App) -> String {
     match app.chord("app.connect-phone") {
         Some(chord) => format!("Off \u{2014} {chord} connects a phone"),

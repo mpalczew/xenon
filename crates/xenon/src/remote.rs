@@ -2,8 +2,8 @@
 //! Requests are in `remote_host.rs`, sessions in `remote_session.rs`, terminal
 //! mirroring in `remote_mirror.rs`, phone fit in `remote_fit.rs`.
 //!
-//! One server per machine: the port is the GPUI app's (the saved `remote_port`,
-//! default 17890) so paired phones need no re-pairing. When the other Xenon
+//! One server per machine: the port is the saved `remote_port`
+//! (default 17890), so paired phones need no re-pairing. When the other Xenon
 //! holds it, this one stays quiet ("served by the other Xenon") and tries
 //! again every few seconds, never touching the other server.
 //!

@@ -1,11 +1,11 @@
 //! Phone fit rules: while a phone drives a terminal, its grid is sized to the
-//! phone's. Mac keyboard input hands the grid back for `LOCAL_QUIET`. Both
+//! phone's. Local keyboard input hands the grid back for `LOCAL_QUIET`. Both
 //! frontends keep one `FitGate` per terminal and apply what it says.
 
 use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
-/// Mac keyboard quiet time before a phone fit (re)applies.
+/// Local keyboard quiet time before a phone fit (re)applies.
 pub(crate) const LOCAL_QUIET: Duration = Duration::from_secs(30);
 /// Phone fit bounds (anything else is a buggy or hostile client).
 const FIT_COLS: RangeInclusive<u16> = 20..=300;
@@ -62,7 +62,7 @@ impl<T: PartialEq> FitGate<T> {
         self.request.as_ref().filter(|_| self.quiet(now))
     }
 
-    /// Mac keyboard input. True when it just took the grid back from a phone.
+    /// Local keyboard input. True when it just took the grid back from a phone.
     pub fn note_local_input(&mut self, now: Instant) -> bool {
         let was_active = self.active(now).is_some();
         self.local_input_at = Some(now);

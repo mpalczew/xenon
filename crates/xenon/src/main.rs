@@ -1,5 +1,5 @@
 //! Xenon, GTK frontend: workspaces, panes, and terminals on GTK 4, libadwaita
-//! and VTE. It reads and writes the GPUI app's file formats in its own state
+//! and VTE. It keeps its files in its own state
 //! directory (see `data.rs`). Product rules live in the shared `xenon_*` crates;
 //! this crate draws.
 //!

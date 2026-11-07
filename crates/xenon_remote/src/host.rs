@@ -1,4 +1,4 @@
-//! Requests from the remote server threads into the UI host (GPUI app).
+//! Requests from the remote server threads into the UI host.
 
 use std::sync::mpsc::{SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
@@ -85,7 +85,7 @@ pub enum PairError {
     Storage(String),
 }
 
-/// Work the server needs the GPUI app to do. Replies go over `reply`;
+/// Work the server needs the app to do. Replies go over `reply`;
 /// streaming output for a connection goes to its `Outbox`.
 pub enum HostRequest {
     /// Device token → device id (None = unknown / revoked).

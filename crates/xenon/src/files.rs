@@ -2,7 +2,7 @@
 //! `GtkListView` over a `GtkTreeListModel`. Each folder is a `gio::ListStore` of
 //! `gio::FileInfo` that is read on a worker thread when the folder is opened;
 //! only open folders are watched (a cap keeps the number of watchers bounded).
-//! Like the GPUI tree it lists every entry, folders first.
+//! It lists every entry, folders first.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};

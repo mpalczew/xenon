@@ -55,7 +55,7 @@ impl Model {
         let mut clean = clean_terminal_title(raw, spawn_dir);
         if clean == "terminal" && !raw.is_empty() {
             // The prompt titled itself with the folder it started in: name the
-            // shell, which `terminal_tab_label` numbers like the GPUI app.
+            // shell, which `terminal_tab_label` numbers.
             clean = shell_name();
         }
         match self.tab_mut(ws, tab) {

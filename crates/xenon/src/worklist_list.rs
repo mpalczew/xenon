@@ -1,6 +1,5 @@
 //! The worklist list view: sections with folds, items with check boxes, and
-//! inline editing, over `.xenon/worklist.md`. It is the GPUI list
-//! (`xenon_editor/src/view/worklist`) built from stock widgets: one
+//! inline editing, over `.xenon/worklist.md`. It is built from stock widgets: one
 //! `GtkListBox` of header, item and editor rows. Which rows show, the checkbox
 //! flip and every edit live in `xenon_store::worklist`; each change is written
 //! to the file, and the Markdown tab of the same file follows through its

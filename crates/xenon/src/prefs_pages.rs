@@ -251,7 +251,7 @@ pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesGroup {
     group
 }
 
-/// The row's detail line, as the GPUI Terminal page words it.
+/// The row's detail line.
 fn new_tabs_detail(mode: TerminalAutoClose) -> String {
     format!("New terminal tabs: {}", mode.label().to_lowercase())
 }

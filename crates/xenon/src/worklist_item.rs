@@ -1,6 +1,5 @@
 //! The inline item editor of the worklist list view: check box, title and
-//! points. It saves as you type through `xenon_store::worklist`, as the GPUI
-//! item editor did; the capture dialog (`worklist.rs`) works the same way.
+//! points. It saves as you type through `xenon_store::worklist`; the capture dialog (`worklist.rs`) works the same way.
 
 use std::cell::RefCell;
 use std::path::PathBuf;

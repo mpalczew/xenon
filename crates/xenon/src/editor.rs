@@ -369,7 +369,7 @@ impl EditorView {
         }
     }
 
-    /// Prose or Source for a Markdown file; remembered per file like the GPUI app.
+    /// Prose or Source for a Markdown file; remembered per file.
     fn set_mode(self: &Rc<Self>, mode: MarkdownMode) -> bool {
         if self.prose.is_none() {
             return false;

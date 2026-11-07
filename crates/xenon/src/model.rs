@@ -16,7 +16,7 @@ use xenon_core::{
 pub(crate) enum TabKind {
     Terminal,
     /// A read-only diff of one changed file (path relative to the workspace).
-    /// Not saved with the session, like the GPUI app's diff tabs.
+    /// Not saved with the session.
     Diff {
         path: String,
     },
@@ -208,7 +208,7 @@ impl Model {
     }
 
     /// Build the pane tree from the saved session the first time a workspace
-    /// is opened. Terminal slots reopen as fresh shells, like the GPUI app.
+    /// is opened. Terminal slots reopen as fresh shells.
     pub(crate) fn materialize(&mut self, id: WorkspaceId) {
         let Some(space) = self.spaces.get_mut(&id) else {
             return;

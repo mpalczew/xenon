@@ -79,7 +79,7 @@ impl App {
         self.fit_apply(ws, tab);
     }
 
-    /// Mac keyboard input in a terminal: hand the grid back if a phone had it.
+    /// Keyboard input in a terminal: hand the grid back if a phone had it.
     /// One map lookup when no phone is fitted.
     pub(crate) fn remote_local_input(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         let took = match self.remote.fits.borrow_mut().get_mut(&(ws, tab)) {

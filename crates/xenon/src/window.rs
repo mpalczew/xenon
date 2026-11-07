@@ -109,8 +109,7 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         b.set_focusable(false);
         b
     };
-    // GPUI toolbar order (xenon_ui/src/toolbar.rs), left to right. Buttons for
-    // commands GTK does not have yet (Go Back, Go Forward, File Browser) are not drawn.
+    // Toolbar buttons, left to right.
     let left = [
         (
             "sidebar-show-symbolic",

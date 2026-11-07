@@ -7,7 +7,7 @@ use gtk::prelude::*;
 use gtk::{gdk, pango};
 use xenon_prose::Kind;
 
-/// Heading scales, as in the GPUI prose view.
+/// Heading scales.
 const HEADING_SCALE: [f64; 4] = [1.7, 1.4, 1.2, 1.08];
 
 pub(crate) struct Tags {

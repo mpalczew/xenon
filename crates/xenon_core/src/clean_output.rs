@@ -1,6 +1,6 @@
 //! The cleaning rule behind Copy Clean: terminal text from an agent TUI with
 //! control sequences, box and quote gutters, status suffixes and hard wraps
-//! removed. Moved from the GPUI terminal's `clipboard.rs` so no view owns it.
+//! removed. No view owns it.
 
 mod bar_gutter;
 

@@ -191,9 +191,9 @@ viewport and sends `fit` on attach and on rotate/resize.
 - Device: `Paired → Revoked` (Settings revoke, or password rotate revokes all).
 - Attach: `Detached → Attached(ws, tab)` → `Detached` on WS close, tab close, or
   re-attach.
-- Tab size: `Desktop → PhoneFit` when an attach has sent `fit` and the Mac has had no
-  keyboard input on that tab for 30 s → `Desktop` on last detach or Mac keyboard input
-  to that tab. Multiple phones on one tab: smallest fit wins.
+- Tab size: `Desktop → PhoneFit` when an attach has sent `fit` and the desktop has had
+  no keyboard input on that tab for 30 s → `Desktop` on last detach or desktop keyboard
+  input to that tab. Multiple phones on one tab: smallest fit wins.
 
 ---
 
@@ -365,10 +365,10 @@ displayed or put in URLs.
 
 **A. Phone-width text → resize to phone.** Phone sends `fit {cols, rows}` for its screen
 at a readable size (~45×30 portrait). Host applies a size override to that tab's PTY
-while ≥1 phone is attached *and* the Mac has had no keyboard input on that tab for 30 s.
-Override released on detach or on Mac keyboard input to that tab (phone then sees the
-desktop size, fit-to-width, until the Mac goes quiet again). The desktop draws the
-narrow grid top-left with an empty margin. Reverses v1's "phone never resizes"
+while ≥1 phone is attached *and* the desktop has had no keyboard input on that tab for
+30 s. Override released on detach or on desktop keyboard input to that tab (phone then
+sees the desktop size, fit-to-width, until the desktop goes quiet again). The desktop
+draws the narrow grid top-left with an empty margin. Reverses v1's "phone never resizes"
 invariant.
 
 **C. Closed workspaces → keep, collapsed "Recent" section.** Reopening from the phone

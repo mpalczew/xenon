@@ -4,7 +4,7 @@
 use adw::prelude::*;
 use xenon_core::TabState;
 
-/// The Xenon icon, as the GPUI empty state shows it.
+/// The Xenon icon.
 fn xenon_icon() -> Option<gtk::gdk::Texture> {
     let bytes =
         gtk::glib::Bytes::from_static(include_bytes!("../../../assets/xenon-icon-source.png"));
@@ -38,8 +38,7 @@ fn button(label: &str, action: &str, tip: Option<&str>, primary: bool) -> gtk::B
     b
 }
 
-/// The empty state, in the GPUI app's words and order (`xenon_ui/src/app/
-/// empty_state.rs`): a workspace with nothing open in a pane, or no workspace.
+/// The empty state: a workspace with nothing open in a pane, or no workspace.
 /// An `AdwStatusPage` carries the icon, title and subtitle.
 pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widget {
     let page = adw::StatusPage::new();

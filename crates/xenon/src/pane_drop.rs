@@ -1,6 +1,6 @@
 //! Dropping a dragged tab on a pane's body: the left, right, top and bottom
 //! bands split the pane that way, the middle moves the tab there. The bands
-//! are the GPUI app's (40 px), lit while the tab hovers. `AdwTabBar` offers
+//! are 40 px wide, lit while the tab hovers. `AdwTabBar` offers
 //! the dragged `AdwTabPage` to a plain `gtk::DropTarget` (checked), so nothing
 //! else is needed; ours runs in the capture phase because the bar puts a target
 //! of its own on the view.

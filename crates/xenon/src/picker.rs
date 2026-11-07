@@ -1,6 +1,6 @@
 //! Ctrl+Shift+O: the workspace picker. Open and closed workspaces, folders
 //! found by name under the usual project roots, and path completion for typed
-//! paths. The rules are the GPUI picker's: known workspaces beat discovered
+//! paths. The rules: known workspaces beat discovered
 //! folders, a used workspace beats a random folder with a similar name, and a
 //! missing folder is shown but never opened. Discovery is
 //! `xenon_finder::discover`; it runs on a worker thread after a short debounce.
