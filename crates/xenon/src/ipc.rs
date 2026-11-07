@@ -13,55 +13,76 @@ use crate::app::App;
 
 /// Serve `listener` for the life of the app.
 pub(crate) fn serve(app: &Rc<App>, listener: std::os::unix::net::UnixListener) {
-    let (tx, rx) = async_channel::unbounded::<IpcRequest>();
+    type Reply = std::sync::mpsc::Sender<Result<(), String>>;
+    let (tx, rx) = async_channel::unbounded::<(IpcRequest, Reply)>();
     xenon_store::serve_forever(listener, move |req| {
-        let _ = tx.send_blocking(req);
+        let (reply, answer) = std::sync::mpsc::channel();
+        let _ = tx.send_blocking((req, reply));
+        answer
+            .recv_timeout(std::time::Duration::from_millis(1_500))
+            .unwrap_or(Ok(()))
     });
     let weak = Rc::downgrade(app);
     glib::spawn_future_local(async move {
-        while let Ok(req) = rx.recv().await {
+        while let Ok((req, reply)) = rx.recv().await {
             let Some(app) = weak.upgrade() else { break };
-            app.handle_request(req);
+            let _ = reply.send(app.handle_request(req));
         }
     });
 }
 
 impl App {
     /// Apply one request, then bring the window up.
-    pub(crate) fn handle_request(self: &Rc<Self>, req: IpcRequest) {
-        match req {
+    pub(crate) fn handle_request(self: &Rc<Self>, req: IpcRequest) -> Result<(), String> {
+        let result = match req {
             IpcRequest::Open { paths } => {
                 for path in paths {
-                    self.open_path(OpenFileSpec {
+                    let _ = self.open_path(OpenFileSpec {
                         path,
                         line: None,
                         column: None,
                         end_line: None,
                         pane: Default::default(),
+                        workspace: None,
                     });
                 }
+                Ok(())
             }
             IpcRequest::OpenFile(spec) => self.open_path(spec),
-            IpcRequest::Activate => {}
-        }
+            IpcRequest::Activate => Ok(()),
+        };
         self.win.present();
+        result
     }
 
-    /// A folder becomes a workspace. A file opens in the workspace that holds
-    /// it (`Registry::route_file`), at its line, in the pane `--pane` names.
-    fn open_path(self: &Rc<Self>, spec: OpenFileSpec) {
+    /// A folder becomes a workspace. A file opens in the workspace `--workspace`
+    /// names, else the one that holds it (`Registry::route_file`), at its line, in
+    /// the pane `--pane` names.
+    fn open_path(self: &Rc<Self>, spec: OpenFileSpec) -> Result<(), String> {
+        let named = match &spec.workspace {
+            Some(key) => Some(
+                self.model
+                    .borrow()
+                    .registry
+                    .find_workspace(key)
+                    .ok_or_else(|| format!("no open workspace matches \"{key}\""))?,
+            ),
+            None => None,
+        };
         let path: PathBuf = spec.path.canonicalize().unwrap_or(spec.path);
         if path.is_dir() {
             self.open_workspace(&path);
-            return;
+            return Ok(());
         }
         if !path.is_file() {
-            eprintln!("[xg] open: not a file or folder: {}", path.display());
-            return;
+            return Err(format!("not a file or folder: {}", path.display()));
         }
-        let route = {
-            let model = self.model.borrow();
-            model.registry.route_file(&path, model.active())
+        let route = match named {
+            Some(id) => FileRoute::Workspace(id),
+            None => {
+                let model = self.model.borrow();
+                model.registry.route_file(&path, model.active())
+            }
         };
         match route {
             FileRoute::Workspace(id) => self.activate_workspace(id),
@@ -78,6 +99,7 @@ impl App {
                 spec.column.unwrap_or(1),
             );
         }
+        Ok(())
     }
 
     /// Choose the pane the next opened tab lands in. `Focused` keeps the

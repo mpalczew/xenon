@@ -21,6 +21,20 @@ impl Registry {
         best.map(|(_, id)| id)
     }
 
+    /// The workspace a user or agent named: its id, its name, or its root path.
+    pub fn find_workspace(&self, key: &str) -> Option<WorkspaceId> {
+        let by = |hit: &dyn Fn(&crate::WorkspaceRec) -> bool| {
+            self.workspaces.iter().find(|r| hit(r)).map(|r| r.id)
+        };
+        by(&|r| r.id.to_string() == key)
+            .or_else(|| by(&|r| r.name == key))
+            .or_else(|| {
+                let want = Path::new(key);
+                let want = want.canonicalize().unwrap_or_else(|_| want.to_path_buf());
+                by(&|r| r.root.canonicalize().unwrap_or_else(|_| r.root.clone()) == want)
+            })
+    }
+
     /// Pick where a CLI/agent file open lands. The longest open workspace
     /// root containing the file wins. Otherwise the file opens in the current
     /// workspace, even when it lies outside every root (`/tmp`, `~/.cache`).

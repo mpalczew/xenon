@@ -24,7 +24,7 @@ mod terminal;
 pub mod worklist;
 pub use cli::parse_cli;
 pub use ipc::{
-    IpcRequest, OpenFileSpec, OpenPane, bind_server, serve_forever, try_handoff_request,
+    Handoff, IpcRequest, OpenFileSpec, OpenPane, bind_server, serve_forever, try_handoff_request,
 };
 pub use prose::{
     MarkdownMode, ProseFilePrefs, ProseFont, ProseMarkers, ProseSettings, prose_file_prefs,

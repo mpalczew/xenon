@@ -26,7 +26,10 @@ SHARED_DIR="$HOME/.xenon-shared"
 
 usage() {
     cat >&2 <<'EOF'
-usage: xenon [status | open [--pane sibling|focused|split-right] path[:line[:col]|:start-end] | path...]
+usage: xenon [status | open [--pane sibling|focused|split-right] [--workspace name|path|id] path[:line[:col]|:start-end] | path...]
+
+xenon open, run in a Xenon terminal, opens the file in that terminal's workspace
+(XENON_WORKSPACE). --workspace picks another open workspace by name or root path.
 
 With no args:
   - 0 running: launch the last active slot (default a)

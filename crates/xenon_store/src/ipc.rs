@@ -54,6 +54,9 @@ pub struct OpenFileSpec {
     pub end_line: Option<u32>,
     #[serde(default)]
     pub pane: OpenPane,
+    /// Open in this workspace (id, name or root path) instead of routing by path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -74,9 +77,25 @@ pub(crate) struct IpcResponse {
     pub error: Option<String>,
 }
 
-/// Same as [`try_handoff`] for an already-built request (`open` included).
-pub fn try_handoff_request(req: &IpcRequest) -> bool {
-    send_request(req).is_ok()
+/// What came of handing a request to the running instance.
+pub enum Handoff {
+    /// The instance took it.
+    Sent,
+    /// The instance answered with an error to show the user.
+    Rejected(String),
+    /// Nothing is listening.
+    NoServer,
+}
+
+/// Send an already-built request to the running instance.
+pub fn try_handoff_request(req: &IpcRequest) -> Handoff {
+    match send_request(req) {
+        Ok(_) => Handoff::Sent,
+        Err(error) if error.kind() == std::io::ErrorKind::Other => {
+            Handoff::Rejected(error.to_string())
+        }
+        Err(_) => Handoff::NoServer,
+    }
 }
 
 /// Connect and send one request; Ok only when the peer replies `ok: true`.
@@ -126,7 +145,10 @@ pub fn bind_server() -> std::io::Result<UnixListener> {
 }
 
 /// Serve until the listener is dropped / errors. Each request is pushed to `tx`.
-pub fn serve_forever(listener: UnixListener, tx: impl Fn(IpcRequest) + Send + 'static) {
+pub fn serve_forever(
+    listener: UnixListener,
+    tx: impl Fn(IpcRequest) -> Result<(), String> + Send + 'static,
+) {
     std::thread::Builder::new()
         .name("xenon-ipc".into())
         .spawn(move || {
@@ -143,7 +165,10 @@ pub fn serve_forever(listener: UnixListener, tx: impl Fn(IpcRequest) + Send + 's
         .expect("spawn xenon-ipc thread");
 }
 
-fn handle_client(stream: UnixStream, tx: &impl Fn(IpcRequest)) -> std::io::Result<()> {
+fn handle_client(
+    stream: UnixStream,
+    tx: &impl Fn(IpcRequest) -> Result<(), String>,
+) -> std::io::Result<()> {
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
     stream.set_write_timeout(Some(IO_TIMEOUT))?;
     let mut reader = BufReader::new(&stream);
@@ -162,12 +187,12 @@ fn handle_client(stream: UnixStream, tx: &impl Fn(IpcRequest)) -> std::io::Resul
             return Ok(());
         }
     };
-    tx(req);
+    let error = tx(req).err();
     write_response(
         &stream,
         IpcResponse {
-            ok: true,
-            error: None,
+            ok: error.is_none(),
+            error,
         },
     )
 }

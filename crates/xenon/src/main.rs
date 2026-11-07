@@ -99,8 +99,13 @@ fn main() -> glib::ExitCode {
     let rest: Vec<String> = std::env::args().skip(1).collect();
     let command = xenon_store::parse_cli(rest);
     let request = command.to_request();
-    if xenon_store::try_handoff_request(&request) {
-        return glib::ExitCode::SUCCESS;
+    match xenon_store::try_handoff_request(&request) {
+        xenon_store::Handoff::Sent => return glib::ExitCode::SUCCESS,
+        xenon_store::Handoff::Rejected(error) => {
+            eprintln!("xenon: {error}");
+            return glib::ExitCode::FAILURE;
+        }
+        xenon_store::Handoff::NoServer => {}
     }
     let listener = xenon_store::bind_server()
         .inspect_err(|error| eprintln!("[xg] ipc bind failed: {error}"))
@@ -136,7 +141,11 @@ fn main() -> glib::ExitCode {
             ipc::serve(&app, listener);
         }
         match boot.take() {
-            Some(request) => app.handle_request(request),
+            Some(request) => {
+                if let Err(error) = app.handle_request(request) {
+                    eprintln!("xenon: {error}");
+                }
+            }
             None => app.win.present(),
         }
     });

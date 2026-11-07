@@ -3,17 +3,15 @@ name: xenon
 description: Show the user a file in Xenon with xenon open whenever they want to see one ("open it", "show me", "open in the editor"), never another editor; read or update a workspace worklist when asked.
 metadata:
   xenon_managed: true
-  xenon_skill_version: 8
+  xenon_skill_version: 9
 ---
 
 # Xenon
 
-If `XENON_DATA_DIR` is set, Xenon has provided a target instance for this process. When
-the user wants to see a file ("open it", "show me", "open in the editor"), run `xenon
-open`. Never use Cursor, VS Code, TextEdit, or `open -t`, and do not print the file into
-chat; that keeps sensitive contents out of the transcript. Do not open files the user
-did not ask to see. To update a worklist, edit `.xenon/worklist.md` directly; opening it
-is unnecessary.
+When the user wants to see a file ("open it", "show me", "open in the editor"), run
+`xenon open`. Never use another editor, and do not print the file into chat; that keeps
+sensitive contents out of the transcript. Do not open files the user did not ask to see.
+To update a worklist, edit `.xenon/worklist.md` directly; opening it is unnecessary.
 
 ## Open a file
 
@@ -21,16 +19,20 @@ is unnecessary.
 xenon open path/to/file.rs:42
 xenon open path/to/file.rs:42:8
 xenon open path/to/file.rs:42-80 --pane sibling
+xenon open /tmp/report.md
+xenon open --workspace other-project notes.md
 ```
 
-- Location is 1-based. `:line`, `:line:col`, or `:start-end`.
+- In a Xenon terminal, `xenon open` opens the file in your own workspace automatically,
+  even when the file is outside the workspace folder. To show the user a report or other
+  output, write it to a temp file such as `/tmp/report.md` and open it.
+- `--workspace <name|path>` opens it in another open workspace instead. An unknown
+  workspace is an error.
+- Location is 1-based: `:line`, `:line:col`, or `:start-end`.
 - `--pane sibling` (default) opens in the other pane, or splits right if there is only
   one. Does not steal terminal focus.
 - `--pane focused` tabs into the current pane.
 - `--pane split-right` always splits right when the nest cap allows.
-
-If `$XENON_DATA_DIR` is set, `xenon open` talks to this window even when another Xenon
-slot is running.
 
 ## Workspace worklist
 

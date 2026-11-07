@@ -22,6 +22,8 @@ pub(crate) struct TermView {
     pub spawn_dir: String,
     /// Directory the shell started in, for relative link targets.
     pub cwd: std::path::PathBuf,
+    /// The workspace this terminal belongs to; the shell gets it as `XENON_WORKSPACE`.
+    workspace: WorkspaceId,
     pub pid: Cell<Option<i32>>,
     /// The wait status of the child once it ended (a task reads how it ended).
     pub status: Cell<Option<i32>>,
@@ -63,6 +65,7 @@ impl TermView {
             find,
             spawn_dir,
             cwd: cwd.to_path_buf(),
+            workspace: ws,
             pid: Cell::new(None),
             status: Cell::new(None),
             last_output: Cell::new(Instant::now()),
@@ -110,6 +113,7 @@ impl TermView {
         let shell_name = argv.first().cloned().unwrap_or_default();
         let mut env: Vec<String> = child_env();
         env.extend(extra_env.iter().cloned());
+        env.push(format!("XENON_WORKSPACE={}", self.workspace));
         let env_refs: Vec<&str> = env.iter().map(String::as_str).collect();
         let argv_refs: Vec<&str> = argv.iter().map(String::as_str).collect();
         let this = self.clone();
@@ -135,9 +139,15 @@ impl TermView {
 
 /// The environment shells see: ours, minus what only this frontend uses, so a
 /// program started here does not inherit it. `XENON_DATA_DIR` and `XENON_SLOT` stay, so
-/// `xenon open` in a terminal reaches the slot that runs it.
+/// `xenon open` in a terminal reaches the slot that runs it. `XENON_WORKSPACE` is
+/// added per terminal.
 fn child_env() -> Vec<String> {
-    const DROP: [&str; 3] = ["TERM", "COLORTERM", "XENON_GTK_GSK_DEFAULTED"];
+    const DROP: [&str; 4] = [
+        "TERM",
+        "COLORTERM",
+        "XENON_GTK_GSK_DEFAULTED",
+        "XENON_WORKSPACE",
+    ];
     let defaulted_renderer = std::env::var_os("XENON_GTK_GSK_DEFAULTED").is_some();
     let mut env: Vec<String> = std::env::vars()
         .filter(|(k, _)| !DROP.contains(&k.as_str()))

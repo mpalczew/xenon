@@ -45,6 +45,9 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> CliCommand {
 fn parse_open(args: &[String]) -> CliCommand {
     let mut pane = OpenPane::Sibling;
     let mut raw: Option<String> = None;
+    let mut workspace = std::env::var("XENON_WORKSPACE")
+        .ok()
+        .filter(|v| !v.is_empty());
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -60,6 +63,15 @@ fn parse_open(args: &[String]) -> CliCommand {
                 if let Some(value) = args.get(i) {
                     pane = OpenPane::parse(value).unwrap_or(OpenPane::Sibling);
                 }
+            }
+            "--workspace" => {
+                i += 1;
+                if let Some(value) = args.get(i) {
+                    workspace = Some(workspace_arg(value));
+                }
+            }
+            flag if flag.starts_with("--workspace=") => {
+                workspace = Some(workspace_arg(&flag[12..]));
             }
             flag if flag.starts_with("--pane=") => {
                 pane = OpenPane::parse(&flag[7..]).unwrap_or(OpenPane::Sibling);
@@ -81,7 +93,17 @@ fn parse_open(args: &[String]) -> CliCommand {
         column,
         end_line,
         pane,
+        workspace,
     })
+}
+
+/// A workspace given as a relative path becomes absolute; a name or id stays as typed.
+fn workspace_arg(value: &str) -> String {
+    if value.contains('/') || value.starts_with('.') {
+        abs_path(value.to_string()).to_string_lossy().into_owned()
+    } else {
+        value.to_string()
+    }
 }
 
 fn abs_path(raw: String) -> PathBuf {
