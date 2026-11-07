@@ -21,15 +21,26 @@ impl App {
         let weak = Rc::downgrade(self);
         glib::idle_add_local_once(move || {
             let Some(app) = weak.upgrade() else { return };
-            let key = {
+            let (ws, pane, tab) = {
                 let model = app.model.borrow();
                 let ws = model.active();
-                let tab = ws
-                    .and_then(|w| model.spaces.get(&w))
-                    .and_then(|s| s.content.active_tab());
-                ws.zip(tab.map(|t| t.id))
+                let content = ws.and_then(|w| model.spaces.get(&w)).map(|s| &s.content);
+                (
+                    ws,
+                    content.and_then(|c| c.focused),
+                    content.and_then(|c| c.active_tab()).map(|t| t.id),
+                )
             };
-            let Some(key) = key else { return };
+            let Some(ws) = ws else { return };
+            let Some(tab) = tab else {
+                // An empty pane: the focus goes to its card.
+                let view = pane.and_then(|p| app.slots.borrow().get(&ws)?.panes.get(&p).cloned());
+                if let Some(view) = view {
+                    view.focus_empty();
+                }
+                return;
+            };
+            let key = (ws, tab);
             if let Some(view) = app.terms.borrow().get(&key).cloned() {
                 view.term.grab_focus();
             } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {

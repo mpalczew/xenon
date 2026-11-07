@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::gio;
+use gtk::{gio, glib};
 use xenon_core::{PaneId, PaneLeaf, TabId, WorkspaceDot, WorkspaceId};
 
 use crate::app::App;
@@ -76,6 +76,16 @@ impl PaneView {
             remove: RefCell::default(),
         });
         this.connect(app);
+        // Focus anywhere in the pane (terminal, editor, diff, empty card)
+        // tells the model which pane the user is in.
+        let focus = gtk::EventControllerFocus::new();
+        let weak = Rc::downgrade(app);
+        focus.connect_enter(move |_| {
+            if let Some(app) = weak.upgrade() {
+                app.pane_focused(ws, pane);
+            }
+        });
+        this.root.add_controller(focus);
         crate::pane_drop::install(app, &body, ws, pane);
         this
     }
@@ -222,6 +232,18 @@ impl PaneView {
             let card = crate::empty::all_clear(app, true);
             let overlay = gtk::Overlay::new();
             overlay.set_child(Some(&card));
+            // A click on bare space focuses the card, as it would a terminal.
+            let click = gtk::GestureClick::new();
+            click.connect_pressed(glib::clone!(
+                #[weak]
+                overlay,
+                move |_, _, _, _| {
+                    if !focus_inside(&overlay) {
+                        overlay.child_focus(gtk::DirectionType::TabForward);
+                    }
+                }
+            ));
+            overlay.add_controller(click);
             let remove = gtk::Button::from_icon_name("window-close-symbolic");
             remove.add_css_class("flat");
             remove.add_css_class("xremove-pane");
@@ -246,6 +268,13 @@ impl PaneView {
             remove.set_visible(self.multi.get());
         }
         self.stack.set_visible_child_name("empty");
+    }
+
+    /// Put the keyboard focus on the empty card's first button.
+    pub(crate) fn focus_empty(&self) {
+        if let Some(card) = self.stack.child_by_name("empty") {
+            card.child_focus(gtk::DirectionType::TabForward);
+        }
     }
 
     /// Show a tab's status on its page. Selected tabs carry no status.

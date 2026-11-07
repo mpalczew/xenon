@@ -235,19 +235,6 @@ impl App {
                 }
                 TabKind::Kept(state) => crate::empty::placeholder(state),
             };
-            if !matches!(tab.kind, TabKind::Terminal) {
-                // Focus in an editor or diff makes its pane the remembered one,
-                // as it does for a terminal.
-                let focus = gtk::EventControllerFocus::new();
-                let weak = Rc::downgrade(self);
-                let tab_id = tab.id;
-                focus.connect_enter(move |_| {
-                    if let Some(app) = weak.upgrade() {
-                        app.term_focused(ws, tab_id);
-                    }
-                });
-                body.add_controller(focus);
-            }
             self.bodies.borrow_mut().insert(key, body);
         }
     }

@@ -3,7 +3,7 @@
 //! quiet, bell, key, exit); this decides what they mean.
 
 use xenon_core::{
-    AttentionReason, TabId, WorkspaceDot, WorkspaceId, clean_terminal_title, workspace_dot,
+    AttentionReason, PaneId, TabId, WorkspaceDot, WorkspaceId, clean_terminal_title, workspace_dot,
     workspace_dot_from_tabs,
 };
 
@@ -86,6 +86,18 @@ impl Model {
         if let Some(t) = self.tab_mut(ws, tab) {
             t.exited = Some(code);
         }
+    }
+
+    /// Make `pane` the focused one. True when that changed anything.
+    pub(crate) fn focus_pane(&mut self, ws: WorkspaceId, pane: PaneId) -> bool {
+        let Some(content) = self.space_content(ws) else {
+            return false;
+        };
+        let changed = content.focused != Some(pane) && content.leaf_ids().contains(&pane);
+        if changed {
+            content.focused = Some(pane);
+        }
+        changed
     }
 
     /// Dismiss the mark on the tab the user is looking at.

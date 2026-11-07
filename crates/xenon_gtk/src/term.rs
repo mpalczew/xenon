@@ -244,11 +244,4 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
         });
     }
     term.add_controller(drop);
-    let focus = gtk::EventControllerFocus::new();
-    focus.connect_enter(move |_| {
-        if let Some(app) = weak.upgrade() {
-            app.term_focused(ws, tab);
-        }
-    });
-    term.add_controller(focus);
 }

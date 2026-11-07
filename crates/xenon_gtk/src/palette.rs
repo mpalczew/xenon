@@ -69,6 +69,8 @@ pub(crate) struct Palette {
     selection: gtk::SingleSelection,
     view: gtk::ListView,
     restore: RefCell<Option<gtk::Widget>>,
+    /// True while focus goes back to where it was; the app ignores that move.
+    pub(crate) restoring: Cell<bool>,
     handlers: RefCell<Option<Rc<Handlers>>>,
     open: Cell<bool>,
     /// Counts openings, so late answers for an earlier opening can be dropped.
@@ -149,6 +151,7 @@ impl Palette {
             selection,
             view,
             restore: RefCell::new(None),
+            restoring: Cell::new(false),
             handlers: RefCell::new(None),
             open: Cell::new(false),
             epoch: Cell::new(0),
@@ -355,7 +358,9 @@ impl Palette {
         self.store.remove_all();
         self.titles.borrow_mut().clear();
         if let Some(widget) = self.restore.borrow_mut().take() {
+            self.restoring.set(true);
             widget.grab_focus();
+            self.restoring.set(false);
         }
         self.changed();
     }

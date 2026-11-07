@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use gtk::glib;
 use vte::prelude::*;
-use xenon_core::{IDLE_AFTER, TabId, WorkspaceId};
+use xenon_core::{IDLE_AFTER, PaneId, TabId, WorkspaceId};
 
 use crate::app::App;
 
@@ -121,16 +121,18 @@ impl App {
         self.relabel(ws, tab);
     }
 
-    /// A terminal took keyboard focus (click or key): the model's focused pane
-    /// and active tab follow it, so commands target what the user is using.
-    pub(crate) fn term_focused(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        // Focus that moves while `sync` rearranges the tabs is not the user's.
-        if self.tab_sync.get() {
+    /// Keyboard focus entered a pane (click or key, on a terminal, editor,
+    /// diff or the empty card): the model's focused pane follows it, so
+    /// commands and new tabs target what the user is using.
+    pub(crate) fn pane_focused(self: &Rc<Self>, ws: WorkspaceId, pane: PaneId) {
+        // Focus that moves while `sync` rearranges the tabs, or that the
+        // palette hands back on close, is not the user's.
+        if self.tab_sync.get() || self.launcher.restoring.get() {
             return;
         }
         let changed = {
             let mut model = self.model.borrow_mut();
-            let changed = model.select_tab(ws, tab);
+            let changed = model.focus_pane(ws, pane);
             let dismissed = model.dismiss_viewed();
             changed || dismissed
         };

@@ -11,27 +11,38 @@ fn xenon_icon() -> Option<gtk::gdk::Texture> {
     gtk::gdk::Texture::from_bytes(&bytes).ok()
 }
 
-/// Commands the card lists: label and keys exactly as the GPUI catalog
-/// (`xenon_ui/src/commands.rs`) writes them; `display_keys` turns the glyphs
-/// into what this platform and the user's keymap bind.
-const WITH_WORKSPACE: [(&str, &str); 5] = [
-    ("Command Palette\u{2026}", "\u{2318}\u{21e7}P"),
-    ("Focus Terminal", "\u{2318}1"),
-    ("Focus Editor", "\u{2318}2"),
-    ("Toggle Sidebar", "\u{2318}B"),
-    ("Keyboard Shortcuts", "\u{2318}\u{21e7}/"),
+/// Commands the card lists: label, keys exactly as the GPUI catalog
+/// (`xenon_ui/src/commands.rs`) writes them (`display_keys` turns the glyphs
+/// into what this platform and the user's keymap bind), and the GTK action the
+/// row runs. Rows with no action yet are listed but not activatable.
+type Entry = (&'static str, &'static str, Option<&'static str>);
+const WITH_WORKSPACE: [Entry; 5] = [
+    ("Command Palette\u{2026}", "\u{2318}\u{21e7}P", None),
+    ("Focus Terminal", "\u{2318}1", Some("app.focus-terminal")),
+    ("Focus Editor", "\u{2318}2", None),
+    ("Toggle Sidebar", "\u{2318}B", Some("app.toggle-sidebar")),
+    ("Keyboard Shortcuts", "\u{2318}\u{21e7}/", None),
 ];
-const WITHOUT_WORKSPACE: [(&str, &str); 5] = [
-    ("New Workspace\u{2026}", "\u{2318}\u{2325}N"),
-    ("Open Workspace\u{2026}", "\u{2318}\u{21e7}O"),
-    ("Command Palette\u{2026}", "\u{2318}\u{21e7}P"),
-    ("Toggle Sidebar", "\u{2318}B"),
-    ("Keyboard Shortcuts", "\u{2318}\u{21e7}/"),
+const WITHOUT_WORKSPACE: [Entry; 5] = [
+    (
+        "New Workspace\u{2026}",
+        "\u{2318}\u{2325}N",
+        Some("app.new-workspace"),
+    ),
+    (
+        "Open Workspace\u{2026}",
+        "\u{2318}\u{21e7}O",
+        Some("app.open-workspace"),
+    ),
+    ("Command Palette\u{2026}", "\u{2318}\u{21e7}P", None),
+    ("Toggle Sidebar", "\u{2318}B", Some("app.toggle-sidebar")),
+    ("Keyboard Shortcuts", "\u{2318}\u{21e7}/", None),
 ];
 
 fn button(label: &str, action: &str, tip: Option<&str>, primary: bool) -> gtk::Button {
     let b = gtk::Button::with_label(label);
     b.set_action_name(Some(action));
+    b.add_css_class("pill");
     if primary {
         b.add_css_class("suggested-action");
     }
@@ -56,12 +67,9 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
         "Xenon keeps your agent work organized across workspaces."
     }));
     page.set_vexpand(true);
-    let card = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    card.set_halign(gtk::Align::Center);
-    card.set_size_request(420, -1);
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 24);
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     buttons.set_halign(gtk::Align::Center);
-    buttons.set_margin_top(4);
     if has_workspace {
         buttons.append(&button(
             "New Terminal",
@@ -93,32 +101,37 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
         ));
     }
     card.append(&buttons);
-    let list = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    list.add_css_class("xhints");
     let heading = gtk::Label::new(Some("Useful shortcuts"));
-    heading.add_css_class("caption-heading");
-    heading.add_css_class("dim-label");
+    heading.add_css_class("heading");
     heading.set_xalign(0.0);
-    list.append(&heading);
+    let list = gtk::ListBox::new();
+    list.add_css_class("boxed-list");
+    list.set_selection_mode(gtk::SelectionMode::None);
     let entries = if has_workspace {
         &WITH_WORKSPACE
     } else {
         &WITHOUT_WORKSPACE
     };
-    for (label, keys) in entries {
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 16);
-        let name = gtk::Label::new(Some(label));
-        name.add_css_class("dim-label");
-        name.set_xalign(0.0);
-        name.set_hexpand(true);
+    for (label, keys, action) in entries {
+        let row = adw::ActionRow::new();
+        row.set_title(label);
         let chord = gtk::Label::new(Some(&xenon_keymap::display_keys(keys)));
-        chord.add_css_class("caption-heading");
-        row.append(&name);
-        row.append(&chord);
+        chord.add_css_class("dim-label");
+        row.add_suffix(&chord);
+        match action {
+            Some(action) => row.set_action_name(Some(action)),
+            None => row.set_activatable(false),
+        }
         list.append(&row);
     }
-    card.append(&list);
-    page.set_child(Some(&card));
+    let shortcuts = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    shortcuts.append(&heading);
+    shortcuts.append(&list);
+    card.append(&shortcuts);
+    let clamp = adw::Clamp::new();
+    clamp.set_maximum_size(420);
+    clamp.set_child(Some(&card));
+    page.set_child(Some(&clamp));
     page.upcast()
 }
 
