@@ -7,4 +7,4 @@
 - [x] sidebar sections can't be resized by dragging
 - [ ] Markdown preview: add quote bars, round bullets, table lines, colored code, and
       continue a list when you press Enter
-- [ ] Diff tabs aren't reopened after a restart
+- [x] Diff tabs aren't reopened after a restart

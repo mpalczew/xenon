@@ -129,6 +129,7 @@ pub(crate) fn placeholder(state: &TabState) -> gtk::Widget {
                 .map_or_else(|| "file".into(), |n| n.to_string_lossy().into_owned()),
             path.display().to_string(),
         ),
+        TabState::Diff { path, .. } => (path.clone(), String::new()),
         TabState::Terminal { .. } => ("terminal".into(), String::new()),
     };
     let page = adw::StatusPage::new();

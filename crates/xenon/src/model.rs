@@ -16,7 +16,6 @@ use xenon_core::{
 pub(crate) enum TabKind {
     Terminal,
     /// A read-only diff of one changed file (path relative to the workspace).
-    /// Not saved with the session.
     Diff {
         path: String,
     },
@@ -87,7 +86,10 @@ impl Tab {
                 cwd: ".".into(),
                 remote_session: None,
             }),
-            TabKind::Diff { .. } => None,
+            TabKind::Diff { path } => Some(TabState::Diff {
+                id: self.id,
+                path: path.clone(),
+            }),
             TabKind::Kept(state) => Some(state.clone()),
         }
     }
@@ -344,6 +346,14 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                 .iter()
                 .map(|state| match state {
                     TabState::Terminal { id, .. } => Tab::terminal(*id),
+                    TabState::Diff { id, path } => Tab {
+                        id: *id,
+                        kind: TabKind::Diff { path: path.clone() },
+                        title: String::new(),
+                        exited: None,
+                        modified: false,
+                        phone_device: None,
+                    },
                     TabState::Editor { id, .. } => Tab {
                         id: *id,
                         kind: TabKind::Kept(state.clone()),

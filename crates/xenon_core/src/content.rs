@@ -75,6 +75,8 @@ pub enum TabState {
         #[serde(default)]
         scroll_top: u32,
     },
+    /// A read-only diff of one file (path relative to the workspace).
+    Diff { id: TabId, path: String },
 }
 
 fn default_cwd() -> PathBuf {
