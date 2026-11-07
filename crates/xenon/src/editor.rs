@@ -253,6 +253,9 @@ impl EditorView {
         self.buffer.end_irreversible_action();
         self.buffer.set_modified(false);
         self.loading.set(false);
+        if let Some(prose) = &self.prose {
+            prose.refit_column();
+        }
         let at = self
             .buffer
             .iter_at_line_offset(line, col)

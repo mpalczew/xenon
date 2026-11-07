@@ -62,6 +62,8 @@ pub(crate) struct Prose {
     /// The block whose markup is showing (markers = hide).
     revealed: Cell<Option<usize>>,
     margin: Cell<i32>,
+    /// Column width in characters, fitted to the document when it loads.
+    column: Cell<f32>,
     pub(crate) images: crate::prose_images::Images,
 }
 
@@ -77,6 +79,8 @@ impl Prose {
             .buffer()
             .downcast::<sourceview::Buffer>()
             .expect("an editor view shows a source buffer");
+        let (start, end) = buffer.bounds();
+        let text = buffer.text(&start, &end, true);
         let this = Rc::new(Self {
             view: view.clone(),
             tags: Tags::new(&buffer.tag_table()),
@@ -94,6 +98,7 @@ impl Prose {
             timer: Cell::new(false),
             revealed: Cell::new(None),
             margin: Cell::new(-1),
+            column: Cell::new(xenon_prose::column_width(&text)),
             images: crate::prose_images::Images::default(),
         });
         this.connect();
@@ -334,6 +339,15 @@ impl Prose {
         }
         drop(doc);
         self.images.schedule_move(self);
+    }
+
+    /// Fit the column to freshly loaded text.
+    pub(crate) fn refit_column(self: &Rc<Self>) {
+        let (start, end) = self.buffer.bounds();
+        let text = self.buffer.text(&start, &end, true);
+        self.column.set(xenon_prose::column_width(&text));
+        self.margin.set(-1);
+        self.fit_column();
     }
 
     /// Turn prose mode on or off for this view and restyle it.

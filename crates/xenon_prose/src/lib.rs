@@ -153,3 +153,44 @@ impl Doc {
         }
     }
 }
+
+/// Column width in characters for a document: the width its author wrapped
+/// paragraphs at when it is hard-wrapped, otherwise 80.
+///
+/// Only paragraph lines that continue on the next line count (a last line is
+/// short by nature); code, tables, headings, quotes, HTML and lines under 30
+/// characters are skipped. The file counts as hard-wrapped when at least six
+/// such lines exist and their median is within 80% of their 90th percentile,
+/// which is then the width, plus 2 characters of slack, at most 120.
+pub fn column_width(text: &str) -> f32 {
+    const DEFAULT: f32 = 80.0;
+    let mut lens = Vec::new();
+    let mut fence = false;
+    let mut lines = text.lines().peekable();
+    while let Some(line) = lines.next() {
+        let t = line.trim_start();
+        if t.starts_with("```") || t.starts_with("~~~") {
+            fence = !fence;
+            continue;
+        }
+        let skip = fence || line.starts_with("    ") || line.starts_with('\t');
+        let markup = t.starts_with(['#', '>', '|', '<']) || t.contains("](");
+        let next = lines.peek().map_or("", |l| l.trim());
+        let continues = !next.is_empty() && !next.starts_with(['#', '>', '|', '<', '`', '~']);
+        let len = line.trim_end().chars().count();
+        if !skip && !markup && continues && len >= 30 {
+            lens.push(len);
+        }
+    }
+    if lens.len() < 6 {
+        return DEFAULT;
+    }
+    lens.sort_unstable();
+    let p90 = lens[lens.len() * 9 / 10];
+    let median = lens[lens.len() / 2];
+    if median * 5 >= p90 * 4 {
+        (p90 + 2).min(120) as f32
+    } else {
+        DEFAULT
+    }
+}

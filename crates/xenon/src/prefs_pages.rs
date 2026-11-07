@@ -6,9 +6,9 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_settings::{
-    FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_MEASURES,
-    PROSE_SIZES, ProseMarkers, Surface, TerminalAutoClose, UiSettings, format_size,
-    mono_font_choices, nearest_index,
+    FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_SIZES,
+    ProseMarkers, Surface, TerminalAutoClose, UiSettings, format_size, mono_font_choices,
+    nearest_index,
 };
 
 use crate::app::App;
@@ -221,13 +221,6 @@ fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
         &numbers(&PROSE_LINE_HEIGHTS),
         nearest_index(&PROSE_LINE_HEIGHTS, p.line_height),
         prose(app, |p, i| p.line_height = PROSE_LINE_HEIGHTS[i]),
-    ));
-    group.add(&choice_row(
-        "Column width",
-        "Characters per line",
-        &numbers(&PROSE_MEASURES),
-        nearest_index(&PROSE_MEASURES, p.measure),
-        prose(app, |p, i| p.measure = PROSE_MEASURES[i]),
     ));
     group
 }

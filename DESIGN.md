@@ -105,14 +105,15 @@ zero.
 - **Markdown prose mode.** A `.md` file opens as writing, not source: the same text view
   with text tags (headings 1.7/1.4/1.2/1.08 times the body, bold, italic, struck, code
   chip, links in the accent color, a tinted quote and code block, accent list marks and
-  task boxes), a column of `measure` characters centered by the view's side margins, and
-  the line height as extra pixels between lines. Markers (`#`, `**`, `[`, fences, `>`)
-  are the dim ink under Markers: Dim, or the `invisible` tag under Hide, except in the
-  block the caret is in. Pictures sit in a space under their line (an overlay, never
-  text in the file). Ctrl+click opens a link; click or Ctrl+Enter flips a task box;
-  Alt+1 / Alt+3 switch Prose and Source (the worklist file opens as its list view
-  instead; Alt+4 returns to it). Not built yet: Paper surface, quote rule, round bullet
-  glyphs, table grid, code highlighting, list continuation on Return.
+  task boxes), a column fitted to the file (the wrap width of a hard-wrapped file, else
+  80 characters) centered by the view's side margins, and the line height as extra
+  pixels between lines. Markers (`#`, `**`, `[`, fences, `>`) are the dim ink under
+  Markers: Dim, or the `invisible` tag under Hide, except in the block the caret is in.
+  Pictures sit in a space under their line (an overlay, never text in the file).
+  Ctrl+click opens a link; click or Ctrl+Enter flips a task box; Alt+1 / Alt+3 switch
+  Prose and Source (the worklist file opens as its list view instead; Alt+4 returns to
+  it). Not built yet: Paper surface, quote rule, round bullet glyphs, table grid, code
+  highlighting, list continuation on Return.
 - **Settings.** Its own window (Ctrl+,) with a page sidebar. Pages: Fonts, Editor (with
   Markdown writing), Agents (Agent skill, Terminal) and Phone Remote. Ctrl+1 to 4 jump
   to a page; Escape or Ctrl+W closes. No search.

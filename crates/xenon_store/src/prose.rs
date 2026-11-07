@@ -38,9 +38,6 @@ pub struct ProseSettings {
     pub size: f32,
     #[serde(default = "default_line_height")]
     pub line_height: f32,
-    /// Column width in characters (ch).
-    #[serde(default = "default_measure")]
-    pub measure: f32,
 }
 
 fn default_size() -> f32 {
@@ -48,9 +45,6 @@ fn default_size() -> f32 {
 }
 fn default_line_height() -> f32 {
     1.55
-}
-fn default_measure() -> f32 {
-    66.0
 }
 
 impl Default for ProseSettings {
@@ -60,7 +54,6 @@ impl Default for ProseSettings {
             font: ProseFont::Auto,
             size: default_size(),
             line_height: default_line_height(),
-            measure: default_measure(),
         }
     }
 }

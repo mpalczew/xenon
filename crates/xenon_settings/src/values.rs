@@ -166,6 +166,5 @@ impl UiSettings {
 pub(crate) fn sanitize_prose(mut value: ProseSettings) -> ProseSettings {
     value.size = value.size.clamp(12.0, 36.0);
     value.line_height = value.line_height.clamp(1.2, 2.2);
-    value.measure = value.measure.clamp(40.0, 120.0);
     value
 }

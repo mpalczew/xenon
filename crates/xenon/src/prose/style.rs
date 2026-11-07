@@ -83,10 +83,10 @@ impl Prose {
         layout.pixel_size().0.max(1)
     }
 
-    /// Side margin that centers a column of `measure` characters.
+    /// Side margin that centers the column fitted to the document.
     pub(super) fn column_margin(&self, p: &ProseSettings) -> i32 {
         let ch = self.text_width(p, "0");
-        let column = (p.measure * ch as f32) as i32;
+        let column = (self.column.get() * ch as f32) as i32;
         ((self.scroller.width() - column) / 2).max(24)
     }
 
