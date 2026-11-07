@@ -172,11 +172,3 @@ pub(crate) fn warm_ui_font_families(cx: &App) {
 pub(crate) fn mono_family_label(family: &str) -> String {
     xenon_settings::display_mono_family(family).to_string()
 }
-
-pub(crate) fn format_size(size: f32) -> String {
-    if (size - size.round()).abs() < 0.01 {
-        format!("{}", size.round() as i32)
-    } else {
-        format!("{size:.1}")
-    }
-}

@@ -7,11 +7,12 @@
 use xenon_design_system::{TypeRole, Typography};
 mod fonts;
 
-use fonts::{family_option_label, format_size};
+use fonts::family_option_label;
 pub(crate) use fonts::{
     mono_family_label, mono_font_families, ui_font_families, warm_mono_font_families,
     warm_ui_font_families,
 };
+use xenon_settings::format_size;
 
 use std::cell::Cell;
 use std::rc::Rc;

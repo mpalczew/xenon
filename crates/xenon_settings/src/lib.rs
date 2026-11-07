@@ -5,18 +5,27 @@
 //! nudges, wrap defaults). A frontend keeps one in whatever global it likes
 //! and calls `persist` after a change.
 
+mod choices;
 mod edits;
 mod families;
 mod fonts;
+mod setters;
+mod themes;
 mod values;
 
 pub use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
+pub use choices::{
+    FontChoice, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_MEASURES, PROSE_SIZES, format_size,
+    mono_font_choices, nearest_index, ui_font_choices,
+};
 pub use families::{
     FontProbe, canonicalize_mono_family, display_mono_family, display_ui_family,
     ensure_mono_family, ensure_ui_family,
 };
 pub use fonts::EMBEDDED_FONTS;
+pub use setters::Surface;
+pub use themes::{THEME_LINEUP, ThemeFamily, swatch_names};
 pub use xenon_store::{
     MarkdownMode, ProseFilePrefs, ProseFont, ProseMarkers, ProseSettings, TerminalAutoClose,
     ThemeMode, prose_file_prefs, set_prose_file_prefs,

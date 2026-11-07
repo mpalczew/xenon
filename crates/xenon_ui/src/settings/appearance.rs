@@ -9,14 +9,6 @@ use xenon_settings::ThemeMode;
 
 use super::row::{ActionKind, Control, Group, RowAction, SettingRow, Swatch};
 
-const DARK_PICKS: [&str; 5] = ["One Dark", "Neon Noir", "Nord", "Tokyo Night", "True Black"];
-const LIGHT_PICKS: [&str; 5] = [
-    "One Light",
-    "Solarized Light",
-    "Nord Light",
-    "Tokyo Day",
-    "High Contrast Light",
-];
 const MODES: [ThemeMode; 3] = [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark];
 
 pub(super) fn groups(cx: &App) -> Vec<Group> {
@@ -62,16 +54,7 @@ pub(super) fn groups(cx: &App) -> Vec<Group> {
 }
 
 fn swatches(appearance: Appearance, current: &str, cx: &App) -> Vec<Swatch> {
-    let picks = match appearance {
-        Appearance::Dark => DARK_PICKS,
-        Appearance::Light => LIGHT_PICKS,
-    };
-    let mut names: Vec<&str> = picks.to_vec();
-    if !names.contains(&current) {
-        names.pop();
-        names.insert(0, current);
-    }
-    names
+    xenon_settings::swatch_names(appearance == Appearance::Dark, current)
         .into_iter()
         .filter_map(|name| swatch(name, appearance, name == current, cx))
         .collect()

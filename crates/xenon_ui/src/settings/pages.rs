@@ -80,23 +80,9 @@ pub(super) fn editor(cx: &App) -> Vec<Group> {
     .collect()
 }
 
-const PROSE_SIZES: [f32; 5] = [16.0, 17.0, 18.0, 20.0, 22.0];
-const PROSE_LINE_HEIGHTS: [f32; 4] = [1.4, 1.55, 1.7, 1.9];
-const PROSE_MEASURES: [f32; 4] = [56.0, 66.0, 76.0, 90.0];
-const PROSE_FONTS: [xenon_settings::ProseFont; 4] = [
-    xenon_settings::ProseFont::Auto,
-    xenon_settings::ProseFont::Serif,
-    xenon_settings::ProseFont::Sans,
-    xenon_settings::ProseFont::Mono,
-];
-
-fn nearest(values: &[f32], current: f32) -> usize {
-    values
-        .iter()
-        .enumerate()
-        .min_by(|a, b| (a.1 - current).abs().total_cmp(&(b.1 - current).abs()))
-        .map_or(0, |(i, _)| i)
-}
+use xenon_settings::{
+    PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_MEASURES, PROSE_SIZES, nearest_index as nearest,
+};
 
 fn prose_choice(
     id: &'static str,
