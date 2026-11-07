@@ -26,7 +26,7 @@
   - `scripts/xenon-gtk-verify`, `-idle`, `-latency`, `-remote-client`,
     `scripts/xenon_cli_test.sh`, `scripts/check-test-determinism`.
   - Their steps in `bin/check`, `scripts/health` and the pre-commit hook.
-- [ ] GTK: A/B slots, so a new build starts beside the running one
+- [x] GTK: A/B slots, so a new build starts beside the running one
   - `~/bin/xenon` launches the GTK app; state in `~/.xenon-a` and `~/.xenon-b`.
   - One process per slot, opens routed over each slot's socket (`xenon open`).
 - [ ] GTK: an open file updates when it changes on disk, as in the GPUI editor
@@ -35,10 +35,10 @@
   - Mac words become generic; nothing else changes.
   - Key hints use GPUI's format with Linux chords from the key map.
   - Remove the "not built yet" notes.
-- [ ] GTK: drop the "(GTK)" suffix from the launcher entry and window title
+- [x] GTK: drop the "(GTK)" suffix from the launcher entry and window title
 - [x] GTK: Shift+Enter sends a line feed, as the GPUI terminal did
 - [ ] GTK: drag to reorder workspaces
-- [ ] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
+- [x] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
   - `scripts/release/install` installs the GTK app; `install-gtk` goes away.
   - `.vscode/tasks.json` keeps only the GTK launch and install tasks.
 - [ ] GTK: diff tab on `similar` and two GtkSourceView panes
@@ -46,7 +46,7 @@
   - Shared scrollbar; line backgrounds from GtkSourceView marks.
 - [ ] GTK: themes follow the system (libadwaita light and dark, GtkSourceView schemes)
   - Drop the bundled Zed themes and the theme picker.
-- [ ] GTK: `xenon open` socket server
+- [x] GTK: `xenon open` socket server
 - [ ] GTK: worklist panel
 - [ ] GTK: command palette, divider resize from the keyboard
 - [ ] GTK: SSH workspaces and the SSH part of the pickers
