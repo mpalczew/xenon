@@ -11,6 +11,18 @@
       "detail": "launch Xenon via the slot launcher"
     },
     {
+      "label": "xenon-gtk",
+      "type": "shell",
+      "command": "~/.local/bin/xenon-gtk",
+      "detail": "launch the GTK frontend (own state in ~/.xenon-gtk)"
+    },
+    {
+      "label": "install-gtk",
+      "type": "shell",
+      "command": "scripts/release/install-gtk",
+      "detail": "build and install xenon-gtk into ~/.local"
+    },
+    {
       "label": "install",
       "type": "shell",
       "command": "bin/install",
