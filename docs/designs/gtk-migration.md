@@ -69,8 +69,15 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
   UTF-8 open in the default app).
 - **Not drawn yet.** The diff-status sidebar section, the real editor (LSP, diff gutter,
   prose mode, Markdown), SSH workspaces (session kept) and the SSH part of the pickers,
-  command palette, settings and theme panels, tab drag and drop, divider keyboard resize,
+  command palette, tab drag and drop, divider keyboard resize,
   the `xenon open` socket server, phone remote.
+- **Settings.** Ctrl+, (`app.settings`) opens an `AdwPreferencesDialog` with the GPUI pages
+  except Phone Remote: Appearance (mode, theme strips, a live-preview theme picker), Fonts,
+  Editor (with Markdown writing), Terminal, Agents, Language Servers. Choices, clamps and
+  healing come from `xenon_settings` (theme lineup, prose choices, font choices, skill text,
+  `set_font_size`, `set_font_family`, `set_theme_name`); the GPUI settings read the same.
+  Changes apply live and persist to the GTK state dir. The Markdown writing values are saved
+  but the GTK editor does not draw prose mode yet.
 - **Checks.** `scripts/xenon-gtk-verify` drives a real window over D-Bus actions and
   AT-SPI and writes screenshots; `scripts/xenon-gtk-idle` (run by `scripts/health`)
   fails on idle CPU or wakeups above budget; `scripts/xenon-gtk-latency` types into a window

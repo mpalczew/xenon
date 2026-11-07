@@ -36,7 +36,7 @@ pub(crate) struct App {
     pub model: RefCell<Model>,
     pub settings: RefCell<UiSettings>,
     /// Terminal face that exists on this machine (the saved one may not).
-    pub mono: String,
+    pub mono: RefCell<String>,
     pub palette: RefCell<Palette>,
     pub css: gtk::CssProvider,
     pub sidebar: Sidebar,
@@ -206,7 +206,7 @@ impl App {
     pub(crate) fn restyle_term(&self, view: &TermView) {
         let (family, size) = {
             let s = self.settings.borrow();
-            (self.mono.clone(), s.terminal.size)
+            (self.mono.borrow().clone(), s.terminal.size)
         };
         view.restyle(&family, size, &self.palette.borrow());
     }

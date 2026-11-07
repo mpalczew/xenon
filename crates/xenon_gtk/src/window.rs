@@ -17,7 +17,7 @@ use crate::sidebar::Sidebar;
 use crate::theme;
 
 /// Answers font questions from Pango's installed families.
-struct PangoProbe(gtk::pango::Context);
+pub(crate) struct PangoProbe(pub(crate) gtk::pango::Context);
 
 impl PangoProbe {
     fn family(&self, name: &str) -> Option<gtk::pango::FontFamily> {
@@ -38,6 +38,15 @@ impl FontProbe for PangoProbe {
     }
 }
 
+/// The terminal face to draw: the saved one when installed, else Monospace.
+pub(crate) fn mono_face(ui: &UiSettings, probe: &PangoProbe) -> String {
+    if probe.is_monospace(&ui.terminal.family) {
+        ui.terminal.family.clone()
+    } else {
+        "Monospace".into()
+    }
+}
+
 fn scheme(mode: ThemeMode) -> adw::ColorScheme {
     match mode {
         ThemeMode::System => adw::ColorScheme::Default,
@@ -47,18 +56,31 @@ fn scheme(mode: ThemeMode) -> adw::ColorScheme {
 }
 
 impl App {
-    /// Load the saved theme and restyle everything that shows it.
+    /// Load the saved theme and restyle everything that shows it. A theme being
+    /// previewed in Settings wins until the preview ends.
     pub(crate) fn apply_theme(&self) {
-        let settings = xenon_store::load_settings().unwrap_or_default();
+        let settings = self.settings.borrow().snapshot();
         let style = adw::StyleManager::default();
-        style.set_color_scheme(scheme(settings.theme));
-        let palette = theme::palette(&settings, style.is_dark());
-        let editor = self.settings.borrow().editor.clone();
+        let preview = crate::prefs_apply::previewing();
+        let (palette, forced) = match preview
+            .as_ref()
+            .and_then(|(n, d)| Some((theme::find(n)?, *d)))
+        {
+            Some((palette, dark)) => (palette, Some(dark)),
+            None => (theme::palette(&settings, style.is_dark()), None),
+        };
+        style.set_color_scheme(match forced {
+            Some(true) => adw::ColorScheme::ForceDark,
+            Some(false) => adw::ColorScheme::ForceLight,
+            None => scheme(settings.theme),
+        });
+        let ui = self.settings.borrow().clone();
         let sheet = format!(
-            "{}\ntextview.xeditor {{ font-family: \"{}\", monospace; font-size: {}px; }}\n",
+            "{}\n{}textview.xeditor {{ font-family: \"{}\", monospace; font-size: {}px; }}\n",
             palette.css(),
-            editor.family,
-            editor.size
+            crate::prefs_apply::extra_css(&ui.ui, &palette),
+            ui.editor.family,
+            ui.editor.size
         );
         self.css.load_from_string(&sheet);
         self.launcher
@@ -70,6 +92,7 @@ impl App {
         for view in self.terms.borrow().values() {
             self.restyle_term(view);
         }
+        self.publish_settings();
     }
 
     fn tip(&self, text: &str, action: &str) -> String {
@@ -139,11 +162,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         gtk: gtk_app.clone(),
         win: win.clone(),
         model: RefCell::new(Model::load()),
-        mono: if probe.is_monospace(&ui.terminal.family) {
-            ui.terminal.family.clone()
-        } else {
-            "Monospace".into()
-        },
+        mono: RefCell::new(mono_face(&ui, &probe)),
         settings: RefCell::new(ui),
         palette: RefCell::new(theme::palette(&settings, false)),
         css: gtk::CssProvider::new(),

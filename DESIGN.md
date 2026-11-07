@@ -291,6 +291,13 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   (Ctrl+C, X, B, E, O, S). Ctrl+Alt+B toggles the sidebar because Ctrl+B belongs to the
   shell.
 
+- **Settings.** `AdwPreferencesDialog` (Ctrl+,): pages Appearance, Fonts, Editor, Terminal,
+  Agents, Language Servers (Ctrl+1 to 6, Ctrl+F searches, Escape closes). Theme tiles are
+  buttons painted by one generated sheet in each theme's own colors. The picker page
+  re-themes the window as the selection moves; Enter keeps, Escape or Back reverts. The
+  interface size scales the window font as a percentage of 14; the default size and the
+  System face add no rule.
+
 ## Anti-patterns
 
 - Side-stripe decoration on cards (nav selection edge is allowed)

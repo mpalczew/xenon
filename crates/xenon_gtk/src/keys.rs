@@ -33,6 +33,7 @@ const ACTIONS: &[(&str, &str)] = &[
     ("xenon::IncreaseFontSize", "app.zoom-in"),
     ("xenon::DecreaseFontSize", "app.zoom-out"),
     ("xenon::ResetFontSize", "app.zoom-reset"),
+    ("xenon::ToggleSettings", "app.settings"),
     ("xenon::Quit", "app.quit"),
 ];
 

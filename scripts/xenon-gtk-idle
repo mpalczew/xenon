@@ -116,6 +116,34 @@ def main():
         if wake > WAKE_MAX:
             failed.append(f"idle main-thread wakeups {wake:.1f}/s > {WAKE_MAX}/s")
 
+        # Switching themes live must not leave anything running: open Settings,
+        # change the mode and keep a theme from the picker, close it, measure.
+        def setting(key, value):
+            group.activate_action("settings-set", GLib.Variant("s", f"{key}={value}"))
+            bus.flush_sync(None)
+            time.sleep(0.4)
+
+        group.activate_action("settings", None)
+        bus.flush_sync(None)
+        time.sleep(1.0)
+        for key, value in (
+            ("mode", "light"),
+            ("picker-open", "1"),
+            ("picker-select", "Nord:light"),
+            ("picker-select", "Gruvbox:dark"),
+            ("picker-keep", "1"),
+            ("mode", "dark"),
+            ("close", "1"),
+        ):
+            setting(key, value)
+        time.sleep(1.5)
+        print("idle, after switching themes in Settings:")
+        cpu, wake = measure(proc.pid)
+        if cpu > CPU_MAX:
+            failed.append(f"idle CPU after theme switch {cpu:.2f}% > {CPU_MAX}%")
+        if wake > WAKE_MAX:
+            failed.append(f"idle wakeups after theme switch {wake:.1f}/s > {WAKE_MAX}/s")
+
         # A burst gets the terminal flagged as working; the slow tail keeps it
         # working (output never goes quiet) while costing almost nothing itself,
         # so what is measured is the pulse.

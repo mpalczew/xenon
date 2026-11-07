@@ -1,4 +1,4 @@
-//! Offscreen window capture: the content's render node, drawn by GTK's own
+//! Offscreen window capture: the window's render node, drawn by GTK's own
 //! renderer to a texture and saved as PNG. Works the same on Wayland and X11,
 //! with no compositor screenshot tool. It does not depend on the compositor
 //! sending frame callbacks, so it works for an unfocused or hidden window.
@@ -22,11 +22,10 @@ pub(crate) fn render_png(
 }
 
 fn capture(win: &adw::ApplicationWindow, path: &str) -> Result<(), String> {
-    let content = win.content().ok_or("no content")?;
-    let parent = content.parent().ok_or("content has no parent")?;
-    let (w, h) = (content.width(), content.height());
+    // The whole window, so an open dialog is in the picture too.
+    let (w, h) = (win.width(), win.height());
     let snapshot = gtk::Snapshot::new();
-    parent.snapshot_child(&content, &snapshot);
+    gtk::WidgetPaintable::new(Some(win)).snapshot(&snapshot, f64::from(w), f64::from(h));
     let node = snapshot
         .to_node()
         .ok_or_else(|| format!("empty render node ({w}x{h})"))?;

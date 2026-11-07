@@ -64,6 +64,7 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("zoom-out", |a| a.zoom(-1.0)),
     ("zoom-reset", |a| a.zoom(0.0)),
     ("save-now", |a| a.save_all()),
+    ("settings", |a| a.toggle_settings()),
     ("quit", |a| a.quit()),
 ];
 
@@ -134,6 +135,7 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
         app.gtk.add_action(&action);
     }
     install_automation(app);
+    crate::prefs_state::install(app);
     for name in ["palette-state", "files-state"] {
         app.gtk.add_action(&gio::SimpleAction::new_stateful(
             name,
@@ -152,7 +154,7 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
 
 /// Actions that still run while the palette is open.
 fn palette_passes(name: &str) -> bool {
-    matches!(name, "quit" | "save-now" | "open-workspace")
+    matches!(name, "quit" | "save-now" | "open-workspace" | "settings")
 }
 
 /// Ctrl+O outside a terminal opens the workspace picker too. The window

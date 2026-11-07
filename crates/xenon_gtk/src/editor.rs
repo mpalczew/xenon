@@ -3,7 +3,7 @@
 //! the stand-in editor until the GTK editor exists; it is a plain text view
 //! with no LSP, diff gutter or prose mode.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
@@ -24,6 +24,9 @@ pub(crate) struct EditorView {
     pub path: PathBuf,
     /// True while we load text, so loading does not count as an edit.
     loading: Cell<bool>,
+    /// The Vim input method and its key controller while Vim mode is on.
+    vim: RefCell<Option<(sourceview::VimIMContext, gtk::EventControllerKey)>>,
+    app: Weak<App>,
 }
 
 /// Why a file cannot open here, if it cannot (cheap: no read).
@@ -65,15 +68,6 @@ impl EditorView {
         view.set_bottom_margin(6);
         view.set_left_margin(8);
         view.set_right_margin(12);
-        let settings = app.settings.borrow();
-        view.set_show_line_numbers(settings.show_line_numbers);
-        view.set_wrap_mode(if settings.wrap_code {
-            gtk::WrapMode::WordChar
-        } else {
-            gtk::WrapMode::None
-        });
-        let vim_mode = settings.vim_mode;
-        drop(settings);
         let scroller = gtk::ScrolledWindow::new();
         scroller.set_child(Some(&view));
         scroller.add_css_class("xeditor-scroll");
@@ -83,12 +77,11 @@ impl EditorView {
             buffer,
             path: path.to_path_buf(),
             loading: Cell::new(false),
+            vim: RefCell::new(None),
+            app: Rc::downgrade(app),
         });
         editor.restyle(app);
         let weak: Weak<App> = Rc::downgrade(app);
-        if vim_mode {
-            editor.attach_vim(&weak, ws, tab);
-        }
         {
             let weak = weak.clone();
             let this = Rc::downgrade(&editor);
@@ -117,32 +110,51 @@ impl EditorView {
         editor
     }
 
-    fn attach_vim(self: &Rc<Self>, weak: &Weak<App>, _ws: WorkspaceId, _tab: TabId) {
+    fn attach_vim(self: &Rc<Self>, weak: &Weak<App>) {
         let vim = sourceview::VimIMContext::new();
         vim.set_client_widget(Some(&self.view));
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         keys.set_im_context(Some(&vim));
-        self.view.add_controller(keys);
+        self.view.add_controller(keys.clone());
         let (this, weak) = (Rc::downgrade(self), weak.clone());
         vim.connect_write(move |_, _, _| {
             if let Some(this) = this.upgrade() {
                 this.save(&weak);
             }
         });
-        // The context must live as long as the view.
-        // SAFETY: the stored value is only kept alive, never read back.
-        unsafe { self.view.set_data("vim", vim) };
+        *self.vim.borrow_mut() = Some((vim, keys));
+    }
+
+    fn detach_vim(&self) {
+        if let Some((vim, keys)) = self.vim.borrow_mut().take() {
+            self.view.remove_controller(&keys);
+            vim.set_client_widget(None::<&gtk::Widget>);
+        }
     }
 
     /// Font, wrap and color scheme from the settings and theme.
-    pub(crate) fn restyle(&self, app: &App) {
+    pub(crate) fn restyle(self: &Rc<Self>, app: &App) {
         let dark = adw::StyleManager::default().is_dark();
         let name = if dark { "Adwaita-dark" } else { "Adwaita" };
         if let Some(scheme) = sourceview::StyleSchemeManager::default().scheme(name) {
             self.buffer.set_style_scheme(Some(&scheme));
         }
-        let _ = app;
+        let settings = app.settings.borrow();
+        self.view.set_show_line_numbers(settings.show_line_numbers);
+        self.view
+            .set_wrap_mode(if settings.editor_wraps(&self.path) {
+                gtk::WrapMode::WordChar
+            } else {
+                gtk::WrapMode::None
+            });
+        let vim_mode = settings.vim_mode;
+        drop(settings);
+        if vim_mode && self.vim.borrow().is_none() {
+            self.attach_vim(&self.app.clone());
+        } else if !vim_mode {
+            self.detach_vim();
+        }
     }
 
     pub(crate) fn save(&self, app: &Weak<App>) {

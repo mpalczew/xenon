@@ -37,6 +37,16 @@ impl Palette {
             .map_or_else(|| fallback.to_string(), str::to_string)
     }
 
+    /// A syntax color (`keyword`, `string`) as `#rrggbb[aa]`.
+    pub(crate) fn syntax(&self, name: &str) -> Option<String> {
+        self.style
+            .get("syntax")?
+            .get(name)?
+            .get("color")?
+            .as_str()
+            .map(str::to_string)
+    }
+
     /// Terminal foreground, background, and the 16 ANSI colors.
     pub(crate) fn terminal(&self) -> (String, String, Vec<String>) {
         let fg = self.color("terminal.foreground", "#d8dee9");
@@ -164,7 +174,7 @@ pub(crate) fn palette(settings: &AppSettings, system_dark: bool) -> Palette {
         .unwrap_or(Palette { style: Value::Null })
 }
 
-fn find(name: &str) -> Option<Palette> {
+pub(crate) fn find(name: &str) -> Option<Palette> {
     for text in FAMILIES {
         let family: Value = serde_json::from_str(text).ok()?;
         for theme in family.get("themes")?.as_array()? {

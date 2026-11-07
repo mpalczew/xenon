@@ -9,8 +9,11 @@ Drives a real xenon_gtk window the way an agent would, with no synthetic mouse:
   - AT-SPI (pyatspi) to read terminal text back out of the window;
   - `screenshot` action for offscreen PNGs of each state.
 It covers: create workspaces, split, new tab, keyboard-action navigation, type
-into a terminal and read the output, working pulse, attention dot, find, and
-save + restore of the session. State lives in a private temp dir (never
+into a terminal and read the output, working pulse, attention dot, find,
+Settings (Ctrl+, opens it; font size and theme change the live terminal and
+persist across a restart; a screenshot of every page and the theme picker,
+dark and light), and save + restore of the session.
+VERIFY_ONLY_SETTINGS=1 runs just the Settings part. State lives in a private temp dir (never
 ~/.xenon-gtk) and the app runs under its own app id. Only the process it
 started is closed, by PID. Set GDK_BACKEND=x11 on a locked Wayland session
 (a locked compositor sends no frame callbacks, so nothing would lay out).
@@ -206,6 +209,125 @@ class App:
             self.proc.wait(timeout=10)
 
 
+SETTINGS_PAGES = ["appearance", "fonts", "editor", "terminal", "agents", "servers"]
+
+
+def sget(app):
+    pump()
+    v = app.group.get_action_state("settings-state")
+    return json.loads(v.get_string()) if v and v.get_string() else {}
+
+
+def swait(app, pred, what, timeout=10.0):
+    return wait_for(lambda: (lambda s: s if pred(s) else None)(sget(app)), what, timeout)
+
+
+def sset(app, key, value):
+    app.act("settings-set", f"{key}={value}")
+
+
+def read_settings(state_dir):
+    try:
+        return json.load(open(os.path.join(state_dir, "settings.json")))
+    except (OSError, ValueError):
+        return {}
+
+
+def settings_checks(app, state_dir):
+    """Ctrl+, opens Settings; changes apply live and persist."""
+    base = sget(app)
+    check(base.get("open") is False, "Settings starts closed")
+    app.act("focus-terminal")
+    swait(app, lambda s: s["focus"] == "terminal", "terminal focused before Settings")
+    app.act("send-key", "ctrl-,")
+    s = swait(app, lambda s: s["open"], "Ctrl+, opens Settings")
+    check(s["page"] == "appearance", "Settings opens on Appearance")
+
+    # Font size: the live terminal and the settings file both follow.
+    app.act("settings-page", "fonts")
+    swait(app, lambda s: s["page"] == "fonts", "fonts page")
+    before = sget(app)["term_font"]
+    sset(app, "size-terminal", 19)
+    s = swait(app, lambda s: s["term_font"] != before and "19px" in (s["term_font"] or ""), "terminal font follows the size row")
+    check(True, f"terminal font became {s['term_font']!r} live")
+    wait_for(lambda: read_settings(state_dir).get("terminal_font_size") == 19, "terminal size saved")
+    check(True, "the new terminal size was saved to settings.json")
+    sset(app, "size-terminal", 99)
+    swait(app, lambda s: s["terminal_size"] == 32, "size clamps to the maximum")
+    check(True, "a size above the range clamps to 32 like the GPUI app")
+    sset(app, "size-terminal", 19)
+    swait(app, lambda s: s["terminal_size"] == 19, "size back to 19")
+    sset(app, "size-ui", 16)
+    wait_for(lambda: read_settings(state_dir).get("ui_font_size") == 16, "interface size saved")
+    check(True, "the interface size was saved")
+
+    # Theme: mode flips the whole window, the picker previews before keeping.
+    sset(app, "mode", "dark")
+    s = swait(app, lambda s: s["mode"] == "Dark" and s["dark"], "dark mode")
+    dark_bg = s["term_bg"]
+    for page in SETTINGS_PAGES:
+        app.act("settings-page", page)
+        swait(app, lambda s, p=page: s["page"] == p, f"{page} page")
+        app.shot(f"settings-dark-{page}")
+    app.act("settings-page", "appearance")
+    swait(app, lambda s: s["page"] == "appearance", "appearance page")
+    app.act("settings-set", "picker-open=1")
+    time.sleep(0.6)
+    app.shot("settings-dark-picker")
+    app.act("settings-set", "picker-select=Nord:dark")
+    s = swait(app, lambda s: s["preview"] == "Nord", "picker previews Nord")
+    check(s["term_bg"] != dark_bg, "previewing Nord changed the live terminal colors")
+    check(read_settings(state_dir).get("dark_theme") != "Nord", "a preview is not saved")
+    app.shot("settings-dark-picker-preview")
+    app.act("settings-set", "picker-revert=1")
+    s = swait(app, lambda s: s["preview"] is None and s["term_bg"] == dark_bg, "revert restores the theme")
+    check(True, "Revert put the saved theme back")
+    app.act("settings-set", "picker-open=1")
+    time.sleep(0.4)
+    app.act("settings-set", "picker-select=Gruvbox:dark")
+    swait(app, lambda s: s["preview"] == "Gruvbox Dark", "picker previews Gruvbox")
+    app.act("settings-set", "picker-keep=1")
+    s = swait(app, lambda s: s["preview"] is None and s["dark_theme"] == "Gruvbox Dark", "keep stores Gruvbox")
+    wait_for(lambda: read_settings(state_dir).get("dark_theme") == "Gruvbox Dark", "theme saved")
+    check(s["term_bg"] != dark_bg, "Keep changed the terminal colors for good")
+    check(True, "Keep saved Gruvbox Dark in the dark slot")
+    sset(app, "mode", "light")
+    s = swait(app, lambda s: s["mode"] == "Light" and not s["dark"], "light mode")
+    for page in SETTINGS_PAGES:
+        app.act("settings-page", page)
+        swait(app, lambda s, p=page: s["page"] == p, f"{page} page (light)")
+        app.shot(f"settings-light-{page}")
+    app.act("settings-page", "appearance")
+    app.act("settings-set", "picker-open=1")
+    time.sleep(0.6)
+    app.shot("settings-light-picker")
+    app.act("settings-set", "picker-revert=1")
+    swait(app, lambda s: s["preview"] is None, "picker closed")
+    sset(app, "mode", "dark")
+    swait(app, lambda s: s["mode"] == "Dark" and s["dark"], "dark again")
+    sset(app, "size-ui", 14)
+    swait(app, lambda s: s["ui_size"] == 14, "interface size reset")
+
+    # Ctrl+, again closes it and the cursor is back in the terminal.
+    app.act("send-key", "ctrl-,")
+    s = swait(app, lambda s: not s["open"], "Ctrl+, closes Settings")
+    check(True, "Ctrl+, closed Settings")
+    swait(app, lambda s: s["focus"] == "terminal", "focus returns to the terminal", 8)
+    check(True, "focus returned to the terminal")
+    # Closing from inside (what Escape does) also hands focus back.
+    app.act("send-key", "ctrl-,")
+    swait(app, lambda s: s["open"], "Settings reopened")
+    time.sleep(0.7)  # let the open animation finish before closing it
+    app.act("settings-set", "close=1")
+    swait(app, lambda s: not s["open"] and s["focus"] == "terminal", "close from inside returns focus", 8)
+    check(True, "closing from inside returned the cursor to the terminal")
+
+
+def settings_restart_checks(app2):
+    s = swait(app2, lambda s: s["terminal_size"] == 19 and s["dark_theme"] == "Gruvbox Dark", "settings restored")
+    check(s["mode"] == "Dark" and "19px" in (s["term_font"] or ""), f"settings survived a restart (terminal font {s['term_font']!r}, {s['dark_theme']})")
+
+
 def tabs(state):
     return [[t["label"] for t in p["tabs"]] for p in state.get("panes", [])]
 
@@ -257,6 +379,18 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
     s = app.until(lambda s: active_ws(s) == "beta" and len(s["workspaces"]) == 2, "second workspace")
     check(True, "second workspace 'beta' created and active")
     app.shot("01-sidebar-two-workspaces")
+    if os.environ.get("VERIFY_ONLY_SETTINGS"):
+        app.until(lambda s: all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "shell titled")
+        wait_for(app.has_terminal, "terminal")
+        settings_checks(app, state_dir)
+        app.act("save-now")
+        app.stop()
+        app2 = App(state_dir)
+        try:
+            settings_restart_checks(app2)
+        finally:
+            app2.kill()
+        return
 
     # Tab titles are short directory names, never "user@host:/path".
     s = app.until(lambda s: all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "shell titled")
@@ -460,6 +594,8 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
     wait_for(lambda: font_size() == base, "zoom-out written to settings")
     check(True, "zoom in / out changed and saved the terminal font size")
 
+    settings_checks(app, state_dir)
+
     # A folder link opens as a workspace (routing shared with `xenon open`).
     app.act("open-link", ws_c)
     app.until(lambda s: active_ws(s) == "gamma" and len(s["workspaces"]) == 3, "link opened gamma")
@@ -523,6 +659,7 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
         app2.type("echo $((7*7))-restored\n")
         wait_for(lambda: "49-restored" in app2.screen_text(), "typing in the restored terminal")
         check(True, "restored session has a live terminal (typed and read '49-restored')")
+        settings_restart_checks(app2)
         app2.shot("07-restored")
     finally:
         app2.kill()
