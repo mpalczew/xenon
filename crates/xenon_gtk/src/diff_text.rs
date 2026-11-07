@@ -16,6 +16,8 @@ pub(crate) enum Kind {
     Removed,
     /// The empty half of a split row.
     Filler,
+    /// A hunk's `@@` line.
+    Header,
 }
 
 #[derive(Clone, Debug)]
@@ -134,41 +136,58 @@ impl Doc {
             sides: vec![Vec::new(); if split { 2 } else { 1 }],
             hunks: Vec::new(),
         };
-        for op in diff.ops() {
-            if let DiffOp::Equal {
-                old_index,
-                new_index,
-                len,
-            } = *op
-            {
-                for i in 0..len {
-                    let line = Line::plain(
-                        diff.old_slice(old_index + i).unwrap_or_default(),
-                        Kind::Context,
-                        (old_index + i + 1) as u32,
-                        (new_index + i + 1) as u32,
-                    );
-                    page.sides.iter_mut().for_each(|s| s.push(line.clone()));
+        for group in diff.grouped_ops(3) {
+            let range = |old: bool| {
+                let r = |op: &DiffOp| if old { op.old_range() } else { op.new_range() };
+                let (start, end) = (r(&group[0]).start, r(&group[group.len() - 1]).end);
+                let first = if end == start { start } else { start + 1 };
+                match end - start {
+                    1 => first.to_string(),
+                    len => format!("{first},{len}"),
                 }
-                continue;
+            };
+            let header = format!("@@ -{} +{} @@", range(true), range(false));
+            let at = page.sides[0].len() as i32;
+            for side in &mut page.sides {
+                side.push(Line::plain(&header, Kind::Header, 0, 0));
             }
-            let (removed, added): (Vec<_>, Vec<_>) = diff
-                .iter_inline_changes(op)
-                .map(|c| Line::of_change(&c))
-                .partition(|l| l.kind == Kind::Removed);
+            let first_change = group.iter().find(|o| !matches!(o, DiffOp::Equal { .. }));
             page.hunks.push(Hunk {
-                line: page.sides[0].len() as i32,
-                target: op.new_range().start as u32 + 1,
+                line: at,
+                target: first_change.map_or(0, |o| o.new_range().start as u32 + 1),
             });
-            if split {
-                for i in 0..removed.len().max(added.len()) {
-                    let pick = |v: &[Line]| v.get(i).cloned().unwrap_or_else(Line::filler);
-                    page.sides[0].push(pick(&removed));
-                    page.sides[1].push(pick(&added));
+            for op in &group {
+                if let DiffOp::Equal {
+                    old_index,
+                    new_index,
+                    len,
+                } = *op
+                {
+                    for i in 0..len {
+                        let line = Line::plain(
+                            diff.old_slice(old_index + i).unwrap_or_default(),
+                            Kind::Context,
+                            (old_index + i + 1) as u32,
+                            (new_index + i + 1) as u32,
+                        );
+                        page.sides.iter_mut().for_each(|s| s.push(line.clone()));
+                    }
+                    continue;
                 }
-            } else {
-                page.sides[0].extend(removed);
-                page.sides[0].extend(added);
+                let (removed, added): (Vec<_>, Vec<_>) = diff
+                    .iter_inline_changes(op)
+                    .map(|c| Line::of_change(&c))
+                    .partition(|l| l.kind == Kind::Removed);
+                if split {
+                    for i in 0..removed.len().max(added.len()) {
+                        let pick = |v: &[Line]| v.get(i).cloned().unwrap_or_else(Line::filler);
+                        page.sides[0].push(pick(&removed));
+                        page.sides[1].push(pick(&added));
+                    }
+                } else {
+                    page.sides[0].extend(removed);
+                    page.sides[0].extend(added);
+                }
             }
         }
         page

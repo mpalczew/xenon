@@ -27,7 +27,7 @@ fn mark_lines(buf: &sourceview::Buffer, lines: &[Line], words: &[(&str, gdk::RGB
         let category = match line.kind {
             Kind::Added => "added",
             Kind::Removed => "removed",
-            Kind::Filler => "filler",
+            Kind::Filler | Kind::Header => "filler",
             Kind::Context => continue,
         };
         if let Some(iter) = buf.iter_at_line(at as i32) {
