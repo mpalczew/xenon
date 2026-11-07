@@ -34,6 +34,8 @@ terminals and editors. GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 
 - Views draw, models decide: no product-state branching, ranking, parsing, or policy in
   render code.
+- Prefer what the platform and our libraries already provide over our own code whenever
+  possible. The less code we have, the better.
 - Unit tests: default zero new. Add one only for a recurring bug, a boundary format, or
   logic too tangled to check by eye. Never pin tunable policy.
 - Keyboard-first: every flow works from the keyboard (action, binding, focus, Escape).
