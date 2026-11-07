@@ -24,7 +24,6 @@ mod focus;
 mod marked_text;
 mod menu;
 mod outline;
-mod outline_text;
 mod overlay;
 mod palette_input;
 mod pulse;
@@ -45,7 +44,6 @@ pub use find_bar::{FindBarAction, FindBarConfig, FindBarOptions, find_bar};
 pub use focus::FocusOnOpen;
 pub use marked_text::{MarkedText, Marks, marked_text};
 pub use outline::{OutlineEvent, OutlineView};
-pub use outline_text::{OutlinePoint, details_from_points, points_from_details};
 pub use overlay::{OverlayLayout, PaletteOverlay, palette_overlay};
 pub use palette_input::{PaletteInput, palette_input};
 pub use pulse::{SlowPulse, slow_pulse, working_pulse};
@@ -55,6 +53,8 @@ pub use switch::{SwitchState, switch};
 pub use text_input::{
     TextInputAppearance, TextInputConfig, TextInputEvent, TextInputKeyBehavior, TextInputView,
 };
+pub use xenon_core::outline_text;
+pub use xenon_core::outline_text::{OutlinePoint, details_from_points, points_from_details};
 mod multiline_text;
 pub use menu::{Shortcut, menu_item};
 pub use multiline_text::MultilineText;

@@ -8,6 +8,7 @@ mod attention_map;
 mod clean_output;
 mod content;
 mod ids;
+pub mod outline_text;
 mod pane_content;
 mod pane_find;
 mod pane_moves;

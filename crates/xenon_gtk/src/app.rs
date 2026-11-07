@@ -71,6 +71,7 @@ pub(crate) struct App {
     pub remote: crate::remote::Remote,
     pub tasks: crate::tasks::Tasks,
     pub trust_card: crate::tasks_ui::TrustCard,
+    pub worklist: crate::worklist::Worklist,
 }
 
 impl App {

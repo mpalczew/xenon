@@ -16,6 +16,7 @@ xenon_ssh.workspace = true
 ropey.workspace = true
 regex.workspace = true
 anyhow.workspace = true
+xenon_store.workspace = true
 thiserror.workspace = true
 gpui.workspace = true
 image = "0.25.10"

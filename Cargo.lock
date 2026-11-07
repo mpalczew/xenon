@@ -9937,6 +9937,7 @@ dependencies = [
  "lucide-icons",
  "theme",
  "unicode-segmentation",
+ "xenon_core",
  "xenon_keymap",
  "xenon_settings",
 ]
@@ -10002,6 +10003,7 @@ dependencies = [
  "xenon_design_system",
  "xenon_settings",
  "xenon_ssh",
+ "xenon_store",
 ]
 
 [[package]]
@@ -10020,6 +10022,7 @@ version = "0.1.0"
 name = "xenon_gtk"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-channel 2.5.0",
  "gtk4",
  "libadwaita",
@@ -10127,10 +10130,13 @@ dependencies = [
 name = "xenon_store"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "log",
+ "pulldown-cmark",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "unicode-segmentation",
  "xenon_core",
 ]
 

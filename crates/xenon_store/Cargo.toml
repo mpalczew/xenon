@@ -9,6 +9,9 @@ workspace = true
 
 [dependencies]
 xenon_core.workspace = true
+anyhow.workspace = true
+pulldown-cmark.workspace = true
+unicode-segmentation = "1"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

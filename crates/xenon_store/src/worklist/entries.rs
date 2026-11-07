@@ -5,26 +5,26 @@ use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Entry {
-    pub(crate) range: Range<usize>,
-    pub(crate) title: String,
-    pub(crate) details: String,
-    pub(crate) checked: Option<bool>,
+pub struct Entry {
+    pub range: Range<usize>,
+    pub title: String,
+    pub details: String,
+    pub checked: Option<bool>,
     /// Index into the file's sections; None above the first section.
-    pub(crate) section: Option<usize>,
-    pub(crate) editable: bool,
+    pub section: Option<usize>,
+    pub editable: bool,
 }
 
-pub(crate) struct Parsed {
-    pub(crate) sections: Vec<Section>,
-    pub(crate) entries: Vec<Entry>,
+pub struct Parsed {
+    pub sections: Vec<Section>,
+    pub entries: Vec<Entry>,
 }
 
-pub(crate) fn entries(source: &str) -> Vec<Entry> {
+pub fn entries(source: &str) -> Vec<Entry> {
     parse(source).entries
 }
 
-pub(crate) fn parse(source: &str) -> Parsed {
+pub fn parse(source: &str) -> Parsed {
     let parser = Parser::new_ext(
         source,
         Options::ENABLE_TASKLISTS | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS,

@@ -2,7 +2,7 @@
 
 use anyhow::{Result, ensure};
 use unicode_segmentation::UnicodeSegmentation;
-use xenon_design_system::{OutlinePoint, points_from_details};
+use xenon_core::outline_text::{OutlinePoint, points_from_details};
 
 /// A soft limit: longer titles save, and the editor points out the overflow.
 pub const TITLE_LIMIT: usize = 80;

@@ -6,20 +6,20 @@ use anyhow::{Result, bail, ensure};
 use std::ops::Range;
 
 #[derive(Clone, Debug)]
-pub(crate) struct Section {
-    pub(crate) title: String,
+pub struct Section {
+    pub title: String,
     /// Start of the heading line.
-    pub(crate) start: usize,
+    pub start: usize,
     /// The heading's text, without its `#` marks.
-    pub(crate) title_range: Range<usize>,
+    pub title_range: Range<usize>,
     /// First byte after the heading.
-    pub(crate) body_start: usize,
+    pub body_start: usize,
     /// Start of the next section's heading, or the end of the source.
-    pub(crate) end: usize,
+    pub end: usize,
 }
 
 impl Section {
-    pub(super) fn at(source: &str, heading: Range<usize>) -> Self {
+    pub fn at(source: &str, heading: Range<usize>) -> Self {
         let start = source[..heading.start].rfind('\n').map_or(0, |i| i + 1);
         let first_end = source[start..]
             .find('\n')
@@ -51,7 +51,7 @@ impl Section {
         }
     }
 
-    pub(crate) fn is_empty(&self, source: &str) -> bool {
+    pub fn is_empty(&self, source: &str) -> bool {
         source[self.body_start.min(self.end)..self.end]
             .trim()
             .is_empty()
@@ -82,7 +82,7 @@ impl Target {
         matches!(self, Self::Section { .. })
     }
 
-    pub(crate) fn of(sections: &[Section], section: Option<usize>) -> Self {
+    pub fn of(sections: &[Section], section: Option<usize>) -> Self {
         match section.and_then(|index| Some((index, sections.get(index)?))) {
             Some((index, found)) => Self::Section {
                 index,
@@ -93,7 +93,7 @@ impl Target {
     }
 
     /// The section index this target names now, following a renumbering by title.
-    pub(crate) fn resolve(&self, sections: &[Section]) -> Result<Option<usize>> {
+    pub fn resolve(&self, sections: &[Section]) -> Result<Option<usize>> {
         let Self::Section { index, title } = self else {
             return Ok(None);
         };
@@ -123,10 +123,10 @@ pub fn capture_targets(source: &str) -> Vec<Target> {
 }
 
 /// `range` becomes `text`; `block_start` is where the inserted block begins.
-pub(crate) struct Insertion {
-    pub(crate) range: Range<usize>,
-    pub(crate) text: String,
-    pub(crate) block_start: usize,
+pub struct Insertion {
+    pub range: Range<usize>,
+    pub text: String,
+    pub block_start: usize,
 }
 
 /// A plain replacement in the source.
@@ -143,7 +143,7 @@ impl SourceEdit {
     }
 }
 
-pub(crate) fn newline_of(source: &str) -> &'static str {
+pub fn newline_of(source: &str) -> &'static str {
     if source.contains("\r\n") {
         "\r\n"
     } else {
@@ -189,7 +189,7 @@ fn region_end(source: &str, sections: &[Section], section: Option<usize>) -> usi
     }
 }
 
-pub(crate) fn append_block(source: &str, target: &Target, block: &str) -> Result<Insertion> {
+pub fn append_block(source: &str, target: &Target, block: &str) -> Result<Insertion> {
     ensure!(
         super::safe_append_boundary(source),
         "Worklist ends inside an unfinished Markdown block; edit Markdown before capturing"

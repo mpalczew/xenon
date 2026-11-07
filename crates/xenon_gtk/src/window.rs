@@ -140,7 +140,7 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     };
     // GPUI toolbar order (xenon_ui/src/toolbar.rs), left to right. Buttons for
     // commands GTK does not have yet (Go Back, Go Forward, Cut,
-    // File Browser, worklist capture and open, Save) are not drawn.
+    // File Browser, Save) are not drawn.
     let left = [
         (
             "sidebar-show-symbolic",
@@ -178,6 +178,12 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
             "app.open-finder",
             "Go to File\u{2026}",
         ),
+        (
+            "document-edit-symbolic",
+            "app.capture-worklist",
+            "Add to Worklist",
+        ),
+        ("view-list-symbolic", "app.open-worklist", "Open Worklist"),
         (
             "media-playback-start-symbolic",
             "app.run-task",
@@ -244,6 +250,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         remote: crate::remote::Remote::new(),
         tasks: crate::tasks::Tasks::default(),
         trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),
+        worklist: Default::default(),
     });
     gtk::style_context_add_provider_for_display(
         &gtk::prelude::WidgetExt::display(&win),

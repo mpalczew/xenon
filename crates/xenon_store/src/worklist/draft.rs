@@ -38,7 +38,7 @@ struct Saved {
 }
 
 impl ItemDraft {
-    pub(crate) fn existing(source: &str, range: Range<usize>, checked: bool) -> Self {
+    pub fn existing(source: &str, range: Range<usize>, checked: bool) -> Self {
         Self {
             saved: Some(Saved {
                 start: range.start,
@@ -68,7 +68,7 @@ impl ItemDraft {
         (!title.is_empty()).then_some(title)
     }
 
-    pub(crate) fn set_checked(&mut self, checked: bool) {
+    pub fn set_checked(&mut self, checked: bool) {
         self.checked = checked;
     }
 

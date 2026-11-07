@@ -25,8 +25,8 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
 
 ## Gaps
 
-- **Toolbar.** Not drawn yet: Go Back and Go Forward, Cut, Toggle File Tree, the two
-  worklist buttons, Save (shown when an editor is dirty).
+- **Toolbar.** Not drawn yet: Go Back and Go Forward, Cut, Toggle File Tree,
+  Save (shown when an editor is dirty).
 - **Empty screen.** The Command Palette, Focus Editor and Keyboard Shortcuts rows are
   listed with their keys but do nothing.
 - **Sidebar.** The Git section has no draggable height.
@@ -35,8 +35,8 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
 - **Markdown prose mode.** No Paper surface, quote rule, round bullet glyphs, table grid,
   code highlighting or list continuation on Return (see DESIGN.md).
 - **`xenon open`.** `--pane` and the column in `path:line:col` are ignored.
-- **Missing features.** Command palette, divider resize from the keyboard, the worklist
-  panel. The diff tab is not part of the saved layout (same as GPUI).
+- **Missing features.** Command palette, divider resize from the keyboard. The
+  worklist opens as plain Markdown (no list view with section folds or inline editing). The diff tab is not part of the saved layout (same as GPUI).
 - **Phone remote.** Tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML has no
   markup for them), cursor hiding, and the phone's own light/dark choice (the phone
   always gets the computer's terminal colors).

@@ -21,6 +21,7 @@ mod settings;
 mod skill;
 mod task_trust;
 mod terminal;
+pub mod worklist;
 pub use cli::{CliCommand, parse_cli};
 pub use ipc::{
     IpcRequest, IpcResponse, OpenFileSpec, OpenPane, bind_server, parse_cli_paths, send_request,

@@ -75,6 +75,7 @@ mod tasks_ui;
 mod term;
 mod theme;
 mod window;
+mod worklist;
 mod workspaces;
 
 use app::App;
