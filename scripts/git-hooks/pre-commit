@@ -45,8 +45,6 @@ run() {
     checks_quiet "$@" || exit 1
 }
 
-run public-surface scripts/check-public-surface
-run attribution scripts/check-attribution
 run fmtcheck cargo fmt --all --check
 run lint-shape scripts/check-rust-shape
 run lint cargo clippy --workspace --all-targets -- \

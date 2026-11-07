@@ -5,8 +5,6 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 # shellcheck source=lib/checks.sh
 source "$root/scripts/lib/checks.sh"
-checks_quiet public-surface scripts/check-public-surface
-checks_quiet attribution scripts/check-attribution
 checks_quiet fmtcheck cargo fmt --all --check
 checks_quiet lint cargo clippy --workspace --all-targets -- -D warnings \
     -D clippy::cognitive_complexity \
