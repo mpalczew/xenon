@@ -7,7 +7,10 @@
 - [ ] GTK: sidebar spacing in the Workspaces section
 - [ ] GTK: the old Xenon toolbar and its key hints
   - Split down shows the wrong icon.
-- [ ] GTK: the tab close button shows an icon and closes the tab
+- [ ] GTK: replace our tab strip with AdwTabView and AdwTabBar
+  - The close button on each tab closes it.
+  - No custom underline on the selected tab.
+  - Drag a tab to a pane edge to split, as the GPUI app did.
 - [ ] GTK: the empty workspace screen matches GPUI word for word
 - [ ] Remove macOS-only code
 - [ ] GTK: Markdown writing mode
@@ -28,7 +31,7 @@
 - [ ] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
 - [ ] GTK: `xenon open` socket server
 - [ ] GTK: worklist panel
-- [ ] GTK: command palette, tab drag and drop, divider resize from the keyboard
+- [ ] GTK: command palette, divider resize from the keyboard
 - [ ] GTK: SSH workspaces and the SSH part of the pickers
 - [ ] Delete the GPUI frontend, its Vim engine and tree-sitter highlighting
 - [ ] GTK: LSP, last if at all
