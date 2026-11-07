@@ -84,7 +84,7 @@ impl App {
             Opening::Launch(url) => self.launch(&url),
             Opening::Missing(path) => self.toast(&format!("Not found: {}", path.display())),
             Opening::Reveal(dir) => self.reveal_dir(ws, &dir),
-            Opening::Editor(path, line) => self.open_file_at(ws, &path, line),
+            Opening::Editor(path, line) => self.open_file_at(ws, &path, line, 1),
             Opening::Default(path) => self.open_file(&path),
             Opening::Search(reference, line) => self.search_link(ws, reference, line),
         }

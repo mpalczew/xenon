@@ -343,11 +343,19 @@ impl EditorView {
         }
     }
 
-    /// Put the cursor on 1-based `line` and bring it into view.
-    pub(crate) fn goto_line(&self, line: u32) {
-        let Some(iter) = self.buffer.iter_at_line(line.saturating_sub(1) as i32) else {
+    /// Put the cursor on 1-based `line` and `column` (clamped to the line's
+    /// end) and bring it into view.
+    pub(crate) fn goto_line(&self, line: u32, column: u32) {
+        let Some(mut iter) = self.buffer.iter_at_line(line.saturating_sub(1) as i32) else {
             return;
         };
+        let offset = column.saturating_sub(1) as i32;
+        if offset > 0 && !iter.ends_line() {
+            iter.forward_chars(offset);
+            if !iter.ends_line() && iter.line() != line.saturating_sub(1) as i32 {
+                iter.backward_char();
+            }
+        }
         self.buffer.place_cursor(&iter);
         // The insert mark follows the cursor and is never deleted, unlike a
         // mark of ours that a reload or the Vim input method could invalidate.

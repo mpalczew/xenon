@@ -110,6 +110,7 @@ impl App {
         ws: WorkspaceId,
         path: &std::path::Path,
         line: u32,
+        column: u32,
     ) {
         if !path.exists() {
             return;
@@ -124,7 +125,7 @@ impl App {
             .map(|t| t.id);
         let editor = tab.and_then(|t| self.editors.borrow().get(&(ws, t)).cloned());
         if let Some(editor) = editor {
-            editor.goto_line(line);
+            editor.goto_line(line, column);
         }
     }
 

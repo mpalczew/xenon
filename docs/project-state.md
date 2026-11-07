@@ -75,8 +75,9 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   Window size is written when the window closes.
 - `xenon open` and `xenon <path>` reach a slot over its `ipc.sock` (`xenon_store::ipc`,
   served by `ipc.rs`). The app writes `xenon.pid` when it takes the socket. Shells keep
-  `XENON_DATA_DIR`, so `xenon open` in a terminal reaches the slot that runs it. Files
-  open in the focused pane; `--pane` and the column are not used yet.
+  `XENON_DATA_DIR`, so `xenon open` in a terminal reaches the slot that runs it. `xenon
+  open` honors `--pane` (`sibling` default: the next pane, or a new one to the right if
+  there is only one; `focused`; `split-right`) and puts the caret at line and column.
 - App id is `dev.xenon.Xenon`; the desktop entry is `xenon.desktop` with
   `StartupWMClass=dev.xenon.Xenon`.
 

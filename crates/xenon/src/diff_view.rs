@@ -370,7 +370,7 @@ impl DiffView {
             .get(self.current.get())
             .map_or(1, |h| h.1);
         if let Some(app) = self.app.upgrade() {
-            app.open_file_at(self.ws, &self.dir.join(&self.path), target);
+            app.open_file_at(self.ws, &self.dir.join(&self.path), target, 1);
         }
     }
 }

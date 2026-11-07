@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::glib;
-use xenon_core::FileRoute;
-use xenon_store::{IpcRequest, OpenFileSpec};
+use xenon_core::{FileRoute, SplitAxis, WorkspaceId};
+use xenon_store::{IpcRequest, OpenFileSpec, OpenPane};
 
 use crate::app::App;
 
@@ -48,7 +48,7 @@ impl App {
     }
 
     /// A folder becomes a workspace. A file opens in the workspace that holds
-    /// it (`Registry::route_file`), at its line, in the focused pane.
+    /// it (`Registry::route_file`), at its line, in the pane `--pane` names.
     fn open_path(self: &Rc<Self>, spec: OpenFileSpec) {
         let path: PathBuf = spec.path.canonicalize().unwrap_or(spec.path);
         if path.is_dir() {
@@ -70,7 +70,34 @@ impl App {
         }
         let active = self.model.borrow().active();
         if let Some(ws) = active {
-            self.open_file_at(ws, Path::new(&path), spec.line.unwrap_or(1));
+            self.aim_pane(ws, spec.pane);
+            self.open_file_at(
+                ws,
+                Path::new(&path),
+                spec.line.unwrap_or(1),
+                spec.column.unwrap_or(1),
+            );
+        }
+    }
+
+    /// Choose the pane the next opened tab lands in. `Focused` keeps the
+    /// focused pane. `Sibling` moves focus to the next pane, or splits right
+    /// when there is only one. `SplitRight` splits right. With no room to
+    /// split, the focused pane stays.
+    fn aim_pane(&self, ws: WorkspaceId, pane: OpenPane) {
+        let mut model = self.model.borrow_mut();
+        let leaves = model
+            .spaces
+            .get(&ws)
+            .map_or(0, |s| s.content.leaf_ids().len());
+        match pane {
+            OpenPane::Focused => {}
+            OpenPane::Sibling if leaves > 1 => {
+                model.step_pane(ws, 1);
+            }
+            OpenPane::Sibling | OpenPane::SplitRight => {
+                model.split(ws, SplitAxis::Horizontal);
+            }
         }
     }
 }
