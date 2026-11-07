@@ -12,14 +12,12 @@
 
 ## Next
 
-- [ ] Toolbar buttons still missing: Go Back, Go Forward, Cut
-- [ ] Empty screen rows that do nothing yet: Command Palette, Focus Editor, Keyboard
-      Shortcuts
-- [ ] Command palette, divider resize from the keyboard
+- [ ] Toolbar Cut button
+- [ ] New workspace screen: useful shortcuts are clickable rows that work
+- [ ] Command palette
 - [ ] `xenon open` honours `--pane` and the column
 - [ ] Phone remote gaps: tasks, mouse clicks, dim text, OSC 8 links, cursor hiding, the
       phone's own light/dark choice
-- [ ] Language servers, written new if at all
 - [ ] Git section has no draggable height
 - [ ] Editor diff gutter
 - [ ] Markdown prose mode: Paper surface, quote rule, round bullets, table grid, code
