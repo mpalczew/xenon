@@ -11,3 +11,4 @@ checks_quiet lint cargo clippy --workspace --all-targets -- -D warnings \
     -D clippy::cognitive_complexity \
     -D clippy::too_many_lines
 checks_quiet lint-shape scripts/check-rust-shape
+checks_quiet gtk-events cargo run -q -p xenon_eventcheck

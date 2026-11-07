@@ -120,6 +120,8 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   a widget inside that object's own signal handler (activate, notify, items-changed,
   gestures, drag and drop, menu actions). Capture plain values and defer with
   `glib::idle_add_local_once`. Every segfault so far (libgtk tree-list code) broke this.
+  The commit check `crates/xenon_eventcheck` flags direct model and widget changes in
+  `connect_*` closures; `// sync: <reason>` on or above the line marks a safe one.
 - GtkSourceView's syntax tags are anonymous; code that copies them must key on the look,
   not the tag name.
 - Phone page: setting `disabled` on a focused input blurs it, and iOS never gives focus

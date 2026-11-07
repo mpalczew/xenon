@@ -1533,6 +1533,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon_eventcheck"
+version = "0.1.0"
+dependencies = [
+ "ignore",
+ "proc-macro2",
+ "syn 2.0.118",
+]
+
+[[package]]
 name = "xenon_finder"
 version = "0.1.0"
 dependencies = [

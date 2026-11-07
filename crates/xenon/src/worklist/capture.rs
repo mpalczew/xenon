@@ -280,6 +280,7 @@ impl Capture {
                 gdk::Key::Down if alt => this.cycle(1),
                 gdk::Key::BackSpace if ctrl => this.discard(),
                 gdk::Key::Return | gdk::Key::KP_Enter if ctrl => {
+                    // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                     this.dialog.close();
                 }
                 _ => return glib::Propagation::Proceed,

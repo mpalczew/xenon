@@ -38,6 +38,7 @@ pub(crate) fn row_list() -> (gio::ListStore, gtk::SingleSelection, gtk::ListView
     let selection = gtk::SingleSelection::new(Some(store.clone()));
     selection.set_can_unselect(false);
     let factory = gtk::SignalListItemFactory::new();
+    // sync: setup fills a new row widget that no list holds yet.
     factory.connect_setup(|_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
@@ -102,6 +103,7 @@ pub(crate) fn close_on_outside_click(dialog: &adw::Dialog, content: &impl IsA<gt
             .compute_bounds(&dialog)
             .is_some_and(|b| b.contains_point(&gtk::graphene::Point::new(x as f32, y as f32)));
         if !inside {
+            // sync: AdwDialog.close animates out; nothing is destroyed during this event.
             dialog.close();
         }
     });

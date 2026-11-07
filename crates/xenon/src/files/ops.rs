@@ -90,6 +90,7 @@ impl FilesView {
         self.menu.set_has_arrow(false);
         self.menu.set_halign(gtk::Align::Start);
         let menu = self.menu.clone();
+        // sync: the popover must leave its parent while the parent is destroyed.
         self.list.connect_destroy(move |_| menu.unparent());
 
         let click = gtk::GestureClick::new();

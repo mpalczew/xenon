@@ -141,6 +141,7 @@ impl App {
         copy.connect_clicked(move |button| {
             button.clipboard().set_text(&link);
             if let Some(dialog) = weak.upgrade() {
+                // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                 dialog.close();
             }
         });
@@ -152,6 +153,7 @@ impl App {
         let gtk_app = self.gtk.clone();
         settings.connect_clicked(move |_| {
             if let Some(dialog) = weak.upgrade() {
+                // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                 dialog.close();
             }
             gtk_app.activate_action("settings", None);
@@ -161,6 +163,7 @@ impl App {
         let weak = dialog.downgrade();
         done.connect_clicked(move |_| {
             if let Some(dialog) = weak.upgrade() {
+                // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                 dialog.close();
             }
         });
