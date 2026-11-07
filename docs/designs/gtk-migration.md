@@ -4,6 +4,13 @@ A GTK 4 + VTE frontend is built beside the GPUI one in this repo. Both read and 
 the same data files. GPUI is deleted at cutover. Step 0 (this list) makes the product
 rules available without GPUI, so the new frontend only draws.
 
+## Porting rule
+
+Copy user-visible text from the GPUI app word for word and in the same order: labels,
+hints, tooltips, empty states and settings text. Never reword, invent or drop any of it.
+When both frontends show a string, move it into a GPUI-free crate so both read the same
+one. Text for a GTK-only control is new; say so in the report.
+
 ## Shared model crates
 
 None of these depend on GPUI. A frontend uses them for the following.
@@ -64,36 +71,37 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
 - **Since step 2.** Ctrl+P finder and Ctrl+Shift+O workspace picker (one palette shell;
   ranking and discovery from `xenon_finder`, which now also holds `discover` and
   `tree::list_dir`, moved out of `xenon_ui`), the Files section (lists every entry like
-  the GPUI tree; only expanded folders are watched, at most 48), and a stand-in editor tab
-  (GtkSourceView, Vim input method per settings, Ctrl+S saves; files over 4 MB or not
-  UTF-8 open in the default app).
+  the GPUI tree; only expanded folders are watched, at most 48), and a stand-in editor
+  tab (GtkSourceView, Vim input method per settings, Ctrl+S saves; files over 4 MB or
+  not UTF-8 open in the default app).
 - **Not drawn yet.** The diff-status sidebar section, the real editor (LSP, diff gutter,
   prose mode, Markdown), SSH workspaces (session kept) and the SSH part of the pickers,
-  command palette, tab drag and drop, divider keyboard resize,
-  the `xenon open` socket server. Phone remote gaps: tasks, mouse clicks, dim text and
-  OSC 8 links (VTE's HTML has no markup for them), cursor hiding, and the phone's own
-  light/dark choice (the phone always gets the Mac's terminal colors).
-- **Settings.** Ctrl+, (`app.settings`) opens an `AdwPreferencesDialog` with the GPUI pages:
-  Appearance (mode, theme strips, a live-preview theme picker), Fonts,
-  Editor (with Markdown writing), Terminal, Agents, Language Servers, Phone Remote. Choices, clamps and
-  healing come from `xenon_settings` (theme lineup, prose choices, font choices, skill text,
-  `set_font_size`, `set_font_family`, `set_theme_name`); the GPUI settings read the same.
-  Changes apply live and persist to the GTK state dir. The Markdown writing values are saved
-  but the GTK editor does not draw prose mode yet.
-- **Phone remote.** `xenon_remote` serves it; the rules both frontends share (device book and
-  pairing, network and URLs, fit gate, workspace list, footer and status wording, keep-awake,
-  VTE HTML to wire screen) live there, so the GPUI glue only adapts them. The GTK host is
-  `remote*.rs`. Same port and paired-device file as the GPUI app (`remote_port`, default
-  17890; `~/.xenon-shared/remote_devices.json` is read in place, no copy), so cutover needs no
-  re-pairing. If the other Xenon holds the port this one waits quietly and retries every 5 s.
-  A terminal is mirrored (VTE `text_format(Html)`, coalesced to ~30/s, parsed off the UI
-  thread) only while a phone is attached to it; an idle remote with a quiet attached phone
-  costs about nothing (`scripts/xenon-gtk-idle`). The phone fit pins the VTE grid to the
-  phone's size and the Mac's keyboard hands it back (30 s quiet rule from `xenon_remote`).
-- **Checks.** `scripts/xenon-gtk-remote-client` is a stdlib Python phone (pair, REST, WebSocket);
-  `scripts/xenon-gtk-verify` drives a real window over D-Bus actions and
+  command palette, tab drag and drop, divider keyboard resize, the `xenon open` socket
+  server. Phone remote gaps: tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML
+  has no markup for them), cursor hiding, and the phone's own light/dark choice (the
+  phone always gets the Mac's terminal colors).
+- **Settings.** Ctrl+, (`app.settings`) opens an `AdwPreferencesDialog` with the GPUI
+  pages: Appearance (mode, theme strips, a live-preview theme picker), Fonts, Editor
+  (with Markdown writing), Terminal, Agents, Language Servers, Phone Remote. Choices,
+  clamps and healing come from `xenon_settings` (theme lineup, prose choices, font
+  choices, skill text, `set_font_size`, `set_font_family`, `set_theme_name`); the GPUI
+  settings read the same. Changes apply live and persist to the GTK state dir. The
+  Markdown writing values are saved but the GTK editor does not draw prose mode yet.
+- **Phone remote.** `xenon_remote` serves it; the rules both frontends share (device
+  book and pairing, network and URLs, fit gate, workspace list, footer and status
+  wording, keep-awake, VTE HTML to wire screen) live there, so the GPUI glue only adapts
+  them. The GTK host is `remote*.rs`. Same port and paired-device file as the GPUI app
+  (`remote_port`, default 17890; `~/.xenon-shared/remote_devices.json` is read in place,
+  no copy), so cutover needs no re-pairing. If the other Xenon holds the port this one
+  waits quietly and retries every 5 s. A terminal is mirrored (VTE `text_format(Html)`,
+  coalesced to ~30/s, parsed off the UI thread) only while a phone is attached to it; an
+  idle remote with a quiet attached phone costs about nothing
+  (`scripts/xenon-gtk-idle`). The phone fit pins the VTE grid to the phone's size and
+  the Mac's keyboard hands it back (30 s quiet rule from `xenon_remote`).
+- **Checks.** `scripts/xenon-gtk-remote-client` is a stdlib Python phone (pair, REST,
+  WebSocket); `scripts/xenon-gtk-verify` drives a real window over D-Bus actions and
   AT-SPI and writes screenshots; `scripts/xenon-gtk-idle` (run by `scripts/health`)
-  fails on idle CPU or wakeups above budget; `scripts/xenon-gtk-latency` types into a window
-  and reports input-to-frame time and main-thread CPU (needs an unlocked display; compare
-  `--window 1000x650` with `--maximized`). `XENON_GTK_LATENCY=1` (or `trace`) logs the same
-  per keystroke from any run.
+  fails on idle CPU or wakeups above budget; `scripts/xenon-gtk-latency` types into a
+  window and reports input-to-frame time and main-thread CPU (needs an unlocked display;
+  compare `--window 1000x650` with `--maximized`). `XENON_GTK_LATENCY=1` (or `trace`)
+  logs the same per keystroke from any run.
