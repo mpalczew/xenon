@@ -76,11 +76,12 @@ impl App {
         });
         let ui = self.settings.borrow().clone();
         let sheet = format!(
-            "{}\n{}textview.xeditor, textview.xdiff-code {{ font-family: \"{}\", monospace; font-size: {}px; }}\n",
+            "{}\n{}textview.xeditor, textview.xdiff-code {{ font-family: \"{}\", monospace; font-size: {}px; }}\n{}",
             palette.css(),
             crate::prefs_apply::extra_css(&ui.ui, &palette),
             ui.editor.family,
-            ui.editor.size
+            ui.editor.size,
+            crate::prose::css(&ui.prose, &self.mono.borrow())
         );
         self.css.load_from_string(&sheet);
         self.launcher

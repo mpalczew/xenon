@@ -34,6 +34,8 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
 - **Sidebar.** The Git section has no draggable height.
 - **Editor.** No LSP and no diff gutter. Themes still come from the bundled Zed themes
   instead of following the system.
+- **Markdown prose mode.** No Paper surface, quote rule, round bullet glyphs, table grid,
+  code highlighting or list continuation on Return (see DESIGN.md).
 - **`xenon open`.** `--pane` and the column in `path:line:col` are ignored.
 - **Missing features.** Command palette, divider resize from the keyboard, the worklist
   panel. The diff tab is not part of the saved layout (same as GPUI).

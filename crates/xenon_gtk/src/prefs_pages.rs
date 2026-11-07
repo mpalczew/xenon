@@ -198,6 +198,17 @@ fn numbers(values: &[f32]) -> Vec<String> {
     values.iter().map(|v| format_size(*v)).collect()
 }
 
+/// Add a choice row that `settings-set <id>=<index>` can also drive.
+fn add_registered(group: &adw::PreferencesGroup, id: &'static str, row: adw::ComboRow) {
+    let weak = row.downgrade();
+    crate::prefs_state::register(id, move |v| {
+        if let (Some(row), Ok(i)) = (weak.upgrade(), v.parse::<u32>()) {
+            row.set_selected(i);
+        }
+    });
+    group.add(&row);
+}
+
 fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::builder()
         .title("Markdown writing")
@@ -207,47 +218,67 @@ fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
         let app = app.clone();
         move |i: usize| app.change_settings(|s| s.update_prose(|p| change(p, i)))
     };
-    group.add(&choice_row(
-        "Markers",
-        "Dim keeps # * and [] visible as faint text; Hide draws only the result",
-        &["Dim".into(), "Hide".into()],
-        usize::from(p.markers == ProseMarkers::Hide),
-        prose(app, |p, i| {
-            p.markers = if i == 1 {
-                ProseMarkers::Hide
-            } else {
-                ProseMarkers::Dim
-            }
-        }),
-    ));
-    group.add(&choice_row(
-        "Writing font",
-        "Auto is serif on Paper and the interface face otherwise",
-        &["Auto".into(), "Serif".into(), "Sans".into(), "Mono".into()],
-        PROSE_FONTS.iter().position(|f| *f == p.font).unwrap_or(0),
-        prose(app, |p, i| p.font = PROSE_FONTS[i]),
-    ));
-    group.add(&choice_row(
-        "Writing size",
-        "",
-        &numbers(&PROSE_SIZES),
-        nearest_index(&PROSE_SIZES, p.size),
-        prose(app, |p, i| p.size = PROSE_SIZES[i]),
-    ));
-    group.add(&choice_row(
-        "Line height",
-        "",
-        &numbers(&PROSE_LINE_HEIGHTS),
-        nearest_index(&PROSE_LINE_HEIGHTS, p.line_height),
-        prose(app, |p, i| p.line_height = PROSE_LINE_HEIGHTS[i]),
-    ));
-    group.add(&choice_row(
-        "Column width",
-        "Characters per line",
-        &numbers(&PROSE_MEASURES),
-        nearest_index(&PROSE_MEASURES, p.measure),
-        prose(app, |p, i| p.measure = PROSE_MEASURES[i]),
-    ));
+    add_registered(
+        &group,
+        "prose-markers",
+        choice_row(
+            "Markers",
+            "Dim keeps # * and [] visible as faint text; Hide draws only the result",
+            &["Dim".into(), "Hide".into()],
+            usize::from(p.markers == ProseMarkers::Hide),
+            prose(app, |p, i| {
+                p.markers = if i == 1 {
+                    ProseMarkers::Hide
+                } else {
+                    ProseMarkers::Dim
+                }
+            }),
+        ),
+    );
+    add_registered(
+        &group,
+        "prose-font",
+        choice_row(
+            "Writing font",
+            "Auto is serif",
+            &["Auto".into(), "Serif".into(), "Sans".into(), "Mono".into()],
+            PROSE_FONTS.iter().position(|f| *f == p.font).unwrap_or(0),
+            prose(app, |p, i| p.font = PROSE_FONTS[i]),
+        ),
+    );
+    add_registered(
+        &group,
+        "prose-size",
+        choice_row(
+            "Writing size",
+            "",
+            &numbers(&PROSE_SIZES),
+            nearest_index(&PROSE_SIZES, p.size),
+            prose(app, |p, i| p.size = PROSE_SIZES[i]),
+        ),
+    );
+    add_registered(
+        &group,
+        "prose-line-height",
+        choice_row(
+            "Line height",
+            "",
+            &numbers(&PROSE_LINE_HEIGHTS),
+            nearest_index(&PROSE_LINE_HEIGHTS, p.line_height),
+            prose(app, |p, i| p.line_height = PROSE_LINE_HEIGHTS[i]),
+        ),
+    );
+    add_registered(
+        &group,
+        "prose-measure",
+        choice_row(
+            "Column width",
+            "Characters per line",
+            &numbers(&PROSE_MEASURES),
+            nearest_index(&PROSE_MEASURES, p.measure),
+            prose(app, |p, i| p.measure = PROSE_MEASURES[i]),
+        ),
+    );
     group
 }
 

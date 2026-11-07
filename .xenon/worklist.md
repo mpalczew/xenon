@@ -2,7 +2,7 @@
 
 ## Now
 
-- [ ] GTK: Markdown writing mode
+- [x] GTK: Markdown writing mode
 - [ ] GTK: open a file in the selected pane, or the last selected one
 - [ ] GTK: Copy Clean in the toolbar
 - [x] GTK: Workspaces, Files and Git sections collapse (header click, Enter, Space;

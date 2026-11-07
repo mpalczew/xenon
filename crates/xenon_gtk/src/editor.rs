@@ -1,7 +1,8 @@
 //! A file tab: GtkSourceView with syntax highlighting and, when the settings
 //! ask for it, the Vim input method. Ctrl+S and `:w` write the file. This is
 //! the stand-in editor until the GTK editor exists; it is a plain text view
-//! with no LSP, diff gutter or prose mode.
+//! with no LSP or diff gutter. Markdown files open in prose mode (`prose.rs`);
+//! Alt+1 and Alt+3 switch between Prose and Source.
 
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -11,8 +12,10 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use sourceview::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
+use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 
 use crate::app::App;
+use crate::prose::{self, Prose};
 
 /// Files above this size open in the default app instead.
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
@@ -26,6 +29,9 @@ pub(crate) struct EditorView {
     loading: Cell<bool>,
     /// The Vim input method and its key controller while Vim mode is on.
     vim: RefCell<Option<(sourceview::VimIMContext, gtk::EventControllerKey)>>,
+    /// Markdown writing mode, for Markdown files.
+    pub(crate) prose: Option<Rc<Prose>>,
+    mode: Cell<MarkdownMode>,
     app: Weak<App>,
     scroller: gtk::ScrolledWindow,
     /// "File changed on disk" bar: message and its two buttons.
@@ -82,6 +88,10 @@ impl EditorView {
         let scroller = gtk::ScrolledWindow::new();
         scroller.set_child(Some(&view));
         scroller.add_css_class("xeditor-scroll");
+        let prose = prose::is_markdown(path).then(|| Prose::new(app, ws, &view, &scroller, path));
+        let mode = prose
+            .as_ref()
+            .map_or(MarkdownMode::Source, |_| prose_file_prefs(path).mode);
         let bar_text = gtk::Label::new(None);
         bar_text.set_hexpand(true);
         bar_text.set_xalign(0.0);
@@ -108,6 +118,8 @@ impl EditorView {
             path: path.to_path_buf(),
             loading: Cell::new(false),
             vim: RefCell::new(None),
+            prose,
+            mode: Cell::new(mode),
             app: Rc::downgrade(app),
         });
         editor.restyle(app);
@@ -126,14 +138,29 @@ impl EditorView {
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let this = Rc::downgrade(&editor);
         keys.connect_key_pressed(move |_, key, _, state| {
-            if state.contains(gdk::ModifierType::CONTROL_MASK)
-                && matches!(key, gdk::Key::s | gdk::Key::S)
-                && let Some(this) = this.upgrade()
-            {
+            let Some(this) = this.upgrade() else {
+                return glib::Propagation::Proceed;
+            };
+            let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
+            let alt = state.contains(gdk::ModifierType::ALT_MASK);
+            if ctrl && matches!(key, gdk::Key::s | gdk::Key::S) {
                 this.save(&weak);
                 return glib::Propagation::Stop;
             }
-            glib::Propagation::Proceed
+            let handled = match key {
+                gdk::Key::_1 if alt => this.set_mode(MarkdownMode::Prose),
+                gdk::Key::_3 if alt => this.set_mode(MarkdownMode::Source),
+                gdk::Key::Return | gdk::Key::KP_Enter if ctrl => this
+                    .prose
+                    .as_ref()
+                    .is_some_and(|p| p.on.get() && p.toggle_task()),
+                _ => false,
+            };
+            if handled {
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
         });
         editor.view.add_controller(keys);
         editor.buffer.set_modified(false);
@@ -181,7 +208,7 @@ impl EditorView {
         }
         let Ok(text) = load(&self.path) else { return };
         let (a, b) = self.buffer.bounds();
-        if self.buffer.text(&a, &b, false) == text {
+        if self.buffer.text(&a, &b, true) == text {
             self.bar.set_visible(false);
         } else if self.buffer.is_modified() {
             self.show_bar(
@@ -286,14 +313,25 @@ impl EditorView {
         if let Some(scheme) = sourceview::StyleSchemeManager::default().scheme(name) {
             self.buffer.set_style_scheme(Some(&scheme));
         }
+        let prose_on = self.prose.is_some() && self.mode.get() != MarkdownMode::Source;
+        if let Some(prose) = &self.prose {
+            prose.set_on(prose_on, app);
+        }
         let settings = app.settings.borrow();
-        self.view.set_show_line_numbers(settings.show_line_numbers);
-        self.view
-            .set_wrap_mode(if settings.editor_wraps(&self.path) {
-                gtk::WrapMode::WordChar
-            } else {
-                gtk::WrapMode::None
-            });
+        if prose_on {
+            self.view.set_wrap_mode(gtk::WrapMode::WordChar);
+        } else {
+            self.view.set_monospace(true);
+            self.view.set_show_line_numbers(settings.show_line_numbers);
+            self.view.set_highlight_current_line(false);
+            self.buffer.set_highlight_syntax(true);
+            self.view
+                .set_wrap_mode(if settings.editor_wraps(&self.path) {
+                    gtk::WrapMode::WordChar
+                } else {
+                    gtk::WrapMode::None
+                });
+        }
         let vim_mode = settings.vim_mode;
         drop(settings);
         if vim_mode && self.vim.borrow().is_none() {
@@ -303,12 +341,31 @@ impl EditorView {
         }
     }
 
+    /// Prose or Source for a Markdown file; remembered per file like the GPUI app.
+    fn set_mode(self: &Rc<Self>, mode: MarkdownMode) -> bool {
+        if self.prose.is_none() {
+            return false;
+        }
+        if self.mode.replace(mode) != mode {
+            let mut prefs = prose_file_prefs(&self.path);
+            prefs.mode = mode;
+            if let Err(error) = set_prose_file_prefs(&self.path, prefs) {
+                eprintln!("[xg] could not remember the Markdown mode: {error}");
+            }
+            if let Some(app) = self.app.upgrade() {
+                self.restyle(&app);
+            }
+        }
+        true
+    }
+
     pub(crate) fn save(&self, app: &Weak<App>) {
         if self.loading.get() {
             return;
         }
         let (a, b) = self.buffer.bounds();
-        let text = self.buffer.text(&a, &b, false);
+        // Hidden markup is still part of the file.
+        let text = self.buffer.text(&a, &b, true);
         let result = std::fs::write(&self.path, text.as_str());
         let name = self
             .path

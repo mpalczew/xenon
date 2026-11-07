@@ -9,6 +9,7 @@ publish = false
 xenon_core.workspace = true
 xenon_store.workspace = true
 xenon_settings.workspace = true
+xenon_prose.workspace = true
 xenon_keymap.workspace = true
 xenon_finder.workspace = true
 xenon_remote.workspace = true

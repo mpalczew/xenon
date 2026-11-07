@@ -10035,6 +10035,7 @@ dependencies = [
  "xenon_finder",
  "xenon_git",
  "xenon_keymap",
+ "xenon_prose",
  "xenon_remote",
  "xenon_settings",
  "xenon_store",
@@ -10077,6 +10078,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "xenon_prose"
+version = "0.1.0"
+dependencies = [
+ "pulldown-cmark",
 ]
 
 [[package]]

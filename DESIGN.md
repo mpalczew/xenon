@@ -326,6 +326,17 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   (Ctrl+C, X, B, E, O, S). Ctrl+Alt+B toggles the sidebar because Ctrl+B belongs to the
   shell.
 
+- **Markdown prose mode.** A `.md` file opens as writing, not source: the same text view
+  with text tags (headings 1.7/1.4/1.2/1.08 times the body, bold, italic, struck, code
+  chip, links in the accent color, a tinted quote and code block, accent list marks
+  and task boxes), a column of `measure` characters centered by the view's side
+  margins, and the line height as extra pixels between lines. Markers (`#`, `**`,
+  `[`, fences, `>`) are the dim ink under Markers: Dim, or the `invisible` tag under
+  Hide, except in the block the caret is in. Pictures sit in a space under their
+  line (an overlay, never text in the file). Ctrl+click opens a link; click or
+  Ctrl+Enter flips a task box; Alt+1 / Alt+3 switch Prose and Source. Gaps against the
+  GPUI mode: no Paper surface, no quote rule or round bullet glyphs, no table grid,
+  no code highlighting, no list continuation on Return.
 - **Settings.** `AdwPreferencesDialog` (Ctrl+,): pages Appearance, Fonts, Editor,
   Terminal, Agents, Language Servers (Ctrl+1 to 6, Ctrl+F searches, Escape closes).
   Theme tiles are buttons painted by one generated sheet in each theme's own colors. The
