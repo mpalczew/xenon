@@ -150,6 +150,17 @@ class App:
             print("last ui-state:", json.dumps(self.state()))
             raise
 
+    def pstate(self, name):
+        pump()
+        v = self.group.get_action_state(name)
+        return json.loads(v.get_string()) if v and v.get_string() else {}
+
+    def palette(self):
+        return self.pstate("palette-state")
+
+    def files(self):
+        return self.pstate("files-state")
+
     def terminals(self):
         shown = lambda a: a.getRoleName() == "terminal" and a.getState().contains(pyatspi.STATE_SHOWING)
         return find_all(self.ax, shown, [])
@@ -213,6 +224,17 @@ def main():
     ws_a, ws_b, ws_c = (os.path.join(tmp, n) for n in ("alpha", "beta", "gamma"))
     for d in (ws_a, ws_b, ws_c):
         os.makedirs(d)
+    # A small project in beta for the Files section and the finder.
+    os.makedirs(os.path.join(ws_b, "src", "deep"))
+    for name, text in (
+        ("README.md", "# beta\n"),
+        ("Cargo.toml", "[package]\nname = \"beta\"\n"),
+        ("src/main.rs", "fn main() {\n    println!(\"hi\");\n}\n"),
+        ("src/lib.rs", "pub fn f() {}\n"),
+        ("src/deep/mod.rs", "// deep\n"),
+    ):
+        with open(os.path.join(ws_b, name), "w") as f:
+            f.write(text)
     app = App(state_dir)
     try:
         run(app, ws_a, ws_b, ws_c, state_dir)
@@ -235,6 +257,101 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
     s = app.until(lambda s: active_ws(s) == "beta" and len(s["workspaces"]) == 2, "second workspace")
     check(True, "second workspace 'beta' created and active")
     app.shot("01-sidebar-two-workspaces")
+
+    # Tab titles are short directory names, never "user@host:/path".
+    s = app.until(lambda s: all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "shell titled")
+    labels = [t["label"] for p in s["panes"] for t in p["tabs"]]
+    check(not any("@" in l or "/" in l for l in labels), f"tab labels are clean {labels}")
+    check(s["panes"][0]["tabs"][0]["label"].split(" ")[0] in ("bash", "zsh", "fish", "sh", "shell"), "a plain prompt shows the shell name")
+
+    # Files section: the tree of the active workspace, driven by keys.
+    f = wait_for(lambda: (lambda f: f if [r["name"] for r in f.get("rows", [])][:2] == ["src", "Cargo.toml"] else None)(app.files()), "files tree rows")
+    check([r["name"] for r in f["rows"]] == ["src", "Cargo.toml", "README.md"], f"files lists folders first, then names: {[r['name'] for r in f['rows']]}")
+    app.act("focus-sidebar")
+    f = wait_for(lambda: (lambda f: f if f.get("focused") else None)(app.files()), "files tree focused")
+    check(f["selected"] == "src", "the keyboard lands in the tree on the first row")
+    app.act("files-key", "right")
+    f = wait_for(lambda: (lambda f: f if "main.rs" in [r["name"] for r in f["rows"]] else None)(app.files()), "src expanded")
+    check([r["name"] for r in f["rows"] if r["depth"] == 1] == ["deep", "lib.rs", "main.rs"], "Right opens a folder and lists its entries")
+    app.act("files-key", "down")  # deep
+    app.act("files-key", "down")  # lib.rs
+    app.act("files-key", "down")  # main.rs
+    app.act("files-key", "enter")
+    s = app.until(lambda s: any(t["label"] == "main.rs" for p in s["panes"] for t in p["tabs"]), "main.rs tab from the tree")
+    check(True, "Enter on a file in the tree opened it in an editor tab")
+    f = wait_for(lambda: (lambda f: f if any(r["open"] for r in f["rows"]) else None)(app.files()), "open file marked")
+    check([r["name"] for r in f["rows"] if r["open"]] == ["main.rs"], "the tree marks the open file")
+    app.shot("08-files-and-editor")
+    app.act("files-key", "left")
+    app.act("files-key", "left")
+    f = wait_for(lambda: (lambda f: f if "main.rs" not in [r["name"] for r in f["rows"]] else None)(app.files()), "src collapsed")
+    check(True, "Left steps out and closes a folder")
+
+    # Ctrl+P: the finder, keyboard only.
+    app.act("send-key", "ctrl-p")
+    p = wait_for(lambda: (lambda p: p if p.get("open") and p.get("rows") else None)(app.palette()), "finder open with rows")
+    check(p["entry_focused"], "Ctrl+P opened the finder with the cursor in its field")
+    app.act("palette-text", "m")
+    p = wait_for(lambda: (lambda p: p if p.get("count", 0) >= 2 and p["query"] == "m" and any("main.rs" in r for r in p["rows"]) else None)(app.palette()), "finder results for 'm'")
+    app.shot("09-finder-results")
+    first = p["selected"]
+    app.act("send-key", "ctrl-n")
+    p = wait_for(lambda: (lambda p: p if p["selected"] == first + 1 else None)(app.palette()), "Ctrl+N moves down")
+    check(True, "Ctrl+N moved the selection down while the finder is open")
+    app.act("send-key", "ctrl-p")
+    p = wait_for(lambda: (lambda p: p if p["selected"] == first else None)(app.palette()), "Ctrl+P moves up")
+    check(p["open"], "Ctrl+P moved the selection up (and did not close the finder)")
+    app.act("palette-text", "lib.rs")
+    p = wait_for(lambda: (lambda p: p if p["query"] == "lib.rs" and p.get("selected_title", "") and p["selected_title"].endswith("lib.rs") else None)(app.palette()), "lib.rs on top")
+    check(p["selected_title"] == "src/lib.rs", "fuzzy query 'lib.rs' ranks src/lib.rs first")
+    app.act("palette-key", "enter")
+    s = app.until(lambda s: any(t["label"] == "lib.rs" for p in s["panes"] for t in p["tabs"]), "lib.rs tab from the finder")
+    check(not app.palette()["open"], "Enter opened the file and closed the finder")
+    app.act("send-key", "ctrl-p")
+    wait_for(lambda: app.palette().get("open"), "finder reopens")
+    app.act("palette-key", "escape")
+    p = wait_for(lambda: (lambda p: p if not p["open"] else None)(app.palette()), "Escape closes the finder")
+    check(True, "Escape closed the finder")
+    # Focus returns to the editor that had it: typing there reaches the file.
+    app.act("send-key", "ctrl-p")
+    wait_for(lambda: app.palette().get("open"), "finder opens again")
+    app.act("palette-key", "escape")
+    wait_for(lambda: not app.palette().get("open"), "finder closed again")
+
+    # Ctrl+Shift+O: the workspace picker with path completion.
+    parent = os.path.dirname(ws_c)
+    app.act("send-key", "ctrl-shift-o")
+    p = wait_for(lambda: (lambda p: p if p.get("open") and any("alpha" in r for r in p.get("rows", [])) else None)(app.palette()), "workspace picker open")
+    check(any("alpha" in r for r in p["rows"]) and any("beta" in r for r in p["rows"]), f"the picker lists open workspaces: {p['rows']}")
+    app.shot("10a-workspace-picker-empty")
+    app.act("palette-text", parent + "/gam")
+    p = wait_for(lambda: (lambda p: p if p.get("rows") and p["rows"][0] == "gamma" else None)(app.palette()), "gamma completes from the typed path")
+    app.shot("10-workspace-picker")
+    app.act("palette-key", "tab")
+    p = wait_for(lambda: (lambda p: p if p["query"].endswith("gamma/") else None)(app.palette()), "Tab completes the path")
+    check(p["query"].replace(os.path.expanduser("~"), "~") .endswith("/gamma/"), "Tab completed the typed path to the folder")
+    app.act("palette-text", parent + "/gam")
+    wait_for(lambda: (lambda p: p.get("query") == parent + "/gam" and p.get("rows", [None])[:1] == ["gamma"])(app.palette()), "gamma again")
+    app.act("palette-key", "enter")
+    s = app.until(lambda s: active_ws(s) == "gamma" and len(s["workspaces"]) == 3, "gamma opened from the picker")
+    check(not app.palette()["open"], "Enter opened the folder as a workspace and closed the picker")
+    app.act("close-workspace")
+    s = app.until(lambda s: len(s["workspaces"]) == 2, "gamma closed again")
+    app.act("send-key", "ctrl-shift-o")
+    wait_for(lambda: app.palette().get("open"), "picker with a closed workspace")
+    app.act("palette-text", "gamma")
+    p = wait_for(lambda: (lambda p: p if p.get("rows") and p["rows"][0] == "gamma" else None)(app.palette()), "closed workspace found by name")
+    app.act("palette-key", "escape")
+    app.act("focus-terminal")
+    s = app.until(lambda s: active_ws(s) == "beta" or True, "back")
+    if active_ws(app.state()) != "beta":
+        app.act("next-workspace")
+    app.until(lambda s: active_ws(s) == "beta", "beta active again")
+    # Close the editor tabs again so the terminal checks below see terminals.
+    for _ in range(2):
+        app.act("close-tab")
+    app.until(lambda s: all(t["label"] not in ("main.rs", "lib.rs") for p in s["panes"] for t in p["tabs"]), "editor tabs closed")
+    app.act("focus-terminal")
 
     # Type into the terminal and read it back over AT-SPI.
     wait_for(app.has_terminal, "terminal")

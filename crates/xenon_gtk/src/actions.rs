@@ -18,7 +18,9 @@ type Handler = fn(&Rc<App>);
 const SIMPLE: &[(&str, Handler)] = &[
     ("new-terminal", |a| a.new_terminal()),
     ("new-workspace", |a| a.new_workspace_dialog()),
-    ("open-workspace", |a| a.open_workspace_dialog()),
+    ("open-workspace", |a| a.open_workspace_picker()),
+    ("browse-workspace", |a| a.open_workspace_dialog()),
+    ("open-finder", |a| a.open_finder()),
     ("close-tab", |a| a.close_active_tab()),
     ("close-other-tabs", |a| a.close_other_tabs()),
     ("next-tab", |a| a.step_tab(1)),
@@ -81,6 +83,27 @@ impl App {
         }
     }
 
+    pub(crate) fn publish_palette(&self) {
+        self.publish_to("palette-state", &self.launcher.snapshot());
+    }
+
+    pub(crate) fn publish_files(&self) {
+        self.publish_to("files-state", &self.sidebar.files.snapshot());
+    }
+
+    fn publish_to(&self, name: &str, json: &str) {
+        let Some(action) = self
+            .gtk
+            .lookup_action(name)
+            .and_downcast::<gio::SimpleAction>()
+        else {
+            return;
+        };
+        if action.state().and_then(|s| s.get::<String>()).as_deref() != Some(json) {
+            action.set_state(&json.to_variant());
+        }
+    }
+
     pub(crate) fn quit(self: &Rc<Self>) {
         self.save_all();
         self.save_window();
@@ -93,20 +116,62 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
         let action = gio::SimpleAction::new(name, None);
         let weak = Rc::downgrade(app);
         let handler = *handler;
+        let name = *name;
         action.connect_activate(move |_, _| {
             if let Some(app) = weak.upgrade() {
+                if app.launcher.is_open() && !palette_passes(name) {
+                    // Ctrl+N / Ctrl+P move in the palette; the rest wait.
+                    match name {
+                        "new-terminal" => app.launcher.key("down"),
+                        "open-finder" => app.launcher.key("up"),
+                        _ => {}
+                    }
+                    return;
+                }
                 handler(&app);
             }
         });
         app.gtk.add_action(&action);
     }
     install_automation(app);
+    for name in ["palette-state", "files-state"] {
+        app.gtk.add_action(&gio::SimpleAction::new_stateful(
+            name,
+            None,
+            &"".to_variant(),
+        ));
+    }
+    install_palette_keys(app);
     let state = gio::SimpleAction::new_stateful("ui-state", None, &"".to_variant());
     app.gtk.add_action(&state);
     for (action, accels) in crate::keys::bindings(user_keys) {
         let refs: Vec<&str> = accels.iter().map(String::as_str).collect();
         app.gtk.set_accels_for_action(action, &refs);
     }
+}
+
+/// Actions that still run while the palette is open.
+fn palette_passes(name: &str) -> bool {
+    matches!(name, "quit" | "save-now" | "open-workspace")
+}
+
+/// Ctrl+O outside a terminal opens the workspace picker too. The window
+/// shortcut runs after the focused widget, so a terminal (or the Vim input
+/// method in an editor) that takes the key keeps it.
+fn install_palette_keys(app: &Rc<App>) {
+    let controller = gtk::ShortcutController::new();
+    controller.set_propagation_phase(gtk::PropagationPhase::Bubble);
+    let weak = Rc::downgrade(app);
+    let action = gtk::CallbackAction::new(move |_, _| {
+        if let Some(app) = weak.upgrade() {
+            app.open_workspace_picker();
+        }
+        glib::Propagation::Stop
+    });
+    if let Some(trigger) = gtk::ShortcutTrigger::parse_string("<Control>o") {
+        controller.add_shortcut(gtk::Shortcut::new(Some(trigger), Some(action)));
+    }
+    app.win.add_controller(controller);
 }
 
 fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
@@ -123,6 +188,7 @@ fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
 fn install_automation(app: &Rc<App>) {
     string_action(app, "feed-child", |app, text| {
         if let Some(view) = app.current_term() {
+            crate::latency::input();
             view.term.feed_child(text.as_bytes());
         }
     });
@@ -173,6 +239,12 @@ fn install_automation(app: &Rc<App>) {
         {
             view.term.feed_child(&[byte]);
         }
+    });
+    string_action(app, "palette-text", |app, text| app.launcher.set_text(text));
+    string_action(app, "palette-key", |app, key| app.launcher.key(key));
+    string_action(app, "files-key", |app, key| app.sidebar.files.key(key));
+    string_action(app, "files-reveal", |app, path| {
+        app.sidebar.files.reveal(std::path::Path::new(path));
     });
     string_action(app, "open-dir", |app, path| {
         app.open_workspace(std::path::Path::new(path))

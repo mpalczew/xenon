@@ -2,10 +2,10 @@
 //! know; the pane-tree rules themselves live in `xenon_core`.
 
 use xenon_core::{
-    CloseOutcome, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, WorkspaceId,
+    CloseOutcome, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, TabState, WorkspaceId,
 };
 
-use crate::model::{Model, Tab};
+use crate::model::{Model, Tab, TabKind};
 
 /// What `split` did.
 pub(crate) enum SplitResult {
@@ -40,6 +40,58 @@ impl Model {
         }
         let leaf = content.focused_leaf_mut()?;
         leaf.tabs.push(Tab::terminal(id));
+        leaf.active = leaf.tabs.len() - 1;
+        leaf.parked = false;
+        Some(id)
+    }
+
+    /// Show `path` in an editor tab: the one already open for it, or a new tab
+    /// in the focused pane. Returns the tab.
+    pub(crate) fn open_editor(&mut self, ws: WorkspaceId, path: &std::path::Path) -> Option<TabId> {
+        let content = self.space_content(ws)?;
+        let mut existing = None;
+        if let Some(root) = content.root.as_ref() {
+            root.for_each_leaf(&mut |leaf| {
+                for tab in &leaf.tabs {
+                    if matches!(&tab.kind, TabKind::Kept(TabState::Editor { path: p, .. }) if p == path)
+                    {
+                        existing = Some(tab.id);
+                    }
+                }
+            });
+        }
+        if let Some(id) = existing {
+            self.select_tab(ws, id);
+            return Some(id);
+        }
+        let content = self.space_content(ws)?;
+        let id = content.next_tab_id();
+        if content.root.is_none() {
+            let pane = PaneId(1);
+            content.root = Some(PaneTree::Leaf(PaneLeaf {
+                id: pane,
+                tabs: Vec::new(),
+                active: 0,
+                parked: false,
+            }));
+            content.focused = Some(pane);
+        }
+        if content.focused_leaf().is_none() {
+            content.focused = content.leaf_ids().first().copied();
+        }
+        let leaf = content.focused_leaf_mut()?;
+        leaf.tabs.push(Tab {
+            id,
+            kind: TabKind::Kept(TabState::Editor {
+                id,
+                path: path.to_path_buf(),
+                cursor: Default::default(),
+                scroll_top: 0,
+            }),
+            title: String::new(),
+            exited: None,
+            modified: false,
+        });
         leaf.active = leaf.tabs.len() - 1;
         leaf.parked = false;
         Some(id)

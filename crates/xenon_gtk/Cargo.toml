@@ -10,10 +10,13 @@ xenon_core.workspace = true
 xenon_store.workspace = true
 xenon_settings.workspace = true
 xenon_keymap.workspace = true
+xenon_finder.workspace = true
+nucleo.workspace = true
 serde_json.workspace = true
 serde_json_lenient.workspace = true
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_8"] }
+sourceview = { package = "sourceview5", version = "0.11", features = ["v5_18"] }
 vte = { package = "vte4", version = "0.10", features = ["v0_84"] }
 
 [lints]

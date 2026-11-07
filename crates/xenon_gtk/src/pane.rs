@@ -1,7 +1,7 @@
 //! One pane: a tab strip of chips above a stack of tab bodies. Stock widgets
 //! only (boxes, labels, a stack); CSS gives them their look.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
@@ -21,6 +21,9 @@ struct Chip {
 pub(crate) struct PaneView {
     pub root: gtk::Box,
     tabs: gtk::Box,
+    strip: gtk::Box,
+    /// The workspace has more than one pane (every pane then shows its strip).
+    multi: Cell<bool>,
     scroller: gtk::ScrolledWindow,
     stack: gtk::Stack,
     chips: RefCell<HashMap<TabId, Chip>>,
@@ -57,6 +60,8 @@ impl PaneView {
         Rc::new(Self {
             root,
             tabs,
+            strip,
+            multi: Cell::new(false),
             scroller,
             stack,
             chips: RefCell::default(),
@@ -72,6 +77,9 @@ impl PaneView {
         leaf: &PaneLeaf<Tab>,
         bodies: &HashMap<TabId, gtk::Widget>,
     ) {
+        let multi = self.multi.get();
+        // A lone tab in a lone pane needs no strip; the header names it.
+        self.strip.set_visible(multi || leaf.tabs.len() > 1);
         self.sync_chips(app, ws, leaf);
         let keep: Vec<&gtk::Widget> = leaf.tabs.iter().filter_map(|t| bodies.get(&t.id)).collect();
         let mut stale = Vec::new();
@@ -175,9 +183,22 @@ impl PaneView {
         }
     }
 
+    pub(crate) fn set_multi(&self, multi: bool) {
+        self.multi.set(multi);
+    }
+
     pub(crate) fn set_ring(&self, on: bool) {
         set_class(&self.root, "ring", on);
     }
+}
+
+/// True when the keyboard focus of `widget`'s window is `widget` or inside it.
+pub(crate) fn focus_inside(widget: &impl IsA<gtk::Widget>) -> bool {
+    let widget = widget.as_ref();
+    widget
+        .root()
+        .and_then(|root| root.focus())
+        .is_some_and(|focus| focus == *widget || focus.is_ancestor(widget))
 }
 
 pub(crate) fn set_class(widget: &impl IsA<gtk::Widget>, class: &str, on: bool) {
@@ -193,7 +214,8 @@ fn make_chip(app: &Rc<App>, ws: WorkspaceId, tab: TabId) -> Chip {
     label.set_ellipsize(gtk::pango::EllipsizeMode::End);
     label.set_max_width_chars(24);
     label.set_xalign(0.0);
-    label.set_hexpand(true);
+    label.set_hexpand(false);
+    label.set_halign(gtk::Align::Start);
     let close = gtk::Button::from_icon_name("window-close-symbolic");
     close.add_css_class("flat");
     close.add_css_class("xclose");
@@ -202,7 +224,9 @@ fn make_chip(app: &Rc<App>, ws: WorkspaceId, tab: TabId) -> Chip {
     close.set_tooltip_text(Some("Close tab (Ctrl+W)"));
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 2);
     row.set_margin_top(4);
+    row.set_valign(gtk::Align::Center);
     row.append(&label);
+    close.set_margin_start(6);
     row.append(&close);
     let rail = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     rail.add_css_class("xrail");

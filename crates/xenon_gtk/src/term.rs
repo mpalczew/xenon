@@ -138,9 +138,11 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     {
         let weak = weak.clone();
         term.connect_contents_changed(move |_| {
-            if let Some(app) = weak.upgrade() {
-                app.term_output(ws, tab);
-            }
+            crate::latency::contents_changed(|| {
+                if let Some(app) = weak.upgrade() {
+                    app.term_output(ws, tab);
+                }
+            });
         });
     }
     {
@@ -175,6 +177,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     {
         let weak = weak.clone();
         keys.connect_key_pressed(move |_, _, _, _| {
+            crate::latency::input();
             if let Some(app) = weak.upgrade() {
                 app.term_interaction(ws, tab);
             }

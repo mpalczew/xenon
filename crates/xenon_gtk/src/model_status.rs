@@ -36,7 +36,12 @@ impl Model {
         raw: &str,
         spawn_dir: &str,
     ) -> bool {
-        let clean = clean_terminal_title(raw, spawn_dir);
+        let mut clean = clean_terminal_title(raw, spawn_dir);
+        if clean == "terminal" && !raw.is_empty() {
+            // The prompt titled itself with the folder it started in: name the
+            // shell, which `terminal_tab_label` numbers like the GPUI app.
+            clean = shell_name();
+        }
         match self.tab_mut(ws, tab) {
             Some(t) if t.title != clean => {
                 t.title = clean;
@@ -133,4 +138,13 @@ impl Model {
     pub(crate) fn any_working(&self) -> bool {
         self.activity.values().any(|a| a.is_working())
     }
+}
+
+/// Name of the user's shell (`zsh`), for tabs that show a plain prompt.
+fn shell_name() -> String {
+    std::env::var("SHELL")
+        .ok()
+        .and_then(|s| s.rsplit('/').next().map(str::to_string))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "shell".into())
 }

@@ -9,11 +9,13 @@ use std::time::Instant;
 
 use adw::prelude::*;
 use gtk::glib;
-use xenon_core::{PaneId, TabId, WorkspaceId};
+use xenon_core::{PaneId, TabId, TabState, WorkspaceId};
 use xenon_settings::UiSettings;
 
+use crate::editor::EditorView;
 use crate::layout;
 use crate::model::{Model, TabKind};
+use crate::palette::Palette as Launcher;
 use crate::pane::PaneView;
 use crate::sidebar::Sidebar;
 use crate::term::TermView;
@@ -45,6 +47,12 @@ pub(crate) struct App {
     pub slots: RefCell<HashMap<WorkspaceId, Slot>>,
     pub terms: RefCell<HashMap<(WorkspaceId, TabId), Rc<TermView>>>,
     pub bodies: RefCell<HashMap<(WorkspaceId, TabId), gtk::Widget>>,
+    pub launcher: Rc<Launcher>,
+    /// Most recently opened files per workspace (relative paths, newest first).
+    pub recents: RefCell<HashMap<WorkspaceId, Vec<std::path::PathBuf>>>,
+    /// Last file index built per workspace, so the finder opens with results.
+    pub file_indexes: RefCell<HashMap<WorkspaceId, std::sync::Arc<xenon_finder::FileIndex>>>,
+    pub editors: RefCell<HashMap<(WorkspaceId, TabId), Rc<EditorView>>>,
     pub pulse_source: RefCell<Option<glib::SourceId>>,
     /// Last pulse step drawn; -1 after a repaint reset the rails.
     pub pulse_level: Cell<i32>,
@@ -79,9 +87,11 @@ impl App {
                 .entry(*id)
                 .or_insert_with(|| PaneView::new(self, ws, *id));
         }
+        let multi = ids.len() > 1;
         if let Some(root) = content.root.as_ref() {
             root.for_each_leaf(&mut |leaf| {
                 if let Some(pane) = slot.panes.get(&leaf.id) {
+                    pane.set_multi(multi);
                     pane.sync(self, ws, leaf, &bodies);
                 }
             });
@@ -156,6 +166,7 @@ impl App {
         for key in stale {
             self.bodies.borrow_mut().remove(&key);
             self.terms.borrow_mut().remove(&key);
+            self.editors.borrow_mut().remove(&key);
         }
         for tab in wanted {
             let key = (ws, tab.id);
@@ -169,6 +180,12 @@ impl App {
                     view.spawn(&cwd);
                     let root = view.root.clone().upcast();
                     self.terms.borrow_mut().insert(key, view);
+                    root
+                }
+                TabKind::Kept(TabState::Editor { path, .. }) => {
+                    let editor = EditorView::new(self, ws, tab.id, path);
+                    let root = editor.root.clone();
+                    self.editors.borrow_mut().insert(key, editor);
                     root
                 }
                 TabKind::Kept(state) => crate::empty::placeholder(state),
@@ -216,12 +233,42 @@ impl App {
                 }
             }
             let name = model.rec(ws).map(|r| r.name.clone()).unwrap_or_default();
-            self.title.set_subtitle(&name);
+            let local_root = model
+                .rec(ws)
+                .filter(|r| r.ssh.is_none())
+                .map(|r| r.root.clone());
+            let open_file = model
+                .spaces
+                .get(&ws)
+                .and_then(|s| s.content.active_tab())
+                .and_then(|t| match &t.kind {
+                    TabKind::Kept(TabState::Editor { path, .. }) => Some(path.clone()),
+                    _ => None,
+                });
+            self.sidebar.files.set_root(local_root);
+            self.sidebar.files.mark_open(open_file);
+            self.title.set_title(&name);
+            let label = space_label(&model, ws);
+            self.title.set_subtitle(&label);
             self.win.set_title(Some(&format!("{name} — Xenon (GTK)")));
+        } else {
+            self.sidebar.files.set_root(None);
+            self.title.set_title("Xenon");
+            self.title.set_subtitle("");
         }
         drop(model);
         self.publish_state();
         self.pulse_level.set(-1);
         self.ensure_pulse();
     }
+}
+
+/// Label of the focused pane's active tab, for the header subtitle.
+pub(crate) fn space_label(model: &crate::model::Model, ws: WorkspaceId) -> String {
+    model
+        .spaces
+        .get(&ws)
+        .and_then(|s| s.content.focused_leaf())
+        .and_then(|leaf| leaf.active_tab().map(|t| t.label(leaf.active)))
+        .unwrap_or_default()
 }

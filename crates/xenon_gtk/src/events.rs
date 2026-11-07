@@ -83,7 +83,11 @@ impl App {
             return;
         }
         self.publish_state();
-        // Only the chip text changes; a full sync would rebuild every chip.
+        self.relabel(ws, tab);
+    }
+
+    /// Only the chip text changes; a full sync would rebuild every chip.
+    pub(crate) fn relabel(&self, ws: WorkspaceId, tab: TabId) {
         let located = {
             let model = self.model.borrow();
             let content = model.spaces.get(&ws).map(|s| &s.content);
@@ -100,6 +104,19 @@ impl App {
         {
             view.set_title(tab, &label);
         }
+        let model = self.model.borrow();
+        if let Some(ws) = model.active() {
+            self.title
+                .set_subtitle(&crate::app::space_label(&model, ws));
+        }
+    }
+
+    /// An editor's unsaved state changed.
+    pub(crate) fn editor_modified(&self, ws: WorkspaceId, tab: TabId, modified: bool) {
+        if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab) {
+            t.modified = modified;
+        }
+        self.relabel(ws, tab);
     }
 
     /// A terminal took keyboard focus (click or key): the model's focused pane

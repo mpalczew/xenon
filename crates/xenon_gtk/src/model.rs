@@ -26,6 +26,8 @@ pub(crate) struct Tab {
     pub title: String,
     /// Exit code once the shell has ended.
     pub exited: Option<i32>,
+    /// An editor tab with unsaved changes.
+    pub modified: bool,
 }
 
 impl PaneTab for Tab {
@@ -41,6 +43,7 @@ impl Tab {
             kind: TabKind::Terminal,
             title: "terminal".into(),
             exited: None,
+            modified: false,
         }
     }
 
@@ -48,9 +51,16 @@ impl Tab {
     pub(crate) fn label(&self, index: usize) -> String {
         match &self.kind {
             TabKind::Terminal => terminal_tab_label(&self.title, index),
-            TabKind::Kept(TabState::Editor { path, .. }) => path
-                .file_name()
-                .map_or_else(|| "file".into(), |n| n.to_string_lossy().into_owned()),
+            TabKind::Kept(TabState::Editor { path, .. }) => {
+                let name = path
+                    .file_name()
+                    .map_or_else(|| "file".into(), |n| n.to_string_lossy().into_owned());
+                if self.modified {
+                    format!("{name} \u{25cf}")
+                } else {
+                    name
+                }
+            }
             TabKind::Kept(_) => "tab".into(),
         }
     }
@@ -252,6 +262,7 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                         kind: TabKind::Kept(state.clone()),
                         title: String::new(),
                         exited: None,
+                        modified: false,
                     },
                 })
                 .collect();

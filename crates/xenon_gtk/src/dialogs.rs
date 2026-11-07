@@ -121,7 +121,7 @@ impl App {
         self.toast(&format!("Opened {name} with the default app"));
     }
 
-    fn launch(&self, uri: &str) {
+    pub(crate) fn launch(&self, uri: &str) {
         let context = gtk::prelude::WidgetExt::display(&self.win).app_launch_context();
         if let Err(error) = gio::AppInfo::launch_default_for_uri(uri, Some(&context)) {
             self.toast(&format!("Could not open {uri}: {error}"));

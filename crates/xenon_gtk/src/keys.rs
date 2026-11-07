@@ -10,6 +10,7 @@ const ACTIONS: &[(&str, &str)] = &[
     ("xenon::NewTerminal", "app.new-terminal"),
     ("xenon::NewWorkspace", "app.new-workspace"),
     ("xenon::AddWorkspace", "app.open-workspace"),
+    ("xenon::FilePalette", "app.open-finder"),
     ("xenon::CloseEditor", "app.close-tab"),
     ("xenon::CloseOtherTabs", "app.close-other-tabs"),
     ("xenon::NextTab", "app.next-tab"),

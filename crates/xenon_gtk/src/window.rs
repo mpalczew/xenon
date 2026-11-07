@@ -53,8 +53,20 @@ impl App {
         let style = adw::StyleManager::default();
         style.set_color_scheme(scheme(settings.theme));
         let palette = theme::palette(&settings, style.is_dark());
-        self.css.load_from_string(&palette.css());
+        let editor = self.settings.borrow().editor.clone();
+        let sheet = format!(
+            "{}\ntextview.xeditor {{ font-family: \"{}\", monospace; font-size: {}px; }}\n",
+            palette.css(),
+            editor.family,
+            editor.size
+        );
+        self.css.load_from_string(&sheet);
+        self.launcher
+            .set_accent(&palette.color("text.accent", "#74ade8"));
         *self.palette.borrow_mut() = palette;
+        for editor in self.editors.borrow().values() {
+            editor.restyle(self);
+        }
         for view in self.terms.borrow().values() {
             self.restyle_term(view);
         }
@@ -85,6 +97,11 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         "sidebar-show-symbolic",
         "app.toggle-sidebar",
         app.tip("Toggle sidebar", "app.toggle-sidebar"),
+    ));
+    bar.pack_end(&button(
+        "system-search-symbolic",
+        "app.open-finder",
+        app.tip("Find file", "app.open-finder"),
     ));
     bar.pack_end(&button(
         "view-dual-symbolic",
@@ -138,6 +155,10 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         slots: RefCell::default(),
         terms: RefCell::default(),
         bodies: RefCell::new(HashMap::new()),
+        launcher: crate::palette::Palette::new(),
+        recents: RefCell::default(),
+        file_indexes: RefCell::default(),
+        editors: RefCell::default(),
         pulse_source: RefCell::new(None),
         pulse_level: Cell::new(-1),
         started: Instant::now(),
@@ -171,7 +192,19 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     let view = adw::ToolbarView::new();
     view.add_top_bar(&header(&app, &title));
     view.set_content(Some(&toasts));
-    win.set_content(Some(&view));
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(&view));
+    overlay.add_overlay(&app.launcher.scrim);
+    win.set_content(Some(&overlay));
+    {
+        let weak = Rc::downgrade(&app);
+        app.launcher.set_on_change(move || {
+            if let Some(app) = weak.upgrade() {
+                app.publish_palette();
+            }
+        });
+    }
+    crate::latency::watch_frames(&win);
 
     crate::actions::install(&app, user_keys);
     connect_window(&app, &win);

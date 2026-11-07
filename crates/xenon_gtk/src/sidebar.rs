@@ -2,13 +2,14 @@
 //! workspace and a status line in the left margin.
 
 use std::cell::RefCell;
-use std::rc::Weak;
+use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use xenon_core::{WorkspaceDot, WorkspaceId};
 
 use crate::app::App;
+use crate::files::FilesView;
 use crate::model::Model;
 use crate::pane::set_class;
 
@@ -21,6 +22,8 @@ struct Row {
 
 pub(crate) struct Sidebar {
     pub root: gtk::Box,
+    pub files: Rc<FilesView>,
+    split: gtk::Paned,
     pub list: gtk::ListBox,
     rows: RefCell<Vec<Row>>,
 }
@@ -68,6 +71,7 @@ impl Sidebar {
                 app.activate_workspace_index(row.index().max(0) as usize);
             }
         });
+        let app_for_files = app.clone();
         let keys = gtk::EventControllerKey::new();
         let weak = app;
         keys.connect_key_pressed(move |_, key, _, _| {
@@ -82,15 +86,30 @@ impl Sidebar {
         list.add_controller(keys);
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_child(Some(&list));
-        scroll.set_vexpand(true);
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        scroll.set_propagate_natural_height(true);
+        scroll.set_max_content_height(340);
 
-        let root = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        let workspaces = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        workspaces.add_css_class("xsection");
+        workspaces.append(&header);
+        workspaces.append(&scroll);
+        let files = FilesView::new(app_for_files);
+        let split = gtk::Paned::new(gtk::Orientation::Vertical);
+        split.set_start_child(Some(&workspaces));
+        split.set_end_child(Some(&files.root));
+        split.set_shrink_start_child(false);
+        split.set_shrink_end_child(false);
+        split.set_resize_start_child(false);
+        split.set_wide_handle(false);
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("xsidebar");
-        root.append(&header);
-        root.append(&scroll);
+        root.append(&split);
+        split.set_vexpand(true);
         Self {
             root,
+            files,
+            split,
             list,
             rows: RefCell::default(),
         }
@@ -98,6 +117,9 @@ impl Sidebar {
 
     /// Rebuild the rows from the registry and select the active one.
     pub(crate) fn rebuild(&self, model: &Model) {
+        // Room for every workspace row (up to a cap), the Files section gets the rest.
+        let wanted = 56 + 48 * model.registry.workspaces.len() as i32;
+        self.split.set_position(wanted.clamp(110, 380));
         let mut rows = self.rows.borrow_mut();
         while let Some(child) = self.list.first_child() {
             self.list.remove(&child);
@@ -111,12 +133,16 @@ impl Sidebar {
             let path = gtk::Label::new(Some(&short_path(&rec.display_root())));
             path.add_css_class("xpath");
             path.set_xalign(0.0);
-            path.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+            path.set_ellipsize(gtk::pango::EllipsizeMode::Start);
             let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
             text.append(&name);
             text.append(&path);
             let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
             body.add_css_class("xrow");
+            let glyph = gtk::Image::from_icon_name("folder-symbolic");
+            glyph.add_css_class("xrow-icon");
+            glyph.set_valign(gtk::Align::Start);
+            body.append(&glyph);
             body.append(&text);
             body.set_tooltip_text(Some(&rec.display_root()));
             let dot = gtk::Box::new(gtk::Orientation::Horizontal, 0);

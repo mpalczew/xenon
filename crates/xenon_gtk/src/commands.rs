@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::glib;
+use gtk::{gio, glib};
 use xenon_core::{PaneId, ParkOutcome, SplitAxis, TabId, WorkspaceId};
 
 use crate::app::App;
@@ -28,10 +28,36 @@ impl App {
                     .and_then(|s| s.content.active_tab());
                 ws.zip(tab.map(|t| t.id))
             };
-            if let Some(view) = key.and_then(|k| app.terms.borrow().get(&k).cloned()) {
+            let Some(key) = key else { return };
+            if let Some(view) = app.terms.borrow().get(&key).cloned() {
                 view.term.grab_focus();
+            } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {
+                editor.view.grab_focus();
             }
         });
+    }
+
+    /// Show `path` in an editor tab of `ws`; files this tab cannot show open in
+    /// the default app.
+    pub(crate) fn open_editor(self: &Rc<Self>, ws: WorkspaceId, path: &std::path::Path) {
+        if let Err(why) = crate::editor::check(path) {
+            self.toast(&format!("Opening {} outside Xenon: {why}", path.display()));
+            self.launch(&gio::File::for_path(path).uri());
+            return;
+        }
+        if self.model.borrow().active() != Some(ws) {
+            self.activate_workspace(ws);
+        }
+        if self.model.borrow_mut().open_editor(ws, path).is_some() {
+            self.touch_recent(ws, path);
+            self.changed(ws);
+        }
+    }
+
+    /// Show a folder of the workspace in the Files tree.
+    pub(crate) fn reveal_dir(self: &Rc<Self>, _ws: WorkspaceId, dir: &std::path::Path) {
+        self.sidebar.root.set_visible(true);
+        self.sidebar.files.reveal(dir);
     }
 
     fn changed(self: &Rc<Self>, ws: WorkspaceId) {
@@ -149,6 +175,10 @@ impl App {
 
     pub(crate) fn focus_sidebar(&self) {
         self.sidebar.root.set_visible(true);
+        if self.sidebar.files.has_rows() {
+            self.sidebar.files.focus();
+            return;
+        }
         let active = self.model.borrow().active();
         let index = active.and_then(|id| {
             self.model
