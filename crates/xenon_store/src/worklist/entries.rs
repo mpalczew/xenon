@@ -88,9 +88,8 @@ pub fn parse(source: &str) -> Parsed {
             Event::End(TagEnd::Paragraph) if list_depth == 0 => {
                 if let Some(mut note) = paragraph.take() {
                     note.range.end = range.end;
-                    let mut lines = source[note.range.clone()].trim().lines();
-                    note.title = lines.next().unwrap_or("").to_owned();
-                    note.details = lines.collect::<Vec<_>>().join("\n");
+                    let lines = source[note.range.clone()].trim().lines();
+                    note.title = lines.map(str::trim).collect::<Vec<_>>().join(" ");
                     found.push(note);
                 }
             }
@@ -114,10 +113,12 @@ pub fn parse(source: &str) -> Parsed {
     }
 }
 
+/// The title and detail bullets of a list item. A line with no marker is the
+/// hard-wrapped rest of the line before it, so it joins that line.
 fn item_text(raw: &str) -> (String, String, bool) {
     let mut lines = raw.trim_end().lines();
     let first = lines.next().unwrap_or("");
-    let title = first
+    let mut title = first
         .strip_prefix("- [ ] ")
         .or_else(|| first.strip_prefix("- [x] "))
         .or_else(|| first.strip_prefix("- [X] "))
@@ -126,27 +127,30 @@ fn item_text(raw: &str) -> (String, String, bool) {
         .trim()
         .to_owned();
     let mut editable = true;
-    let details = lines
-        .filter_map(|line| {
-            if line.trim().is_empty() {
-                return None;
-            }
-            let spaces = line
-                .chars()
-                .take_while(|character| *character == ' ')
-                .count();
-            let body = line.trim_start();
-            if body.starts_with("- [") || body.starts_with("* [") {
-                editable = false;
-            }
-            let text = body
-                .strip_prefix("- ")
-                .or_else(|| body.strip_prefix("* "))
-                .unwrap_or(body)
-                .trim();
-            Some(format!("{}{text}", " ".repeat(spaces.saturating_sub(2))))
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    (title, details, editable)
+    let mut bullets: Vec<String> = Vec::new();
+    for line in lines {
+        let body = line.trim();
+        if body.is_empty() {
+            continue;
+        }
+        let marked = ["- ", "* ", "+ "]
+            .iter()
+            .find_map(|marker| body.strip_prefix(marker));
+        let Some(text) = marked else {
+            let last = bullets.last_mut().unwrap_or(&mut title);
+            last.push(' ');
+            last.push_str(body);
+            continue;
+        };
+        if body.starts_with("- [") || body.starts_with("* [") {
+            editable = false;
+        }
+        let spaces = line.chars().take_while(|c| *c == ' ').count();
+        bullets.push(format!(
+            "{}{}",
+            " ".repeat(spaces.saturating_sub(2)),
+            text.trim()
+        ));
+    }
+    (title, bullets.join("\n"), editable)
 }

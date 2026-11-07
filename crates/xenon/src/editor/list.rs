@@ -16,60 +16,57 @@ fn is_worklist(path: &Path) -> bool {
 }
 
 /// A worklist file shows the list or the text, on the stack that goes into
-/// `root`; the text page leads back. Other files put just the text in `root`.
+/// `root`. Other files put just the text in `root`.
 pub(super) fn pages(
     path: &Path,
     root: &gtk::Box,
     scroller: &gtk::ScrolledWindow,
-) -> (Option<gtk::Stack>, Option<gtk::Button>) {
+) -> Option<gtk::Stack> {
     if !is_worklist(path) {
         root.append(scroller);
-        return (None, None);
+        return None;
     }
-    let back = gtk::Button::with_label("\u{2190} Worklist    Markdown");
-    back.add_css_class("flat");
-    if let Some(label) = back.child().and_downcast::<gtk::Label>() {
-        label.set_xalign(0.0);
-    }
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    text.append(&back);
-    text.append(scroller);
     let stack = gtk::Stack::new();
     stack.set_vexpand(true);
-    stack.add_named(&text, Some("text"));
+    stack.add_named(scroller, Some("text"));
     root.append(&stack);
-    (Some(stack), Some(back))
+    Some(stack)
 }
 
 impl EditorView {
-    /// Add the list view to the stack of a worklist file, and the keys that
-    /// switch between it and the Markdown.
-    pub(super) fn attach_list(self: &Rc<Self>, back: Option<&gtk::Button>) {
-        let (Some(stack), Some(back)) = (&self.stack, back) else {
+    /// Add the list view and its header (the List | Markdown toggle) to a
+    /// worklist file's tab, and the keys that switch between the two.
+    pub(super) fn attach_list(self: &Rc<Self>) {
+        let Some(stack) = &self.stack else {
             return;
         };
         let Some(workspace) = self.path.parent().and_then(Path::parent) else {
             return;
         };
         let weak = Rc::downgrade(self);
-        let list = WorklistList::new(workspace.to_path_buf(), {
-            let weak = weak.clone();
-            move || {
-                if let Some(this) = weak.upgrade() {
-                    this.set_list(false);
-                }
-            }
-        });
+        let list = WorklistList::new(workspace.to_path_buf(), self.app.clone());
         stack.add_named(&list.root, Some("list"));
-        let _ = self.list.set(list);
-        back.connect_clicked({
+        if let Some(root) = self.root.downcast_ref::<gtk::Box>() {
+            root.insert_child_after(&list.header, Some(&self.bar));
+        }
+        let showing = prose_file_prefs(&self.path).list;
+        list.toggle
+            .set_active_name(Some(if showing { "list" } else { "text" }));
+        list.show_actions(showing);
+        list.toggle.connect_active_name_notify({
             let weak = weak.clone();
-            move |_| {
-                if let Some(this) = weak.upgrade() {
-                    this.set_list(true);
-                }
+            move |toggle| {
+                let on = toggle.active_name().as_deref() == Some("list");
+                let weak = weak.clone();
+                // Deferred: switching may set the toggle back.
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade() {
+                        this.set_list(on);
+                    }
+                });
             }
         });
+        let _ = self.list.set(list);
         // Alt+1 and Alt+3 leave the list for that Markdown mode; Alt+4 returns to it.
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -97,7 +94,7 @@ impl EditorView {
             glib::Propagation::Stop
         });
         self.root.add_controller(keys);
-        if prose_file_prefs(&self.path).list {
+        if showing {
             stack.set_visible_child_name("list");
             if let Some(list) = self.list.get() {
                 list.show();
@@ -126,8 +123,12 @@ impl EditorView {
                     "Markdown edits need to land before the list view.",
                 );
             }
+            list.toggle.set_active_name(Some("text"));
             return true;
         }
+        list.toggle
+            .set_active_name(Some(if on { "list" } else { "text" }));
+        list.show_actions(on);
         let mut prefs = prose_file_prefs(&self.path);
         if prefs.list != on {
             prefs.list = on;

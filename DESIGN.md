@@ -111,8 +111,11 @@ zero.
   Pictures sit in a space under their line (an overlay, never text in the file).
   Ctrl+click opens a link; click or Ctrl+Enter flips a task box; Alt+1 / Alt+3 switch
   Prose and Source (the worklist file opens as its list view instead; Alt+4 returns to
-  it). Not built yet: Paper surface, quote rule, round bullet glyphs, table grid, code
-  highlighting, list continuation on Return.
+  it). The worklist list is stock libadwaita: a List | Markdown toggle in the tab
+  header, one boxed list of `AdwActionRow`s per section (round check, title, bullets as
+  subtitle, overflow menu), and an `AdwEntryRow` "Add item…" last in each. Not built
+  yet: Paper surface, quote rule, round bullet glyphs, table grid, code highlighting,
+  list continuation on Return.
 - **Settings.** Its own window (Ctrl+,) with a page sidebar. Pages: Fonts, Editor (with
   Markdown writing), Agents (Agent skill, Terminal) and Phone Remote. Ctrl+1 to 4 jump
   to a page; Escape or Ctrl+W closes. No search.

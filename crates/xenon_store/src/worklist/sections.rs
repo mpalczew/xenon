@@ -50,12 +50,6 @@ impl Section {
             end: source.len(),
         }
     }
-
-    pub fn is_empty(&self, source: &str) -> bool {
-        source[self.body_start.min(self.end)..self.end]
-            .trim()
-            .is_empty()
-    }
 }
 
 /// Where a new item goes: above the first section, or at the end of one.
@@ -234,18 +228,13 @@ pub fn rename_section(source: &str, target: &Target, title: &str) -> Result<Sour
     })
 }
 
-/// Removes a section that has nothing under its heading.
-pub fn delete_empty_section(source: &str, target: &Target) -> Result<SourceEdit> {
+/// Removes a section with everything under its heading.
+pub fn delete_section(source: &str, target: &Target) -> Result<SourceEdit> {
     let sections = parse(source).sections;
     let index = target
         .resolve(&sections)?
         .ok_or_else(|| anyhow::anyhow!("Pick a section"))?;
     let section = &sections[index];
-    ensure!(
-        section.is_empty(source),
-        "“{}” has items. Edit Markdown to remove it.",
-        section.title
-    );
     if section.end < source.len() {
         return Ok(SourceEdit {
             range: section.start..section.end,

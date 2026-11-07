@@ -1,68 +1,9 @@
-//! What a worklist list view needs from the file: which rows are visible and
-//! where the cursor sits, the checkbox flip, section counts and inline Markdown.
-
-use std::collections::BTreeSet;
+//! What the worklist list view needs from the file: the checkbox flip and inline Markdown.
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 use super::SourceEdit;
 use super::entries::Entry;
-use super::sections::Section;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Cursor {
-    Item(usize),
-    Header(usize),
-}
-
-/// Rows in reading order: items above the first section, then each header
-/// followed by its items unless the section is folded.
-pub fn visible(sections: &[Section], entries: &[Entry], folded: &BTreeSet<String>) -> Vec<Cursor> {
-    let items = |section: Option<usize>| {
-        entries
-            .iter()
-            .enumerate()
-            .filter(move |(_, entry)| entry.section == section)
-            .map(|(index, _)| Cursor::Item(index))
-    };
-    let mut rows: Vec<Cursor> = items(None).collect();
-    for (index, section) in sections.iter().enumerate() {
-        rows.push(Cursor::Header(index));
-        if !folded.contains(&section.title) {
-            rows.extend(items(Some(index)));
-        }
-    }
-    rows
-}
-
-/// The nearest valid row when edits, folds, or external changes moved the cursor.
-pub fn settle(rows: &[Cursor], cursor: Cursor, entries: &[Entry]) -> Cursor {
-    if rows.contains(&cursor) {
-        return cursor;
-    }
-    if let Cursor::Item(index) = cursor
-        && let Some(section) = entries.get(index).and_then(|entry| entry.section)
-        && rows.contains(&Cursor::Header(section))
-    {
-        return Cursor::Header(section);
-    }
-    let same_kind = |row: &&Cursor| std::mem::discriminant(*row) == std::mem::discriminant(&cursor);
-    rows.iter()
-        .rev()
-        .find(same_kind)
-        .or(rows.last())
-        .copied()
-        .unwrap_or(Cursor::Item(0))
-}
-
-/// "2 open", "all done", or nothing for an empty section.
-pub fn count_label(open: usize, items: usize) -> Option<String> {
-    match (open, items) {
-        (0, 0) => None,
-        (0, _) => Some("all done".into()),
-        (open, _) => Some(format!("{open} open")),
-    }
-}
 
 /// Flips the check box of `entry` in `source`; None for a note or a row that cannot be edited.
 pub fn toggle(source: &str, entry: &Entry) -> Option<SourceEdit> {

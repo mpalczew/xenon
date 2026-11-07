@@ -74,7 +74,6 @@ mod term_menu;
 mod theme;
 mod window;
 mod worklist;
-mod worklist_item;
 mod worklist_list;
 mod workspaces;
 

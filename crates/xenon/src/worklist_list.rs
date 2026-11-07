@@ -1,357 +1,239 @@
-//! The worklist list view: sections with folds, items with check boxes, and
-//! inline editing, over `.xenon/worklist.md`. It is built from stock widgets: one
-//! `GtkListBox` of header, item and editor rows. Which rows show, the checkbox
-//! flip and every edit live in `xenon_store::worklist`; each change is written
-//! to the file, and the Markdown tab of the same file follows through its
-//! disk watching.
+//! The worklist list view: each section is a boxed list of items over
+//! `.xenon/worklist.md`, with an "Add item…" row at its end. Parsing and every
+//! edit live in `xenon_store::worklist`; this file draws and writes the result
+//! back. Adding and editing an item use the capture form (`worklist.rs`); the
+//! Markdown tab of the same file follows through its disk watching.
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
-use anyhow::anyhow;
-use gtk::{gdk, glib};
-use xenon_store::worklist::entries::{Entry, parse};
-use xenon_store::worklist::view::{Cursor, toggle};
-use xenon_store::worklist::{SourceEdit, Target, WorklistFile, read_source};
+use gtk::{gio, glib};
+use xenon_store::worklist::entries::parse;
+use xenon_store::worklist::view::inline_markup;
+use xenon_store::worklist::{Target, capture_targets, read_source};
 
-mod draw;
-mod edit;
+use crate::app::App;
 
-use crate::worklist_item::ItemEdit;
+mod write;
 
-enum SectionKind {
-    Rename(Target),
-    /// A new section after this one's items (the end of the file when None).
-    New(Option<Target>),
+/// One focusable row: an item (its index in the parsed entries) or an "Add item…" row.
+struct RowInfo {
+    widget: gtk::Widget,
+    target: Target,
+    item: Option<usize>,
 }
 
-/// What a section header says about its items.
-struct Counts {
-    open: usize,
-    items: usize,
-    folded: bool,
-}
-
-/// The field that names a section.
-struct SectionEdit {
-    kind: SectionKind,
-    widget: gtk::Box,
-    entry: gtk::Entry,
+/// Where focus was, to put it back after the rows are redrawn.
+enum Focus {
+    Item(usize),
+    Add(Target),
 }
 
 pub(crate) struct WorklistList {
+    /// The tab header: List | Markdown toggle, title, add and menu buttons.
+    pub(crate) header: gtk::Box,
+    pub(crate) toggle: adw::ToggleGroup,
+    /// The list page itself.
     pub(crate) root: gtk::Box,
+    actions: gtk::Box,
     workspace: PathBuf,
-    stack: gtk::Stack,
-    list: gtk::ListBox,
+    app: Weak<App>,
+    content: gtk::Box,
     error: gtk::Label,
-    first: gtk::Button,
-    /// The "+ Add" buttons of the header rows; only the selected row shows its own.
-    adds: RefCell<Vec<(Cursor, gtk::Button)>>,
-    /// Per list row: the cursor it stands for, or None for editor and note rows.
-    slots: RefCell<Vec<Option<Cursor>>>,
-    cursor: Cell<Option<Cursor>>,
-    folded: RefCell<BTreeSet<String>>,
-    edit: RefCell<Option<Rc<ItemEdit>>>,
-    section: RefCell<Option<Rc<SectionEdit>>>,
+    rows: RefCell<Vec<RowInfo>>,
     /// The source the rows were built from.
     source: RefCell<String>,
-    building: Cell<bool>,
+    hide_done: Cell<bool>,
 }
 
-fn margins(widget: &impl IsA<gtk::Widget>, vertical: i32, horizontal: i32) {
-    widget.set_margin_top(vertical);
-    widget.set_margin_bottom(vertical);
-    widget.set_margin_start(horizontal);
-    widget.set_margin_end(horizontal);
-}
-
-/// Take `widget` out of the list row that holds it, so the row can go without it.
-fn detach(widget: &impl IsA<gtk::Widget>) {
-    let Some(parent) = widget.parent() else {
-        return;
-    };
-    match parent.downcast_ref::<gtk::ListBoxRow>() {
-        Some(row) => row.set_child(None::<&gtk::Widget>),
-        None => widget.unparent(),
-    }
-}
-
-fn flat(label: &str) -> gtk::Button {
-    let button = gtk::Button::with_label(label);
+fn menu_button(menu: &gio::Menu) -> gtk::MenuButton {
+    let button = gtk::MenuButton::new();
+    button.set_icon_name("view-more-symbolic");
+    button.set_menu_model(Some(menu));
+    button.set_valign(gtk::Align::Center);
     button.add_css_class("flat");
     button
 }
 
-/// A key's action, run once the key event is over.
-type Act = Box<dyn FnOnce(&Rc<WorklistList>)>;
+fn item_with(label: &str, action: &str, target: Option<glib::Variant>) -> gio::MenuItem {
+    let item = gio::MenuItem::new(Some(label), None);
+    item.set_action_and_target_value(Some(action), target.as_ref());
+    item
+}
 
 impl WorklistList {
-    /// `workspace` is the folder that holds `.xenon`; `to_markdown` runs the
-    /// "Markdown" button.
-    pub(crate) fn new(workspace: PathBuf, to_markdown: impl Fn() + 'static) -> Rc<Self> {
+    /// `workspace` is the folder that holds `.xenon`.
+    pub(crate) fn new(workspace: PathBuf, app: Weak<App>) -> Rc<Self> {
+        let toggle = adw::ToggleGroup::new();
+        for (name, label) in [("list", "List"), ("text", "Markdown")] {
+            let item = adw::Toggle::new();
+            item.set_name(Some(name));
+            item.set_label(Some(label));
+            toggle.add(item);
+        }
+        toggle.set_active_name(Some("list"));
         let title = gtk::Label::new(Some("Worklist"));
-        title.add_css_class("title-2");
-        title.set_xalign(0.0);
-        let path = gtk::Label::new(Some(".xenon/worklist.md"));
-        path.add_css_class("dim-label");
-        path.add_css_class("monospace");
-        path.set_xalign(0.0);
-        let names = gtk::Box::new(gtk::Orientation::Vertical, 2);
-        names.set_hexpand(true);
-        names.append(&title);
-        names.append(&path);
-        let markdown = gtk::Button::with_label("Markdown");
-        markdown.set_valign(gtk::Align::Center);
-        markdown.connect_clicked(move |_| to_markdown());
+        title.add_css_class("heading");
+        title.set_hexpand(true);
+        let add = gtk::Button::from_icon_name("list-add-symbolic");
+        add.set_tooltip_text(Some("Add Item"));
+        add.set_action_name(Some("worklist.add"));
+        add.set_focus_on_click(false);
+        add.add_css_class("flat");
+        let menu = gio::Menu::new();
+        menu.append_item(&item_with(
+            "Hide Completed",
+            "worklist.hide-completed",
+            None,
+        ));
+        let more = menu_button(&menu);
+        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+        actions.append(&add);
+        actions.append(&more);
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        margins(&header, 12, 16);
-        header.append(&names);
-        header.append(&markdown);
+        header.add_css_class("toolbar");
+        header.append(&toggle);
+        header.append(&title);
+        header.append(&actions);
 
         let error = gtk::Label::new(None);
         error.set_wrap(true);
         error.set_xalign(0.0);
         error.add_css_class("error");
-        margins(&error, 6, 16);
+        error.set_margin_start(16);
+        error.set_margin_end(16);
         error.set_visible(false);
-
-        let list = gtk::ListBox::new();
-        list.add_css_class("rich-list");
-        list.set_selection_mode(gtk::SelectionMode::Single);
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        content.set_margin_top(8);
+        content.set_margin_bottom(24);
+        content.set_margin_start(16);
+        content.set_margin_end(16);
+        let clamp = adw::Clamp::new();
+        clamp.set_maximum_size(720);
+        clamp.set_child(Some(&content));
         let scroller = gtk::ScrolledWindow::new();
-        scroller.set_child(Some(&list));
+        scroller.set_child(Some(&clamp));
         scroller.set_vexpand(true);
-        let add_item = flat("+ Add an item");
-        let add_section = flat("+ Section");
-        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        margins(&actions, 6, 12);
-        actions.append(&add_item);
-        actions.append(&add_section);
-        let body = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        body.append(&actions);
-        body.append(&scroller);
-
-        let first = gtk::Button::with_label("\u{21b5} add an item");
-        first.add_css_class("pill");
-        first.add_css_class("suggested-action");
-        first.set_halign(gtk::Align::Center);
-        let capture = gtk::Label::new(Some(&format!(
-            "{} from anywhere",
-            crate::keys::action_label("app.capture-worklist").unwrap_or_default()
-        )));
-        capture.add_css_class("dim-label");
-        let hints = gtk::Box::new(gtk::Orientation::Vertical, 12);
-        hints.append(&first);
-        hints.append(&capture);
-        let clear = adw::StatusPage::new();
-        clear.set_title("All clear.");
-        clear.set_description(Some("Nothing's waiting on you here."));
-        clear.set_child(Some(&hints));
-
-        let stack = gtk::Stack::new();
-        stack.set_vexpand(true);
-        stack.add_named(&body, Some("list"));
-        stack.add_named(&clear, Some("clear"));
-
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        root.append(&header);
         root.append(&error);
-        root.append(&stack);
+        root.append(&scroller);
 
         let this = Rc::new(Self {
+            header,
+            toggle,
             root,
+            actions,
             workspace,
-            stack,
-            list,
+            app,
+            content,
             error,
-            first,
-            adds: RefCell::default(),
-            slots: RefCell::default(),
-            cursor: Cell::new(None),
-            folded: RefCell::default(),
-            edit: RefCell::new(None),
-            section: RefCell::new(None),
+            rows: RefCell::default(),
             source: RefCell::default(),
-            building: Cell::new(false),
+            hide_done: Cell::new(false),
         });
-        this.wire(&add_item, &add_section);
+        this.install_actions();
         this
     }
 
-    fn wire(self: &Rc<Self>, add_item: &gtk::Button, add_section: &gtk::Button) {
+    /// The add and menu buttons belong to the list, not to the Markdown text.
+    pub(crate) fn show_actions(&self, on: bool) {
+        self.actions.set_visible(on);
+    }
+
+    fn install_actions(self: &Rc<Self>) {
+        let group = gio::SimpleActionGroup::new();
         let weak = Rc::downgrade(self);
-        macro_rules! on {
-            ($button:expr, $this:ident => $body:expr) => {{
-                let weak = weak.clone();
-                $button.connect_clicked(move |_| {
-                    if let Some($this) = weak.upgrade() {
-                        $body
+        // An action that runs once the signal that raised it is over: most of
+        // them redraw the rows that hold the widget that activated them.
+        let add = |name: &str,
+                   kind: Option<&glib::VariantTy>,
+                   run: fn(&Rc<Self>, Option<glib::Variant>)| {
+            let action = gio::SimpleAction::new(name, kind);
+            let weak = weak.clone();
+            action.connect_activate(move |_, parameter| {
+                let (weak, parameter) = (weak.clone(), parameter.cloned());
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade() {
+                        run(&this, parameter);
                     }
                 });
-            }};
-        }
-        on!(add_item, this => this.start_add(this.selected_target()));
-        on!(add_section, this => this.start_new_section());
-        on!(self.first, this => this.start_add(Target::Top));
-
-        let weak_select = weak.clone();
-        self.list.connect_selected_rows_changed(move |list| {
-            let Some(this) = weak_select.upgrade() else {
-                return;
-            };
-            if this.building.get() {
-                return;
-            }
-            let slot = list
-                .selected_row()
-                .and_then(|row| this.slots.borrow().get(row.index() as usize).copied())
-                .flatten();
-            if let Some(cursor) = slot {
-                this.cursor.set(Some(cursor));
-                this.show_adds();
-            }
+            });
+            group.add_action(&action);
+        };
+        let int = Some(glib::VariantTy::INT32);
+        add("add", None, |this, _| this.add_via_form());
+        add("new-section", None, |this, _| this.new_section());
+        add("edit", int, |this, p| this.edit(index(&p)));
+        add("delete", int, |this, p| this.delete(index(&p)));
+        add("rename", int, |this, p| this.rename(index(&p)));
+        add("delete-section", int, |this, p| {
+            this.delete_section(index(&p))
         });
-        let weak_activate = weak.clone();
-        self.list.connect_row_activated(move |_, row| {
-            let index = row.index() as usize;
-            let weak = weak_activate.clone();
-            // Deferred: both actions rebuild the list inside its own activate handler.
+        add(
+            "move",
+            Some(glib::VariantTy::new("(ii)").unwrap()),
+            |this, p| {
+                let (item, target) = p.and_then(|p| p.get::<(i32, i32)>()).unwrap_or_default();
+                this.move_to(item as usize, target as usize);
+            },
+        );
+        let hide = gio::SimpleAction::new_stateful("hide-completed", None, &false.to_variant());
+        let weak = Rc::downgrade(self);
+        hide.connect_activate(move |action, _| {
+            let on = !action
+                .state()
+                .and_then(|s| s.get::<bool>())
+                .unwrap_or(false);
+            action.set_state(&on.to_variant());
+            let weak = weak.clone();
             glib::idle_add_local_once(move || {
-                let Some(this) = weak.upgrade() else { return };
-                let slot = this.slots.borrow().get(index).copied().flatten();
-                match slot {
-                    Some(Cursor::Header(index)) => {
-                        this.cursor.set(Some(Cursor::Header(index)));
-                        this.fold(index, None);
-                    }
-                    Some(Cursor::Item(index)) => {
-                        this.cursor.set(Some(Cursor::Item(index)));
-                        this.start_edit(index);
-                    }
-                    None => {}
+                if let Some(this) = weak.upgrade() {
+                    this.hide_done.set(on);
+                    this.redraw();
                 }
             });
         });
-
-        // The list keyboard: arrows walk headers and items (the list does that
-        // itself); these keys act on the selected row.
-        let keys = gtk::EventControllerKey::new();
-        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
-        keys.connect_key_pressed(move |_, key, _, state| {
-            let Some(this) = weak.upgrade() else {
-                return glib::Propagation::Proceed;
-            };
-            if this.input_open() || state.contains(gdk::ModifierType::ALT_MASK) {
-                return glib::Propagation::Proceed;
-            }
-            if this.on_key(key, state) {
-                glib::Propagation::Stop
-            } else {
-                glib::Propagation::Proceed
-            }
-        });
-        self.list.add_controller(keys);
+        group.add_action(&hide);
+        self.root.insert_action_group("worklist", Some(&group));
+        self.header.insert_action_group("worklist", Some(&group));
     }
 
-    fn on_key(self: &Rc<Self>, key: gdk::Key, state: gdk::ModifierType) -> bool {
-        let shift = state.contains(gdk::ModifierType::SHIFT_MASK);
-        let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
-        let parsed = parse(&self.source.borrow());
-        let cursor = self.cursor.get();
-        let item = |index: usize| (index < parsed.entries.len()).then_some(index);
-        // Deferred: every action rebuilds the list that is handling this key.
-        let act: Act = match (key, cursor) {
-            (gdk::Key::Return | gdk::Key::KP_Enter, _) if shift => {
-                Box::new(|t| t.start_new_section())
-            }
-            (gdk::Key::Left, Some(Cursor::Header(index))) => {
-                Box::new(move |t| t.fold(index, Some(true)))
-            }
-            (gdk::Key::Right, Some(Cursor::Header(index))) => {
-                Box::new(move |t| t.fold(index, Some(false)))
-            }
-            (gdk::Key::space, Some(Cursor::Header(index))) => {
-                Box::new(move |t| t.fold(index, None))
-            }
-            (gdk::Key::Return | gdk::Key::KP_Enter, Some(Cursor::Header(index))) if ctrl => {
-                Box::new(move |t| t.start_rename(index))
-            }
-            (gdk::Key::Return | gdk::Key::KP_Enter, Some(Cursor::Header(index))) => {
-                let target = Target::of(&parsed.sections, Some(index));
-                Box::new(move |t| t.start_add(target))
-            }
-            (gdk::Key::space, Some(Cursor::Item(index))) if item(index).is_some() => {
-                Box::new(move |t| t.toggle(index))
-            }
-            (
-                gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::Delete | gdk::Key::KP_Delete,
-                Some(Cursor::Item(index)),
-            ) if item(index).is_some() => Box::new(move |t| t.start_edit(index)),
-            (gdk::Key::Return | gdk::Key::KP_Enter, _) => Box::new(|t| t.start_add(Target::Top)),
-            _ => return false,
-        };
-        let weak = Rc::downgrade(self);
-        glib::idle_add_local_once(move || {
-            if let Some(this) = weak.upgrade() {
-                act(&this);
-            }
-        });
-        true
-    }
-
-    fn input_open(&self) -> bool {
-        self.edit.borrow().is_some() || self.section.borrow().is_some()
-    }
-
-    /// Show what is on disk now, from the top; used when the view is switched to.
+    /// Show what is on disk now; used when the view is switched to.
     pub(crate) fn show(self: &Rc<Self>) {
-        self.rebuild(read_source(&self.workspace), false);
+        self.rebuild(read_source(&self.workspace), None);
     }
 
-    /// The file may have changed on disk. Nothing happens while an editor is
-    /// open (it would lose its place); its close shows the new rows.
+    /// The file may have changed on disk. Nothing happens while an "Add item…"
+    /// row holds typed text (a redraw would lose it).
     pub(crate) fn refresh(self: &Rc<Self>) {
         let source = read_source(&self.workspace);
-        if !self.input_open() && source != *self.source.borrow() {
-            let focused = self.root.focus_child().is_some();
-            self.rebuild(source, focused);
+        if source != *self.source.borrow() && !self.typing() {
+            self.rebuild(source, None);
         }
     }
 
-    /// Put the cursor where typing goes: an open editor, else the selected row.
+    /// Put the cursor on the first row.
     pub(crate) fn focus(&self) {
-        let edit = self.edit.borrow().clone();
-        let section = self.section.borrow().clone();
-        if let Some(edit) = edit {
-            edit.title.grab_focus();
-        } else if let Some(section) = section {
-            section.entry.grab_focus();
-        } else if self.stack.visible_child_name().as_deref() == Some("clear") {
-            self.first.grab_focus();
-        } else {
-            self.focus_cursor();
+        if let Some(first) = self.rows.borrow().first() {
+            first.widget.grab_focus();
         }
     }
 
-    fn focus_cursor(&self) {
-        let at = self
-            .slots
-            .borrow()
-            .iter()
-            .position(|slot| *slot == self.cursor.get() && slot.is_some());
-        if let Some(row) = at.and_then(|at| self.list.row_at_index(at as i32)) {
-            row.grab_focus();
-        }
+    fn typing(&self) -> bool {
+        self.rows.borrow().iter().any(|row| {
+            row.item.is_none()
+                && row
+                    .widget
+                    .downcast_ref::<adw::EntryRow>()
+                    .is_some_and(|entry| !entry.text().is_empty())
+        })
     }
 
-    fn show_adds(&self) {
-        for (cursor, button) in self.adds.borrow().iter() {
-            button.set_visible(self.cursor.get() == Some(*cursor));
-        }
+    fn redraw(self: &Rc<Self>) {
+        let source = self.source.borrow().clone();
+        self.rebuild(source, None);
     }
 
     fn set_error(&self, error: Option<&str>) {
@@ -359,70 +241,214 @@ impl WorklistList {
         self.error.set_visible(error.is_some());
     }
 
-    /// The section the selected row belongs to.
-    fn selected_target(&self) -> Target {
-        let parsed = parse(&self.source.borrow());
-        Target::of(&parsed.sections, self.cursor_section(&parsed.entries))
+    /// The row that has focus now, as something to restore.
+    fn current_focus(&self) -> Option<Focus> {
+        let focus = self.root.root()?.focus()?;
+        let rows = self.rows.borrow();
+        let row = rows
+            .iter()
+            .find(|row| focus == row.widget || focus.is_ancestor(&row.widget))?;
+        Some(match row.item {
+            Some(index) => Focus::Item(index),
+            None => Focus::Add(row.target.clone()),
+        })
     }
 
-    fn cursor_section(&self, entries: &[Entry]) -> Option<usize> {
-        match self.cursor.get()? {
-            Cursor::Header(index) => Some(index),
-            Cursor::Item(index) => entries.get(index).and_then(|entry| entry.section),
-        }
-    }
-
-    // ---- writing ----
-
-    /// Apply the edit `change` makes to the file as it is now. False when
-    /// there was nothing to do or it failed (the error shows above the list).
-    fn mutate(&self, change: impl FnOnce(&str) -> anyhow::Result<Option<SourceEdit>>) -> bool {
-        let result: anyhow::Result<bool> = (|| {
-            let file = WorklistFile::new(&self.workspace)?;
-            let old = file.read()?;
-            let source = std::str::from_utf8(old.as_deref().unwrap_or_default())?;
-            let Some(edit) = change(source)? else {
-                return Ok(false);
-            };
-            file.write(old.as_deref(), edit.apply(source).as_bytes())
-                .map_err(|error| anyhow!("Worklist change was not saved: {error}"))?;
-            Ok(true)
-        })();
-        match result {
-            Ok(done) => {
-                if done {
-                    self.set_error(None);
-                }
-                done
-            }
-            Err(error) => {
-                self.set_error(Some(&error.to_string()));
-                false
-            }
-        }
-    }
-
-    fn toggle(self: &Rc<Self>, index: usize) {
-        let done = self.mutate(|source| {
-            let entries = parse(source).entries;
-            Ok(entries.get(index).and_then(|entry| toggle(source, entry)))
+    /// The section a new item goes to: where focus is, else the first.
+    fn current_target(&self) -> Target {
+        let focus = self.root.root().and_then(|root| root.focus());
+        let rows = self.rows.borrow();
+        let found = focus.and_then(|focus| {
+            rows.iter()
+                .find(|row| focus == row.widget || focus.is_ancestor(&row.widget))
+                .map(|row| row.target.clone())
         });
-        if done {
-            self.rebuild(read_source(&self.workspace), true);
-        }
+        found.unwrap_or_else(|| rows.first().map(|r| r.target.clone()).unwrap_or_default())
     }
 
-    fn fold(self: &Rc<Self>, index: usize, fold: Option<bool>) {
-        let Some(section) = parse(&self.source.borrow()).sections.get(index).cloned() else {
-            return;
-        };
-        let folded = self.folded.borrow().contains(&section.title);
-        if fold.unwrap_or(!folded) {
-            self.folded.borrow_mut().insert(section.title);
-        } else {
-            self.folded.borrow_mut().remove(&section.title);
+    // ---- drawing ----
+
+    fn rebuild(self: &Rc<Self>, source: String, focus: Option<Focus>) {
+        let focus = focus.or_else(|| self.current_focus());
+        while let Some(child) = self.content.first_child() {
+            self.content.remove(&child);
         }
-        let source = self.source.borrow().clone();
-        self.rebuild(source, true);
+        let parsed = parse(&source);
+        let targets = capture_targets(&source);
+        let mut rows = Vec::new();
+        for target in &targets {
+            let region = match target {
+                Target::Top => None,
+                Target::Section { index, .. } => Some(*index),
+            };
+            let group = gtk::Box::new(gtk::Orientation::Vertical, 8);
+            group.set_margin_top(20);
+            if let Target::Section { index, title } = target {
+                group.append(&self.section_header(*index, title));
+            }
+            let list = gtk::ListBox::new();
+            list.add_css_class("boxed-list");
+            list.set_selection_mode(gtk::SelectionMode::None);
+            for (i, entry) in parsed.entries.iter().enumerate() {
+                if entry.section != region || (self.hide_done.get() && entry.checked == Some(true))
+                {
+                    continue;
+                }
+                let row = self.item_row(i, entry, &targets);
+                list.append(&row);
+                rows.push(RowInfo {
+                    widget: row.upcast(),
+                    target: target.clone(),
+                    item: Some(i),
+                });
+            }
+            let add = self.add_row(target);
+            list.append(&add);
+            rows.push(RowInfo {
+                widget: add.upcast(),
+                target: target.clone(),
+                item: None,
+            });
+            group.append(&list);
+            self.content.append(&group);
+        }
+        let new = gtk::Button::with_label("New Section");
+        new.set_action_name(Some("worklist.new-section"));
+        new.set_halign(gtk::Align::Start);
+        new.set_margin_top(20);
+        self.content.append(&new);
+
+        // Put focus back: the same item (or the one now in its place), or the
+        // same section's "Add item…" row.
+        let restore = focus.and_then(|focus| match focus {
+            Focus::Add(target) => rows.iter().find(|r| r.item.is_none() && r.target == target),
+            Focus::Item(at) => rows
+                .iter()
+                .find(|r| r.item.is_some_and(|i| i >= at))
+                .or_else(|| rows.iter().rev().find(|r| r.item.is_some())),
+        });
+        if let Some(row) = restore {
+            row.widget.grab_focus();
+        }
+        *self.rows.borrow_mut() = rows;
+        *self.source.borrow_mut() = source;
+    }
+
+    fn section_header(&self, index: usize, title: &str) -> gtk::Box {
+        let name = gtk::Label::new(Some(if title.is_empty() { "Untitled" } else { title }));
+        name.add_css_class("heading");
+        name.set_xalign(0.0);
+        name.set_hexpand(true);
+        name.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        let menu = gio::Menu::new();
+        let at = Some((index as i32).to_variant());
+        menu.append_item(&item_with("Rename", "worklist.rename", at.clone()));
+        menu.append_item(&item_with("Delete", "worklist.delete-section", at));
+        let header = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        header.append(&name);
+        header.append(&menu_button(&menu));
+        header
+    }
+
+    fn item_row(
+        self: &Rc<Self>,
+        index: usize,
+        entry: &xenon_store::worklist::entries::Entry,
+        targets: &[Target],
+    ) -> adw::ActionRow {
+        let done = entry.checked == Some(true);
+        let row = adw::ActionRow::new();
+        let title = inline_markup(&entry.title);
+        row.set_title(&if done {
+            format!("<s>{title}</s>")
+        } else {
+            title
+        });
+        let bullets: Vec<String> = entry
+            .details
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(inline_markup)
+            .collect();
+        if !entry.editable {
+            row.set_subtitle("Edit this one in Markdown");
+        } else if !bullets.is_empty() {
+            row.set_subtitle(&bullets.join(" \u{b7} "));
+        }
+        if done {
+            row.add_css_class("dim-label");
+        }
+        let at = Some((index as i32).to_variant());
+        if let Some(checked) = entry.checked {
+            let check = gtk::CheckButton::new();
+            check.add_css_class("selection-mode");
+            check.set_valign(gtk::Align::Center);
+            check.set_active(checked);
+            check.set_sensitive(entry.editable);
+            check.set_tooltip_text(Some("Mark as done"));
+            let weak = Rc::downgrade(self);
+            check.connect_toggled(move |_| {
+                let weak = weak.clone();
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade() {
+                        this.toggle(index);
+                    }
+                });
+            });
+            row.add_prefix(&check);
+        }
+        if entry.editable {
+            let menu = gio::Menu::new();
+            menu.append_item(&item_with("Edit", "worklist.edit", at.clone()));
+            if targets.len() > 1 {
+                let moves = gio::Menu::new();
+                for (t, target) in targets.iter().enumerate() {
+                    if entry.section == target_index(target) {
+                        continue;
+                    }
+                    let to = Some((index as i32, t as i32).to_variant());
+                    moves.append_item(&item_with(target.label(), "worklist.move", to));
+                }
+                menu.append_submenu(Some("Move to Section"), &moves);
+            }
+            menu.append_item(&item_with("Delete", "worklist.delete", at.clone()));
+            row.add_suffix(&menu_button(&menu));
+            row.set_activatable(true);
+            row.set_action_name(Some("worklist.edit"));
+            row.set_action_target_value(at.as_ref());
+        }
+        row
+    }
+
+    fn add_row(self: &Rc<Self>, target: &Target) -> adw::EntryRow {
+        let row = adw::EntryRow::new();
+        row.set_title("Add item\u{2026}");
+        row.add_prefix(&gtk::Image::from_icon_name("list-add-symbolic"));
+        let weak = Rc::downgrade(self);
+        let target = target.clone();
+        row.connect_entry_activated(move |row| {
+            let (weak, target, text) = (weak.clone(), target.clone(), row.text().to_string());
+            glib::idle_add_local_once(move || {
+                if let Some(this) = weak.upgrade() {
+                    this.add(&target, &text);
+                }
+            });
+        });
+        row
+    }
+}
+
+fn index(parameter: &Option<glib::Variant>) -> usize {
+    parameter
+        .as_ref()
+        .and_then(|p| p.get::<i32>())
+        .unwrap_or_default() as usize
+}
+
+fn target_index(target: &Target) -> Option<usize> {
+    match target {
+        Target::Top => None,
+        Target::Section { index, .. } => Some(*index),
     }
 }

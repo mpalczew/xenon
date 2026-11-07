@@ -132,7 +132,7 @@ impl EditorView {
         bar.set_visible(false);
         let root = browser_root(path);
         root.append(&bar);
-        let (stack, back) = list::pages(path, &root, &scroller);
+        let stack = list::pages(path, &root, &scroller);
         let editor = Rc::new(Self {
             root: root.upcast(),
             scroller,
@@ -152,7 +152,7 @@ impl EditorView {
             stack,
             app: Rc::downgrade(app),
         });
-        editor.attach_list(back.as_ref());
+        editor.attach_list();
         editor.restyle(app);
         let weak: Weak<App> = Rc::downgrade(app);
         {

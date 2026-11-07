@@ -7,14 +7,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail, ensure};
 mod draft;
+mod edits;
 pub mod entries;
 mod item;
 pub mod sections;
 pub mod view;
 pub use draft::{Change, ItemDraft};
+pub use edits::{add_item, move_item, remove_item};
 pub use item::{TITLE_LIMIT, WorkItem, title_length};
 pub use sections::{
-    SourceEdit, Target, capture_targets, delete_empty_section, insert_section, rename_section,
+    SourceEdit, Target, capture_targets, delete_section, insert_section, rename_section,
 };
 
 /// The source bytes are the revision. Worklists are intentionally small text files.

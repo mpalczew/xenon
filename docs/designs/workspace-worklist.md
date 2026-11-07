@@ -33,22 +33,24 @@ it began. When that workspace's worklist tab is open, capture writes through the
 buffer so the file has one writer; if the tab has unsaved Markdown changes, the user
 must resolve them before capture writes.
 
-The worklist tab opens in **List** presentation by default. It reads the Markdown file
-directly and shows top-level checkbox tasks, bullet notes, and existing standalone
-paragraph notes. **Add an item** opens the same editor as editing. An empty list shows
-the design system's all-clear state instead of the Add button: a large check that draws
-itself, "All clear.", and two key chips (↵ add an item, which is also clickable, and ⌘⇧K
-from anywhere). Return on the empty list opens that editor. Close leaves a saved item in
-the list. Delete removes it. There is no Save, Cancel, or list Undo button. The list
-supports checkbox completion, selected-row keyboard navigation (↑/↓, Space, Enter), item
-editing, and delete. Item editing is the outline; changes save as you type. Cmd-Z undoes
-typing in the focused field, and Cmd-Shift-Z puts it back. Escape or Close leaves the
-editor. ⌘⌫ or Delete removes the item. There is no Task/Note choice and no move control.
-A complex task that the list cannot safely rewrite remains visible; use **Markdown** for
-it. Markdown mode is the normal editor over the same buffer, with ordinary selection,
-find, Vim editing, dirty state, and Save. Switching back to List requires saving or
-undoing Markdown edits first. There is no duplicate task store or separate worklist
-window. Freeform notes can be written in Markdown mode or by an agent editing the file.
+The worklist tab opens in **List** presentation by default. Its header holds a List |
+Markdown toggle, a **+** button (Add to Worklist for the section that has focus) and a
+menu with **Hide Completed**. The list reads the Markdown file directly and shows each
+section as a heading with a menu (Rename, Delete) above a stock boxed list. An item row
+has a round check button that toggles done, the title, the detail bullets joined with "
+· " as the subtitle, and a menu (Edit, Move to Section, Delete). Done items are dimmed
+and struck through and stay in place. Activating a row opens the Add to Worklist form
+prefilled, with a Delete button; it saves as you type. The last row of every section is
+an "Add item…" row: type, press Enter, and the item is added there and the row stays
+focused for the next one. **New Section** under the last section asks for a name.
+Deleting an item or section shows a toast with Undo, which restores the file as it was
+if nothing else has changed it. The list has no keys of its own beyond what GTK gives.
+An item the list cannot safely rewrite (nested checkboxes, code, tables) stays visible
+and says to use **Markdown**. Markdown mode is the normal editor over the same buffer,
+with ordinary selection, find, Vim editing, dirty state, and Save. Switching back to
+List requires saving or undoing Markdown edits first. Hard-wrapped lines (indented, no
+marker) belong to the title or bullet above them. There is no duplicate task store or
+separate worklist window.
 
 ## Sections
 
@@ -70,18 +72,11 @@ with no sections looks exactly as before.
 ## Next
 ```
 
-**List.** Each section has a header row: fold chevron, small-caps name, open-task count
-("2 open", "all done" when only done tasks or notes remain, nothing when empty), and a
-quiet **+ Add** shown on hover or selection. Folding is session view state, never
-written to the file; a folded section says "N items hidden". An empty section shows
-"Empty — ↵ to add". ↑/↓ walk headers and items together. On a header, ←/→ fold and
-unfold, Space toggles, ↵ adds an item that lands at the end of that section, ⌘↵ renames
-inline (↵ commits, Escape cancels; a blank name deletes the section only when it is
-empty, otherwise an inline message says to use Markdown), and ⇧↵ starts a new section
-after the selected row's section and names it. Item keys are unchanged. **+ Add an
-item** files into the selected row's section (the top when nothing is selected); **+
-Section** matches ⇧↵. Clicking a header folds it. Renaming or creating a section edits
-only its heading line; other text is untouched, and line endings are preserved.
+**List.** Each section is a heading with a menu (Rename, Delete) above its own boxed
+list and "Add item…" row. Delete removes the heading and everything under it (Undo
+restores it). Items above the first section show first without a heading. Renaming or
+creating a section edits only its heading line; other text is untouched, and line
+endings are preserved. Sections do not fold.
 
 **Capture.** When the file has sections, quick capture shows "Into ‹ Section ›" under
 the editor. ⌥↑/⌥↓ (or the ‹ › buttons) cycle the options: the sections in file order,
@@ -91,8 +86,8 @@ The item is appended at the end of the chosen section, before the next heading, 
 reformatting anything else. Once the first save lands the chip locks. With no sections
 the chip is absent and capture appends at the end of the file.
 
-**No move control.** Existing items cannot be moved or reordered between sections from
-the app (no ⌥↑/⌥↓ item moving, no "Move to…" picker). Moving stays a Markdown-mode edit.
+**Moving.** An item's menu has Move to Section, which cuts the item and appends it to
+the end of the chosen section. There is no reordering within a section.
 
 ## File behavior
 
@@ -163,8 +158,8 @@ task.
 Keep each bullet to at most 100 visible user-perceived characters. When an idea needs
 more room, use a short parent bullet with two-space-indented child bullets. Split by
 meaning rather than wrapping a sentence at the limit. The agent skill uses this file
-convention now; the native List view still flattens nested details, so nested items
-require Markdown mode until the list renderer and editor support them.
+convention now; the native List view flattens nested details into the subtitle, so
+nested items require Markdown mode to edit.
 
 The title is the first row in the canvas. Enter or Down from it enters the first point,
 creating that point if needed; Up from the first point returns to the title. The editor

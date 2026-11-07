@@ -101,6 +101,8 @@ works, it directly helps real daily work.
   the shell, not reimplementing every harness UI.
 - **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer.
   Image files (png, jpg, gif, webp, svg and more) open in a tab that shows the picture.
+- **Worklist:** `.xenon/worklist.md` is the one task list per workspace, for you and
+  your agents. It opens as a stock sections-and-checkboxes list, or as plain Markdown.
 
 ## Differentiators
 
