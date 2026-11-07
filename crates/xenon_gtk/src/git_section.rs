@@ -33,6 +33,8 @@ pub(crate) struct GitView {
     ws: Cell<Option<WorkspaceId>>,
     status: RefCell<Option<GitStatus>>,
     shown: RefCell<Option<String>>,
+    /// Workspace folder, for the full paths in row hints.
+    dir: RefCell<std::path::PathBuf>,
     /// Files in row order (the rows may be capped).
     files: RefCell<Vec<GitFile>>,
 }
@@ -80,6 +82,7 @@ impl GitView {
             ws: Cell::new(None),
             status: RefCell::new(None),
             shown: RefCell::new(None),
+            dir: RefCell::new(std::path::PathBuf::new()),
             files: RefCell::default(),
         });
         this.wire();
@@ -159,16 +162,21 @@ impl GitView {
         ws: Option<WorkspaceId>,
         status: Option<&GitStatus>,
         shown: Option<String>,
+        dir: &std::path::Path,
     ) {
         let same = self.ws.get() == ws
             && self.status.borrow().as_ref() == status
-            && *self.shown.borrow() == shown;
+            && *self.shown.borrow() == shown
+            && *self.dir.borrow() == dir;
         if same {
             return;
         }
         let had_focus = focus_inside(&self.root);
         let keep = self.selected_path();
-        let rebuild = self.ws.get() != ws || self.status.borrow().as_ref() != status;
+        let rebuild = self.ws.get() != ws
+            || self.status.borrow().as_ref() != status
+            || *self.dir.borrow() != dir;
+        *self.dir.borrow_mut() = dir.to_path_buf();
         self.ws.set(ws);
         *self.status.borrow_mut() = status.cloned();
         *self.shown.borrow_mut() = shown;
@@ -203,7 +211,7 @@ impl GitView {
         }
         let shown: Vec<GitFile> = status.files.iter().take(MAX_ROWS).cloned().collect();
         for file in &shown {
-            self.list.append(&make_row(file));
+            self.list.append(&make_row(file, &self.dir.borrow()));
         }
         if status.files.len() > shown.len() {
             let more = format!("and {} more", status.files.len() - shown.len());

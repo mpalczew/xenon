@@ -188,7 +188,8 @@ impl DiffView {
             glib::markup_escape_text(&dir),
             glib::markup_escape_text(&name)
         ));
-        self.path_label.set_tooltip_text(Some(&self.path));
+        self.path_label
+            .set_tooltip_text(Some(&self.dir.join(&self.path).to_string_lossy()));
     }
 
     fn wire(self: &Rc<Self>) {

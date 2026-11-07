@@ -12,7 +12,7 @@ impl GitFile {
         }
     }
 
-    /// Hover text: the path (with its rename source) and the change size.
+    /// Hover text: the repo-relative path (with its rename source) and the change size.
     pub fn tooltip(&self) -> String {
         match &self.from {
             Some(from) => format!(
@@ -20,6 +20,21 @@ impl GitFile {
                 self.path, self.added, self.removed
             ),
             None => format!("{}  +{} -{}", self.path, self.added, self.removed),
+        }
+    }
+
+    /// Hover text: the full path under `root` (with its rename source) and
+    /// the change size.
+    pub fn full_tooltip(&self, root: &std::path::Path) -> String {
+        let full = root.join(&self.path).display().to_string();
+        match &self.from {
+            Some(from) => format!(
+                "{} \u{2192} {full}  +{} -{}",
+                root.join(from).display(),
+                self.added,
+                self.removed
+            ),
+            None => format!("{full}  +{} -{}", self.added, self.removed),
         }
     }
 }

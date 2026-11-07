@@ -258,6 +258,29 @@ impl App {
         view.restyle(&family, size, crate::theme::dark());
     }
 
+    /// The full path a tab stands for: its file, or a terminal's folder.
+    fn tab_full_path(
+        &self,
+        model: &Model,
+        ws: WorkspaceId,
+        tab: &crate::model::Tab,
+    ) -> Option<String> {
+        let rec = model.rec(ws)?;
+        match &tab.kind {
+            TabKind::Kept(TabState::Editor { path, .. }) => Some(path.display().to_string()),
+            TabKind::Diff { path } => Some(match &rec.ssh {
+                Some(_) => format!("{}/{path}", rec.display_root()),
+                None => rec.root.join(path).display().to_string(),
+            }),
+            TabKind::Terminal if rec.ssh.is_none() => self
+                .terms
+                .borrow()
+                .get(&(ws, tab.id))
+                .map(|v| v.live_cwd().display().to_string()),
+            _ => None,
+        }
+    }
+
     /// Everything that shows status or selection, repainted from the model.
     pub(crate) fn paint_all(self: &Rc<Self>) {
         let model = self.model.borrow();
@@ -272,7 +295,9 @@ impl App {
                         };
                         for (index, tab) in leaf.tabs.iter().enumerate() {
                             let dot = model.tab_dot(ws, tab.id);
-                            pane.paint(tab, index, index == leaf.active, dot);
+                            let path = self.tab_full_path(&model, ws, tab);
+                            let dot = if index == leaf.active { None } else { dot };
+                            pane.paint(tab, index, dot, path);
                         }
                     });
                 }
@@ -294,16 +319,22 @@ impl App {
             self.sidebar.files.set_root(local_root);
             self.sidebar.files.mark_open(open_file);
             let status = self.git.status_of(ws).filter(|_| local_root_is_some);
-            self.sidebar
-                .git
-                .set(Some(ws), status.as_ref(), self.shown_diff_in(&model, ws));
+            let root = model.rec(ws).map(|r| r.root.clone()).unwrap_or_default();
+            self.sidebar.git.set(
+                Some(ws),
+                status.as_ref(),
+                self.shown_diff_in(&model, ws),
+                &root,
+            );
             self.title.set_title(&name);
             let label = space_label(&model, ws);
             self.title.set_subtitle(&label);
             self.win.set_title(Some(&format!("{name} — Xenon")));
         } else {
             self.sidebar.files.set_root(None);
-            self.sidebar.git.set(None, None, None);
+            self.sidebar
+                .git
+                .set(None, None, None, std::path::Path::new(""));
             self.title.set_title("Xenon");
             self.title.set_subtitle("");
         }

@@ -278,12 +278,17 @@ impl PaneView {
     }
 
     /// Show a tab's status on its page. Selected tabs carry no status.
-    pub(crate) fn paint(&self, tab: &Tab, index: usize, selected: bool, dot: Option<WorkspaceDot>) {
+    pub(crate) fn paint(
+        &self,
+        tab: &Tab,
+        index: usize,
+        dot: Option<WorkspaceDot>,
+        path: Option<String>,
+    ) {
         let pages = self.pages.borrow();
         let Some(page) = pages.get(&tab.id) else {
             return;
         };
-        let dot = if selected { None } else { dot };
         let label = tab.label(index);
         let title = if tab.title.is_empty() {
             label.clone()
@@ -306,6 +311,10 @@ impl PaneView {
             format!("{title} \u{2014} {}", dot.tooltip())
         } else {
             title
+        };
+        let tip = match path {
+            Some(path) => format!("{tip}\n{path}"),
+            None => tip,
         };
         page.set_tooltip(&tip);
     }

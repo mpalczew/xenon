@@ -17,7 +17,7 @@ fn kind_class(kind: ChangeKind) -> &'static str {
     }
 }
 
-pub(super) fn make_row(file: &GitFile) -> gtk::ListBoxRow {
+pub(super) fn make_row(file: &GitFile, root: &std::path::Path) -> gtk::ListBoxRow {
     let line = Row::new();
     line.set(None, file.name(), &file.detail());
     line.title.add_css_class(kind_class(file.kind()));
@@ -46,7 +46,7 @@ pub(super) fn make_row(file: &GitFile) -> gtk::ListBoxRow {
     line.trailing.append(&bar);
     let row = gtk::ListBoxRow::new();
     row.set_child(Some(&line.root));
-    row.set_tooltip_text(Some(&file.tooltip()));
+    row.set_tooltip_text(Some(&file.full_tooltip(root)));
     row
 }
 
