@@ -19,20 +19,7 @@ use crate::palette::{
     step_selection,
 };
 
-/// What to ask. The model builds it from an `InputDef`.
-#[derive(Clone, Debug)]
-pub struct TaskQuestion {
-    pub id: String,
-    pub description: String,
-    pub default: Option<String>,
-    pub kind: QuestionKind,
-}
-
-#[derive(Clone, Debug)]
-pub enum QuestionKind {
-    Text { password: bool },
-    Pick { options: Vec<PickOption> },
-}
+pub use xenon_core::tasks::{QuestionKind, TaskQuestion};
 
 pub enum TaskInputEvent {
     Answered(String),
@@ -55,10 +42,8 @@ impl EventEmitter<TaskInputEvent> for TaskInputView {}
 
 impl TaskInputView {
     pub fn new(question: TaskQuestion, cx: &mut Context<Self>) -> Self {
-        let (placeholder, password) = match &question.kind {
-            QuestionKind::Text { password } => ("Value…", *password),
-            QuestionKind::Pick { .. } => ("Filter…", false),
-        };
+        let placeholder = question.placeholder();
+        let password = matches!(question.kind, QuestionKind::Text { password: true });
         let input = cx.new(|cx| {
             let mut config = xenon_design_system::TextInputConfig::single_line(placeholder)
                 .parent_navigation()
@@ -188,14 +173,6 @@ impl TaskInputView {
             cx,
         );
     }
-
-    fn prompt_text(&self) -> String {
-        if self.question.description.is_empty() {
-            self.question.id.clone()
-        } else {
-            self.question.description.clone()
-        }
-    }
 }
 
 impl Focusable for TaskInputView {
@@ -208,16 +185,10 @@ impl Render for TaskInputView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let mut children = vec![
-            query_label(&self.prompt_text(), cx).into_any_element(),
+            query_label(self.question.prompt_text(), cx).into_any_element(),
             self.input.clone().into_any_element(),
         ];
-        let hint = match &self.question.kind {
-            QuestionKind::Text { password: true } => {
-                "return confirms  ·  esc cancels  ·  hidden, never saved or echoed"
-            }
-            QuestionKind::Text { .. } => "return confirms  ·  esc cancels",
-            QuestionKind::Pick { .. } => "↑↓ choose  ·  return confirms  ·  esc cancels",
-        };
+        let hint = self.question.hint();
         if self.is_pick() {
             let mut ranker = Matcher::new(Config::DEFAULT);
             let rows: Vec<_> = self
@@ -249,7 +220,7 @@ impl Render for TaskInputView {
                 .collect();
             children.push(scroll_results(ScrollResults {
                 list_id: "task-input-results",
-                empty_message: "No matching choices",
+                empty_message: xenon_core::tasks::NO_MATCHING_CHOICES,
                 rows,
                 selected: self.selected,
                 scroll: &self.scroll,

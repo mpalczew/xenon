@@ -17,31 +17,7 @@ use crate::palette::{
     step_selection,
 };
 
-/// One picker row, prepared by the model (`app/tasks.rs`).
-#[derive(Clone, Debug)]
-pub struct TaskRow {
-    pub label: String,
-    /// The command line as it will run (variables expanded where known).
-    pub command_line: String,
-    /// The task's own `detail` text.
-    pub detail: Option<String>,
-    /// Chip text, e.g. "build · default".
-    pub tag: Option<String>,
-    /// Why it cannot run here; such rows are listed dimmed.
-    pub unsupported: Option<String>,
-}
-
-impl TaskRow {
-    fn subtitle(&self) -> String {
-        if let Some(reason) = &self.unsupported {
-            return reason.clone();
-        }
-        match &self.detail {
-            Some(detail) => format!("$ {}  ·  {detail}", self.command_line),
-            None => format!("$ {}", self.command_line),
-        }
-    }
-}
+pub use xenon_core::tasks::TaskRow;
 
 pub enum TaskPickerEvent {
     /// Run per the task's presentation settings.
@@ -73,7 +49,9 @@ impl TaskPickerView {
         let input = cx.new(|cx| {
             xenon_design_system::TextInputView::new(
                 xenon_design_system::TextInputConfig::single_line(
-                    error.as_deref().unwrap_or("Run task…"),
+                    error
+                        .as_deref()
+                        .unwrap_or(xenon_core::tasks::PICKER_PLACEHOLDER),
                 )
                 .parent_navigation()
                 .appearance(xenon_design_system::TextInputAppearance::Palette),
@@ -166,13 +144,7 @@ impl TaskPickerView {
     }
 
     fn empty_message(&self) -> &'static str {
-        if self.empty_message.is_some() {
-            "No tasks loaded"
-        } else if self.query.is_empty() {
-            "No tasks in this workspace"
-        } else {
-            "No matching tasks"
-        }
+        xenon_core::tasks::picker_empty_message(self.empty_message.is_some(), self.query.is_empty())
     }
 }
 
@@ -198,11 +170,7 @@ impl Render for TaskPickerView {
                     ("task-row", i),
                     QueryRow {
                         title: task.label.clone(),
-                        detail: task
-                            .unsupported
-                            .as_ref()
-                            .map(|_| "unsupported".to_string())
-                            .or_else(|| task.tag.clone()),
+                        detail: task.chip(),
                         subtitle: Some(task.subtitle()),
                         selected: i == self.selected,
                         enabled: task.unsupported.is_none(),
@@ -238,9 +206,7 @@ impl Render for TaskPickerView {
                         colors: &colors,
                     }),
                     query_hint(
-                        &xenon_design_system::shortcut_text(
-                            "return runs  ·  ⌘return runs in a new tab  ·  esc closes",
-                        ),
+                        &xenon_design_system::shortcut_text(xenon_core::tasks::PICKER_HINT),
                         cx,
                     )
                     .into_any_element(),

@@ -13,19 +13,7 @@ impl XenonApp {
     ) -> Entity<TerminalView> {
         let mut env = self.terminal_env(folder);
         env.extend(task.env.iter().map(|(k, v)| (k.clone(), v.clone())));
-        let (program, args) = if task.presentation.echo {
-            let mut args = vec![
-                "-c".to_string(),
-                "printf '\\033[2m> %s\\033[0m\\n\\n' \"$1\"; shift; exec \"$@\"".to_string(),
-                "xenon-task".to_string(),
-                task.display.clone(),
-                task.program.clone(),
-            ];
-            args.extend(task.args.iter().cloned());
-            ("/bin/sh".to_string(), args)
-        } else {
-            (task.program.clone(), task.args.clone())
-        };
+        let (program, args) = xenon_core::tasks::terminal_command(task);
         let (cwd, label) = (task.cwd.clone(), task.label.clone());
         let view = cx.new(|cx| TerminalView::task(program, args, cwd, env, label, cx));
         view.update(cx, |view, cx| {

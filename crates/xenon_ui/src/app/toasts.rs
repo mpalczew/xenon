@@ -27,8 +27,8 @@ impl XenonApp {
 }
 
 pub(crate) fn no_workspace() -> Toast {
-    Toast::info("🧭", "Pick a workspace first")
-        .detail("This needs a home.")
+    Toast::info("🧭", xenon_core::tasks::PICK_WORKSPACE.0)
+        .detail(xenon_core::tasks::PICK_WORKSPACE.1)
         .action(ToastAction::new(
             "Open one",
             Shortcut::new("⌘⇧O"),

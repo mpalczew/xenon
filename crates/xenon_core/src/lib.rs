@@ -19,7 +19,7 @@ mod route;
 mod session;
 mod split;
 mod tab_label;
-mod tasks;
+pub mod tasks;
 mod workspace;
 
 pub use activity::TerminalActivity;

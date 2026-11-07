@@ -2,23 +2,35 @@
 //! I/O (reading the file, spawning terminals) stays at the call site.
 
 mod background;
+mod consent;
+mod load;
 mod model;
 mod parse;
 mod plan;
+mod question;
 mod resolve;
+mod rows;
+mod run;
+mod texts;
 mod trust;
 mod vars;
 
 use std::path::{Path, PathBuf};
 
 pub use background::Readiness;
+pub use consent::*;
+pub use load::*;
 pub use model::{
     Background, Group, GroupKind, InputDef, InputKind, Panel, PickOption, Presentation, Quoted,
     Quoting, Reveal, ShellOptions, TaskDef, TaskKind, TaskOptions, TaskSet,
 };
 pub use parse::{Os, parse_task_set};
 pub use plan::{Action, Orchestrator, Outcome};
+pub use question::*;
 pub use resolve::{ResolvedTask, preview_line, resolve_task};
+pub use rows::*;
+pub use run::*;
+pub use texts::*;
 pub use trust::{folder_open_closure, folder_open_hash};
 pub use vars::{EditorInfo, VarContext, expand, input_refs};
 

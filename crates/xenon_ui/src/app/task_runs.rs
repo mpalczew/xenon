@@ -10,10 +10,7 @@ use std::sync::Arc;
 
 use super::*;
 use crate::task_input::{TaskInputView, TaskQuestion};
-use xenon_core::{
-    Action, EditorInfo, GroupKind, Orchestrator, Readiness, Reveal, TaskSet, VarContext,
-    resolve_task,
-};
+use xenon_core::{Action, EditorInfo, Orchestrator, Readiness, Reveal, TaskSet};
 
 pub(crate) type StartedFn = Rc<dyn Fn(&str, TabId)>;
 
@@ -55,12 +52,7 @@ pub(crate) struct RunRequest {
     pub origin: Origin,
 }
 
-/// A tasks.json found for a workspace.
-pub(crate) struct LoadedTasks {
-    pub set: Arc<TaskSet>,
-    /// Directory that holds `.vscode/` (`${workspaceFolder}`).
-    pub folder: PathBuf,
-}
+pub(crate) use xenon_core::tasks::LoadedTasks;
 
 /// Everything a run needs once its inputs are known.
 pub(super) struct RunPlan {
@@ -123,18 +115,9 @@ impl XenonApp {
             .workspace_root(workspace)
             .ok_or("that workspace is gone")?;
         if self.ssh_for_root(&root).is_some() {
-            return Err("tasks run on this Mac; SSH workspaces are not supported".into());
+            return Err(xenon_core::tasks::SSH_TASKS.into());
         }
-        let path = xenon_core::find_tasks_json(&root)
-            .ok_or_else(|| format!("no .vscode/tasks.json above {}", root.display()))?;
-        let folder = xenon_core::workspace_for_tasks_json(&path)
-            .ok_or_else(|| format!("invalid tasks path {}", path.display()))?;
-        let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        let set = xenon_core::parse_task_set(&text, xenon_core::Os::current())?;
-        Ok(LoadedTasks {
-            set: Arc::new(set),
-            folder,
-        })
+        xenon_core::tasks::load_tasks(&root)
     }
 
     /// Plan a run and ask for its inputs, or launch straight away.
@@ -144,25 +127,8 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         let loaded = self.load_tasks(req.workspace)?;
-        let orch = Orchestrator::new(&loaded.set, &req.label)?;
-        let labels = orch.labels();
-        let ids = xenon_core::required_inputs(&loaded.set, &labels);
-        for id in &ids {
-            match loaded.set.inputs.get(id).map(|i| &i.kind) {
-                None => return Err(format!("${{input:{id}}} has no entry in \"inputs\"")),
-                Some(xenon_core::InputKind::Command) => {
-                    return Err(format!(
-                        "input {id:?} uses a VS Code command, which Xenon cannot run"
-                    ));
-                }
-                Some(_) => {}
-            }
-        }
-        let secrets = ids
-            .iter()
-            .filter(|id| loaded.set.inputs.get(*id).is_some_and(|i| i.is_secret()))
-            .cloned()
-            .collect();
+        let xenon_core::tasks::RunSetup { orch, ids, secrets } =
+            xenon_core::tasks::plan_run(&loaded.set, &req.label)?;
         let plan = RunPlan {
             workspace: req.workspace,
             loaded: loaded.set,
@@ -238,28 +204,13 @@ impl XenonApp {
         let run = self.run_ref(run_id).ok_or("run is gone")?;
         let plan = &run.plan;
         let def = plan.loaded.get(label).ok_or("task is gone")?;
-        let exe = std::env::current_exe()
-            .map(|p| p.display().to_string())
-            .unwrap_or_default();
-        let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-        let env = |k: &str| std::env::var(k).ok();
-        let build_default = plan
-            .loaded
-            .default_of(GroupKind::Build)
-            .map(|t| t.label.as_str());
-        let ctx = VarContext {
-            workspace: &plan.folder,
-            editor: plan.editor.as_ref(),
-            env: &env,
-            config: &plan.config,
-            inputs: &plan.inputs,
-            secret_inputs: &plan.secrets,
-            default_build_task: build_default,
-            exec_path: &exe,
-            user_home: &home,
+        let vars = xenon_core::tasks::RunVars {
+            editor: plan.editor.clone(),
+            config: plan.config.clone(),
+            inputs: plan.inputs.clone(),
+            secrets: plan.secrets.clone(),
         };
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
-        let resolved = resolve_task(def, &ctx, &shell)?;
+        let resolved = xenon_core::tasks::resolve_for_run(&plan.loaded, &plan.folder, def, &vars)?;
         let (workspace, folder) = (plan.workspace, plan.folder.clone());
         let (root_label, origin) = (plan.root_label.clone(), plan.origin.clone());
         let force_new = plan.new_tab && label == plan.root_label;
@@ -352,10 +303,7 @@ impl XenonApp {
         if was_ready {
             return;
         }
-        let reason = match code {
-            Some(code) => format!("exited with code {code}"),
-            None => "was terminated".to_string(),
-        };
+        let reason = xenon_core::tasks::exit_reason(code);
         self.fail_run(run_id, &label, &reason, cx);
     }
 
@@ -395,15 +343,12 @@ impl XenonApp {
         if let Some(run) = self.run_mut(run_id) {
             run.plan.orch.failed(label, reason);
         }
-        let detail = if root_label.as_deref() == Some(label) {
-            reason.to_string()
-        } else {
-            format!("{reason}; the dependsOn chain stopped")
-        };
-        self.show_toast(
-            super::toasts::failed(format!("Task {label} failed"), detail),
-            cx,
+        let (title, detail) = xenon_core::tasks::failure_toast(
+            root_label.as_deref().unwrap_or_default(),
+            label,
+            reason,
         );
+        self.show_toast(super::toasts::failed(title, detail), cx);
         self.finish_if_done(run_id);
     }
 
@@ -417,32 +362,9 @@ impl XenonApp {
     }
 }
 
-/// Xenon settings as `${config:key}` values: scalar leaves, dotted keys.
+/// Xenon settings as `${config:key}` values.
 fn settings_config(cx: &App) -> BTreeMap<String, String> {
-    fn walk(prefix: &str, value: &serde_json::Value, out: &mut BTreeMap<String, String>) {
-        match value {
-            serde_json::Value::Object(map) => {
-                for (k, v) in map {
-                    let key = if prefix.is_empty() {
-                        k.clone()
-                    } else {
-                        format!("{prefix}.{k}")
-                    };
-                    walk(&key, v, out);
-                }
-            }
-            serde_json::Value::String(s) => {
-                out.insert(prefix.to_string(), s.clone());
-            }
-            serde_json::Value::Number(_) | serde_json::Value::Bool(_) => {
-                out.insert(prefix.to_string(), value.to_string());
-            }
-            _ => {}
-        }
-    }
-    let mut out = BTreeMap::new();
-    if let Ok(value) = serde_json::to_value(xenon_design_system::settings::snapshot(cx)) {
-        walk("", &value, &mut out);
-    }
-    out
+    serde_json::to_value(xenon_design_system::settings::snapshot(cx))
+        .map(|value| xenon_core::tasks::flatten_config(&value))
+        .unwrap_or_default()
 }

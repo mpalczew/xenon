@@ -11,8 +11,8 @@ use xenon_remote::{ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire};
 use super::host::parse_workspace_id;
 use super::*;
 use crate::app::task_runs::{Origin, RemoteOrigin, RunRequest};
-use crate::app::tasks::{row_command, with_preview_ctx};
 use crate::task_input::{QuestionKind, TaskQuestion};
+use xenon_core::tasks::{row_command, with_preview_ctx};
 
 impl XenonApp {
     pub(super) fn list_remote_tasks(

@@ -3,8 +3,8 @@
 
 use super::task_runs::{Origin, RunRequest};
 use super::*;
-use crate::task_picker::{TaskPickerEvent, TaskPickerView, TaskRow};
-use xenon_core::{EditorInfo, GroupKind, TaskDef, TaskSet, VarContext};
+use crate::task_picker::{TaskPickerEvent, TaskPickerView};
+use xenon_core::tasks::{BuildChoice, NO_TASKS, choose_build_task, task_rows};
 
 impl XenonApp {
     pub(super) fn open_task_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -17,9 +17,7 @@ impl XenonApp {
         let (rows, error) = match self.load_tasks(ws) {
             Ok(loaded) => {
                 let rows = task_rows(&loaded.set, &loaded.folder);
-                let error = rows
-                    .is_empty()
-                    .then(|| "No tasks in .vscode/tasks.json".to_string());
+                let error = rows.is_empty().then(|| NO_TASKS.to_string());
                 (rows, error)
             }
             Err(e) => (Vec::new(), Some(e)),
@@ -39,35 +37,20 @@ impl XenonApp {
         let loaded = match self.load_tasks(ws) {
             Ok(loaded) => loaded,
             Err(e) => {
-                self.show_toast(super::toasts::failed("Couldn’t load tasks", e), cx);
+                self.show_toast(super::toasts::failed(xenon_core::tasks::LOAD_FAILED, e), cx);
                 return;
             }
         };
-        let builds: Vec<&TaskDef> = loaded
-            .set
-            .tasks
-            .iter()
-            .filter(|t| t.group.is_some_and(|g| g.kind == GroupKind::Build))
-            .collect();
-        let chosen = loaded
-            .set
-            .default_of(GroupKind::Build)
-            .or(if builds.len() == 1 {
-                builds.first().copied()
-            } else {
-                None
-            })
-            .map(|t| t.label.clone());
-        match chosen {
-            Some(label) => {
+        match choose_build_task(&loaded.set) {
+            BuildChoice::Run(label) => {
                 self.deferred.restore_pane = Some(self.current_focus_owner(window, cx));
                 self.run_task_checked(ws, label, false, cx);
             }
-            None if builds.is_empty() => self.show_toast(
-                super::toasts::failed("No build task", "Mark one with \"group\": \"build\"."),
-                cx,
-            ),
-            None => self.open_task_picker(window, cx),
+            BuildChoice::None => {
+                let (title, detail) = xenon_core::tasks::NO_BUILD_TASK;
+                self.show_toast(super::toasts::failed(title, detail), cx);
+            }
+            BuildChoice::Pick => self.open_task_picker(window, cx),
         }
     }
 
@@ -86,7 +69,7 @@ impl XenonApp {
                 }
             }
             TaskPickerEvent::Unsupported(why) => {
-                self.show_toast(super::toasts::failed("Can’t run that task", why), cx);
+                self.show_toast(super::toasts::failed(xenon_core::tasks::CANT_RUN, why), cx);
             }
             TaskPickerEvent::Dismissed => {
                 self.task_picker = None;
@@ -115,7 +98,10 @@ impl XenonApp {
             origin: Origin::Mac,
         };
         if let Err(error) = self.start_task(request, cx) {
-            self.show_toast(super::toasts::failed("Couldn’t run task", error), cx);
+            self.show_toast(
+                super::toasts::failed(xenon_core::tasks::COULDNT_RUN, error),
+                cx,
+            );
         }
         cx.notify();
     }
@@ -178,80 +164,4 @@ impl XenonApp {
             self.answer_task_input(token, None, Some(answer.to_string()), cx);
         }
     }
-}
-
-/// Run `f` with a variable context that knows only the workspace (no editor,
-/// no inputs): what the picker and the trust prompt can show before a run.
-pub(super) fn with_preview_ctx<R>(
-    set: &TaskSet,
-    folder: &Path,
-    f: impl FnOnce(&VarContext) -> R,
-) -> R {
-    let env = |k: &str| std::env::var(k).ok();
-    let empty = std::collections::BTreeMap::new();
-    let secrets = std::collections::BTreeSet::new();
-    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    let editor: Option<&EditorInfo> = None;
-    f(&VarContext {
-        workspace: folder,
-        editor,
-        env: &env,
-        config: &empty,
-        inputs: &empty,
-        secret_inputs: &secrets,
-        default_build_task: set.default_of(GroupKind::Build).map(|t| t.label.as_str()),
-        exec_path: "",
-        user_home: &home,
-    })
-}
-
-/// Picker rows: every non-hidden task, unsupported ones included.
-pub(crate) fn task_rows(set: &TaskSet, folder: &Path) -> Vec<TaskRow> {
-    let mut rows: Vec<TaskRow> = with_preview_ctx(set, folder, |ctx| {
-        set.tasks
-            .iter()
-            .filter(|t| !t.hide)
-            .map(|t| TaskRow {
-                label: t.label.clone(),
-                command_line: row_command(t, ctx),
-                detail: t.detail.clone(),
-                tag: group_tag(t),
-                unsupported: t.unsupported.clone(),
-            })
-            .collect()
-    });
-    rows.extend(set.warnings.iter().map(|w| TaskRow {
-        label: "Skipped".into(),
-        command_line: String::new(),
-        detail: None,
-        tag: None,
-        unsupported: Some(w.clone()),
-    }));
-    rows
-}
-
-pub(super) fn row_command(task: &TaskDef, ctx: &VarContext) -> String {
-    let line = xenon_core::preview_line(task, ctx);
-    if task.depends_on.is_empty() {
-        return line;
-    }
-    let deps = task.depends_on.join(", ");
-    if line.is_empty() {
-        format!("(runs {deps})")
-    } else {
-        format!("{line}  (after {deps})")
-    }
-}
-
-fn group_tag(task: &TaskDef) -> Option<String> {
-    let group = task.group?;
-    let kind = match group.kind {
-        GroupKind::Build => "build",
-        GroupKind::Test => "test",
-    };
-    Some(if group.is_default {
-        format!("{kind} · default")
-    } else {
-        kind.to_string()
-    })
 }

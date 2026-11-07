@@ -5,9 +5,9 @@
 //! shortcuts work from anywhere while it shows.
 
 use super::task_runs::{Origin, RunRequest};
-use super::tasks::{row_command, with_preview_ctx};
 use super::*;
-use xenon_core::{TaskSet, folder_open_closure, folder_open_hash};
+use xenon_core::tasks::{self as shared, trust_lines, trust_title};
+use xenon_core::{TaskSet, folder_open_hash};
 use xenon_design_system::{ActionButton, TypeRole, Typography, action_button, shortcut_text};
 use xenon_store::TaskTrust;
 
@@ -39,12 +39,7 @@ impl XenonApp {
     }
 
     fn run_folder_open(&mut self, ws: WorkspaceId, set: &TaskSet, cx: &mut Context<Self>) {
-        let labels: Vec<String> = set
-            .tasks
-            .iter()
-            .filter(|t| t.run_on_folder_open && t.unsupported.is_none())
-            .map(|t| t.label.clone())
-            .collect();
+        let labels = shared::folder_open_labels(set);
         for label in labels {
             let request = RunRequest {
                 workspace: ws,
@@ -54,7 +49,7 @@ impl XenonApp {
             };
             if let Err(error) = self.start_task(request, cx) {
                 self.show_toast(
-                    super::toasts::failed("Couldn’t run task on open", error),
+                    super::toasts::failed(shared::COULDNT_RUN_ON_OPEN, error),
                     cx,
                 );
             }
@@ -69,19 +64,7 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) {
         let (set, folder) = (&*loaded.set, loaded.folder.as_path());
-        let lines = with_preview_ctx(set, folder, |ctx| {
-            folder_open_closure(set)
-                .into_iter()
-                .map(|t| {
-                    let why = if t.run_on_folder_open {
-                        "runs on open"
-                    } else {
-                        "dependency"
-                    };
-                    (t.label.clone(), row_command(t, ctx), why)
-                })
-                .collect()
-        });
+        let lines = trust_lines(set, folder);
         self.services.tasks.trust = Some(TrustPrompt {
             workspace: ws,
             folder: folder.to_path_buf(),
@@ -112,7 +95,7 @@ impl XenonApp {
         }
         if let Err(error) = xenon_store::set_task_trust(&prompt.folder, &prompt.hash, allow) {
             self.show_toast(
-                super::toasts::failed("Couldn’t save that choice", error),
+                super::toasts::failed(shared::COULDNT_SAVE_CHOICE, error),
                 cx,
             );
         }
@@ -143,11 +126,7 @@ impl XenonApp {
     pub(crate) fn render_trust_prompt(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
         let prompt = self.services.tasks.trust.as_ref()?;
         let colors = cx.theme().colors().clone();
-        let name = prompt
-            .folder
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let title = trust_title(&prompt.folder);
         let mut list = div()
             .id("task-trust-list")
             .max_h(px(220.))
@@ -200,13 +179,13 @@ impl XenonApp {
                 div()
                     .type_role(TypeRole::Body, cx)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(format!("Run tasks automatically in {name}?")),
+                    .child(title),
             )
             .child(
                 div()
                     .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
-                    .child("This folder’s tasks.json asks to run these commands every time it opens. They run as you."),
+                    .child(shared::TRUST_DETAIL),
             )
             .child(list)
             .child(
@@ -215,18 +194,23 @@ impl XenonApp {
                     .justify_end()
                     .gap_2()
                     .child(action_button(
-                        "Don’t allow",
-                        ActionButton::secondary("Don’t allow"),
+                        shared::TRUST_DENY,
+                        ActionButton::secondary(shared::TRUST_DENY),
                         cx,
                         deny,
                     ))
-                    .child(action_button("Allow", ActionButton::primary("Allow"), cx, allow)),
+                    .child(action_button(
+                        shared::TRUST_ALLOW,
+                        ActionButton::primary(shared::TRUST_ALLOW),
+                        cx,
+                        allow,
+                    )),
             )
             .child(
                 div()
                     .type_role(TypeRole::ControlLabel, cx)
                     .text_color(colors.text_muted)
-                    .child(shortcut_text("⌘⌥↩ allow  ·  ⌘⌥⌫ don’t allow  ·  asks again if tasks.json changes")),
+                    .child(shortcut_text(shared::TRUST_HINT)),
             );
         Some(card.into_any_element())
     }
