@@ -30,11 +30,16 @@
 - [ ] GTK: drag to reorder workspaces
 - [ ] Cutover: the GTK app uses `~/.xenon` directly
 - [ ] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
+  - `scripts/release/install` installs the GTK app; `install-gtk` goes away.
+  - `.vscode/tasks.json` keeps only the GTK launch and install tasks.
+- [ ] GTK: themes follow the system (libadwaita light and dark, GtkSourceView schemes)
+  - Drop the bundled Zed themes and the theme picker.
 - [ ] GTK: `xenon open` socket server
 - [ ] GTK: worklist panel
 - [ ] GTK: command palette, divider resize from the keyboard
 - [ ] GTK: SSH workspaces and the SSH part of the pickers
 - [ ] Delete the GPUI frontend, its Vim engine and tree-sitter highlighting
+  - Also delete `xenon_ide` (the Claude Code and Codex IDE servers); not ported.
 - [ ] GTK: LSP, last if at all
 
 ## Done
