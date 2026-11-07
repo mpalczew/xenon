@@ -232,6 +232,27 @@ impl Model {
         true
     }
 
+    /// Drag-reorder: put `id` where `before` sits (`None`: the end of the open
+    /// list). False when nothing moved.
+    pub(crate) fn move_workspace(&mut self, id: WorkspaceId, before: Option<WorkspaceId>) -> bool {
+        if before == Some(id) {
+            return false;
+        }
+        let list = &mut self.registry.workspaces;
+        let Some(from) = list.iter().position(|r| r.id == id) else {
+            return false;
+        };
+        if before.is_none() && from + 1 == list.len() {
+            return false;
+        }
+        let rec = list.remove(from);
+        let to = before
+            .and_then(|b| list.iter().position(|r| r.id == b))
+            .unwrap_or(list.len());
+        list.insert(to, rec);
+        true
+    }
+
     /// Move `id` to the closed list and pick the neighbour to show next.
     pub(crate) fn close_workspace(&mut self, id: WorkspaceId) -> Option<WorkspaceId> {
         let index = self.registry.workspaces.iter().position(|r| r.id == id)?;

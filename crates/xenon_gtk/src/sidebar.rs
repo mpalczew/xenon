@@ -92,6 +92,7 @@ impl Sidebar {
             glib::Propagation::Proceed
         });
         list.add_controller(keys);
+        Self::accept_drops(&list, app_for_rows.clone());
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_child(Some(&list));
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
@@ -126,6 +127,48 @@ impl Sidebar {
             app: app_for_rows,
             rows: RefCell::default(),
         }
+    }
+
+    /// Dropping a dragged row on the list: a row takes the dragged one's place,
+    /// the space below the last row sends it to the end.
+    fn accept_drops(list: &gtk::ListBox, app: Weak<App>) {
+        let target = gtk::DropTarget::new(u32::static_type(), gdk::DragAction::MOVE);
+        let mark = |list: &gtk::ListBox, y: f64| {
+            let rows = list.observe_children().n_items() as i32;
+            let hit = list.row_at_y(y as i32);
+            for i in 0..rows {
+                if let Some(row) = list.row_at_index(i) {
+                    set_class(&row, "drop-before", hit.as_ref() == Some(&row));
+                    set_class(&row, "drop-after", hit.is_none() && i == rows - 1);
+                }
+            }
+            hit
+        };
+        target.connect_motion({
+            let list = list.clone();
+            move |_, _, y| {
+                mark(&list, y);
+                gdk::DragAction::MOVE
+            }
+        });
+        target.connect_leave({
+            let list = list.clone();
+            move |_| {
+                mark(&list, -1.0);
+            }
+        });
+        target.connect_drop({
+            let list = list.clone();
+            move |_, value, _, y| {
+                let hit = mark(&list, -1.0).or_else(|| list.row_at_y(y as i32));
+                let (Ok(from), Some(app)) = (value.get::<u32>(), app.upgrade()) else {
+                    return false;
+                };
+                app.reorder_workspace(from as usize, hit.map(|r| r.index().max(0) as usize));
+                true
+            }
+        });
+        list.add_controller(target);
     }
 
     /// Tooltips that show keys; they need the key map, which exists once the
@@ -198,6 +241,23 @@ impl Sidebar {
             line.append(&gutter);
             let row = gtk::ListBoxRow::new();
             row.set_child(Some(&line));
+            let drag = gtk::DragSource::new();
+            drag.set_actions(gdk::DragAction::MOVE);
+            drag.connect_prepare({
+                let row = row.clone();
+                move |_, _, _| {
+                    Some(gdk::ContentProvider::for_value(
+                        &(row.index().max(0) as u32).to_value(),
+                    ))
+                }
+            });
+            drag.connect_drag_begin({
+                let row = row.clone();
+                move |source, _| {
+                    source.set_icon(Some(&gtk::WidgetPaintable::new(Some(&row))), 0, 0);
+                }
+            });
+            row.add_controller(drag);
             self.list.append(&row);
             rows.push(Row {
                 id: rec.id,

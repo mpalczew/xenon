@@ -37,6 +37,22 @@ impl App {
         }
     }
 
+    /// The user dragged row `from` onto row `to` (`None`: below the last row).
+    pub(crate) fn reorder_workspace(self: &Rc<Self>, from: usize, to: Option<usize>) {
+        let moved = {
+            let mut model = self.model.borrow_mut();
+            let list = &model.registry.workspaces;
+            let id = list.get(from).map(|r| r.id);
+            let before = to.and_then(|i| list.get(i)).map(|r| r.id);
+            id.is_some_and(|id| model.move_workspace(id, before))
+        };
+        if moved {
+            self.sidebar.rebuild(&self.model.borrow());
+            self.paint_all();
+            self.save_registry();
+        }
+    }
+
     pub(crate) fn step_workspace(self: &Rc<Self>, delta: isize) {
         let id = self.model.borrow().workspace_offset(delta);
         if let Some(id) = id {

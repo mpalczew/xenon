@@ -122,6 +122,8 @@ impl Palette {
              .xheading {{ color: {muted}; font-size: 0.74em; font-weight: 700; letter-spacing: 0.1em; }}\n\
              .xsection button.flat {{ min-width: 24px; min-height: 24px; padding: 0; color: {muted}; border-radius: 6px; }}\n\
              .xsection button.flat:hover {{ color: {fg}; background: {hover}; }}\n\
+             .xsidebar row.drop-before {{ box-shadow: 0 -1px 0 1px {accent}; }}\n\
+             .xsidebar row.drop-after {{ box-shadow: 0 1px 0 1px {accent}; }}\n\
              .xrow {{ border-radius: 6px; margin: 1px 8px; padding: 7px 8px; }}\n\
              .xrow:hover {{ background: {hover}; }}\n\
              .xrow.selected {{ background: {selected}; box-shadow: inset 2px 0 {fg}; border-radius: 0 6px 6px 0; }}\n\

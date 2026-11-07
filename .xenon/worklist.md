@@ -37,7 +37,7 @@
   - Remove the "not built yet" notes.
 - [x] GTK: drop the "(GTK)" suffix from the launcher entry and window title
 - [x] GTK: Shift+Enter sends a line feed, as the GPUI terminal did
-- [ ] GTK: drag to reorder workspaces
+- [x] GTK: drag to reorder workspaces
 - [x] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
   - `scripts/release/install` installs the GTK app; `install-gtk` goes away.
   - `.vscode/tasks.json` keeps only the GTK launch and install tasks.
