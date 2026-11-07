@@ -141,7 +141,9 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
                     }
                     return;
                 }
-                handler(&app);
+                // Deferred: commands rebuild panes and lists, possibly the ones
+                // whose key or click is being handled.
+                glib::idle_add_local_once(move || handler(&app));
             }
         });
         app.gtk.add_action(&action);
@@ -194,7 +196,8 @@ fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
     let weak = Rc::downgrade(app);
     action.connect_activate(move |_, param| {
         if let (Some(app), Some(text)) = (weak.upgrade(), param.and_then(|p| p.str())) {
-            run(&app, text);
+            let text = text.to_owned();
+            glib::idle_add_local_once(move || run(&app, &text));
         }
     });
     app.gtk.add_action(&action);

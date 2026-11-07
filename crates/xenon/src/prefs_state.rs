@@ -109,10 +109,15 @@ pub(crate) fn install(app: &Rc<App>) {
     });
     app.gtk.add_action(&set);
     let weak = Rc::downgrade(app);
+    // Deferred: focus moves while panes are being rebuilt, and the snapshot
+    // reads the panes.
     app.win.connect_focus_widget_notify(move |_| {
-        if let Some(app) = weak.upgrade() {
-            app.publish_settings();
-        }
+        let weak = weak.clone();
+        glib::idle_add_local_once(move || {
+            if let Some(app) = weak.upgrade() {
+                app.publish_settings();
+            }
+        });
     });
     app.publish_settings();
 }

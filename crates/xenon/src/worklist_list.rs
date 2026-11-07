@@ -87,6 +87,9 @@ fn flat(label: &str) -> gtk::Button {
     button
 }
 
+/// A key's action, run once the key event is over.
+type Act = Box<dyn FnOnce(&Rc<WorklistList>)>;
+
 impl WorklistList {
     /// `workspace` is the folder that holds `.xenon`; `to_markdown` runs the
     /// "Markdown" button.
@@ -215,26 +218,24 @@ impl WorklistList {
         });
         let weak_activate = weak.clone();
         self.list.connect_row_activated(move |_, row| {
-            let Some(this) = weak_activate.upgrade() else {
-                return;
-            };
-            let slot = this
-                .slots
-                .borrow()
-                .get(row.index() as usize)
-                .copied()
-                .flatten();
-            match slot {
-                Some(Cursor::Header(index)) => {
-                    this.cursor.set(Some(Cursor::Header(index)));
-                    this.fold(index, None);
+            let index = row.index() as usize;
+            let weak = weak_activate.clone();
+            // Deferred: both actions rebuild the list inside its own activate handler.
+            glib::idle_add_local_once(move || {
+                let Some(this) = weak.upgrade() else { return };
+                let slot = this.slots.borrow().get(index).copied().flatten();
+                match slot {
+                    Some(Cursor::Header(index)) => {
+                        this.cursor.set(Some(Cursor::Header(index)));
+                        this.fold(index, None);
+                    }
+                    Some(Cursor::Item(index)) => {
+                        this.cursor.set(Some(Cursor::Item(index)));
+                        this.start_edit(index);
+                    }
+                    None => {}
                 }
-                Some(Cursor::Item(index)) => {
-                    this.cursor.set(Some(Cursor::Item(index)));
-                    this.start_edit(index);
-                }
-                None => {}
-            }
+            });
         });
 
         // The list keyboard: arrows walk headers and items (the list does that
@@ -263,27 +264,43 @@ impl WorklistList {
         let parsed = parse(&self.source.borrow());
         let cursor = self.cursor.get();
         let item = |index: usize| (index < parsed.entries.len()).then_some(index);
-        match (key, cursor) {
-            (gdk::Key::Return | gdk::Key::KP_Enter, _) if shift => self.start_new_section(),
-            (gdk::Key::Left, Some(Cursor::Header(index))) => self.fold(index, Some(true)),
-            (gdk::Key::Right, Some(Cursor::Header(index))) => self.fold(index, Some(false)),
-            (gdk::Key::space, Some(Cursor::Header(index))) => self.fold(index, None),
+        // Deferred: every action rebuilds the list that is handling this key.
+        let act: Act = match (key, cursor) {
+            (gdk::Key::Return | gdk::Key::KP_Enter, _) if shift => {
+                Box::new(|t| t.start_new_section())
+            }
+            (gdk::Key::Left, Some(Cursor::Header(index))) => {
+                Box::new(move |t| t.fold(index, Some(true)))
+            }
+            (gdk::Key::Right, Some(Cursor::Header(index))) => {
+                Box::new(move |t| t.fold(index, Some(false)))
+            }
+            (gdk::Key::space, Some(Cursor::Header(index))) => {
+                Box::new(move |t| t.fold(index, None))
+            }
             (gdk::Key::Return | gdk::Key::KP_Enter, Some(Cursor::Header(index))) if ctrl => {
-                self.start_rename(index)
+                Box::new(move |t| t.start_rename(index))
             }
             (gdk::Key::Return | gdk::Key::KP_Enter, Some(Cursor::Header(index))) => {
-                self.start_add(Target::of(&parsed.sections, Some(index)))
+                let target = Target::of(&parsed.sections, Some(index));
+                Box::new(move |t| t.start_add(target))
             }
             (gdk::Key::space, Some(Cursor::Item(index))) if item(index).is_some() => {
-                self.toggle(index)
+                Box::new(move |t| t.toggle(index))
             }
             (
                 gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::Delete | gdk::Key::KP_Delete,
                 Some(Cursor::Item(index)),
-            ) if item(index).is_some() => self.start_edit(index),
-            (gdk::Key::Return | gdk::Key::KP_Enter, _) => self.start_add(Target::Top),
+            ) if item(index).is_some() => Box::new(move |t| t.start_edit(index)),
+            (gdk::Key::Return | gdk::Key::KP_Enter, _) => Box::new(|t| t.start_add(Target::Top)),
             _ => return false,
-        }
+        };
+        let weak = Rc::downgrade(self);
+        glib::idle_add_local_once(move || {
+            if let Some(this) = weak.upgrade() {
+                act(&this);
+            }
+        });
         true
     }
 

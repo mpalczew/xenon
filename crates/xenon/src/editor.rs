@@ -237,10 +237,16 @@ impl EditorView {
     }
 
     /// Swap in new text, keeping the cursor line and the scroll position.
-    fn replace_text(&self, text: &str) {
+    fn replace_text(self: &Rc<Self>, text: &str) {
         let cursor = self.buffer.iter_at_offset(self.buffer.cursor_position());
         let (line, col) = (cursor.line(), cursor.line_offset());
         let scroll = self.scroller.vadjustment().value();
+        // set_text deletes every mark; the Vim input method keeps its own and
+        // would delete them again, so it starts over on the new text.
+        let vim = self.vim.borrow().is_some();
+        if vim {
+            self.detach_vim();
+        }
         self.loading.set(true);
         self.buffer.begin_irreversible_action();
         self.buffer.set_text(text);
@@ -252,6 +258,9 @@ impl EditorView {
             .iter_at_line_offset(line, col)
             .unwrap_or_else(|| self.buffer.end_iter());
         self.buffer.place_cursor(&at);
+        if vim {
+            self.attach_vim(&self.app.clone());
+        }
         self.bar.set_visible(false);
         let adjustment = self.scroller.vadjustment();
         glib::idle_add_local_once(move || adjustment.set_value(scroll));
@@ -302,7 +311,8 @@ impl EditorView {
     }
 
     fn detach_vim(&self) {
-        if let Some((vim, keys)) = self.vim.borrow_mut().take() {
+        let taken = self.vim.borrow_mut().take();
+        if let Some((vim, keys)) = taken {
             self.view.remove_controller(&keys);
             vim.set_client_widget(None::<&gtk::Widget>);
         }
@@ -314,7 +324,9 @@ impl EditorView {
             return;
         };
         self.buffer.place_cursor(&iter);
-        let mark = self.buffer.create_mark(None, &iter, true);
+        // The insert mark follows the cursor and is never deleted, unlike a
+        // mark of ours that a reload or the Vim input method could invalidate.
+        let mark = self.buffer.get_insert();
         let view = self.view.clone();
         glib::idle_add_local_once(move || {
             view.scroll_to_mark(&mark, 0.1, true, 0.0, 0.3);

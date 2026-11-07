@@ -231,10 +231,12 @@ impl FilesView {
                     let (Some(path), expanded) = (row_path(row), row.is_expanded()) else {
                         return;
                     };
+                    // Read now: `restoring` is over by the time idle runs.
+                    let restoring = weak.upgrade().is_some_and(|t| t.restoring.get());
                     let weak = weak.clone();
                     glib::idle_add_local_once(move || {
                         if let Some(this) = weak.upgrade() {
-                            this.expanded_changed(&path, expanded);
+                            this.expanded_changed(&path, expanded, restoring);
                         }
                     });
                 });

@@ -49,9 +49,13 @@ impl WorklistList {
     pub(super) fn close_callback(self: &Rc<Self>) -> impl Fn() + 'static {
         let weak = Rc::downgrade(self);
         move || {
-            if let Some(this) = weak.upgrade() {
-                this.close_edit();
-            }
+            let weak = weak.clone();
+            // Deferred: closing rebuilds the list that holds the form calling this.
+            glib::idle_add_local_once(move || {
+                if let Some(this) = weak.upgrade() {
+                    this.close_edit();
+                }
+            });
         }
     }
 
@@ -112,9 +116,13 @@ impl WorklistList {
         entry.connect_activate({
             let weak = weak.clone();
             move |entry| {
-                if let Some(this) = weak.upgrade() {
-                    this.finish_section(Some(entry.text().to_string()));
-                }
+                let (weak, text) = (weak.clone(), entry.text().to_string());
+                // Deferred: finishing rebuilds the list that holds this field.
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade() {
+                        this.finish_section(Some(text));
+                    }
+                });
             }
         });
         let keys = gtk::EventControllerKey::new();
@@ -125,9 +133,12 @@ impl WorklistList {
                 if key != gdk::Key::Escape {
                     return glib::Propagation::Proceed;
                 }
-                if let Some(this) = weak.upgrade() {
-                    this.finish_section(None);
-                }
+                let weak = weak.clone();
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade() {
+                        this.finish_section(None);
+                    }
+                });
                 glib::Propagation::Stop
             }
         });
@@ -137,11 +148,14 @@ impl WorklistList {
         blur.connect_leave({
             let entry = entry.clone();
             move |_| {
-                if let Some(this) = weak.upgrade()
-                    && !this.building.get()
-                {
-                    this.finish_section(Some(entry.text().to_string()));
-                }
+                let (weak, text) = (weak.clone(), entry.text().to_string());
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade()
+                        && !this.building.get()
+                    {
+                        this.finish_section(Some(text));
+                    }
+                });
             }
         });
         entry.add_controller(blur);

@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use gtk::{gdk, gio, graphene};
+use gtk::{gdk, gio, glib, graphene};
 use vte::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 
@@ -117,7 +117,8 @@ pub(crate) fn install(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: 
             .or_else(|| term.check_match_at(px, py).0.map(|s| s.to_string()));
         if let (Some(text), Some(app)) = (text, weak_app.upgrade()) {
             gesture.set_state(gtk::EventSequenceState::Claimed);
-            app.open_link(ws, tab, &text);
+            // Deferred: opening a link can switch tabs under this gesture.
+            glib::idle_add_local_once(move || app.open_link(ws, tab, &text));
         }
     });
     view.root.add_controller(click);

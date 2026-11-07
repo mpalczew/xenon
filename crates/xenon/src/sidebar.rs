@@ -194,9 +194,13 @@ impl Sidebar {
             let weak = self.app.clone();
             let id = rec.id;
             close.connect_clicked(move |_| {
-                if let Some(app) = weak.upgrade() {
-                    app.close_workspace_id(id);
-                }
+                let weak = weak.clone();
+                // Deferred: closing rebuilds the list that holds this button.
+                glib::idle_add_local_once(move || {
+                    if let Some(app) = weak.upgrade() {
+                        app.close_workspace_id(id);
+                    }
+                });
             });
             line.swap_on_hover(&status, &close);
             let row = gtk::ListBoxRow::new();

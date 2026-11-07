@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 
+use gtk::glib;
 use gtk::prelude::*;
 use xenon_core::outline_text::points_from_details;
 use xenon_store::worklist::Target;
@@ -231,10 +232,14 @@ impl WorklistList {
         let add = flat("+ Add");
         let weak = Rc::downgrade(self);
         add.connect_clicked(move |_| {
-            let Some(this) = weak.upgrade() else { return };
-            this.cursor.set(Some(Cursor::Header(index)));
-            let target = Target::of(&parse(&this.source.borrow()).sections, Some(index));
-            this.start_add(target);
+            let weak = weak.clone();
+            // Deferred: the rebuild removes this button.
+            glib::idle_add_local_once(move || {
+                let Some(this) = weak.upgrade() else { return };
+                this.cursor.set(Some(Cursor::Header(index)));
+                let target = Target::of(&parse(&this.source.borrow()).sections, Some(index));
+                this.start_add(target);
+            });
         });
         line.append(&add);
 
@@ -269,10 +274,13 @@ impl WorklistList {
                 ))]);
                 let weak = Rc::downgrade(self);
                 check.connect_toggled(move |_| {
-                    if let Some(this) = weak.upgrade() {
-                        this.cursor.set(Some(Cursor::Item(index)));
-                        this.toggle(index);
-                    }
+                    let weak = weak.clone();
+                    glib::idle_add_local_once(move || {
+                        if let Some(this) = weak.upgrade() {
+                            this.cursor.set(Some(Cursor::Item(index)));
+                            this.toggle(index);
+                        }
+                    });
                 });
                 row.append(&check);
                 if done {
@@ -308,10 +316,13 @@ impl WorklistList {
         edit.set_sensitive(entry.editable);
         let weak = Rc::downgrade(self);
         edit.connect_clicked(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.cursor.set(Some(Cursor::Item(index)));
-                this.start_edit(index);
-            }
+            let weak = weak.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(this) = weak.upgrade() {
+                    this.cursor.set(Some(Cursor::Item(index)));
+                    this.start_edit(index);
+                }
+            });
         });
         row.append(&edit);
         row

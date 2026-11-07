@@ -256,9 +256,13 @@ impl PaneView {
             let weak = Rc::downgrade(app);
             let (ws, pane) = (self.ws, self.pane);
             remove.connect_clicked(move |_| {
-                if let Some(app) = weak.upgrade() {
-                    app.remove_empty_pane(ws, pane);
-                }
+                let weak = weak.clone();
+                // Deferred: removing the pane destroys this button.
+                glib::idle_add_local_once(move || {
+                    if let Some(app) = weak.upgrade() {
+                        app.remove_empty_pane(ws, pane);
+                    }
+                });
             });
             self.remove.replace(Some(remove.clone()));
             overlay.add_overlay(&remove);

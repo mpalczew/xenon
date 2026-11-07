@@ -210,9 +210,13 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
             if let Some(view) = view.upgrade() {
                 view.status.set(Some(status));
             }
-            if let Some(app) = weak.upgrade() {
-                app.term_exited(ws, tab, (status >> 8) & 0xff);
-            }
+            // Deferred: the exit syncs the panes and may close the tab.
+            let weak = weak.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(app) = weak.upgrade() {
+                    app.term_exited(ws, tab, (status >> 8) & 0xff);
+                }
+            });
         });
     }
     // Typing is interaction: capture phase, so the key is seen even when an

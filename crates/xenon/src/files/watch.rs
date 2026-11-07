@@ -71,9 +71,9 @@ impl FilesView {
             .collect()
     }
 
-    pub(super) fn expanded_changed(self: &Rc<Self>, path: &Path, expanded: bool) {
+    pub(super) fn expanded_changed(self: &Rc<Self>, path: &Path, expanded: bool, restoring: bool) {
         if expanded {
-            if !self.restoring.get() {
+            if !restoring {
                 self.load(path);
             }
         } else {

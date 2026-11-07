@@ -123,9 +123,12 @@ impl App {
         {
             let weak = Rc::downgrade(self);
             shell.stack.connect_visible_child_name_notify(move |_| {
-                if let Some(app) = weak.upgrade() {
-                    app.publish_settings();
-                }
+                let weak = weak.clone();
+                glib::idle_add_local_once(move || {
+                    if let Some(app) = weak.upgrade() {
+                        app.publish_settings();
+                    }
+                });
             });
             let s = shell.clone();
             crate::prefs_state::register("close", move |_| s.close());
