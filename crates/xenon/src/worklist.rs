@@ -19,6 +19,7 @@ use xenon_store::worklist::{
 use crate::app::App;
 
 mod capture;
+mod fields;
 use capture::Capture;
 
 /// Capture state that outlives one dialog.

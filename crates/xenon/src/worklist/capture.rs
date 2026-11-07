@@ -11,6 +11,7 @@ use xenon_store::worklist::{
     Edit, ItemDraft, TITLE_LIMIT, Target, WorkItem, read_source, title_length, write_draft,
 };
 
+use super::fields::{text_of, title_view};
 use crate::app::App;
 
 /// Characters left at which the countdown appears.
@@ -23,14 +24,21 @@ const MARGINS: [fn(&gtk::Widget, i32); 4] = [
     gtk::Widget::set_margin_end,
 ];
 
-/// The destructive Delete button at the end of `body`; shown when editing.
-fn delete_button(body: &gtk::Box, editing: bool) -> gtk::Button {
+/// The button row at the end of `body`: Delete (when editing) and Save.
+fn buttons(body: &gtk::Box, editing: bool) -> (gtk::Button, gtk::Button) {
     let delete = gtk::Button::with_label("Delete");
     delete.add_css_class("destructive-action");
-    delete.set_halign(gtk::Align::End);
     delete.set_visible(editing);
-    body.append(&delete);
-    delete
+    let save = gtk::Button::with_label("Save");
+    save.add_css_class("suggested-action");
+    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    spacer.set_hexpand(true);
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    row.append(&delete);
+    row.append(&spacer);
+    row.append(&save);
+    body.append(&row);
+    (delete, save)
 }
 
 /// The points field in a framed scroller, appended to `body`.
@@ -54,13 +62,13 @@ fn prefill(
     entry: &Entry,
     source: &str,
     check: &gtk::CheckButton,
-    title: &gtk::Entry,
+    title: &gtk::TextView,
     details: &gtk::TextView,
 ) -> ItemDraft {
     let done = entry.checked == Some(true);
     check.set_active(done);
     check.set_visible(entry.checked.is_some());
-    title.set_text(&entry.title);
+    title.buffer().set_text(&entry.title);
     details.buffer().set_text(&entry.details);
     ItemDraft::existing(source, entry.range.clone(), done)
 }
@@ -71,7 +79,7 @@ pub(super) struct Capture {
     ws: WorkspaceId,
     root: std::path::PathBuf,
     pub(super) dialog: adw::Dialog,
-    pub(super) title: gtk::Entry,
+    pub(super) title: gtk::TextView,
     details: gtk::TextView,
     check: gtk::CheckButton,
     note: gtk::Label,
@@ -109,12 +117,10 @@ impl Capture {
         }
         let check = gtk::CheckButton::new();
         check.set_tooltip_text(Some("Complete item"));
-        let title = gtk::Entry::new();
-        title.set_hexpand(true);
-        title.set_placeholder_text(Some(&format!("Task for {name}")));
+        let (title, title_box) = title_view(&format!("Task for {name}"));
         let head = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         head.append(&check);
-        head.append(&title);
+        head.append(&title_box);
         body.append(&head);
         let details = points_view(&body);
 
@@ -165,7 +171,7 @@ impl Capture {
             }
             None => (ItemDraft::default(), true),
         };
-        let delete = delete_button(&body, edit.is_some());
+        let (delete, save) = buttons(&body, edit.is_some());
 
         let this = Rc::new(Self {
             app: Rc::downgrade(app),
@@ -195,7 +201,21 @@ impl Capture {
         }
         this.update_section();
         this.wire(&body, &length);
-        let weak = Rc::downgrade(&this);
+        this.wire_buttons(&save, &delete);
+        this
+    }
+
+    fn wire_buttons(self: &Rc<Self>, save: &gtk::Button, delete: &gtk::Button) {
+        let close = Rc::downgrade(self);
+        save.connect_clicked(move |_| {
+            let close = close.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(this) = close.upgrade() {
+                    this.dialog.close();
+                }
+            });
+        });
+        let weak = Rc::downgrade(self);
         delete.connect_clicked(move |_| {
             let weak = weak.clone();
             glib::idle_add_local_once(move || {
@@ -204,7 +224,6 @@ impl Capture {
                 }
             });
         });
-        this
     }
 
     fn wire(self: &Rc<Self>, body: &gtk::Box, length: &gtk::Box) {
@@ -218,16 +237,24 @@ impl Capture {
             }
         };
         let f = changed.clone();
-        self.title.connect_changed(move |_| f());
+        self.title.buffer().connect_changed(move |_| f());
         let f = changed.clone();
         self.details.buffer().connect_changed(move |_| f());
         self.check.connect_toggled(move |_| changed());
 
         // Return in the title goes on to the points.
         let details = self.details.clone();
-        self.title.connect_activate(move |_| {
-            details.grab_focus();
+        let enter = gtk::EventControllerKey::new();
+        enter.connect_key_pressed(move |_, key, _, state| {
+            let plain =
+                !state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK);
+            if plain && matches!(key, gdk::Key::Return | gdk::Key::KP_Enter) {
+                details.grab_focus();
+                return glib::Propagation::Stop;
+            }
+            glib::Propagation::Proceed
         });
+        self.title.add_controller(enter);
         for (button, delta) in [(&self.prev, -1), (&self.next, 1)] {
             button.set_focusable(false);
             let weak = Rc::downgrade(self);
@@ -282,13 +309,16 @@ impl Capture {
     }
 
     fn details_text(&self) -> String {
-        let buffer = self.details.buffer();
-        let (start, end) = buffer.bounds();
-        buffer.text(&start, &end, false).to_string()
+        text_of(&self.details)
+    }
+
+    /// The title on one line; pasted line breaks become spaces.
+    fn title_text(&self) -> String {
+        text_of(&self.title).replace(['\n', '\r'], " ")
     }
 
     fn item(&self) -> anyhow::Result<WorkItem> {
-        WorkItem::new(self.title.text().as_str(), &self.details_text(), self.task)
+        WorkItem::new(self.title_text().as_str(), &self.details_text(), self.task)
     }
 
     fn pending(&self) -> Option<WorkItem> {
@@ -304,7 +334,7 @@ impl Capture {
 
     /// True when nothing typed is waiting to be written.
     fn settled(&self) -> bool {
-        let typed = !self.title.text().trim().is_empty() || !self.details_text().trim().is_empty();
+        let typed = !self.title_text().trim().is_empty() || !self.details_text().trim().is_empty();
         !typed || (self.item().is_ok() && self.pending().is_none())
     }
 
@@ -346,7 +376,7 @@ impl Capture {
 
     /// Countdown near the soft title limit, and a note once past it.
     fn update_length(&self, length: &gtk::Box) {
-        let left = TITLE_LIMIT as isize - title_length(self.title.text().trim()) as isize;
+        let left = TITLE_LIMIT as isize - title_length(self.title_text().trim()) as isize;
         length.set_visible(left <= NEAR_LIMIT);
         self.count.set_text(&left.to_string());
         if left < 0 {

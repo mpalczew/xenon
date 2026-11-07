@@ -184,7 +184,8 @@ impl FilesView {
             restoring: Cell::new(false),
             epoch: Cell::new(0),
         });
-        this.section.sep.set_visible(true);
+        // The sidebar's paned handle draws the line between sections.
+        this.section.sep.set_visible(false);
         this.wire();
         this
     }

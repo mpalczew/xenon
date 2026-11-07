@@ -30,6 +30,8 @@ pub(crate) struct Sidebar {
     pub files: Rc<FilesView>,
     pub git: Rc<GitView>,
     workspaces: Section,
+    outer: gtk::Paned,
+    inner: gtk::Paned,
     pub list: gtk::ListBox,
     add: gtk::MenuButton,
     app: Weak<App>,
@@ -93,11 +95,24 @@ impl Sidebar {
         let git = GitView::new(app.clone());
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("sidebar-pane");
-        root.append(&workspaces.root);
-        root.append(&files.root);
-        root.append(&git.root);
+        // Drag the handles to resize: Workspaces over (Files over Git).
+        let inner = gtk::Paned::new(gtk::Orientation::Vertical);
+        inner.set_shrink_start_child(false);
+        inner.set_shrink_end_child(false);
+        inner.set_start_child(Some(&files.root));
+        inner.set_end_child(Some(&git.root));
+        let outer = gtk::Paned::new(gtk::Orientation::Vertical);
+        outer.set_vexpand(true);
+        outer.set_shrink_start_child(false);
+        outer.set_shrink_end_child(false);
+        outer.set_resize_start_child(false);
+        outer.set_start_child(Some(&workspaces.root));
+        outer.set_end_child(Some(&inner));
+        root.append(&outer);
         Self {
             root,
+            outer,
+            inner,
             files,
             git,
             workspaces,
@@ -182,7 +197,14 @@ impl Sidebar {
         self.git.show_fold(folds.git);
         // Open Files takes the free space; Workspaces and Git size to their
         // content up to a cap. With Files folded the free space stays below.
-        self.files.root.set_vexpand(!folds.files);
+        self.inner.set_resize_start_child(!folds.files);
+        self.inner.set_resize_end_child(folds.files);
+    }
+
+    /// Forget dragged section sizes.
+    pub(crate) fn reset_sizes(&self) {
+        self.inner.set_property("position-set", false);
+        self.outer.set_property("position-set", false);
     }
 
     /// Rebuild the rows from the registry and select the active one.
@@ -296,6 +318,8 @@ impl App {
             model.folds.set(fold, folded);
             model.folds.save();
         }
+        // Folding drops any dragged size so a folded section shrinks to its header.
+        self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
     }
 

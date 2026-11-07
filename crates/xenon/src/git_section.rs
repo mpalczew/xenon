@@ -68,6 +68,7 @@ impl GitView {
         list.add_css_class("navigation-sidebar");
         let section = Section::new("GIT", Fold::Git, &list, Some(230), &app);
         section.set_trailing(&trailing);
+        section.sep.set_visible(false);
         let root = section.root.clone();
         root.set_visible(false);
         let this = Rc::new(Self {
