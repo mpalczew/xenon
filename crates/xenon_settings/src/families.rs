@@ -1,4 +1,4 @@
-//! Font family names: aliases, display labels, and healing against what the
+//! Font family names: healing against what the
 //! frontend's text system can actually draw.
 
 use xenon_store::{DEFAULT_FONT_FAMILY, DEFAULT_UI_FONT_FAMILY};
@@ -11,26 +11,9 @@ pub trait FontProbe {
     fn resolves(&self, family: &str) -> bool;
 }
 
-/// Map marketing / legacy names to Core Text family names.
-pub(crate) fn canonicalize_mono_family(family: &str) -> String {
-    match family.trim() {
-        "SF Mono" | "SFMono" | "SFMono-Regular" => ".SF NS Mono".into(),
-        "Zed Mono" | ".ZedMono" | "Zed Plex Mono" => "Lilex".into(),
-        other => other.to_string(),
-    }
-}
-
-/// Human label for a stored family (settings dropdown trigger).
-pub(crate) fn display_mono_family(family: &str) -> &str {
-    match family {
-        ".SF NS Mono" => "SF Mono",
-        other => other,
-    }
-}
-
-/// Resolve aliases and require a monospaced face; otherwise fall back to Lilex.
+/// Require a monospaced face; otherwise fall back to Lilex.
 pub(crate) fn ensure_mono_family(family: &str, probe: &dyn FontProbe) -> String {
-    let candidate = canonicalize_mono_family(family);
+    let candidate = family.trim().to_string();
     if probe.is_monospace(&candidate) {
         return candidate;
     }

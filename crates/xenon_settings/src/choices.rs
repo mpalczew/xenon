@@ -1,7 +1,7 @@
 //! Fixed choice lists for settings rows, and the font family lists a frontend
 //! offers, built from whatever faces its text system reports.
 
-use crate::{ProseFont, display_mono_family};
+use crate::ProseFont;
 
 pub const PROSE_SIZES: [f32; 5] = [16.0, 17.0, 18.0, 20.0, 22.0];
 pub const PROSE_LINE_HEIGHTS: [f32; 4] = [1.4, 1.55, 1.7, 1.9];
@@ -41,7 +41,6 @@ fn options(
     installed: impl IntoIterator<Item = String>,
     first: Option<&str>,
     current: &str,
-    label: fn(&str) -> &str,
 ) -> Vec<FontChoice> {
     let mut names: Vec<String> = installed.into_iter().collect();
     names.sort_by_key(|n| n.to_lowercase());
@@ -60,7 +59,7 @@ fn options(
     names
         .into_iter()
         .map(|value| FontChoice {
-            label: label(&value).to_string(),
+            label: value.clone(),
             value,
         })
         .collect()
@@ -71,5 +70,5 @@ pub fn mono_font_choices(
     installed: impl IntoIterator<Item = String>,
     current: &str,
 ) -> Vec<FontChoice> {
-    options(installed, None, current, display_mono_family)
+    options(installed, None, current)
 }

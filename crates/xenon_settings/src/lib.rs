@@ -34,4 +34,4 @@ pub(crate) const DEFAULT_SHOW_LINE_NUMBERS: bool = true;
 pub(crate) const DEFAULT_VIM_MODE: bool = false;
 pub use values::UiSettings;
 
-pub(crate) use families::{display_mono_family, ensure_mono_family, ensure_ui_family};
+pub(crate) use families::{ensure_mono_family, ensure_ui_family};
