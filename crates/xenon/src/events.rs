@@ -84,7 +84,6 @@ impl App {
         {
             return;
         }
-        self.publish_state();
         self.relabel(ws, tab);
     }
 

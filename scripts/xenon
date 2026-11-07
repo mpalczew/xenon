@@ -207,34 +207,6 @@ slot_data_dir() {
     esac
 }
 
-# First start of the GTK app: the slot dirs hold GPUI state. Move them aside
-# (never deleted) and seed the slot we start from ~/.xenon-gtk, the GTK app's
-# old state dir. A GPUI instance still running blocks it. The old xenon-gtk
-# instance is not a slot and is never touched.
-MIGRATED_FILE="$HOME/.xenon-slots-gtk"
-
-migrate_once() {
-    [[ ! -e "$MIGRATED_FILE" && -d "$HOME/.xenon-gtk" ]] || return 0
-    if [[ -n "$(running_instances)" ]]; then
-        echo "a Xenon with slot state is running; quit it, then run xenon again to move to the GTK app" >&2
-        exit 1
-    fi
-    local slot dir slot_now
-    for slot in a b; do
-        dir="$(slot_dir "$slot")"
-        [[ -e "$dir" ]] || continue
-        if [[ -e "$dir.gpui-old" ]]; then
-            mv "$dir" "$dir.gpui-old.$(date +%Y%m%d-%H%M%S)"
-        else
-            mv "$dir" "$dir.gpui-old"
-        fi
-    done
-    slot_now="$(last_slot)"
-    copy_state_dir "$HOME/.xenon-gtk" "$(slot_dir "$slot_now")"
-    : >"$MIGRATED_FILE"
-    echo "moved old slot state to .xenon-{a,b}.gpui-old; slot $slot_now seeded from ~/.xenon-gtk"
-}
-
 launch_slot() {
     local slot="$1"
     shift
@@ -408,7 +380,6 @@ main() {
         status) status; exit 0 ;;
         -h | --help | help) usage; exit 0 ;;
     esac
-    migrate_once
     case "${1:-}" in
         "") ;;
         open)

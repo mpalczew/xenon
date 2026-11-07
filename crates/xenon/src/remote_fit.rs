@@ -113,7 +113,6 @@ impl App {
             .set_phone_device(ws, tab, active.map(|f| f.device));
         if changed {
             self.relabel(ws, tab);
-            self.publish_state();
         }
         self.fit_arm(ws, tab);
         self.remote_poke_mirrors(ws, tab);

@@ -75,7 +75,6 @@ pub(crate) struct Palette {
     open: Cell<bool>,
     /// Counts openings, so late answers for an earlier opening can be dropped.
     epoch: Cell<u64>,
-    on_change: RefCell<Option<Box<dyn Fn()>>>,
     titles: RefCell<Vec<String>>,
     /// Row count and which are enabled, for stepping over disabled rows.
     enabled: RefCell<Vec<bool>>,
@@ -155,7 +154,6 @@ impl Palette {
             handlers: RefCell::new(None),
             open: Cell::new(false),
             epoch: Cell::new(0),
-            on_change: RefCell::new(None),
             titles: RefCell::default(),
             enabled: RefCell::default(),
         });
@@ -257,34 +255,8 @@ impl Palette {
         self.entry.add_controller(keys);
     }
 
-    /// Called after anything an observer might show changes (open, close, rows,
-    /// selection).
-    pub(crate) fn set_on_change(&self, f: impl Fn() + 'static) {
-        *self.on_change.borrow_mut() = Some(Box::new(f));
-    }
-
-    fn changed(&self) {
-        if let Some(f) = self.on_change.borrow().as_ref() {
-            f();
-        }
-    }
-
-    /// JSON picture of the palette for scripts (`app.palette-state`).
-    pub(crate) fn snapshot(&self) -> String {
-        let titles = self.titles.borrow();
-        serde_json::json!({
-            "open": self.open.get(),
-            "query": self.entry.text().as_str(),
-            "rows": titles.iter().take(12).collect::<Vec<_>>(),
-            "count": titles.len(),
-            "selected": self.selection.selected(),
-            "selected_title": titles.get(self.selection.selected() as usize),
-            "entry_focused": crate::pane::focus_inside(&self.entry),
-        })
-        .to_string()
-    }
-
-    /// A key by name, as the entry's own key handling would treat it.
+    /// A key by name, as the entry's own key handling would treat it
+    /// (Ctrl+N and Ctrl+P from the window shortcuts).
     pub(crate) fn key(&self, name: &str) {
         match name {
             "escape" => self.dismiss(),
@@ -345,7 +317,6 @@ impl Palette {
         if let Some(text) = self.entry.delegate().and_downcast::<gtk::Text>() {
             text.grab_focus_without_selecting();
         }
-        self.changed();
         // Paint the first rows for the initial query.
         let handlers = self.handlers.borrow().clone();
         if let Some(h) = handlers {
@@ -381,7 +352,6 @@ impl Palette {
             widget.grab_focus();
             self.restoring.set(false);
         }
-        self.changed();
     }
 
     /// Run the options' button action, if the open palette has one.
@@ -416,13 +386,11 @@ impl Palette {
         if has_rows {
             self.select(first as u32);
         }
-        self.changed();
     }
 
     pub(crate) fn select(&self, index: u32) {
         self.selection.set_selected(index);
         self.view.scroll_to(index, gtk::ListScrollFlags::NONE, None);
-        self.changed();
     }
 
     /// Move the selection by `delta` enabled rows. Always true (key handled).

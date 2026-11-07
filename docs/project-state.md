@@ -77,9 +77,7 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   served by `ipc.rs`). The app writes `xenon.pid` when it takes the socket. Shells keep
   `XENON_DATA_DIR`, so `xenon open` in a terminal reaches the slot that runs it. Files
   open in the focused pane; `--pane` and the column are not used yet.
-- The first launcher run after the move to GTK renames `~/.xenon-a` and `~/.xenon-b` to
-  `.gpui-old`, seeds the slot from `~/.xenon-gtk`, and writes `~/.xenon-slots-gtk` as
-  the marker. App id is `dev.xenon.Xenon`; the desktop entry is `xenon.desktop` with
+- App id is `dev.xenon.Xenon`; the desktop entry is `xenon.desktop` with
   `StartupWMClass=dev.xenon.Xenon`.
 
 ## Gotchas

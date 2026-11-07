@@ -283,7 +283,7 @@ impl App {
         if let Some(rt) = self.remote.rt.borrow_mut().as_mut() {
             rt.keep_awake.sync(hold);
         }
-        self.publish_remote_state(&status);
+        self.refresh_connect_dialog();
         let callback = self.remote.on_change.borrow().clone();
         if let Some(callback) = callback {
             callback();

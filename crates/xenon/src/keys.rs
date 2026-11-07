@@ -201,12 +201,3 @@ fn latest(entries: &[Entry], entry: &Entry) -> bool {
         .rfind(|e| e.context == entry.context && e.keystroke == entry.keystroke)
         .is_some_and(|last| last.action == entry.action)
 }
-
-/// The byte a terminal receives for `ctrl-<letter>`.
-pub(crate) fn control_byte(keystroke: &str) -> Option<u8> {
-    let letter = keystroke.strip_prefix("ctrl-")?;
-    match letter.as_bytes() {
-        [c @ b'a'..=b'z'] => Some(c - b'a' + 1),
-        _ => None,
-    }
-}

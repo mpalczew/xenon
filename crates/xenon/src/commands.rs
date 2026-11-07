@@ -58,7 +58,6 @@ impl App {
             } else if let Some(diff) = app.diffs.borrow().get(&key).cloned() {
                 diff.focus();
             }
-            app.publish_git();
         });
     }
 

@@ -71,7 +71,6 @@ impl App {
             self.restyle_term(view);
         }
         self.remote_theme_changed();
-        self.publish_settings();
     }
 
     /// The first key bound to `action` as text (`Ctrl+Shift+O`), from the
@@ -274,15 +273,6 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     view.add_top_bar(&header(&app, &title));
     view.set_content(Some(&toasts));
     win.set_content(Some(&layered(&app, &view)));
-    {
-        let weak = Rc::downgrade(&app);
-        app.launcher.set_on_change(move || {
-            if let Some(app) = weak.upgrade() {
-                app.publish_palette();
-            }
-        });
-    }
-
     crate::git::listen(&app, git_rx);
     connect_window(&app, &win);
     app.sidebar.set_hints(&app);

@@ -106,10 +106,6 @@ impl Section {
         self.arrow.set_visible(foldable);
         self.body.set_visible(foldable);
     }
-
-    pub(crate) fn folded(&self) -> bool {
-        !self.body.reveals_child()
-    }
 }
 
 /// One list row. The widgets are children of `root` in a fixed order, so a row

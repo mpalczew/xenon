@@ -28,18 +28,6 @@ impl Shell {
     pub(crate) fn add_toast(&self, text: &str) {
         self.toasts.add_toast(adw::Toast::new(text));
     }
-
-    pub(crate) fn close(&self) {
-        self.window.close();
-    }
-
-    pub(crate) fn page_name(&self) -> Option<glib::GString> {
-        self.stack.visible_child_name()
-    }
-
-    pub(crate) fn show_page(&self, name: &str) {
-        self.stack.set_visible_child_name(name);
-    }
 }
 
 thread_local! {
@@ -100,7 +88,6 @@ impl App {
         let weak = Rc::downgrade(self);
         window.connect_close_request(move |_| {
             OPEN.with(|o| *o.borrow_mut() = None);
-            crate::prefs_state::forget_all();
             let Some(app) = weak.upgrade() else {
                 return glib::Propagation::Proceed;
             };
@@ -111,31 +98,10 @@ impl App {
                 }
                 _ => app.focus_terminal(),
             }
-            // Focus settles on the next idle; publish after it.
-            let weak = Rc::downgrade(&app);
-            glib::idle_add_local_once(move || {
-                if let Some(app) = weak.upgrade() {
-                    app.publish_settings();
-                }
-            });
             glib::Propagation::Proceed
         });
-        {
-            let weak = Rc::downgrade(self);
-            shell.stack.connect_visible_child_name_notify(move |_| {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(app) = weak.upgrade() {
-                        app.publish_settings();
-                    }
-                });
-            });
-            let s = shell.clone();
-            crate::prefs_state::register("close", move |_| s.close());
-        }
         OPEN.with(|o| *o.borrow_mut() = Some(shell));
         window.present();
-        self.publish_settings();
     }
 }
 

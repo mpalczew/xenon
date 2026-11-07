@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
-use serde_json::json;
 use sourceview::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 use xenon_git::diff::{Layout, LayoutMode};
@@ -241,17 +240,9 @@ impl DiffView {
         });
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         self.body.add_controller(keys);
-        let focus = gtk::EventControllerFocus::new();
-        let weak = Rc::downgrade(self);
-        focus.connect_enter(move |_| {
-            if let Some(app) = weak.upgrade().and_then(|t| t.app.upgrade()) {
-                app.publish_diff();
-            }
-        });
-        self.body.add_controller(focus);
     }
 
-    /// A diff command by name (keys and the `diff-key` action).
+    /// A diff command by name (from the keys).
     pub(crate) fn key(self: &Rc<Self>, name: &str) {
         let adj = &self.vadj;
         match name {
@@ -333,9 +324,6 @@ impl DiffView {
         let Some(doc) = self.doc.borrow().clone() else {
             return;
         };
-        let Some(app) = self.app.upgrade() else {
-            return;
-        };
         let keep = self.vadj.value();
         let refocus = self.has_focus();
         let layout = self.resolve();
@@ -352,7 +340,6 @@ impl DiffView {
         }
         let adj = self.vadj.clone();
         glib::idle_add_local_once(move || adj.set_value(keep));
-        app.publish_diff();
     }
 
     fn step_hunk(self: &Rc<Self>, delta: isize) {
@@ -364,9 +351,6 @@ impl DiffView {
         self.current.set(next);
         self.mark_current();
         self.scroll_to_hunk(next);
-        if let Some(app) = self.app.upgrade() {
-            app.publish_diff();
-        }
     }
 
     fn scroll_to_hunk(&self, index: usize) {
@@ -389,24 +373,5 @@ impl DiffView {
         if let Some(app) = self.app.upgrade() {
             app.open_file_at(self.ws, &self.dir.join(&self.path), target);
         }
-    }
-
-    pub(crate) fn snapshot(&self) -> String {
-        let doc = self.doc.borrow();
-        json!({
-            "path": self.path,
-            "mode": self.mode.get().label(),
-            "layout": if self.layout.get() == Layout::Split { "split" } else { "unified" },
-            "loaded": doc.is_some(),
-            "subtitle": doc.as_ref().map(|d| d.subtitle.clone()),
-            "added": doc.as_ref().map_or(0, |d| d.added),
-            "removed": doc.as_ref().map_or(0, |d| d.removed),
-            "hunks": self.hunks.borrow().len(),
-            "current": self.current.get(),
-            "targets": self.hunks.borrow().iter().map(|h| h.1).collect::<Vec<_>>(),
-            "scroll": self.vadj.value(),
-            "focused": self.has_focus(),
-        })
-        .to_string()
     }
 }

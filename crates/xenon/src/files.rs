@@ -52,8 +52,6 @@ pub(crate) struct FilesView {
     restoring: Cell<bool>,
     /// Bumped when the root changes, so a late directory read is dropped.
     epoch: Cell<u64>,
-    /// A `files-state` publish is waiting for idle.
-    publish_armed: Cell<bool>,
 }
 
 fn path_of(item: &glib::Object) -> Option<PathBuf> {
@@ -185,7 +183,6 @@ impl FilesView {
             reveal_target: RefCell::new(None),
             restoring: Cell::new(false),
             epoch: Cell::new(0),
-            publish_armed: Cell::new(false),
         });
         this.section.sep.set_visible(true);
         this.wire();
@@ -270,20 +267,6 @@ impl FilesView {
             }
         });
         self.list.add_controller(keys);
-        // Scripts read `files-state`: keep it current when focus or selection moves.
-        let focus = gtk::EventControllerFocus::new();
-        let weak = Rc::downgrade(self);
-        focus.connect_enter({
-            let weak = weak.clone();
-            move |_| publish(&weak)
-        });
-        focus.connect_leave({
-            let weak = weak.clone();
-            move |_| publish(&weak)
-        });
-        self.list.add_controller(focus);
-        self.selection
-            .connect_selection_changed(move |_, _, _| publish(&weak));
     }
 
     fn selected_row(&self) -> Option<gtk::TreeListRow> {
@@ -343,7 +326,6 @@ impl FilesView {
         if let Some(root) = root {
             self.load(&root);
         }
-        self.publish();
     }
 
     fn select_path(&self, path: &Path, focus: bool) {
@@ -371,33 +353,10 @@ impl FilesView {
             0
         };
         self.focus_index(at);
-        self.publish();
-    }
-
-    /// Publish `files-state` once the current event is over. Selection and
-    /// focus signals fire while the tree is mid-change, and the snapshot reads
-    /// every row.
-    pub(super) fn publish(&self) {
-        if self.publish_armed.replace(true) {
-            return;
-        }
-        let app = self.app.clone();
-        glib::idle_add_local_once(move || {
-            if let Some(app) = app.upgrade() {
-                app.sidebar.files.publish_armed.set(false);
-                app.publish_files();
-            }
-        });
     }
 
     pub(crate) fn has_rows(&self) -> bool {
         self.tree.n_items() > 0
-    }
-}
-
-fn publish(weak: &Weak<FilesView>) {
-    if let Some(this) = weak.upgrade() {
-        this.publish();
     }
 }
 

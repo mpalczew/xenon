@@ -34,7 +34,6 @@ impl App {
             return;
         }
         self.paint_all();
-        self.publish_git();
         // Open diffs of a changed workspace read again; the file entry may
         // carry new counts.
         for ws in changed {
@@ -153,33 +152,5 @@ impl App {
         let ws = model.active()?;
         let tab = model.spaces.get(&ws)?.content.active_tab()?.id;
         self.diffs.borrow().get(&(ws, tab)).cloned()
-    }
-
-    pub(crate) fn publish_git(&self) {
-        let mut state = self.sidebar.git.snapshot();
-        let model = self.model.borrow();
-        let dirt: serde_json::Map<String, serde_json::Value> = model
-            .registry
-            .workspaces
-            .iter()
-            .map(|r| {
-                let name = match self.git.dirt(r.id) {
-                    xenon_git::status::DirtState::Clean => "clean",
-                    xenon_git::status::DirtState::IndexOnly => "index",
-                    xenon_git::status::DirtState::Dirty => "dirty",
-                };
-                (r.name.clone(), name.into())
-            })
-            .collect();
-        state["dirt"] = dirt.into();
-        drop(model);
-        self.publish_to("git-state", &state.to_string());
-    }
-
-    pub(crate) fn publish_diff(&self) {
-        let json = self
-            .active_diff()
-            .map_or_else(|| "{}".to_string(), |v| v.snapshot());
-        self.publish_to("diff-state", &json);
     }
 }

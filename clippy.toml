@@ -1,12 +1,11 @@
-# Clippy thresholds, calibrated to GPUI reality rather than the aspirational
-# Rule-of-7 numbers (which belong in review judgment, not a CI gate).
+# Clippy thresholds. Stricter numbers belong in review judgment, not a gate.
 
-# GPUI event handlers are (self, event, window, cx) and clippy counts self, so 4
-# is the floor for idiomatic callbacks; 5 leaves one slot of headroom.
+# GTK signal handlers take (self, widget, event, ...) and clippy counts self, so
+# 5 leaves room for idiomatic callbacks.
 too-many-arguments-threshold = 5
 
-# GPUI render functions are builder chains (div().flex().child(...)) that are
-# legitimately long; only gate on genuinely huge bodies. (clippy default: 100.)
+# Widget-building functions are long chains of constructors and setters, so only
+# genuinely huge bodies are gated. (clippy default: 100.)
 too-many-lines-threshold = 100
 
 # clippy default. Nesting-weighted readability score (not cyclomatic complexity).

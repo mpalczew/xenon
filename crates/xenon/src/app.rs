@@ -345,9 +345,7 @@ impl App {
         drop(model);
         self.refresh_save_button();
         self.sync_git_roots();
-        self.publish_state();
         self.remote_dots();
-        self.publish_diff();
         self.pulse_level.set(-1);
         self.ensure_pulse();
     }

@@ -161,19 +161,6 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
         }
     };
     *app.remote.on_change.borrow_mut() = Some(Rc::new(refresh));
-    crate::prefs_state::register("phone-toggle", {
-        let weak = weak.clone();
-        move |_| {
-            if let Some(app) = weak.upgrade() {
-                app.remote_toggle();
-            }
-        }
-    });
-    crate::prefs_state::register("phone-revoke-all", move |_| {
-        if let Some(app) = weak.upgrade() {
-            app.remote_revoke(None);
-        }
-    });
 }
 
 fn dim(text: &str) -> gtk::Label {

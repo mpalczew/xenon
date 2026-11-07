@@ -60,7 +60,6 @@ impl FilesView {
             self.select_path(&path, had_focus);
         }
         self.advance_reveal();
-        self.publish();
     }
 
     pub(super) fn expanded_paths(&self) -> HashSet<PathBuf> {
@@ -82,7 +81,6 @@ impl FilesView {
                 .borrow_mut()
                 .retain(|p, _| !p.starts_with(path));
         }
-        self.publish();
     }
 
     pub(super) fn watch(self: &Rc<Self>, dir: &Path) {
@@ -173,48 +171,5 @@ impl FilesView {
         for item in self.bound.borrow().iter() {
             draw_item(item, self.open_file.borrow().as_deref());
         }
-    }
-
-    /// JSON picture of the tree for scripts (`app.files-state`).
-    pub(crate) fn snapshot(&self) -> String {
-        let open = self.open_file.borrow().clone();
-        let rows: Vec<serde_json::Value> = (0..self.tree.n_items().min(80))
-            .filter_map(|i| tree_row(self.tree.item(i)))
-            .map(|r| {
-                let path = row_path(&r);
-                serde_json::json!({
-                    "name": path.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned()),
-                    "depth": r.depth(),
-                    "dir": r.is_expandable(),
-                    "expanded": r.is_expanded(),
-                    "open": open.is_some() && open == path,
-                })
-            })
-            .collect();
-        serde_json::json!({
-            "rows": rows,
-            "selected": self.selected_path().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
-            "focused": crate::pane::focus_inside(&self.list),
-        })
-        .to_string()
-    }
-
-    /// A key by name (`up`, `down`, `left`, `right`, `enter`), for scripts.
-    pub(crate) fn key(self: &Rc<Self>, name: &str) {
-        let at = self.selection.selected();
-        let none = at >= self.tree.n_items();
-        match name {
-            "down" => self.focus_index(if none { 0 } else { at + 1 }),
-            "up" => self.focus_index(if none { 0 } else { at.saturating_sub(1) }),
-            "right" => {
-                self.step_in();
-            }
-            "left" => {
-                self.step_out();
-            }
-            "enter" if !none => self.list.emit_by_name::<()>("activate", &[&at]),
-            _ => {}
-        }
-        self.publish();
     }
 }

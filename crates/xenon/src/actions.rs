@@ -81,42 +81,6 @@ const SIMPLE: &[(&str, Handler)] = &[
 ];
 
 impl App {
-    /// Publish the model's picture as the `ui-state` action state.
-    pub(crate) fn publish_state(&self) {
-        let json = self.model.borrow().describe();
-        let Some(action) = self
-            .gtk
-            .lookup_action("ui-state")
-            .and_downcast::<gio::SimpleAction>()
-        else {
-            return;
-        };
-        if action.state().and_then(|s| s.get::<String>()).as_deref() != Some(json.as_str()) {
-            action.set_state(&json.to_variant());
-        }
-    }
-
-    pub(crate) fn publish_palette(&self) {
-        self.publish_to("palette-state", &self.launcher.snapshot());
-    }
-
-    pub(crate) fn publish_files(&self) {
-        self.publish_to("files-state", &self.sidebar.files.snapshot());
-    }
-
-    pub(crate) fn publish_to(&self, name: &str, json: &str) {
-        let Some(action) = self
-            .gtk
-            .lookup_action(name)
-            .and_downcast::<gio::SimpleAction>()
-        else {
-            return;
-        };
-        if action.state().and_then(|s| s.get::<String>()).as_deref() != Some(json) {
-            action.set_state(&json.to_variant());
-        }
-    }
-
     pub(crate) fn quit(self: &Rc<Self>) {
         self.save_all();
         self.save_window();
@@ -148,19 +112,9 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
         });
         app.gtk.add_action(&action);
     }
-    install_automation(app);
+    install_term_actions(app);
     crate::remote_ui::install(app);
-    crate::prefs_state::install(app);
-    for name in ["palette-state", "files-state", "git-state", "diff-state"] {
-        app.gtk.add_action(&gio::SimpleAction::new_stateful(
-            name,
-            None,
-            &"".to_variant(),
-        ));
-    }
     install_palette_keys(app);
-    let state = gio::SimpleAction::new_stateful("ui-state", None, &"".to_variant());
-    app.gtk.add_action(&state);
     for (action, accels) in crate::keys::bindings(user_keys) {
         let refs: Vec<&str> = accels.iter().map(String::as_str).collect();
         app.gtk.set_accels_for_action(action, &refs);
@@ -203,28 +157,7 @@ fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
     app.gtk.add_action(&action);
 }
 
-fn install_automation(app: &Rc<App>) {
-    string_action(app, "feed-child", |app, text| {
-        if let Some(view) = app.current_term() {
-            view.term.feed_child(text.as_bytes());
-        }
-    });
-    // For displays without an accessibility bridge (Broadway): the visible
-    // screen text of the current terminal, written to a file.
-    string_action(app, "dump-screen", |app, path| {
-        if let Some(view) = app.current_term() {
-            let text = view.term.text_format(vte::Format::Text).unwrap_or_default();
-            if let Err(error) = std::fs::write(path, text.as_str()) {
-                eprintln!("[xg] dump-screen {path}: {error}");
-            }
-        }
-    });
-    string_action(app, "find-query", |app, query| {
-        if let Some(view) = app.current_term() {
-            view.find.open();
-            view.find.entry.set_text(query);
-        }
-    });
+fn install_term_actions(app: &Rc<App>) {
     // The terminal menu's file items: the path is the action's target.
     string_action(app, "open-path-editor", |app, path| {
         if let Some(ws) = app.model.borrow().active() {
@@ -233,40 +166,6 @@ fn install_automation(app: &Rc<App>) {
     });
     string_action(app, "open-path-default", |app, path| {
         app.open_file(std::path::Path::new(path));
-    });
-    string_action(app, "open-link", |app, text| {
-        let key = {
-            let model = app.model.borrow();
-            let ws = model.active();
-            let tab = ws
-                .and_then(|w| model.spaces.get(&w))
-                .and_then(|s| s.content.active_tab());
-            ws.zip(tab.map(|t| t.id))
-        };
-        if let Some((ws, tab)) = key {
-            app.open_link(ws, tab, text);
-        }
-    });
-    // A key chord as the app maps it (`ctrl-n`, `ctrl-tab`): run the action the
-    // accelerator is bound to, or, when nothing is bound (Ctrl+C and the other
-    // keys the shell owns), type it into the terminal. Wayland has no portable
-    // key injection, so this checks the key map without a real key press.
-    string_action(app, "send-key", |app, keystroke| {
-        let parsed = crate::keys::accelerator(keystroke).and_then(|a| gtk::accelerator_parse(&a));
-        let Some((key, mods)) = parsed else {
-            eprintln!("[xg] send-key: cannot parse {keystroke:?}");
-            return;
-        };
-        let bound = app.gtk.actions_for_accel(&gtk::accelerator_name(key, mods));
-        if let Some(action) = bound.first() {
-            let _ = gtk::prelude::WidgetExt::activate_action(&app.win, action, None);
-        } else if let Some(view) = app.current_term() {
-            if let Some(bytes) = crate::term::key_bytes(key, mods) {
-                view.term.feed_child(bytes);
-            } else if let Some(byte) = crate::keys::control_byte(keystroke) {
-                view.term.feed_child(&[byte]);
-            }
-        }
     });
     // What a key press in the terminal reports (the key controller calls the
     // same function): a Mac keystroke, which takes a phone's grid back.
@@ -287,27 +186,4 @@ fn install_automation(app: &Rc<App>) {
         }
     });
     app.gtk.add_action(&local);
-    string_action(app, "palette-text", |app, text| app.launcher.set_text(text));
-    string_action(app, "palette-key", |app, key| app.launcher.key(key));
-    string_action(app, "git-key", |app, key| app.sidebar.git.key(key));
-    string_action(app, "diff-key", |app, key| {
-        if let Some(view) = app.active_diff() {
-            view.key(key);
-        }
-    });
-    string_action(app, "files-key", |app, key| app.sidebar.files.key(key));
-    string_action(app, "files-reveal", |app, path| {
-        app.sidebar.files.reveal(std::path::Path::new(path));
-    });
-    string_action(app, "open-dir", |app, path| {
-        app.open_workspace(std::path::Path::new(path))
-    });
-    string_action(app, "screenshot", |app, path| {
-        let name = path.to_string();
-        crate::screenshot::render_png(&app.win, path, move |result| {
-            if let Err(error) = result {
-                eprintln!("[xg] screenshot {name}: {error}");
-            }
-        });
-    });
 }

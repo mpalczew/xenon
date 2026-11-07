@@ -1,6 +1,5 @@
 //! What the remote shows in the window: the "Connect
 //! Phone" dialog (QR, six digits, address), and the actions that open them.
-//! The `remote-state` action publishes the same facts as JSON for scripts.
 
 use std::rc::Rc;
 use std::time::Instant;
@@ -8,60 +7,11 @@ use std::time::Instant;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use qrcode::{Color, QrCode};
-use xenon_remote::{RemoteStatus, pairing_url};
+use xenon_remote::pairing_url;
 
 use crate::app::App;
 
 impl App {
-    /// The `remote-state` action: status, and the pairing code while the
-    /// dialog is open.
-    pub(crate) fn publish_remote_state(&self, status: &RemoteStatus) {
-        let attached: Vec<serde_json::Value> = self
-            .remote
-            .rt
-            .borrow()
-            .as_ref()
-            .map(|rt| {
-                rt.conns
-                    .values()
-                    .filter_map(|c| c.attach.as_ref())
-                    .map(|a| serde_json::json!({"tab": a.tab.0, "fit": a.fit}))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let pairing = self.pairing_snapshot();
-        let json = serde_json::json!({
-            "enabled": status.enabled,
-            "waiting": status.waiting,
-            "connected": status.connected,
-            "base_url": status.base_url,
-            "devices": status.devices.iter().map(|d| {
-                serde_json::json!({"label": d.label, "connected": d.connected})
-            }).collect::<Vec<_>>(),
-            "attached": attached,
-            "pairing": pairing,
-        })
-        .to_string();
-        let Some(action) = self
-            .gtk
-            .lookup_action("remote-state")
-            .and_downcast::<gio::SimpleAction>()
-        else {
-            return;
-        };
-        if action.state().and_then(|s| s.get::<String>()).as_deref() != Some(json.as_str()) {
-            action.set_state(&json.to_variant());
-        }
-        self.refresh_connect_dialog();
-    }
-
-    /// Digits and link of the live pairing code (None while no dialog shows it).
-    fn pairing_snapshot(&self) -> Option<serde_json::Value> {
-        self.remote.connect_dialog.borrow().as_ref()?;
-        let (digits, url, _) = self.pairing_facts()?;
-        Some(serde_json::json!({"digits": digits, "url": url}))
-    }
-
     fn pairing_facts(&self) -> Option<(String, Option<String>, Instant)> {
         let mut guard = self.remote.rt.borrow_mut();
         let rt = guard.as_mut()?;
@@ -120,7 +70,7 @@ impl App {
     }
 
     /// Redraw the dialog from the live code (a spent code is replaced).
-    fn refresh_connect_dialog(&self) {
+    pub(crate) fn refresh_connect_dialog(&self) {
         let Some(dialog) = self.remote.connect_dialog.borrow().clone() else {
             return;
         };
@@ -285,11 +235,6 @@ fn qr_texture(text: &str) -> gdk::MemoryTexture {
 }
 
 pub(crate) fn install(app: &Rc<App>) {
-    app.gtk.add_action(&gio::SimpleAction::new_stateful(
-        "remote-state",
-        None,
-        &"".to_variant(),
-    ));
     let connect = gio::SimpleAction::new("connect-phone", None);
     let weak = Rc::downgrade(app);
     connect.connect_activate(move |_, _| {

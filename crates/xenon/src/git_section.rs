@@ -8,7 +8,6 @@ use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
 use gtk::{gdk, glib};
-use serde_json::json;
 use xenon_core::WorkspaceId;
 use xenon_git::status::{GitFile, GitStatus};
 
@@ -23,8 +22,6 @@ use crate::sidebar_ui::{Row, Section};
 const MAX_ROWS: usize = 400;
 
 pub(crate) struct GitView {
-    /// A `git-state` publish is waiting for idle.
-    publish_armed: Cell<bool>,
     pub root: gtk::Box,
     section: Section,
     clean: gtk::Box,
@@ -74,7 +71,6 @@ impl GitView {
         let root = section.root.clone();
         root.set_visible(false);
         let this = Rc::new(Self {
-            publish_armed: Cell::new(false),
             root,
             section,
             clean,
@@ -121,49 +117,11 @@ impl GitView {
             glib::Propagation::Proceed
         });
         self.root.add_controller(keys);
-        // Scripts read `git-state`: keep it current when focus or selection moves.
-        let focus = gtk::EventControllerFocus::new();
-        let weak = Rc::downgrade(self);
-        focus.connect_enter(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.publish();
-            }
-        });
-        let weak = Rc::downgrade(self);
-        focus.connect_leave(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.publish();
-            }
-        });
-        self.root.add_controller(focus);
-        let weak = Rc::downgrade(self);
-        self.list.connect_row_selected(move |_, _| {
-            if let Some(this) = weak.upgrade() {
-                this.publish();
-            }
-        });
-    }
-
-    /// Publish `git-state` once the current event is over: selection and
-    /// focus signals fire while rows are being replaced, and the snapshot
-    /// reads the selected row.
-    fn publish(&self) {
-        if self.publish_armed.replace(true) {
-            return;
-        }
-        let app = self.app.clone();
-        glib::idle_add_local_once(move || {
-            if let Some(app) = app.upgrade() {
-                app.sidebar.git.publish_armed.set(false);
-                app.publish_git();
-            }
-        });
     }
 
     /// Draw the fold the model decided.
     pub(crate) fn show_fold(&self, collapsed: bool) {
         self.section.show_fold(collapsed);
-        self.publish();
     }
 
     fn open_row(&self, index: usize) {
@@ -208,7 +166,6 @@ impl GitView {
         } else {
             self.mark_shown();
         }
-        self.publish();
     }
 
     fn clear(&self) {
@@ -295,7 +252,6 @@ impl GitView {
                 self.section.fold.grab_focus();
             }
         }
-        self.publish();
     }
 
     /// Fold the section away (the second press of the focus chord).
@@ -303,55 +259,5 @@ impl GitView {
         if let Some(app) = self.app.upgrade() {
             app.set_fold(Fold::Git, true);
         }
-    }
-
-    /// Move the selection by `delta` rows (scripts).
-    pub(crate) fn key(&self, key: &str) {
-        let n = self.files.borrow().len() as i32;
-        let at = self.list.selected_row().map_or(-1, |r| r.index());
-        match key {
-            "down" | "up" if n > 0 => {
-                let next = (at + if key == "down" { 1 } else { -1 }).clamp(0, n - 1);
-                if let Some(row) = self.list.row_at_index(next) {
-                    self.list.select_row(Some(&row));
-                    row.grab_focus();
-                }
-                self.publish();
-            }
-            "enter" if at >= 0 => self.open_row(at as usize),
-            "escape" => {
-                if let Some(app) = self.app.upgrade() {
-                    app.focus_terminal();
-                }
-            }
-            _ => {}
-        }
-    }
-
-    pub(crate) fn snapshot(&self) -> serde_json::Value {
-        let status = self.status.borrow();
-        let rows: Vec<_> = self
-            .files
-            .borrow()
-            .iter()
-            .map(|f| {
-                json!({
-                    "path": f.path,
-                    "badges": f.badges().iter().map(|(c, _)| c.to_string()).collect::<String>(),
-                    "added": f.added,
-                    "removed": f.removed,
-                })
-            })
-            .collect();
-        json!({
-            "visible": self.root.is_visible(),
-            "branch": status.as_ref().map(|s| s.branch.clone()),
-            "count": status.as_ref().map_or(0, |s| s.files.len()),
-            "collapsed": self.section.folded(),
-            "focused": self.has_focus(),
-            "selected": self.selected_path(),
-            "shown": *self.shown.borrow(),
-            "rows": rows,
-        })
     }
 }
