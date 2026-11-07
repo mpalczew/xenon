@@ -1,5 +1,5 @@
 //! The Settings window (Ctrl+,): its own top-level window, transient for the
-//! main one, with a sidebar of pages (`AdwViewSwitcherSidebar`) beside the
+//! main one, with a sidebar of pages (`AdwNavigationSplitView`) beside the
 //! `AdwPreferencesPage`s. Ctrl+1 to Ctrl+5 jump to a page, Escape (or Ctrl+W)
 //! closes, or backs out of the theme picker first, and focus returns to where
 //! it was. `app.settings` opens it, or raises it when it is already open.
@@ -150,32 +150,60 @@ impl App {
 
 /// Sidebar of pages on the left, the visible page on the right.
 fn build_layout(shell: &Shell) {
-    let sidebar = adw::ViewSwitcherSidebar::new();
-    sidebar.set_stack(Some(&shell.stack));
-    let side_view = adw::ToolbarView::new();
-    side_view.add_top_bar(&adw::HeaderBar::new());
-    side_view.set_content(Some(&sidebar));
-    let content = adw::ToolbarView::new();
-    content.add_top_bar(&adw::HeaderBar::new());
-    content.set_content(Some(&shell.stack));
-    let content_page = adw::NavigationPage::new(&content, "Settings");
+    let list = gtk::ListBox::builder()
+        .css_classes(["navigation-sidebar"])
+        .build();
+    for name in PAGES {
+        let Some(page) = shell
+            .stack
+            .child_by_name(name)
+            .map(|c| shell.stack.page(&c))
+        else {
+            continue;
+        };
+        let row = gtk::Box::builder().spacing(12).build();
+        row.append(&gtk::Image::from_icon_name(
+            &page.icon_name().unwrap_or_default(),
+        ));
+        row.append(&gtk::Label::new(page.title().as_deref()));
+        list.append(&row);
+    }
     let stack = shell.stack.clone();
+    list.connect_row_selected(move |_, row| {
+        if let Some(row) = row {
+            stack.set_visible_child_name(PAGES[row.index() as usize]);
+        }
+    });
+    let content_page = adw::NavigationPage::new(&toolbar(&shell.stack), "Settings");
     let follow = {
-        let content_page = content_page.clone();
+        let (list, content_page) = (list.clone(), content_page.clone());
         move |stack: &adw::ViewStack| {
-            if let Some(page) = stack.visible_child().map(|c| stack.page(&c)) {
-                content_page.set_title(&page.title().unwrap_or_default());
+            let Some(page) = stack.visible_child().map(|c| stack.page(&c)) else {
+                return;
+            };
+            content_page.set_title(&page.title().unwrap_or_default());
+            let name = stack.visible_child_name().unwrap_or_default();
+            if let Some(i) = PAGES.iter().position(|n| *n == name) {
+                list.select_row(list.row_at_index(i as i32).as_ref());
             }
         }
     };
-    follow(&stack);
-    stack.connect_visible_child_notify(follow);
+    follow(&shell.stack);
+    shell.stack.connect_visible_child_notify(follow);
+    let side = gtk::ScrolledWindow::builder().child(&list).build();
     let split = adw::NavigationSplitView::new();
-    split.set_sidebar(Some(&adw::NavigationPage::new(&side_view, "Settings")));
+    split.set_sidebar(Some(&adw::NavigationPage::new(&toolbar(&side), "Settings")));
     split.set_content(Some(&content_page));
     shell.nav.add(&adw::NavigationPage::new(&split, "Settings"));
     shell.toasts.set_child(Some(&shell.nav));
     shell.window.set_content(Some(&shell.toasts));
+}
+
+fn toolbar(content: &impl IsA<gtk::Widget>) -> adw::ToolbarView {
+    let view = adw::ToolbarView::new();
+    view.add_top_bar(&adw::HeaderBar::new());
+    view.set_content(Some(content));
+    view
 }
 
 fn install_keys(shell: &Shell) {
