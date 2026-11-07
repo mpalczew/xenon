@@ -190,17 +190,25 @@ impl Palette {
         });
         let w = weak.clone();
         self.entry.connect_activate(move |_| {
-            if let Some(this) = w.upgrade() {
-                this.accept();
-            }
+            let w = w.clone();
+            // Deferred: accepting closes the dialog and rebuilds the list.
+            glib::idle_add_local_once(move || {
+                if let Some(this) = w.upgrade() {
+                    this.accept();
+                }
+            });
         });
         // A row click accepts it.
         let w = weak.clone();
         self.view.connect_activate(move |_, position| {
-            if let Some(this) = w.upgrade() {
-                this.selection.set_selected(position);
-                this.accept();
-            }
+            let w = w.clone();
+            // Deferred: accepting rebuilds the list inside its own activate handler.
+            glib::idle_add_local_once(move || {
+                if let Some(this) = w.upgrade() {
+                    this.selection.set_selected(position);
+                    this.accept();
+                }
+            });
         });
 
         let keys = gtk::EventControllerKey::new();
@@ -213,11 +221,22 @@ impl Palette {
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             let handled = match key {
                 gdk::Key::Escape => {
-                    this.dismiss();
+                    // Deferred: closing empties the list under the key event.
+                    let w = Rc::downgrade(&this);
+                    glib::idle_add_local_once(move || {
+                        if let Some(this) = w.upgrade() {
+                            this.dismiss();
+                        }
+                    });
                     true
                 }
                 gdk::Key::Return | gdk::Key::KP_Enter if ctrl => {
-                    this.accept_alt();
+                    let w = Rc::downgrade(&this);
+                    glib::idle_add_local_once(move || {
+                        if let Some(this) = w.upgrade() {
+                            this.accept_alt();
+                        }
+                    });
                     true
                 }
                 gdk::Key::Down => this.step(1),
