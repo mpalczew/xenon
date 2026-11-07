@@ -1,18 +1,29 @@
 #!/usr/bin/env -S python3 -I
-"""Agent-verifiability check for the xenon_gtk spike.
+"""Agent-verifiability check for the GTK frontend.
 
-usage: scripts/xenon-gtk-verify [path/to/xenon_gtk] [screenshot.png]
+usage: scripts/xenon-gtk-verify [path/to/xenon_gtk] [screenshot_dir]
 
-Launches the spike under its own app id, finds its window and terminal through AT-SPI
-(pyatspi), types a command by activating the app.feed-child action over D-Bus (Wayland
-has no portable synthetic key input, and AT-SPI key injection does not reach a Wayland
-window), then reads the terminal text back over AT-SPI until the command's output shows
-up. Also asks the app for an offscreen PNG (app.screenshot) so the window can be looked
-at. Closes only the process it started, by PID. Exit code 0 on success.
+Drives a real xenon_gtk window the way an agent would, with no synthetic mouse:
+  - D-Bus actions (org.gtk.Actions) for commands, and the `ui-state` action's
+    state for what the app says is on screen (workspaces, panes, tabs, status);
+  - AT-SPI (pyatspi) to read terminal text back out of the window;
+  - `screenshot` action for offscreen PNGs of each state.
+It covers: create workspaces, split, new tab, keyboard-action navigation, type
+into a terminal and read the output, working pulse, attention dot, find, and
+save + restore of the session. State lives in a private temp dir (never
+~/.xenon-gtk) and the app runs under its own app id. Only the process it
+started is closed, by PID. Set GDK_BACKEND=x11 on a locked Wayland session
+(a locked compositor sends no frame callbacks, so nothing would lay out).
+
+Exit code 0 when every check passes.
 """
+import json
 import os
+import shutil
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 import gi
@@ -22,20 +33,41 @@ gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-binary = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/target/dogfood/xenon_gtk"
-png = sys.argv[2] if len(sys.argv) > 2 else "/tmp/xenon-gtk-verify.png"
-app_id = f"dev.xenon.GtkSpike.verify{os.getpid()}"
-MARKER = "verify-ok"
+BINARY = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/target/dogfood/xenon_gtk"
+SHOTS = sys.argv[2] if len(sys.argv) > 2 else "/tmp/xenon-gtk-shots"
+APP_ID = f"dev.xenon.GtkVerify{os.getpid()}"
+os.makedirs(SHOTS, exist_ok=True)
+failures = []
+
+
+def check(ok, what):
+    print(("PASS: " if ok else "FAIL: ") + what)
+    if not ok:
+        failures.append(what)
+
+
+def pump():
+    """D-Bus action state changes arrive through the GLib main loop."""
+    ctx = GLib.MainContext.default()
+    while ctx.pending():
+        ctx.iteration(False)
 
 
 def wait_for(fn, what, timeout=20.0):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
+        pump()
         v = fn()
         if v:
             return v
-        time.sleep(0.2)
-    raise SystemExit(f"FAIL: timed out waiting for {what}")
+        time.sleep(0.15)
+    check(False, f"timed out waiting for {what}")
+    raise SystemExit(finish())
+
+
+def finish():
+    print(f"{len(failures)} failure(s)" if failures else "all checks passed")
+    return 1 if failures else 0
 
 
 def find(acc, pred):
@@ -51,52 +83,260 @@ def find(acc, pred):
     return None
 
 
-def find_app(pid):
-    desk = pyatspi.Registry.getDesktop(0)
-    for i in range(desk.childCount):
-        a = desk.getChildAtIndex(i)
+def find_all(acc, pred, out):
+    try:
+        if pred(acc):
+            out.append(acc)
+        count = acc.childCount
+    except Exception:
+        return out
+    for i in range(count):
         try:
-            if a and a.get_process_id() == pid:
-                return a
+            find_all(acc.getChildAtIndex(i), pred, out)
         except Exception:
+            continue
+    return out
+
+
+class App:
+    """One running xenon_gtk under a private state dir."""
+
+    def __init__(self, state_dir):
+        self.state_dir = state_dir
+        self.proc = subprocess.Popen(
+            [BINARY],
+            env={**os.environ, "XENON_GTK_APP_ID": APP_ID, "XENON_GTK_DATA_DIR": state_dir},
+            stdout=subprocess.DEVNULL,
+            stderr=open(os.path.join(state_dir, "..", "app.log"), "w"),
+            start_new_session=True,
+        )
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.group = Gio.DBusActionGroup.get(self.bus, APP_ID, "/" + APP_ID.replace(".", "/"))
+        wait_for(lambda: "ui-state" in (self.group.list_actions() or []), "app actions on D-Bus")
+        wait_for(lambda: self.group.get_action_state("ui-state") is not None, "ui-state")
+        self.ax = None
+        end = time.monotonic() + 8
+        while time.monotonic() < end and not self.ax:
+            self.ax = self._find_ax_app()
+            time.sleep(0.2)
+        if not self.ax:
+            print("note: no accessibility bridge on this display; reading terminal text with the dump-screen action")
+        self.dump = os.path.join(state_dir, "..", "screen.txt")
+
+    def _find_ax_app(self):
+        desk = pyatspi.Registry.getDesktop(0)
+        for i in range(desk.childCount):
+            a = desk.getChildAtIndex(i)
+            try:
+                if a and a.get_process_id() == self.proc.pid:
+                    return a
+            except Exception:
+                pass
+        return None
+
+    def act(self, name, arg=None):
+        self.group.activate_action(name, GLib.Variant("s", arg) if arg is not None else None)
+        self.bus.flush_sync(None)
+
+    def state(self):
+        pump()
+        v = self.group.get_action_state("ui-state")
+        return json.loads(v.get_string()) if v else {}
+
+    def until(self, pred, what, timeout=15.0):
+        try:
+            return wait_for(lambda: pred(self.state()) and self.state(), what, timeout)
+        except SystemExit:
+            print("last ui-state:", json.dumps(self.state()))
+            raise
+
+    def terminals(self):
+        shown = lambda a: a.getRoleName() == "terminal" and a.getState().contains(pyatspi.STATE_SHOWING)
+        return find_all(self.ax, shown, [])
+
+    def has_terminal(self):
+        return bool(self.terminals()) if self.ax else bool(self.state().get("panes"))
+
+    def screen_text(self):
+        if self.ax:
+            return "\n".join(t.queryText().getText(0, -1) for t in self.terminals())
+        if os.path.exists(self.dump):
+            os.remove(self.dump)
+        self.act("dump-screen", self.dump)
+        end = time.monotonic() + 3
+        while time.monotonic() < end and not os.path.exists(self.dump):
+            pump()
+            time.sleep(0.05)
+        time.sleep(0.05)
+        return open(self.dump).read() if os.path.exists(self.dump) else ""
+
+    def type(self, text):
+        self.act("feed-child", text)
+
+    def shot(self, name):
+        path = f"{SHOTS}/{name}.png"
+        if os.path.exists(path):
+            os.remove(path)
+        self.act("screenshot", path)
+        wait_for(lambda: os.path.exists(path) and os.path.getsize(path) > 0, f"screenshot {name}")
+        print("screenshot:", path)
+
+    def stop(self):
+        self.act("quit")
+        try:
+            self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.proc.terminate()
+            self.proc.wait(timeout=10)
+
+    def kill(self):
+        if self.proc.poll() is None:
+            self.proc.send_signal(signal.SIGTERM)
+            self.proc.wait(timeout=10)
+
+
+def tabs(state):
+    return [[t["label"] for t in p["tabs"]] for p in state.get("panes", [])]
+
+
+def active_ws(state):
+    return next((w["name"] for w in state["workspaces"] if w["active"]), None)
+
+
+def main():
+    tmp = tempfile.mkdtemp(prefix="xenon-gtk-verify-")
+    state_dir = os.path.join(tmp, "state")
+    os.makedirs(state_dir)
+    # A registry file keeps the app from seeding itself out of the GPUI state.
+    with open(os.path.join(state_dir, "workspaces.json"), "w") as f:
+        json.dump({"version": 2, "workspaces": [], "closed_workspaces": [], "active": None}, f)
+    ws_a, ws_b = os.path.join(tmp, "alpha"), os.path.join(tmp, "beta")
+    os.makedirs(ws_a)
+    os.makedirs(ws_b)
+    app = App(state_dir)
+    try:
+        run(app, ws_a, ws_b, state_dir)
+    finally:
+        app.kill()
+        try:
+            print(open(os.path.join(tmp, "app.log")).read()[-2000:])
+        except OSError:
             pass
-    return None
+        shutil.rmtree(tmp, ignore_errors=True)
+    return finish()
 
 
-proc = subprocess.Popen(
-    [binary],
-    env={**os.environ, "XENON_GTK_APP_ID": app_id},
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL,
-)
-try:
-    app = wait_for(lambda: find_app(proc.pid), "app on the accessibility bus")
-    win = wait_for(
-        lambda: find(app, lambda a: a.getRoleName() == "frame" and "Xenon GTK Spike" in a.name),
-        "window",
-    )
-    print("window:", win.name)
-    term = wait_for(
-        lambda: find(app, lambda a: a.getRoleName() == "terminal"), "terminal accessible"
-    )
-    # VTE publishes accessible text when screen contents change, so type first, then read.
+def run(app, ws_a, ws_b, state_dir):
+    # Workspaces.
+    app.act("open-dir", ws_a)
+    s = app.until(lambda s: active_ws(s) == "alpha" and [len(p) for p in tabs(s)] == [1], "alpha workspace with one terminal")
+    check(True, "open-dir created workspace 'alpha' with one terminal")
+    app.act("open-dir", ws_b)
+    s = app.until(lambda s: active_ws(s) == "beta" and len(s["workspaces"]) == 2, "second workspace")
+    check(True, "second workspace 'beta' created and active")
+    app.shot("01-sidebar-two-workspaces")
 
-    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-    group = Gio.DBusActionGroup.get(bus, app_id, "/" + app_id.replace(".", "/"))
-    # $((...)) makes the output differ from the typed text, so a hit is the real result.
-    group.activate_action(
-        "feed-child", GLib.Variant("s", f"echo $((6*7))-{MARKER}\n")
-    )
-    bus.flush_sync(None)
-    want = f"42-{MARKER}"
-    got = wait_for(
-        lambda: want in term.queryText().getText(0, -1), f"{want!r} in terminal text"
-    )
-    print(f"PASS: typed a command, read {want!r} back through AT-SPI")
+    # Type into the terminal and read it back over AT-SPI.
+    wait_for(app.has_terminal, "terminal")
+    app.type("echo $((6*7))-verify-ok\n")
+    wait_for(lambda: "42-verify-ok" in app.screen_text(), "typed command output in terminal text")
+    check(True, "typed a command and read '42-verify-ok' back through AT-SPI")
 
-    group.activate_action("screenshot", GLib.Variant("s", png))
-    wait_for(lambda: os.path.exists(png) and os.path.getsize(png) > 0, "screenshot file")
-    print("screenshot:", png)
-finally:
-    proc.terminate()
-    proc.wait(timeout=10)
+    # Split, new tab, tab and pane navigation.
+    app.act("split-right")
+    s = app.until(lambda s: len(s["panes"]) == 2, "two panes after split-right")
+    check(len(s["panes"]) == 2 and all(len(p) == 1 for p in tabs(s)), "split-right made two panes of one tab each")
+    app.act("new-terminal")
+    s = app.until(lambda s: sorted(len(p) for p in tabs(s)) == [1, 2], "new tab in the focused pane")
+    check(True, "new-terminal added a second tab to the focused pane")
+    pane = next(p for p in s["panes"] if len(p["tabs"]) == 2)
+    before = pane["active"]
+    app.act("prev-tab")
+    s = app.until(lambda s: next(p for p in s["panes"] if len(p["tabs"]) == 2)["active"] != before, "prev-tab changes the active tab")
+    check(True, "prev-tab moved the active tab")
+    app.act("next-tab")
+    app.until(lambda s: next(p for p in s["panes"] if len(p["tabs"]) == 2)["active"] == before, "next-tab returns")
+    check(True, "next-tab moved it back")
+    focused = s["focused_pane"]
+    app.act("next-pane")
+    s = app.until(lambda s: s["focused_pane"] != focused, "next-pane moves focus")
+    check(True, "next-pane moved the focused pane")
+    app.act("split-down")
+    s = app.until(lambda s: len(s["panes"]) == 3, "three panes after split-down")
+    check(True, "split-down made a third pane")
+    app.type("echo split-pane-text\n")
+    wait_for(lambda: "split-pane-text" in app.screen_text(), "typing in the new pane")
+    app.shot("02-split-panes")
+
+    # Workspace switching by action.
+    app.act("prev-workspace")
+    s = app.until(lambda s: active_ws(s) == "alpha", "prev-workspace goes to alpha")
+    check(True, "prev-workspace switched to alpha")
+    app.act("next-workspace")
+    app.until(lambda s: active_ws(s) == "beta", "next-workspace back to beta")
+    check(True, "next-workspace switched back to beta")
+    app.act("focus-sidebar")
+    app.shot("03-sidebar-focus")
+    app.act("focus-terminal")
+
+    # Working pulse: a terminal titled like an agent that keeps drawing.
+    app.act("new-terminal")
+    # A new shell sets its title once it is up; input sent before that is lost.
+    app.until(lambda s: all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]) and sum(len(p) for p in tabs(s)) == 5, "new shell up")
+    app.type("printf '\\033]0;claude\\007'; while :; do printf '.'; sleep 0.03; done\n")
+    app.until(lambda s: any(t["dot"] == "working" for p in s["panes"] for t in p["tabs"]), "working status", 90)
+    s = app.state()
+    check(any(w["dot"] == "working" for w in s["workspaces"]), "workspace row shows the working pulse")
+    app.act("prev-tab")  # leave the agent tab so its chip rail shows
+    app.shot("04-working-pulse")
+    app.act("next-tab")
+    app.type("\x03")
+    app.until(lambda s: not any(t["dot"] == "working" for p in s["panes"] for t in p["tabs"]), "working ends after Ctrl+C", 30)
+    check(True, "working status ended when the agent stopped")
+
+    # Attention dot: a bell in a tab the user is not looking at.
+    app.type("(sleep 2; printf '\\a') &\n")
+    app.act("prev-tab")
+    s = app.until(lambda s: any(t["dot"] == "attention" for p in s["panes"] for t in p["tabs"]), "attention after bell", 30)
+    check(True, "a bell in a hidden tab lit its attention dot")
+    check(any(w["dot"] == "attention" for w in s["workspaces"]), "workspace row shows attention")
+    app.shot("05-attention-dot")
+    app.act("next-tab")  # viewing the tab clears its mark
+    app.until(lambda s: not any(t["dot"] == "attention" for p in s["panes"] for t in p["tabs"]), "attention cleared on view", 10)
+    check(True, "viewing the tab dismissed its attention mark")
+
+    # Find.
+    app.type("echo needle-in-haystack\n")
+    wait_for(lambda: "needle-in-haystack" in app.screen_text(), "needle printed")
+    app.act("find")
+    time.sleep(0.5)
+    app.shot("06-find")
+
+    # Close a tab and a workspace.
+    n_before = sum(len(p) for p in tabs(app.state()))
+    app.act("close-tab")
+    app.until(lambda s: sum(len(p) for p in tabs(s)) == n_before - 1, "close-tab removes a tab")
+    check(True, "close-tab closed the active tab")
+
+    # Save and restore.
+    layout = tabs(app.state())
+    app.act("save-now")
+    app.stop()
+    check(os.path.exists(os.path.join(state_dir, "workspaces.json")), "registry written")
+    sessions = os.listdir(os.path.join(state_dir, "sessions"))
+    check(len(sessions) == 2, f"two session files written ({len(sessions)})")
+    app2 = App(state_dir)
+    try:
+        s = app2.until(lambda s: len(s["workspaces"]) == 2 and len(s["panes"]) >= 1, "restored workspaces")
+        check(active_ws(s) == "beta", "restore reopened the workspace that was active")
+        check(tabs(s) == layout or [len(p) for p in tabs(s)] == [len(p) for p in layout], f"restored pane and tab layout {tabs(s)} == {layout}")
+        wait_for(app2.has_terminal, "restored terminal")
+        app2.type("echo $((7*7))-restored\n")
+        wait_for(lambda: "49-restored" in app2.screen_text(), "typing in the restored terminal")
+        check(True, "restored session has a live terminal (typed and read '49-restored')")
+        app2.shot("07-restored")
+    finally:
+        app2.kill()
+
+
+sys.exit(main())

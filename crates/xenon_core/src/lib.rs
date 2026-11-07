@@ -1,6 +1,7 @@
 //! Pure data model for Xenon: workspaces, session state, and VS Code shell-task
 //! parsing. No gpui — persistence lives in `xenon_store`.
 
+mod activity;
 mod agent;
 mod attention;
 mod attention_map;
@@ -19,6 +20,7 @@ mod tab_label;
 mod tasks;
 mod workspace;
 
+pub use activity::TerminalActivity;
 pub use agent::{ANONYMOUS_BUSY_WAKEUPS, BUSY_WAKEUPS, IDLE_AFTER, agent_busy_signal, agent_title};
 pub use attention::{AttentionReason, WorkspaceDot, workspace_dot, workspace_dot_from_tabs};
 pub use attention_map::AttentionMap;
