@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Temporary no-op so the old shared pre-commit hook passes; removed in the next commit.
-exit 0
