@@ -121,13 +121,5 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
   no copy), so cutover needs no re-pairing. If the other Xenon holds the port this one
   waits quietly and retries every 5 s. A terminal is mirrored (VTE `text_format(Html)`,
   coalesced to ~30/s, parsed off the UI thread) only while a phone is attached to it; an
-  idle remote with a quiet attached phone costs about nothing
-  (`scripts/xenon-gtk-idle`). The phone fit pins the VTE grid to the phone's size and
+  idle remote with a quiet attached phone costs about nothing. The phone fit pins the VTE grid to the phone's size and
   the Mac's keyboard hands it back (30 s quiet rule from `xenon_remote`).
-- **Checks.** `scripts/xenon-gtk-remote-client` is a stdlib Python phone (pair, REST,
-  WebSocket); `scripts/xenon-gtk-verify` drives a real window over D-Bus actions and
-  AT-SPI and writes screenshots; `scripts/xenon-gtk-idle` (run by `scripts/health`)
-  fails on idle CPU or wakeups above budget; `scripts/xenon-gtk-latency` types into a
-  window and reports input-to-frame time and main-thread CPU (needs an unlocked display;
-  compare `--window 1000x650` with `--maximized`). `XENON_GTK_LATENCY=1` (or `trace`)
-  logs the same per keystroke from any run.

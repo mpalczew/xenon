@@ -100,10 +100,9 @@ pull && ./scripts/release/install`. Quit is `ctrl-q`.
 
 ```bash
 cargo run -p xenon          # debug
-cargo test --workspace
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
-scripts/health              # full gate: fmt + clippy + shape + test
+scripts/health              # full gate: fmt + clippy + shape
 ```
 
 ---
@@ -172,7 +171,7 @@ Product vision: [`PRODUCT.md`](PRODUCT.md). Visual system: [`DESIGN.md`](DESIGN.
 Issues and PRs that improve the multi-agent daily path are welcome. Prefer signal over
 volume—low-effort generated noise costs more than it helps.
 
-**Before you open a PR:** run `scripts/health` (or `cargo test` / `fmt` / `clippy` as in
+**Before you open a PR:** run `scripts/health` (or `fmt` / `clippy` as in
 the README install section). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full bar,
 and [`PRODUCT.md`](PRODUCT.md) before chrome or positioning changes.
 

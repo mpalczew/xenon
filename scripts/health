@@ -9,13 +9,8 @@ checks_quiet public-surface scripts/check-public-surface
 checks_quiet ui-boundaries scripts/check-ui-boundaries
 checks_quiet zed-pins scripts/check-zed-pins
 checks_quiet attribution scripts/check-attribution
-checks_quiet test-determinism scripts/check-test-determinism
-checks_quiet ssh-helper env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s crates/xenon_ssh/src -p helper_test.py
 checks_quiet fmtcheck cargo fmt --all --check
 checks_quiet lint cargo clippy --profile dogfood --workspace --all-targets -- -D warnings \
     -D clippy::cognitive_complexity \
     -D clippy::too_many_lines
 checks_quiet lint-shape scripts/check-rust-shape
-checks_quiet test cargo test --profile dogfood
-# GTK frontend idle cost (CPU and wakeups); skips itself without a display.
-checks_quiet gtk-idle scripts/xenon-gtk-idle

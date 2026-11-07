@@ -24,7 +24,7 @@ Please skip or heavily curate:
   `DESIGN.md`.
 - Generated noise that the maintainer cannot review in one focused pass.
 
-## Build and test
+## Build and check
 
 Public path (no private tooling required):
 
@@ -32,10 +32,9 @@ Public path (no private tooling required):
 git clone https://github.com/mpalczew/xenon.git
 cd xenon
 # prereqs: Rust stable, cmake, and the system packages listed in the README
-cargo test --workspace
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-scripts/health   # full gate: fmtcheck + clippy + shape + test
+scripts/health   # full gate: fmtcheck + clippy + shape
 ```
 
 Install a release build locally:

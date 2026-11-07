@@ -31,8 +31,7 @@ reference shell. The full path remains available as the row tooltip. The rail do
 add a descriptive status bar beneath the tabs.
 
 Maintained preview: `visual-review/xenon-design-system.html` and
-`visual-review/xenon-mocks.html`. Native evidence comes from the GTK screenshot checks
-(`scripts/xenon-gtk-verify`).
+`visual-review/xenon-mocks.html`. Native evidence comes from screenshots of the running app.
 
 ## Git section and diff tab
 

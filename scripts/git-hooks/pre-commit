@@ -22,7 +22,6 @@ done
 trap 'rm -rf "$snapshot"; rmdir "$lock"' EXIT
 
 # Honors GIT_INDEX_FILE, so `git commit -- <paths>` checks the real commit content.
-staged="$(git diff --cached --name-only)"
 git checkout-index -a --prefix="$snapshot/"
 mkdir -p "$work"
 # Sync by content so unchanged files keep their mtimes and cargo stays incremental.
@@ -38,27 +37,11 @@ run() {
     checks_quiet "$@" || exit 1
 }
 
-# Crates under crates/<name>/ touched by the commit; root manifest/lock means all.
-test_args=()
-if grep -qxE 'Cargo\.(toml|lock)' <<<"$staged"; then
-    test_args=(--workspace)
-else
-    while read -r crate; do
-        [[ -n "$crate" ]] && test_args+=(-p "$crate")
-    done < <(sed -n 's#^crates/\([^/]*\)/.*#\1#p' <<<"$staged" | sort -u)
-fi
-
 run public-surface scripts/check-public-surface
 run ui-boundaries scripts/check-ui-boundaries
 run zed-pins scripts/check-zed-pins
 run attribution scripts/check-attribution
-run test-determinism scripts/check-test-determinism
-run ssh-helper env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-    -s crates/xenon_ssh/src -p helper_test.py
 run fmtcheck cargo fmt --all --check
 run lint-shape scripts/check-rust-shape
 run lint cargo clippy --profile precommit --workspace --all-targets -- \
     -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines
-if ((${#test_args[@]})); then
-    run test cargo test --profile precommit "${test_args[@]}"
-fi

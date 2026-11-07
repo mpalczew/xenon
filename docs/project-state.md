@@ -67,7 +67,7 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   page, and an open-source app cannot depend on a hosted relay, so the user's tailnet is
   the encrypted transport. Saved `remote_network` values are ignored.
 - `.vscode/tasks.json` exposes only the `xenon` and `install` (`bin/install`) tasks.
-  Build/test/fmt/lint/health run via cargo or `scripts/*`; do not invent extra task
+  Build/fmt/lint/health run via cargo or `scripts/*`; do not invent extra task
   labels. Local builds share one `--profile dogfood` target tree; the pre-commit hook is
   the gate, `scripts/health` the full run.
 - Linux X11: `third_party/gpui_linux` is zed `ced90fc` plus one fix. Portal appearance

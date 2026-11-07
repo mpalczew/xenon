@@ -190,13 +190,13 @@ deleted or replaced; "GTK" sizes are what exists now.
   (about 1,550). GPUI host: `xenon_ui/src/app/remote/` and
   `xenon_terminal/src/view/remote*.rs` (about 2,550). Status: done in GTK except tasks,
   mouse clicks, dim text, OSC 8 links, cursor hiding, and the phone's own light or dark
-  choice. Idle cost is measured by `scripts/xenon-gtk-idle`.
+  choice.
 
 ### SSH
 
 - **SSH workspaces.** Browse and edit remote text files over OpenSSH with a bundled
   Python helper, and reopen persistent tmux terminals. `xenon_ssh` (520 Rust lines plus
-  `helper.py` 280 and `helper_test.py` 160), `xenon_finder` remote bits. GPUI UI:
+  `helper.py` 280), `xenon_finder` remote bits. GPUI UI:
   `app/ssh.rs`, `workspace_picker/{ssh,remote,host}.rs`,
   `xenon_editor/src/view/remote.rs` (about 1,090). GTK: not started. An SSH workspace
   shows an "unsupported" message (`dialogs.rs:24`). Design: `docs/ssh-workspaces.md`.
@@ -246,7 +246,7 @@ deleted or replaced; "GTK" sizes are what exists now.
 
 - **GPUI install (macOS bundle, codesign, Linux dev install, A/B slot launcher).**
   `scripts/release/{install,bundle,codesign.sh,sign_setup,install-linux}`,
-  `scripts/xenon` (532 lines), `scripts/xenon_cli_test.sh`, `bin/install`, `macos/`,
+  `scripts/xenon` (532 lines), `bin/install`, `macos/`,
   `crates/xenon_stub`.
 - **GTK install.** `scripts/release/install-gtk` (63), `scripts/xenon-gtk` (39). Own app
   id `dev.xenon.Gtk`, own state dir `~/.xenon-gtk`, seeded from the GPUI app.
@@ -257,14 +257,9 @@ deleted or replaced; "GTK" sizes are what exists now.
 
 - **Memory panel.** Footprint and per-terminal grid estimates, written to JSON.
   `xenon_memory` (133 lines), `xenon_ui/src/app/memory.rs` (211). GTK: none.
-- **GTK checks.** `scripts/xenon-gtk-idle` (idle CPU and wakeups, part of
-  `scripts/health`), `xenon-gtk-latency` (input to frame), `xenon-gtk-verify` (895
-  lines, drives a real window over D-Bus and AT-SPI and takes screenshots),
-  `xenon-gtk-remote-client` (a stdlib Python phone), `idle-budget`.
 - **GPUI visual tests.** `crates/xenon/src/visual_test_runner*` (about 1,000),
   `xenon_ui/src/app/visual/` (about 1,800), `scripts/visual-tests`, `visual-review/` (2
   MB of HTML mocks and PNGs), `docs/visual-tests.md`. macOS Metal only.
-- **Log and latency trace.** `XENON_GTK_LATENCY=1`; `latency.rs` (114).
 
 ### Smaller items found along the way
 
@@ -341,12 +336,11 @@ are the GPUI or shared lines that stop needing upkeep.
    - Saves: about 1k lines and the `tungstenite` duplication path.
    - Loses: Claude Code's `/ide` selection sharing and diff review in Xenon.
 9. **Memory panel** (`xenon_memory` 133 lines, `app/memory.rs` 211 lines).
-   - Reason: `scripts/xenon-gtk-idle` and `scripts/idle-budget` already measure memory
-     from `/proc`, and any system monitor shows it.
+   - Reason: any system monitor shows memory.
    - Saves: about 350 lines. Loses: an in-app panel and a JSON snapshot for AI tools.
 10. **Image viewer in the editor** (about 700 lines). GTK already sends unsupported
     files to the default app. Saves 700 lines. Loses: viewing images in a tab.
-11. **A/B slot launcher** (`scripts/xenon` 532 lines, `xenon_cli_test.sh` 88,
+11. **A/B slot launcher** (`scripts/xenon` 532 lines,
     `XENON_SLOT` and `SLOT_DIRS` logic in `xenon_store`, `~/.xenon-shared`,
     `.xenon-active-slot`).
     - Reason: GTK already runs side by side with `XENON_GTK_APP_ID` and
@@ -483,7 +477,7 @@ not compile anything.
 
 `scripts/visual-tests`, `scripts/check-ui-boundaries` (scans `xenon_ui`, `xenon_editor`,
 `xenon_terminal`), `scripts/check-zed-pins`, `scripts/ensure-metal`, `scripts/xenon`
-(slot launcher), `scripts/xenon_cli_test.sh`,
+(slot launcher),
 `scripts/release/{bundle,codesign.sh,sign_setup,install,install-linux}`, `bin/install`.
 Also drop the matching steps from `bin/check`, `scripts/health`,
 `scripts/git-hooks/pre-commit`, and `.vscode/tasks.json` (`xenon` and `install` tasks).
