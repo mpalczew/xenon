@@ -129,6 +129,8 @@ fn main() -> glib::ExitCode {
     }
 
     adw::init().expect("GTK init failed");
+    // The window icon comes from the installed hicolor icon of the same name.
+    gtk::Window::set_default_icon_name("dev.xenon.Xenon");
     // One process per slot: no GApplication uniqueness, the slot's socket routes opens.
     let gtk_app = adw::Application::builder()
         .application_id("dev.xenon.Xenon")

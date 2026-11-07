@@ -2,7 +2,7 @@
 # Install Xenon for the current user.
 #   ~/.local/share/xenon/xenon-bin   GTK app binary
 #   ~/.local/bin/xenon, ~/bin/xenon  slot launcher (scripts/xenon)
-#   ~/.local/share/applications/xenon.desktop + hicolor icon
+#   ~/.local/share/applications/dev.xenon.Xenon.desktop + hicolor icon
 # App id dev.xenon.Xenon. State lives in the slot dirs ~/.xenon-a and ~/.xenon-b.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -30,6 +30,8 @@ fi
 
 # The old GTK-only install.
 rm -f "$data_home/applications/dev.xenon.Gtk.desktop" "$bin_dir/xenon-gtk"
+# Before the desktop file was named after the app id (Wayland matches windows by it).
+rm -f "$data_home/applications/xenon.desktop" "$data_home"/icons/hicolor/*/apps/xenon.png
 
 # Icon: 512px when ImageMagick is available, else the 1024px source as-is.
 icon_src="$root/assets/xenon-icon-source.png"
@@ -42,25 +44,23 @@ icon_dir="$data_home/icons/hicolor/${size}x${size}/apps"
 mkdir -p "$icon_dir"
 if [[ $size == 512 ]]; then
     resize="$(command -v magick || command -v convert)"
-    "$resize" "$icon_src" -resize 512x512 "$icon_dir/xenon.png"
+    "$resize" "$icon_src" -resize 512x512 "$icon_dir/dev.xenon.Xenon.png"
 else
-    cp "$icon_src" "$icon_dir/xenon.png"
+    cp "$icon_src" "$icon_dir/dev.xenon.Xenon.png"
 fi
 
-cat >"$data_home/applications/xenon.desktop" <<DESKTOP
+cat >"$data_home/applications/dev.xenon.Xenon.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Xenon
 Comment=Agent shell for driving coding agents
 Exec=$bin_dir/xenon %F
-# Use the installed file directly. Some launchers do not search the user's
-# hicolor directory when resolving a desktop entry's theme icon.
-Icon=$icon_dir/xenon.png
+Icon=dev.xenon.Xenon
 Terminal=false
 Categories=Development;TerminalEmulator;
 StartupWMClass=dev.xenon.Xenon
 DESKTOP
-echo "installed $data_home/applications/xenon.desktop"
+echo "installed $data_home/applications/dev.xenon.Xenon.desktop"
 
 command -v update-desktop-database >/dev/null 2>&1 &&
     update-desktop-database "$data_home/applications" 2>/dev/null || true
