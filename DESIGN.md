@@ -337,8 +337,10 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   Ctrl+Enter flips a task box; Alt+1 / Alt+3 switch Prose and Source. Gaps against the
   GPUI mode: no Paper surface, no quote rule or round bullet glyphs, no table grid,
   no code highlighting, no list continuation on Return.
-- **Settings.** `AdwPreferencesDialog` (Ctrl+,): pages Appearance, Fonts, Editor,
-  Terminal, Agents, Language Servers (Ctrl+1 to 6, Ctrl+F searches, Escape closes).
+- **Settings.** its own window (Ctrl+,), transient for the main one, with a page
+  sidebar (`AdwViewSwitcherSidebar`). Pages: Appearance (mode, themes), Fonts, Editor
+  (with Markdown writing), Agents (Agent skill, Terminal, Language Servers), Phone Remote.
+  Ctrl+1 to 5 jump to a page; Escape or Ctrl+W closes. No search.
   Theme tiles are buttons painted by one generated sheet in each theme's own colors. The
   picker page re-themes the window as the selection moves; Enter keeps, Escape or Back
   reverts. The interface size scales the window font as a percentage of 14; the default

@@ -28,7 +28,7 @@ little different from the old GPUI app is fine. Text the user sees stays word fo
 | Library         | System version               | Rust binding in `Cargo.lock` / on crates.io      |
 | --------------- | ---------------------------- | ------------------------------------------------ |
 | GTK 4           | 4.22.4                       | `gtk4` 0.11.5                                    |
-| libadwaita      | 1.9.1                        | `libadwaita` 0.9.2 (we enable feature `v1_8`)    |
+| libadwaita      | 1.9.1                        | `libadwaita` 0.9.2 (we enable feature `v1_9`)    |
 | VTE (GTK 4)     | 0.84.0                       | `vte4` 0.10.0                                    |
 | GtkSourceView 5 | 5.18.0                       | `sourceview5` 0.11.2                             |
 | GLib / GIO      | 2.88.0                       | `glib`, `gio` 0.22.10                            |

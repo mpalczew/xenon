@@ -29,8 +29,6 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
   worklist buttons, Run Task, Save (shown when an editor is dirty).
 - **Empty screen.** The Command Palette, Focus Editor and Keyboard Shortcuts rows are
   listed with their keys but do nothing.
-- **Settings.** An `AdwPreferencesDialog` drawn inside the window: it can't be moved or
-  resized on its own, and some pages are near empty while others scroll.
 - **Sidebar.** The Git section has no draggable height.
 - **Editor.** No LSP and no diff gutter. Themes still come from the bundled Zed themes
   instead of following the system.

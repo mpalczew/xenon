@@ -9,7 +9,7 @@
 - [x] GTK: Copy Clean in the toolbar
 - [x] GTK: Workspaces, Files and Git sections collapse (header click, Enter, Space;
       Ctrl+E for Files; saved in settings)
-- [ ] GTK: Settings moves and resizes like a window; pages balanced
+- [x] GTK: Settings moves and resizes like a window; pages balanced
 - [ ] GTK: workspace picker gets the Browse… row its no-match message names
 - [ ] GTK: Workspaces section looks bad (waiting on what, from the user)
 

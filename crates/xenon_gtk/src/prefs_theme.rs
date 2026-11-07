@@ -21,7 +21,7 @@ pub(crate) fn showing_dark(app: &App) -> bool {
 
 /// After keeping a theme for the slot the window is not showing, say where it
 /// will appear.
-pub(crate) fn note_hidden_half(app: &App, dialog: &adw::PreferencesDialog, kept_dark: bool) {
+pub(crate) fn note_hidden_half(app: &App, dialog: &crate::prefs::Shell, kept_dark: bool) {
     let mode = app.settings.borrow().theme.mode;
     let shown = match mode {
         ThemeMode::Dark => Some(true),
@@ -35,7 +35,7 @@ pub(crate) fn note_hidden_half(app: &App, dialog: &adw::PreferencesDialog, kept_
         None if showing_dark(app) == kept_dark => return,
         None => format!("Saved as the {slot} theme. It shows when the desktop is {slot}."),
     };
-    dialog.add_toast(adw::Toast::new(&text));
+    dialog.add_toast(&text);
 }
 
 /// Every theme name a tile on this page may show.
@@ -53,7 +53,7 @@ pub(crate) fn tile_names(app: &App) -> Vec<String> {
     names
 }
 
-pub(crate) fn page(app: &Rc<App>, dialog: &adw::PreferencesDialog) -> adw::PreferencesPage {
+pub(crate) fn page(app: &Rc<App>, dialog: &crate::prefs::Shell) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::builder()
         .name("appearance")
         .title("Appearance")
@@ -102,7 +102,7 @@ fn mode_group(app: &Rc<App>) -> adw::PreferencesGroup {
 }
 
 /// The two slot rows with their strips, and the row that opens the picker.
-fn slots_group(app: &Rc<App>, dialog: &adw::PreferencesDialog) -> adw::PreferencesGroup {
+fn slots_group(app: &Rc<App>, dialog: &crate::prefs::Shell) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::builder()
         .title("Theme")
         .description("Pick a theme for each side of the mode, or open them all.")
@@ -133,7 +133,7 @@ fn slots_group(app: &Rc<App>, dialog: &adw::PreferencesDialog) -> adw::Preferenc
         Rc::new(move || refill(&app, &slots))
     };
     let open = Rc::new(move || {
-        dialog.push_subpage(&crate::prefs_picker::page(&app, &dialog, on_keep.clone()));
+        dialog.push(&crate::prefs_picker::page(&app, &dialog, on_keep.clone()));
     });
     let again = open.clone();
     all.connect_activated(move |_| again());

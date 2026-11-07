@@ -57,7 +57,7 @@ impl App {
         let live = self.settings.borrow();
         let json = serde_json::json!({
             "open": dialog.is_some(),
-            "page": dialog.as_ref().and_then(|d| d.visible_page_name()).map(|n| n.to_string()),
+            "page": dialog.as_ref().and_then(|d| d.page_name()).map(|n| n.to_string()),
             "dark": adw::StyleManager::default().is_dark(),
             "preview": crate::prefs_apply::previewing().map(|(n, _)| n),
             "focus": focus,
@@ -89,7 +89,7 @@ pub(crate) fn install(app: &Rc<App>) {
             crate::prefs::open_dialog(),
             param.and_then(|p| p.str().map(String::from)),
         ) {
-            dialog.set_visible_page_name(&name);
+            dialog.show_page(&name);
         }
     });
     app.gtk.add_action(&page);

@@ -230,7 +230,7 @@ fn on_page_events(
 
 pub(crate) fn page(
     app: &Rc<App>,
-    dialog: &adw::PreferencesDialog,
+    dialog: &crate::prefs::Shell,
     on_keep: Rc<dyn Fn()>,
 ) -> adw::NavigationPage {
     let families = lineup();
@@ -306,7 +306,7 @@ pub(crate) fn page(
             app.keep_theme(name, dark);
             on_keep();
             crate::prefs_theme::note_hidden_half(&app, &dialog, dark);
-            dialog.pop_subpage();
+            dialog.pop();
         })
     };
     {
@@ -318,7 +318,7 @@ pub(crate) fn page(
         crate::prefs_state::register("picker-keep", move |_| keep());
         let dialog = dialog.clone();
         crate::prefs_state::register("picker-revert", move |_| {
-            dialog.pop_subpage();
+            dialog.pop();
         });
     }
     add_half_keys(&list, &select, &state);
@@ -335,7 +335,7 @@ pub(crate) fn page(
     page
 }
 
-fn bottom_bar(dialog: &adw::PreferencesDialog, keep: &Rc<impl Fn() + 'static>) -> gtk::Box {
+fn bottom_bar(dialog: &crate::prefs::Shell, keep: &Rc<impl Fn() + 'static>) -> gtk::Box {
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     bar.set_margin_top(8);
     bar.set_margin_bottom(8);
@@ -349,7 +349,7 @@ fn bottom_bar(dialog: &adw::PreferencesDialog, keep: &Rc<impl Fn() + 'static>) -
     let revert = gtk::Button::with_label("Revert  esc");
     let dialog = dialog.clone();
     revert.connect_clicked(move |_| {
-        dialog.pop_subpage();
+        dialog.pop();
     });
     let keep_button = gtk::Button::with_label("Keep  \u{21b5}");
     keep_button.add_css_class("suggested-action");

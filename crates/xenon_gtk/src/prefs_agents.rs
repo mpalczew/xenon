@@ -14,20 +14,20 @@ use crate::prefs_pages::switch_row;
 
 type Added = Rc<RefCell<Vec<gtk::Widget>>>;
 
-pub(crate) fn agents(dialog: &adw::PreferencesDialog) -> adw::PreferencesPage {
+pub(crate) fn agents(dialog: &crate::prefs::Shell) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::builder()
         .name("agents")
         .title("Agents")
         .icon_name("application-x-addon-symbolic")
         .build();
-    let group = adw::PreferencesGroup::new();
+    let group = adw::PreferencesGroup::builder().title("Agents").build();
     page.add(&group);
     fill(&group, dialog, &Added::default());
     page
 }
 
 /// Rebuild the group's rows from the skill's current state.
-fn fill(group: &adw::PreferencesGroup, dialog: &adw::PreferencesDialog, added: &Added) {
+fn fill(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Added) {
     for old in added.borrow_mut().drain(..) {
         group.remove(&old);
     }
@@ -74,25 +74,21 @@ fn fill(group: &adw::PreferencesGroup, dialog: &adw::PreferencesDialog, added: &
     *added.borrow_mut() = rows;
 }
 
-fn run(group: &adw::PreferencesGroup, dialog: &adw::PreferencesDialog, added: &Added, on: bool) {
+fn run(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Added, on: bool) {
     let message = match if on { install_skill() } else { remove_skill() } {
         Ok(()) if on => "Xenon skill installed".to_string(),
         Ok(()) => "Xenon skill removed".to_string(),
         Err(error) if on => format!("Couldn\u{2019}t install the skill: {error}"),
         Err(error) => format!("Couldn\u{2019}t remove the skill: {error}"),
     };
-    dialog.add_toast(adw::Toast::new(&message));
+    dialog.add_toast(&message);
     fill(group, dialog, added);
 }
 
-pub(crate) fn servers() -> adw::PreferencesPage {
-    let page = adw::PreferencesPage::builder()
-        .name("servers")
-        .title("Language Servers")
-        .icon_name("system-run-symbolic")
-        .build();
+pub(crate) fn servers() -> adw::PreferencesGroup {
     let lsp = xenon_store::load_settings().unwrap_or_default().lsp;
     let group = adw::PreferencesGroup::builder()
+        .title("Language Servers")
         .description("Empty finds it on PATH")
         .build();
     group.add(&switch_row(
@@ -120,8 +116,7 @@ pub(crate) fn servers() -> adw::PreferencesPage {
         });
         group.add(&row);
     }
-    page.add(&group);
-    page
+    group
 }
 
 fn save(change: impl FnOnce(&mut xenon_store::LspSettings)) {

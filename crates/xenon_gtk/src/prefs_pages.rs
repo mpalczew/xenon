@@ -282,8 +282,7 @@ fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
     group
 }
 
-pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesPage {
-    let page = page("terminal", "Terminal", "utilities-terminal-symbolic");
+pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesGroup {
     let current = app.settings.borrow().terminal_auto_close;
     let labels: Vec<String> = ["Keep open", "Close", "1s", "3s", "5s"]
         .map(String::from)
@@ -304,10 +303,9 @@ pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesPage {
             row.set_subtitle(&new_tabs_detail(*mode));
         }
     });
-    let group = adw::PreferencesGroup::new();
+    let group = adw::PreferencesGroup::builder().title("Terminal").build();
     group.add(&row);
-    page.add(&group);
-    page
+    group
 }
 
 /// The row's detail line, as the GPUI Terminal page words it.
