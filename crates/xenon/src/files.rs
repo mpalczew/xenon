@@ -52,6 +52,8 @@ pub(crate) struct FilesView {
     restoring: Cell<bool>,
     /// Bumped when the root changes, so a late directory read is dropped.
     epoch: Cell<u64>,
+    /// A `files-state` publish is waiting for idle.
+    publish_armed: Cell<bool>,
 }
 
 fn path_of(item: &glib::Object) -> Option<PathBuf> {
@@ -183,6 +185,7 @@ impl FilesView {
             reveal_target: RefCell::new(None),
             restoring: Cell::new(false),
             epoch: Cell::new(0),
+            publish_armed: Cell::new(false),
         });
         this.section.sep.set_visible(true);
         this.wire();
@@ -222,11 +225,18 @@ impl FilesView {
                     continue;
                 };
                 let weak = weak.clone();
+                // GTK sends this while the tree is still adding or removing the
+                // folder's rows; reading the tree before it finishes crashes.
                 row.connect_expanded_notify(move |row| {
-                    let Some(this) = weak.upgrade() else { return };
-                    if let Some(path) = row_path(row) {
-                        this.expanded_changed(&path, row.is_expanded());
-                    }
+                    let (Some(path), expanded) = (row_path(row), row.is_expanded()) else {
+                        return;
+                    };
+                    let weak = weak.clone();
+                    glib::idle_add_local_once(move || {
+                        if let Some(this) = weak.upgrade() {
+                            this.expanded_changed(&path, expanded);
+                        }
+                    });
                 });
             }
         });
@@ -362,10 +372,20 @@ impl FilesView {
         self.publish();
     }
 
+    /// Publish `files-state` once the current event is over. Selection and
+    /// focus signals fire while the tree is mid-change, and the snapshot reads
+    /// every row.
     pub(super) fn publish(&self) {
-        if let Some(app) = self.app.upgrade() {
-            app.publish_files();
+        if self.publish_armed.replace(true) {
+            return;
         }
+        let app = self.app.clone();
+        glib::idle_add_local_once(move || {
+            if let Some(app) = app.upgrade() {
+                app.sidebar.files.publish_armed.set(false);
+                app.publish_files();
+            }
+        });
     }
 
     pub(crate) fn has_rows(&self) -> bool {

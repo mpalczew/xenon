@@ -23,6 +23,8 @@ use crate::sidebar_ui::{Row, Section};
 const MAX_ROWS: usize = 400;
 
 pub(crate) struct GitView {
+    /// A `git-state` publish is waiting for idle.
+    publish_armed: Cell<bool>,
     pub root: gtk::Box,
     section: Section,
     clean: gtk::Box,
@@ -72,6 +74,7 @@ impl GitView {
         let root = section.root.clone();
         root.set_visible(false);
         let this = Rc::new(Self {
+            publish_armed: Cell::new(false),
             root,
             section,
             clean,
@@ -141,10 +144,20 @@ impl GitView {
         });
     }
 
+    /// Publish `git-state` once the current event is over: selection and
+    /// focus signals fire while rows are being replaced, and the snapshot
+    /// reads the selected row.
     fn publish(&self) {
-        if let Some(app) = self.app.upgrade() {
-            app.publish_git();
+        if self.publish_armed.replace(true) {
+            return;
         }
+        let app = self.app.clone();
+        glib::idle_add_local_once(move || {
+            if let Some(app) = app.upgrade() {
+                app.sidebar.git.publish_armed.set(false);
+                app.publish_git();
+            }
+        });
     }
 
     /// Draw the fold the model decided.
