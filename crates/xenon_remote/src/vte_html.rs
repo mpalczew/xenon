@@ -3,14 +3,26 @@
 //! `vte_terminal_get_text_format(HTML)` returns `<pre>` with one `\n` per row
 //! and spans for what is not default: `<font color>`, `<b>`, `<i>`, `<u>`,
 //! `<strike>`, and `<span style="background-color:...">`. It has no markup for
-//! dim, hyperlinks, or the cursor, and does not mark the second column of a
+//! hyperlinks or the cursor (dim is already folded into the color), and does not mark the second column of a
 //! wide glyph, so widths come from Unicode. This is the boundary format the
 //! GTK frontend parses; it knows nothing of GTK.
+
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use unicode_width::UnicodeWidthChar;
 
 use crate::frame::{Cell, Rgb, Screen, Style, WIDE_SPACER};
 use crate::protocol::{CursorWire, style_flags};
+
+/// A run of cells on one viewport row that VTE says belong to an OSC 8 link.
+#[derive(Clone)]
+pub struct LinkRun {
+    pub row: u16,
+    pub col: u16,
+    pub len: u16,
+    pub uri: String,
+}
 
 /// One dump of a VTE screen plus what the HTML does not carry.
 #[derive(Clone)]
@@ -19,6 +31,7 @@ pub struct VteSnapshot {
     pub cols: u16,
     pub rows: u16,
     pub cursor: Option<CursorWire>,
+    pub links: Vec<LinkRun>,
     /// The viewport is above the live row.
     pub scrolled: bool,
     /// Colors equal to these are the theme default and sent as such.
@@ -65,6 +78,7 @@ impl VteSnapshot {
                 fg: pen.fg.filter(|c| *c != self.default_fg),
                 bg: pen.bg.filter(|c| *c != self.default_bg),
                 flags: pen.flags,
+                link: 0,
             };
             if col + width > cols {
                 continue;
@@ -78,11 +92,29 @@ impl VteSnapshot {
             }
             col += width;
         }
+        let mut links = HashMap::new();
+        for run in &self.links {
+            let mut hasher = DefaultHasher::new();
+            run.uri.hash(&mut hasher);
+            let key = hasher.finish().max(1);
+            links.insert(key, run.uri.clone());
+            let start = usize::from(run.col);
+            let end = (start + usize::from(run.len)).min(cols);
+            if let Some(cells) = grid
+                .get_mut(usize::from(run.row))
+                .and_then(|r| r.get_mut(start..end))
+            {
+                for cell in cells {
+                    cell.style.link = key;
+                }
+            }
+        }
         Screen {
             cols: self.cols,
             rows: grid,
             cursor: self.cursor,
             scrolled: self.scrolled,
+            links,
         }
     }
 }

@@ -35,9 +35,10 @@ pub use names::{computer_name, magic_dns_name};
 pub use network::{Reachability, base_url, normalize_hostname, pairing_url};
 
 pub use protocol::{
-    ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, PairResponse, ServerMsg, TaskInfo,
-    TerminalInfo, WorkspaceInfo, style_flags,
+    AppearanceWire, ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, PairResponse,
+    Secret, ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo, WorkspaceInfo,
+    style_flags,
 };
 pub use server::{RemoteServer, StartError};
 pub use status::{DeviceRow, RemoteStatus, ago, device_rows, effective_port, theme_wire};
-pub use vte_html::VteSnapshot;
+pub use vte_html::{LinkRun, VteSnapshot};

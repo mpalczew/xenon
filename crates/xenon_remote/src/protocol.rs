@@ -222,6 +222,9 @@ pub struct StyleWire {
     /// Bit flags: see `style_flags`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub f: u8,
+    /// Hyperlink target (OSC 8); the page opens it on tap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub h: Option<String>,
 }
 
 fn is_zero(v: &u8) -> bool {

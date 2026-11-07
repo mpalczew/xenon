@@ -32,7 +32,14 @@ impl App {
 
     fn run_folder_open(self: &Rc<Self>, ws: WorkspaceId, set: &TaskSet) {
         for label in shared::folder_open_labels(set) {
-            if let Err(error) = self.start_task(ws, label, false, true) {
+            if let Err(error) = self.start_task(
+                ws,
+                label,
+                super::Start {
+                    quiet: true,
+                    ..super::Start::default()
+                },
+            ) {
                 self.toast_failed(shared::COULDNT_RUN_ON_OPEN, &error);
             }
         }

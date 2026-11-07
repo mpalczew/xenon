@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use xenon_core::{TabId, WorkspaceId};
 use xenon_remote::{
-    HostRequest, PairError, PairResponse, TaskInfo, TerminalInfo, WorkspaceInfo,
-    parse_workspace_id, tilde, wire_dot,
+    HostRequest, PairError, PairResponse, TerminalInfo, WorkspaceInfo, parse_workspace_id, tilde,
+    wire_dot,
 };
 
 use crate::app::App;
@@ -37,9 +37,11 @@ impl App {
             } => {
                 let _ = reply.send(self.remote_terminals(&workspace_id));
             }
-            HostRequest::ListTasks { reply, .. } => {
-                let none: Result<Vec<TaskInfo>, String> = Ok(Vec::new());
-                let _ = reply.send(none);
+            HostRequest::ListTasks {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(self.remote_list_tasks(&workspace_id));
             }
             HostRequest::CreateTerminal {
                 workspace_id,

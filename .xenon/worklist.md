@@ -16,8 +16,8 @@
 - [x] New workspace screen: useful shortcuts are clickable rows that work
 - [x] Command palette
 - [ ] `xenon open` honours `--pane` and the column
-- [ ] Phone remote gaps: tasks, mouse clicks, dim text, OSC 8 links, cursor hiding, the
-      phone's own light/dark choice
+- [ ] Phone remote: cursor hiding (VTE does not expose the hide-cursor mode, so the phone
+      always shows its cursor)
 - [ ] Git section has no draggable height
 - [ ] Editor diff gutter
 - [ ] Markdown prose mode: Paper surface, quote rule, round bullets, table grid, code

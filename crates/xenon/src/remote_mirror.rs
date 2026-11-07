@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use gtk::glib;
 use gtk::prelude::*;
 use vte::prelude::*;
-use xenon_remote::{CursorShapeWire, CursorWire, FrameEncoder, Outbox, Rgb, VteSnapshot};
+use xenon_remote::{CursorShapeWire, CursorWire, FrameEncoder, LinkRun, Outbox, Rgb, VteSnapshot};
 
 /// Shortest time between dumps; the phone sees at most ~30 frames a second.
 const GAP: Duration = Duration::from_millis(33);
@@ -172,10 +172,42 @@ fn capture(term: &vte::Terminal, (default_fg, default_bg): (Rgb, Rgb)) -> VteSna
         cols,
         rows,
         cursor,
+        links: hyperlinks(term, cols, rows),
         scrolled,
         default_fg,
         default_bg,
     }
+}
+
+/// OSC 8 links on the visible screen. VTE's HTML has no markup for them, so
+/// ask its hit test once per cell, and merge neighbours with the same target.
+#[allow(deprecated)]
+fn hyperlinks(term: &vte::Terminal, cols: u16, rows: u16) -> Vec<LinkRun> {
+    let (cw, ch) = (term.char_width() as f64, term.char_height() as f64);
+    let pad = term.style_context().padding();
+    let mut runs: Vec<LinkRun> = Vec::new();
+    for row in 0..rows {
+        let y = f64::from(pad.top()) + (f64::from(row) + 0.5) * ch;
+        let mut open: Option<LinkRun> = None;
+        for col in 0..cols {
+            let x = f64::from(pad.left()) + (f64::from(col) + 0.5) * cw;
+            let uri = term.check_hyperlink_at(x, y);
+            match (open.as_mut(), uri) {
+                (Some(run), Some(uri)) if run.uri == uri.as_str() => run.len += 1,
+                (_, uri) => {
+                    runs.extend(open.take());
+                    open = uri.map(|uri| LinkRun {
+                        row,
+                        col,
+                        len: 1,
+                        uri: uri.to_string(),
+                    });
+                }
+            }
+        }
+        runs.extend(open);
+    }
+    runs
 }
 
 /// Worker: parse, diff, and queue. Blocks while nothing changes.

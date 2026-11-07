@@ -2,9 +2,8 @@
 
 **Status:** implemented in `crates/xenon_remote` (server, protocol, pairing) and
 `crates/xenon/src/remote*.rs` (the GTK side). This page keeps the scope, contract
-and decisions. Not in the GTK app yet: tasks, mouse clicks, dim text, OSC 8 links,
-cursor hiding, the phone's own light/dark choice (`.xenon/worklist.md`). **Date:**
-2026-09-29
+and decisions. Known gap: the phone always shows its cursor, because VTE has no way to
+read whether the program hid it. **Date:** 2026-09-29
 
 ---
 
@@ -47,7 +46,7 @@ drive my running agents from my phone, so I never use the remote.
 | Create / close / split tabs from phone     | Select existing only (unchanged from v1)                                                                        |
 | Multi-phone conflict UI                    | Single operator; multiple devices allowed, last input wins                                                      |
 | Mouse / tap-to-position in grid            | Keys + text first                                                                                               |
-| Image / sixel / hyperlink rendering        | Text grid only                                                                                                  |
+| Image / sixel rendering                    | Text grid only                                                                                                  |
 
 **Done means:**
 
@@ -440,4 +439,25 @@ alongside the tailnet path, never in place of it.
   on a second row so the workspace name stays visible. Hide blurs the field and
   dismisses the software keyboard.
 - A tap on the live grid is a left click at that cell, reported only while the program
-  has mouse mode on. A drag still scrolls. Direct also focuses typing on that tap.
+  has mouse mode on. A drag still scrolls. Direct also focuses typing on that tap. VTE
+  has no getter for its mouse mode, so the Mac reads the terminal's pointer: VTE shows
+  the arrow (not the text pointer) exactly while a program reports the mouse. The click
+  is sent in the SGR form (`CSI < 0 ; col ; row M`, then `m`), which current programs
+  ask for. A program with only the old X10 mode would see stray text. While the Mac's
+  own pointer rests on a link, the pointer is a hand and the tap is not sent.
+- Dim text needs no flag: VTE's HTML dump already blends dim palette colors into the
+  color it writes (truecolor text is not dimmed, as on the Mac).
+- OSC 8 links: VTE's HTML has no markup for them, so each snapshot asks
+  `check_hyperlink_at` once per cell and merges neighbours with the same target. The
+  target rides on the interned style (`h`); the page draws an `<a>` and opens only
+  `http(s):` and `mailto:` targets. A tap on a link opens it and sends no click.
+- Cursor hiding is not possible: VTE does not expose the hide-cursor mode (DECTCEM) and
+  sends no signal for it, so the phone cursor stays visible.
+- Light and dark: the page's `appearance` (Auto follows `prefers-color-scheme`) picks
+  the default colors in `theme`. The 16 ANSI colors are the same in both looks, so cell
+  colors from VTE stay valid; only default text and background change. The Mac's own
+  look is untouched.
+- Tasks: `ListTasks` is the Mac picker's rows. `runTask` starts a quiet run (no tab or
+  focus change on the Mac). Its `inputs` questions go to the phone that started the run
+  as `taskInput`; a dropped phone cancels the run. `taskStarted` names the run's first
+  terminal, which is an ordinary terminal and also appears in the terminal list.

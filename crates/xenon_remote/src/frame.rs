@@ -21,6 +21,8 @@ pub struct Style {
     pub fg: Option<Rgb>,
     pub bg: Option<Rgb>,
     pub flags: u8,
+    /// Hyperlink (OSC 8) the cell belongs to: key into `Screen::links`; 0 = none.
+    pub link: u64,
 }
 
 impl Style {
@@ -29,11 +31,12 @@ impl Style {
         self.bg.is_none() && self.flags & (style_flags::UNDERLINE | style_flags::STRIKE) == 0
     }
 
-    fn wire(self) -> StyleWire {
+    fn wire(self, links: &HashMap<u64, String>) -> StyleWire {
         StyleWire {
             fg: self.fg.map(Rgb::hex),
             bg: self.bg.map(Rgb::hex),
             f: self.flags,
+            h: links.get(&self.link).cloned(),
         }
     }
 }
@@ -64,6 +67,8 @@ pub struct Screen {
     pub cursor: Option<CursorWire>,
     /// Terminal viewport is above the live row.
     pub scrolled: bool,
+    /// Link targets by `Style::link` key.
+    pub links: HashMap<u64, String>,
 }
 
 /// Per-connection encoder: remembers what the phone has so patches stay small.
@@ -95,7 +100,7 @@ impl FrameEncoder {
         let lines: Vec<Vec<SpanWire>> = screen
             .rows
             .iter()
-            .map(|row| self.encode_row(row, &mut new_styles))
+            .map(|row| self.encode_row(row, &screen.links, &mut new_styles))
             .collect();
         let full = self
             .sent
@@ -136,6 +141,7 @@ impl FrameEncoder {
     fn encode_row(
         &mut self,
         row: &[Cell],
+        links: &HashMap<u64, String>,
         new_styles: &mut BTreeMap<u32, StyleWire>,
     ) -> Vec<SpanWire> {
         let end = row
@@ -146,7 +152,7 @@ impl FrameEncoder {
         let mut current: Option<Style> = None;
         for cell in &row[..end] {
             if current != Some(cell.style) {
-                let id = self.intern(cell.style, new_styles);
+                let id = self.intern(cell.style, links, new_styles);
                 spans.push((String::new(), id));
                 current = Some(cell.style);
             }
@@ -159,13 +165,18 @@ impl FrameEncoder {
         spans
     }
 
-    fn intern(&mut self, style: Style, new_styles: &mut BTreeMap<u32, StyleWire>) -> u32 {
+    fn intern(
+        &mut self,
+        style: Style,
+        links: &HashMap<u64, String>,
+        new_styles: &mut BTreeMap<u32, StyleWire>,
+    ) -> u32 {
         if let Some(id) = self.styles.get(&style) {
             return *id;
         }
         let id = self.styles.len() as u32;
         self.styles.insert(style, id);
-        new_styles.insert(id, style.wire());
+        new_styles.insert(id, style.wire(links));
         id
     }
 }

@@ -20,6 +20,7 @@ use xenon_core::tasks::{
 use xenon_core::{
     Action, EditorInfo, Orchestrator, Readiness, TabId, TabState, TaskSet, WorkspaceId,
 };
+use xenon_remote::ConnId;
 
 use crate::app::App;
 use crate::model::TabKind;
@@ -39,6 +40,16 @@ pub(crate) struct Placement {
     quiet: bool,
 }
 
+/// Who starts a run and how it shows.
+#[derive(Default)]
+pub(crate) struct Start {
+    /// Run the root task in a new, revealed tab (the picker's Ctrl+Return).
+    pub new_tab: bool,
+    /// Never move the tab or focus (folderOpen and phone runs).
+    pub quiet: bool,
+    pub origin: Option<ConnId>,
+}
+
 /// Everything a run needs once its inputs are known.
 pub(crate) struct RunPlan {
     ws: WorkspaceId,
@@ -50,6 +61,10 @@ pub(crate) struct RunPlan {
     new_tab: bool,
     /// Started by the app itself (folderOpen): never moves the tab or focus.
     quiet: bool,
+    /// The phone that started the run: it answers the questions and is told
+    /// which tab the run opened first.
+    origin: Option<ConnId>,
+    announced: bool,
     vars: RunVars,
 }
 
@@ -93,6 +108,9 @@ pub(crate) struct Tasks {
     dedicated: RefCell<HashMap<(WorkspaceId, String), TabId>>,
     folder_checked: RefCell<HashSet<WorkspaceId>>,
     trust: RefCell<Option<TrustPrompt>>,
+    /// The question a phone has been asked: its token and connection.
+    pub(crate) phone_ask: RefCell<Option<(u64, ConnId)>>,
+    pub(crate) next_token: Cell<u64>,
 }
 
 impl Tasks {
@@ -149,7 +167,14 @@ impl App {
 
     /// Start a task from the user, toasting a failure to even start.
     pub(crate) fn run_task_checked(self: &Rc<Self>, ws: WorkspaceId, label: String, new_tab: bool) {
-        if let Err(error) = self.start_task(ws, label, new_tab, false) {
+        if let Err(error) = self.start_task(
+            ws,
+            label,
+            Start {
+                new_tab,
+                ..Start::default()
+            },
+        ) {
             self.toast_failed(shared::COULDNT_RUN, &error);
         }
     }
@@ -159,8 +184,11 @@ impl App {
         self: &Rc<Self>,
         ws: WorkspaceId,
         label: String,
-        new_tab: bool,
-        quiet: bool,
+        Start {
+            new_tab,
+            quiet,
+            origin,
+        }: Start,
     ) -> Result<(), String> {
         let loaded = self.load_workspace_tasks(ws)?;
         let shared::RunSetup { orch, ids, secrets } = shared::plan_run(&loaded.set, &label)?;
@@ -172,6 +200,8 @@ impl App {
             root: label,
             new_tab,
             quiet,
+            origin,
+            announced: false,
             vars: RunVars {
                 editor: self.editor_info(ws),
                 config: settings_config(),
@@ -227,7 +257,18 @@ impl App {
                     self.launch_plan(pending.plan);
                 }
             }
-            Some(Some(question)) => self.show_input_prompt(question),
+            Some(Some(question)) => {
+                let origin = self
+                    .tasks
+                    .pending
+                    .borrow()
+                    .as_ref()
+                    .and_then(|p| p.plan.origin);
+                match origin {
+                    Some(conn) => self.remote_ask_input(conn, &question),
+                    None => self.show_input_prompt(question),
+                }
+            }
             Some(None) => {}
         }
     }
@@ -318,6 +359,16 @@ impl App {
             .owners
             .borrow_mut()
             .insert((ws, tab), (run_id, label.to_string()));
+        let announce = self
+            .with_run(run_id, |run| {
+                let origin = run.plan.origin.filter(|_| !run.plan.announced);
+                run.plan.announced |= origin.is_some();
+                origin.map(|conn| (conn, run.plan.root.clone()))
+            })
+            .flatten();
+        if let Some((conn, root)) = announce {
+            self.remote_task_started(conn, ws, &root, tab);
+        }
         let watch = resolved
             .is_background
             .then(|| (Readiness::new(resolved.background.as_ref()), 0));

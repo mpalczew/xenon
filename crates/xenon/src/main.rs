@@ -65,6 +65,7 @@ mod remote_fit;
 mod remote_host;
 mod remote_mirror;
 mod remote_session;
+mod remote_tasks;
 mod remote_ui;
 mod screenshot;
 mod sidebar;

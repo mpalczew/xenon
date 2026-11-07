@@ -17,6 +17,9 @@ pub struct TaskRow {
     pub detail: Option<String>,
     /// Chip text, e.g. "build · default".
     pub tag: Option<String>,
+    /// `build` or `test`.
+    pub group: Option<&'static str>,
+    pub is_default: bool,
     /// Why it cannot run here; such rows are listed dimmed.
     pub unsupported: Option<String>,
 }
@@ -89,6 +92,8 @@ pub fn task_rows(set: &TaskSet, folder: &Path) -> Vec<TaskRow> {
                 command_line: row_command(t, ctx),
                 detail: t.detail.clone(),
                 tag: group_tag(t),
+                group: t.group.map(|g| group_name(g.kind)),
+                is_default: t.group.is_some_and(|g| g.is_default),
                 unsupported: t.unsupported.clone(),
             })
             .collect()
@@ -98,6 +103,8 @@ pub fn task_rows(set: &TaskSet, folder: &Path) -> Vec<TaskRow> {
         command_line: String::new(),
         detail: None,
         tag: None,
+        group: None,
+        is_default: false,
         unsupported: Some(w.clone()),
     }));
     rows
@@ -117,12 +124,16 @@ pub(crate) fn row_command(task: &TaskDef, ctx: &VarContext) -> String {
     }
 }
 
-fn group_tag(task: &TaskDef) -> Option<String> {
-    let group = task.group?;
-    let kind = match group.kind {
+fn group_name(kind: GroupKind) -> &'static str {
+    match kind {
         GroupKind::Build => "build",
         GroupKind::Test => "test",
-    };
+    }
+}
+
+fn group_tag(task: &TaskDef) -> Option<String> {
+    let group = task.group?;
+    let kind = group_name(group.kind);
     Some(if group.is_default {
         format!("{kind} · default")
     } else {

@@ -123,6 +123,7 @@ html.in-session { background:var(--chrome); }
 #termwrap { flex:1; min-height:0; position:relative; background:var(--term-bg); --fs:13px; --lh:18px; }
 #term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
   padding:8px 10px 0; font-family:var(--mono); font-size:var(--fs); line-height:var(--lh); color:var(--term-fg); white-space:pre; }
+#term a { color:inherit; text-decoration:underline dotted; }
 #hist .row { opacity:.62; }
 #screen { position:relative; }
 .row { height:var(--lh); overflow:hidden; }
@@ -308,6 +309,8 @@ html.in-session { background:var(--chrome); }
 // <core> — pure helpers; no DOM. Exercised by a node harness.
 const Core = (() => {
   const COLOR = /^#[0-9a-fA-F]{3,8}$/;
+  /** Only these links are opened: a program can write any OSC 8 target. */
+  const LINK = /^(https?:\/\/|mailto:)/i;
   const F = { BOLD: 1, ITALIC: 2, UNDERLINE: 4, DIM: 8, STRIKE: 16 };
 
   function newTerm() { return { cols: 0, rows: 0, lines: [], cursor: null, seq: 0 }; }
@@ -457,7 +460,7 @@ const Core = (() => {
     return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
 
-  return { newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
+  return { LINK, newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
 })();
 // </core>
 
@@ -1010,7 +1013,12 @@ function addStyles(add) {
 
 function rowHtml(spans) {
   let h = "";
-  for (const [text, id] of spans || []) h += S.styles[id] ? '<span class="s' + (id | 0) + '">' + esc(text) + "</span>" : esc(text);
+  for (const [text, id] of spans || []) {
+    const st = S.styles[id];
+    if (!st) h += esc(text);
+    else if (st.h && Core.LINK.test(st.h)) h += '<a class="s' + (id | 0) + '" href="' + esc(st.h) + '" target="_blank" rel="noopener noreferrer">' + esc(text) + "</a>";
+    else h += '<span class="s' + (id | 0) + '">' + esc(text) + "</span>";
+  }
   return h;
 }
 
@@ -1535,6 +1543,7 @@ function wireEvents() {
     // A drag still produces a click unless this swallows it.
     ignoreClick = true;
     if (was.drag) return;
+    if (e.target.closest && e.target.closest("a")) return;
     const t = e.changedTouches[0];
     if (!t) return;
     sendClick(t.clientX, t.clientY);
@@ -1547,6 +1556,7 @@ function wireEvents() {
   });
   term.addEventListener("click", (e) => {
     if (ignoreClick) { ignoreClick = false; return; }
+    if (e.target.closest && e.target.closest("a")) return;
     sendClick(e.clientX, e.clientY);
     focusDirect();
   });

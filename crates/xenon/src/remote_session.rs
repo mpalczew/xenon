@@ -8,8 +8,8 @@ use gtk::prelude::*;
 use vte::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 use xenon_remote::{
-    ClientMsg, ClosedReason, ConnId, Dot, InputRoute, Outbox, Rgb, ServerMsg, clamp_fit,
-    parse_workspace_id, pty_text_bytes, wire_dot,
+    AppearanceWire, ClientMsg, ClosedReason, ConnId, Dot, InputRoute, Outbox, Rgb, ServerMsg,
+    clamp_fit, parse_workspace_id, pty_text_bytes, wire_dot,
 };
 
 use crate::app::App;
@@ -19,6 +19,8 @@ pub(crate) struct Conn {
     pub device_id: String,
     pub out: Outbox,
     pub attach: Option<Attach>,
+    /// The phone's own light or dark choice; `None` follows the Mac.
+    appearance: Option<AppearanceWire>,
     low_bandwidth: bool,
     last_dots: Option<ServerMsg>,
 }
@@ -40,16 +42,22 @@ fn rgb(hex: &str) -> [u8; 3] {
 }
 
 impl App {
-    /// Terminal default foreground, background and cursor, as the phone page
-    /// wants them. The phone always gets the Mac's colors: cell colors come
-    /// from VTE's palette, so a page theme of its own would not match them.
-    pub(crate) fn remote_colors(&self) -> [[u8; 3]; 3] {
-        let (fg, bg, _) = crate::theme::terminal(crate::theme::dark());
+    /// Terminal default background, foreground and cursor for the page, in
+    /// the phone's chosen look. The ANSI palette is the same in both looks, so
+    /// only the defaults differ and cell colors from VTE still match.
+    fn remote_colors(appearance: Option<AppearanceWire>) -> [[u8; 3]; 3] {
+        let dark = match appearance {
+            Some(look) => look == AppearanceWire::Dark,
+            None => crate::theme::dark(),
+        };
+        let (fg, bg, _) = crate::theme::terminal(dark);
         [rgb(bg), rgb(fg), rgb(fg)]
     }
 
-    fn remote_defaults(&self) -> (Rgb, Rgb) {
-        let [bg, fg, _] = self.remote_colors();
+    /// The Mac terminal's own default foreground and background: the colors
+    /// VTE's text dump leaves out, which the phone shows as its defaults.
+    fn remote_defaults() -> (Rgb, Rgb) {
+        let [bg, fg, _] = Self::remote_colors(None);
         (Rgb(fg[0], fg[1], fg[2]), Rgb(bg[0], bg[1], bg[2]))
     }
 
@@ -60,7 +68,7 @@ impl App {
         out: Outbox,
         _input: InputRoute,
     ) {
-        let theme = xenon_remote::theme_wire(self.remote_colors());
+        let theme = xenon_remote::theme_wire(Self::remote_colors(None));
         {
             let mut rt = self.remote.rt.borrow_mut();
             let Some(rt) = rt.as_mut() else { return };
@@ -75,6 +83,7 @@ impl App {
                     device_id,
                     out,
                     attach: None,
+                    appearance: None,
                     low_bandwidth: false,
                     last_dots: None,
                 },
@@ -86,6 +95,7 @@ impl App {
 
     pub(crate) fn remote_disconnected(self: &Rc<Self>, conn: ConnId) {
         self.remote_detach(conn);
+        self.remote_task_gone(conn);
         if let Some(rt) = self.remote.rt.borrow_mut().as_mut() {
             rt.conns.remove(&conn);
         }
@@ -109,8 +119,9 @@ impl App {
                     }
                 });
             }
-            ClientMsg::Appearance { .. } => {
-                let theme = xenon_remote::theme_wire(self.remote_colors());
+            ClientMsg::Appearance { appearance } => {
+                self.with_conn(conn, |c| c.appearance = appearance);
+                let theme = xenon_remote::theme_wire(Self::remote_colors(appearance));
                 self.send_to(conn, ServerMsg::Theme { theme });
             }
             ClientMsg::Detach => self.remote_detach(conn),
@@ -132,12 +143,13 @@ impl App {
                     self.remote_publish();
                 }
             }
-            // Mouse clicks, tasks, and uploads are not wired in the GTK app yet.
-            ClientMsg::Click { .. }
-            | ClientMsg::RunTask { .. }
-            | ClientMsg::TaskInput { .. }
-            | ClientMsg::Hello { .. }
-            | ClientMsg::Ping => {}
+            ClientMsg::Click { col, row } => self.remote_click(conn, col, row),
+            ClientMsg::RunTask {
+                workspace_id,
+                label,
+            } => self.remote_run_task(conn, &workspace_id, label),
+            ClientMsg::TaskInput { token, value } => self.remote_task_answer(conn, token, value),
+            ClientMsg::Hello { .. } | ClientMsg::Ping => {}
         }
     }
 
@@ -151,7 +163,7 @@ impl App {
             .map(f)
     }
 
-    fn send_to(&self, conn: ConnId, msg: ServerMsg) {
+    pub(crate) fn send_to(&self, conn: ConnId, msg: ServerMsg) {
         self.with_conn(conn, |c| c.out.try_send(msg));
     }
 
@@ -178,7 +190,7 @@ impl App {
             );
             return;
         };
-        let colors = self.remote_defaults();
+        let colors = Self::remote_defaults();
         self.with_conn(conn, |c| {
             c.attach = Some(Attach {
                 ws,
@@ -240,6 +252,26 @@ impl App {
         view.term.feed_child(bytes);
         if self.model.borrow_mut().on_interaction(ws, tab) {
             self.paint_all();
+        }
+    }
+
+    /// A tap on the live grid, reported to a program that asked for the mouse.
+    /// VTE has no getter for its mouse mode, but it shows an arrow pointer
+    /// (not the text pointer) exactly while a program reports the mouse. The
+    /// report is the SGR form, which every current program asks for.
+    fn remote_click(&self, conn: ConnId, col: u16, row: u16) {
+        let Some(view) = self.attached_term(conn) else {
+            return;
+        };
+        let term = &view.term;
+        let mouse_on = term
+            .cursor()
+            .and_then(|cursor| cursor.name())
+            .is_some_and(|name| name == "default");
+        let inside = i64::from(col) < term.column_count() && i64::from(row) < term.row_count();
+        if mouse_on && inside {
+            let (col, row) = (col + 1, row + 1);
+            term.feed_child(format!("\x1b[<0;{col};{row}M\x1b[<0;{col};{row}m").as_bytes());
         }
     }
 
@@ -328,11 +360,10 @@ impl App {
         let Some(rt) = guard.as_mut().filter(|rt| !rt.conns.is_empty()) else {
             return;
         };
-        let theme = xenon_remote::theme_wire(self.remote_colors());
-        let colors = self.remote_defaults();
+        let colors = Self::remote_defaults();
         for conn in rt.conns.values() {
             conn.out.try_send(ServerMsg::Theme {
-                theme: theme.clone(),
+                theme: xenon_remote::theme_wire(Self::remote_colors(conn.appearance)),
             });
             if let Some(a) = conn.attach.as_ref() {
                 a.mirror.set_colors(colors);
