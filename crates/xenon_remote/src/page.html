@@ -202,7 +202,7 @@ html.in-session { background:var(--chrome); }
     <div class="center">
       <div class="badge" aria-hidden="true">Xe</div>
       <h1>Paired</h1>
-      <p>This browser can now drive Xenon on <b id="paired-host">your Mac</b> over Tailscale.</p>
+      <p>This browser can now drive Xenon on <b id="paired-host">your computer</b> over Tailscale.</p>
       <button type="button" class="btn pri" id="open-ws">Open workspaces</button>
     </div>
     <div class="a2hs" id="a2hs" hidden>
@@ -216,7 +216,7 @@ html.in-session { background:var(--chrome); }
     <div class="center">
       <div class="badge" aria-hidden="true">Xe</div>
       <h1>Pair this app</h1>
-      <p>Enter the code shown on your Mac.<br>Xenon › Connect Phone <span class="kbd">⌘⇧M</span></p>
+      <p>Enter the code shown on your computer.<br>Xenon › Connect Phone <span class="kbd">Ctrl+Shift+M</span></p>
       <div class="digits" id="digits">
         <div class="digit"></div><div class="digit"></div><div class="digit"></div>
         <div class="digit"></div><div class="digit"></div><div class="digit"></div>
@@ -224,7 +224,7 @@ html.in-session { background:var(--chrome); }
       </div>
       <div class="msg" id="code-msg" role="status"></div>
       <button type="button" class="btn ghost" id="code-help-btn" aria-expanded="false">Where do I find the code?</button>
-      <p class="help" id="code-help" hidden>On the Mac, run <b>Connect Phone</b> from the command palette or press <span class="kbd">⌘⇧M</span>. The six digits sit under the QR code and work once, for 10 minutes.</p>
+      <p class="help" id="code-help" hidden>On the computer, run <b>Connect Phone</b> from the command palette or press <span class="kbd">Ctrl+Shift+M</span>. The six digits sit under the QR code and work once, for 10 minutes.</p>
     </div>
   </section>
 
@@ -296,7 +296,7 @@ html.in-session { background:var(--chrome); }
     <p class="sub" id="ti-sub"></p>
     <input id="ti-field" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-labelledby="ti-title">
     <div class="opts" id="ti-opts" role="listbox" aria-labelledby="ti-title" hidden></div>
-    <p class="sec-note" id="ti-note" hidden>Hidden here. Sent to your Mac over your tailnet and handed to the task. Never stored on this phone.</p>
+    <p class="sec-note" id="ti-note" hidden>Hidden here. Sent to your computer over your tailnet and handed to the task. Never stored on this phone.</p>
     <div class="row2"><button type="button" class="btn sec" id="ti-cancel">Cancel</button><button type="submit" class="btn pri" id="ti-ok">OK</button></div>
   </form>
 </div>
@@ -498,7 +498,7 @@ async function pair(code) {
   let r;
   try {
     r = await fetch("/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, label }) });
-  } catch (_) { throw new Error("Can’t reach your Mac. Is Tailscale on?"); }
+  } catch (_) { throw new Error("Can’t reach your computer. Is Tailscale on?"); }
   if (r.status === 429) throw new Error("Too many tries — wait a minute");
   if (!r.ok) throw new Error("That code didn’t work. It may be used or expired.");
   const j = await r.json();
@@ -512,7 +512,7 @@ async function api(path, opts) {
   const headers = { Authorization: "Bearer " + S.token };
   if (opts.body) headers["Content-Type"] = "application/json";
   const r = await fetch(path, { method: opts.method || "GET", headers, body: opts.body });
-  if (r.status === 401) { unpair("This device was signed out. Enter a new code from your Mac."); throw new Error("unauthorized"); }
+  if (r.status === 401) { unpair("This device was signed out. Enter a new code from your computer."); throw new Error("unauthorized"); }
   const text = await r.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
@@ -540,7 +540,7 @@ function connect() {
   };
   ws.onclose = (e) => {
     if (S.ws !== ws) return;
-    if (e.code === 4401) { closeSocket(); unpair("This device was signed out. Enter a new code from your Mac."); return; }
+    if (e.code === 4401) { closeSocket(); unpair("This device was signed out. Enter a new code from your computer."); return; }
     dropSocket();
   };
 }
@@ -616,7 +616,7 @@ function onDots(m) {
 }
 
 function onClosed(reason) {
-  if (reason === "revoked") return unpair("This device was revoked on your Mac. Enter a new code to pair again.");
+  if (reason === "revoked") return unpair("This device was revoked on your computer. Enter a new code to pair again.");
   if (reason === "tabClosed") {
     const own = S.suppressCloseToast;
     S.suppressCloseToast = false;
@@ -654,7 +654,7 @@ function showCode(msg) {
 }
 
 function showPaired() {
-  $("paired-host").textContent = S.hostName || "your Mac";
+  $("paired-host").textContent = S.hostName || "your computer";
   $("a2hs").hidden = isStandalone() || store(KEY.a2hs) === "1";
   show("paired");
 }
@@ -752,7 +752,7 @@ function renderWorkspaces() {
   const g = Core.groupWorkspaces(S.workspaces);
   const sect = (title, items) => items.length ? '<div class="sect">' + title + "</div>" + items.map(wsRow).join("") : "";
   let h = sect("Needs you", g.attention) + sect("Working", g.working) + sect("Open", g.open);
-  if (!g.attention.length && !g.working.length && !g.open.length) h += '<div class="note">No open workspaces on your Mac.</div>';
+  if (!g.attention.length && !g.working.length && !g.open.length) h += '<div class="note">No open workspaces on your computer.</div>';
   if (g.recent.length) {
     h += '<button type="button" class="recent" id="recent-btn" aria-expanded="' + S.recentOpen + '"><span>Recent · ' +
       g.recent.length + ' closed</span><span class="chev" aria-hidden="true">›</span></button>';
@@ -843,7 +843,7 @@ async function openTasks() {
 
 function runTask(t) {
   if (!S.wsSel || !t || t.unsupported) return;
-  if (!S.connected) return toast("Not connected to your Mac");
+  if (!S.connected) return toast("Not connected to your computer");
   S.runningTask = t.label;
   send({ t: "runTask", workspaceId: S.wsSel.id, label: t.label });
   toast("Starting " + t.label + "…");
@@ -1393,8 +1393,8 @@ async function uploadImage(blob) {
   let r;
   try {
     r = await fetch("/api/uploads", { method: "POST", headers: { Authorization: "Bearer " + S.token, "Content-Type": blob.type }, body: blob });
-  } catch (_) { throw new Error("can’t reach your Mac"); }
-  if (r.status === 401) { unpair("This device was signed out. Enter a new code from your Mac."); throw new Error("unauthorized"); }
+  } catch (_) { throw new Error("can’t reach your computer"); }
+  if (r.status === 401) { unpair("This device was signed out. Enter a new code from your computer."); throw new Error("unauthorized"); }
   const data = await r.json().catch(() => null);
   if (!r.ok || !data || !data.path) throw new Error((data && data.error) || "upload failed");
   return data.path;

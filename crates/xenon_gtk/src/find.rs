@@ -53,9 +53,13 @@ impl FindBar {
             b.add_css_class("flat");
             b.set_focusable(false);
         }
-        prev.set_tooltip_text(Some("Previous (Shift+F3)"));
-        next.set_tooltip_text(Some("Next (F3)"));
-        close.set_tooltip_text(Some("Close (Escape)"));
+        prev.set_tooltip_text(Some(&xenon_keymap::display_text(
+            "Previous match \u{b7} \u{21e7}\u{21a9} / \u{2318}\u{21e7}G",
+        )));
+        next.set_tooltip_text(Some(&xenon_keymap::display_text(
+            "Next match \u{b7} \u{21a9} / \u{2318}G",
+        )));
+        close.set_tooltip_text(Some(&xenon_keymap::display_text("Close \u{b7} Esc")));
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         row.add_css_class("xfind");
         row.append(&entry);

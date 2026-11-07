@@ -247,8 +247,8 @@ impl App {
         self.launcher.open(
             &self.win,
             Handlers {
-                placeholder: "Folder to open: a name, or a path like ~/src/",
-                hint: "Enter opens  ·  Tab completes  ·  Esc closes",
+                placeholder: "Folder or ssh://host/path\u{2026}",
+                hint: "return opens  ·  tab completes  ·  esc closes",
                 on_query: Box::new(move |query| {
                     if let Some(app) = wq.upgrade() {
                         app.picker_query(&sq, query);
@@ -327,9 +327,9 @@ impl App {
             })
             .collect();
         let empty = if query.is_empty() {
-            "No workspaces yet. Type a folder name or path."
+            "No workspaces \u{2014} type a path, name, or ~/src name"
         } else {
-            "No matching folder"
+            "No match \u{2014} try ~/src name or Browse\u{2026}"
         };
         *session.results.borrow_mut() = results;
         self.launcher.set_rows(rows, empty);

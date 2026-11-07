@@ -31,7 +31,7 @@ impl Footer {
         root.set_child(Some(&row));
         root.add_css_class("flat");
         root.set_action_name(Some("app.connect-phone"));
-        root.set_tooltip_text(Some("Connect a phone"));
+        root.set_tooltip_text(Some("Connect Phone"));
         root.set_focusable(false);
         root.set_visible(false);
         Self { root, label }
@@ -118,11 +118,11 @@ impl App {
     /// Digits and link of the live pairing code (None while no dialog shows it).
     fn pairing_snapshot(&self) -> Option<serde_json::Value> {
         self.remote.connect_dialog.borrow().as_ref()?;
-        let (digits, url) = self.pairing_facts()?;
+        let (digits, url, _) = self.pairing_facts()?;
         Some(serde_json::json!({"digits": digits, "url": url}))
     }
 
-    fn pairing_facts(&self) -> Option<(String, Option<String>)> {
+    fn pairing_facts(&self) -> Option<(String, Option<String>, Instant)> {
         let mut guard = self.remote.rt.borrow_mut();
         let rt = guard.as_mut()?;
         let code = rt.devices.pairing_code(Instant::now()).clone();
@@ -133,6 +133,7 @@ impl App {
         Some((
             code.display_digits(),
             reachable.then(|| pairing_url(&base, &code.secret)),
+            code.expires_at,
         ))
     }
 
@@ -143,7 +144,12 @@ impl App {
             crate::remote::persist_enabled(self.remote.running() || self.remote.waiting());
         }
         if self.remote.waiting() {
-            self.toast("The other Xenon has the phone remote: connect from there, or quit it");
+            self.toast(&match self.chord("app.connect-phone") {
+                Some(chord) => format!(
+                    "The other Xenon has the phone remote \u{2014} {chord} there, or quit it"
+                ),
+                None => "The other Xenon has the phone remote".to_string(),
+            });
             return;
         }
         let open = self.remote.connect_dialog.borrow().clone();
@@ -178,7 +184,7 @@ impl App {
         let Some(dialog) = self.remote.connect_dialog.borrow().clone() else {
             return;
         };
-        let Some((digits, url)) = self.pairing_facts() else {
+        let Some((digits, url, expires_at)) = self.pairing_facts() else {
             return;
         };
         let status = self.remote_status();
@@ -197,20 +203,30 @@ impl App {
                 qr.set_size_request(220, 220);
                 qr.set_halign(gtk::Align::Center);
                 qr.set_can_shrink(false);
-                qr.set_tooltip_text(Some("Scan with your phone camera"));
                 content.append(&qr);
-                let hint = gtk::Label::new(Some("Scan with your phone camera"));
-                hint.add_css_class("dim-label");
-                content.append(&hint);
+                for line in [
+                    "1. Scan with your phone\u{2019}s camera.",
+                    "2. In Safari: Share \u{203a} Add to Home Screen.",
+                    "3. Opening the Home Screen app? Enter:",
+                ] {
+                    let label = gtk::Label::new(Some(line));
+                    label.set_xalign(0.0);
+                    content.append(&label);
+                }
             }
             None => {
                 let warn = gtk::Label::new(Some(
-                    "Tailscale not detected, so your phone can't reach this computer. \
-                     Set an address in Settings > Phone Remote, or connect to your tailnet.",
+                    "Tailscale isn\u{2019}t running on this computer, so your phone can\u{2019}t reach Xenon.",
                 ));
                 warn.set_wrap(true);
                 warn.add_css_class("warning");
                 content.append(&warn);
+                let help = gtk::Label::new(Some(
+                    "Open Tailscale (or your Headscale client) and sign in; this sheet updates on its own. The phone remote only listens on your tailnet.",
+                ));
+                help.set_wrap(true);
+                help.add_css_class("dim-label");
+                content.append(&help);
             }
         }
         let code = gtk::Label::new(Some(&digits));
@@ -218,12 +234,11 @@ impl App {
         code.add_css_class("monospace");
         code.set_selectable(true);
         content.append(&code);
-        let sub = gtk::Label::new(Some(
-            "Or type this code in the Home Screen app. It works once, for ten minutes.",
-        ));
-        sub.add_css_class("dim-label");
-        sub.set_wrap(true);
+        let sub = expiry_label(expires_at);
         content.append(&sub);
+        let heading = gtk::Label::new(Some("Address \u{b7} phone must be on Tailscale"));
+        heading.add_css_class("dim-label");
+        content.append(&heading);
         let address = gtk::Label::new(status.base_url.as_deref());
         address.set_selectable(true);
         address.add_css_class("monospace");
@@ -231,7 +246,6 @@ impl App {
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.set_halign(gtk::Align::Center);
         let copy = gtk::Button::with_label("Copy link");
-        copy.set_sensitive(url.is_some());
         let link = url.clone().unwrap_or_default();
         let weak = dialog.downgrade();
         copy.connect_clicked(move |button| {
@@ -240,7 +254,19 @@ impl App {
                 dialog.close();
             }
         });
-        let done = gtk::Button::with_label("Done");
+        let settings = gtk::Button::with_label(&match self.chord("app.settings") {
+            Some(chord) => format!("Settings\u{2026}  {chord}"),
+            None => "Settings\u{2026}".to_string(),
+        });
+        let weak = dialog.downgrade();
+        let gtk_app = self.gtk.clone();
+        settings.connect_clicked(move |_| {
+            if let Some(dialog) = weak.upgrade() {
+                dialog.close();
+            }
+            gtk_app.activate_action("settings", None);
+        });
+        let done = gtk::Button::with_label("Done  esc");
         done.add_css_class("suggested-action");
         let weak = dialog.downgrade();
         done.connect_clicked(move |_| {
@@ -248,11 +274,40 @@ impl App {
                 dialog.close();
             }
         });
-        buttons.append(&copy);
+        if url.is_some() {
+            buttons.append(&copy);
+        }
+        buttons.append(&settings);
         buttons.append(&done);
         content.append(&buttons);
         dialog.set_child(Some(&content));
     }
+}
+
+/// "One-time · expires in M:SS", counting down while it is on screen.
+fn expiry_label(expires_at: Instant) -> gtk::Label {
+    let label = gtk::Label::new(None);
+    label.add_css_class("dim-label");
+    let tick = {
+        let label = label.downgrade();
+        move || {
+            let Some(label) = label.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            let secs = expires_at
+                .saturating_duration_since(Instant::now())
+                .as_secs();
+            label.set_text(&format!(
+                "One-time \u{b7} expires in {}:{:02}",
+                secs / 60,
+                secs % 60
+            ));
+            glib::ControlFlow::Continue
+        }
+    };
+    tick();
+    glib::timeout_add_seconds_local(1, tick);
+    label
 }
 
 /// The link as a QR code: black modules on white with a quiet border.

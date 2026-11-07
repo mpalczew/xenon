@@ -341,17 +341,17 @@ fn bottom_bar(dialog: &adw::PreferencesDialog, keep: &Rc<impl Fn() + 'static>) -
     bar.set_margin_bottom(8);
     bar.set_margin_start(12);
     bar.set_margin_end(12);
-    let hint = gtk::Label::new(Some("↑↓ theme · ←→ dark or light · Enter keeps"));
+    let hint = gtk::Label::new(Some("↑↓ theme · ←→ dark/light"));
     hint.add_css_class("dim-label");
     hint.set_hexpand(true);
     hint.set_xalign(0.0);
     bar.append(&hint);
-    let revert = gtk::Button::with_label("Revert");
+    let revert = gtk::Button::with_label("Revert  esc");
     let dialog = dialog.clone();
     revert.connect_clicked(move |_| {
         dialog.pop_subpage();
     });
-    let keep_button = gtk::Button::with_label("Keep");
+    let keep_button = gtk::Button::with_label("Keep  \u{21b5}");
     keep_button.add_css_class("suggested-action");
     let keep = keep.clone();
     keep_button.connect_clicked(move |_| keep());

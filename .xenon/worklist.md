@@ -12,7 +12,7 @@
   - The close button on each tab closes it.
   - No custom underline on the selected tab.
   - Drag a tab to a pane edge to split, as the GPUI app did.
-- [ ] GTK: the empty workspace screen matches GPUI word for word
+- [x] GTK: the empty workspace screen matches GPUI word for word
 - [x] Remove macOS-only code
 - [ ] GTK: Markdown writing mode
   - Rescued as a WIP commit on `worktree-agent-ad3978011b03424c7`.
@@ -31,7 +31,7 @@
   - One process per slot, opens routed over each slot's socket (`xenon open`).
 - [x] GTK: an open file updates when it changes on disk, as in the GPUI editor
   - Unsaved edits: show a conflict instead of reloading.
-- [ ] GTK: wording pass, copying GPUI text word for word
+- [x] GTK: wording pass, copying GPUI text word for word
   - Mac words become generic; nothing else changes.
   - Key hints use GPUI's format with Linux chords from the key map.
   - Remove the "not built yet" notes.

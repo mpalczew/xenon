@@ -18,8 +18,8 @@ const PAGES: [&str; 7] = [
     "editor",
     "terminal",
     "agents",
-    "servers",
     "phone",
+    "servers",
 ];
 
 thread_local! {
@@ -49,8 +49,8 @@ impl App {
         dialog.add(&prefs_pages::editor(self));
         dialog.add(&prefs_pages::terminal(self));
         dialog.add(&prefs_agents::agents(&dialog));
-        dialog.add(&prefs_agents::servers());
         dialog.add(&crate::prefs_phone::page(self));
+        dialog.add(&prefs_agents::servers());
         install_page_keys(&dialog);
         // One sheet paints every tile in its own theme's colors.
         let tiles = gtk::CssProvider::new();

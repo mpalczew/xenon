@@ -111,7 +111,7 @@ impl App {
         persist_enabled(on);
         let text = match (self.remote.running(), on) {
             (true, _) => "Phone remote on",
-            (false, true) => "Phone remote on: the other Xenon has it until it quits",
+            (false, true) => "Phone remote on \u{2014} the other Xenon has it until it quits",
             (false, false) => "Phone remote off",
         };
         self.toast(text);
@@ -133,7 +133,7 @@ impl App {
             }
             Err(error) => {
                 eprintln!("[xg] phone remote failed to start: {error:#}");
-                self.toast(&format!("Phone remote didn't start: {error}"));
+                self.toast(&format!("Phone remote didn\u{2019}t start: {error}"));
                 return;
             }
         };

@@ -78,7 +78,8 @@ fn run(group: &adw::PreferencesGroup, dialog: &adw::PreferencesDialog, added: &A
     let message = match if on { install_skill() } else { remove_skill() } {
         Ok(()) if on => "Xenon skill installed".to_string(),
         Ok(()) => "Xenon skill removed".to_string(),
-        Err(error) => format!("Could not change the skill: {error}"),
+        Err(error) if on => format!("Couldn\u{2019}t install the skill: {error}"),
+        Err(error) => format!("Couldn\u{2019}t remove the skill: {error}"),
     };
     dialog.add_toast(adw::Toast::new(&message));
     fill(group, dialog, added);
@@ -92,9 +93,7 @@ pub(crate) fn servers() -> adw::PreferencesPage {
         .build();
     let lsp = xenon_store::load_settings().unwrap_or_default().lsp;
     let group = adw::PreferencesGroup::builder()
-        .description(
-            "Leave a command empty to find it on PATH (rust-analyzer; typescript-language-server or vtsls). The GTK editor does not run language servers yet; the choices are saved.",
-        )
+        .description("Empty finds it on PATH")
         .build();
     group.add(&switch_row(
         "Language servers",

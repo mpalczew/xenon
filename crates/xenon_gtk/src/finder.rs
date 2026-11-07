@@ -60,7 +60,7 @@ impl App {
                 Some(rec) if rec.ssh.is_none() => rec.root.clone(),
                 _ => {
                     drop(model);
-                    self.toast("The finder does not search SSH workspaces yet");
+                    self.toast("The finder does not search SSH workspaces");
                     return;
                 }
             }
@@ -85,7 +85,7 @@ impl App {
                 } else {
                     "Indexing…"
                 },
-                hint: "Enter opens  ·  Esc closes",
+                hint: "return opens  ·  esc closes",
                 on_query: Box::new(move |query| {
                     if let Some(app) = weak_q.upgrade() {
                         app.finder_query(&sq, query);

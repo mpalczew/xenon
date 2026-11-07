@@ -52,14 +52,13 @@ impl Sidebar {
         title.set_xalign(0.0);
         title.set_hexpand(true);
         let menu = gio::Menu::new();
-        menu.append(Some("New workspace"), Some("app.new-workspace"));
-        menu.append(Some("Open workspace"), Some("app.open-workspace"));
+        menu.append(Some("New workspace\u{2026}"), Some("app.new-workspace"));
+        menu.append(Some("Open workspace\u{2026}"), Some("app.open-workspace"));
         let add = gtk::MenuButton::new();
         add.set_icon_name("list-add-symbolic");
         add.set_menu_model(Some(&menu));
         add.add_css_class("flat");
         add.set_focusable(false);
-        add.set_tooltip_text(Some("New or open workspace"));
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         header.add_css_class("xsection-head");
         header.add_css_class("xfirst");

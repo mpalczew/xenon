@@ -92,7 +92,7 @@ impl App {
         let result = self.model.borrow_mut().split(ws, axis);
         match result {
             SplitResult::Done => self.changed(ws),
-            SplitResult::NoRoom => self.toast("No room for another split"),
+            SplitResult::NoRoom => self.toast("That\u{2019}s as deep as splits go"),
             SplitResult::Nothing => {}
         }
     }
@@ -103,7 +103,7 @@ impl App {
         };
         let outcome = self.model.borrow_mut().park_pane(ws);
         match outcome {
-            ParkOutcome::NoRoom => self.toast("No room for another split"),
+            ParkOutcome::NoRoom => self.toast("That\u{2019}s as deep as splits go"),
             ParkOutcome::Unchanged => {}
             _ => self.changed(ws),
         }

@@ -106,7 +106,7 @@ impl App {
             return Err("unknown workspace".into());
         }
         if !self.model.borrow().drawable(ws) {
-            return Err("SSH workspaces are not available in the GTK app yet".into());
+            return Err("SSH workspaces are not available".into());
         }
         self.model.borrow_mut().materialize(ws);
         self.sync(ws);

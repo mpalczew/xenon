@@ -42,7 +42,7 @@ fn button(label: &str, action: &str, tip: Option<&str>, primary: bool) -> gtk::B
 /// The empty state, in the GPUI app's words and order (`xenon_ui/src/app/
 /// empty_state.rs`): a workspace with nothing open in a pane, or no workspace.
 /// An `AdwStatusPage` carries the icon, title and subtitle.
-pub(crate) fn all_clear(_app: &crate::app::App, has_workspace: bool) -> gtk::Widget {
+pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widget {
     let page = adw::StatusPage::new();
     page.set_paintable(xenon_icon().as_ref());
     page.set_title(if has_workspace {
@@ -62,29 +62,31 @@ pub(crate) fn all_clear(_app: &crate::app::App, has_workspace: bool) -> gtk::Wid
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     buttons.set_halign(gtk::Align::Center);
     buttons.set_margin_top(4);
-    let tip = |t: &str| xenon_keymap::display_text(t);
     if has_workspace {
         buttons.append(&button(
             "New Terminal",
             "app.new-terminal",
-            Some(&tip("New Terminal \u{b7} \u{2318}N")),
+            Some(&app.tip("New Terminal", "app.new-terminal")),
             true,
         ));
         buttons.append(&button(
             "Open File",
             "app.open-finder",
-            Some(&tip("Open File \u{b7} \u{2318}O")),
+            Some(&app.tip("Open File", "app.open-finder")),
             false,
         ));
         buttons.append(&button(
             "Close Workspace",
             "app.close-workspace",
-            Some(&tip("Close Workspace \u{b7} \u{2318}\u{2325}W")),
+            Some(&app.tip("Close Workspace", "app.close-workspace")),
             false,
         ));
     } else {
         buttons.append(&button(
-            &tip("Open Workspace  \u{2318}\u{21e7}O"),
+            &match app.chord("app.open-workspace") {
+                Some(chord) => format!("Open Workspace  {chord}"),
+                None => "Open Workspace".to_string(),
+            },
             "app.open-workspace",
             None,
             true,
@@ -133,8 +135,6 @@ pub(crate) fn placeholder(state: &TabState) -> gtk::Widget {
     page.add_css_class("xplaceholder");
     page.set_icon_name(Some("text-x-generic-symbolic"));
     page.set_title(&title);
-    page.set_description(Some(&format!(
-        "{detail}\nEditor tabs arrive in a later step. This tab is kept as saved."
-    )));
+    page.set_description(Some(&detail));
     page.upcast()
 }

@@ -56,12 +56,12 @@ pub(crate) fn check(path: &Path) -> Result<(), String> {
 pub(crate) fn load(path: &Path) -> Result<String, String> {
     check(path)?;
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    String::from_utf8(bytes).map_err(|_| "not UTF-8 text".into())
+    String::from_utf8(bytes).map_err(|_| "xenon cannot edit this binary file".into())
 }
 
 impl EditorView {
     pub(crate) fn new(app: &Rc<App>, ws: WorkspaceId, tab: TabId, path: &Path) -> Rc<Self> {
-        let text = load(path).unwrap_or_else(|why| format!("Cannot show this file: {why}\n"));
+        let text = load(path).unwrap_or_else(|why| format!("{why}\n"));
         let buffer = sourceview::Buffer::new(None);
         buffer.set_text(&text);
         buffer.set_highlight_syntax(true);
@@ -321,7 +321,7 @@ impl EditorView {
                     self.bar.set_visible(false);
                     app.toast(&format!("Saved {name}"));
                 }
-                Err(error) => app.toast(&format!("Could not save {name}: {error}")),
+                Err(error) => app.toast(&format!("Couldn\u{2019}t save {name}: {error}")),
             }
         }
     }

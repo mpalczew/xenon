@@ -201,7 +201,6 @@ fn numbers(values: &[f32]) -> Vec<String> {
 fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::builder()
         .title("Markdown writing")
-        .description("How prose looks in the Markdown editor. The GTK editor does not draw it yet; the values are saved.")
         .build();
     let p = &s.prose;
     let prose = |app: &Rc<App>, change: fn(&mut xenon_settings::ProseSettings, usize)| {
@@ -255,14 +254,13 @@ fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
 pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesPage {
     let page = page("terminal", "Terminal", "utilities-terminal-symbolic");
     let current = app.settings.borrow().terminal_auto_close;
-    let labels: Vec<String> = TerminalAutoClose::ALL
-        .iter()
-        .map(|m| m.label().to_string())
-        .collect();
+    let labels: Vec<String> = ["Keep open", "Close", "1s", "3s", "5s"]
+        .map(String::from)
+        .into();
     let app = app.clone();
     let row = choice_row(
         "When the process exits",
-        "What happens to a terminal tab after its shell ends",
+        &new_tabs_detail(current),
         &labels,
         TerminalAutoClose::ALL
             .iter()
@@ -270,8 +268,18 @@ pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesPage {
             .unwrap_or(0),
         move |i| app.change_settings(|s| s.terminal_auto_close = TerminalAutoClose::ALL[i]),
     );
+    row.connect_selected_notify(|row| {
+        if let Some(mode) = TerminalAutoClose::ALL.get(row.selected() as usize) {
+            row.set_subtitle(&new_tabs_detail(*mode));
+        }
+    });
     let group = adw::PreferencesGroup::new();
     group.add(&row);
     page.add(&group);
     page
+}
+
+/// The row's detail line, as the GPUI Terminal page words it.
+fn new_tabs_detail(mode: TerminalAutoClose) -> String {
+    format!("New terminal tabs: {}", mode.label().to_lowercase())
 }

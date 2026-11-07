@@ -30,9 +30,7 @@ impl App {
             let page = adw::StatusPage::new();
             page.set_icon_name(Some("network-server-symbolic"));
             page.set_title("SSH workspace");
-            page.set_description(Some(
-                "The GTK frontend does not open SSH workspaces yet. Its session is kept as saved.",
-            ));
+            page.set_description(Some("Its session is kept as saved."));
             slot.holder.append(&page);
         }
     }
@@ -74,7 +72,7 @@ impl App {
             let Some(app) = weak.upgrade() else { return };
             match std::fs::create_dir_all(&path) {
                 Ok(()) => app.open_workspace(&path),
-                Err(error) => app.toast(&format!("Could not create {}: {error}", path.display())),
+                Err(error) => app.toast(&format!("Couldn\u{2019}t create that folder: {error}")),
             }
         });
         dialog.present(Some(&self.win));
@@ -124,7 +122,7 @@ impl App {
     pub(crate) fn launch(&self, uri: &str) {
         let context = gtk::prelude::WidgetExt::display(&self.win).app_launch_context();
         if let Err(error) = gio::AppInfo::launch_default_for_uri(uri, Some(&context)) {
-            self.toast(&format!("Could not open {uri}: {error}"));
+            self.toast(&format!("Couldn\u{2019}t open that file: {error}"));
         }
     }
 }

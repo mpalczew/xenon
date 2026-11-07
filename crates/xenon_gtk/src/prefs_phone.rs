@@ -10,7 +10,13 @@ use xenon_remote::{DeviceBook, DeviceRow, RemoteStatus, ago};
 
 use crate::app::App;
 
-const OFF_HINT: &str = "Off. Ctrl+Shift+M connects a phone";
+/// The line under the switch while the remote is off, as GPUI words it.
+fn off_hint(app: &App) -> String {
+    match app.chord("app.connect-phone") {
+        Some(chord) => format!("Off \u{2014} {chord} connects a phone"),
+        None => "Off".to_string(),
+    }
+}
 
 /// Rows that change with the status; the device group is rebuilt.
 struct Live {
@@ -33,7 +39,7 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
     let status = app.remote_status();
     let on = crate::prefs_pages::switch_row(
         "Phone remote",
-        &status.subtitle(OFF_HINT),
+        &status.subtitle(&off_hint(app)),
         status.enabled || status.waiting,
         |_| {},
     );
@@ -49,7 +55,8 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
         .build();
     network.add_suffix(&dim("Your tailnet only"));
     let hostname = adw::EntryRow::builder()
-        .title("Address override (host in the pairing QR code; empty is automatic)")
+        .title("Address override")
+        .tooltip_text("Host in the pairing QR code")
         .text(&status.hostname)
         .show_apply_button(true)
         .build();
@@ -180,7 +187,7 @@ fn dim(text: &str) -> gtk::Label {
 fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
     live.setting.set(true);
     live.on.set_active(status.enabled || status.waiting);
-    live.on.set_subtitle(&status.subtitle(OFF_HINT));
+    live.on.set_subtitle(&status.subtitle(&off_hint(app)));
     live.keep.set_active(status.keep_awake);
     live.setting.set(false);
     let _ = &live.hostname;
@@ -268,7 +275,7 @@ impl App {
             None => book.revoke_all(),
         }
         if let Err(error) = book.save() {
-            self.toast(&format!("Couldn't update paired devices: {error}"));
+            self.toast(&format!("Couldn’t update paired devices: {error}"));
         }
         if let Some(rt) = self.remote.rt.borrow_mut().as_mut() {
             rt.devices = book;
