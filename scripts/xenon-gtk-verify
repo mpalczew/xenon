@@ -13,7 +13,10 @@ into a terminal and read the output, working pulse, attention dot, find,
 Settings (Ctrl+, opens it; font size and theme change the live terminal and
 persist across a restart; a screenshot of every page and the theme picker,
 dark and light), and save + restore of the session.
-VERIFY_ONLY_SETTINGS=1 runs just the Settings part. State lives in a private temp dir (never
+VERIFY_ONLY_SETTINGS=1 runs just the Settings part; VERIFY_ONLY_REMOTE=1 just the phone
+remote. The phone remote part pairs a Python phone (scripts/xenon-gtk-remote-client) with the app's
+server on a private port, lists workspaces, mirrors a terminal, types, fits, scrolls, revokes, and
+starts a second app to see it wait for the busy port. State lives in a private temp dir (never
 ~/.xenon-gtk) and the app runs under its own app id. Only the process it
 started is closed, by PID. Set GDK_BACKEND=x11 on a locked Wayland session
 (a locked compositor sends no frame callbacks, so nothing would lay out).
@@ -29,6 +32,9 @@ import sys
 import tempfile
 import time
 
+import importlib.machinery
+import importlib.util
+
 import gi
 import pyatspi
 
@@ -39,6 +45,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BINARY = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/target/dogfood/xenon_gtk"
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else "/tmp/xenon-gtk-shots"
 APP_ID = f"dev.xenon.GtkVerify{os.getpid()}"
+PORT = 17900 + os.getpid() % 90
 os.makedirs(SHOTS, exist_ok=True)
 failures = []
 
@@ -104,17 +111,18 @@ def find_all(acc, pred, out):
 class App:
     """One running xenon_gtk under a private state dir."""
 
-    def __init__(self, state_dir):
+    def __init__(self, state_dir, app_id=APP_ID):
         self.state_dir = state_dir
+        self.app_id = app_id
         self.proc = subprocess.Popen(
             [BINARY],
-            env={**os.environ, "XENON_GTK_APP_ID": APP_ID, "XENON_GTK_DATA_DIR": state_dir},
+            env={**os.environ, "XENON_GTK_APP_ID": app_id, "XENON_GTK_DATA_DIR": state_dir},
             stdout=subprocess.DEVNULL,
-            stderr=open(os.path.join(state_dir, "..", "app.log"), "w"),
+            stderr=open(os.path.join(state_dir, "..", f"app-{app_id[-6:]}.log"), "w"),
             start_new_session=True,
         )
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        self.group = Gio.DBusActionGroup.get(self.bus, APP_ID, "/" + APP_ID.replace(".", "/"))
+        self.group = Gio.DBusActionGroup.get(self.bus, app_id, "/" + app_id.replace(".", "/"))
         wait_for(lambda: "ui-state" in (self.group.list_actions() or []), "app actions on D-Bus")
         wait_for(lambda: self.group.get_action_state("ui-state") is not None, "ui-state")
         self.ax = None
@@ -160,6 +168,9 @@ class App:
 
     def palette(self):
         return self.pstate("palette-state")
+
+    def remote(self):
+        return self.pstate("remote-state")
 
     def files(self):
         return self.pstate("files-state")
@@ -336,8 +347,222 @@ def active_ws(state):
     return next((w["name"] for w in state["workspaces"] if w["active"]), None)
 
 
+def load_phone():
+    path = f"{ROOT}/scripts/xenon-gtk-remote-client"
+    loader = importlib.machinery.SourceFileLoader("xenon_phone", path)
+    spec = importlib.util.spec_from_loader("xenon_phone", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module.PhoneClient
+
+
+def remote_setup(tmp):
+    """A private state dir with the phone remote on at PORT and one paired phone.
+
+    Returns (state_dir, token). XENON_SHARED_DIR points at a private dir so the
+    user's real paired-device list is never read or written."""
+    import hashlib
+
+    state = os.path.join(tmp, "rstate")
+    shared = os.path.join(tmp, "rshared")
+    os.makedirs(state)
+    os.makedirs(shared)
+    with open(os.path.join(state, "workspaces.json"), "w") as f:
+        json.dump({"version": 2, "workspaces": [], "closed_workspaces": [], "active": None}, f)
+    with open(os.path.join(state, "settings.json"), "w") as f:
+        json.dump({"remote_enabled": True, "remote_port": PORT}, f)
+    token = "t" * 64
+    now = int(time.time())
+    with open(os.path.join(shared, "remote_devices.json"), "w") as f:
+        json.dump(
+            {
+                "devices": [
+                    {
+                        "id": "seeded-device",
+                        "label": "Seeded phone",
+                        "token_sha256": hashlib.sha256(token.encode()).hexdigest(),
+                        "created_at": now - 86400 * 3,
+                        "last_seen_at": now - 3600 * 5,
+                    }
+                ]
+            },
+            f,
+        )
+    os.environ["XENON_SHARED_DIR"] = shared
+    return state, token
+
+
+def phone_wait(phone, pred, what, timeout=10.0):
+    """Read the phone's messages until `pred()` holds."""
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        if pred():
+            return True
+        try:
+            if phone.recv(0.3) is None:
+                break
+        except TimeoutError:
+            pass
+    if pred():
+        return True
+    check(False, f"timed out waiting for {what}; phone screen:\n{phone.text()}")
+    raise SystemExit(finish())
+
+
+def remote_checks(tmp):
+    """The phone remote end to end: pair, list, mirror, type, fit, scroll, revoke."""
+    Phone = load_phone()
+    state, token = remote_setup(tmp)
+    work = os.path.join(tmp, "phonework")
+    os.makedirs(work)
+    app = App(state, f"dev.xenon.GtkRemote{os.getpid()}")
+    phone = pair_phone = None
+    try:
+        app.act("open-dir", work)
+        app.until(lambda s: [len(p) for p in tabs(s)] == [1] and all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "workspace with a shell")
+        r = wait_for(lambda: (lambda r: r if r.get("enabled") and r.get("base_url") else None)(app.remote()), "remote enabled from settings")
+        check(f":{PORT}" in r["base_url"], f"the remote serves the saved port: {r['base_url']}")
+        check(any(d["label"] == "Seeded phone" for d in r["devices"]), "a device paired in the other app is listed with no re-pairing")
+        app.shot("remote-footer-listening")
+
+        # Pairing: the dialog shows a one-time code; a new phone pairs with it.
+        app.act("connect-phone")
+        r = wait_for(lambda: (lambda r: r if r.get("pairing") else None)(app.remote()), "pairing code shown")
+        check(len(r["pairing"]["digits"].replace(" ", "")) == 6, "Connect Phone shows a six-digit code")
+        time.sleep(0.8)
+        app.shot("remote-connect-dialog")
+        pair_phone = Phone(PORT)
+        pair_phone.pair(r["pairing"]["digits"])
+        r = wait_for(lambda: (lambda r: r if any(d["label"] == "Test phone" for d in r["devices"]) else None)(app.remote()), "new device listed")
+        check(r["pairing"]["digits"] != "", "pairing code replaced after use")
+        check(True, "a phone paired with the six-digit code")
+        app.act("connect-phone")
+        wait_for(lambda: not app.remote().get("pairing"), "the same key closes the dialog")
+        time.sleep(0.5)
+
+        # Lists and the terminal mirror.
+        phone = Phone(PORT, token)
+        workspaces = phone.workspaces()
+        mine = next(w for w in workspaces if w["name"] == "phonework")
+        check(mine["open"] and mine["terminals"] == 1, f"phone lists the workspace with its terminal: {mine}")
+        terminals = phone.terminals(mine["id"])
+        check(len(terminals) == 1 and terminals[0]["active"], f"phone lists the terminal: {terminals}")
+        ready = phone.connect()
+        check(ready["theme"]["bg"].startswith("#"), f"ready carries the theme colors {ready['theme']}")
+        phone.send({"t": "attach", "workspaceId": mine["id"], "tabId": terminals[0]["tabId"]})
+        phone.until(lambda m: m["t"] == "frame", 10)
+        phone.send({"t": "text", "data": "echo phone-$((6*7))-typed\n"})
+        phone.wait_text("phone-42-typed")
+        check(True, "text typed on the phone ran and its output reached the phone's screen")
+        wait_for(lambda: "phone-42-typed" in app.screen_text(), "phone typing visible on the Mac")
+        check(True, "the same output is on the Mac's terminal")
+        phone.send({"t": "text", "data": "printf '\\033[1;31mRED\\033[0m \\033[44mBLUEBG\\033[0m\\n'\n"})
+        phone.wait_text("RED BLUEBG")
+        row = next(i for i, t in enumerate(phone.screen()) if t.startswith("RED BLUEBG"))
+        red, blue = phone.style_at(row, 0), phone.style_at(row, 4)
+        check(bool(red.get("fg")) and red.get("f", 0) & 1, f"phone gets the foreground color and bold of colored text: {red}")
+        check(bool(blue.get("bg")), f"phone gets the background color: {blue}")
+        check(phone.cursor is not None and phone.cursor["r"] > row - 1, f"phone gets the cursor: {phone.cursor}")
+        phone.send({"t": "key", "key": "ctrl-c"})
+        phone.send({"t": "text", "data": "sleep 30"})
+        phone.send({"t": "key", "key": "enter"})
+        time.sleep(0.6)
+        phone.send({"t": "key", "key": "ctrl-c"})
+        phone.wait_text("^C")
+        check(True, "named keys (Enter, Ctrl+C) reach the shell from the phone")
+
+        # Status: the phone shows a driving device; the sidebar footer says so.
+        r = wait_for(lambda: (lambda r: r if r.get("connected") else None)(app.remote()), "connected count")
+        check(r["connected"] >= 1 and any(d["connected"] for d in r["devices"]), "Mac lists the phone as connected")
+
+        # A new terminal from the phone does not move the Mac's tab.
+        made = phone.new_terminal(mine["id"])
+        check("tabId" in made, f"phone can open a terminal: {made}")
+        s = app.until(lambda s: sum(len(p) for p in tabs(s)) == 2, "second terminal exists")
+        check(tabs(app.state())[0][0].startswith("bash"), "the Mac still shows its own tab")
+
+        # Fit: the terminal takes the phone's grid; local typing hands it back.
+        before = phone.cols
+        phone.send({"t": "fit", "cols": 52, "rows": 21})
+        phone_wait(phone, lambda: phone.cols == 52 and phone.nrows == 21, "frame at the phone's size", 15)
+        check(True, f"phone fit resized the terminal from {before} to 52 x 21 columns/rows")
+        wait_for(lambda: any("Seeded" in t["label"] for p in app.state()["panes"] for t in p["tabs"]), "chip names the phone", 8)
+        check(True, "tab chip names the phone driving it")
+        app.shot("remote-phone-driving")
+        app.shot("remote-phone-chip")
+        app.act("term-interaction")
+        phone_wait(phone, lambda: phone.cols == before, "terminal back to the Mac's size after local typing", 15)
+        check(True, "Mac typing took the grid back (restored to the full pane)")
+        wait_for(lambda: not any("Seeded" in t["label"] for p in app.state()["panes"] for t in p["tabs"]), "chip cleared", 5)
+        check(True, "the phone name left the tab chip")
+
+        # Scrollback.
+        phone.send({"t": "text", "data": "seq 1 300\n"})
+        phone.wait_text("300")
+        phone.send({"t": "wheel", "rows": 12})
+        phone_wait(phone, lambda: phone.scrolled, "scrolled frame after wheel", 10)
+        check(True, "wheel scrolled the viewport back and the frame says so")
+        phone.send({"t": "bottom"})
+        phone_wait(phone, lambda: not phone.scrolled, "back at the live row", 10)
+        check(True, "bottom returned the viewport to the live row")
+        phone.send({"t": "history"})
+        h = phone.until(lambda m: m["t"] == "history", 10)
+        check(len(h["lines"]) > 20, f"history returns scrollback lines ({len(h['lines'])})")
+
+        phone.send({"t": "detach"})
+
+        # Settings: the Phone Remote page (dark and light).
+        app.act("send-key", "ctrl-,")
+        swait(app, lambda s: s["open"], "settings open")
+        app.act("settings-page", "phone")
+        swait(app, lambda s: s["page"] == "phone", "Phone Remote page")
+        sset(app, "mode", "dark")
+        swait(app, lambda s: s["mode"] == "Dark" and s["dark"], "dark mode")
+        time.sleep(0.6)
+        app.shot("remote-settings-dark")
+        sset(app, "mode", "light")
+        swait(app, lambda s: s["mode"] == "Light" and not s["dark"], "light mode")
+        time.sleep(0.5)
+        app.shot("remote-settings-light")
+
+        # Revoke: the phone is told and dropped.
+        sset(app, "phone-revoke-all", "1")
+        msg = phone.until(lambda m: m["t"] == "closed", 10)
+        check(msg["reason"] == "revoked", "revoking a device closes its phone with 'revoked'")
+        r = wait_for(lambda: (lambda r: r if not r["devices"] else None)(app.remote()), "devices gone")
+        check(True, "Sign out all emptied the paired devices")
+        app.shot("remote-settings-no-devices")
+        app.act("send-key", "ctrl-,")
+
+        # A second app wants the same port: it waits, never binding another.
+        other_state = os.path.join(tmp, "rstate2")
+        os.makedirs(other_state)
+        for name in ("workspaces.json", "settings.json"):
+            shutil.copy(os.path.join(state, name), other_state)
+        other = App(other_state, f"dev.xenon.GtkRemoteB{os.getpid()}")
+        try:
+            r2 = wait_for(lambda: (lambda r: r if r.get("waiting") else None)(other.pstate("remote-state")), "second app waits for the port")
+            check(not r2["enabled"] and r2["waiting"], "the second app does not serve and shows it is waiting")
+            check(app.remote()["enabled"], "the first app's server is untouched")
+        finally:
+            other.kill()
+    finally:
+        for p in (phone, pair_phone):
+            if p:
+                p.close()
+        app.kill()
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="xenon-gtk-verify-")
+    if os.environ.get("VERIFY_ONLY_REMOTE"):
+        try:
+            remote_checks(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        return finish()
+    # Never read or write the user's real paired-device list.
+    os.environ["XENON_SHARED_DIR"] = os.path.join(tmp, "shared")
     state_dir = os.path.join(tmp, "state")
     os.makedirs(state_dir)
     # A registry file keeps the app from seeding itself out of the GPUI state.
@@ -366,6 +591,8 @@ def main():
             print(open(os.path.join(tmp, "app.log")).read()[-2000:])
         except OSError:
             pass
+        if not failures:
+            remote_checks(tmp)
         shutil.rmtree(tmp, ignore_errors=True)
     return finish()
 

@@ -92,6 +92,7 @@ impl App {
         for view in self.terms.borrow().values() {
             self.restyle_term(view);
         }
+        self.remote_theme_changed();
         self.publish_settings();
     }
 
@@ -182,6 +183,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         pulse_level: Cell::new(-1),
         started: Instant::now(),
         save_pending: Cell::new(false),
+        remote: crate::remote::Remote::new(),
     });
     gtk::style_context_add_provider_for_display(
         &gtk::prelude::WidgetExt::display(&win),
@@ -228,7 +230,9 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     crate::actions::install(&app, user_keys);
     connect_window(&app, &win);
     app.sidebar.rebuild(&app.model.borrow());
+    app.sidebar.root.append(&app.remote.footer.root);
     start_workspace(&app);
+    app.remote_boot();
     app
 }
 

@@ -81,3 +81,18 @@ pub(crate) fn prepare(dir: &Path, reseed: bool) -> String {
         Err(error) => format!("seeding {} failed: {error}", dir.display()),
     }
 }
+
+/// Where the GPUI app keeps `remote_devices.json`, so a phone paired there is
+/// paired here with no copy to drift: `~/.xenon-shared` (the a/b slot
+/// launcher's shared dir), else the seed source directory (a plain `~/.xenon`).
+/// None when `XENON_SHARED_DIR` is already set or the GPUI app has no such
+/// file; the GTK app then keeps its own in its state dir.
+pub(crate) fn shared_remote_dir() -> Option<PathBuf> {
+    if std::env::var_os("XENON_SHARED_DIR").is_some() {
+        return None;
+    }
+    let has = |dir: &PathBuf| dir.join("remote_devices.json").exists();
+    Some(home().join(".xenon-shared"))
+        .filter(has)
+        .or_else(|| seed_source().filter(has))
+}

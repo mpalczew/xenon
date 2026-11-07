@@ -8,6 +8,9 @@ workspace (one terminal), lets it settle, then runs scripts/idle-budget on
 that PID and fails when the app costs more than a budget while idle:
   CPU         > IDLE_CPU_MAX   percent of one core (default 1.0)
   wakeups     > IDLE_WAKE_MAX  per second, main thread (default 20)
+It then turns the phone remote on (private port and paired-device list) and measures
+with no phone connected, and with a phone connected and attached to the terminal but quiet; both must
+stay within the same CPU and wakeup budgets (an idle remote costs about nothing).
 It repeats with one terminal "working" (an agent-titled loop printing), which
 runs the pulse timer, against WORKING_CPU_MAX (default 1.0) percent.
 Closes only the PID it started. Skips (exit 0) with a note when the session
@@ -24,6 +27,10 @@ import sys
 import tempfile
 import time
 
+import hashlib
+import importlib.machinery
+import importlib.util
+
 import gi
 
 gi.require_version("Gio", "2.0")
@@ -32,6 +39,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BINARY = sys.argv[1] if len(sys.argv) > 1 else f"{ROOT}/target/dogfood/xenon_gtk"
 APP_ID = f"dev.xenon.GtkIdle{os.getpid()}"
+PORT = 17900 + os.getpid() % 90
+TOKEN = "i" * 64
 CPU_MAX = float(os.environ.get("IDLE_CPU_MAX", "1.0"))
 WAKE_MAX = float(os.environ.get("IDLE_WAKE_MAX", "20"))
 WORKING_CPU_MAX = float(os.environ.get("WORKING_CPU_MAX", "1.0"))
@@ -54,6 +63,15 @@ def wait_for(fn, what, timeout=20.0):
             return v
         time.sleep(0.1)
     raise SystemExit(f"FAIL: timed out waiting for {what}")
+
+
+def load_phone():
+    path = f"{ROOT}/scripts/xenon-gtk-remote-client"
+    loader = importlib.machinery.SourceFileLoader("xenon_phone", path)
+    spec = importlib.util.spec_from_loader("xenon_phone", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module.PhoneClient
 
 
 def measure(pid):
@@ -81,12 +99,36 @@ def main():
     work = os.path.join(tmp, "work")
     os.makedirs(state)
     os.makedirs(work)
+    shared = os.path.join(tmp, "shared")
+    os.makedirs(shared)
+    now = int(time.time())
+    with open(os.path.join(shared, "remote_devices.json"), "w") as f:
+        json.dump(
+            {
+                "devices": [
+                    {
+                        "id": "idle-phone",
+                        "label": "Idle phone",
+                        "token_sha256": hashlib.sha256(TOKEN.encode()).hexdigest(),
+                        "created_at": now,
+                        "last_seen_at": now,
+                    }
+                ]
+            },
+            f,
+        )
     # A registry file keeps the app from seeding itself out of the GPUI state.
     with open(os.path.join(state, "workspaces.json"), "w") as f:
         json.dump({"version": 2, "workspaces": [], "closed_workspaces": [], "active": None}, f)
     proc = subprocess.Popen(
         [BINARY],
-        env={**os.environ, "XENON_GTK_APP_ID": APP_ID, "XENON_GTK_DATA_DIR": state},
+        env={
+            **os.environ,
+            "XENON_GTK_APP_ID": APP_ID,
+            "XENON_GTK_DATA_DIR": state,
+            "XENON_SHARED_DIR": shared,
+            "XENON_REMOTE_PORT": str(PORT),
+        },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
@@ -143,6 +185,50 @@ def main():
             failed.append(f"idle CPU after theme switch {cpu:.2f}% > {CPU_MAX}%")
         if wake > WAKE_MAX:
             failed.append(f"idle wakeups after theme switch {wake:.1f}/s > {WAKE_MAX}/s")
+
+        # The phone remote: on with nobody connected, then a phone attached and quiet.
+        def remote():
+            pump()
+            v = group.get_action_state("remote-state")
+            return json.loads(v.get_string()) if v and v.get_string() else {}
+
+        group.activate_action("remote-toggle", None)
+        bus.flush_sync(None)
+        wait_for(lambda: remote().get("enabled"), "remote on")
+        time.sleep(1.5)
+        print("idle, phone remote on, no phone:")
+        cpu, wake = measure(proc.pid)
+        if cpu > CPU_MAX:
+            failed.append(f"idle CPU with the remote on {cpu:.2f}% > {CPU_MAX}%")
+        if wake > WAKE_MAX:
+            failed.append(f"idle wakeups with the remote on {wake:.1f}/s > {WAKE_MAX}/s")
+        phone = load_phone()(PORT, TOKEN)
+        try:
+            workspaces = [w for w in phone.workspaces() if w["open"]]
+            tab = phone.terminals(workspaces[0]["id"])[0]
+            phone.connect()
+            phone.send({"t": "attach", "workspaceId": workspaces[0]["id"], "tabId": tab["tabId"]})
+            phone.until(lambda m: m["t"] == "frame", 10)
+            phone.drain(1.0)
+            frames = phone.frames
+            time.sleep(1.0)
+            print("idle, phone connected and attached, terminal quiet:")
+            cpu, wake = measure(proc.pid)
+            phone.drain(0.5)
+            if cpu > CPU_MAX:
+                failed.append(f"idle CPU with a phone attached {cpu:.2f}% > {CPU_MAX}%")
+            if wake > WAKE_MAX:
+                failed.append(f"idle wakeups with a phone attached {wake:.1f}/s > {WAKE_MAX}/s")
+            if phone.frames != frames:
+                failed.append(f"a quiet terminal sent {phone.frames - frames} frames to the phone")
+            else:
+                print("a quiet terminal sent 0 frames to the phone")
+        finally:
+            phone.close()
+        group.activate_action("remote-toggle", None)
+        bus.flush_sync(None)
+        wait_for(lambda: not remote().get("enabled"), "remote off")
+        time.sleep(1.0)
 
         # A burst gets the terminal flagged as working; the slow tail keeps it
         # working (output never goes quiet) while costing almost nothing itself,

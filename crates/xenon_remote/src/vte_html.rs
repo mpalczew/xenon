@@ -13,6 +13,7 @@ use crate::frame::{Cell, Rgb, Screen, Style, WIDE_SPACER};
 use crate::protocol::{CursorWire, style_flags};
 
 /// One dump of a VTE screen plus what the HTML does not carry.
+#[derive(Clone)]
 pub struct VteSnapshot {
     pub html: String,
     pub cols: u16,

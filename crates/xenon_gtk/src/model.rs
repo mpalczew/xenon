@@ -28,6 +28,8 @@ pub(crate) struct Tab {
     pub exited: Option<i32>,
     /// An editor tab with unsaved changes.
     pub modified: bool,
+    /// Short name of the phone whose grid this terminal has right now.
+    pub phone_device: Option<String>,
 }
 
 impl PaneTab for Tab {
@@ -44,13 +46,20 @@ impl Tab {
             title: "terminal".into(),
             exited: None,
             modified: false,
+            phone_device: None,
         }
     }
 
     /// Chip text for the tab at `index` in its pane.
     pub(crate) fn label(&self, index: usize) -> String {
         match &self.kind {
-            TabKind::Terminal => terminal_tab_label(&self.title, index),
+            TabKind::Terminal => {
+                let label = terminal_tab_label(&self.title, index);
+                match &self.phone_device {
+                    Some(device) => format!("{label} \u{b7} {device}"),
+                    None => label,
+                }
+            }
             TabKind::Kept(TabState::Editor { path, .. }) => {
                 let name = path
                     .file_name()
@@ -263,6 +272,7 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                         title: String::new(),
                         exited: None,
                         modified: false,
+                        phone_device: None,
                     },
                 })
                 .collect();

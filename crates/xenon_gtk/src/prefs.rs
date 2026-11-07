@@ -1,5 +1,5 @@
 //! The Settings window (Ctrl+,): an `AdwPreferencesDialog` with the same pages
-//! as the GPUI app. Ctrl+1 to Ctrl+6 jump to a page, Ctrl+F searches, Escape
+//! as the GPUI app. Ctrl+1 to Ctrl+7 jump to a page, Ctrl+F searches, Escape
 //! closes (or backs out of the theme picker first), and focus returns to where
 //! it was. `app.settings` toggles it.
 
@@ -12,13 +12,14 @@ use gtk::glib;
 use crate::app::App;
 use crate::{prefs_agents, prefs_pages, prefs_picker, prefs_theme};
 
-const PAGES: [&str; 6] = [
+const PAGES: [&str; 7] = [
     "appearance",
     "fonts",
     "editor",
     "terminal",
     "agents",
     "servers",
+    "phone",
 ];
 
 thread_local! {
@@ -49,6 +50,7 @@ impl App {
         dialog.add(&prefs_pages::terminal(self));
         dialog.add(&prefs_agents::agents(&dialog));
         dialog.add(&prefs_agents::servers());
+        dialog.add(&crate::prefs_phone::page(self));
         install_page_keys(&dialog);
         // One sheet paints every tile in its own theme's colors.
         let tiles = gtk::CssProvider::new();
@@ -66,6 +68,7 @@ impl App {
             OPEN.with(|o| *o.borrow_mut() = None);
             crate::prefs_state::forget_all();
             let Some(app) = weak.upgrade() else { return };
+            *app.remote.on_change.borrow_mut() = None;
             app.end_preview();
             match before.as_ref().and_then(|w| w.upgrade()) {
                 Some(widget) if widget.is_mapped() => {

@@ -58,6 +58,7 @@ pub(crate) struct App {
     pub pulse_level: Cell<i32>,
     pub started: Instant,
     pub save_pending: Cell<bool>,
+    pub remote: crate::remote::Remote,
 }
 
 impl App {
@@ -167,6 +168,7 @@ impl App {
             self.bodies.borrow_mut().remove(&key);
             self.terms.borrow_mut().remove(&key);
             self.editors.borrow_mut().remove(&key);
+            self.remote_tab_gone(key.0, key.1);
         }
         for tab in wanted {
             let key = (ws, tab.id);
@@ -258,6 +260,7 @@ impl App {
         }
         drop(model);
         self.publish_state();
+        self.remote_dots();
         self.pulse_level.set(-1);
         self.ensure_pulse();
     }

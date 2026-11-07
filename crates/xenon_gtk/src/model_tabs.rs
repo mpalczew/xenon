@@ -91,6 +91,7 @@ impl Model {
             title: String::new(),
             exited: None,
             modified: false,
+            phone_device: None,
         });
         leaf.active = leaf.tabs.len() - 1;
         leaf.parked = false;
@@ -201,6 +202,39 @@ impl Model {
         self.space_content(ws)
             .and_then(|c| c.root.as_mut())
             .is_some_and(|root| root.set_boundary_for_split(key, pos))
+    }
+
+    /// The workspace's terminal tabs in pane order, each with its index in
+    /// its pane (the number the chip label uses).
+    pub(crate) fn terminal_ids(&self, ws: WorkspaceId) -> Vec<(TabId, usize)> {
+        let mut out = Vec::new();
+        if let Some(root) = self.spaces.get(&ws).and_then(|s| s.content.root.as_ref()) {
+            root.for_each_leaf(&mut |leaf| {
+                for (index, tab) in leaf.tabs.iter().enumerate() {
+                    if matches!(tab.kind, TabKind::Terminal) {
+                        out.push((tab.id, index));
+                    }
+                }
+            });
+        }
+        out
+    }
+
+    /// Name the phone whose grid a terminal has (None = the Mac's again).
+    /// True when the chip text changed.
+    pub(crate) fn set_phone_device(
+        &mut self,
+        ws: WorkspaceId,
+        tab: TabId,
+        device: Option<String>,
+    ) -> bool {
+        match self.tab_mut(ws, tab) {
+            Some(t) if t.phone_device != device => {
+                t.phone_device = device;
+                true
+            }
+            _ => false,
+        }
     }
 
     pub(crate) fn tab(&self, ws: WorkspaceId, tab: TabId) -> Option<&Tab> {

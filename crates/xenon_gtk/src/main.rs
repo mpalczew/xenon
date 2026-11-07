@@ -49,9 +49,16 @@ mod prefs;
 mod prefs_agents;
 mod prefs_apply;
 mod prefs_pages;
+mod prefs_phone;
 mod prefs_picker;
 mod prefs_state;
 mod prefs_theme;
+mod remote;
+mod remote_fit;
+mod remote_host;
+mod remote_mirror;
+mod remote_session;
+mod remote_ui;
 mod screenshot;
 mod sidebar;
 mod term;
@@ -103,6 +110,10 @@ fn main() -> glib::ExitCode {
     eprintln!("[xg] {}", data::prepare(&dir, args.reseed));
     // SAFETY: still single-threaded; xenon_store reads its data dir from here.
     unsafe { std::env::set_var("XENON_DATA_DIR", &dir) };
+    if let Some(shared) = data::shared_remote_dir() {
+        // SAFETY: as above. The paired-device list is read where the GPUI app keeps it.
+        unsafe { std::env::set_var("XENON_SHARED_DIR", shared) };
+    }
 
     adw::init().expect("GTK init failed");
     let id = std::env::var("XENON_GTK_APP_ID").unwrap_or_else(|_| "dev.xenon.Gtk".into());

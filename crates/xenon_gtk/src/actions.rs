@@ -135,6 +135,7 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
         app.gtk.add_action(&action);
     }
     install_automation(app);
+    crate::remote_ui::install(app);
     crate::prefs_state::install(app);
     for name in ["palette-state", "files-state"] {
         app.gtk.add_action(&gio::SimpleAction::new_stateful(
@@ -242,6 +243,25 @@ fn install_automation(app: &Rc<App>) {
             view.term.feed_child(&[byte]);
         }
     });
+    // What a key press in the terminal reports (the key controller calls the
+    // same function): a Mac keystroke, which takes a phone's grid back.
+    let local = gio::SimpleAction::new("term-interaction", None);
+    let weak = Rc::downgrade(app);
+    local.connect_activate(move |_, _| {
+        let Some(app) = weak.upgrade() else { return };
+        let key = {
+            let model = app.model.borrow();
+            let ws = model.active();
+            let tab = ws
+                .and_then(|w| model.spaces.get(&w))
+                .and_then(|s| s.content.active_tab());
+            ws.zip(tab.map(|t| t.id))
+        };
+        if let Some((ws, tab)) = key {
+            app.term_interaction(ws, tab);
+        }
+    });
+    app.gtk.add_action(&local);
     string_action(app, "palette-text", |app, text| app.launcher.set_text(text));
     string_action(app, "palette-key", |app, key| app.launcher.key(key));
     string_action(app, "files-key", |app, key| app.sidebar.files.key(key));

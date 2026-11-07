@@ -30,7 +30,7 @@ const HOST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Concurrent connections (phones hold one socket; the rest are short requests).
 const MAX_CONNECTIONS: usize = 32;
 /// How often a listener checks for shutdown between accepts.
-const ACCEPT_POLL: Duration = Duration::from_millis(50);
+const ACCEPT_POLL: Duration = Duration::from_millis(250);
 
 /// State shared by every connection thread.
 pub(crate) struct Shared {

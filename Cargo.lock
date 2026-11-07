@@ -10017,9 +10017,11 @@ version = "0.1.0"
 name = "xenon_gtk"
 version = "0.1.0"
 dependencies = [
+ "async-channel 2.5.0",
  "gtk4",
  "libadwaita",
  "nucleo",
+ "qrcode",
  "serde_json",
  "serde_json_lenient",
  "sourceview5",
@@ -10027,6 +10029,7 @@ dependencies = [
  "xenon_core",
  "xenon_finder",
  "xenon_keymap",
+ "xenon_remote",
  "xenon_settings",
  "xenon_store",
 ]

@@ -66,6 +66,7 @@ impl App {
     }
 
     pub(crate) fn term_interaction(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
+        self.remote_local_input(ws, tab);
         if self.model.borrow_mut().on_interaction(ws, tab) {
             self.paint_all();
         }
@@ -135,6 +136,7 @@ impl App {
 
     pub(crate) fn term_exited(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, code: i32) {
         self.model.borrow_mut().on_exit(ws, tab, code);
+        self.remote_tab_gone(ws, tab);
         let view = self.terms.borrow().get(&(ws, tab)).cloned();
         if let Some(view) = view {
             view.term.feed(

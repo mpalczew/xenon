@@ -298,6 +298,13 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   interface size scales the window font as a percentage of 14; the default size and the
   System face add no rule.
 
+- **Phone remote.** Settings has a Phone Remote page (switch with status line, network,
+  keep-awake, address override, port, Connect Phone, paired devices with Revoke). Connect
+  Phone is a dialog: black-on-white QR with a quiet border, the six-digit code, the address,
+  Copy link, Done; Ctrl+Shift+M toggles it. A flat footer line under the sidebar shows the
+  state (listening, waiting for the other Xenon, "<phone> connected", "<phone> driving"), muted
+  until a phone is connected, then accent. A tab the phone drives reads "title · phone".
+
 ## Anti-patterns
 
 - Side-stripe decoration on cards (nav selection edge is allowed)
