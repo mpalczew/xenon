@@ -9,7 +9,7 @@ use gtk::gio;
 use xenon_core::{FileRoute, TabId, WorkspaceId};
 
 use crate::app::App;
-use crate::links::{Link, classify};
+use crate::links::{Opening, decide};
 
 fn expand_home(text: &str) -> PathBuf {
     match (text.strip_prefix("~/"), std::env::var_os("HOME")) {
@@ -79,19 +79,19 @@ impl App {
         entry.grab_focus();
     }
 
-    /// Ctrl+click landed on `text` in a terminal. Routing is the same as
-    /// `xenon open`; until editor tabs exist the file opens in the default app.
+    /// Ctrl+click landed on `text` in a terminal. Xenon shows what it can (files
+    /// in an editor tab of the terminal's workspace, folders in Files); the
+    /// default app gets the rest.
     pub(crate) fn open_link(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, text: &str) {
         let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
             return;
         };
-        match classify(text, &view.live_cwd()) {
-            Link::Url(url) => self.launch(&url),
-            Link::Path(path) if !path.exists() => {
-                self.toast(&format!("Not found: {}", path.display()));
-            }
-            Link::Path(path) if path.is_dir() => self.open_workspace(&path),
-            Link::Path(path) => self.open_file(&path),
+        match decide(text, &view.live_cwd()) {
+            Opening::Launch(url) => self.launch(&url),
+            Opening::Missing(path) => self.toast(&format!("Not found: {}", path.display())),
+            Opening::Reveal(dir) => self.reveal_dir(ws, &dir),
+            Opening::Editor(path, line) => self.open_file_at(ws, &path, line),
+            Opening::Default(path) => self.open_file(&path),
         }
     }
 

@@ -35,7 +35,7 @@ pub(crate) fn install(view: &Rc<TermView>) {
 fn path_at(view: &TermView, x: f64, y: f64) -> Option<PathBuf> {
     let text = view.term.check_match_at(x, y).0?;
     match classify(&text, &view.live_cwd()) {
-        Link::Path(path) if path.is_file() => Some(path),
+        Link::Path(path, _) if path.is_file() => Some(path),
         _ => None,
     }
 }
