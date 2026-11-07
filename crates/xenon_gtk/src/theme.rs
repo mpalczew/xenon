@@ -130,8 +130,8 @@ impl Palette {
              .xrow-icon {{ color: {muted}; margin: 2px 8px 0 2px; -gtk-icon-size: 15px; }}\n\
              .xrow.selected .xrow-icon {{ color: {accent}; }}\n\
              .xdot {{ min-width: 3px; border-radius: 2px; margin: 6px 0; }}\n\
-             .xdot.working, .xrail.working {{ background: {info}; }}\n\
-             .xdot.attention, .xrail.attention {{ background: {warning}; }}\n\
+             .xdot.working {{ background: {info}; }}\n\
+             .xdot.attention {{ background: {warning}; }}\n\
              .xfiles {{ padding: 2px 0 8px 0; }}\n\
              .xfiles row {{ border-radius: 6px; margin: 0 8px; min-height: 26px; }}\n\
              .xfiles row:hover {{ background: {hover}; }}\n\
@@ -143,19 +143,7 @@ impl Palette {
              .xfile .xchevron {{ -gtk-icon-size: 10px; opacity: 0.8; min-width: 14px; }}\n\
              .xfile .xficon {{ min-width: 16px; }}\n\
              .xfile .xlink {{ font-style: italic; }}\n\
-             .xtabs {{ background: {panel}; border-bottom: 1px solid {border}; min-height: 32px; }}\n\
-             .xchip {{ padding: 0 4px 0 12px; min-width: 96px; }}\n\
-             .xchip label {{ color: {muted}; font-size: 0.92em; }}\n\
-             .xchip.selected label {{ color: {fg}; font-weight: 600; background: none; }}\n\
-             .xchip.selected {{ background: {bg}; }}\n\
-             .xchip:hover {{ background: {hover}; }}\n\
-             .xchip .xclose {{ min-width: 20px; min-height: 20px; padding: 0; margin: 0; opacity: 0; border-radius: 5px; }}\n\
-             .xchip:hover .xclose, .xchip.selected .xclose {{ opacity: 0.7; }}\n\
-             .xchip.exited label {{ font-style: italic; opacity: 0.6; }}\n\
-             .xrail {{ min-height: 2px; margin-top: 2px; }}\n\
-             .xchip.selected .xrail {{ background: {accent}; }}\n\
-             .xtabs > button.flat {{ min-width: 28px; min-height: 28px; padding: 0; margin: 2px 4px; color: {muted}; border-radius: 6px; }}\n\
-             .xtabs > button.flat:hover {{ color: {fg}; background: {hover}; }}\n\
+             .xdrop {{ background: alpha({accent}, 0.35); border: 2px solid {accent}; }}\n\
              .xpane {{ border-top: 2px solid transparent; }}\n\
              .xpane.ring {{ border-top-color: {accent}; }}\n\
              .xfind {{ background: {panel}; border-bottom: 1px solid {border}; padding: 4px 8px; }}\n\

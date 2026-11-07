@@ -2,7 +2,8 @@
 //! know; the pane-tree rules themselves live in `xenon_core`.
 
 use xenon_core::{
-    CloseOutcome, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, TabState, WorkspaceId,
+    CloseOutcome, DropEdge, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, TabState,
+    WorkspaceId,
 };
 
 use crate::model::{Model, Tab, TabKind};
@@ -177,6 +178,71 @@ impl Model {
         })
     }
 
+    /// A tab dragged to `index` of pane `dest` (its final position there).
+    /// True when the tree changed.
+    pub(crate) fn place_tab(
+        &mut self,
+        ws: WorkspaceId,
+        tab: TabId,
+        dest: PaneId,
+        index: Option<usize>,
+    ) -> bool {
+        let Some(content) = self.space_content(ws) else {
+            return false;
+        };
+        let Some((src, from)) = content.find_tab(tab) else {
+            return false;
+        };
+        // `move_tab` takes the slot before the tab is lifted out.
+        let at = match index {
+            None => usize::MAX,
+            Some(i) if src == dest && i > from => i + 1,
+            Some(i) => i,
+        };
+        content.move_tab(tab, dest, at)
+    }
+
+    /// A tab dropped on the `edge` of pane `target`: split there and move the
+    /// tab into the new pane, as the GPUI app did. Without room to split, the
+    /// tab joins the pane instead.
+    pub(crate) fn drop_on_edge(
+        &mut self,
+        ws: WorkspaceId,
+        tab: TabId,
+        target: PaneId,
+        edge: DropEdge,
+    ) -> bool {
+        let Some(content) = self.space_content(ws) else {
+            return false;
+        };
+        let room = content
+            .root
+            .as_ref()
+            .is_some_and(|r| r.can_split(target, edge.axis()));
+        if !room {
+            return content.move_tab(tab, target, usize::MAX);
+        }
+        let Some((src, index)) = content.find_tab(tab) else {
+            return false;
+        };
+        let Some(moved) = content.take_tab_at(src, index) else {
+            return false;
+        };
+        let emptied = content
+            .root
+            .as_ref()
+            .and_then(|r| r.find_leaf(src))
+            .is_some_and(|l| l.tabs.is_empty());
+        if emptied && src == target {
+            let next = content.next_tab_id();
+            let fresh = TabId(next.0.max(moved.id.0 + 1));
+            content.put_back(src, Tab::terminal(fresh));
+        } else if emptied {
+            content.unsplit_empty(src);
+        }
+        content.finish_edge_drop(target, edge, moved).is_some()
+    }
+
     pub(crate) fn close_tab(&mut self, ws: WorkspaceId, tab: TabId) -> Option<CloseOutcome> {
         let outcome = self.space_content(ws)?.close_tab(tab);
         self.activity.remove(&(ws, tab));
@@ -250,7 +316,7 @@ impl Model {
     }
 
     /// The workspace's terminal tabs in pane order, each with its index in
-    /// its pane (the number the chip label uses).
+    /// its pane (the number the tab label uses).
     pub(crate) fn terminal_ids(&self, ws: WorkspaceId) -> Vec<(TabId, usize)> {
         let mut out = Vec::new();
         if let Some(root) = self.spaces.get(&ws).and_then(|s| s.content.root.as_ref()) {
@@ -266,7 +332,7 @@ impl Model {
     }
 
     /// Name the phone whose grid a terminal has (None = the Mac's again).
-    /// True when the chip text changed.
+    /// True when the tab title changed.
     pub(crate) fn set_phone_device(
         &mut self,
         ws: WorkspaceId,

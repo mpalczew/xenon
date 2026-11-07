@@ -110,7 +110,7 @@ impl Model {
             .is_some_and(|a| a.is_working())
     }
 
-    /// One terminal's pip: the same rule the tab chip and the sidebar share.
+    /// One terminal's pip: the same rule the tab and the sidebar share.
     pub(crate) fn tab_dot(&self, ws: WorkspaceId, tab: TabId) -> Option<WorkspaceDot> {
         workspace_dot(self.is_working(ws, tab), self.attention.reason(ws, tab))
     }

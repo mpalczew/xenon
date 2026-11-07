@@ -132,6 +132,15 @@ fn child_env() -> Vec<String> {
     env
 }
 
+/// Bytes a key sends that VTE would send differently. Shift+Enter is a line
+/// feed (like Ctrl+J), as the old terminal sent it: Claude Code and Codex read
+/// it as "new line", while VTE's carriage return would submit.
+pub(crate) fn key_bytes(key: gdk::Key, state: gdk::ModifierType) -> Option<&'static [u8]> {
+    let plain = state & gtk::accelerator_get_default_mod_mask();
+    (plain == gdk::ModifierType::SHIFT_MASK && matches!(key, gdk::Key::Return | gdk::Key::KP_Enter))
+        .then_some(b"\n")
+}
+
 fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: TabId) {
     let weak: Weak<App> = Rc::downgrade(app);
     let term = &view.term;
@@ -176,10 +185,17 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     {
         let weak = weak.clone();
-        keys.connect_key_pressed(move |_, _, _, _| {
+        let term = view.term.downgrade();
+        keys.connect_key_pressed(move |_, key, _, state| {
             crate::latency::input();
             if let Some(app) = weak.upgrade() {
                 app.term_interaction(ws, tab);
+            }
+            if let Some(bytes) = key_bytes(key, state)
+                && let Some(term) = term.upgrade()
+            {
+                term.feed_child(bytes);
+                return glib::Propagation::Stop;
             }
             glib::Propagation::Proceed
         });

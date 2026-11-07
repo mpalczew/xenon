@@ -63,7 +63,7 @@ impl App {
         self.sidebar.files.reveal(dir);
     }
 
-    fn changed(self: &Rc<Self>, ws: WorkspaceId) {
+    pub(crate) fn changed(self: &Rc<Self>, ws: WorkspaceId) {
         self.sync(ws);
         self.save_session(ws);
         self.focus_terminal();

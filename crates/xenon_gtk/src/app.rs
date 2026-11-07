@@ -61,13 +61,19 @@ pub(crate) struct App {
     /// Last pulse step drawn; -1 after a repaint reset the rails.
     pub pulse_level: Cell<i32>,
     pub started: Instant,
+    /// True while `sync` changes the tab views, so their signals stay silent.
+    pub tab_sync: Cell<bool>,
+    /// A tab drag ended outside every bar and pane.
+    pub refused_drag: Cell<bool>,
+    /// A tab dropped on a pane body, waiting for the bar to finish its drag.
+    pub pending_drop: Cell<Option<(PaneId, TabId, Option<xenon_core::DropEdge>)>>,
     pub save_pending: Cell<bool>,
     pub remote: crate::remote::Remote,
 }
 
 impl App {
     /// Bring the widgets of `ws` in line with its model: terminals, panes,
-    /// chips, and the split layout.
+    /// tabs, and the split layout.
     pub(crate) fn sync(self: &Rc<Self>, ws: WorkspaceId) {
         let Some(content) = self
             .model
@@ -78,8 +84,19 @@ impl App {
         else {
             return;
         };
+        let was = self.tab_sync.replace(true);
+        self.sync_inner(ws, &content);
+        self.tab_sync.set(was);
+        self.paint_all();
+    }
+
+    fn sync_inner(
+        self: &Rc<Self>,
+        ws: WorkspaceId,
+        content: &xenon_core::PaneContent<crate::model::Tab>,
+    ) {
         self.ensure_slot(ws);
-        self.sync_bodies(ws, &content);
+        self.sync_bodies(ws, content);
         let ids = content.leaf_ids();
         let bodies = self.bodies_of(ws);
         let mut slots = self.slots.borrow_mut();
@@ -97,7 +114,7 @@ impl App {
             root.for_each_leaf(&mut |leaf| {
                 if let Some(pane) = slot.panes.get(&leaf.id) {
                     pane.set_multi(multi);
-                    pane.sync(self, ws, leaf, &bodies);
+                    pane.sync(self, leaf, &bodies);
                 }
             });
         }
@@ -123,8 +140,6 @@ impl App {
             slot.holder.append(&widget);
             slot.shape = shape;
         }
-        drop(slots);
-        self.paint_all();
     }
 
     pub(crate) fn ensure_slot(&self, ws: WorkspaceId) {
@@ -252,7 +267,7 @@ impl App {
                         pane.set_ring(multi && space.content.focused == Some(leaf.id));
                         for (index, tab) in leaf.tabs.iter().enumerate() {
                             let dot = model.tab_dot(ws, tab.id);
-                            pane.paint(tab.id, index == leaf.active, dot);
+                            pane.paint(tab, index, index == leaf.active, dot);
                         }
                     });
                 }

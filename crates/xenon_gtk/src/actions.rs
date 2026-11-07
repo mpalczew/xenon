@@ -261,10 +261,12 @@ fn install_automation(app: &Rc<App>) {
         let bound = app.gtk.actions_for_accel(&gtk::accelerator_name(key, mods));
         if let Some(action) = bound.first() {
             let _ = gtk::prelude::WidgetExt::activate_action(&app.win, action, None);
-        } else if let Some(byte) = crate::keys::control_byte(keystroke)
-            && let Some(view) = app.current_term()
-        {
-            view.term.feed_child(&[byte]);
+        } else if let Some(view) = app.current_term() {
+            if let Some(bytes) = crate::term::key_bytes(key, mods) {
+                view.term.feed_child(bytes);
+            } else if let Some(byte) = crate::keys::control_byte(keystroke) {
+                view.term.feed_child(&[byte]);
+            }
         }
     });
     // What a key press in the terminal reports (the key controller calls the

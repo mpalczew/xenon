@@ -18,7 +18,7 @@ use crate::term::TermView;
 pub(crate) struct FitReq {
     pub cols: u16,
     pub rows: u16,
-    /// Short device name for the tab chip.
+    /// Short device name for the tab.
     pub device: String,
 }
 
@@ -93,7 +93,7 @@ impl App {
         self.fit_arm(ws, tab);
     }
 
-    /// Make the terminal and its chip match what the gate says now.
+    /// Make the terminal and its tab match what the gate says now.
     pub(crate) fn fit_apply(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         let active = self
             .remote

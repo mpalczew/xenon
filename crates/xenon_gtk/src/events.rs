@@ -87,7 +87,7 @@ impl App {
         self.relabel(ws, tab);
     }
 
-    /// Only the chip text changes; a full sync would rebuild every chip.
+    /// Only the tab title changes; a full sync would touch every page.
     pub(crate) fn relabel(&self, ws: WorkspaceId, tab: TabId) {
         let located = {
             let model = self.model.borrow();
@@ -123,6 +123,10 @@ impl App {
     /// A terminal took keyboard focus (click or key): the model's focused pane
     /// and active tab follow it, so commands target what the user is using.
     pub(crate) fn term_focused(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
+        // Focus that moves while `sync` rearranges the tabs is not the user's.
+        if self.tab_sync.get() {
+            return;
+        }
         let changed = {
             let mut model = self.model.borrow_mut();
             let changed = model.select_tab(ws, tab);
@@ -135,6 +139,11 @@ impl App {
     }
 
     pub(crate) fn term_exited(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, code: i32) {
+        // A terminal whose tab `sync` just removed ends while its page is
+        // let go; nothing is left to update.
+        if self.tab_sync.get() {
+            return;
+        }
         self.model.borrow_mut().on_exit(ws, tab, code);
         self.remote_tab_gone(ws, tab);
         let view = self.terms.borrow().get(&(ws, tab)).cloned();
@@ -184,27 +193,9 @@ impl App {
     }
 
     fn pulse_tick(self: &Rc<Self>) -> glib::ControlFlow {
-        let (active, working) = {
-            let model = self.model.borrow();
-            let Some(ws) = model.active() else {
-                return self.stop_pulse();
-            };
-            let mut tabs: Vec<TabId> = Vec::new();
-            if let Some(root) = model.spaces.get(&ws).and_then(|s| s.content.root.as_ref()) {
-                root.for_each_leaf(&mut |leaf| {
-                    tabs.extend(
-                        leaf.tabs
-                            .iter()
-                            .map(|t| t.id)
-                            .filter(|t| model.is_working(ws, *t)),
-                    );
-                });
-            }
-            if !model.any_working() {
-                return self.stop_pulse();
-            }
-            (ws, tabs)
-        };
+        if !self.model.borrow().any_working() {
+            return self.stop_pulse();
+        }
         // Five steps per fade: the timer wakes at 10 Hz but a frame is drawn
         // only when the step changes (about 6 per second), which is what the
         // idle budget pays for.
@@ -215,16 +206,11 @@ impl App {
             return glib::ControlFlow::Continue;
         }
         let opacity = 0.3 + 0.7 * f64::from(level) / (PULSE_LEVELS - 1) as f64;
-        if let Some(slot) = self.slots.borrow().get(&active) {
-            for pane in slot.panes.values() {
-                pane.pulse(&working, opacity);
-            }
-        }
         self.sidebar.pulse(opacity);
         glib::ControlFlow::Continue
     }
 
-    /// Drop the timer source and repaint so rails return to full strength.
+    /// Drop the timer source and repaint so the dots return to full strength.
     fn stop_pulse(self: &Rc<Self>) -> glib::ControlFlow {
         *self.pulse_source.borrow_mut() = None;
         self.paint_all();
