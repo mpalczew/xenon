@@ -5,7 +5,7 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 
 ## Layout
 
-- `crates/xenon_gtk/` - the app.
+- `crates/xenon/` - the app.
 - Other `crates/` - shared crates with no GTK: rules, state and parsing.
 - `PRODUCT.md`, `DESIGN.md` - product and visual design. Read both before UX work;
   update them when a decision settles.

@@ -101,7 +101,7 @@ instance. The phone remote and its paired devices are shared (`~/.xenon-shared`)
 ### Dev loop
 
 ```bash
-cargo run -p xenon_gtk      # debug
+cargo run -p xenon      # debug
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 scripts/health              # full gate: fmt + clippy + shape
@@ -154,7 +154,7 @@ run agents this way—not vanity stars.
 
 | Crate            | Role                                          |
 | ---------------- | --------------------------------------------- |
-| `xenon_gtk`      | The app: window, panes, terminals, editor     |
+| `xenon`          | The app: window, panes, terminals, editor     |
 | `xenon_core`     | Pure session / workspace / pane-tree model    |
 | `xenon_store`    | `~/.xenon` JSON persistence, CLI, open socket |
 | `xenon_settings` | Settings model                                |

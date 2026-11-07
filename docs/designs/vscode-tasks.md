@@ -26,7 +26,7 @@ Status: implemented. Spec: VS Code
 | `dependsOn` state machine                     | `tasks/plan.rs`                                                     |
 | Background readiness                          | `tasks/background.rs`                                               |
 | folderOpen closure and approval hash          | `tasks/trust.rs`                                                    |
-| Runs, tabs, inputs, trust card (GTK)          | `xenon_gtk/src/model_tasks.rs`, `tasks.rs`, `tasks_ui.rs`, `tasks/` |
+| Runs, tabs, inputs, trust card (GTK)          | `xenon/src/model_tasks.rs`, `tasks.rs`, `tasks_ui.rs`, `tasks/` |
 | Approval store                                | `xenon_store/src/task_trust.rs`                                     |
 
 ## Mapping: VS Code field to Xenon behaviour

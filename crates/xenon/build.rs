@@ -11,6 +11,6 @@ fn main() {
         .arg(out.join("xenon.gresource"))
         .arg("resources/xenon.gresource.xml")
         .status()
-        .expect("glib-compile-resources (libglib2.0-dev-bin) is needed to build xenon_gtk");
+        .expect("glib-compile-resources (libglib2.0-dev-bin) is needed to build xenon");
     assert!(status.success(), "glib-compile-resources failed");
 }

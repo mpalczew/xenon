@@ -67,7 +67,7 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   file MRU is an in-memory tiebreaker only.
 - Settings share `settings.json`; partial saves use the locked load-mutate-save boundary
   and preserve fields they do not own.
-- The app (`crates/xenon_gtk`, Linux) runs as A/B slots: one process per slot
+- The app (`crates/xenon`, Linux) runs as A/B slots: one process per slot
   (`ApplicationFlags::NON_UNIQUE`), state in `~/.xenon-a` and `~/.xenon-b`
   (`XENON_DATA_DIR`, `XENON_SLOT`), phone-remote devices in `~/.xenon-shared`. Both
   slots use the same remote port; the second waits and retries. The app saves on change

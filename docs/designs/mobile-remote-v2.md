@@ -1,7 +1,7 @@
 # Tech design: Mobile remote v2 (phone as a real Xenon client)
 
 **Status:** implemented in `crates/xenon_remote` (server, protocol, pairing) and
-`crates/xenon_gtk/src/remote*.rs` (the GTK side). This page keeps the scope, contract
+`crates/xenon/src/remote*.rs` (the GTK side). This page keeps the scope, contract
 and decisions. Not in the GTK app yet: tasks, mouse clicks, dim text, OSC 8 links,
 cursor hiding, the phone's own light/dark choice (`.xenon/worklist.md`). **Date:**
 2026-09-29

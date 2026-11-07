@@ -1597,6 +1597,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "xenon"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "gtk4",
+ "libadwaita",
+ "notify",
+ "nucleo",
+ "qrcode",
+ "serde_json",
+ "serde_json_lenient",
+ "similar",
+ "sourceview5",
+ "vte4",
+ "xenon_core",
+ "xenon_finder",
+ "xenon_git",
+ "xenon_keymap",
+ "xenon_prose",
+ "xenon_remote",
+ "xenon_settings",
+ "xenon_store",
+]
+
+[[package]]
 name = "xenon_core"
 version = "0.1.0"
 dependencies = [
@@ -1621,32 +1647,6 @@ name = "xenon_git"
 version = "0.1.0"
 dependencies = [
  "ignore",
-]
-
-[[package]]
-name = "xenon_gtk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-channel",
- "gtk4",
- "libadwaita",
- "notify",
- "nucleo",
- "qrcode",
- "serde_json",
- "serde_json_lenient",
- "similar",
- "sourceview5",
- "vte4",
- "xenon_core",
- "xenon_finder",
- "xenon_git",
- "xenon_keymap",
- "xenon_prose",
- "xenon_remote",
- "xenon_settings",
- "xenon_store",
 ]
 
 [[package]]
