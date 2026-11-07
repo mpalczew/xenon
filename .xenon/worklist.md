@@ -29,7 +29,7 @@
 - [x] GTK: A/B slots, so a new build starts beside the running one
   - `~/bin/xenon` launches the GTK app; state in `~/.xenon-a` and `~/.xenon-b`.
   - One process per slot, opens routed over each slot's socket (`xenon open`).
-- [ ] GTK: an open file updates when it changes on disk, as in the GPUI editor
+- [x] GTK: an open file updates when it changes on disk, as in the GPUI editor
   - Unsaved edits: show a conflict instead of reloading.
 - [ ] GTK: wording pass, copying GPUI text word for word
   - Mac words become generic; nothing else changes.

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
-use gtk::{gdk, glib};
+use gtk::{gdk, gio, glib};
 use sourceview::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 
@@ -27,7 +27,18 @@ pub(crate) struct EditorView {
     /// The Vim input method and its key controller while Vim mode is on.
     vim: RefCell<Option<(sourceview::VimIMContext, gtk::EventControllerKey)>>,
     app: Weak<App>,
+    scroller: gtk::ScrolledWindow,
+    /// "File changed on disk" bar: message and its two buttons.
+    bar: gtk::Box,
+    bar_text: gtk::Label,
+    bar_actions: gtk::Box,
+    monitor: RefCell<Option<gio::FileMonitor>>,
+    /// True from the first disk event of a burst until it is handled.
+    sync_pending: Cell<bool>,
 }
+
+/// Wait this long after a disk event, so an agent's several writes read once.
+const DISK_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Why a file cannot open here, if it cannot (cheap: no read).
 pub(crate) fn check(path: &Path) -> Result<(), String> {
@@ -71,8 +82,27 @@ impl EditorView {
         let scroller = gtk::ScrolledWindow::new();
         scroller.set_child(Some(&view));
         scroller.add_css_class("xeditor-scroll");
+        let bar_text = gtk::Label::new(None);
+        bar_text.set_hexpand(true);
+        bar_text.set_xalign(0.0);
+        bar_text.set_wrap(true);
+        let bar_actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        let bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        bar.add_css_class("toolbar");
+        bar.append(&bar_text);
+        bar.append(&bar_actions);
+        bar.set_visible(false);
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        root.append(&bar);
+        root.append(&scroller);
         let editor = Rc::new(Self {
-            root: scroller.upcast(),
+            root: root.upcast(),
+            scroller,
+            bar,
+            bar_text,
+            bar_actions,
+            monitor: RefCell::new(None),
+            sync_pending: Cell::new(false),
             view,
             buffer,
             path: path.to_path_buf(),
@@ -107,7 +137,109 @@ impl EditorView {
         });
         editor.view.add_controller(keys);
         editor.buffer.set_modified(false);
+        editor.watch_disk();
         editor
+    }
+
+    /// Watch the file; every event schedules one settled look at the disk.
+    fn watch_disk(self: &Rc<Self>) {
+        let file = gio::File::for_path(&self.path);
+        let Ok(monitor) = file.monitor_file(
+            gio::FileMonitorFlags::WATCH_MOVES,
+            None::<&gio::Cancellable>,
+        ) else {
+            return;
+        };
+        let this = Rc::downgrade(self);
+        monitor.connect_changed(move |_, _, _, _| {
+            let Some(this) = this.upgrade() else { return };
+            if this.sync_pending.replace(true) {
+                return;
+            }
+            let this = Rc::downgrade(&this);
+            glib::timeout_add_local_once(DISK_SETTLE, move || {
+                if let Some(this) = this.upgrade() {
+                    this.sync_pending.set(false);
+                    this.sync_from_disk();
+                }
+            });
+        });
+        *self.monitor.borrow_mut() = Some(monitor);
+    }
+
+    /// Show the disk text in a clean buffer, or say why it cannot. A dirty
+    /// buffer is never overwritten; a deleted file leaves the buffer open
+    /// and unsaved.
+    fn sync_from_disk(self: &Rc<Self>) {
+        if !self.path.exists() {
+            self.show_bar(
+                "File was deleted on disk. Your buffer is still open.",
+                false,
+            );
+            self.buffer.set_modified(true);
+            return;
+        }
+        let Ok(text) = load(&self.path) else { return };
+        let (a, b) = self.buffer.bounds();
+        if self.buffer.text(&a, &b, false) == text {
+            self.bar.set_visible(false);
+        } else if self.buffer.is_modified() {
+            self.show_bar(
+                "File changed on disk. Keep your edits, or reload from disk?",
+                true,
+            );
+        } else {
+            self.replace_text(&text);
+        }
+    }
+
+    /// Swap in new text, keeping the cursor line and the scroll position.
+    fn replace_text(&self, text: &str) {
+        let cursor = self.buffer.iter_at_offset(self.buffer.cursor_position());
+        let (line, col) = (cursor.line(), cursor.line_offset());
+        let scroll = self.scroller.vadjustment().value();
+        self.loading.set(true);
+        self.buffer.begin_irreversible_action();
+        self.buffer.set_text(text);
+        self.buffer.end_irreversible_action();
+        self.buffer.set_modified(false);
+        self.loading.set(false);
+        let at = self
+            .buffer
+            .iter_at_line_offset(line, col)
+            .unwrap_or_else(|| self.buffer.end_iter());
+        self.buffer.place_cursor(&at);
+        self.bar.set_visible(false);
+        let adjustment = self.scroller.vadjustment();
+        glib::idle_add_local_once(move || adjustment.set_value(scroll));
+    }
+
+    fn show_bar(self: &Rc<Self>, message: &str, actions: bool) {
+        self.bar_text.set_text(message);
+        while let Some(child) = self.bar_actions.first_child() {
+            self.bar_actions.remove(&child);
+        }
+        if actions {
+            let keep = gtk::Button::with_label("Keep mine");
+            let this = Rc::downgrade(self);
+            keep.connect_clicked(move |_| {
+                if let Some(this) = this.upgrade() {
+                    this.bar.set_visible(false);
+                }
+            });
+            let reload = gtk::Button::with_label("Load disk");
+            let this = Rc::downgrade(self);
+            reload.connect_clicked(move |_| {
+                if let Some(this) = this.upgrade()
+                    && let Ok(text) = load(&this.path)
+                {
+                    this.replace_text(&text);
+                }
+            });
+            self.bar_actions.append(&keep);
+            self.bar_actions.append(&reload);
+        }
+        self.bar.set_visible(true);
     }
 
     fn attach_vim(self: &Rc<Self>, weak: &Weak<App>) {
@@ -186,10 +318,19 @@ impl EditorView {
             match result {
                 Ok(()) => {
                     self.buffer.set_modified(false);
+                    self.bar.set_visible(false);
                     app.toast(&format!("Saved {name}"));
                 }
                 Err(error) => app.toast(&format!("Could not save {name}: {error}")),
             }
+        }
+    }
+}
+
+impl Drop for EditorView {
+    fn drop(&mut self) {
+        if let Some(monitor) = self.monitor.take() {
+            monitor.cancel();
         }
     }
 }
