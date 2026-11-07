@@ -165,7 +165,7 @@ impl Palette {
              .xeditor-scroll {{ background: {bg}; }}\n\
              .xgutter {{ min-width: 20px; margin-right: 0; }}\n\
              .xrow-close {{ min-width: 20px; min-height: 20px; padding: 0; opacity: 0; }}\n\
-             .xrow:hover .xrow-close, .xrow-close:focus {{ opacity: 0.8; }}\n\
+             row:hover .xrow-close, .xrow-close:focus {{ opacity: 0.8; }}\n\
              .xrow:hover .xtick {{ opacity: 0; }}\n\
              .xhints {{ border-top: 1px solid {border}; padding-top: 12px; margin-top: 4px; }}\n\
              .xhints-head {{ color: {muted}; font-size: 0.82em; margin-bottom: 4px; }}\n\
