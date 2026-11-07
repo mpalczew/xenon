@@ -21,7 +21,7 @@
 
 ## Next
 
-- [ ] Delete every test and test script; nothing runs tests any more
+- [x] Delete every test and test script; nothing runs tests any more
   - Rust tests (about 100 files), `crates/xenon_ui/tests/`, the Python helper test.
   - `scripts/xenon-gtk-verify`, `-idle`, `-latency`, `-remote-client`,
     `scripts/xenon_cli_test.sh`, `scripts/check-test-determinism`.
