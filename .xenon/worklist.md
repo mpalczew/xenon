@@ -3,7 +3,9 @@
 ## Now
 
 - [x] GTK: Markdown writing mode
-- [ ] GTK: open a file in the selected pane, or the last selected one
+- [x] GTK: open a file in the selected pane, or the last selected one
+  - One model rule; editors and diffs now remember their pane when focused.
+  - `xenon open --pane` is still ignored; every open uses the focused pane.
 - [ ] GTK: Copy Clean in the toolbar
 - [x] GTK: Workspaces, Files and Git sections collapse (header click, Enter, Space;
       Ctrl+E for Files; saved in settings)

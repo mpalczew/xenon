@@ -22,32 +22,17 @@ impl Model {
         self.spaces.get_mut(&ws).map(|s| &mut s.content)
     }
 
-    /// Add a terminal to the focused pane (creating the first pane if needed).
+    /// Add a terminal to the receiving pane.
     pub(crate) fn new_terminal(&mut self, ws: WorkspaceId) -> Option<TabId> {
-        let content = self.space_content(ws)?;
-        let id = content.next_tab_id();
-        if content.root.is_none() {
-            let pane = PaneId(1);
-            content.root = Some(PaneTree::Leaf(PaneLeaf {
-                id: pane,
-                tabs: Vec::new(),
-                active: 0,
-                parked: false,
-            }));
-            content.focused = Some(pane);
-        }
-        if content.focused_leaf().is_none() {
-            content.focused = content.leaf_ids().first().copied();
-        }
-        let leaf = content.focused_leaf_mut()?;
-        leaf.tabs.push(Tab::terminal(id));
-        leaf.active = leaf.tabs.len() - 1;
-        leaf.parked = false;
-        Some(id)
+        self.push_tab(ws, Tab::terminal)
     }
 
-    /// Add a tab to the focused pane (creating the first pane if needed) and
-    /// make it the active one.
+    /// Add a tab to the pane that receives new tabs and make it the active
+    /// one. This is the one rule for every way of opening a tab (terminal,
+    /// file, diff, `xenon open`, the finder): the focused pane. `focused` is
+    /// also the last pane that had focus, since focus moving to the sidebar or
+    /// a dialog does not change it. With no valid one it is the first pane;
+    /// with no pane, a new one.
     fn push_tab(&mut self, ws: WorkspaceId, make: impl FnOnce(TabId) -> Tab) -> Option<TabId> {
         let content = self.space_content(ws)?;
         let id = content.next_tab_id();
