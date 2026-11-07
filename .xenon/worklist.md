@@ -13,10 +13,13 @@
 - [ ] GTK: workspace picker gets the Browse… row its no-match message names
 - [ ] GTK: Workspaces section looks bad (waiting on what, from the user)
 
+- [ ] GTK: task runner (task picker, Run Build Task, inputs and trust prompts, Run
+      Task button)
+
 ## Next
 
 - [ ] GTK: toolbar buttons still missing: Go Back, Go Forward, Cut, Toggle File Tree,
-      worklist capture and open, Run Task, Save
+      worklist capture and open, Save
 - [ ] GTK: empty screen rows that do nothing yet: Command Palette, Focus Editor,
       Keyboard Shortcuts
 - [ ] GTK: themes follow the system, mostly by deleting code
