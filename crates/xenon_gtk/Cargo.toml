@@ -23,6 +23,7 @@ gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_8"] }
 sourceview = { package = "sourceview5", version = "0.11", features = ["v5_18"] }
 vte = { package = "vte4", version = "0.10", features = ["v0_84"] }
+similar = { version = "3.2.1", features = ["inline", "text"] }
 
 [lints]
 workspace = true

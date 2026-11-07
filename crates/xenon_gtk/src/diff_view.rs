@@ -1,8 +1,8 @@
-//! The diff tab: one file, HEAD against the working tree (or the staged and
-//! unstaged halves when the two match), read only. `xenon_git` loads and
-//! parses it off the main thread and decides rows and words; `diff_text`
-//! flattens that into lines; this file puts the lines in stock text views
-//! (GtkSourceView does the syntax colors) and tints them with text tags.
+//! The diff tab: one file, HEAD against the working tree (or against the
+//! index when the two match), read only. `diff_text` loads the texts off the
+//! main thread and computes the lines of each side with `similar`; this file
+//! puts them in read-only GtkSourceViews (one for unified, two for split that
+//! share a vertical adjustment).
 
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
@@ -14,25 +14,22 @@ use gtk::{gdk, gio, glib};
 use serde_json::json;
 use sourceview::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
-use xenon_git::diff::{DiffDoc, Layout, LayoutMode};
+use xenon_git::diff::{Layout, LayoutMode};
 use xenon_git::status::GitFile;
 
 use crate::app::App;
-use crate::diff_text::{self, Page, Side, Tint};
+use crate::diff_text::{self, Doc, Page};
 use crate::pane::focus_inside;
 
-/// The model attaches syntax spans from a frontend highlighter; here
-/// GtkSourceView colors the text itself, so the model gets none.
-fn no_syntax(_: &std::path::Path, _: &str) -> Vec<(usize, usize, &'static str)> {
-    Vec::new()
-}
-
+mod numbers;
 mod paint;
 
 pub(crate) struct DiffView {
     pub root: gtk::Box,
-    scroll: gtk::ScrolledWindow,
+    /// Holds the one or two panes.
     body: gtk::Box,
+    /// Shared by the panes, so they scroll together.
+    vadj: gtk::Adjustment,
     path_label: gtk::Label,
     sub_label: gtk::Label,
     auto_label: gtk::Label,
@@ -48,12 +45,12 @@ pub(crate) struct DiffView {
     file: RefCell<GitFile>,
     mode: Cell<LayoutMode>,
     layout: Cell<Layout>,
-    doc: RefCell<Option<Arc<DiffDoc>>>,
+    doc: RefCell<Option<Arc<Doc>>>,
     /// Header line and editor target line of each hunk.
     hunks: RefCell<Vec<(i32, u32)>>,
     current: Cell<usize>,
     line_h: Cell<f64>,
-    views: RefCell<Vec<(gtk::TextView, gtk::TextView)>>,
+    views: RefCell<Vec<sourceview::View>>,
     /// Bumped per load, so an older read that finishes late is dropped.
     epoch: Cell<u64>,
     /// True while we flip the toggle buttons ourselves.
@@ -132,27 +129,21 @@ impl DiffView {
         note.set_visible(false);
 
         let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        body.set_homogeneous(false);
         body.add_css_class("xdiff-body");
-        body.set_valign(gtk::Align::Start);
-        let scroll = gtk::ScrolledWindow::new();
-        scroll.set_child(Some(&body));
-        scroll.set_vexpand(true);
-        scroll.set_hexpand(true);
-        scroll.set_focusable(true);
-        scroll.add_css_class("xdiff-scroll");
+        body.set_vexpand(true);
+        body.set_hexpand(true);
 
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("xdiff");
         root.append(&head);
         root.append(&banner);
         root.append(&note);
-        root.append(&scroll);
+        root.append(&body);
 
         let this = Rc::new(Self {
             root,
-            scroll,
             body,
+            vadj: gtk::Adjustment::default(),
             path_label,
             sub_label,
             auto_label,
@@ -210,18 +201,18 @@ impl DiffView {
                 }
             });
         }
+        // Auto layout follows the width of the pane area.
         let weak = Rc::downgrade(self);
-        self.scroll
-            .hadjustment()
-            .connect_page_size_notify(move |_| {
-                if let Some(this) = weak.upgrade()
-                    && this.mode.get() == LayoutMode::Auto
-                    && this.doc.borrow().is_some()
-                    && this.resolve() != this.layout.get()
-                {
-                    this.rebuild();
-                }
-            });
+        self.body.add_tick_callback(move |_, _| {
+            if let Some(this) = weak.upgrade()
+                && this.mode.get() == LayoutMode::Auto
+                && this.doc.borrow().is_some()
+                && this.resolve() != this.layout.get()
+            {
+                this.rebuild();
+            }
+            glib::ControlFlow::Continue
+        });
         let keys = gtk::EventControllerKey::new();
         let weak = Rc::downgrade(self);
         keys.connect_key_pressed(move |_, key, _, state| {
@@ -245,7 +236,8 @@ impl DiffView {
             this.key(name);
             glib::Propagation::Stop
         });
-        self.scroll.add_controller(keys);
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        self.body.add_controller(keys);
         let focus = gtk::EventControllerFocus::new();
         let weak = Rc::downgrade(self);
         focus.connect_enter(move |_| {
@@ -253,12 +245,12 @@ impl DiffView {
                 app.publish_diff();
             }
         });
-        self.scroll.add_controller(focus);
+        self.body.add_controller(focus);
     }
 
     /// A diff command by name (keys and the `diff-key` action).
     pub(crate) fn key(self: &Rc<Self>, name: &str) {
-        let adj = self.scroll.vadjustment();
+        let adj = &self.vadj;
         match name {
             "next-hunk" => self.step_hunk(1),
             "prev-hunk" => self.step_hunk(-1),
@@ -277,11 +269,13 @@ impl DiffView {
     }
 
     pub(crate) fn focus(&self) {
-        self.scroll.grab_focus();
+        if let Some(view) = self.views.borrow().last() {
+            view.grab_focus();
+        }
     }
 
     pub(crate) fn has_focus(&self) -> bool {
-        focus_inside(&self.scroll)
+        focus_inside(&self.body)
     }
 
     pub(crate) fn cycle_layout(self: &Rc<Self>) {
@@ -305,7 +299,7 @@ impl DiffView {
     }
 
     fn resolve(&self) -> Layout {
-        self.mode.get().resolve(self.scroll.width() as f32)
+        self.mode.get().resolve(self.body.width() as f32)
     }
 
     /// Read the diff again, off the main thread. `file` is a fresher status
@@ -319,9 +313,7 @@ impl DiffView {
         let (dir, file) = (self.dir.clone(), self.file.borrow().clone());
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
-            let Ok(doc) =
-                gio::spawn_blocking(move || xenon_git::load::load(&dir, &file, no_syntax)).await
-            else {
+            let Ok(doc) = gio::spawn_blocking(move || diff_text::load(&dir, &file)).await else {
                 return;
             };
             let Some(this) = weak.upgrade() else { return };
@@ -341,17 +333,21 @@ impl DiffView {
         let Some(app) = self.app.upgrade() else {
             return;
         };
-        let keep = self.scroll.vadjustment().value();
+        let keep = self.vadj.value();
+        let refocus = self.has_focus();
         let layout = self.resolve();
         self.layout.set(layout);
-        let page = diff_text::build(&doc, layout);
+        let page = doc.build(layout);
         self.fill(&app, &page);
         *self.hunks.borrow_mut() = page.hunks.iter().map(|h| (h.line, h.target)).collect();
         self.current
             .set(self.current.get().min(page.hunks.len().saturating_sub(1)));
         self.header(&doc, layout);
         self.mark_current();
-        let adj = self.scroll.vadjustment();
+        if refocus {
+            self.focus();
+        }
+        let adj = self.vadj.clone();
         glib::idle_add_local_once(move || adj.set_value(keep));
         app.publish_diff();
     }
@@ -374,9 +370,11 @@ impl DiffView {
         let Some(&(line, _)) = self.hunks.borrow().get(index) else {
             return;
         };
-        let adj = self.scroll.vadjustment();
-        let y = 8.0 + f64::from(line) * self.line_h.get() - 2.0 * self.line_h.get();
-        adj.set_value(y.max(0.0));
+        if let Some(view) = self.views.borrow().last()
+            && let Some(iter) = view.buffer().iter_at_line(line)
+        {
+            view.scroll_to_iter(&mut iter.clone(), 0.0, true, 0.0, 0.2);
+        }
     }
 
     fn open_in_editor(&self) {
@@ -403,7 +401,7 @@ impl DiffView {
             "hunks": self.hunks.borrow().len(),
             "current": self.current.get(),
             "targets": self.hunks.borrow().iter().map(|h| h.1).collect::<Vec<_>>(),
-            "scroll": self.scroll.vadjustment().value(),
+            "scroll": self.vadj.value(),
             "focused": self.has_focus(),
         })
         .to_string()

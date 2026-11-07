@@ -41,7 +41,7 @@
 - [x] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
   - `scripts/release/install` installs the GTK app; `install-gtk` goes away.
   - `.vscode/tasks.json` keeps only the GTK launch and install tasks.
-- [ ] GTK: diff tab on `similar` and two GtkSourceView panes
+- [x] GTK: diff tab on `similar` and two GtkSourceView panes
   - Keep side by side, unified, changed words and the jump buttons.
   - Shared scrollbar; line backgrounds from GtkSourceView marks.
 - [ ] GTK: themes follow the system (libadwaita light and dark, GtkSourceView schemes)

@@ -214,9 +214,7 @@ impl Palette {
              .xpill {{ border: 1px solid {border}; border-radius: 6px; padding: 2px 8px; color: {muted}; font-size: 0.85em; }}\n\
              .xdiff-banner {{ background: {element_bg}; border: 1px solid {border}; border-radius: 6px; margin: 12px 16px 0 16px; padding: 8px 12px; }}\n\
              .xdiff-note {{ color: {muted}; padding: 14px 16px; }}\n\
-             .xdiff-scroll {{ background: {editor_bg}; }}\n\
-             .xdiff-scroll:focus {{ outline: none; }}\n\
-             textview.xdiff-code, textview.xdiff-gutter, textview.xdiff-code text, textview.xdiff-gutter text {{ background: {editor_bg}; color: {editor_fg}; }}\n\
+             textview.xdiff-code, textview.xdiff-code text {{ background: {editor_bg}; color: {editor_fg}; }}\n\
              .xdiff-half.right {{ border-left: 1px solid {border}; }}\n\
              paned > separator {{ min-width: 1px; min-height: 1px; background: {border}; }}\n\
              paned > separator:hover {{ background: {accent}; }}\n"

@@ -1,208 +1,239 @@
-//! Turns the shared diff model into text for the diff tab: one or two sides,
-//! each a gutter column and a code column with the same number of lines, plus
-//! the marks (line tints, changed words) the view paints with text tags. The
-//! rules about rows, pairing and words come from `xenon_git`; this only
-//! flattens them into lines.
+//! The diff tab's model: the two texts of one file (HEAD against the working
+//! tree, or HEAD against the index when the tree matches HEAD) and the lines
+//! of each side, computed with `similar`. The view only draws these lines.
 
-use xenon_git::diff::{DiffDoc, DiffLine, Layout, LineKind};
+use std::path::Path;
+use std::process::Command;
+
+use similar::{ChangeTag, DiffOp, InlineChange, TextDiff};
+use xenon_git::diff::Layout;
+use xenon_git::status::GitFile;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Tint {
+pub(crate) enum Kind {
+    Context,
     Added,
     Removed,
     /// The empty half of a split row.
     Filler,
-    /// A hunk header.
-    Header,
-    /// Section title or column label.
-    Title,
 }
 
-pub(crate) struct Mark {
+#[derive(Clone, Debug)]
+pub(crate) struct Line {
+    pub text: String,
+    pub kind: Kind,
+    /// 1-based line numbers in the old and new text; 0 for none.
+    pub old: u32,
+    pub new: u32,
+    /// Changed words, as character ranges in `text`.
+    pub words: Vec<(i32, i32)>,
+}
+
+impl Line {
+    fn filler() -> Self {
+        Self::plain("", Kind::Filler, 0, 0)
+    }
+
+    fn plain(text: &str, kind: Kind, old: u32, new: u32) -> Self {
+        let text = text.trim_end_matches(['\r', '\n']).to_string();
+        Self {
+            text,
+            kind,
+            old,
+            new,
+            words: Vec::new(),
+        }
+    }
+
+    fn of_change(change: &InlineChange<str>) -> Self {
+        let number = |i: Option<usize>| i.map_or(0, |i| i as u32 + 1);
+        let kind = if change.tag() == ChangeTag::Delete {
+            Kind::Removed
+        } else {
+            Kind::Added
+        };
+        let mut line = Self::plain(
+            "",
+            kind,
+            number(change.old_index()),
+            number(change.new_index()),
+        );
+        let mut at = 0;
+        for (changed, part) in change.iter_strings_lossy() {
+            let part = part.trim_end_matches(['\r', '\n']);
+            let len = part.chars().count() as i32;
+            if changed && len > 0 {
+                line.words.push((at, at + len));
+            }
+            line.text.push_str(part);
+            at += len;
+        }
+        line
+    }
+}
+
+/// One change block: the line to show it at and the new-file line to open.
+pub(crate) struct Hunk {
     pub line: i32,
-    pub tint: Tint,
-}
-
-/// A changed word inside a line (character offsets in the code column).
-pub(crate) struct Word {
-    pub line: i32,
-    pub start: i32,
-    pub end: i32,
-    pub added: bool,
-}
-
-#[derive(Default)]
-pub(crate) struct Side {
-    pub gutter: String,
-    pub code: String,
-    pub marks: Vec<Mark>,
-    pub words: Vec<Word>,
-}
-
-pub(crate) struct HunkAt {
-    /// Line of the hunk header.
-    pub line: i32,
-    /// New-file line to open in the editor.
     pub target: u32,
 }
 
 #[derive(Default)]
 pub(crate) struct Page {
-    pub sides: Vec<Side>,
-    pub hunks: Vec<HunkAt>,
-    pub lines: i32,
+    /// One side when unified, two when split; equal length in split.
+    pub sides: Vec<Vec<Line>>,
+    pub hunks: Vec<Hunk>,
 }
 
-struct Builder {
-    page: Page,
-    split: bool,
+#[derive(Default)]
+pub(crate) struct Doc {
+    pub subtitle: String,
+    pub banner: Option<String>,
+    pub note: Option<String>,
+    pub added: usize,
+    pub removed: usize,
+    old: String,
+    new: String,
 }
 
-impl Builder {
-    /// A line that is the same in every side (title, label, spacer).
-    fn both(&mut self, text: &str, tint: Option<Tint>) {
-        let line = self.page.lines;
-        for (i, side) in self.page.sides.iter_mut().enumerate() {
-            side.gutter.push_str(" \n");
-            // In split mode the left side carries the text.
-            if i == 0 || !self.split {
-                side.code.push_str(text);
-            }
-            side.code.push_str(" \n");
-            if let Some(tint) = tint {
-                side.marks.push(Mark { line, tint });
-            }
+impl Doc {
+    fn of(subtitle: &str, old: &str, new: &str) -> Self {
+        let diff = TextDiff::from_lines(old, new);
+        let (mut added, mut removed) = (0, 0);
+        for op in diff
+            .ops()
+            .iter()
+            .filter(|o| !matches!(o, DiffOp::Equal { .. }))
+        {
+            removed += op.old_range().len();
+            added += op.new_range().len();
         }
-        self.page.lines += 1;
+        Self {
+            subtitle: subtitle.into(),
+            added,
+            removed,
+            old: old.into(),
+            new: new.into(),
+            ..Self::default()
+        }
     }
 
-    fn cell(&mut self, side: usize, gutter: String, line: Option<&DiffLine>) {
-        let at = self.page.lines;
-        let s = &mut self.page.sides[side];
-        s.gutter.push_str(&gutter);
-        s.gutter.push_str(" \n");
-        match line {
-            Some(line) => {
-                let mut offset = 0;
-                for seg in &line.segs {
-                    let n = seg.text.chars().count() as i32;
-                    if seg.emphasis {
-                        s.words.push(Word {
-                            line: at,
-                            start: offset,
-                            end: offset + n,
-                            added: line.kind == LineKind::Added,
-                        });
-                    }
-                    offset += n;
-                    s.code.push_str(&seg.text);
-                }
-                match line.kind {
-                    LineKind::Added => s.marks.push(Mark {
-                        line: at,
-                        tint: Tint::Added,
-                    }),
-                    LineKind::Removed => s.marks.push(Mark {
-                        line: at,
-                        tint: Tint::Removed,
-                    }),
-                    LineKind::Context => {}
-                }
-            }
-            None => s.marks.push(Mark {
-                line: at,
-                tint: Tint::Filler,
-            }),
+    fn note(subtitle: &str, note: String) -> Self {
+        Self {
+            subtitle: subtitle.into(),
+            note: Some(note),
+            ..Self::default()
         }
-        s.code.push_str(" \n");
     }
-}
 
-fn number(n: Option<u32>) -> String {
-    n.map_or_else(|| "    ".into(), |n| format!("{n:>4}"))
-}
-
-fn sign(kind: LineKind) -> char {
-    match kind {
-        LineKind::Added => '+',
-        LineKind::Removed => '-',
-        LineKind::Context => ' ',
-    }
-}
-
-pub(crate) fn build(doc: &DiffDoc, layout: Layout) -> Page {
-    let split = layout == Layout::Split;
-    let mut b = Builder {
-        page: Page {
-            sides: (0..if split { 2 } else { 1 })
-                .map(|_| Side::default())
-                .collect(),
-            ..Page::default()
-        },
-        split,
-    };
-    for section in &doc.sections {
-        if let Some((name, detail)) = &section.title {
-            b.both(
-                &format!(
-                    "{}   {detail}   +{} -{}",
-                    name.to_uppercase(),
-                    section.added,
-                    section.removed
-                ),
-                Some(Tint::Title),
-            );
-        }
-        if split {
-            let line = b.page.lines;
-            for (i, label) in [&section.left_label, &section.right_label]
-                .into_iter()
-                .enumerate()
+    /// The lines of each side for a layout.
+    pub(crate) fn build(&self, layout: Layout) -> Page {
+        let split = layout == Layout::Split;
+        let diff = TextDiff::from_lines(self.old.as_str(), self.new.as_str());
+        let mut page = Page {
+            sides: vec![Vec::new(); if split { 2 } else { 1 }],
+            hunks: Vec::new(),
+        };
+        for op in diff.ops() {
+            if let DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } = *op
             {
-                let side = &mut b.page.sides[i];
-                side.gutter.push_str(" \n");
-                side.code.push_str(label);
-                side.code.push_str(" \n");
-                side.marks.push(Mark {
-                    line,
-                    tint: Tint::Title,
-                });
+                for i in 0..len {
+                    let line = Line::plain(
+                        diff.old_slice(old_index + i).unwrap_or_default(),
+                        Kind::Context,
+                        (old_index + i + 1) as u32,
+                        (new_index + i + 1) as u32,
+                    );
+                    page.sides.iter_mut().for_each(|s| s.push(line.clone()));
+                }
+                continue;
             }
-            b.page.lines += 1;
-        }
-        for hunk in &section.hunks {
-            b.both("", None);
-            let line = b.page.lines;
-            b.page.hunks.push(HunkAt {
-                line,
-                target: hunk.target_line(),
+            let (removed, added): (Vec<_>, Vec<_>) = diff
+                .iter_inline_changes(op)
+                .map(|c| Line::of_change(&c))
+                .partition(|l| l.kind == Kind::Removed);
+            page.hunks.push(Hunk {
+                line: page.sides[0].len() as i32,
+                target: op.new_range().start as u32 + 1,
             });
-            b.both(&hunk.header, Some(Tint::Header));
             if split {
-                for row in &hunk.rows {
-                    let left = row.left.map(|i| &hunk.lines[i]);
-                    let right = row.right.map(|i| &hunk.lines[i]);
-                    let g = |l: Option<&DiffLine>, old: bool| match l {
-                        Some(l) => format!(
-                            "{} {}",
-                            number(if old { l.old_no } else { l.new_no }),
-                            sign(l.kind)
-                        ),
-                        None => String::new(),
-                    };
-                    b.cell(0, g(left, true), left);
-                    b.cell(1, g(right, false), right);
-                    b.page.lines += 1;
+                for i in 0..removed.len().max(added.len()) {
+                    let pick = |v: &[Line]| v.get(i).cloned().unwrap_or_else(Line::filler);
+                    page.sides[0].push(pick(&removed));
+                    page.sides[1].push(pick(&added));
                 }
             } else {
-                for l in &hunk.lines {
-                    let gutter =
-                        format!("{} {} {}", number(l.old_no), number(l.new_no), sign(l.kind));
-                    b.cell(0, gutter, Some(l));
-                    b.page.lines += 1;
-                }
+                page.sides[0].extend(removed);
+                page.sides[0].extend(added);
             }
         }
+        page
     }
-    b.page
+}
+
+/// A blob from git (`HEAD:path`, `:path`); none when git has no such blob.
+fn show(root: &Path, spec: &str) -> Option<Vec<u8>> {
+    let out = Command::new("git")
+        .args(["show", spec])
+        .current_dir(root)
+        .env("GIT_OPTIONAL_LOCKS", "1")
+        .output()
+        .ok()?;
+    out.status.success().then_some(out.stdout)
+}
+
+/// The diff for one status entry. Blocking: call off the UI thread.
+pub(crate) fn load(root: &Path, file: &GitFile) -> Doc {
+    let path = file.path.as_str();
+    let work = std::fs::read(root.join(path));
+    if file.is_untracked() {
+        return match work {
+            Ok(bytes) if bytes.contains(&0) => Doc::note(
+                "untracked \u{b7} new file",
+                "Binary file, not shown.".into(),
+            ),
+            Ok(bytes) => Doc::of(
+                "untracked \u{b7} new file",
+                "",
+                &String::from_utf8_lossy(&bytes),
+            ),
+            Err(error) => Doc::note("", format!("Can\u{2019}t read {path}: {error}")),
+        };
+    }
+    let head = show(
+        root,
+        &format!("HEAD:{}", file.from.as_deref().unwrap_or(path)),
+    );
+    let index = show(root, &format!(":{path}"));
+    let (head, index, work) = (
+        head.unwrap_or_default(),
+        index.unwrap_or_default(),
+        work.unwrap_or_default(),
+    );
+    if [&head, &index, &work].iter().any(|b| b.contains(&0)) {
+        return Doc::note(
+            "HEAD \u{2192} working tree",
+            "Binary file, not shown.".into(),
+        );
+    }
+    let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
+    if head != work {
+        return Doc::of("HEAD \u{2192} working tree", &text(&head), &text(&work));
+    }
+    let subtitle = "HEAD \u{21c4} working tree \u{b7} no difference";
+    if index == head {
+        return Doc::note(subtitle, "No textual changes.".into());
+    }
+    Doc {
+        banner: Some(
+            "Working tree matches HEAD. Staged and unstaged changes cancel out, so the \
+             net diff against HEAD is empty."
+                .into(),
+        ),
+        ..Doc::of(subtitle, &text(&head), &text(&index))
+    }
 }
