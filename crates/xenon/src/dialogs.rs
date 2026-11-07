@@ -5,11 +5,13 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::gio;
+use gtk::{gio, glib};
 use xenon_core::{FileRoute, TabId, WorkspaceId};
 
 use crate::app::App;
-use crate::links::{Opening, decide};
+use crate::links::{Opening, decide, opening_for};
+use std::sync::Arc;
+use xenon_finder::FileIndex;
 
 fn expand_home(text: &str) -> PathBuf {
     match (text.strip_prefix("~/"), std::env::var_os("HOME")) {
@@ -71,13 +73,66 @@ impl App {
         let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
             return;
         };
-        match decide(text, &view.live_cwd()) {
+        let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {
+            return;
+        };
+        self.run_opening(ws, decide(text, &view.live_cwd(), &root));
+    }
+
+    fn run_opening(self: &Rc<Self>, ws: WorkspaceId, opening: Opening) {
+        match opening {
             Opening::Launch(url) => self.launch(&url),
             Opening::Missing(path) => self.toast(&format!("Not found: {}", path.display())),
             Opening::Reveal(dir) => self.reveal_dir(ws, &dir),
             Opening::Editor(path, line) => self.open_file_at(ws, &path, line),
             Opening::Default(path) => self.open_file(&path),
+            Opening::Search(reference, line) => self.search_link(ws, reference, line),
         }
+    }
+
+    /// A reference that is not on disk where the terminal is: look for files in
+    /// the workspace that end with it. One match opens; several go to the file
+    /// finder with the reference typed in; none says so.
+    fn search_link(self: &Rc<Self>, ws: WorkspaceId, reference: String, line: u32) {
+        let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {
+            return;
+        };
+        let cached = self.file_indexes.borrow().get(&ws).cloned();
+        let weak = Rc::downgrade(self);
+        glib::spawn_future_local(async move {
+            let mut index = cached;
+            let mut found = Vec::new();
+            // A cached index can be stale: rebuild once before giving up.
+            for fresh in [false, true] {
+                if index.is_none() || fresh {
+                    let dir = root.clone();
+                    let Ok(built) = gio::spawn_blocking(move || FileIndex::build(&dir)).await
+                    else {
+                        return;
+                    };
+                    let built = Arc::new(built);
+                    if let Some(app) = weak.upgrade() {
+                        app.file_indexes.borrow_mut().insert(ws, built.clone());
+                    }
+                    index = Some(built);
+                }
+                let (idx, wanted) = (index.clone().unwrap(), reference.clone());
+                let Ok(list) = gio::spawn_blocking(move || idx.files_ending_with(&wanted)).await
+                else {
+                    return;
+                };
+                found = list;
+                if !found.is_empty() {
+                    break;
+                }
+            }
+            let Some(app) = weak.upgrade() else { return };
+            match found.as_slice() {
+                [] => app.toast(&format!("Not found: {reference}")),
+                [one] => app.run_opening(ws, opening_for(root.join(one), Some(line))),
+                _ => app.open_finder_with(&reference),
+            }
+        });
     }
 
     pub(crate) fn open_file(self: &Rc<Self>, path: &std::path::Path) {

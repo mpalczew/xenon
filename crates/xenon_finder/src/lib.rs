@@ -68,6 +68,36 @@ impl FileIndex {
         self.entries.is_empty()
     }
 
+    /// Files whose path ends with `reference` on whole path components, so
+    /// `docs/a.md` matches `x/docs/a.md` but not `x/mydocs/a.md`. Leading `./`
+    /// and `../` in the reference are ignored. Safe to call from a worker thread.
+    pub fn files_ending_with(&self, reference: &str) -> Vec<PathBuf> {
+        let wanted: Vec<_> = Path::new(reference)
+            .components()
+            .filter_map(|c| match c {
+                std::path::Component::Normal(name) => Some(name),
+                _ => None,
+            })
+            .collect();
+        if wanted.is_empty() {
+            return Vec::new();
+        }
+        self.entries
+            .iter()
+            .filter(|e| !e.is_dir)
+            .map(|e| Path::new(&e.path))
+            .filter(|p| {
+                let have: Vec<_> = p.components().collect();
+                have.len() >= wanted.len()
+                    && have[have.len() - wanted.len()..]
+                        .iter()
+                        .zip(&wanted)
+                        .all(|(a, b)| a.as_os_str() == *b)
+            })
+            .map(Path::to_path_buf)
+            .collect()
+    }
+
     /// Rank entries against `query`. Safe to call from a background thread.
     /// Empty query lists paths (recents first, then walk order), capped at
     /// `MAX_RESULTS`. `recents` is most-recent first; among equal match quality

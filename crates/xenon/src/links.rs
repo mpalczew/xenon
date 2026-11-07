@@ -15,7 +15,8 @@ use crate::term::TermView;
 // PCRE2_MULTILINE: VTE requires it for match regexes.
 const PCRE2_MULTILINE: u32 = 0x0000_0400;
 const URL_RE: &str = r#"https?://[^\s<>"'`)]+"#;
-const PATH_RE: &str = r"(?:\.{0,2}/)?[\w.\-+@~]+(?:/[\w.\-+@~]+)+(?::\d+)?";
+// A path with a slash, or a bare file name with a letter-led extension.
+const PATH_RE: &str = r"(?:(?:\.{0,2}/)?[\w.\-+@~]+(?:/[\w.\-+@~]+)+|[\w\-+@][\w.\-+@]*\.[A-Za-z][A-Za-z0-9]{0,7})(?::\d+){0,2}";
 
 /// What a click landed on.
 pub(crate) enum Link {
@@ -31,6 +32,21 @@ pub(crate) enum Opening {
     Launch(String),
     Default(PathBuf),
     Missing(PathBuf),
+    /// A relative reference found nowhere on disk; look it up in the workspace index.
+    Search(String, u32),
+}
+
+/// Split a trailing `:line` or `:line:col` off `text`.
+fn split_line(text: &str) -> (&str, Option<u32>) {
+    let (mut raw, mut numbers) = (text, Vec::new());
+    while let Some((head, tail)) = raw.rsplit_once(':') {
+        match tail.parse::<u32>() {
+            Ok(n) if numbers.len() < 2 => numbers.push(n),
+            _ => break,
+        }
+        raw = head;
+    }
+    (raw, numbers.last().copied())
 }
 
 /// Classify matched text. Relative paths resolve against `cwd`; `~/` against
@@ -44,15 +60,7 @@ pub(crate) fn classify(text: &str, cwd: &Path) -> Link {
     if text.contains("://") {
         return Link::Url(text.to_string());
     }
-    let (mut raw, mut numbers) = (text, Vec::new());
-    while let Some((head, tail)) = raw.rsplit_once(':') {
-        match tail.parse::<u32>() {
-            Ok(n) if numbers.len() < 2 => numbers.push(n),
-            _ => break,
-        }
-        raw = head;
-    }
-    let line = numbers.last().copied();
+    let (raw, line) = split_line(text);
     let path = if let Some(rest) = raw.strip_prefix("~/") {
         std::env::var_os("HOME").map_or_else(|| PathBuf::from(raw), |h| PathBuf::from(h).join(rest))
     } else if raw.starts_with('/') {
@@ -63,19 +71,37 @@ pub(crate) fn classify(text: &str, cwd: &Path) -> Link {
     Link::Path(path, line)
 }
 
-/// The decision for a clicked link.
-pub(crate) fn decide(text: &str, cwd: &Path) -> Opening {
+/// What to do with a path that exists or not.
+pub(crate) fn opening_for(path: PathBuf, line: Option<u32>) -> Opening {
+    if !path.exists() {
+        Opening::Missing(path)
+    } else if path.is_dir() {
+        Opening::Reveal(path)
+    } else if crate::image::is_image(&path) || crate::editor::check(&path).is_ok() {
+        Opening::Editor(path, line.unwrap_or(1))
+    } else {
+        Opening::Default(path)
+    }
+}
+
+/// The decision for a clicked link. Order: absolute, relative to the terminal's
+/// `cwd`, relative to the workspace `root`, then a search of the workspace files.
+pub(crate) fn decide(text: &str, cwd: &Path, root: &Path) -> Opening {
     match classify(text, cwd) {
         Link::Url(url) => Opening::Launch(url),
-        Link::Path(path, _) if !path.exists() => Opening::Missing(path),
-        Link::Path(path, _) if path.is_dir() => Opening::Reveal(path),
-        Link::Path(path, line) if crate::image::is_image(&path) => {
-            Opening::Editor(path, line.unwrap_or(1))
+        Link::Path(path, line) if path.exists() => opening_for(path, line),
+        Link::Path(path, line) => {
+            let (raw, _) = split_line(text);
+            if text.starts_with("file://") || raw.starts_with('/') || raw.starts_with("~/") {
+                return Opening::Missing(path);
+            }
+            let in_root = root.join(raw);
+            if in_root.exists() {
+                opening_for(in_root, line)
+            } else {
+                Opening::Search(raw.to_string(), line.unwrap_or(1))
+            }
         }
-        Link::Path(path, line) if crate::editor::check(&path).is_ok() => {
-            Opening::Editor(path, line.unwrap_or(1))
-        }
-        Link::Path(path, _) => Opening::Default(path),
     }
 }
 

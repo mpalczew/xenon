@@ -51,6 +51,11 @@ impl App {
     }
 
     pub(crate) fn open_finder(self: &Rc<Self>) {
+        self.open_finder_with("");
+    }
+
+    /// Open the finder with `initial` already typed in the search field.
+    pub(crate) fn open_finder_with(self: &Rc<Self>, initial: &str) {
         let Some(ws) = self.model.borrow().active() else {
             return;
         };
@@ -83,7 +88,10 @@ impl App {
                 }
                 .into(),
                 hint: "return opens  ·  esc closes".into(),
-                options: Options::default(),
+                options: Options {
+                    initial: initial.to_string(),
+                    ..Options::default()
+                },
                 on_query: Box::new(move |query| {
                     if let Some(app) = weak_q.upgrade() {
                         app.finder_query(&sq, query);
