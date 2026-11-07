@@ -13,7 +13,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
-use crate::palette_list::row_list;
+use crate::palette_list::{close_on_outside_click, row_list};
 
 /// One row, as the model wants it drawn.
 #[derive(Clone, Default)]
@@ -135,6 +135,7 @@ impl Palette {
         dialog.set_follows_content_size(true);
         dialog.set_child(Some(&content));
         dialog.set_focus(Some(&entry));
+        close_on_outside_click(&dialog, &content);
 
         let this = Rc::new(Self {
             dialog,

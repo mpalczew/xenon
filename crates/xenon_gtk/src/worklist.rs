@@ -229,6 +229,7 @@ impl Capture {
         error.set_visible(false);
         body.append(&error);
         dialog.set_child(Some(&body));
+        crate::palette_list::close_on_outside_click(&dialog, &body);
 
         let this = Rc::new(Self {
             app: Rc::downgrade(app),

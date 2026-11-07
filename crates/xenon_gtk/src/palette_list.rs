@@ -87,3 +87,23 @@ pub(crate) fn row_list() -> (gio::ListStore, gtk::SingleSelection, gtk::ListView
     view.set_single_click_activate(true);
     (store, selection, view)
 }
+
+/// Close `dialog` like Escape when a click lands outside its `content`.
+/// libadwaita has no property for this.
+pub(crate) fn close_on_outside_click(dialog: &adw::Dialog, content: &impl IsA<gtk::Widget>) {
+    let click = gtk::GestureClick::new();
+    click.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let (dialog_weak, content) = (dialog.downgrade(), content.clone().upcast::<gtk::Widget>());
+    click.connect_pressed(move |_, _, x, y| {
+        let Some(dialog) = dialog_weak.upgrade() else {
+            return;
+        };
+        let inside = content
+            .compute_bounds(&dialog)
+            .is_some_and(|b| b.contains_point(&gtk::graphene::Point::new(x as f32, y as f32)));
+        if !inside {
+            dialog.close();
+        }
+    });
+    dialog.add_controller(click);
+}
