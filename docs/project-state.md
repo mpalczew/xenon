@@ -100,6 +100,10 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   numstat: a tree whose staged and unstaged changes cancel (`MM`, net zero vs HEAD) is
   IndexOnly, never clean. Status runs with `--no-optional-locks` so measuring cannot
   touch `.git/index` and re-trigger its own watcher.
+- Git status is refreshed by `gio` monitors on each repository's `.git` (index, HEAD,
+  refs), by window focus, and every 5 s for the active workspace while the window is
+  focused. gio cannot watch a tree recursively, and one monitor per folder blew up
+  memory on big trees, so edits to working-tree files are caught by that timer.
 - A completed `bin/install` updates the app on disk, but a running process keeps the old
   binary. Never kill Xenon to force the switch.
 - Quitting Xenon kills what its terminals started. The launcher `setsid`s before exec so

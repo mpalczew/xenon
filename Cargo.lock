@@ -636,26 +636,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inotify"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd854a95a4ac672fed8c054136039fd32c22cf039ff09ead7280afe920486483"
-dependencies = [
- "bitflags",
- "inotify-sys",
- "libc",
-]
-
-[[package]]
-name = "inotify-sys"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea94e891b3606826e9c998be69ddca42247dad8ad50b1649a5cb7e1c9ae06fd"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "io-lifetimes"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -676,26 +656,6 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "kqueue"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "273c0752728918e0ac4976f2b275b6fefb9ecd400585dec929419f3844cd87b5"
-dependencies = [
- "kqueue-sys",
- "libc",
-]
-
-[[package]]
-name = "kqueue-sys"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07293a4e297ac234359b510362495713f75ea345d5307140414f20c69ffeb087"
-dependencies = [
- "bitflags",
- "libc",
 ]
 
 [[package]]
@@ -777,34 +737,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "notify"
-version = "8.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82f812702fbc75d35416d3f884e04925be7e9498f4eceea2e24ba34559284674"
-dependencies = [
- "bitflags",
- "inotify",
- "kqueue",
- "libc",
- "log",
- "mio",
- "notify-types",
- "objc2-core-foundation",
- "objc2-core-services",
- "walkdir",
- "windows-sys",
-]
-
-[[package]]
-name = "notify-types"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a437a9308232ce794b1e7fdf540d38ea37efc3c73492640c13b4c8568b8f108"
-dependencies = [
- "bitflags",
-]
-
-[[package]]
 name = "nucleo"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -823,25 +755,6 @@ checksum = "bf33f538733d1a5a3494b836ba913207f14d9d4a1d3cd67030c5061bdd2cac85"
 dependencies = [
  "memchr",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "objc2-core-foundation"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
-dependencies = [
- "bitflags",
-]
-
-[[package]]
-name = "objc2-core-services"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "583300ad934cba24ff5292aee751ecc070f7ca6b39a574cc21b7b5e588e06a0b"
-dependencies = [
- "libc",
- "objc2-core-foundation",
 ]
 
 [[package]]
@@ -1592,7 +1505,6 @@ dependencies = [
  "async-channel",
  "gtk4",
  "libadwaita",
- "notify",
  "nucleo",
  "qrcode",
  "serde_json",
@@ -1630,9 +1542,6 @@ dependencies = [
 [[package]]
 name = "xenon_git"
 version = "0.1.0"
-dependencies = [
- "ignore",
-]
 
 [[package]]
 name = "xenon_prose"

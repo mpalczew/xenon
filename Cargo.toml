@@ -39,7 +39,6 @@ uuid = { version = "1", features = ["v4", "serde"] }
 pulldown-cmark = { version = "0.12", default-features = false }
 nucleo = "0.5"
 ignore = "0.4"
-notify = "8"
 
 # Local builds are the only builds: optimized (opt-level 3) so the app is usable,
 # incremental, no LTO. Packed debuginfo, because unpacked writes one .o per

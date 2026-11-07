@@ -1,11 +1,13 @@
 //! Git state for every open workspace, measured off the main thread.
 //!
-//! One worker thread owns the filesystem watcher and runs `xenon_git::measure`.
-//! It sleeps in a blocking receive, so an idle app (and a dirty repo nobody is
-//! touching) costs no wakeups. File events are debounced, and one workspace is
-//! measured at most once per `MIN_GAP`, so a build or a save burst makes a few
-//! git calls, never one per event. The main thread only receives finished
-//! statuses.
+//! One worker thread runs `xenon_git::measure`. It sleeps in a blocking receive.
+//! Changes reach it from three places: `gio` file monitors on each repository's
+//! `.git` (commits, checkouts, staging), a window-focus refresh, and a slow
+//! timer for the active workspace that catches edits to working-tree files (gio
+//! cannot watch a tree recursively, and a monitor per folder would cost memory
+//! on big trees). Events are debounced, and one workspace is measured at most
+//! once per `MIN_GAP`, so a build or a save burst makes a few git calls, never
+//! one per event. The main thread only receives finished statuses.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -14,11 +16,10 @@ use std::rc::{Rc, Weak};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use gtk::glib;
-use notify::{EventKind, RecursiveMode, Watcher, event::ModifyKind};
+use gtk::prelude::*;
+use gtk::{gio, glib};
 use xenon_core::WorkspaceId;
 use xenon_git::status::{DirtState, GitStatus};
-use xenon_git::watch::DirSet;
 
 use crate::app::App;
 
@@ -26,9 +27,8 @@ use crate::app::App;
 const DEBOUNCE: Duration = Duration::from_millis(400);
 /// Least time between two measurements of one workspace.
 const MIN_GAP: Duration = Duration::from_millis(1500);
-/// When no file watcher could be made (the machine is out of inotify
-/// instances, which a busy desktop can be), look again this often.
-const POLL: Duration = Duration::from_secs(10);
+/// While the window is focused, the active workspace is measured this often.
+const POLL: Duration = Duration::from_secs(5);
 
 type Roots = Vec<(WorkspaceId, PathBuf)>;
 /// `None` status: the folder is not a git work tree (or was closed).
@@ -38,16 +38,16 @@ enum Msg {
     SetRoots(Roots),
     /// Measure now (window focus), still subject to `MIN_GAP`.
     Refresh(WorkspaceId),
-    /// A path changed. The flag is set when it may be new (created or renamed in).
-    Fs(PathBuf, bool),
-    /// The poll timer fired (only used without a watcher).
-    PollAll,
+    /// Something in the repository's `.git` changed. Measuring touches `.git`
+    /// itself, so these arriving during a measurement are dropped.
+    Meta(WorkspaceId),
 }
 
 pub(crate) struct GitHub {
     tx: mpsc::Sender<Msg>,
     pub status: RefCell<HashMap<WorkspaceId, GitStatus>>,
     roots: RefCell<Roots>,
+    monitors: RefCell<HashMap<WorkspaceId, Vec<gio::FileMonitor>>>,
 }
 
 impl GitHub {
@@ -55,16 +55,16 @@ impl GitHub {
     pub(crate) fn new() -> (Self, async_channel::Receiver<Batch>) {
         let (tx, rx) = mpsc::channel();
         let (out_tx, out_rx) = async_channel::unbounded();
-        let events = tx.clone();
         std::thread::Builder::new()
             .name("xenon-git".into())
-            .spawn(move || worker(rx, events, out_tx))
+            .spawn(move || worker(rx, out_tx))
             .ok();
         (
             Self {
                 tx,
                 status: RefCell::default(),
                 roots: RefCell::default(),
+                monitors: RefCell::default(),
             },
             out_rx,
         )
@@ -89,7 +89,51 @@ impl GitHub {
         let open: HashSet<WorkspaceId> = roots.iter().map(|(id, _)| *id).collect();
         self.status.borrow_mut().retain(|id, _| open.contains(id));
         *self.roots.borrow_mut() = roots.clone();
+        let mut monitors = self.monitors.borrow_mut();
+        monitors.retain(|id, _| open.contains(id));
+        for (id, root) in &roots {
+            monitors
+                .entry(*id)
+                .or_insert_with(|| self.watch_repo(*id, root));
+        }
+        drop(monitors);
         let _ = self.tx.send(Msg::SetRoots(roots));
+    }
+
+    /// Monitors on `.git` (index, HEAD, packed refs) and `.git/refs/heads`.
+    /// A linked worktree has a `.git` file instead; it gets no monitors and
+    /// relies on the timer and the focus refresh.
+    fn watch_repo(&self, ws: WorkspaceId, root: &std::path::Path) -> Vec<gio::FileMonitor> {
+        let git = root.join(".git");
+        let heads = git.join("refs/heads");
+        [
+            (
+                git,
+                &["index", "HEAD", "MERGE_HEAD", "FETCH_HEAD", "packed-refs"][..],
+            ),
+            (heads, &[][..]),
+        ]
+        .into_iter()
+        .filter_map(|(dir, names)| {
+            let monitor = gio::File::for_path(dir)
+                .monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+                .ok()?;
+            let tx = self.tx.clone();
+            monitor.connect_changed(move |_, file, _, _| {
+                let Some(name) = file.basename() else { return };
+                let name = name.to_string_lossy();
+                let wanted = if names.is_empty() {
+                    !name.ends_with(".lock")
+                } else {
+                    names.contains(&&*name)
+                };
+                if wanted {
+                    let _ = tx.send(Msg::Meta(ws));
+                }
+            });
+            Some(monitor)
+        })
+        .collect()
     }
 
     pub(crate) fn refresh(&self, ws: WorkspaceId) {
@@ -126,6 +170,16 @@ pub(crate) fn apply(hub: &GitHub, batch: Batch) -> Vec<WorkspaceId> {
 /// Receive batches on the main loop for as long as the app lives.
 pub(crate) fn listen(app: &Rc<App>, rx: async_channel::Receiver<Batch>) {
     let weak: Weak<App> = Rc::downgrade(app);
+    let timer = weak.clone();
+    glib::timeout_add_local(POLL, move || {
+        let Some(app) = timer.upgrade() else {
+            return glib::ControlFlow::Break;
+        };
+        if app.win.is_active() {
+            app.git_refresh_active();
+        }
+        glib::ControlFlow::Continue
+    });
     glib::spawn_future_local(async move {
         while let Ok(batch) = rx.recv().await {
             let Some(app) = weak.upgrade() else { break };
@@ -136,161 +190,39 @@ pub(crate) fn listen(app: &Rc<App>, rx: async_channel::Receiver<Batch>) {
 
 struct Worker {
     roots: Roots,
-    watcher: Option<notify::RecommendedWatcher>,
-    events: mpsc::Sender<Msg>,
     pending: HashSet<WorkspaceId>,
-    /// Some root has no watch: fall back to slow polling.
-    polling: bool,
-    /// The watched folders of each root.
-    sets: HashMap<WorkspaceId, DirSet>,
-    /// Roots added but not yet scanned (done after their first status).
-    unscanned: Vec<WorkspaceId>,
 }
 
 impl Worker {
     fn take(&mut self, msg: Msg) {
         match msg {
             Msg::SetRoots(next) => {
-                self.unwatch_removed(&next);
                 let old: HashSet<WorkspaceId> = self.roots.iter().map(|(id, _)| *id).collect();
                 let added: Vec<WorkspaceId> = next
                     .iter()
                     .map(|(id, _)| *id)
                     .filter(|id| !old.contains(id))
                     .collect();
-                self.unscanned.extend(&added);
                 self.pending.extend(added);
                 self.roots = next;
             }
-            Msg::Refresh(ws) => {
+            Msg::Refresh(ws) | Msg::Meta(ws) => {
                 self.pending.insert(ws);
             }
-            Msg::PollAll => {
-                self.pending.extend(self.roots.iter().map(|(id, _)| *id));
-            }
-            Msg::Fs(path, new) => {
-                if let Some(ws) = xenon_git::watch::owner_of(&self.roots, &path) {
-                    self.pending.insert(ws);
-                    self.follow(ws, &path, new);
-                }
-            }
-        }
-    }
-
-    /// Keep the watched folders in step with one event: forget a removed
-    /// folder, watch a newly created one (and only its own subtree).
-    fn follow(&mut self, ws: WorkspaceId, path: &std::path::Path, new: bool) {
-        let (Some(set), Some(watcher)) = (self.sets.get_mut(&ws), self.watcher.as_mut()) else {
-            return;
-        };
-        if !new {
-            set.shrink(path);
-            return;
-        }
-        for dir in set.grow(path) {
-            if let Err(error) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
-                eprintln!("[xg] git: cannot watch {}: {error}", dir.display());
-                set.full = true;
-                self.polling = true;
-                break;
-            }
-        }
-    }
-
-    /// Drop the watches of roots that closed.
-    fn unwatch_removed(&mut self, next: &Roots) {
-        let keep: HashSet<WorkspaceId> = next.iter().map(|(id, _)| *id).collect();
-        let gone: Vec<WorkspaceId> = self
-            .sets
-            .keys()
-            .copied()
-            .filter(|id| !keep.contains(id))
-            .collect();
-        for id in gone {
-            if let (Some(set), Some(w)) = (self.sets.remove(&id), self.watcher.as_mut()) {
-                for dir in set.dirs() {
-                    let _ = w.unwatch(dir);
-                }
-            }
-        }
-        self.unscanned.retain(|id| keep.contains(id));
-    }
-
-    /// Scan and watch the roots added since the last call. Runs after their
-    /// first status was published, so a slow walk never delays the sidebar.
-    fn watch_new_roots(&mut self) {
-        if self.watcher.is_none() {
-            let tx = self.events.clone();
-            self.watcher =
-                notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-                    let Ok(event) = res else { return };
-                    let new = matches!(
-                        event.kind,
-                        EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_))
-                    );
-                    for path in event.paths {
-                        if !xenon_git::watch::is_noise(&path) {
-                            let _ = tx.send(Msg::Fs(path, new));
-                        }
-                    }
-                })
-                .map_err(|error| {
-                    eprintln!("[xg] git: no file watcher ({error}); polling every 10s")
-                })
-                .ok();
-        }
-        let Some(watcher) = self.watcher.as_mut() else {
-            self.unscanned.clear();
-            self.polling = true;
-            return;
-        };
-        for ws in std::mem::take(&mut self.unscanned) {
-            let Some((_, root)) = self.roots.iter().find(|(id, _)| *id == ws) else {
-                continue;
-            };
-            let mut set = DirSet::scan(root);
-            for dir in set.dirs() {
-                if let Err(error) = watcher.watch(dir, RecursiveMode::NonRecursive) {
-                    eprintln!("[xg] git: cannot watch {}: {error}", dir.display());
-                    self.polling = true;
-                    break;
-                }
-            }
-            if set.full {
-                eprintln!(
-                    "[xg] git: {} has too many folders to watch; polling",
-                    root.display()
-                );
-                self.polling = true;
-            }
-            if self.polling {
-                set.full = true;
-            }
-            self.sets.insert(ws, set);
         }
     }
 }
 
-fn worker(rx: mpsc::Receiver<Msg>, events: mpsc::Sender<Msg>, out: async_channel::Sender<Batch>) {
+fn worker(rx: mpsc::Receiver<Msg>, out: async_channel::Sender<Batch>) {
     let mut w = Worker {
         roots: Vec::new(),
-        watcher: None,
-        events,
         pending: HashSet::new(),
-        polling: false,
-        sets: HashMap::new(),
-        unscanned: Vec::new(),
     };
     let mut last: HashMap<WorkspaceId, Instant> = HashMap::new();
     let mut carry: Vec<Msg> = Vec::new();
     loop {
         let first = match carry.pop() {
             Some(msg) => msg,
-            None if w.polling => match rx.recv_timeout(POLL) {
-                Ok(msg) => msg,
-                Err(mpsc::RecvTimeoutError::Timeout) => Msg::PollAll,
-                Err(mpsc::RecvTimeoutError::Disconnected) => return,
-            },
             None => match rx.recv() {
                 Ok(msg) => msg,
                 Err(_) => return,
@@ -334,10 +266,9 @@ fn worker(rx: mpsc::Receiver<Msg>, events: mpsc::Sender<Msg>, out: async_channel
         if !batch.is_empty() && out.send_blocking(batch).is_err() {
             return;
         }
-        w.watch_new_roots();
         // Our own git calls can touch `.git`; that is not a change to act on.
         while let Ok(msg) = rx.try_recv() {
-            if !matches!(&msg, Msg::Fs(path, _) if xenon_git::watch::is_git_meta(path)) {
+            if !matches!(msg, Msg::Meta(_)) {
                 carry.push(msg);
             }
         }
