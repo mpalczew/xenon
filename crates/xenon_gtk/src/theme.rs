@@ -107,7 +107,7 @@ impl Palette {
              @define-color card_bg_color {panel}; @define-color card_fg_color {fg};\n\
              @define-color accent_bg_color {accent}; @define-color accent_color {accent};\n\
              @define-color accent_fg_color {bg};\n\
-             headerbar {{ min-height: 40px; box-shadow: none; border-bottom: 1px solid {border}; background-color: {panel}; color: {fg}; }}\n\
+             headerbar {{ box-shadow: none; border-bottom: 1px solid {border}; background-color: {panel}; color: {fg}; }}\n\
              headerbar:backdrop {{ background-color: {panel}; color: {muted}; }}\n\
              headerbar:backdrop windowtitle {{ opacity: 0.8; }}\n\
              headerbar button.flat {{ min-width: 30px; min-height: 30px; padding: 0; border-radius: 6px; color: {muted}; }}\n\
