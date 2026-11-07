@@ -21,7 +21,7 @@ Rules both frontends use live in GPUI-free crates, so the GTK code only draws:
 `xenon_core` (workspaces, pane tree, attention and working status, titles, tasks),
 `xenon_store` (files under the state dir, CLI parsing, the `xenon open` socket
 protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
-`xenon_remote`, `xenon_prose`. `xenon_lsp` and `xenon_ssh` wait for their GTK ports.
+`xenon_remote`, `xenon_prose`. `xenon_lsp` waits for its GTK port.
 
 ## Gaps
 
@@ -36,8 +36,7 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
   instead of following the system.
 - **`xenon open`.** `--pane` and the column in `path:line:col` are ignored.
 - **Missing features.** Command palette, divider resize from the keyboard, the worklist
-  panel, SSH workspaces and the SSH part of the pickers. The diff tab is not part of the
-  saved layout (same as GPUI).
+  panel. The diff tab is not part of the saved layout (same as GPUI).
 - **Phone remote.** Tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML has no
   markup for them), cursor hiding, and the phone's own light/dark choice (the phone
   always gets the computer's terminal colors).
@@ -45,7 +44,7 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
 ## Deleting GPUI
 
 Delete `crates/xenon`, `xenon_ui`, `xenon_terminal`, `xenon_editor`,
-`xenon_design_system`, `third_party/`, `xenon_ide` (not ported), the `visual-tests`
-feature, and the code in shared crates that only GPUI uses (the diff parser in
-`xenon_git`, the GPUI copy of `TerminalActivity`). Do it after the text the GTK app
-still needs has been copied.
+`xenon_design_system`, `third_party/`, `xenon_ide` and `xenon_ssh` (not ported), the
+`visual-tests` feature, and the code in shared crates that only GPUI uses (the diff
+parser in `xenon_git`, the GPUI copy of `TerminalActivity`). Do it after the text the
+GTK app still needs has been copied.

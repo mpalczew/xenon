@@ -144,8 +144,8 @@ impl Model {
             .is_some_and(|content| content.remove_empty_leaf(pane))
     }
 
-    /// Split the focused pane: its active tab moves to the new pane; a pane
-    /// left empty gets a fresh terminal.
+    /// Split the focused pane: its active tab moves to the new pane. A pane
+    /// with one tab keeps it, and the new pane opens blank and takes focus.
     pub(crate) fn split(&mut self, ws: WorkspaceId, axis: SplitAxis) -> SplitResult {
         let Some(content) = self.space_content(ws) else {
             return SplitResult::Nothing;
@@ -160,13 +160,24 @@ impl Model {
         {
             return SplitResult::NoRoom;
         }
-        let fresh = content.next_tab_id();
-        let Some((moved, mut remaining)) = content.take_active_for_split(src) else {
+        let single = content
+            .root
+            .as_ref()
+            .and_then(|r| r.find_leaf(src))
+            .is_some_and(|leaf| leaf.tabs.len() <= 1);
+        if single {
+            return match content.park_empty(axis) {
+                ParkOutcome::Added(blank) => {
+                    content.focused = Some(blank);
+                    SplitResult::Done
+                }
+                ParkOutcome::NoRoom => SplitResult::NoRoom,
+                _ => SplitResult::Nothing,
+            };
+        }
+        let Some((moved, remaining)) = content.take_active_for_split(src) else {
             return SplitResult::Nothing;
         };
-        if remaining.is_empty() {
-            remaining.push(Tab::terminal(TabId(fresh.0.max(moved.id.0 + 1))));
-        }
         content.finish_split(src, axis, remaining, moved);
         SplitResult::Done
     }
