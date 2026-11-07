@@ -1,0 +1,53 @@
+const BAR_GLYPHS: [char; 11] = ['▎', '▍', '▌', '▋', '▊', '▉', '█', '│', '┃', '║', '|'];
+
+/// Strip a quote bar (whitespace, one bar glyph, optional space) that prefixes
+/// every non-empty line. The first line may lack it: a selection that starts
+/// mid-line skips the gutter. Skipped when any line also ends in a bar glyph
+/// (box, Markdown table, cursor block), where other logic owns the layout.
+pub(super) fn strip(lines: &mut [String]) -> bool {
+    let mut bar = None;
+    let mut content = lines.iter().filter(|l| !l.trim().is_empty()).peekable();
+    let bare_first = content.peek().is_some_and(|l| !starts_with_bar(l));
+    if bare_first {
+        content.next();
+    }
+    for line in content {
+        let first = line
+            .trim_start()
+            .chars()
+            .next()
+            .filter(|c| BAR_GLYPHS.contains(c));
+        let Some(first) = first else { return false };
+        if *bar.get_or_insert(first) != first
+            || line.trim_start()[first.len_utf8()..].ends_with(BAR_GLYPHS)
+        {
+            return false;
+        }
+    }
+    let Some(bar) = bar else { return false };
+    let content = lines.iter_mut().filter(|l| !l.trim().is_empty());
+    for line in content.skip(usize::from(bare_first)) {
+        let rest = &line.trim_start()[bar.len_utf8()..];
+        *line = rest.strip_prefix(' ').unwrap_or(rest).to_string();
+    }
+    true
+}
+
+fn starts_with_bar(line: &str) -> bool {
+    line.trim_start().starts_with(BAR_GLYPHS)
+}
+
+/// Join consecutive text lines into paragraphs, except before list items.
+pub(super) fn mark_hard_wraps(lines: &mut [(String, bool)]) {
+    for i in 0..lines.len().saturating_sub(1) {
+        let next = lines[i + 1].0.trim_start();
+        lines[i].1 = !lines[i].0.is_empty() && !next.is_empty() && !is_list_item(next);
+    }
+}
+
+fn is_list_item(line: &str) -> bool {
+    let digits = line.chars().take_while(char::is_ascii_digit).count();
+    let rest = &line[digits..];
+    ["- ", "* ", "• ", "+ "].iter().any(|m| line.starts_with(m))
+        || (digits > 0 && (rest.starts_with(". ") || rest.starts_with(") ")))
+}

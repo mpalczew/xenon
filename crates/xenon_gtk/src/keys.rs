@@ -33,6 +33,7 @@ const ACTIONS: &[(&str, &str)] = &[
     ("xenon_terminal::FindNext", "app.find-next"),
     ("xenon_terminal::FindPrevious", "app.find-prev"),
     ("xenon_clipboard::Copy", "app.copy"),
+    ("xenon_clipboard::CopyClean", "app.copy-clean"),
     ("xenon_clipboard::Paste", "app.paste"),
     ("xenon::IncreaseFontSize", "app.zoom-in"),
     ("xenon::DecreaseFontSize", "app.zoom-out"),

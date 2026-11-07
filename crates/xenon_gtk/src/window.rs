@@ -141,7 +141,7 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         b
     };
     // GPUI toolbar order (xenon_ui/src/toolbar.rs), left to right. Buttons for
-    // commands GTK does not have yet (Go Back, Go Forward, Cut, Copy Clean,
+    // commands GTK does not have yet (Go Back, Go Forward, Cut,
     // File Browser, worklist capture and open, Run Task, Save) are not drawn.
     let left = [
         (
@@ -163,6 +163,7 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
             "Reserve Pane to the Right",
         ),
         ("edit-copy-symbolic", "app.copy", "Copy"),
+        ("xenon-copy-clean-symbolic", "app.copy-clean", "Copy Clean"),
         ("edit-paste-symbolic", "app.paste", "Paste"),
     ];
     for (icon, action, label) in left {

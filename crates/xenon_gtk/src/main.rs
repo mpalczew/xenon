@@ -20,6 +20,7 @@ use gtk::{gio, glib};
 
 mod actions;
 mod app;
+mod clipboard;
 mod commands;
 mod dialogs;
 mod diff_text;

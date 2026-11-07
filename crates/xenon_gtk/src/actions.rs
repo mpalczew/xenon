@@ -59,6 +59,7 @@ const SIMPLE: &[(&str, Handler)] = &[
             view.term.copy_clipboard_format(vte::Format::Text);
         }
     }),
+    ("copy-clean", |a| a.copy_clean()),
     ("paste", |a| {
         if let Some(view) = a.current_term() {
             view.term.paste_clipboard();
