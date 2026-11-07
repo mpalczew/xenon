@@ -106,6 +106,7 @@ Linux uses Ctrl where the tables say ⌘, plus:
 | Copy Clean                      | Ctrl+Shift+Y (Ctrl+Shift+C copies in a terminal) |
 | Terminal find / next / previous | Ctrl+Shift+F / F3 / Shift+F3                     |
 | Terminal copy / paste           | Ctrl+Shift+C / Ctrl+V (or Ctrl+Shift+V)          |
+| Open HTML file in browser       | Ctrl+Alt+O (editor tab; also a button)           |
 | Quit                            | Ctrl+Q                                           |
 
 In the focused terminal, Ctrl+C, X, B, E, O, and S reach the shell or TUI instead of the

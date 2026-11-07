@@ -53,6 +53,28 @@ pub(crate) struct EditorView {
 /// Wait this long after a disk event, so an agent's several writes read once.
 const DISK_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
 
+/// True when the platform's content-type guess says `path` is an HTML page.
+pub(crate) fn is_html(path: &Path) -> bool {
+    gio::content_type_guess(Some(path), None::<&[u8]>).0 == "text/html"
+}
+
+/// The editor's column; an HTML file starts it with an "Open in Browser" button.
+fn browser_root(path: &Path) -> gtk::Box {
+    let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    if !is_html(path) {
+        return root;
+    }
+    let button = gtk::Button::with_label("Open in Browser");
+    button.set_action_name(Some("app.open-path-default"));
+    button.set_action_target_value(Some(&path.to_string_lossy().to_variant()));
+    button.set_tooltip_text(Some("Open in the default browser"));
+    button.set_focusable(false);
+    button.set_halign(gtk::Align::End);
+    button.add_css_class("flat");
+    root.append(&button);
+    root
+}
+
 /// Why a file cannot open here, if it cannot (cheap: no read).
 pub(crate) fn check(path: &Path) -> Result<(), String> {
     let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
@@ -108,7 +130,7 @@ impl EditorView {
         bar.append(&bar_text);
         bar.append(&bar_actions);
         bar.set_visible(false);
-        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let root = browser_root(path);
         root.append(&bar);
         let (stack, back) = list::pages(path, &root, &scroller);
         let editor = Rc::new(Self {

@@ -29,6 +29,7 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("run-build-task", |a| a.run_build_task()),
     ("allow-folder-tasks", |a| a.answer_folder_tasks(true)),
     ("deny-folder-tasks", |a| a.answer_folder_tasks(false)),
+    ("open-in-browser", |a| a.open_in_browser()),
     ("close-tab", |a| a.close_active_tab()),
     ("close-other-tabs", |a| a.close_other_tabs()),
     ("next-tab", |a| a.step_tab(1)),

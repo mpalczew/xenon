@@ -48,7 +48,7 @@ impl App {
         }
     }
 
-    fn current_editor(&self) -> Option<Rc<crate::editor::EditorView>> {
+    pub(crate) fn current_editor(&self) -> Option<Rc<crate::editor::EditorView>> {
         let key = {
             let model = self.model.borrow();
             let ws = model.active();
@@ -58,6 +58,16 @@ impl App {
             ws.zip(tab.map(|t| t.id))
         };
         self.editors.borrow().get(&key?).cloned()
+    }
+
+    /// Open the focused HTML editor tab's file in the default browser.
+    pub(crate) fn open_in_browser(self: &Rc<Self>) {
+        match self.current_editor() {
+            Some(editor) if crate::editor::is_html(&editor.path) => {
+                self.open_file(&editor.path);
+            }
+            _ => self.toast("Open an HTML file first"),
+        }
     }
 
     /// Copy Code: the fenced code blocks of the selection (or its cleaned

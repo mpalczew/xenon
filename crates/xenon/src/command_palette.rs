@@ -24,6 +24,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("Add to Worklist", "app.capture-worklist"),
     ("Open Worklist", "app.open-worklist"),
     ("Undo Worklist Capture", "app.undo-capture"),
+    ("Open in Browser", "app.open-in-browser"),
     ("Close Tab", "app.close-tab"),
     ("Close Other Tabs", "app.close-other-tabs"),
     ("Next Tab", "app.next-tab"),

@@ -15,6 +15,7 @@
 - [x] Toolbar Cut button
 - [x] New workspace screen: useful shortcuts are clickable rows that work
 - [x] Command palette
+- [x] Open HTML files in the browser (button, palette, Ctrl+Alt+O)
 - [ ] `xenon open` honours `--pane` and the column
 - [ ] Phone remote: cursor hiding (VTE does not expose the hide-cursor mode, so the
       phone always shows its cursor)

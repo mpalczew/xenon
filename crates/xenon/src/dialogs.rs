@@ -92,7 +92,17 @@ impl App {
             FileRoute::NewWorkspace(dir) => self.open_workspace(&dir),
             _ => {}
         }
-        self.launch(&gio::File::for_path(path).uri());
+        let file = gio::File::for_path(path);
+        let weak = Rc::downgrade(self);
+        gtk::FileLauncher::new(Some(&file)).launch(
+            Some(&self.win),
+            gio::Cancellable::NONE,
+            move |result| {
+                if let (Err(error), Some(app)) = (result, weak.upgrade()) {
+                    app.toast(&format!("Couldn\u{2019}t open that file: {error}"));
+                }
+            },
+        );
         let name = path
             .file_name()
             .map_or_else(String::new, |n| n.to_string_lossy().into_owned());

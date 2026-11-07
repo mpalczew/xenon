@@ -18,6 +18,7 @@ const BINDINGS: &[(&str, &[&str])] = &[
     ("app.run-build-task", &["<Control><Shift>b"]),
     ("app.allow-folder-tasks", &["<Control><Alt>Return"]),
     ("app.deny-folder-tasks", &["<Control><Alt>BackSpace"]),
+    ("app.open-in-browser", &["<Control><Alt>o"]),
     ("app.close-tab", &["<Control>w"]),
     ("app.close-other-tabs", &["<Control><Alt><Shift>w"]),
     (
