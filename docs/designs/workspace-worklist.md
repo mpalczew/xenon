@@ -1,7 +1,6 @@
 # Workspace worklist
 
-The [single interactive mock](../../visual-review/workspace-queue.html) shows the
-title-and-bullets worklist in Xenon's light theme. The interaction uses two quiet
+The worklist is a title-and-bullets list per workspace. The interaction uses two quiet
 toolbar actions, a quick capture popover, and a closable worklist tab. The item format
 below is implemented.
 
@@ -122,8 +121,7 @@ metadata, database, or dedicated agent protocol.
 
 ## Item format
 
-The [mock](../../visual-review/workspace-queue.html) replaces run-on rows with a bold,
-scannable title and indented detail bullets. The Markdown convention is:
+Each item is a bold, scannable title with indented detail bullets. The Markdown convention is:
 
 ```md
 # Worklist
@@ -167,10 +165,7 @@ meaning rather than wrapping a sentence at the limit. The agent skill uses this 
 convention now; the native List view still flattens nested details, so nested items
 require Markdown mode until the list renderer and editor support them.
 
-The [single mock](../../visual-review/workspace-queue.html) shows nested bullets in
-List, inline edit, quick capture, and Markdown states.
-
-The same mock shows new-in-tab, quick-capture, and edit-existing contexts. The title is
+The title is
 the first row in the canvas. Enter or Down from it enters the first point, creating that
 point if needed; Up from the first point returns to the title. The editor accepts plain
 text and serializes bullets to Markdown without typed markers or a Task/Note choice. Tab
@@ -184,5 +179,4 @@ count appears only near the soft limit.
 ## Verification and boundaries
 
 Due dates, priorities, ownership, background task runners, sync, and search across
-workspaces are outside this version. The mock demonstrates the interaction; the app and
-this spec define the current behavior.
+workspaces are outside this version. The app and this spec define the current behavior.
