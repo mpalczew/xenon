@@ -170,7 +170,7 @@ impl VimState {
                 self.apply_incsearch(buffer);
                 handled(false)
             }
-            // Printable keys must NOT claim handled here: on macOS that stops
+            // Printable keys must NOT claim handled here: that stops
             // propagation and blocks EntityInputHandler / key_char delivery.
             _ => HandleResult::default(),
         }

@@ -161,7 +161,7 @@ impl Render for ToastView {
             window.request_animation_frame();
         }
         let island = paint::island(shown, cx);
-        let animate = !frozen && !crate::reduce_motion();
+        let animate = !frozen;
         anchor.child(if animate {
             paint::arrive(island, shown.toast.kind, shown.generation)
         } else {

@@ -9892,15 +9892,12 @@ checksum = "163b33ed8786455e2fa5d72f554057ce3f3182425434f756cd39c99839d88e23"
 name = "xenon"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-channel 2.5.0",
  "env_logger",
  "gpui",
  "gpui_platform",
  "image",
  "log",
- "serde",
- "serde_json",
  "xenon_core",
  "xenon_design_system",
  "xenon_settings",
@@ -9929,7 +9926,6 @@ dependencies = [
  "gpui",
  "log",
  "lucide-icons",
- "objc2-app-kit 0.2.2",
  "theme",
  "unicode-segmentation",
  "xenon_keymap",
@@ -10120,14 +10116,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "xenon_core",
-]
-
-[[package]]
-name = "xenon_stub"
-version = "0.1.0"
-dependencies = [
- "libc",
- "tempfile",
 ]
 
 [[package]]

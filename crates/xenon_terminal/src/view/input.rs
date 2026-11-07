@@ -12,7 +12,7 @@ pub(crate) fn pty_input_bytes(text: &str) -> Vec<u8> {
     xenon_remote::pty_text_bytes(text)
 }
 
-/// macOS text input: only `replace_text_in_range` is needed for plain typing;
+/// Text input: only `replace_text_in_range` is needed for plain typing;
 /// the rest satisfy the protocol. IME composition is not handled in v1.
 impl EntityInputHandler for TerminalView {
     fn replace_text_in_range(

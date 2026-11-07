@@ -112,11 +112,9 @@ impl EditorView {
         self.apply_vim_result(result, cx)
     }
 
-    /// The platform's command chord (cmd on macOS, ctrl elsewhere). With vim
-    /// mode on, ctrl keeps its vim meaning off macOS.
+    /// The command chord (ctrl). With vim mode on, ctrl keeps its vim meaning.
     fn command_chord(&self, keystroke: &gpui::Keystroke, cx: &gpui::App) -> bool {
-        let vim_owns_ctrl =
-            cfg!(not(target_os = "macos")) && xenon_design_system::settings::vim_mode(cx);
+        let vim_owns_ctrl = xenon_design_system::settings::vim_mode(cx);
         keystroke.modifiers.secondary() && !vim_owns_ctrl
     }
 
@@ -127,7 +125,7 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) -> bool {
         // `/` and `:` drafts: take printable key_char here. Claiming "handled" on
-        // KeyDown without consuming key_char blocks IME insertText on macOS.
+        // KeyDown without consuming key_char blocks IME insertText.
         if self.vim.search_draft.is_some() || self.vim.ex_draft.is_some() {
             let mods = &keystroke.modifiers;
             if !mods.platform
@@ -392,7 +390,7 @@ fn command_for(keystroke: &gpui::Keystroke, extend: bool) -> Option<EditCommand>
             "right" => Some(Motion::WordRight),
             _ => None,
         }
-    } else if cfg!(not(target_os = "macos")) && keystroke.modifiers.control {
+    } else if keystroke.modifiers.control {
         match keystroke.key.as_str() {
             "left" => Some(Motion::WordLeft),
             "right" => Some(Motion::WordRight),

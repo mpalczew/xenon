@@ -16,7 +16,7 @@ use xenon_design_system::{ActionButton, action_button};
 fn xenon_icon() -> Arc<Image> {
     Arc::new(Image::from_bytes(
         ImageFormat::Png,
-        include_bytes!("../../../../macos/xenon-icon-source.png").to_vec(),
+        include_bytes!("../../../../assets/xenon-icon-source.png").to_vec(),
     ))
 }
 

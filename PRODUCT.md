@@ -10,7 +10,7 @@ multi-agent workflow + native speed, not marketing chrome.
 
 ## One-liner
 
-Fast native macOS **anti-IDE shell**: gets out of the way so you can live in many coding
+Fast native Linux **anti-IDE shell**: gets out of the way so you can live in many coding
 agents (any harness) across workspaces. Not a chat panel bolted onto an editor. Not a
 vendor-locked agent UI.
 
@@ -36,7 +36,7 @@ accelerating. A daily-driver shell for parallel agent work is the bet.
 
 ## Naming
 
-App: `Xenon.app`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` / `XENON_SLOT`.
+App: `xenon-bin`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` / `XENON_SLOT`.
 Bundle id `dev.xenon.xenon`. Crate paths `crates/xenon_*`. GitHub: `mpalczew/xenon`
 (public). Checklist: `docs/release.md`.
 
@@ -52,7 +52,7 @@ people who run agents.**
 | Horizon              | Claim                                                                                                      |
 | -------------------- | ---------------------------------------------------------------------------------------------------------- |
 | **Wedge (now)**      | People already running several agents / checkouts who are drowning in windows and tabs                     |
-| **Beachhead**        | macOS; terminal harnesses (Claude Code and anything that runs in a PTY); multi-workspace                   |
+| **Beachhead**        | Linux; terminal harnesses (Claude Code and anything that runs in a PTY); multi-workspace                   |
 | **North star (~5y)** | Default place serious people run agent fleets; "everyone who drives agents" is aspiration, not launch copy |
 
 ## Users
@@ -108,14 +108,14 @@ works, it directly helps real daily work.
    bolt-on chat panel. Parallel agents live as terminal tabs and/or separate workspaces.
    Closest analogue: Cursor agent view, but you can switch harnesses freely.
 2. **Session continuity with the real CLI.** Agents run in a real terminal. Start Claude
-   (or Grok, Kimi, …) in Xenon, continue the same session in Terminal.app / another host
-   / another machine that has the harness. The agent is not trapped inside an
+   (or Grok, Kimi, …) in Xenon, continue the same session in another terminal / another
+   host / another machine that has the harness. The agent is not trapped inside an
    IDE-private protocol.
 3. **Everything feels instant.** Native Rust / GPUI. Typing and switching must stay
    better than Electron-class tools (e.g. Studio feels like a downgrade). Protect
    latency; no decorative motion tax.
-4. **macOS-native daily driver** with a clean install path (**Homebrew** for public
-   install; stable codesign so TCC grants survive reinstall).
+4. **Linux-native daily driver** with a clean install path (`scripts/release/install`
+   today; a package format for public install).
 
 ### Anti-pattern we refuse: IDE-owned agent sessions (Zed ACP lesson)
 
@@ -164,8 +164,8 @@ Visions are directional. Goals are concrete.
 ## Name (release gate)
 
 The public rename to Xenon is complete in the app, binary, data directory, crate paths,
-and GitHub (`mpalczew/xenon`, public). Remaining packaging: Homebrew and notarization.
-See `docs/release.md`.
+and GitHub (`mpalczew/xenon`, public). Remaining packaging: a Linux package format. See
+`docs/release.md`.
 
 ## Brand personality
 

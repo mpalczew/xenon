@@ -232,7 +232,7 @@ impl XenonApp {
         }
     }
 
-    /// Native macOS folder picker (Browse… escape hatch).
+    /// Native folder picker (Browse… escape hatch).
     pub(super) fn browse_for_workspace(&mut self, cx: &mut Context<Self>) {
         let rx = cx.prompt_for_paths(PathPromptOptions {
             files: false,

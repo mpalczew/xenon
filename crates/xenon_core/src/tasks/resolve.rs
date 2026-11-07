@@ -23,7 +23,7 @@ pub struct ResolvedTask {
 }
 
 /// Default shell args when `options.shell.args` is absent: login + command, so
-/// a Finder-launched Xenon still sees the user's PATH.
+/// a launcher-started Xenon still sees the user's PATH.
 const DEFAULT_SHELL_ARGS: [&str; 2] = ["-l", "-c"];
 
 pub fn resolve_task(

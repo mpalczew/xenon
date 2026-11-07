@@ -1,15 +1,10 @@
 //! Keep the machine from idle-sleeping while a phone is connected, if the user
-//! opted in. macOS:
-//! `caffeinate -i -w <our pid>` (also exits if Xenon dies); closing the lid
-//! still sleeps the Mac. Linux: a `systemd-inhibit ... tail --pid` child that
-//! holds an idle inhibitor lock until Xenon exits or the child is killed.
+//! opted in. A `systemd-inhibit ... tail --pid` child holds an idle inhibitor
+//! lock until Xenon exits or the child is killed.
 
 use std::process::{Child, Command, Stdio};
 
-/// Sheet and Settings wording; names this machine as the platform does.
-#[cfg(target_os = "macos")]
-pub const KEEP_AWAKE_LABEL: &str = "Keep this Mac awake while a phone is connected";
-#[cfg(not(target_os = "macos"))]
+/// Sheet and Settings wording.
 pub const KEEP_AWAKE_LABEL: &str = "Keep this computer awake while a phone is connected";
 pub const KEEP_AWAKE_DETAIL: &str = "Ignores your sleep setting until the phone disconnects";
 
@@ -61,14 +56,6 @@ impl KeepAwake {
     }
 }
 
-#[cfg(target_os = "macos")]
-fn keep_awake_command() -> Command {
-    let mut command = Command::new("/usr/bin/caffeinate");
-    command.args(["-i", "-w", &std::process::id().to_string()]);
-    command
-}
-
-#[cfg(not(target_os = "macos"))]
 fn keep_awake_command() -> Command {
     let mut command = Command::new("systemd-inhibit");
     command.args([

@@ -153,13 +153,12 @@ mod tests {
     }
 
     #[test]
-    fn both_platform_defaults_load() {
-        for platform in [Platform::Mac, Platform::Linux] {
-            let json = xenon_keymap::to_json(&xenon_keymap::defaults(platform));
-            let count = xenon_keymap::defaults(platform).len();
-            let loaded = with_app(|cx| load(&json, cx));
-            assert_eq!(loaded.map(|b| b.len()), Ok(count), "{platform:?}");
-        }
+    fn defaults_load() {
+        let platform = Platform::Linux;
+        let json = xenon_keymap::to_json(&xenon_keymap::defaults(platform));
+        let count = xenon_keymap::defaults(platform).len();
+        let loaded = with_app(|cx| load(&json, cx));
+        assert_eq!(loaded.map(|b| b.len()), Ok(count));
     }
 
     #[test]
@@ -205,11 +204,7 @@ mod tests {
 
     #[test]
     fn user_null_unbinds_a_default_and_user_wins_on_conflict() {
-        let open_file = if cfg!(target_os = "macos") {
-            "cmd-p"
-        } else {
-            "ctrl-p"
-        };
+        let open_file = "ctrl-p";
         let text = format!(r#"[{{"bindings": {{"{open_file}": null, "alt-9": "xenon::Save"}}}}]"#);
         let (unbound, rebound) = with_app(|cx| {
             let user = parse_user(&text, cx).unwrap();

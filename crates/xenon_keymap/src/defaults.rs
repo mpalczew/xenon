@@ -155,13 +155,16 @@ const LINUX_TERMINAL: &[(&str, Option<&str>)] = &[
 ];
 
 pub fn defaults(platform: Platform) -> Vec<Entry> {
-    let shared = SHARED
-        .iter()
-        .map(|&(context, keystroke, action)| Entry::new(context, keystroke, Some(action)));
     match platform {
-        Platform::Mac => shared.collect(),
-        Platform::Linux => linux(shared.map(substitute_cmd).map(move_if_listed).collect()),
+        Platform::Linux => linux(shared().map(substitute_cmd).map(move_if_listed).collect()),
     }
+}
+
+/// The table as written, with `cmd` as the primary modifier.
+pub(crate) fn shared() -> impl Iterator<Item = Entry> {
+    SHARED
+        .iter()
+        .map(|&(context, keystroke, action)| Entry::new(context, keystroke, Some(action)))
 }
 
 /// `cmd` only ever appears as a modifier token in the shared table.

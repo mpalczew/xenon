@@ -1,4 +1,4 @@
-//! Shortcut text for UI chrome. Call sites hand in the macOS glyph string they
+//! Shortcut text for UI chrome. Call sites hand in the glyph string they
 //! have always written (`⌘⇧P`); this returns what the current platform and the
 //! user's keymap actually bind.
 
@@ -85,16 +85,8 @@ fn key_token_len(rest: &[char]) -> usize {
 fn display_token(token: &str, platform: Platform) -> String {
     let normalized = token.replace("return", "↩").replace("esc", "⎋");
     match Chord::from_glyphs(&normalized) {
-        Some(_) => {
-            let shown = display_for(&normalized, platform);
-            if platform == Platform::Mac && shown == normalized {
-                token.to_owned()
-            } else {
-                shown
-            }
-        }
-        None if platform == Platform::Linux => modifier_names(token),
-        None => token.to_owned(),
+        Some(_) => display_for(&normalized, platform),
+        None => modifier_names(token),
     }
 }
 
@@ -121,8 +113,7 @@ fn display_for(glyphs: &str, platform: Platform) -> String {
         .and_then(|map| map.get(&chord.canonical()).cloned());
     match (overridden, platform) {
         (Some(text), _) => text,
-        (None, Platform::Mac) => glyphs.to_owned(),
-        (None, Platform::Linux) => chord.for_platform(platform).format(platform),
+        (None, Platform::Linux) => chord.for_linux().format(),
     }
 }
 

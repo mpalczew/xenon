@@ -118,7 +118,7 @@ ignore = "0.4"
 notify = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
 
 # Mirrored from zed v1.9.0 Cargo.toml: [patch.crates-io] does not propagate to
-# downstream consumers, and zed's crates need these forks (macOS-relevant subset).
+# downstream consumers, and zed's crates need these forks.
 [patch.crates-io]
 async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
 async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }

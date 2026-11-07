@@ -9,7 +9,6 @@ attention, stable installation, and continued daily dogfood.
 - [ ] Workspaces, terminal tabs, editors, and any PTY harness form a coherent daily
       path.
 - [ ] Attention/status is reliable enough to help, or its limits are explicit.
-- [x] `bin/install` uses stable codesigning and preserves TCC grants.
 - [x] Xenon remains the author's daily driver.
 
 ## Packaging
@@ -19,10 +18,8 @@ attention, stable installation, and continued daily dogfood.
 - [x] Add short contribution guidance (`CONTRIBUTING.md`) that discourages low-signal
       generated submissions.
 - [ ] Add screenshots to the README.
-- [ ] Add Homebrew distribution.
-- [ ] Decide notarization for public binaries.
+- [ ] Decide Linux distribution (AppImage, Flatpak, or distro packages).
 - [ ] Add issue templates (optional; CONTRIBUTING covers the anti-noise bar).
 - [ ] Draft the HN launch around multi-harness freedom, layout, and native feel.
 
-Remaining identity / distribution work: Homebrew formula and notarization. Never
-force-push.
+Remaining identity / distribution work: a Linux package format. Never force-push.

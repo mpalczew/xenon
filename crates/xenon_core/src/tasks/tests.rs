@@ -4,7 +4,7 @@ use std::path::Path;
 use super::*;
 
 fn set(json: &str) -> TaskSet {
-    parse_task_set(json, Os::Mac).unwrap()
+    parse_task_set(json, Os::Linux).unwrap()
 }
 
 fn ctx_run<R>(
@@ -42,7 +42,7 @@ fn jsonc_os_override_and_globals() {
       "tasks": [
         { "label": "t", "command": "echo", "args": ["a b", {"value": "$X", "quoting": "weak"}],
           "options": { "env": { "B": "2" } },
-          "osx": { "command": "say" }, "linux": { "command": "nope" },
+          "osx": { "command": "nope" }, "linux": { "command": "say" },
           "runOptions": { "runOn": "folderOpen" },
           "group": { "kind": "build", "isDefault": true },
         },

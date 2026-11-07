@@ -3,17 +3,12 @@
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Platform {
-    Mac,
     Linux,
 }
 
 impl Platform {
     pub const fn current() -> Self {
-        if cfg!(target_os = "macos") {
-            Self::Mac
-        } else {
-            Self::Linux
-        }
+        Self::Linux
     }
 }
 
@@ -85,29 +80,8 @@ impl Chord {
         out + &self.key
     }
 
-    pub fn format(&self, platform: Platform) -> String {
-        match platform {
-            Platform::Mac => self.format_mac(),
-            Platform::Linux => self.format_linux(),
-        }
-    }
-
-    fn format_mac(&self) -> String {
-        let mut out = String::new();
-        for (on, glyph) in [
-            (self.ctrl, '⌃'),
-            (self.alt, '⌥'),
-            (self.shift, '⇧'),
-            (self.cmd, '⌘'),
-        ] {
-            if on {
-                out.push(glyph);
-            }
-        }
-        out + &key_text(&self.key, Platform::Mac)
-    }
-
-    fn format_linux(&self) -> String {
+    /// `Ctrl+Shift+P`, `Alt+Enter`, `F12`.
+    pub fn format(&self) -> String {
         let mut parts = Vec::new();
         for (on, name) in [
             (self.ctrl, "Ctrl"),
@@ -119,13 +93,13 @@ impl Chord {
                 parts.push(name.to_owned());
             }
         }
-        parts.push(key_text(&self.key, Platform::Linux));
+        parts.push(key_text(&self.key));
         parts.join("+")
     }
 
-    /// The same chord with ⌘ replaced by the platform's secondary modifier.
-    pub fn for_platform(mut self, platform: Platform) -> Self {
-        if platform == Platform::Linux && self.cmd {
+    /// The same chord with ⌘ replaced by Ctrl, the secondary modifier here.
+    pub fn for_linux(mut self) -> Self {
+        if self.cmd {
             self.cmd = false;
             self.ctrl = true;
         }
@@ -158,35 +132,31 @@ fn is_single_key(text: &str) -> bool {
             && text[1..].chars().all(|c| c.is_ascii_digit()))
 }
 
-/// Format a (possibly multi-keystroke) gpui binding for the platform.
-pub fn format_sequence(keystrokes: &str, platform: Platform) -> String {
+/// Format a (possibly multi-keystroke) gpui binding.
+pub fn format_sequence(keystrokes: &str) -> String {
     keystrokes
         .split_whitespace()
         .map(|part| match Chord::parse(part) {
-            Some(chord) => chord.format(platform),
+            Some(chord) => chord.format(),
             None => part.to_owned(),
         })
         .collect::<Vec<_>>()
         .join(" ")
 }
 
-fn key_text(key: &str, platform: Platform) -> String {
-    let named = match (key, platform) {
-        ("enter", Platform::Mac) => "↩",
-        ("enter", Platform::Linux) => "Enter",
-        ("tab", Platform::Mac) => "⇥",
-        ("tab", Platform::Linux) => "Tab",
-        ("backspace", Platform::Mac) => "⌫",
-        ("backspace", Platform::Linux) => "Backspace",
-        ("escape", Platform::Mac) => "⎋",
-        ("escape", Platform::Linux) => "Esc",
-        ("space", _) => "Space",
-        ("up", _) => "↑",
-        ("down", _) => "↓",
-        ("left", _) => "←",
-        ("right", _) => "→",
-        ("pageup", _) => "PgUp",
-        ("pagedown", _) => "PgDn",
+fn key_text(key: &str) -> String {
+    let named = match key {
+        "enter" => "Enter",
+        "tab" => "Tab",
+        "backspace" => "Backspace",
+        "escape" => "Esc",
+        "space" => "Space",
+        "up" => "↑",
+        "down" => "↓",
+        "left" => "←",
+        "right" => "→",
+        "pageup" => "PgUp",
+        "pagedown" => "PgDn",
         _ => return key.to_uppercase(),
     };
     named.to_owned()
@@ -214,14 +184,10 @@ mod tests {
 
     #[test]
     fn linux_formatting_uses_names() {
-        let chord = Chord::parse("cmd-shift-p")
-            .unwrap()
-            .for_platform(Platform::Linux);
-        assert_eq!(chord.format(Platform::Linux), "Ctrl+Shift+P");
-        let enter = Chord::from_glyphs("⌘↩")
-            .unwrap()
-            .for_platform(Platform::Linux);
-        assert_eq!(enter.format(Platform::Linux), "Ctrl+Enter");
+        let chord = Chord::parse("cmd-shift-p").unwrap().for_linux();
+        assert_eq!(chord.format(), "Ctrl+Shift+P");
+        let enter = Chord::from_glyphs("⌘↩").unwrap().for_linux();
+        assert_eq!(enter.format(), "Ctrl+Enter");
     }
 
     #[test]

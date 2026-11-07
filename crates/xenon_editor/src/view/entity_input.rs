@@ -1,4 +1,4 @@
-//! EntityInputHandler for macOS typed text into the editor / find bar.
+//! EntityInputHandler for typed text into the editor / find bar.
 //!
 //! Marked (IME) text is a char range in the one buffer, so it behaves the same
 //! in the source and prose views: the composition is plain buffer text until

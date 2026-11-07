@@ -80,10 +80,7 @@ pub enum CommandId {
     OpenKeymap,
 }
 
-/// Platform name for revealing a file: Linux opens the folder without selecting.
-#[cfg(target_os = "macos")]
-pub(crate) const REVEAL_LABEL: &str = "Reveal in Finder";
-#[cfg(not(target_os = "macos"))]
+/// Revealing a file opens its folder without selecting it.
 pub(crate) const REVEAL_LABEL: &str = "Open Containing Folder";
 
 macro_rules! cmd {

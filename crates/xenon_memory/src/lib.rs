@@ -12,20 +12,9 @@ pub struct ProcessMemory {
     pub compressed_bytes: u64,
 }
 
-/// Read Xenon's own physical footprint, the value Activity Monitor calls Memory.
+/// Read Xenon's own memory use from `/proc`.
 pub fn process_memory() -> ProcessMemory {
-    #[cfg(target_os = "macos")]
-    {
-        macos::process_memory()
-    }
-    #[cfg(target_os = "linux")]
-    {
-        linux::process_memory()
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    {
-        ProcessMemory::default()
-    }
+    linux::process_memory()
 }
 
 /// Write a complete, redacted snapshot atomically for local tools to inspect.
@@ -40,9 +29,8 @@ pub fn write_snapshot<T: Serialize>(path: &Path, snapshot: &T) -> std::io::Resul
     std::fs::rename(temp, path)
 }
 
-/// Linux has no compressed memory or physical-footprint ledger: footprint is
+/// There is no compressed memory or physical-footprint ledger: footprint is
 /// resident pages, the peak is `VmHWM`.
-#[cfg(target_os = "linux")]
 mod linux {
     use super::ProcessMemory;
 
@@ -64,56 +52,6 @@ mod linux {
             peak_footprint_bytes: peak.max(resident),
             resident_bytes: resident,
             compressed_bytes: 0,
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
-mod macos {
-    use super::ProcessMemory;
-
-    type KernReturn = i32;
-    type MachPort = u32;
-    type Natural = u32;
-
-    const TASK_VM_INFO: i32 = 22;
-    const KERN_SUCCESS: KernReturn = 0;
-
-    #[repr(C)]
-    struct TaskVmInfo {
-        fields: [u64; 40],
-    }
-
-    unsafe extern "C" {
-        fn mach_task_self() -> MachPort;
-        fn task_info(
-            task: MachPort,
-            flavor: i32,
-            info: *mut u32,
-            count: *mut Natural,
-        ) -> KernReturn;
-    }
-
-    pub(super) fn process_memory() -> ProcessMemory {
-        let mut info = TaskVmInfo { fields: [0; 40] };
-        let mut count = (std::mem::size_of::<TaskVmInfo>() / std::mem::size_of::<u32>()) as Natural;
-        let result = unsafe {
-            task_info(
-                mach_task_self(),
-                TASK_VM_INFO,
-                info.fields.as_mut_ptr().cast(),
-                &mut count,
-            )
-        };
-        if result != KERN_SUCCESS {
-            return ProcessMemory::default();
-        }
-        let footprint = info.fields[18];
-        ProcessMemory {
-            resident_bytes: info.fields[2],
-            compressed_bytes: info.fields[15],
-            footprint_bytes: footprint,
-            peak_footprint_bytes: footprint.max(info.fields[21]),
         }
     }
 }

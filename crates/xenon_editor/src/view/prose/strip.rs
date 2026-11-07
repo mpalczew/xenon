@@ -28,14 +28,7 @@ impl EditorView {
         let (words, mins) = self.word_stats(cx);
         let mode = self.prose.mode;
         let paper = self.prose.paper;
-        let mac = cfg!(target_os = "macos");
-        let key = |k: &str| {
-            if mac {
-                format!("\u{2325}{k}")
-            } else {
-                format!("Alt+{k}")
-            }
-        };
+        let key = |k: &str| format!("Alt+{k}");
         let button = |id: &'static str, label: String, on: bool| {
             let mut b = div()
                 .id(id)

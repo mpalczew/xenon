@@ -9,31 +9,23 @@ use super::model::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Os {
-    Mac,
     Linux,
-    Windows,
 }
 
 impl Os {
     pub fn current() -> Self {
-        if cfg!(target_os = "macos") {
-            Os::Mac
-        } else if cfg!(target_os = "windows") {
-            Os::Windows
-        } else {
-            Os::Linux
-        }
+        Os::Linux
     }
 
     fn key(self) -> &'static str {
         match self {
-            Os::Mac => "osx",
             Os::Linux => "linux",
-            Os::Windows => "windows",
         }
     }
 }
 
+/// Override keys VS Code files may carry; only `linux` applies here, the rest
+/// are dropped.
 const OS_KEYS: [&str; 3] = ["osx", "linux", "windows"];
 /// File-level properties a task inherits when it does not set its own.
 const INHERITED: [&str; 6] = [

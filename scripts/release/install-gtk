@@ -29,7 +29,7 @@ install -m 755 "$root/scripts/xenon-gtk" "$bin_dir/xenon-gtk"
 echo "installed $bin_dir/xenon-gtk"
 
 # Same icon as the GPUI app, under its own name.
-icon_src="$root/macos/xenon-icon-source.png"
+icon_src="$root/assets/xenon-icon-source.png"
 icon_dir="$data_home/icons/hicolor/512x512/apps"
 mkdir -p "$icon_dir"
 if resize="$(command -v magick || command -v convert)"; then

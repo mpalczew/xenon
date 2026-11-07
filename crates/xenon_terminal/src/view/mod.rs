@@ -728,7 +728,7 @@ impl TerminalView {
         }
     }
 
-    /// Paste shell-quoted paths (Finder drag-drop of images/files).
+    /// Paste shell-quoted paths (file-manager drag-drop of images/files).
     pub fn paste_paths(&self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
         if self.exited || paths.is_empty() {
             return;

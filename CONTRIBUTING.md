@@ -1,6 +1,6 @@
 # Contributing to Xenon
 
-Thanks for caring enough to engage the codebase. Xenon is an early public macOS
+Thanks for caring enough to engage the codebase. Xenon is an early public Linux
 **anti-IDE** shell for people who run coding agents. The success metric is
 **substantive** issues and PRs—not vanity volume.
 
@@ -8,8 +8,8 @@ Thanks for caring enough to engage the codebase. Xenon is an early public macOS
 
 - Fixes and features that improve the **multi-agent daily path**: workspaces, terminals,
   splits, session continuity, keyboard-first flows, latency.
-- Clear bug reports with reproduction steps (macOS version, harness, what you ran, what
-  you expected).
+- Clear bug reports with reproduction steps (distro and version, harness, what you ran,
+  what you expected).
 - Design-aligned UX work after reading [`PRODUCT.md`](PRODUCT.md) and
   [`DESIGN.md`](DESIGN.md).
 
@@ -31,21 +31,20 @@ Public path (no private tooling required):
 ```bash
 git clone https://github.com/mpalczew/xenon.git
 cd xenon
-# prereqs: Rust stable, cmake, Xcode Metal Toolchain — see README
+# prereqs: Rust stable, cmake, and the system packages listed in the README
 cargo test --workspace
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 scripts/health   # full gate: fmtcheck + clippy + shape + test
 ```
 
-Install a release app bundle locally:
+Install a release build locally:
 
 ```bash
 ./scripts/release/install
-open ~/Applications/Xenon.app
 ```
 
-Details and signing notes: [`README.md`](README.md).
+Details: [`README.md`](README.md).
 
 ## Patch hygiene
 

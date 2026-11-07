@@ -2,14 +2,9 @@
 set -euo pipefail
 
 # Slot launcher for Xenon.
-# Linux has no .app bundle: scripts/release/install-linux puts the GUI binary
-# at $XENON_APP_DIR/xenon-bin (default ~/.local/share/xenon).
-if [[ "$(uname -s)" == Darwin ]]; then
-    APP_BIN="${XENON_APP:-$HOME/Applications/Xenon.app}/Contents/MacOS/xenon"
-else
-    APP_BIN="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
-fi
-APP="$APP_BIN"
+# scripts/release/install puts the GUI binary at $XENON_APP_DIR/xenon-bin
+# (default ~/.local/share/xenon).
+APP="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
 
 # Some Linux distributions, including NixOS, expose the Wayland development
@@ -17,7 +12,6 @@ ACTIVE_FILE="$HOME/.xenon-active-slot"
 # GPUI loads libwayland-client at runtime, so make the installed client
 # discoverable before an A/B slot starts a fresh process.
 prepare_linux_runtime() {
-    [[ "$(uname -s)" == Linux ]] || return 0
     [[ -n "${WAYLAND_DISPLAY:-}" ]] || return 0
     if command -v ldconfig >/dev/null 2>&1; then
         local libraries
@@ -101,12 +95,11 @@ pid_is_live_app() {
     local comm
     comm="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
     comm="${comm##*/}"
-    # Dock stub execs xenon-bin; comm is the GUI name, not CFBundleExecutable.
     [[ "$comm" == "xenon" || "$comm" == "xenon-bin" ]]
 }
 
-# Linux: the slot comes from the process env in /proc.
-pid_slot_linux() {
+# The slot comes from the process env in /proc.
+pid_slot() {
     local pid="$1" env slot data
     env="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null)" || return 1
     slot="$(sed -n -e 's/^XENON_SLOT=//p' <<<"$env" | head -n1)"
@@ -123,61 +116,7 @@ pid_slot_linux() {
     esac
 }
 
-# macOS does not expose process env via `ps e`; read it with KERN_PROCARGS2.
-pid_slot() {
-    local pid="$1"
-    local slot
-    if [[ "$(uname -s)" != Darwin ]]; then
-        pid_slot_linux "$pid"
-        return
-    fi
-    slot="$(
-        python3 - "$pid" <<'PY'
-import sys
-import ctypes
-import ctypes.util
-
-pid = int(sys.argv[1])
-libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-# CTL_KERN=1, KERN_PROCARGS2=49
-mib = (ctypes.c_int * 3)(1, 49, pid)
-buf = ctypes.create_string_buffer(256 * 1024)
-size = ctypes.c_size_t(len(buf))
-if libc.sysctl(mib, 3, buf, ctypes.byref(size), None, 0) != 0:
-    sys.exit(1)
-parts = bytes(buf[: size.value]).split(b"\0")
-env = {}
-for part in parts:
-    if b"=" not in part:
-        continue
-    key, _, val = part.partition(b"=")
-    try:
-        env[key.decode()] = val.decode()
-    except UnicodeDecodeError:
-        pass
-
-slot = env.get("XENON_SLOT", "").strip().lower()
-if slot in ("a", "b"):
-    print(slot)
-    sys.exit(0)
-
-data = env.get("XENON_DATA_DIR", "").rstrip("/")
-for suffix, out in (
-    ("/.xenon-a", "a"),
-    (".xenon-a", "a"),
-    ("/.xenon-b", "b"),
-    (".xenon-b", "b"),
-):
-    if data.endswith(suffix):
-        print(out)
-        sys.exit(0)
-sys.exit(1)
-PY
-    )" || return 1
-    printf '%s\n' "$slot"
-}
-
-# Live-instance files: never transfer; ditto also fails on Unix sockets.
+# Live-instance files: never transfer (rsync cannot copy Unix sockets).
 RUNTIME_EXCLUDES=(
     --exclude='xenon.pid'
     --exclude='ipc.sock'
@@ -190,7 +129,7 @@ strip_runtime_files() {
     rm -f "$dir/xenon.pid" "$dir/ipc.sock" "$dir/xenon.log"
 }
 
-# Copy durable slot state only. Skips sockets/pidfiles/logs (ditto cannot copy sockets).
+# Copy durable slot state only. Skips sockets/pidfiles/logs.
 copy_state_dir() {
     local src="$1"
     local dst="$2"
@@ -222,13 +161,10 @@ running_instances() {
         fi
     done
 
-    # BSD pgrep hides its own ancestors (e.g. the Xenon hosting this shell)
-    # unless -a; procps -a means something else and hides nothing.
-    local pids ancestors=()
-    [[ "$(uname -s)" == Darwin ]] && ancestors=(-a)
+    local pids
     pids="$(
-        pgrep "${ancestors[@]}" -x xenon 2>/dev/null || true
-        pgrep "${ancestors[@]}" -x xenon-bin 2>/dev/null || true
+        pgrep -x xenon 2>/dev/null || true
+        pgrep -x xenon-bin 2>/dev/null || true
     )"
     [[ -n "$pids" ]] || return 0
     while IFS= read -r pid; do
@@ -356,9 +292,8 @@ raise_pid() {
     local pid="$1"
     [[ "$pid" =~ ^[0-9]+$ ]] || return 1
     kill -0 "$pid" 2>/dev/null || return 1
-    # Linux: no portable raise-by-pid (Wayland); the IPC Activate handoff is the path.
-    [[ "$(uname -s)" == Darwin ]] || return 1
-    osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null
+    # No portable raise-by-pid (Wayland); the IPC Activate handoff is the path.
+    return 1
 }
 
 activate_slot() {

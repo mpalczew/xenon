@@ -26,7 +26,7 @@ pub fn checkbox(
     let id = id.into();
     let colors = cx.theme().colors();
     let accent = colors.text_accent;
-    let animate = !state.disabled && !super::motion_frozen(cx) && !super::reduce_motion();
+    let animate = !state.disabled && !super::motion_frozen(cx);
     let control = div()
         .id(id.clone())
         .relative()

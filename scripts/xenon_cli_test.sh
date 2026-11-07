@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Prove scripts/release/install's CLI copy, that `xenon open` execs the
-# bundle entry with XENON_DATA_DIR (does not flip slots), and that
-# running_instances still sees a live GUI after the stub execs xenon-bin.
+# Prove that `xenon open` execs the app binary with XENON_DATA_DIR (does not
+# flip slots), and that running_instances sees a live GUI named xenon-bin.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/xenon-cli.XXXXXX")"
@@ -16,15 +15,15 @@ cleanup() {
 trap cleanup EXIT
 
 bin_dir="$tmp/bin"
-app="$tmp/Xenon.app"
-mkdir -p "$bin_dir" "$app/Contents/MacOS"
-cat >"$app/Contents/MacOS/xenon" <<'EOF'
+app="$tmp/app"
+mkdir -p "$bin_dir" "$app"
+cat >"$app/xenon-bin" <<'EOF'
 #!/bin/sh
 printf 'APP'
 for a in "$@"; do printf ' %s' "$a"; done
 printf '\n'
 EOF
-chmod +x "$app/Contents/MacOS/xenon"
+chmod +x "$app/xenon-bin"
 
 cp "$root/scripts/xenon" "$bin_dir/xenon"
 chmod +x "$bin_dir/xenon"
@@ -33,17 +32,11 @@ chmod +x "$bin_dir/xenon"
 grep -q $'^        open)$' "$bin_dir/xenon"
 
 out="$(
-    XENON_APP="$app" XENON_DATA_DIR="$tmp/data" XENON_SLOT=A \
+    XENON_APP_DIR="$app" XENON_DATA_DIR="$tmp/data" XENON_SLOT=A \
         "$bin_dir/xenon" open /tmp/file.rs:42 --pane sibling
 )"
 [[ "$out" == "APP open /tmp/file.rs:42 --pane sibling" ]]
 
-# Stub execs a Mach-O named xenon-bin (same layout as the signed app).
-cat >"$app/Contents/MacOS/xenon" <<'EOF'
-#!/bin/sh
-exec "$(dirname "$0")/xenon-bin"
-EOF
-chmod +x "$app/Contents/MacOS/xenon"
 cat >"$tmp/sleeper.c" <<'EOF'
 #include <unistd.h>
 int main(void) {
@@ -51,13 +44,13 @@ int main(void) {
     return 0;
 }
 EOF
-cc -o "$app/Contents/MacOS/xenon-bin" "$tmp/sleeper.c"
+cc -o "$app/xenon-bin" "$tmp/sleeper.c"
 
 home="$tmp/home"
 slot_dir="$home/.xenon-a"
 mkdir -p "$slot_dir"
 XENON_DATA_DIR="$slot_dir" XENON_SLOT=A \
-    "$app/Contents/MacOS/xenon" &
+    "$app/xenon-bin" &
 sleeper_pid=$!
 printf '%s\n' "$sleeper_pid" >"$slot_dir/xenon.pid"
 
@@ -74,14 +67,14 @@ while ((i < 50)); do
 done
 [[ "$comm" == "xenon-bin" ]]
 
-status_out="$(HOME="$home" XENON_APP="$app" "$bin_dir/xenon" status)"
+status_out="$(HOME="$home" XENON_APP_DIR="$app" "$bin_dir/xenon" status)"
 [[ "$status_out" == *"pid $sleeper_pid slot a"* ]]
 [[ -f "$slot_dir/xenon.pid" ]]
 [[ "$(tr -d '[:space:]' <"$slot_dir/xenon.pid")" == "$sleeper_pid" ]]
 
 # Pidfile gone: pgrep -x xenon-bin must still find it.
 rm -f "$slot_dir/xenon.pid"
-status_out="$(HOME="$home" XENON_APP="$app" "$bin_dir/xenon" status)"
+status_out="$(HOME="$home" XENON_APP_DIR="$app" "$bin_dir/xenon" status)"
 [[ "$status_out" == *"pid $sleeper_pid slot a"* ]]
 [[ "$(tr -d '[:space:]' <"$slot_dir/xenon.pid")" == "$sleeper_pid" ]]
 

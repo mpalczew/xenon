@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use crate::chord::format_sequence;
+use crate::defaults::shared;
 use crate::{Chord, Entry, Platform, defaults};
 
 type Applied = Vec<((Option<String>, String), Option<String>)>;
@@ -39,14 +40,14 @@ fn primary(entries: &[Entry], action: &str) -> Option<String> {
     global.or(any).map(|((_, keys), _)| keys.clone())
 }
 
-/// For each macOS default keystroke whose action the user rebound or
+/// For each default keystroke as written (with `cmd`) whose action the user rebound or
 /// unbound: the text to show instead. Untouched defaults are absent, so the
 /// shipped glyphs stay as written.
 pub fn display_overrides(platform: Platform, user: &[Entry]) -> HashMap<String, String> {
     let base = defaults(platform);
     let merged: Vec<Entry> = base.iter().chain(user).cloned().collect();
     let mut out = HashMap::new();
-    for entry in defaults(Platform::Mac) {
+    for entry in shared() {
         let (Some(action), Some(chord)) = (entry.action.as_deref(), Chord::parse(&entry.keystroke))
         else {
             continue;
@@ -55,7 +56,7 @@ pub fn display_overrides(platform: Platform, user: &[Entry]) -> HashMap<String, 
         if now == primary(&base, action) {
             continue;
         }
-        let text = now.map_or_else(String::new, |keys| format_sequence(&keys, platform));
+        let text = now.map_or_else(String::new, |keys| format_sequence(&keys));
         out.entry(chord.canonical()).or_insert(text);
     }
     out

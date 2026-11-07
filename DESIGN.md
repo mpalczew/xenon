@@ -31,7 +31,8 @@ reference shell. The full path remains available as the row tooltip. The rail do
 add a descriptive status bar beneath the tabs.
 
 Maintained preview: `visual-review/xenon-design-system.html` and
-`visual-review/xenon-mocks.html`. Native evidence is captured by `scripts/visual-tests`.
+`visual-review/xenon-mocks.html`. Native evidence comes from the GTK screenshot checks
+(`scripts/xenon-gtk-verify`).
 
 ## Git section and diff tab
 
@@ -125,16 +126,16 @@ text color. Destructive is a filled danger action, sized to its label. Button ty
 through GPUI's click event. Disabled actions do not register a click handler.
 `xenon_design_system::checkbox` owns the 18px checked/unchecked control and its
 accessible label. Checking pops the box and expands a brief accent ring; unchecking
-settles back. The macOS Reduce Motion setting makes state changes instant. Feature views
-supply the action and state; they do not draw checkbox glyphs or wire keyboard
-activation. `xenon_design_system::switch` is the 30×18 on/off control for settings that
-apply immediately; checkboxes stay for picking items. The knob travels in 180ms with a
-small overshoot while the track crossfades; Reduce Motion makes it instant.
-`selectable_row` owns selection fill, the left selection edge (`border.selected`;
-neutral `text` on workspace rows), and hover. Callers supply the row content.
-`bullet_list` renders indented supporting lines at 22px per level. `OutlineView` edits
-one title and indented points: Enter splits a point, Tab and Shift-Tab change depth, and
-Backspace at the start outdents or joins. The caller validates and saves the text.
+settles back. Feature views supply the action and state; they do not draw checkbox
+glyphs or wire keyboard activation. `xenon_design_system::switch` is the 30×18 on/off
+control for settings that apply immediately; checkboxes stay for picking items. The knob
+travels in 180ms with a small overshoot while the track crossfades; Reduce Motion makes
+it instant. `selectable_row` owns selection fill, the left selection edge
+(`border.selected`; neutral `text` on workspace rows), and hover. Callers supply the row
+content. `bullet_list` renders indented supporting lines at 22px per level.
+`OutlineView` edits one title and indented points: Enter splits a point, Tab and
+Shift-Tab change depth, and Backspace at the start outdents or joins. The caller
+validates and saves the text.
 
 ## Settings window
 
@@ -291,19 +292,20 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   (Ctrl+C, X, B, E, O, S). Ctrl+Alt+B toggles the sidebar because Ctrl+B belongs to the
   shell.
 
-- **Settings.** `AdwPreferencesDialog` (Ctrl+,): pages Appearance, Fonts, Editor, Terminal,
-  Agents, Language Servers (Ctrl+1 to 6, Ctrl+F searches, Escape closes). Theme tiles are
-  buttons painted by one generated sheet in each theme's own colors. The picker page
-  re-themes the window as the selection moves; Enter keeps, Escape or Back reverts. The
-  interface size scales the window font as a percentage of 14; the default size and the
-  System face add no rule.
+- **Settings.** `AdwPreferencesDialog` (Ctrl+,): pages Appearance, Fonts, Editor,
+  Terminal, Agents, Language Servers (Ctrl+1 to 6, Ctrl+F searches, Escape closes).
+  Theme tiles are buttons painted by one generated sheet in each theme's own colors. The
+  picker page re-themes the window as the selection moves; Enter keeps, Escape or Back
+  reverts. The interface size scales the window font as a percentage of 14; the default
+  size and the System face add no rule.
 
 - **Phone remote.** Settings has a Phone Remote page (switch with status line, network,
-  keep-awake, address override, port, Connect Phone, paired devices with Revoke). Connect
-  Phone is a dialog: black-on-white QR with a quiet border, the six-digit code, the address,
-  Copy link, Done; Ctrl+Shift+M toggles it. A flat footer line under the sidebar shows the
-  state (listening, waiting for the other Xenon, "<phone> connected", "<phone> driving"), muted
-  until a phone is connected, then accent. A tab the phone drives reads "title · phone".
+  keep-awake, address override, port, Connect Phone, paired devices with Revoke).
+  Connect Phone is a dialog: black-on-white QR with a quiet border, the six-digit code,
+  the address, Copy link, Done; Ctrl+Shift+M toggles it. A flat footer line under the
+  sidebar shows the state (listening, waiting for the other Xenon, "<phone> connected",
+  "<phone> driving"), muted until a phone is connected, then accent. A tab the phone
+  drives reads "title · phone".
 
 ## Anti-patterns
 

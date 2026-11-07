@@ -5,27 +5,11 @@
 use std::net::Ipv4Addr;
 use std::process::Command;
 
-/// CLI locations: `tailscale` on PATH (Linux packages, Homebrew), then the
-/// macOS standalone and Mac App Store locations.
-const TAILSCALE_CLIS: &[&str] = &[
-    "tailscale",
-    #[cfg(target_os = "macos")]
-    "/usr/local/bin/tailscale",
-    #[cfg(target_os = "macos")]
-    "/opt/homebrew/bin/tailscale",
-    #[cfg(target_os = "macos")]
-    "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-];
+/// CLI locations: `tailscale` on PATH.
+const TAILSCALE_CLIS: &[&str] = &["tailscale"];
 
-/// This machine's user-facing name ("Michal's MacBook Pro").
+/// This machine's user-facing name (its hostname).
 pub fn computer_name() -> String {
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut command = Command::new("scutil");
-        command.args(["--get", "ComputerName"]);
-        command
-    };
-    #[cfg(not(target_os = "macos"))]
     let mut command = Command::new("hostname");
     command
         .output()

@@ -40,15 +40,13 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   (`~/.xenon-skill.json`), not per-slot `settings.json`. PTYs inject `XENON_DATA_DIR` so
   open targets this instance. Dogfood (both A/B live): `which xenon` is still
   `~/bin/xenon`; A/B routing is that env plus the launcher’s `open` handler
-  (`scripts/xenon`, copied to `~/bin/xenon` by `scripts/release/install`). The signed
-  `Xenon.app` in the Dock is that same dogfood-profile binary (bundle id
-  `dev.xenon.xenon`). `CFBundleExecutable` is a Mach-O stub (`Contents/MacOS/xenon`)
-  that `exec`s `xenon-bin`. Cold start from Dock/Spotlight/login: no data-dir env → last
-  slot from `~/.xenon-active-slot` when `~/.xenon-a`/`~/.xenon-b` exists, else ship
-  `~/.xenon`. Env already set is not overridden, so the CLI still execs the stub with
-  slot env (0/1/2 and `xenon open` do not flip via `open -n`). Dock click while running
-  activates; it does not spawn the other slot. Public ship without the marker file is
-  one instance at `~/.xenon`.
+  (`scripts/xenon`, copied to `~/bin/xenon` by `scripts/release/install`). The installed
+  binary is `xenon-bin` (default `~/.local/share/xenon`). Cold start from the desktop
+  entry or login: no data-dir env → last slot from `~/.xenon-active-slot` when
+  `~/.xenon-a`/`~/.xenon-b` exists, else ship `~/.xenon`. Env already set is not
+  overridden, so the CLI still execs the binary with slot env (0/1/2 and `xenon open` do
+  not flip slots). Launching while running activates; it does not spawn the other slot.
+  Public ship without the marker file is one instance at `~/.xenon`.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` / `.pdf`
   hand off to the system default app. Markdown prose mode is a GPUI document (see
   Markdown prose below). Agent computer-use stays in the harness (Playwright, Chrome,
@@ -172,21 +170,12 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   Xenon launched from another Xenon's terminal (slot flip) outlives it; ignoring SIGHUP
   alone was not enough.
 - No crash handler. A vanished instance: panics land in the slot's `xenon.log` (stderr
-  goes there); SIGSEGV/abort leave an `.ips` in `~/Library/Logs/DiagnosticReports`;
-  neither means a signal or clean exit, and `log show --predicate 'eventMessage CONTAINS
-  "<pid>"'` dates it.
-- Do not make `CFBundleExecutable` a shell script: TCC/FDA follow the signed Mach-O in
-  `Xenon.app`, not `/bin/bash`. The stub is a small signed binary.
+  goes there); a SIGSEGV or abort leaves no line, and `journalctl` or `coredumpctl`
+  dates it.
 - TUI mouse reporting sends clicks to the PTY. ⌘-click open injects shift (so reporting
   is off) and still calls Zed `mouse_down`; the Select-text word-select path never does,
   and would swallow the hyperlink. ⌘ is open-path, not momentary select mode.
   Option-drag / hover-chrome Select text stay the copy hatch.
-- Known issue (macOS 27, recheck ~2026-10-21): LAN connections from non-Apple tools in
-  Xenon terminals (`fj`, Homebrew binaries, git-over-HTTP) fail with `No route to host`
-  and never prompt. PTY shells are their own TCC responsible process, so Xenon's
-  `NSLocalNetworkUsageDescription` and grant do not cover them; Apple binaries (`curl`,
-  `ssh`, `nc`) are exempt. Same bug in Ghostty (discussions 13438/13476). Workaround:
-  use Tailscale names, which are not "local network".
 - Phone page: setting `disabled` on a focused input blurs it, and iOS never gives focus
   back. `renderStale()` remembers the focused input and refocuses it on reconnect; any
   new disable-while-stale input needs the same.
@@ -194,10 +183,10 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   submits in Claude Code. A prompt newline is the `shift-enter` named key (LF via the
   terminal key map).
 - In this codebase, “browser” is the Files tree, not a web view.
-- GPUI (pinned Zed rev) has no webview primitive. The window is one Metal `NSView`. A
-  native WKWebView / wry child view composites above the GPU scene, so palettes and
-  menus draw behind the page. Zed’s wry experiment (PR 52447) hit this and did not
-  merge. Do not add a webview surface unless upstream GPUI composites under overlays.
+- GPUI (pinned Zed rev) has no webview primitive. The window is one GPU surface. A
+  native webview / wry child view composites above the GPU scene, so palettes and menus
+  draw behind the page. Zed’s wry experiment (PR 52447) hit this and did not merge. Do
+  not add a webview surface unless upstream GPUI composites under overlays.
 
 ## Markdown prose mode
 
@@ -212,8 +201,8 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   `Index::byte_to_char` is the only conversion. Display bytes are a third space: only
   `Display::locate`/`src_at` cross it.
 - Bind ⌥1/⌥2/⌥3/⌥P in the `Markdown` key context only. The editor root sets
-  `key_context("Editor Markdown")` for `.md`; a global ⌥-letter would break macOS option
-  typing and terminal readline.
+  `key_context("Editor Markdown")` for `.md`; a global ⌥-letter would break terminal
+  readline.
 - Paper hexes live only in `prose/style.rs`. Marker ink is darkened until it has 3:1
   against the page (the specified light `#a39a8b` on `#f8f4ec` is about 2.5:1). Per-file
   mode, Paper and comment fold persist in `prose-files.json`; look settings live in
@@ -233,5 +222,5 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   https://news.ycombinator.com/item?id=49393052
 - Find replace.
 - Keyboard paths for terminal On-exit, open-target choice, and workspace reorder.
-- Public packaging left in `docs/release.md` (Homebrew, notarization, screenshots)—repo
-  is already `mpalczew/xenon` and public.
+- Public packaging left in `docs/release.md` (Linux package format, screenshots)—repo is
+  already `mpalczew/xenon` and public.

@@ -6,7 +6,7 @@ use gpui::{
 };
 use theme::ThemeColors;
 
-/// A key chord written as the macOS glyphs (`⌘⇧O`). Empty is illegal.
+/// A key chord written as glyphs (`⌘⇧O`). Empty is illegal.
 /// [`Shortcut::keys`] gives what the current platform and keymap show.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Shortcut {

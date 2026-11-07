@@ -3,7 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-# Ordinary controls own macOS text input. The editor and terminal canvases are
+# Ordinary controls own text input. The editor and terminal canvases are
 # specialized surfaces and remain explicit exceptions.
 mapfile -t owners < <(rg -l 'impl EntityInputHandler for|\.handle_input\(' \
     crates/xenon_ui/src crates/xenon_editor/src crates/xenon_terminal/src \

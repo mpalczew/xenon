@@ -147,18 +147,6 @@ fn motion_frozen(cx: &App) -> bool {
     }
 }
 
-/// The macOS Reduce Motion setting, read live so changes apply without a restart.
-#[cfg(target_os = "macos")]
-fn reduce_motion() -> bool {
-    use objc2_app_kit::NSWorkspace;
-    unsafe { NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion() }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn reduce_motion() -> bool {
-    false
-}
-
 /// Fade content into an expanding shell section without delaying interaction.
 pub fn section_reveal(
     element: impl IntoElement + Styled + 'static,

@@ -23,7 +23,7 @@ pub struct AllClear {
 pub fn all_clear(id: impl Into<ElementId>, copy: AllClear, cx: &App) -> gpui::Div {
     let id = id.into();
     let accent = cx.theme().colors().text_accent;
-    let animate = !super::motion_frozen(cx) && !super::reduce_motion();
+    let animate = !super::motion_frozen(cx);
     div()
         .relative()
         .size_full()
