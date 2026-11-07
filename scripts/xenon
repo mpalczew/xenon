@@ -424,6 +424,8 @@ main() {
                 upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
                 export XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR"
             fi
+            # Let systemd-coredump keep a dump when the app crashes.
+            ulimit -c unlimited 2>/dev/null || true
             exec "$APP" "$@"
             ;;
         *)

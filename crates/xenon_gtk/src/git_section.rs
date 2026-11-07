@@ -91,10 +91,15 @@ impl GitView {
 
     fn wire(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
+        // Deferred: rebuilding the list inside its own activate handler crashes GTK.
         self.list.connect_row_activated(move |_, row| {
-            if let Some(this) = weak.upgrade() {
-                this.open_row(row.index().max(0) as usize);
-            }
+            let index = row.index().max(0) as usize;
+            let weak = weak.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(this) = weak.upgrade() {
+                    this.open_row(index);
+                }
+            });
         });
         let keys = gtk::EventControllerKey::new();
         let weak = Rc::downgrade(self);

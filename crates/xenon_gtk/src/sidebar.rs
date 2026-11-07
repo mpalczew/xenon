@@ -62,10 +62,15 @@ impl Sidebar {
         list.set_activate_on_single_click(true);
         list.add_css_class("navigation-sidebar");
         let weak = app.clone();
+        // Deferred: rebuilding the list inside its own activate handler crashes GTK.
         list.connect_row_activated(move |_, row| {
-            if let Some(app) = weak.upgrade() {
-                app.activate_workspace_index(row.index().max(0) as usize);
-            }
+            let index = row.index().max(0) as usize;
+            let weak = weak.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(app) = weak.upgrade() {
+                    app.activate_workspace_index(index);
+                }
+            });
         });
         let keys = gtk::EventControllerKey::new();
         let weak = app.clone();

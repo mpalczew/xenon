@@ -191,19 +191,25 @@ impl FilesView {
 
     fn wire(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
+        // Act after the click or key has finished: changing the tree or the
+        // panes inside the list's own activate handler crashes GTK.
         self.list.connect_activate(move |_, pos| {
             let Some(this) = weak.upgrade() else { return };
             let Some(row) = tree_row(this.tree.item(pos)) else {
                 return;
             };
-            if row.is_expandable() {
-                row.set_expanded(!row.is_expanded());
-            } else if let (Some(path), Some(app)) = (row_path(&row), this.app.upgrade()) {
-                let ws = app.model.borrow().active();
-                if let Some(ws) = ws {
-                    app.open_editor(ws, &path);
+            let weak = Rc::downgrade(&this);
+            glib::idle_add_local_once(move || {
+                let Some(this) = weak.upgrade() else { return };
+                if row.is_expandable() {
+                    row.set_expanded(!row.is_expanded());
+                } else if let (Some(path), Some(app)) = (row_path(&row), this.app.upgrade()) {
+                    let ws = app.model.borrow().active();
+                    if let Some(ws) = ws {
+                        app.open_editor(ws, &path);
+                    }
                 }
-            }
+            });
         });
         // Folders are read when opened and forgotten when closed, however the
         // row was opened (arrow, key or click).
