@@ -5,6 +5,7 @@
 //! nudges, wrap defaults). A frontend keeps one in whatever global it likes
 //! and calls `persist` after a change.
 
+mod agents;
 mod choices;
 mod edits;
 mod families;
@@ -15,6 +16,7 @@ mod values;
 
 pub use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
+pub use agents::{LspServer, set_lsp_command, skill_homes, skill_refresh_label, skill_subtitle};
 pub use choices::{
     FontChoice, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_MEASURES, PROSE_SIZES, format_size,
     mono_font_choices, nearest_index, ui_font_choices,

@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use gpui::{App, Window};
 use xenon_design_system::{Toast, show_toast_in};
+use xenon_settings::{skill_homes, skill_refresh_label, skill_subtitle};
 use xenon_store::{SkillStatus, install_skill, remove_skill, skill_status};
 
 use super::row::{ActionKind, Control, Group, RowAction, SettingRow, Tone};
@@ -35,14 +36,14 @@ pub(super) fn groups() -> Vec<Group> {
                 toggle: Rc::new(toggle_skill),
             },
         )
-        .detail(subtitle(&status))
+        .detail(skill_subtitle(&pinned(&status)))
         .keywords("skill claude codex grok install"),
         SettingRow::new("agent-skill-homes", "Installed in", Control::None)
-            .detail(homes_label(&status))
+            .detail(skill_homes(&pinned(&status)))
             .tone(Tone::Mono)
             .keywords("skill path"),
     ];
-    if let Some(label) = refresh_label(&status) {
+    if let Some(label) = skill_refresh_label(&status) {
         rows.push(
             SettingRow::new(
                 "agent-skill-refresh",
@@ -60,40 +61,17 @@ pub(super) fn groups() -> Vec<Group> {
     vec![Group::untitled(rows)]
 }
 
-fn subtitle(status: &SkillStatus) -> String {
-    match status {
-        SkillStatus::Missing => "Off — Xenon asks when an agent starts".into(),
-        SkillStatus::Installed { version } => {
-            format!("Installed v{} · same skill for every slot", shown(*version))
-        }
-        SkillStatus::UpdateAvailable { installed } => {
-            format!(
-                "Installed v{} · a newer one ships with this build",
-                shown(*installed)
-            )
-        }
-        SkillStatus::UserEdited => "You edited the skill · Xenon will not overwrite it".into(),
+/// Scenes pin the shown version; the shared text reads it from the status.
+fn pinned(status: &SkillStatus) -> SkillStatus {
+    match *status {
+        SkillStatus::Installed { version } => SkillStatus::Installed {
+            version: shown(version),
+        },
+        SkillStatus::UpdateAvailable { installed } => SkillStatus::UpdateAvailable {
+            installed: shown(installed),
+        },
+        other => other,
     }
-}
-
-fn refresh_label(status: &SkillStatus) -> Option<&'static str> {
-    match status {
-        SkillStatus::UpdateAvailable { .. } => Some("Update to bundled"),
-        SkillStatus::UserEdited => Some("Reset to bundled"),
-        SkillStatus::Missing | SkillStatus::Installed { .. } => None,
-    }
-}
-
-fn homes_label(status: &SkillStatus) -> String {
-    let mark = match status {
-        SkillStatus::Missing => "not installed".to_string(),
-        SkillStatus::Installed { version } => format!("v{}", shown(*version)),
-        SkillStatus::UpdateAvailable { installed } => format!("v{}", shown(*installed)),
-        SkillStatus::UserEdited => "edited".to_string(),
-    };
-    ["~/.agents", "~/.claude", "~/.grok"]
-        .map(|home| format!("{:<22} {mark}", format!("{home}/skills/xenon")))
-        .join("\n")
 }
 
 fn toggle_skill(window: &mut Window, cx: &mut App) {

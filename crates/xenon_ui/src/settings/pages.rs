@@ -269,13 +269,13 @@ fn command_row(
 
 /// Save an edited server command (empty = automatic) and restart servers.
 pub(super) fn set_server_command(field: Field, value: String, cx: &mut App) {
-    let command = Some(value.trim().to_string()).filter(|c| !c.is_empty());
+    let server = match field {
+        Field::RustServer => xenon_settings::LspServer::Rust,
+        Field::TypeScriptServer => xenon_settings::LspServer::TypeScript,
+        Field::RemoteHostname => return,
+    };
     crate::app::settings_set_lsp(
-        move |lsp| match field {
-            Field::RustServer => lsp.rust.command = command,
-            Field::TypeScriptServer => lsp.typescript.command = command,
-            Field::RemoteHostname => {}
-        },
+        move |lsp| xenon_settings::set_lsp_command(lsp, server, &value),
         cx,
     );
 }
