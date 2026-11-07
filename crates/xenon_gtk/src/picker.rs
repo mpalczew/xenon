@@ -238,7 +238,12 @@ impl App {
             results: RefCell::default(),
             generation: Cell::new(0),
         });
-        let (wq, wa, wc) = (
+        // A second Ctrl+Shift+O while the picker is open is Browse….
+        if self.launcher.run_action() {
+            return;
+        }
+        let (wq, wa, wc, wb) = (
+            Rc::downgrade(self),
             Rc::downgrade(self),
             Rc::downgrade(self),
             Rc::downgrade(self),
@@ -249,7 +254,18 @@ impl App {
             Handlers {
                 placeholder: "Folder or ssh://host/path\u{2026}".into(),
                 hint: "return opens  ·  tab completes  ·  esc closes".into(),
-                options: Options::default(),
+                options: Options {
+                    action: Some((
+                        xenon_keymap::display_text("Browse… ⌘⇧O"),
+                        Box::new(move || {
+                            if let Some(app) = wb.upgrade() {
+                                app.launcher.close();
+                                app.open_workspace_dialog();
+                            }
+                        }),
+                    )),
+                    ..Options::default()
+                },
                 on_query: Box::new(move |query| {
                     if let Some(app) = wq.upgrade() {
                         app.picker_query(&sq, query);

@@ -10,7 +10,8 @@
 - [x] GTK: Workspaces, Files and Git sections collapse (header click, Enter, Space;
       Ctrl+E for Files; saved in settings)
 - [x] GTK: Settings moves and resizes like a window; pages balanced
-- [ ] GTK: workspace picker gets the Browse… row its no-match message names
+- [x] GTK: workspace picker gets the Browse… row its no-match message names
+- [x] GTK: finder, workspace and task pickers use stock libadwaita look
 - [x] GTK: Workspaces section looks bad (waiting on what, from the user)
 
 - [x] GTK: task runner (task picker, Run Build Task, inputs and trust prompts, Run

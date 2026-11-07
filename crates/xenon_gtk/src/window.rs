@@ -84,8 +84,6 @@ impl App {
             crate::prose::css(&ui.prose, &self.mono.borrow())
         );
         self.css.load_from_string(&sheet);
-        self.launcher
-            .set_accent(&palette.color("text.accent", "#74ade8"));
         *self.palette.borrow_mut() = palette;
         for editor in self.editors.borrow().values() {
             editor.restyle(self);
@@ -296,12 +294,11 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     app
 }
 
-/// The window content with the folderOpen card and the palette above it.
+/// The window content with the folderOpen card above it.
 fn layered(app: &App, view: &adw::ToolbarView) -> gtk::Overlay {
     let overlay = gtk::Overlay::new();
     overlay.set_child(Some(view));
     overlay.add_overlay(&app.trust_card.root);
-    overlay.add_overlay(&app.launcher.scrim);
     overlay
 }
 

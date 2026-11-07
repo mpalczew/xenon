@@ -142,7 +142,7 @@ fn build_list(
         row.append(&name);
         if family.contains(&saved.dark) || family.contains(&saved.light) {
             let badge = gtk::Label::new(Some("in use"));
-            badge.add_css_class("xp-badge");
+            badge.set_css_classes(&["caption-heading", "dim-label"]);
             row.append(&badge);
         }
         row.append(&dark);

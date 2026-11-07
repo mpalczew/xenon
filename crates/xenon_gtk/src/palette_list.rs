@@ -1,70 +1,60 @@
 //! The palette's result list: a store of `PaletteRow`s shown by a
-//! `GtkListView` whose rows draw the title (matched letters in the accent
-//! color), detail and badge.
-
-use std::cell::RefCell;
-use std::rc::Rc;
+//! `GtkListView` with the stock `navigation-sidebar` look; rows draw the title
+//! (matched letters in bold), detail and badge.
 
 use adw::prelude::*;
 use gtk::{gio, glib};
 
 use crate::palette::PaletteRow;
 
-/// `text` as Pango markup with the matched letters in the accent color.
-pub(crate) fn markup(text: &str, hits: &[u32], accent: &str) -> String {
+/// `text` as Pango markup with the matched letters bold.
+pub(crate) fn markup(text: &str, hits: &[u32]) -> String {
     let mut out = String::new();
     let mut open = false;
     for (i, c) in text.chars().enumerate() {
         let hit = hits.binary_search(&(i as u32)).is_ok();
-        if hit && !open {
-            out.push_str(&format!("<span foreground=\"{accent}\" weight=\"bold\">"));
-            open = true;
-        } else if !hit && open {
-            out.push_str("</span>");
-            open = false;
+        if hit != open {
+            out.push_str(if hit { "<b>" } else { "</b>" });
+            open = hit;
         }
         out.push_str(&glib::markup_escape_text(&c.to_string()));
     }
     if open {
-        out.push_str("</span>");
+        out.push_str("</b>");
     }
     out
 }
 
-/// The result list: a store of `PaletteRow`s shown by a `GtkListView` whose
-/// rows draw the title (matched letters in the accent color), detail and badge.
-pub(crate) fn row_list(
-    accent: &Rc<RefCell<String>>,
-) -> (gio::ListStore, gtk::SingleSelection, gtk::ListView) {
+fn label(classes: &[&str], xalign: f32) -> gtk::Label {
+    let label = gtk::Label::new(None);
+    label.set_xalign(xalign);
+    label.set_css_classes(classes);
+    label
+}
+
+/// The result list: a store of `PaletteRow`s and the selection over it.
+pub(crate) fn row_list() -> (gio::ListStore, gtk::SingleSelection, gtk::ListView) {
     let store = gio::ListStore::new::<glib::BoxedAnyObject>();
     let selection = gtk::SingleSelection::new(Some(store.clone()));
-    selection.set_autoselect(true);
     selection.set_can_unselect(false);
     let factory = gtk::SignalListItemFactory::new();
     factory.connect_setup(|_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
         };
-        let title = gtk::Label::new(None);
-        title.set_xalign(0.0);
+        let title = label(&[], 0.0);
         title.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
-        title.add_css_class("xp-title");
-        let detail = gtk::Label::new(None);
-        detail.set_xalign(1.0);
-        detail.set_ellipsize(gtk::pango::EllipsizeMode::Start);
-        detail.add_css_class("xp-detail");
-        let badge = gtk::Label::new(None);
-        badge.add_css_class("xp-badge");
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        row.add_css_class("xp-row");
         title.set_hexpand(true);
+        let detail = label(&["caption", "dim-label"], 1.0);
+        detail.set_ellipsize(gtk::pango::EllipsizeMode::Start);
+        let badge = label(&["caption-heading", "dim-label"], 0.5);
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         row.append(&title);
         row.append(&detail);
         row.append(&badge);
         item.set_child(Some(&row));
     });
-    let accent_for_bind = accent.clone();
-    factory.connect_bind(move |_, item| {
+    factory.connect_bind(|_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;
         };
@@ -75,31 +65,25 @@ pub(crate) fn row_list(
             return;
         };
         let data = obj.borrow::<PaletteRow>();
-        let mut kids = Vec::new();
-        let mut child = row.first_child();
-        while let Some(w) = child {
-            child = w.next_sibling();
-            kids.push(w);
-        }
-        if let [title, detail, badge] = &kids[..]
-            && let (Some(title), Some(detail), Some(badge)) = (
-                title.downcast_ref::<gtk::Label>(),
-                detail.downcast_ref::<gtk::Label>(),
-                badge.downcast_ref::<gtk::Label>(),
-            )
-        {
-            title.set_markup(&markup(&data.title, &data.hits, &accent_for_bind.borrow()));
+        let title = row.first_child().and_downcast::<gtk::Label>();
+        let detail = title.as_ref().and_then(|w| w.next_sibling());
+        let badge = detail.as_ref().and_then(|w| w.next_sibling());
+        if let (Some(title), Some(detail), Some(badge)) = (
+            title,
+            detail.and_downcast::<gtk::Label>(),
+            badge.and_downcast::<gtk::Label>(),
+        ) {
+            title.set_markup(&markup(&data.title, &data.hits));
             detail.set_text(data.detail.as_deref().unwrap_or(""));
             detail.set_visible(data.detail.is_some());
             badge.set_text(data.badge.as_deref().unwrap_or(""));
             badge.set_visible(data.badge.is_some());
         }
-        row.set_opacity(if data.enabled { 1.0 } else { 0.5 });
+        row.set_sensitive(data.enabled);
     });
     let view = gtk::ListView::new(Some(selection.clone()), Some(factory));
-    view.add_css_class("xpalette-list");
+    view.add_css_class("navigation-sidebar");
     view.set_focusable(false);
-    view.set_single_click_activate(false);
-
+    view.set_single_click_activate(true);
     (store, selection, view)
 }

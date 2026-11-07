@@ -143,18 +143,6 @@ impl Palette {
              .xpane:focus-within:not(:only-child) {{ border-top-color: {accent}; }}\n\
              .xfind {{ background: {panel}; border-bottom: 1px solid {border}; padding: 4px 8px; }}\n\
              .xplaceholder {{ background: {bg}; color: {muted}; }}\n\
-             .xscrim {{ background: alpha(black, 0.38); }}\n\
-             .xpalette {{ background: {elevated}; border: 1px solid {border}; border-radius: 10px; box-shadow: 0 16px 48px alpha(black, 0.55); }}\n\
-             .xpalette entry.xpalette-entry {{ background: transparent; border: none; box-shadow: none; outline: none; min-height: 44px; padding: 0 16px; font-size: 1.1em; border-radius: 10px 10px 0 0; border-bottom: 1px solid {border}; }}\n\
-             .xpalette listview.xpalette-list {{ background: transparent; padding: 6px; }}\n\
-             .xpalette listview.xpalette-list > row {{ border-radius: 6px; padding: 0; min-height: 34px; background: transparent; }}\n\
-             .xpalette listview.xpalette-list > row:selected {{ background: {selected}; box-shadow: inset 2px 0 {accent}; border-radius: 0 6px 6px 0; }}\n\
-             .xp-row {{ padding: 6px 12px; }}\n\
-             .xp-title {{ font-size: 0.97em; }}\n\
-             .xp-detail {{ color: {muted}; font-size: 0.82em; }}\n\
-             .xp-badge {{ color: {muted}; font-size: 0.72em; font-weight: 700; letter-spacing: 0.06em; padding: 1px 6px; border: 1px solid {border}; border-radius: 4px; }}\n\
-             .xp-empty {{ color: {muted}; padding: 14px 16px; }}\n\
-             .xp-hint {{ color: {muted}; font-size: 0.78em; padding: 7px 16px 9px 16px; border-top: 1px solid {border}; }}\n\
              .xeditor-scroll {{ background: {bg}; }}\n\
              .xgutter {{ min-width: 20px; margin-right: 0; }}\n\
              .xrow-close {{ min-width: 20px; min-height: 20px; padding: 0; opacity: 0; }}\n\
