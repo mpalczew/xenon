@@ -20,3 +20,8 @@
 - [ ] Phone remote gaps: tasks, mouse clicks, dim text, OSC 8 links, cursor hiding, the
       phone's own light/dark choice
 - [ ] Language servers, written new if at all
+- [ ] Git section has no draggable height
+- [ ] Editor diff gutter
+- [ ] Markdown prose mode: Paper surface, quote rule, round bullets, table grid, code
+      highlighting, list continuation on Return
+- [ ] The diff tab is not part of the saved layout
