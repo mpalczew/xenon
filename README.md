@@ -51,20 +51,16 @@ Market this honestly: **anti-IDE shell where the agent is free to leave.**
 ## Features
 
 - **Multi-workspace sessions** — project roots with saved layout and tabs
-- **SSH workspaces** — browse/edit remote text files and reconnect to persistent agent
-  terminals; [setup and current scope](docs/ssh-workspaces.md)
 - **First-class terminals** — not a drawer; agents live as tabs (and splits)
-- **Editors when you need them** — tree-sitter highlighting, find, vim mode, LSP for
-  Rust and TypeScript
+- **Editors when you need them** — GtkSourceView highlighting, find, vim mode
 - **Pane tree** — horizontal/vertical splits; drag tabs to move or split
 - **Ctrl-p family** — file finder, command palette, task runner
 - **Keyboard-first** — every daily flow works without a mouse
-- **Claude Code IDE bridge** — optional open-file / workspace hooks via local MCP
 - **Phone remote** — Ctrl+Shift+M shows a QR code; drive your agents' terminals from
   your phone over [Tailscale](https://tailscale.com) or Headscale (tailnet only, never
   your Wi-Fi; installable web app, special-key row, terminal re-wraps to phone width)
 - **Themes** — dense dark defaults; True Black opt-in
-- **Native** — Rust on GPUI (Zed’s UI stack). Instant feel is a product requirement
+- **Native** — Rust on GTK 4, libadwaita and VTE. Instant feel is a product requirement
 
 ---
 
@@ -74,11 +70,11 @@ Linux only (Ubuntu 24.04+, Wayland or X11). Today you build from source.
 
 ### Prerequisites
 
-| Tool                   | Notes                                                  |
-| ---------------------- | ------------------------------------------------------ |
-| **Rust**               | stable (`rustup`); edition 2024                        |
-| **Build tools**        | `build-essential cmake clang lld pkg-config` and so on |
-| **GTK 4 stack**        | GTK 4, libadwaita, VTE and GtkSourceView 5 (dev files) |
+| Tool            | Notes                                                  |
+| --------------- | ------------------------------------------------------ |
+| **Rust**        | stable (`rustup`); edition 2024                        |
+| **Build tools** | `build-essential cmake clang lld pkg-config` and so on |
+| **GTK 4 stack** | GTK 4, libadwaita, VTE and GtkSourceView 5 (dev files) |
 
 ### Build and install
 
@@ -93,8 +89,8 @@ git clone https://github.com/mpalczew/xenon.git && cd xenon
 
 Installs the GTK app as `~/.local/share/xenon/xenon-bin`, the slot launcher as
 `~/.local/bin/xenon` (and `~/bin/xenon` when that directory exists), and a `.desktop`
-entry with an icon. `XENON_APP_DIR` and `XENON_BIN_DIR` override. Update with `git pull && ./scripts/release/install`. Quit is
-`ctrl-q`.
+entry with an icon. `XENON_APP_DIR` and `XENON_BIN_DIR` override. Update with `git pull
+&& ./scripts/release/install`. Quit is `ctrl-q`.
 
 Start Xenon with `xenon`. State lives in two slot directories, `~/.xenon-a` and
 `~/.xenon-b`. With one instance running, `xenon` copies its state to the other slot and
@@ -105,7 +101,7 @@ instance. The phone remote and its paired devices are shared (`~/.xenon-shared`)
 ### Dev loop
 
 ```bash
-cargo run -p xenon          # debug
+cargo run -p xenon_gtk      # debug
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 scripts/health              # full gate: fmt + clippy + shape
@@ -156,17 +152,17 @@ run agents this way—not vanity stars.
 
 ## Stack
 
-| Piece            | Role                                       |
-| ---------------- | ------------------------------------------ |
-| `xenon`          | App binary, window, menus                  |
-| `xenon_ui`       | Shell: workspaces, panes, palettes, chrome |
-| `xenon_core`     | Pure session / workspace model             |
-| `xenon_store`    | `~/.xenon` JSON persistence                |
-| `xenon_terminal` | PTY + terminal view (Zed terminal backend) |
-| `xenon_editor`   | Rope buffer + tree-sitter editor           |
-| `xenon_finder`   | Ignore-respecting walk + fuzzy match       |
-| `xenon_ide`      | Claude Code local IDE / MCP bridge         |
-| `xenon_lsp`      | stdio LSP host (Rust, TypeScript)          |
+| Crate            | Role                                          |
+| ---------------- | --------------------------------------------- |
+| `xenon_gtk`      | The app: window, panes, terminals, editor     |
+| `xenon_core`     | Pure session / workspace / pane-tree model    |
+| `xenon_store`    | `~/.xenon` JSON persistence, CLI, open socket |
+| `xenon_settings` | Settings model                                |
+| `xenon_keymap`   | Default key bindings and `keymap.json`        |
+| `xenon_git`      | Git status and diff model                     |
+| `xenon_finder`   | Ignore-respecting walk + fuzzy match          |
+| `xenon_prose`    | Markdown prose mode                           |
+| `xenon_remote`   | Phone remote server                           |
 
 Product vision: [`PRODUCT.md`](PRODUCT.md). Visual system: [`DESIGN.md`](DESIGN.md).
 
@@ -177,9 +173,9 @@ Product vision: [`PRODUCT.md`](PRODUCT.md). Visual system: [`DESIGN.md`](DESIGN.
 Issues and PRs that improve the multi-agent daily path are welcome. Prefer signal over
 volume—low-effort generated noise costs more than it helps.
 
-**Before you open a PR:** run `scripts/health` (or `fmt` / `clippy` as in
-the README install section). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full bar,
-and [`PRODUCT.md`](PRODUCT.md) before chrome or positioning changes.
+**Before you open a PR:** run `scripts/health` (or `fmt` / `clippy` as in the README
+install section). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full bar, and
+[`PRODUCT.md`](PRODUCT.md) before chrome or positioning changes.
 
 ---
 

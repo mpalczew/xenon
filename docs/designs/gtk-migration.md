@@ -1,49 +1,36 @@
-# GTK migration: remaining work
+# GTK app: rules and remaining gaps
 
-The GTK app (`crates/xenon_gtk`) is the app. The GPUI crates stay only as the reference
-for text and behaviour until they are deleted. The task list is `.xenon/worklist.md`;
-this page holds the rules for porting and the gaps in detail.
+The GTK app (`crates/xenon_gtk`) is the only app. The task list is `.xenon/worklist.md`;
+this page holds the building rules and the gaps in detail.
 
-## Porting rule
-
-Copy user-visible text from the GPUI app word for word and in the same order: labels,
-hints, tooltips, empty states and settings text. Never reword, invent or drop any of it.
-When both frontends show a string, move it into a GPUI-free crate so both read the same
-one. Text for a GTK-only control is new; say so in the report.
+## Rules
 
 Prefer GTK, libadwaita, VTE and GtkSourceView built-ins over our own widgets, drawing
-and logic, even where the look differs from the GPUI app. Fewer lines beat a pixel
+and logic, even where the look differs from the old GPUI app. Fewer lines beat a pixel
 match. Write our own only when no built-in does the job, and say why in the report.
+
+User-visible text that is shared between features lives in a GTK-free crate. Text for a
+new control is new; say so in the report.
 
 ## Shared crates
 
-Rules both frontends use live in GPUI-free crates, so the GTK code only draws:
-`xenon_core` (workspaces, pane tree, attention and working status, titles, tasks),
-`xenon_store` (files under the state dir, CLI parsing, the `xenon open` socket
-protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
-`xenon_remote`, `xenon_prose`. `xenon_lsp` waits for its GTK port.
+Rules live in GTK-free crates, so the GTK code only draws: `xenon_core` (workspaces,
+pane tree, attention and working status, titles, tasks), `xenon_store` (files under the
+state dir, CLI parsing, the `xenon open` socket protocol), `xenon_settings`,
+`xenon_git`, `xenon_finder`, `xenon_keymap`, `xenon_remote`, `xenon_prose`.
 
 ## Gaps
 
-- **Toolbar.** Not drawn yet: Go Back and Go Forward, Cut, Toggle File Tree,
-  Save (shown when an editor is dirty).
+- **Toolbar.** Go Back, Go Forward, Cut and Toggle File Tree are not drawn.
 - **Empty screen.** The Command Palette, Focus Editor and Keyboard Shortcuts rows are
   listed with their keys but do nothing.
 - **Sidebar.** The Git section has no draggable height.
-- **Editor.** No LSP and no diff gutter. Themes still come from the bundled Zed themes
-  instead of following the system.
-- **Markdown prose mode.** No Paper surface, quote rule, round bullet glyphs, table grid,
-  code highlighting or list continuation on Return (see DESIGN.md).
+- **Editor.** No language servers and no diff gutter.
+- **Markdown prose mode.** No Paper surface, quote rule, round bullet glyphs, table
+  grid, code highlighting or list continuation on Return (see DESIGN.md).
 - **`xenon open`.** `--pane` and the column in `path:line:col` are ignored.
-- **Missing features.** Command palette, divider resize from the keyboard. The diff tab is not part of the saved layout (same as GPUI).
+- **Missing features.** Command palette, divider resize from the keyboard. The diff tab
+  is not part of the saved layout.
 - **Phone remote.** Tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML has no
   markup for them), cursor hiding, and the phone's own light/dark choice (the phone
   always gets the computer's terminal colors).
-
-## Deleting GPUI
-
-Delete `crates/xenon`, `xenon_ui`, `xenon_terminal`, `xenon_editor`,
-`xenon_design_system`, `third_party/`, `xenon_ide` and `xenon_ssh` (not ported), the
-`visual-tests` feature, and the code in shared crates that only GPUI uses (the diff
-parser in `xenon_git`, the GPUI copy of `TerminalActivity`). Do it after the text the
-GTK app still needs has been copied.

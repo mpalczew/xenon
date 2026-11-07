@@ -17,19 +17,17 @@ Status: implemented. Spec: VS Code
 
 ## Code map
 
-| Piece                                         | Where                                                                                          |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| JSONC parse, OS overrides, file-level globals | `xenon_core/src/tasks/parse.rs`                                                                |
-| Typed definitions                             | `tasks/model.rs`                                                                               |
-| `${...}` variables                            | `tasks/vars.rs`                                                                                |
-| Command line, spawn args, secret redaction    | `tasks/resolve.rs`                                                                             |
-| `dependsOn` state machine                     | `tasks/plan.rs`                                                                                |
-| Background readiness                          | `tasks/background.rs`                                                                          |
-| folderOpen closure and approval hash          | `tasks/trust.rs`                                                                               |
-| Runs, tabs, inputs (model)                    | `xenon_ui/src/app/task_runs.rs`, `task_tabs.rs`, `task_inputs.rs`, `task_trust.rs`, `tasks.rs` |
-| Task terminal (exit code, output watch)       | `xenon_terminal/src/view/task_run.rs`                                                          |
-| Approval store                                | `xenon_store/src/task_trust.rs`                                                                |
-| Phone                                         | `xenon_ui/src/app/remote/tasks.rs`, `xenon_remote`, `page.html`                                |
+| Piece                                         | Where                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| JSONC parse, OS overrides, file-level globals | `xenon_core/src/tasks/parse.rs`                                     |
+| Typed definitions                             | `tasks/model.rs`                                                    |
+| `${...}` variables                            | `tasks/vars.rs`                                                     |
+| Command line, spawn args, secret redaction    | `tasks/resolve.rs`                                                  |
+| `dependsOn` state machine                     | `tasks/plan.rs`                                                     |
+| Background readiness                          | `tasks/background.rs`                                               |
+| folderOpen closure and approval hash          | `tasks/trust.rs`                                                    |
+| Runs, tabs, inputs, trust card (GTK)          | `xenon_gtk/src/model_tasks.rs`, `tasks.rs`, `tasks_ui.rs`, `tasks/` |
+| Approval store                                | `xenon_store/src/task_trust.rs`                                     |
 
 ## Mapping: VS Code field to Xenon behaviour
 
@@ -81,13 +79,12 @@ layout like any terminal tab, so after a restart they come back as plain shells.
 
 ## Run model
 
-`start_task` (the Mac picker, ⌘⇧B, folderOpen and the phone all call it): load and parse
-tasks.json, plan the dependsOn closure (`Orchestrator`), collect `${input:...}` ids
-across the closure, ask them one at a time, then launch. Each `Action::Launch` resolves
-one task against a `VarContext` and spawns a terminal. Terminal events drive the
-orchestrator: process exit 0 or a background task becoming ready satisfies a node; any
-other exit fails the run (toast naming the task, "the dependsOn chain stopped" for a
-dependency).
+`start_task` (the picker, ⌘⇧B and folderOpen all call it): load and parse tasks.json,
+plan the dependsOn closure (`Orchestrator`), collect `${input:...}` ids across the
+closure, ask them one at a time, then launch. Each `Action::Launch` resolves one task
+against a `VarContext` and spawns a terminal. Terminal events drive the orchestrator:
+process exit 0 or a background task becoming ready satisfies a node; any other exit
+fails the run (toast naming the task, "the dependsOn chain stopped" for a dependency).
 
 ## Trust
 
@@ -110,27 +107,11 @@ dependency).
   process in its argv or env as the task wrote it. The echoed command line and the
   picker blank secret values. (Argv is visible to other local processes; prefer `env` in
   tasks.json.)
-- The phone cannot approve folderOpen: that stays a Mac-side prompt. A paired device can
-  already type into any terminal, so letting it run tasks gives it no new privilege. See
-  the phone section.
-
-## Phone
-
-Contract in `docs/designs/mobile-remote-v2.md`. A paired phone sees a **Tasks** row next
-to New terminal in a workspace's terminal list. The list entries carry label, detail,
-resolved command line, group/default and the unsupported reason. Run is the same
-`start_task` as the Mac picker (same resolve, dependsOn, presentation, task tab),
-against `services.main_window` and the workspace asked for. A phone run never changes
-the Mac's selected tab or focus. When the root task's terminal exists the Mac sends
-`taskStarted` and the page attaches to it. Inputs are asked on the phone that started
-the run; the answer returns with the token and is accepted only from that connection. A
-password is masked on the page, cleared from the field once sent, never put in
-localStorage, redacted in `Debug` output of the message, and handed to the process as
-the Mac does.
 
 ## Unsupported, on purpose
 
 Extension-contributed task types and `command` inputs; `dependsOn` by task identifier;
-Problems panel and problem matchers (other than readiness); remote (SSH) workspaces
-(tasks run on this Mac); `windows` overrides; `${command:...}`; per-task
-`instanceLimit`; terminal-reuse messaging.
+Problems panel and problem matchers (other than readiness); `windows` overrides;
+`${command:...}`; per-task `instanceLimit`; terminal-reuse messaging.
+
+The phone remote cannot run tasks yet (see `.xenon/worklist.md`).

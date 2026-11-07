@@ -37,7 +37,7 @@ accelerating. A daily-driver shell for parallel agent work is the bet.
 ## Naming
 
 App: `xenon-bin`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` / `XENON_SLOT`.
-Bundle id `dev.xenon.xenon`. Crate paths `crates/xenon_*`. GitHub: `mpalczew/xenon`
+App id `dev.xenon.Xenon`. Crate paths `crates/xenon_*`. GitHub: `mpalczew/xenon`
 (public). Checklist: `docs/release.md`.
 
 ## Anti-IDE (product rule, not slogan)
@@ -95,8 +95,7 @@ works, it directly helps real daily work.
   an intentional reserved empty pane; reserved panes persist as layout slots and can be
   removed with their pane-level ×. When the content area is fully empty, show the
   existing empty state (keep the area; teach ⌘N / open). Sidebar (workspaces + files) is
-  optional chrome, not a third content column. This replaced the older fixed
-  terminal|editor split. Detail: `docs/designs/pane-tree-layout.md`.
+  optional chrome, not a third content column.
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special config for
   a default Claude install. Not a deep multi-provider control plane (yet); the vision is
   the shell, not reimplementing every harness UI.
@@ -111,7 +110,7 @@ works, it directly helps real daily work.
    (or Grok, Kimi, …) in Xenon, continue the same session in another terminal / another
    host / another machine that has the harness. The agent is not trapped inside an
    IDE-private protocol.
-3. **Everything feels instant.** Native Rust / GPUI. Typing and switching must stay
+3. **Everything feels instant.** Native Rust on GTK. Typing and switching must stay
    better than Electron-class tools (e.g. Studio feels like a downgrade). Protect
    latency; no decorative motion tax.
 4. **Linux-native daily driver** with a clean install path (`scripts/release/install`
@@ -128,10 +127,7 @@ second-class or forked.
 Xenon inverts that:
 
 - **Harness is primary** (PTY + files on disk).
-- **IDE is optional garnish** for harnesses that speak Claude’s IDE bridge
-  (`~/.claude/ide/*.lock` WebSocket MCP): open file, workspace roots, etc.
-- Other harnesses still work without that bridge; Claude gets the bridge when useful.
-  Skills / AGENTS.md / resume paths stay the harness’s own.
+- Skills / AGENTS.md / resume paths stay the harness’s own.
 
 Market this: **anti-IDE shell where the agent is free to leave.**
 
@@ -169,19 +165,15 @@ and GitHub (`mpalczew/xenon`, public). Remaining packaging: a Linux package form
 
 ## Brand personality
 
-Cool, dense, calm cockpit. Power-user confident, not playful mascot. Themes are product
-surface: trust defaults, screenshot identity, and personality.
+Cool, dense, calm cockpit. Power-user confident, not playful mascot.
 
 ## Visual direction (chrome)
 
-- **Option 2 now:** selection language, elevation, shared chrome primitives, theme-aware
-  attention, consistent icons.
+- **Option 2 now:** selection language, stock libadwaita chrome, attention colors,
+  consistent icons.
 - **Option 3-lite:** agent-cockpit bias (workspace attention, terminal status, cool
   density) without a full IA rewrite yet.
-- **Default dark:** One Dark. Neon Noir stays in the pack for screenshots.
-- **Default light:** One Light with a white canvas (not a gray slab).
-- **True Black:** opt-in pure black; selection must stay multi-channel.
-- **Tone:** cool (blues / cyans / violets preferred for dogfood).
+- **Look:** the desktop's own light or dark libadwaita look; no theme packs.
 
 ## Anti-references
 
@@ -201,22 +193,20 @@ surface: trust defaults, screenshot identity, and personality.
    multi-surface inside a workspace.
 4. **Shell first, IDE bones second.** Tabs / tree / cmd-p stay familiar; the
    multi-workspace agent cockpit is the new idea.
-5. **Themes must not break structure.** Elevation and selection survive every bundled
-   theme, including True Black.
-6. **Empty states teach once.** Short power-user copy; no forced tours.
-7. **Harness-agnostic by default.** Prefer zero-config terminal integration over
+5. **Empty states teach once.** Short power-user copy; no forced tours.
+6. **Harness-agnostic by default.** Prefer zero-config terminal integration over
    harness-specific lock-in.
-8. **Keyboard-first (mouseless).** Every complete flow is operable without a mouse.
+7. **Keyboard-first (mouseless).** Every complete flow is operable without a mouse.
    Design actions + keybindings + focus + Escape first; mouse is additive. Prefer in-app
    palettes for frequent power-user work; native pickers are Browse… escape hatches, not
    the only path. Agent rule: `AGENTS.md` § Keyboard-first.
 
 ## Accessibility
 
-- High-contrast theme remains available.
+- The desktop's high-contrast setting is honored.
 - Selection and attention should not rely on color alone where practical.
-- Prefer theme tokens over hard-coded hex in chrome.
-- Keyboard operability is product, not a late a11y pass (see principle 8).
+- Prefer libadwaita's named colors over hard-coded colors in chrome.
+- Keyboard operability is product, not a late a11y pass (see principle 7).
 
 ## Out of scope (for now)
 
@@ -224,7 +214,4 @@ surface: trust defaults, screenshot identity, and personality.
 - Replacing every agent harness's own UI.
 - Full Option 3 agent-rail redesign until Option 2 chrome system exists.
 - Deep multi-provider control plane (shell stays primary).
-- Full Chrome replacement and agent-driven in-app browsing remain out of scope. A
-  focused WebKit tab for opening links is in scope; see
-  `docs/designs/embedded-browser.md`.
-- Agent-driven in-app browser (the harness owns computer-use).
+- An in-app browser. Links open in the default app (the harness owns computer-use).

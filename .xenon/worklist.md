@@ -8,7 +8,7 @@
     Servers settings rows.
   - SSH workspaces: `xenon_ssh`, the SSH page and toasts, `ssh://` in the picker.
   - Code in shared crates that only GPUI used (the `xenon_git` diff parser and more).
-- [ ] Docs audit: delete anything redundant or out of date
+- [x] Docs audit: delete anything redundant or out of date
 
 ## Next
 

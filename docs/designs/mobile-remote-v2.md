@@ -1,27 +1,10 @@
 # Tech design: Mobile remote v2 (phone as a real Xenon client)
 
-**Status:** draft — decisions A–E settled; mock approved 2026-09-29; implementing
-**Date:** 2026-09-29 **Supersedes:** `mobile-pty-remote.md` (v1: PNG polling, shipped as
-`fc3cff4`)
-
----
-
-## Stage 0: Codebase context
-
-| Piece        | Path                                                   | Today                                                                                                                                          |
-| ------------ | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| HTTP server  | `crates/xenon_remote/src/server.rs`                    | Hand-rolled HTTP/1.1, thread per connection, bound `0.0.0.0:17890` (v1; v2 binds the tailnet IP and loopback only)                             |
-| Auth         | `xenon_remote/src/auth.rs`, `server.rs:TicketStore`    | Shared password (UUID) → 12h in-memory ticket; `?token=` in URL; no rate limit                                                                 |
-| Host bridge  | `xenon_remote/src/host.rs` `HostRequest`               | `async_channel` → GPUI task → `XenonApp::handle_remote_request` (`xenon_ui/src/app/remote/mod.rs`)                                             |
-| Frame        | `xenon_ui/src/app/remote/host.rs:capture_remote_frame` | `TerminalView::viewport_cells` (chars only) → `viewport_lines` → 5×7 mono PNG (`png_frame.rs`). Seq bumps every call → `since` 204 never fires |
-| Input        | `TerminalView::inject_text`                            | Page always appends `\r`; no named keys. `try_keystroke` exists (`xenon_terminal/src/view/mod.rs:609`) and respects app-cursor mode            |
-| Resize       | `TerminalView::ensure_grid_size`                       | Only heals never-laid-out PTYs; desktop layout owns size                                                                                       |
-| Attention    | `xenon_ui/src/app/attention.rs`                        | Per-tab `Working` / `Attention(Bell\|IdleSettled)` → workspace dot                                                                             |
-| Settings     | `xenon_store/src/settings.rs:118-131`                  | `remote_password`, `remote_port`, `remote_hostname`. No `remote_enabled`                                                                       |
-| Settings UI  | `xenon_ui/src/settings/remote_section.rs`              | Toggle + click-to-copy URLs                                                                                                                    |
-| Tailscale    | `remote/mod.rs:tailscale_ipv4`                         | Shells `tailscale ip -4` (not on PATH for App Store Tailscale)                                                                                 |
-| WebSocket    | `tungstenite 0.24`                                     | Already a workspace dep (`xenon_ide`)                                                                                                          |
-| Visual tests | `crates/xenon/src/visual_test_runner/remote.rs`        | `remote_auth`, `remote_session` via Chrome                                                                                                     |
+**Status:** implemented in `crates/xenon_remote` (server, protocol, pairing) and
+`crates/xenon_gtk/src/remote*.rs` (the GTK side). This page keeps the scope, contract
+and decisions. Not in the GTK app yet: tasks, mouse clicks, dim text, OSC 8 links,
+cursor hiding, the phone's own light/dark choice (`.xenon/worklist.md`). **Date:**
+2026-09-29
 
 ---
 
@@ -42,11 +25,10 @@ drive my running agents from my phone, so I never use the remote.
    keybinding opens a pairing sheet with QR; sidebar status indicator (off / on / phone
    connected); optional keep-awake while a phone is connected (opt-in, off by default).
 3. **Read** — cell-grid frames (text + resolved RGB + attrs + cursor) rendered as real
-   text on the phone; WebSocket push on PTY wakeup with row deltas; scrollback on
-   demand.
+   text on the phone; WebSocket push when the terminal changes; scrollback on demand.
 4. **Fit** — phone-sized PTY while the phone drives (Decision A).
-5. **Type** — key strip (Esc, ^C, Tab, ⇧Tab, ↑↓←→, 1 2 3, ⏎) via named keys →
-   `try_keystroke`; text field with send-with/without-Enter.
+5. **Type** — key strip (Esc, ^C, Tab, ⇧Tab, ↑↓←→, 1 2 3, ⏎) via named keys; text field
+   with send-with/without-Enter.
 6. **App feel** — installable PWA (manifest, icon, standalone); durable per-device
    login; workspace list shows working/attention dots so I can see which agent needs me.
 7. **Security** — no token in logs, no `ACAO: *`, auth rate limit, WS Origin check,
@@ -173,7 +155,7 @@ viewport and sends `fit` on attach and on rotate/resize.
   Option<FramePatch>`; `None` when identical. `FramePatch { seq, cols, rows, cursor,
   changed: Vec<(u16, Line)>, full: bool }`. `full` when dims change or no prev.
 - `NamedKey` — `Esc | CtrlC | Tab | ShiftTab | Up | Down | Left | Right | Enter |
-  Backspace`. Maps to a `gpui::Keystroke` on host → `try_keystroke` (app-cursor aware).
+  Backspace`. Sent to the terminal as keys (app-cursor aware).
 - `DeviceId` (uuid), `DeviceToken` (32 random bytes, base64url; only SHA-256 stored),
   `PairingCode` (6 digits + 128-bit URL secret; single use; TTL 10 min).
 - `Device` — `id, label (from UA, e.g. "iPhone Safari"), token_hash, created_at,
@@ -184,8 +166,6 @@ viewport and sends `fit` on attach and on rotate/resize.
 - `AttachId` — per-WS-connection subscription handle on host.
 - `PhoneFit` — `cols, rows: u16` requested by an attach. Invariant: clamped 20..=300 ×
   8..=200.
-- `SizeOverride` (on `TerminalView`) — `Option<(u16, u16)>`; when `Some`, the element
-  lays out that grid instead of its bounds.
 
 **Modified**
 
@@ -196,14 +176,9 @@ viewport and sends `fit` on attach and on rotate/resize.
   Option<TailscaleAddr>`, `pairing: Option<PairingCode>`.
 - `HostRequest` — remove `CaptureFrame`; add `Attach`, `Detach`, `Key`, `History`,
   `Pair` (see contracts).
-- `TerminalView` — add `cell_snapshot(&self, cx, palette) -> Option<CellFrame>` and
-  `history_lines(before, count)` (scrollback read).
-
-**Removed:** `png_frame.rs`, `viewport_lines` (frame.rs), `image` dep, `FrameMeta`,
-`/api/frame`.
 
 **Relationships:** one `Device` : many WS connections over time; one WS connection : ≤ 1
-`Attach` (tab) at a time; `Attach` → one `Entity<TerminalView>` subscription.
+`Attach` (tab) at a time.
 
 **Transitions**
 
@@ -315,36 +290,6 @@ adds no privilege. See `docs/designs/vscode-tasks.md`. Close codes: `4401` unaut
 `4404` tab gone, `4409` replaced (same device attached elsewhere → allowed; not used
 v2).
 
-**Modified: `HostRequest` (xenon_remote ↔ xenon_ui)**
-
-```rust
-Attach { conn: AttachId, workspace_id, tab_id, out: Sender<ServerMsg>, reply }
-Detach { conn: AttachId }
-Text   { conn: AttachId, text: String }
-Key    { conn: AttachId, key: NamedKey }
-History{ conn: AttachId, before: i32, count: u16, reply }
-Pair   { code: String, label: String, reply }   // host owns device store + pairing state
-AuthDevice { token: String, reply: SyncSender<Option<DeviceId>> }
-```
-
-Host pushes frames/dots through `out`; the WS thread never polls the host for frames.
-
-**New: `xenon_terminal::TerminalView`**
-
-- `cell_snapshot(&self, cx: &App) -> Option<CellFrame>` — viewport cells with colors
-  resolved through the same palette path `TerminalElement` uses; wide-char spacers
-  skipped.
-- `history_lines(&self, before: i32, count: u16, cx: &App) -> Vec<Line>`.
-- `send_named_key(&mut self, key: NamedKey, cx)` — builds `Keystroke`, calls
-  `try_keystroke`.
-- Subscription: existing `terminal::Event::Wakeup` (already used for repaint) drives
-  remote push.
-
-**New: keep-awake (`xenon_ui` or small `xenon_platform` helper)**
-
-- `KeepAwake::acquire(reason) -> Guard` —
-  `IOPMAssertionCreateWithName(PreventUserIdleSystemSleep)`; drop releases.
-
 **Compat:** v1 phones get 404 on `/api/frame` → page reload serves v2 page → "Pair
 again". No migration of tickets (they were in-memory).
 
@@ -389,43 +334,6 @@ displayed or put in URLs.
 
 ## Stage 6: Data flow
 
-**Representative path: agent prints output → phone sees it**
-
-1. PTY bytes → zed `Terminal` → `Event::Wakeup` on the `TerminalView`'s terminal (GPUI
-   main thread).
-2. `XenonApp` remote host has a `cx.subscribe` for each attached tab (created on
-   `Attach`). On Wakeup: if no flush is scheduled, queue one immediately for responsive
-   mode (the default). Low bandwidth mode waits 33 ms to coalesce bursts (≤ 30 fps). The
-   browser persists this preference and sends `bandwidth { lowBandwidth }` before attach
-   and whenever it changes. The policy covers all terminal output, including TUI
-   redraws; there is no local echo or input/output classification.
-3. Flush: `view.cell_snapshot(cx)` → `FrameDiff(prev, next)` against that attach's
-   last-sent frame. `None` → nothing sent (idle = zero traffic). Else intern new styles,
-   build `ServerMsg::Frame` + optional `Styles`, `out.try_send`.
-   - Backpressure: `out` is bounded (4). If full, drop the patch and set `needs_full` →
-     next flush sends a full frame. Slow cellular can't grow memory.
-4. WS thread loop (blocking socket, 50 ms read timeout): drain `out` →
-   `tungstenite::send` (JSON text msg); then try read one client message.
-5. Phone: `onmessage` → apply patch to in-memory row array → re-render only changed row
-   `<div>`s (each row = spans with class per `StyleId`) → cursor overlay positioned by
-   `ch`/line-height units.
-6. Failure: send error → WS thread ends → drops `AttachId` → sends `Detach` → host drops
-   subscription. Phone reconnects with backoff, re-`attach`, gets `full` frame.
-
-**Fit path:** phone `fit` → host records `PhoneFit` on the attach → if Mac-idle rule
-holds, `view.set_size_override(Some(..))` → PTY `set_size` → agent reflows → Wakeup →
-full frame (dims changed). Mac keyboard input on that tab → `set_size_override(None)` →
-next layout restores desktop size.
-
-**Input path:** key strip tap → `{"t":"key","key":"ctrl-c"}` → WS thread →
-`HostRequest::Key` → host resolves attach → `view.send_named_key` → `try_keystroke` →
-PTY. Text field send → `text` (+ `key:enter` if ⏎ toggle on).
-
-**Async boundaries:** GPUI main thread (snapshot, diff, keystroke) ↔ `async_channel` ↔
-per-connection OS thread (socket I/O). Diff runs on main thread; cost is O(rows × cols)
-only when dirty — acceptable at 120×40. If profiling shows jank, move diff to the WS
-thread by sending snapshots instead.
-
 **Trust boundaries:**
 
 - Listener: bound only to the Tailscale/CGNAT IP (100.64.0.0/10) and loopback; never a
@@ -460,12 +368,9 @@ thread by sending snapshots instead.
 at a readable size (~45×30 portrait). Host applies a size override to that tab's PTY
 while ≥1 phone is attached *and* the Mac has had no keyboard input on that tab for 30 s.
 Override released on detach or on Mac keyboard input to that tab (phone then sees the
-desktop size, fit-to-width, until the Mac goes quiet again). `TerminalView` gains a size
-override that `TerminalElement` respects: Mac draws the narrow grid top-left with an
-empty margin. Reverses v1's "phone never resizes" invariant.
-
-**B. Scrollback → spike on-demand history against the pinned zed rev; fallback = last
-1000 lines sent at attach.**
+desktop size, fit-to-width, until the Mac goes quiet again). The desktop draws the
+narrow grid top-left with an empty margin. Reverses v1's "phone never resizes"
+invariant.
 
 **C. Closed workspaces → keep, collapsed "Recent" section.** Reopening from the phone
 must not change the Mac's active workspace.
@@ -502,16 +407,12 @@ alongside the tailnet path, never in place of it.
 
 ## Implementation notes (2026-09-29)
 
-- Scrollback (Decision B): zed's terminal exposes only plain text beyond the viewport
-  (`get_content`), so history is the last 1000 lines as plain text, sent once per attach
-  on `{"t":"history"}`.
 - The long-lived remote password is gone (not the "root secret" above): devices hold
   per-device tokens; "Sign out all" clears `remote_devices.json`.
-- Keep-awake is a `caffeinate -i -w <pid>` child (Linux: `systemd-inhibit`), not an
-  IOKit assertion. It is opt-in ("Keep this Mac awake while a phone is connected", off
-  by default; the Connect Phone sheet row, ⌘K, and Settings › Phone Remote). State is
-  `Inhibitor::{Released, Held}`, synced from every published remote snapshot via
-  `should_hold(remote_on, opted_in, connected)`.
+- Keep-awake is a `systemd-inhibit` child. It is opt-in ("Keep this Mac awake while a
+  phone is connected", off by default; the Connect Phone sheet row, ⌘K, and Settings ›
+  Phone Remote). State is `Inhibitor::{Released, Held}`, synced from every published
+  remote snapshot via `should_hold(remote_on, opted_in, connected)`.
 - Heartbeat: the page sends `{"t":"ping"}` every 15s; the socket thread answers
   `{"t":"pong"}`. The page treats 5s of silence after a ping as a dead socket.
 - Tab chip shows `title · iPhone` while a phone fit is active (no icon).

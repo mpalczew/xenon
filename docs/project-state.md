@@ -12,8 +12,6 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   neighbours; it is keyed by the last leaf before it. `MAX_NEST_DEPTH` counts axis
   alternations, `MAX_SPLIT_CHILDREN` caps a row. Old saved `first/second/ratio` layouts
   load through a serde shim and are rewritten flat.
-- SSH workspaces use a bundled Python file helper over OpenSSH and tmux-owned persistent
-  terminals. Scope and requirements: [SSH workspaces](ssh-workspaces.md).
 - There is no user-facing stream concept. Parallel agents use terminal tabs and/or
   multiple workspaces.
 - Terminals and editors are peer surfaces in pane tab stacks. PTYs are not restored
@@ -21,25 +19,21 @@ only cross-cutting decisions and traps that are expensive to rediscover.
 - The Files tree lives under Workspaces in the optional sidebar. When both are open,
   Workspaces sizes to content (or a user-pinned height); drag the split between sections
   to resize. Files takes the remainder.
-- The Git section sits under Files for the active workspace (hidden for SSH and non-git
-  folders). Its collapse state and pinned body height persist in `settings.json`
-  (`git_collapsed`, `git_section_height`); its top edge is the resize handle. Enter on a
-  row opens a read-only diff tab (`LiveTab::Diff`, model `diff_model.rs`, loader
-  `diff_load.rs`, drawing `diff_rows.rs`) in `content.focused`, reusing an open tab for
-  the same path. Diff tabs are not persisted: restart drops them and the Git section
-  reopens them. They reload on the git-dirt FS debounce. Auto layout is split at 860px
-  pane width and up.
+- The Git section sits under Files for the active workspace (hidden for non-git
+  folders). Enter on a row opens a read-only diff tab in the focused pane, reusing an
+  open tab for the same path. Diff tabs are not persisted: restart drops them. They
+  reload when the Git section reports a change. Auto layout is split at 860px pane width
+  and up.
 - Attention is per terminal tab: static warning after BEL or inferred idle-after-output;
   pulsing info while that terminal is in an agent-sized burst. The latter is local
   inference, not an agent completion event. Working outranks a settled mark on the same
   tab. The workspace row aggregates its terminals (any working → working; else any
   attention → attention). Viewing or using a tab dismisses only that tab.
-- The Claude IDE bridge is optional garnish. PTY session portability is the product
-  boundary. Agent chrome uses `xenon open` (CLI + managed skill under
-  `~/.agents/skills/xenon` and friends). Skill install state is global
-  (`~/.xenon-skill.json`), not per-slot `settings.json`. PTYs inject `XENON_DATA_DIR` so
-  open targets this instance. Dogfood (both A/B live): `which xenon` is still
-  `~/bin/xenon`; A/B routing is that env plus the launcher’s `open` handler
+- PTY session portability is the product boundary. Agent chrome uses `xenon open` (CLI +
+  managed skill under `~/.agents/skills/xenon` and friends). Skill install state is
+  global (`~/.xenon-skill.json`), not per-slot `settings.json`. PTYs inject
+  `XENON_DATA_DIR` so open targets this instance. Dogfood (both A/B live): `which xenon`
+  is still `~/bin/xenon`; A/B routing is that env plus the launcher’s `open` handler
   (`scripts/xenon`, copied to `~/bin/xenon` by `scripts/release/install`). The installed
   binary is `xenon-bin` (default `~/.local/share/xenon`). Cold start from the desktop
   entry or login: no data-dir env → last slot from `~/.xenon-active-slot` when
@@ -48,11 +42,8 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   not flip slots). Launching while running activates; it does not spawn the other slot.
   Public ship without the marker file is one instance at `~/.xenon`.
 - No embedded web browser or webview tab. Terminal URLs and `.html` / `.htm` / `.pdf`
-  hand off to the system default app. Markdown prose mode is a GPUI document (see
-  Markdown prose below). Agent computer-use stays in the harness (Playwright, Chrome,
-  browser MCP). Revisit an in-app preview only if GPUI grows an overlay-safe webview, or
-  a time-boxed spike plus dogfood evidence that the system-browser hop is a weekly
-  blocker.
+  hand off to the system default app. Agent computer-use stays in the harness
+  (Playwright, Chrome, browser MCP).
 
 ## Load-bearing choices
 
@@ -67,101 +58,44 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   page, and an open-source app cannot depend on a hosted relay, so the user's tailnet is
   the encrypted transport. Saved `remote_network` values are ignored.
 - `.vscode/tasks.json` exposes only the `xenon` and `install` (`bin/install`) tasks.
-  Build/fmt/lint/health run via cargo or `scripts/*`; do not invent extra task
-  labels. Every local build uses the plain `dev` profile (optimized, incremental) in `target/debug`; the pre-commit hook is
-  the gate, `scripts/health` the full run.
-- Linux X11: `third_party/gpui_linux` is zed `ced90fc` plus one fix. Portal appearance
-  callbacks must drop the `X11Client` borrow before they call back, or `with_common`
-  panics while `xdg-desktop-portal` is running. Re-copy that crate from the pin and
-  re-apply the fix when bumping zed.
-- `xenon open` / IDE openFile on a file: the longest open workspace root containing it
-  wins; otherwise it opens in the current workspace, even outside every root. Closed
-  workspaces never reopen for a file (a closed `~` would claim all of home).
+  Build/fmt/lint/health run via cargo or `scripts/*`; do not invent extra task labels.
+  The pre-commit hook is the gate, `scripts/health` the full run.
+- `xenon open` on a file: the longest open workspace root containing it wins; otherwise
+  it opens in the current workspace, even outside every root. Closed workspaces never
+  reopen for a file (a closed `~` would claim all of home).
 - Known open/closed workspaces outrank filesystem discovery. Workspace MRU is persisted;
   file MRU is an in-memory tiebreaker only.
-- Cmd-P serves its cached index immediately and refreshes in the background. It still
-  respects ignore rules and skips heavy directories.
-- ⌘[ and ⌘] are browser-style surface/location history, not tab cycling.
-- Editor and terminal find share UX but not implementation. Vim search is a separate
-  modal flow with smartcase.
-- The embedded Vim layer is intentionally good-enough, not a Neovim host. Operators
-  compose with motions: `dd`/`yy`/`cc`/`>>` are the line motion `_` (count lines), not a
-  special "delete this line." Prefix count and motion count multiply (`2dd` = 2 lines,
-  `2dj` = 3, `2d3d` = 6). Headless Neovim is the test oracle when `nvim` is on PATH; it
-  is not the runtime. Daily edits cover join (`J`/`gJ`), `D`/`C`/`Y`/`S`, indent
-  (`>>`/`<<`/`=`), number bump (`Ctrl-a`/`x`), `zz`, and visual-block (`Ctrl-v` with
-  multi-range paint and blockwise registers). Indent uses a fixed 4-space shiftwidth (no
-  setting). Still missing muscle-memory extras such as case ops, `R`/`U`, rich
-  motions/objects, marks, macros, and full virtualedit block quirks.
-- Settings geometry and chrome preferences share `settings.json`; partial saves use the
-  locked load-mutate-save boundary and preserve fields they do not own.
-- Themes: ten families (see DESIGN.md), picked in the ⌘⌥T side panel. Browsing previews
-  live without saving; Keep writes that appearance slot only (Mode unchanged), and every
-  other way of closing restores the saved theme. Terminals are not resized: the panel
-  overlays the right edge. Settings is a sidebar of seven pages (Appearance, Fonts,
-  Editor, Terminal, Agents, Phone Remote, Language Servers) with search across every
-  row. Appearance, Fonts, and Editor lead with a live preview of the shell; Appearance
-  picks the on-screen slot's theme from five swatches. Window is 820×560. Rows are data
-  (`settings/row.rs`): paint, keys, and search read the same list. Remote port is shown
-  read-only (changing it would orphan paired phones); LSP on/off and server commands
-  apply live.
-- Sidebar paints `editor_background` (canvas). Toolbar stays `panel_background`.
-- The GTK app (`crates/xenon_gtk`, Linux) is the real app. It runs as A/B slots like the
-  GPUI app did: one process per slot (`ApplicationFlags::NON_UNIQUE`), state in `~/.xenon-a`
-  and `~/.xenon-b` (`XENON_DATA_DIR`, `XENON_SLOT`), phone-remote devices in
-  `~/.xenon-shared`. Both slots use the same remote port; the second waits and retries.
-  The app saves on change (sessions, registry, settings), so the launcher copies live
-  state when it flips slots. Window size is written when the window closes.
+- Settings share `settings.json`; partial saves use the locked load-mutate-save boundary
+  and preserve fields they do not own.
+- The app (`crates/xenon_gtk`, Linux) runs as A/B slots: one process per slot
+  (`ApplicationFlags::NON_UNIQUE`), state in `~/.xenon-a` and `~/.xenon-b`
+  (`XENON_DATA_DIR`, `XENON_SLOT`), phone-remote devices in `~/.xenon-shared`. Both
+  slots use the same remote port; the second waits and retries. The app saves on change
+  (sessions, registry, settings), so the launcher copies live state when it flips slots.
+  Window size is written when the window closes.
 - `xenon open` and `xenon <path>` reach a slot over its `ipc.sock` (`xenon_store::ipc`,
   served by `ipc.rs`). The app writes `xenon.pid` when it takes the socket. Shells keep
   `XENON_DATA_DIR`, so `xenon open` in a terminal reaches the slot that runs it. Files
   open in the focused pane; `--pane` and the column are not used yet.
 - The first launcher run after the move to GTK renames `~/.xenon-a` and `~/.xenon-b` to
-  `.gpui-old`, seeds the slot from `~/.xenon-gtk`, and writes `~/.xenon-slots-gtk` as the
-  marker. App id is `dev.xenon.Xenon`; the desktop entry is `xenon.desktop` with
+  `.gpui-old`, seeds the slot from `~/.xenon-gtk`, and writes `~/.xenon-slots-gtk` as
+  the marker. App id is `dev.xenon.Xenon`; the desktop entry is `xenon.desktop` with
   `StartupWMClass=dev.xenon.Xenon`.
-- Lilex is bundled and the default mono. GPUI still lists `.ZedMono` / `.ZedSans`
-  aliases; the pickers hide those unless the files exist.
 
 ## Gotchas
 
-- GPUI typed text arrives through `EntityInputHandler`, not ordinary key-down handlers.
-  Printable key handlers must return unhandled.
-- In-app menus are `xenon_design_system::menu_item` only; the row requires a `Shortcut`.
-  Command chords come from `commands::shortcut`.
-- A `deferred(anchored())` popup never dismisses on outside click by itself; give it
-  `on_mouse_down_out` (or a full-window dismiss layer) plus Escape.
-- App-level Cut/Copy/Paste no-op while a query overlay or rename field is open. Palettes
-  bind those actions through `bind_query_chrome`.
-- Palette and content teardown must route focus to a live surface or the shell.
-  `app/focus_guard.rs` backstops a missed transfer (keys must always reach the
-  `XenonApp` key context); it is a safety net, not the transfer.
 - A fresh PTY grid is tiny before first paint. Remote-only reopen must call
   `ensure_grid_size`.
 - Remote output defaults to responsive delivery, without a fixed frame delay. The
   browser's Low bandwidth toggle batches all output at 30 fps, including TUI redraws,
   and persists per browser. WebSocket I/O wakes on socket readiness or queued host
   output; TCP_NODELAY avoids buffering small updates.
-- Phone remote needs a `Window` for terminal snapshots (`Terminal::sync`); remote tasks
-  run against `services.main_window`, never the caller's window (Settings is a separate
-  window). Mac keyboard input suspends a phone fit for 30s
-  (`TerminalView::note_local_input`); remote input must not call it.
 - a/b slots: only one instance can own the phone-remote port; the other waits
   (`StartError::PortBusy`) and takes over when it is released. Paired devices live in
   `xenon_store::shared_dir()` (`~/.xenon-shared`), not the slot dir, so a phone stays
   paired across a slot flip.
-- GPUI allows one `.hover` per element and asserts in debug builds. Design system
-  controls own theirs: pass `ActionButton::hover_text` / `hover_background` instead of
-  chaining `.hover` after `action_button`.
-- GPUI `on_drag_move` fires on every listener for that drag type, hovered or not, and
-  `event.bounds` is the listener's own element. Filter by a unique drag key and register
-  on the element whose bounds the math needs (pane dividers: on each split, keyed by the
-  last leaf before the divider).
 - Markdown YAML metadata requires the pulldown-cmark metadata option; otherwise the
   closing fence can become a setext heading.
-- Markdown emphasis highlighting depends on `injection.include-children` and styled text
-  runs, not just a grammar and colors.
-- Overlay scrollbars require caret-follow calculations to reserve the bar.
 - Git dirt is a right-edge tick centered on the workspace row (filled: tree differs from
   HEAD; hollow: only the index does). Hover actions occupy the same gutter and replace
   the tick while hovering. Dirt comes from `git status --porcelain=v1 -z`, not net
@@ -170,60 +104,27 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   touch `.git/index` and re-trigger its own watcher.
 - A completed `bin/install` updates the app on disk, but a running process keeps the old
   binary. Never kill Xenon to force the switch.
-- Quitting Xenon kills what its terminals started. The stub `setsid`s before exec so a
-  Xenon launched from another Xenon's terminal (slot flip) outlives it; ignoring SIGHUP
-  alone was not enough.
+- Quitting Xenon kills what its terminals started. The launcher `setsid`s before exec so
+  a Xenon launched from another Xenon's terminal (slot flip) outlives it; ignoring
+  SIGHUP alone was not enough.
 - No crash handler. A vanished instance: panics land in the slot's `xenon.log` (stderr
   goes there); a SIGSEGV or abort leaves no line, and `journalctl` or `coredumpctl`
   dates it.
-- TUI mouse reporting sends clicks to the PTY. ⌘-click open injects shift (so reporting
-  is off) and still calls Zed `mouse_down`; the Select-text word-select path never does,
-  and would swallow the hyperlink. ⌘ is open-path, not momentary select mode.
-  Option-drag / hover-chrome Select text stay the copy hatch.
 - Phone page: setting `disabled` on a focused input blurs it, and iOS never gives focus
   back. `renderStale()` remembers the focused input and refocuses it on reconnect; any
   new disable-while-stale input needs the same.
 - Phone text cannot carry a newline: `pty_input_bytes` turns `\n` into `\r`, which
   submits in Claude Code. A prompt newline is the `shift-enter` named key (LF via the
   terminal key map).
-- In this codebase, “browser” is the Files tree, not a web view.
-- GPUI (pinned Zed rev) has no webview primitive. The window is one GPU surface. A
-  native webview / wry child view composites above the GPU scene, so palettes and menus
-  draw behind the page. Zed’s wry experiment (PR 52447) hit this and did not merge. Do
-  not add a webview surface unless upstream GPUI composites under overlays.
 
 ## Markdown prose mode
 
-- One buffer. Prose, Split and Source are views of the same ropey buffer; every prose
-  key is a plain `Edit` on file text (`crates/xenon_editor/src/prose/edit.rs`). Never
-  re-serialize from the rendered model. Typing round-trips byte-exact; checked against
-  every `~/src/substack` article (1600 Enter and Backspace plans, 300k caret positions,
-  zero stray byte changes).
-- Pipeline: `prose::model` (pulldown leaves to blocks that cover every source line) ->
-  `display` (shown text plus offset map) -> `layout` (GPUI shaping, caret and hit-test)
-  -> `paint`. Offsets are chars in the buffer and UTF-8 bytes in pulldown;
-  `Index::byte_to_char` is the only conversion. Display bytes are a third space: only
-  `Display::locate`/`src_at` cross it.
-- Bind ⌥1/⌥2/⌥3/⌥P in the `Markdown` key context only. The editor root sets
-  `key_context("Editor Markdown")` for `.md`; a global ⌥-letter would break terminal
-  readline.
-- Paper hexes live only in `prose/style.rs`. Marker ink is darkened until it has 3:1
-  against the page (the specified light `#a39a8b` on `#f8f4ec` is about 2.5:1). Per-file
-  mode, Paper and comment fold persist in `prose-files.json`; look settings live in
-  `settings.json` under `prose`.
-- IME: marked text is a char range in the buffer (`EditorView.prose.marked`) with UTF-16
-  conversion at the input-handler boundary; one composition is one undo step in both
-  views. Typing in prose coalesces a word into one undo step.
-- The old read-only preview (and its outline, `[` / `]` heading steps) was removed; ⌘⇧V
-  toggles Prose/Source. Only `markdown/link.rs` remains.
-- Deferred: list renumbering after Enter mid-list, small URL font, outline navigation,
-  IME candidate placement outside prose, remote (SSH) documents.
+- One buffer. Prose and Source are views of the same text buffer; the parser and the
+  rule for which markup shows live in `xenon_prose`, the GTK tags in `prose.rs`.
+- Per-file mode and look settings persist (`xenon_store::prose`, `settings.json`).
 
 ## Open product work
 
-- Check [Rust Glancer](https://rust-glancer.github.io/blog/hello-world/) as a low-RAM
-  disk-cached Rust LSP for `xenon_lsp` (<100MB, no proc-macro execution). HN:
-  https://news.ycombinator.com/item?id=49393052
 - Find replace.
 - Keyboard paths for terminal On-exit, open-target choice, and workspace reorder.
 - Public packaging left in `docs/release.md` (Linux package format, screenshots)—repo is
