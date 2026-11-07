@@ -21,6 +21,9 @@
 
 ## Next
 
+- [ ] GTK: A/B slots, so a new build starts beside the running one
+  - `~/bin/xenon` launches the GTK app; state in `~/.xenon-a` and `~/.xenon-b`.
+  - One process per slot, opens routed over each slot's socket (`xenon open`).
 - [ ] GTK: an open file updates when it changes on disk, as in the GPUI editor
   - Unsaved edits: show a conflict instead of reloading.
 - [ ] GTK: wording pass, copying GPUI text word for word
@@ -30,7 +33,6 @@
 - [ ] GTK: drop the "(GTK)" suffix from the launcher entry and window title
 - [ ] GTK: Shift+Enter sends a line feed, as the GPUI terminal did
 - [ ] GTK: drag to reorder workspaces
-- [ ] Cutover: the GTK app uses `~/.xenon` directly
 - [ ] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
   - `scripts/release/install` installs the GTK app; `install-gtk` goes away.
   - `.vscode/tasks.json` keeps only the GTK launch and install tasks.
