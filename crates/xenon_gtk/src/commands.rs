@@ -47,7 +47,7 @@ impl App {
             if let Some(view) = app.terms.borrow().get(&key).cloned() {
                 view.term.grab_focus();
             } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {
-                editor.view.grab_focus();
+                editor.focus();
             } else if let Some(diff) = app.diffs.borrow().get(&key).cloned() {
                 diff.focus();
             }

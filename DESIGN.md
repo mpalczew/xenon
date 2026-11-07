@@ -334,7 +334,8 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   `[`, fences, `>`) are the dim ink under Markers: Dim, or the `invisible` tag under
   Hide, except in the block the caret is in. Pictures sit in a space under their
   line (an overlay, never text in the file). Ctrl+click opens a link; click or
-  Ctrl+Enter flips a task box; Alt+1 / Alt+3 switch Prose and Source. Gaps against the
+  Ctrl+Enter flips a task box; Alt+1 / Alt+3 switch Prose and Source (the worklist file opens as its list view
+  instead; Alt+4 returns to it). Gaps against the
   GPUI mode: no Paper surface, no quote rule or round bullet glyphs, no table grid,
   no code highlighting, no list continuation on Return.
 - **Settings.** its own window (Ctrl+,), transient for the main one, with a page

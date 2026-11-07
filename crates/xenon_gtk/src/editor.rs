@@ -2,9 +2,10 @@
 //! ask for it, the Vim input method. Ctrl+S and `:w` write the file. This is
 //! the stand-in editor until the GTK editor exists; it is a plain text view
 //! with no LSP or diff gutter. Markdown files open in prose mode (`prose.rs`);
-//! Alt+1 and Alt+3 switch between Prose and Source.
+//! Alt+1 and Alt+3 switch between Prose and Source. The worklist file opens as
+//! the list view (`worklist_list.rs`); Alt+4 or the Worklist button brings it back.
 
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
@@ -16,6 +17,9 @@ use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 
 use crate::app::App;
 use crate::prose::{self, Prose};
+use crate::worklist_list::WorklistList;
+
+mod list;
 
 /// Files above this size open in the default app instead.
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
@@ -32,6 +36,9 @@ pub(crate) struct EditorView {
     /// Markdown writing mode, for Markdown files.
     pub(crate) prose: Option<Rc<Prose>>,
     mode: Cell<MarkdownMode>,
+    /// The worklist file only: the list view and the stack it shares with the text.
+    list: OnceCell<Rc<WorklistList>>,
+    stack: Option<gtk::Stack>,
     app: Weak<App>,
     scroller: gtk::ScrolledWindow,
     /// "File changed on disk" bar: message and its two buttons.
@@ -103,7 +110,7 @@ impl EditorView {
         bar.set_visible(false);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.append(&bar);
-        root.append(&scroller);
+        let (stack, back) = list::pages(path, &root, &scroller);
         let editor = Rc::new(Self {
             root: root.upcast(),
             scroller,
@@ -119,8 +126,11 @@ impl EditorView {
             vim: RefCell::new(None),
             prose,
             mode: Cell::new(mode),
+            list: OnceCell::new(),
+            stack,
             app: Rc::downgrade(app),
         });
+        editor.attach_list(back.as_ref());
         editor.restyle(app);
         let weak: Weak<App> = Rc::downgrade(app);
         {
@@ -187,6 +197,11 @@ impl EditorView {
                 if let Some(this) = this.upgrade() {
                     this.sync_pending.set(false);
                     this.sync_from_disk();
+                    if let Some(list) = this.list.get()
+                        && this.list_showing()
+                    {
+                        list.refresh();
+                    }
                 }
             });
         });

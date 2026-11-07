@@ -1,8 +1,8 @@
 //! The worklist: quick capture into `.xenon/worklist.md` and "Open Worklist".
 //!
 //! The file model (parse, edit, sections) is `xenon_store::worklist`. Opening
-//! shows the file in the Markdown writing mode, which already draws the task
-//! boxes and edits the file; capture is a stock `adw::Dialog` that saves as you
+//! shows the file in the list view (`worklist_list.rs`) or, by choice, the
+//! Markdown writing mode; capture is a stock `adw::Dialog` that saves as you
 //! type, as the GPUI capture did.
 
 use std::cell::{Cell, RefCell};
@@ -41,7 +41,7 @@ impl App {
         Some((ws, rec.root.clone(), rec.name.clone()))
     }
 
-    /// Open Worklist: `.xenon/worklist.md` in the writing mode, made when missing.
+    /// Open Worklist: `.xenon/worklist.md` in the list view, made when missing.
     pub(crate) fn open_worklist(self: &Rc<Self>) {
         let Some((ws, root, _)) = self.workspace_for_worklist() else {
             self.no_workspace_toast();

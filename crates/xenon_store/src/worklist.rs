@@ -10,6 +10,7 @@ mod draft;
 pub mod entries;
 mod item;
 pub mod sections;
+pub mod view;
 pub use draft::{Change, ItemDraft};
 pub use item::{TITLE_LIMIT, WorkItem, title_length};
 pub use sections::Insertion;

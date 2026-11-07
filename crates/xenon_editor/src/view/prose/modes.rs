@@ -30,6 +30,7 @@ impl EditorView {
                 mode: self.prose.mode,
                 paper: self.prose.paper,
                 comments_open: self.prose.comments_open,
+                ..Default::default()
             },
         );
     }

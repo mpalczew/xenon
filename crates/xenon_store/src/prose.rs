@@ -85,6 +85,9 @@ pub struct ProseFilePrefs {
     /// Leading `<!-- -->` lines shown instead of folded into the chip.
     #[serde(default)]
     pub comments_open: bool,
+    /// The worklist file opens as the list rather than as Markdown.
+    #[serde(default = "yes")]
+    pub list: bool,
 }
 
 fn yes() -> bool {
@@ -97,6 +100,7 @@ impl Default for ProseFilePrefs {
             mode: MarkdownMode::Prose,
             paper: true,
             comments_open: false,
+            list: true,
         }
     }
 }
