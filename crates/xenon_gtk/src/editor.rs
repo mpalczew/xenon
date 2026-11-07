@@ -142,7 +142,9 @@ impl EditorView {
                 }
             });
         }
-        // Ctrl+S saves. Capture phase, so it wins over the Vim input method.
+        // Ctrl+S saves. Terminal-free keys leave `ctrl-s` out of the app accelerators,
+        // and the Vim controller sits on the view, so this capture controller sits on
+        // the ancestor: capture runs parent first, so it beats Vim in every mode.
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let this = Rc::downgrade(&editor);
@@ -171,7 +173,7 @@ impl EditorView {
                 glib::Propagation::Proceed
             }
         });
-        editor.view.add_controller(keys);
+        editor.root.add_controller(keys);
         editor.buffer.set_modified(false);
         editor.watch_disk();
         editor
