@@ -41,8 +41,6 @@ terminals and editors. GPL-3.0-or-later. Public repo `mpalczew/xenon`.
 - Keyboard-first: every flow works from the keyboard (action, binding, focus, Escape).
   Mouse is additive.
 - Copied source gets an `ATTRIBUTION.md` entry and a file-header marker.
-- Author sessions: the agent reviews, builds, and tests; no human reads diffs. Prefer
-  large coherent hauls.
 - Finish: `XENON_PROFILE=dogfood scripts/release/install && scripts/prune-target` once
   at the end, then commit and push this session's paths. List leftover dirty paths and
   whose they are.
