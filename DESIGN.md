@@ -249,23 +249,58 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   come from the theme's `terminal.*` keys. Mode System follows the OS through
   `AdwStyleManager`. Icons are pinned to Adwaita so symbolic icons exist on every
   desktop.
-- **Layout.** Header bar (36px: sidebar toggle, title with the workspace name, split
-  buttons), a resizable `GtkPaned` sidebar (`settings.sidebar_width`) and the pane tree
-  as nested `GtkPaned`. A focused pane gets a 2px accent top edge only when the layout
-  has more than one pane (the GPUI ring). A pane shows its tab strip only when it has
-  more than one tab or the workspace has more than one pane; a lone terminal gets the
-  whole window and the header subtitle names its tab.
+- **Layout.** Header bar (the GPUI toolbar's buttons in its order, title with the
+  workspace name; see Header bar below), a resizable `GtkPaned` sidebar
+  (`settings.sidebar_width`) and the pane tree as nested `GtkPaned`. A focused pane gets
+  a 2px accent top edge only when the layout has more than one pane (the GPUI ring). A
+  pane shows its tab strip only when it has more than one tab or the workspace has more
+  than one pane; a lone terminal gets the whole window and the header subtitle names its
+  tab.
 - **Tabs.** A strip of chips (plain boxes and labels) in a scrolled window, not
   `AdwTabBar`: the status rail needs a widget we own, and the pane model, not the
   widget, owns tab order. A chip is label, close button on hover and selection, and a
   2px rail. Selected: accent rail, text weight 600, `bg` fill. Unselected: muted text;
   the rail is the warning color (static, needs you) or the info color (pulsing,
   working). Same rules as above: selected tabs carry no status.
-- **Sidebar.** Two sections in a vertical `GtkPaned`. WORKSPACES is a `GtkListBox`: a
-  folder icon, name semibold and the `~` path muted (cut at the start so the folder name
-  stays), a 3px status line in the left margin, and for the active row the neutral-text
-  left edge plus `element.selected` fill. FILES is a `GtkListBox` tree (chevron, icon,
-  name; the open file is accent and semibold). No diff-status section yet.
+- **Sidebar.** WORKSPACES and FILES share a vertical `GtkPaned`; GIT sits under them at
+  its natural height (at most 230px, then it scrolls). Spacing follows the GPUI app:
+  section headers are 52px tall (WORKSPACES 60px) with 16px side padding and a 1px
+  border between sections; rows have 8px side margins and 8px padding; a Files row
+  indents 8px plus 16px per level with 4px between chevron, icon and name. WORKSPACES is
+  a `GtkListBox`: a folder icon, name semibold and the `~` path muted (cut at the start
+  so the folder name stays), a 3px status line in the left margin, and for the active
+  row the neutral-text left edge plus `element.selected` fill. The right edge holds the
+  git dirt tick (filled: tree differs from HEAD; hollow: only the index does); hovering
+  swaps it for a close button. FILES is a `GtkListBox` tree (chevron, icon, name; the
+  open file is accent and semibold). GIT is a header (heading, branch, count pill;
+  clicking folds it) over a `GtkListBox`: status badges (round tinted letters), the name
+  in its change color (struck through when deleted), the muted folder, and the five-cell
+  change bar from `xenon_git`. A clean tree shows "Clean · Matches HEAD". More than 400
+  changed files show the first 400 and "and N more".
+- **Diff tab.** Stock text views, no drawing code: per side a gutter view (old and new
+  line numbers and the sign) beside a code view (GtkSourceView, so syntax colors follow
+  the language and the Adwaita light or dark scheme). Added and removed lines are
+  `version_control.added` and `.deleted` at 14% as paragraph tints, changed words use
+  `version_control.word_*`, hunk headers are an `element.background` strip with accent
+  text, the current hunk is a stronger accent strip. Unified below 860px, side by side
+  at or above it, or pinned with the Auto / Split / Unified buttons (the model decides
+  in `xenon_git`). The header shows the path (folder muted, name bold), the source line,
+  `+N -M` and a Read-only pill. Reads happen on a worker thread; the file is read again
+  when the Git section reports a change.
+- **Header bar.** An `AdwHeaderBar`. Left: Toggle Sidebar, Previous Workspace, Next
+  Workspace, Split Right, Split Down, Reserve Pane to the Right, Copy, Paste. Right: New
+  Terminal, Go to File, Close Workspace, Settings. Standard Adwaita icons, except the
+  two split icons (stacked and side by side panes), which are shipped symbolic SVGs.
+  Buttons for commands GTK does not have yet are left out, not stubbed.
+- **Empty screen.** An `AdwStatusPage` with the Xenon icon, the GPUI title and subtitle,
+  buttons (New Terminal, Open File, Close Workspace; Open Workspace without a workspace)
+  and the "Useful shortcuts" list. Same page for an empty pane, with Remove empty pane
+  when the layout has company.
+- **Hints.** Every header button, the tab strip's new and close buttons, the Workspaces
+  plus and close buttons, the Git header and the empty page's "Useful shortcuts" list
+  show the chord of the action they run, read from `xenon_keymap` plus the user's
+  `keymap.json` at startup (`App::chord`, `App::tip`), as `Label · Ctrl+Shift+O`. Never
+  typed by hand.
 - **Palettes.** One shell (`palette.rs`): a scrim over the window and a 640px panel at
   elevation 2 with a field, a `GtkListView` (matched letters in the accent color, detail
   and badge on the right) and a hint line. Focus stays in the field; the models in

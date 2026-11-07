@@ -78,12 +78,34 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
   the GPUI tree; only expanded folders are watched, at most 48), and a stand-in editor
   tab (GtkSourceView, Vim input method per settings, Ctrl+S saves; files over 4 MB or
   not UTF-8 open in the default app).
-- **Not drawn yet.** The diff-status sidebar section, the real editor (LSP, diff gutter,
-  prose mode, Markdown), SSH workspaces (session kept) and the SSH part of the pickers,
-  command palette, tab drag and drop, divider keyboard resize, the `xenon open` socket
-  server. Phone remote gaps: tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML
-  has no markup for them), cursor hiding, and the phone's own light/dark choice (the
-  phone always gets the Mac's terminal colors).
+- **Git (since step 2).** The Git sidebar section (status rows, change bar, keyboard)
+  and the read-only diff tab (unified or side by side, hunk navigation, open at the hunk
+  line) on `xenon_git`; dirt ticks on the workspace rows. One worker thread (`git.rs`)
+  owns a recursive `notify` watcher on every local workspace and runs
+  `xenon_git::measure`; it sleeps between events, debounces 400ms and measures a
+  workspace at most once per 1.5s, so build output and terminal bursts cost nothing and
+  an idle dirty repo adds no wakeups. Path filters (`is_noise`, `is_git_meta`,
+  `owner_of`) moved to `xenon_git::watch` and the GPUI app uses them too. Differences
+  from the GPUI app: no draggable section height or saved fold state, GtkSourceView
+  colors diff text instead of the tree-sitter highlighter, and the diff tab is not part
+  of the saved layout (same as GPUI).
+- **Not drawn yet.** The real editor (LSP, diff gutter,
+- **Header bar and empty screen.** The header bar follows the GPUI toolbar order
+  (sidebar, previous and next workspace, split right, split down, reserve pane, copy,
+  paste on the left; New Terminal, Go to File, Close Workspace, Settings on the right).
+  Tooltips are `Label · keys` with the keys read from the live accelerators (so the
+  user's keymap shows). Split right and split down use two small symbolic icons compiled
+  into a GResource (`resources/`, `build.rs`) because Adwaita has none. The empty
+  workspace and the empty pane use an `AdwStatusPage` with the GPUI wording, buttons and
+  shortcut list. Not brought over, because GTK has no such action yet: Go Back and Go
+  Forward, Cut, Copy Clean, Toggle File Tree, the two worklist buttons, Run Task, Save
+  (shown when an editor is dirty), and the Command Palette, Focus Editor and Keyboard
+  Shortcuts rows' actions (the rows are listed with their keys). prose mode, Markdown),
+  SSH workspaces (session kept) and the SSH part of the pickers, command palette, tab
+  drag and drop, divider keyboard resize, the `xenon open` socket server. Phone remote
+  gaps: tasks, mouse clicks, dim text and OSC 8 links (VTE's HTML has no markup for
+  them), cursor hiding, and the phone's own light/dark choice (the phone always gets the
+  Mac's terminal colors).
 - **Settings.** Ctrl+, (`app.settings`) opens an `AdwPreferencesDialog` with the GPUI
   pages: Appearance (mode, theme strips, a live-preview theme picker), Fonts, Editor
   (with Markdown writing), Terminal, Agents, Language Servers, Phone Remote. Choices,

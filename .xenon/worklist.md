@@ -2,11 +2,12 @@
 
 ## Now
 
-- [ ] GTK: Git section and diff tab
-  - Rescued after the OOM as a WIP commit on `worktree-agent-a6101b1c2f9016601`.
-- [ ] GTK: sidebar spacing in the Workspaces section
-- [ ] GTK: the old Xenon toolbar and its key hints
-  - Split down shows the wrong icon.
+- [x] GTK: Git section and diff tab
+- [x] GTK: sidebar spacing in the Workspaces section
+- [x] GTK: the old Xenon toolbar and its key hints
+  - Split down has its own icon now.
+  - Still missing, no GTK action yet: Go Back, Go Forward, Cut, Copy Clean, Toggle File
+    Tree, worklist capture and open, Run Task, Save.
 - [ ] GTK: replace our tab strip with AdwTabView and AdwTabBar
   - The close button on each tab closes it.
   - No custom underline on the selected tab.
