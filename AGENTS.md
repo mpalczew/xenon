@@ -1,14 +1,12 @@
 # Xenon
 
-Linux agent shell in Rust on GTK 4, libadwaita and VTE. The GPUI app is reference-only
-until it is deleted. GPL-3.0-or-later; public repo `mpalczew/xenon`.
+Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public repo
+`mpalczew/xenon`.
 
 ## Layout
 
 - `crates/xenon_gtk/` - the app.
-- `crates/xenon`, `xenon_ui`, `xenon_terminal`, `xenon_editor`, `xenon_design_system`,
-  `third_party/` - the GPUI app, reference only.
-- Other `crates/` - shared crates with no GPUI; see `docs/designs/gtk-migration.md`.
+- Other `crates/` - shared crates with no GTK: rules, state and parsing.
 - `PRODUCT.md`, `DESIGN.md` - product and visual design. Read both before UX work;
   update them when a decision settles.
 - `docs/project-state.md` - cross-cutting decisions.
