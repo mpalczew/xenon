@@ -96,7 +96,6 @@ pub(crate) use live::{
 };
 use lsp::LspState;
 use nav_history::NavHistory;
-pub(crate) use remote::RemoteFooter;
 use services::AppServices;
 pub(crate) use xenon_core::{AttentionMap, AttentionReason, WorkspaceDot, workspace_dot};
 

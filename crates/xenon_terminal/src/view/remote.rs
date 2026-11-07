@@ -14,7 +14,7 @@ use super::*;
 use crate::color::convert_color;
 
 /// Mac keyboard quiet time before a phone fit (re)applies.
-pub const LOCAL_QUIET: Duration = Duration::from_secs(30);
+pub const LOCAL_QUIET: Duration = xenon_remote::LOCAL_QUIET;
 /// `ScreenCell::ch` for the second column of a wide glyph (no text of its own).
 pub const WIDE_SPACER: char = '\0';
 /// Scrollback lines sent to a phone.
@@ -167,10 +167,9 @@ impl TerminalView {
     /// Phone fit request (None = no phone driving). Applies unless the Mac
     /// typed into this tab within `LOCAL_QUIET`.
     pub fn set_phone_fit(&mut self, fit: Option<PhoneFit>, cx: &mut Context<Self>) {
-        if self.phone_fit == fit {
+        if !self.phone_fit.set(fit) {
             return;
         }
-        self.phone_fit = fit;
         self.apply_size_override(cx);
         self.arm_phone_fit_timer(cx);
         self.sync_chrome(cx);
@@ -179,17 +178,13 @@ impl TerminalView {
 
     /// The grid the phone currently owns, if the fit is in effect.
     pub fn active_phone_fit(&self) -> Option<&PhoneFit> {
-        let quiet = self
-            .local_input_at
-            .is_none_or(|at| at.elapsed() >= LOCAL_QUIET);
-        self.phone_fit.as_ref().filter(|_| quiet)
+        self.phone_fit.active(Instant::now())
     }
 
     /// Mac keyboard input: hand the grid back and re-arm the quiet timer.
     pub(super) fn note_local_input(&mut self, cx: &mut Context<Self>) {
-        let was_active = self.active_phone_fit().is_some();
-        self.local_input_at = Some(Instant::now());
-        if self.phone_fit.is_none() {
+        let was_active = self.phone_fit.note_local_input(Instant::now());
+        if self.phone_fit.requested().is_none() {
             return;
         }
         if was_active {
@@ -202,13 +197,9 @@ impl TerminalView {
     /// While a requested fit waits out the Mac's quiet period, apply it when
     /// the period ends (a background tab never repaints to do it).
     fn arm_phone_fit_timer(&mut self, cx: &mut Context<Self>) {
-        let Some(at) = self.local_input_at.filter(|_| self.phone_fit.is_some()) else {
+        let Some(wait) = self.phone_fit.wait_left(Instant::now()) else {
             return;
         };
-        let wait = LOCAL_QUIET.saturating_sub(at.elapsed());
-        if wait.is_zero() {
-            return;
-        }
         self._phone_fit_timer = cx.spawn(async move |view, cx| {
             cx.background_executor().timer(wait).await;
             view.update(cx, |view, cx| {

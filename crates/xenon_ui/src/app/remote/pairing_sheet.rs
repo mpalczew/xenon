@@ -8,8 +8,8 @@ use gpui::{AnyElement, Bounds, canvas, fill, point, size};
 use qrcode::{Color as QrColor, QrCode};
 use xenon_design_system::{ActionButton, FocusOnOpen, TypeRole, Typography};
 
-use super::network::pairing_url;
 use super::*;
+use xenon_remote::pairing_url;
 
 const QR_SIZE: f32 = 200.;
 const QR_QUIET_MODULES: usize = 2;
@@ -85,7 +85,7 @@ impl XenonApp {
         let settings = xenon_store::load_settings().unwrap_or_default();
         let hostname = normalize_hostname(&settings.remote_hostname);
         let host = runtime.reach.phone_host(&hostname);
-        let base = network::base_url(&host, runtime.port);
+        let base = xenon_remote::base_url(&host, runtime.port);
         let reachable = runtime.reach.reachable() || !hostname.is_empty();
         Some(SheetModel {
             url: reachable.then(|| pairing_url(&base, &code.secret)),

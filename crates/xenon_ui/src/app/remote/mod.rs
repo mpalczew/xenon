@@ -5,12 +5,9 @@
 use super::*;
 
 mod appearance;
-mod devices;
 mod feed;
 mod host;
 mod keep_awake;
-mod labels;
-mod network;
 pub(crate) mod pairing_sheet;
 mod session;
 mod settings_api;
@@ -21,19 +18,16 @@ mod visual;
 mod wire;
 
 use std::collections::BTreeMap;
-use std::time::Instant;
 
 use gpui::{Global, WeakEntity};
-use xenon_remote::{ConnId, HostRequest, PairError, PairResponse, RemoteServer, StartError};
+use xenon_remote::{
+    ConnId, DeviceBook, HostRequest, Inhibitor, PairError, PairResponse, Reachability,
+    RemoteServer, StartError,
+};
 
-use devices::DeviceBook;
-use keep_awake::Inhibitor;
-pub(crate) use keep_awake::{KEEP_AWAKE_DETAIL, KEEP_AWAKE_LABEL};
-use network::Reachability;
-pub(crate) use network::normalize_hostname;
 use session::Conn;
 pub(crate) use settings_api::*;
-pub(crate) use status::RemoteFooter;
+pub(crate) use xenon_remote::{DeviceRow, KEEP_AWAKE_DETAIL, KEEP_AWAKE_LABEL, normalize_hostname};
 
 /// How often the remote re-checks dots, the pairing countdown, and the network.
 const TICK: Duration = Duration::from_secs(1);
@@ -46,33 +40,16 @@ const PORT_RETRY: Duration = Duration::from_secs(5);
 pub(crate) struct MainApp(pub WeakEntity<XenonApp>);
 impl Global for MainApp {}
 
-/// One paired device as Settings lists it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DeviceRow {
-    pub id: String,
-    pub label: String,
-    pub connected: bool,
-    pub last_seen_at: u64,
-    pub created_at: u64,
-}
-
 /// Remote status snapshot. A gpui Global so Settings paint never leases
 /// `XenonApp` (opening Settings runs inside a XenonApp update).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct MobileRemoteInfo {
-    pub enabled: bool,
-    /// On, but another Xenon (the other a/b slot) holds the port for now.
-    pub waiting: bool,
-    /// Opt-in: hold the machine awake while a phone is connected.
-    pub keep_awake: bool,
-    /// User override for the phone URL host (empty = automatic).
-    pub hostname: String,
-    /// `http://host:port` the phone should open, when running.
-    pub base_url: Option<String>,
-    /// A phone can reach us from off this Mac (over the tailnet).
-    pub reachable: bool,
-    pub devices: Vec<DeviceRow>,
-    pub connected: usize,
+pub(crate) struct MobileRemoteInfo(pub xenon_remote::RemoteStatus);
+
+impl std::ops::Deref for MobileRemoteInfo {
+    type Target = xenon_remote::RemoteStatus;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl Global for MobileRemoteInfo {}
@@ -243,7 +220,7 @@ impl XenonApp {
     fn remote_info_snapshot(&self) -> MobileRemoteInfo {
         let settings = xenon_store::load_settings().unwrap_or_default();
         let hostname = normalize_hostname(&settings.remote_hostname);
-        let mut info = MobileRemoteInfo {
+        let mut info = xenon_remote::RemoteStatus {
             enabled: self.remote_running(),
             waiting: self.remote_waiting(),
             keep_awake: settings.remote_keep_awake_while_connected,
@@ -253,7 +230,7 @@ impl XenonApp {
         let devices = match &self.services.remote {
             Some(runtime) => {
                 let host = runtime.reach.phone_host(&hostname);
-                info.base_url = Some(network::base_url(&host, runtime.port));
+                info.base_url = Some(xenon_remote::base_url(&host, runtime.port));
                 info.reachable = runtime.reach.reachable();
                 info.connected = runtime.conns.len();
                 runtime.devices.devices().to_vec()
@@ -264,21 +241,13 @@ impl XenonApp {
                     .devices
             }
         };
-        info.devices = devices
-            .into_iter()
-            .map(|d| DeviceRow {
-                connected: self
-                    .services
-                    .remote
-                    .as_ref()
-                    .is_some_and(|r| r.conns.values().any(|c| c.device_id == d.id)),
-                id: d.id,
-                label: d.label,
-                last_seen_at: d.last_seen_at,
-                created_at: d.created_at,
-            })
-            .collect();
-        info
+        info.devices = xenon_remote::device_rows(&devices, |id| {
+            self.services
+                .remote
+                .as_ref()
+                .is_some_and(|r| r.conns.values().any(|c| c.device_id == id))
+        });
+        MobileRemoteInfo(info)
     }
 
     fn spawn_remote_requests(
@@ -347,7 +316,12 @@ impl XenonApp {
         cx.spawn(async move |this, cx| {
             let (dns, name) = cx
                 .background_executor()
-                .spawn(async { (network::magic_dns_name(), network::computer_name()) })
+                .spawn(async {
+                    (
+                        xenon_remote::magic_dns_name(),
+                        xenon_remote::computer_name(),
+                    )
+                })
                 .await;
             this.update(cx, |app, cx| {
                 if let Some(runtime) = app.services.remote.as_mut() {
@@ -369,7 +343,12 @@ impl XenonApp {
     ) {
         match req {
             HostRequest::Authenticate { token, reply } => {
-                let _ = reply.send(self.authenticate_remote(&token));
+                let id = self
+                    .services
+                    .remote
+                    .as_mut()
+                    .and_then(|r| r.devices.authenticate_touch(&token));
+                let _ = reply.send(id);
             }
             HostRequest::Pair { code, label, reply } => {
                 let _ = reply.send(self.pair_remote(&code, &label, cx));
@@ -414,18 +393,6 @@ impl XenonApp {
         }
     }
 
-    fn authenticate_remote(&mut self, token: &str) -> Option<String> {
-        let runtime = self.services.remote.as_mut()?;
-        runtime.devices.reload();
-        let id = runtime.devices.authenticate(token)?;
-        if runtime.devices.touch(&id)
-            && let Err(e) = runtime.devices.save()
-        {
-            log::warn!("remote devices save: {e}");
-        }
-        Some(id)
-    }
-
     fn pair_remote(
         &mut self,
         code: &str,
@@ -433,24 +400,12 @@ impl XenonApp {
         cx: &mut Context<Self>,
     ) -> Result<PairResponse, PairError> {
         let runtime = self.services.remote.as_mut().ok_or(PairError::Rejected)?;
-        runtime.devices.reload();
-        let device = runtime
-            .devices
-            .pair(code, label, Instant::now())
-            .ok_or(PairError::Rejected)?;
-        runtime
-            .devices
-            .save()
-            .map_err(|e| PairError::Storage(e.to_string()))?;
         let host_name = runtime.host_name.clone();
+        let reply = runtime.devices.pair_response(code, label, &host_name)?;
         let toast = xenon_design_system::Toast::success("📱", "Phone paired");
         self.show_toast(toast, cx);
         self.publish_remote_info(cx);
-        Ok(PairResponse {
-            device_id: device.id,
-            token: device.token,
-            host_name,
-        })
+        Ok(reply)
     }
 }
 
@@ -461,12 +416,5 @@ fn persist_enabled(on: bool) {
 }
 
 pub(crate) fn effective_port(saved: u16) -> u16 {
-    std::env::var("XENON_REMOTE_PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(if saved == 0 {
-            xenon_store::DEFAULT_REMOTE_PORT
-        } else {
-            saved
-        })
+    xenon_remote::effective_port(saved, xenon_store::DEFAULT_REMOTE_PORT)
 }

@@ -34,7 +34,7 @@ pub use remote_theme::{remote_theme_colors, remote_theme_for};
 
 use std::ops::Range;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use xenon_design_system::{Toast, show_toast};
 
 use anyhow::Result;
@@ -206,10 +206,9 @@ pub struct TerminalView {
     working: bool,
     /// Debounce that fires `on_idle` once output has been quiet for `IDLE_AFTER`.
     _idle_check: Task<()>,
-    /// Grid a phone asked for while it drives this tab (see `remote`).
-    phone_fit: Option<PhoneFit>,
-    /// Last Mac keyboard input; suspends the phone fit for `LOCAL_QUIET`.
-    local_input_at: Option<Instant>,
+    /// Grid a phone asked for while it drives this tab, and the Mac's last
+    /// keystroke, which suspends it for `LOCAL_QUIET` (see `remote`).
+    phone_fit: xenon_remote::FitGate<PhoneFit>,
     /// Re-applies the phone fit once the Mac has been quiet.
     _phone_fit_timer: Task<()>,
     /// Last summary sent to the app (`chrome`).
@@ -290,9 +289,8 @@ impl TerminalView {
             wakeups: 0,
             working: false,
             _idle_check: Task::ready(()),
-            phone_fit: None,
+            phone_fit: Default::default(),
             chrome_sent: None,
-            local_input_at: None,
             _phone_fit_timer: Task::ready(()),
             _subscriptions: Vec::new(),
         }

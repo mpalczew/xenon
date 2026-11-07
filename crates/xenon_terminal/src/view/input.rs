@@ -9,7 +9,7 @@ impl Focusable for TerminalView {
 /// Bytes to write to the PTY for typed/injected text.
 /// Enter key = CR; convert LF / CRLF so inject matches a real Enter press.
 pub(crate) fn pty_input_bytes(text: &str) -> Vec<u8> {
-    text.replace("\r\n", "\r").replace('\n', "\r").into_bytes()
+    xenon_remote::pty_text_bytes(text)
 }
 
 /// macOS text input: only `replace_text_in_range` is needed for plain typing;

@@ -3,24 +3,13 @@
 //! The tailnet (Tailscale or Headscale) is the only network path.
 
 use std::net::{IpAddr, Ipv4Addr};
-use std::process::Command;
 
-/// CLI locations: `tailscale` on PATH (Linux packages, Homebrew), then the
-/// macOS standalone and Mac App Store locations.
-const TAILSCALE_CLIS: &[&str] = &[
-    "tailscale",
-    #[cfg(target_os = "macos")]
-    "/usr/local/bin/tailscale",
-    #[cfg(target_os = "macos")]
-    "/opt/homebrew/bin/tailscale",
-    #[cfg(target_os = "macos")]
-    "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-];
+use crate::names::interface_ipv4s;
 
-/// What the phone needs to reach this Mac.
+/// What the phone needs to reach this computer.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Reachability {
-    /// This Mac's Tailscale IPv4 (100.64.0.0/10), if connected.
+pub struct Reachability {
+    /// This computer's Tailscale IPv4 (100.64.0.0/10), if connected.
     pub tailscale_ip: Option<Ipv4Addr>,
     /// MagicDNS name, e.g. `mbp.tail7c2e.ts.net`.
     pub magic_dns: Option<String>,
@@ -29,7 +18,7 @@ pub(crate) struct Reachability {
 impl Reachability {
     /// Interface addresses only (cheap; no subprocess). MagicDNS comes later
     /// from `magic_dns_name` off the UI thread.
-    pub(crate) fn probe_local() -> Self {
+    pub fn probe_local() -> Self {
         let addrs = interface_ipv4s();
         Self {
             tailscale_ip: addrs.iter().copied().find(is_tailscale),
@@ -37,11 +26,11 @@ impl Reachability {
         }
     }
 
-    /// Addresses the server binds: this Mac's Tailscale/CGNAT address
+    /// Addresses the server binds: this computer's Tailscale/CGNAT address
     /// (100.64.0.0/10, so Headscale too) and loopback. Never `0.0.0.0` and
     /// never a LAN address: plain HTTP on Wi-Fi would let anyone there read
     /// the device token and rewrite the page.
-    pub(crate) fn bind_ips(&self) -> Vec<IpAddr> {
+    pub fn bind_ips(&self) -> Vec<IpAddr> {
         self.tailscale_ip
             .into_iter()
             .chain([Ipv4Addr::LOCALHOST])
@@ -50,7 +39,7 @@ impl Reachability {
     }
 
     /// Best host for the phone: override, MagicDNS, Tailscale IP, loopback.
-    pub(crate) fn phone_host(&self, override_host: &str) -> String {
+    pub fn phone_host(&self, override_host: &str) -> String {
         if !override_host.is_empty() {
             return override_host.to_string();
         }
@@ -63,14 +52,14 @@ impl Reachability {
         }
     }
 
-    /// The phone can reach us from off this Mac.
-    pub(crate) fn reachable(&self) -> bool {
+    /// The phone can reach us from off this computer.
+    pub fn reachable(&self) -> bool {
         self.tailscale_ip.is_some()
     }
 }
 
 /// `http://host:port` (host may already carry a port).
-pub(crate) fn base_url(host: &str, port: u16) -> String {
+pub fn base_url(host: &str, port: u16) -> String {
     if host.contains(':') {
         format!("http://{host}")
     } else {
@@ -79,12 +68,12 @@ pub(crate) fn base_url(host: &str, port: u16) -> String {
 }
 
 /// QR target: the fragment never reaches the server's request line or logs.
-pub(crate) fn pairing_url(base: &str, secret: &str) -> String {
+pub fn pairing_url(base: &str, secret: &str) -> String {
     format!("{base}/pair#{secret}")
 }
 
 /// Strip scheme/path noise; keep `host` or `host:port`.
-pub(crate) fn normalize_hostname(raw: &str) -> String {
+pub fn normalize_hostname(raw: &str) -> String {
     let s = raw.trim();
     let s = s
         .strip_prefix("https://")
@@ -98,75 +87,9 @@ pub(crate) fn normalize_hostname(raw: &str) -> String {
         .to_string()
 }
 
-/// This machine's user-facing name ("Michal's MacBook Pro").
-pub(crate) fn computer_name() -> String {
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut command = Command::new("scutil");
-        command.args(["--get", "ComputerName"]);
-        command
-    };
-    #[cfg(not(target_os = "macos"))]
-    let mut command = Command::new("hostname");
-    command
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "this computer".to_string())
-}
-
 fn is_tailscale(ip: &Ipv4Addr) -> bool {
     let [a, b, ..] = ip.octets();
     a == 100 && (64..128).contains(&b)
-}
-
-/// This Mac's MagicDNS name via the Tailscale CLI (spawns; call off-thread).
-pub(crate) fn magic_dns_name() -> Option<String> {
-    TAILSCALE_CLIS.iter().find_map(|cli| {
-        let out = Command::new(cli)
-            .args(["status", "--json", "--peers=false"])
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-        let name = json.get("Self")?.get("DNSName")?.as_str()?;
-        let name = name.trim_end_matches('.');
-        (!name.is_empty()).then(|| name.to_string())
-    })
-}
-
-/// IPv4 addresses of up, non-loopback interfaces.
-fn interface_ipv4s() -> Vec<Ipv4Addr> {
-    let mut out = Vec::new();
-    let mut head: *mut libc::ifaddrs = std::ptr::null_mut();
-    // SAFETY: getifaddrs allocates a list we walk read-only and free once.
-    unsafe {
-        if libc::getifaddrs(&mut head) != 0 {
-            return out;
-        }
-        let mut cursor = head;
-        while !cursor.is_null() {
-            let ifa = &*cursor;
-            let up = ifa.ifa_flags & (libc::IFF_UP as u32) != 0;
-            if up
-                && !ifa.ifa_addr.is_null()
-                && i32::from((*ifa.ifa_addr).sa_family) == libc::AF_INET
-            {
-                let sin = &*(ifa.ifa_addr as *const libc::sockaddr_in);
-                let ip = Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr));
-                if !ip.is_loopback() {
-                    out.push(ip);
-                }
-            }
-            cursor = ifa.ifa_next;
-        }
-        libc::freeifaddrs(head);
-    }
-    out
 }
 
 #[cfg(test)]

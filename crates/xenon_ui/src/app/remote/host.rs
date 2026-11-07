@@ -6,40 +6,13 @@ use super::*;
 use xenon_core::{PaneNode, TabState};
 use xenon_remote::{Dot, TerminalInfo, WorkspaceInfo};
 
-/// Closed workspaces offered under "Recent".
-const RECENT_LIMIT: usize = 20;
-
-pub(super) fn wire_dot(dot: WorkspaceDot) -> Dot {
-    match dot {
-        WorkspaceDot::Working => Dot::Working,
-        WorkspaceDot::Attention(_) => Dot::Attention,
-    }
-}
+pub(super) use xenon_remote::{parse_workspace_id, tilde, wire_dot};
 
 impl XenonApp {
     pub(super) fn list_remote_workspaces(&self) -> Vec<WorkspaceInfo> {
-        let open = self.registry.workspaces.iter().map(|w| WorkspaceInfo {
-            id: w.id.to_string(),
-            name: w.name.clone(),
-            open: true,
-            root: tilde(&w.root),
-            dot: self.workspace_status(w.id).map(wire_dot),
-            terminals: self.terminal_count(w.id),
-        });
-        let mut closed: Vec<_> = self.registry.closed_workspaces.iter().collect();
-        closed.sort_by_key(|w| std::cmp::Reverse(w.last_opened.unwrap_or(0)));
-        let recent = closed
-            .into_iter()
-            .take(RECENT_LIMIT)
-            .map(|w| WorkspaceInfo {
-                id: w.id.to_string(),
-                name: w.name.clone(),
-                open: false,
-                root: tilde(&w.root),
-                dot: None,
-                terminals: 0,
-            });
-        open.chain(recent).collect()
+        xenon_remote::list_workspaces(&self.registry, |id| {
+            (self.workspace_status(id), self.terminal_count(id))
+        })
     }
 
     /// Make the workspace live if needed, then list its terminal tabs.
@@ -230,19 +203,6 @@ impl XenonApp {
         let (pane, idx) = root.find_tab(tab)?;
         root.find_leaf(pane)?.tabs.get(idx)?.as_terminal()
     }
-}
-
-pub(super) fn parse_workspace_id(s: &str) -> Result<WorkspaceId, String> {
-    serde_json::from_value(serde_json::Value::String(s.to_string()))
-        .map_err(|_| "invalid workspace id".to_string())
-}
-
-fn tilde(path: &Path) -> String {
-    let path = path.display().to_string();
-    std::env::var("HOME")
-        .ok()
-        .and_then(|home| path.strip_prefix(&home).map(|rest| format!("~{rest}")))
-        .unwrap_or(path)
 }
 
 pub(super) fn collect_terminals(node: &LiveNode, f: &mut dyn FnMut(TabId, &Entity<TerminalView>)) {

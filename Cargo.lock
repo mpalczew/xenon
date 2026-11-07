@@ -10077,13 +10077,17 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
+ "libc",
  "log",
  "mio",
  "serde",
  "serde_json",
  "sha2",
  "tungstenite",
+ "unicode-width",
  "uuid",
+ "xenon_core",
+ "xenon_store",
 ]
 
 [[package]]
@@ -10144,6 +10148,7 @@ dependencies = [
  "util",
  "xenon_core",
  "xenon_design_system",
+ "xenon_remote",
  "xenon_settings",
 ]
 

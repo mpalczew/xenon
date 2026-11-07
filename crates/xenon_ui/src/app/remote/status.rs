@@ -1,23 +1,10 @@
 //! Status the phone and the sidebar show: workspace/tab dots and the footer.
 
-use super::labels::device_short_name;
 use super::*;
+use xenon_remote::device_short_name;
 use xenon_remote::{Dot, ServerMsg};
 
-/// What the sidebar footer shows while the remote is on.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum RemoteFooter {
-    /// On, but the other Xenon (a/b slot) serves the phone for now.
-    Waiting,
-    Listening,
-    Connected {
-        device: String,
-    },
-    Driving {
-        device: String,
-        workspace: String,
-    },
-}
+pub(crate) use xenon_remote::RemoteFooter;
 
 impl XenonApp {
     /// Push workspace + attached-tab dots to every phone whose view changed.
@@ -87,23 +74,16 @@ impl XenonApp {
                 .device
                 .to_string();
             let workspace = self.registry.workspace(a.workspace)?.name.clone();
-            Some(RemoteFooter::Driving {
-                device: fit,
-                workspace,
+            Some((fit, workspace))
+        });
+        let devices: Vec<String> = runtime
+            .conns
+            .values()
+            .map(|c| {
+                device_short_name(runtime.devices.label(&c.device_id).unwrap_or("Phone"))
+                    .to_string()
             })
-        });
-        if driving.is_some() {
-            return driving;
-        }
-        let first = runtime.conns.values().next().map(|c| {
-            device_short_name(runtime.devices.label(&c.device_id).unwrap_or("Phone")).to_string()
-        });
-        Some(match (first, runtime.conns.len()) {
-            (None, _) => RemoteFooter::Listening,
-            (Some(device), 1) => RemoteFooter::Connected { device },
-            (Some(_), n) => RemoteFooter::Connected {
-                device: format!("{n} phones"),
-            },
-        })
+            .collect();
+        Some(RemoteFooter::from_facts(false, &devices, driving))
     }
 }

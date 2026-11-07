@@ -6,11 +6,7 @@ use xenon_remote::{ClientMsg, ClosedReason, InputRoute, NamedKey, Outbox, Server
 use xenon_terminal::PhoneFit;
 
 use super::feed::Feed;
-use super::labels::device_short_name;
-
-/// Phone fit bounds (anything else is a buggy or hostile client).
-const FIT_COLS: std::ops::RangeInclusive<u16> = 20..=300;
-const FIT_ROWS: std::ops::RangeInclusive<u16> = 8..=200;
+use xenon_remote::device_short_name;
 
 pub(super) struct Conn {
     pub device_id: String,
@@ -275,10 +271,7 @@ impl XenonApp {
     }
 
     fn remote_fit(&mut self, conn: ConnId, cols: u16, rows: u16, cx: &mut Context<Self>) {
-        let fit = (
-            cols.clamp(*FIT_COLS.start(), *FIT_COLS.end()),
-            rows.clamp(*FIT_ROWS.start(), *FIT_ROWS.end()),
-        );
+        let fit = xenon_remote::clamp_fit(cols, rows);
         let Some(attach) = self.conn_mut(conn).and_then(|c| c.attach.as_mut()) else {
             return;
         };
@@ -293,24 +286,20 @@ impl XenonApp {
         let Some(runtime) = self.services.remote.as_ref() else {
             return;
         };
-        let fit = runtime
-            .conns
-            .values()
-            .filter_map(|c| {
-                let a = c.attach.as_ref()?;
-                (a.workspace == workspace && a.tab == tab)
-                    .then_some(())
-                    .and(a.fit)
-                    .map(|(cols, rows)| (cols, rows, c.device_id.clone()))
-            })
-            .reduce(|(c1, r1, d1), (c2, r2, _)| (c1.min(c2), r1.min(r2), d1))
-            .map(|(cols, rows, device)| PhoneFit {
-                cols,
-                rows,
-                device: device_short_name(runtime.devices.label(&device).unwrap_or("Phone"))
-                    .to_string()
-                    .into(),
-            });
+        let fit = xenon_remote::smallest_fit(runtime.conns.values().filter_map(|c| {
+            let a = c.attach.as_ref()?;
+            (a.workspace == workspace && a.tab == tab)
+                .then_some(())
+                .and(a.fit)
+                .map(|(cols, rows)| (cols, rows, c.device_id.clone()))
+        }))
+        .map(|(cols, rows, device)| PhoneFit {
+            cols,
+            rows,
+            device: device_short_name(runtime.devices.label(&device).unwrap_or("Phone"))
+                .to_string()
+                .into(),
+        });
         if let Some(view) = self.find_terminal_view(workspace, tab).cloned() {
             view.update(cx, |term, cx| term.set_phone_fit(fit, cx));
         }

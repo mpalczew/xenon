@@ -91,16 +91,9 @@ fn server_rows(info: &MobileRemoteInfo) -> Vec<SettingRow> {
 }
 
 fn remote_subtitle(info: &MobileRemoteInfo) -> String {
-    if info.waiting {
-        return "On — the other Xenon has the phone remote until it quits".into();
-    }
-    match (&info.base_url, info.reachable) {
-        (Some(url), true) => format!("On — reachable at {}", url.trim_start_matches("http://")),
-        (Some(_), false) => {
-            "On — Tailscale not detected, so your phone can’t reach this Mac".into()
-        }
-        (None, _) => xenon_design_system::shortcut_text("Off — ⌘⇧M connects a phone"),
-    }
+    info.subtitle(&xenon_design_system::shortcut_text(
+        "Off — ⌘⇧M connects a phone",
+    ))
 }
 
 fn device_rows(devices: &[DeviceRow]) -> Vec<SettingRow> {
@@ -132,7 +125,7 @@ fn device_row(device: &DeviceRow) -> SettingRow {
     let status = if device.connected {
         "● Connected now".to_string()
     } else {
-        format!("Last seen {}", ago(device.last_seen_at))
+        format!("Last seen {}", xenon_remote::ago(device.last_seen_at))
     };
     let id = device.id.clone();
     SettingRow::new(
@@ -144,34 +137,14 @@ fn device_row(device: &DeviceRow) -> SettingRow {
             run: Rc::new(move |_, cx| remote::settings_revoke_device(id.clone(), cx)),
         }),
     )
-    .detail(format!("{status} · paired {}", ago(device.created_at)))
+    .detail(format!(
+        "{status} · paired {}",
+        xenon_remote::ago(device.created_at)
+    ))
     .tone(if device.connected {
         Tone::Good
     } else {
         Tone::Muted
     })
     .keywords("device iphone revoke")
-}
-
-/// "just now", "5 min ago", "3 hours ago", "2 days ago".
-fn ago(unix: u64) -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let secs = now.saturating_sub(unix);
-    match secs {
-        0..60 => "just now".into(),
-        60..3600 => format!("{} min ago", secs / 60),
-        3600..86_400 => plural(secs / 3600, "hour"),
-        _ => plural(secs / 86_400, "day"),
-    }
-}
-
-fn plural(n: u64, unit: &str) -> String {
-    if n == 1 {
-        format!("1 {unit} ago")
-    } else {
-        format!("{n} {unit}s ago")
-    }
 }

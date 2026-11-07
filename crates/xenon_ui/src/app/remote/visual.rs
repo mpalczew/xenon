@@ -2,13 +2,14 @@
 //! devices so captures are identical on every machine.
 
 use std::net::{IpAddr, Ipv4Addr};
+use std::time::Instant;
 
 use xenon_remote::{Outbox, PAIRING_TTL, PairingCode};
 use xenon_store::{RemoteDevice, RemoteDevices};
 
-use super::devices::unix_now;
 use super::session::Conn;
 use super::*;
+use xenon_remote::unix_now;
 
 const HOUR: u64 = 60 * 60;
 
@@ -29,7 +30,7 @@ impl XenonApp {
             Reachability::default()
         };
         let mut devices = DeviceBook::from_devices(fixture_devices());
-        devices.visual_set_pairing(PairingCode {
+        devices.set_pairing(PairingCode {
             digits: "482913".into(),
             secret: "9f2c4e8a1b7d4c3e8f6a2b1c9d0e7f41".into(),
             expires_at: Instant::now() + PAIRING_TTL,

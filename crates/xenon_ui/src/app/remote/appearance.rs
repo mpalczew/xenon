@@ -1,6 +1,6 @@
 //! Phone page appearance: which theme its colors resolve against.
 
-use xenon_remote::{AppearanceWire, Rgb, ServerMsg, ThemeWire};
+use xenon_remote::{AppearanceWire, ServerMsg, ThemeWire};
 
 use super::*;
 
@@ -33,10 +33,5 @@ impl XenonApp {
 }
 
 pub(super) fn theme_wire(theme: &theme::Theme) -> ThemeWire {
-    let [bg, fg, cursor] = xenon_terminal::remote_theme_colors(theme);
-    ThemeWire {
-        bg: Rgb(bg[0], bg[1], bg[2]).hex(),
-        fg: Rgb(fg[0], fg[1], fg[2]).hex(),
-        cursor: Rgb(cursor[0], cursor[1], cursor[2]).hex(),
-    }
+    xenon_remote::theme_wire(xenon_terminal::remote_theme_colors(theme))
 }
