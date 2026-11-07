@@ -60,11 +60,7 @@ const SIMPLE: &[(&str, Handler)] = &[
         }
     }),
     ("copy-clean", |a| a.copy_clean()),
-    ("paste", |a| {
-        if let Some(view) = a.current_term() {
-            view.term.paste_clipboard();
-        }
-    }),
+    ("paste", |a| a.paste_terminal()),
     ("zoom-in", |a| a.zoom(1.0)),
     ("zoom-out", |a| a.zoom(-1.0)),
     ("zoom-reset", |a| a.zoom(0.0)),

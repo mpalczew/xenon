@@ -1,10 +1,10 @@
 use std::io::Cursor;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use gpui::{ClipboardEntry, ClipboardItem, Image, ImageFormat};
 use image::ImageFormat as EncodedImageFormat;
+use xenon_core::{clipboard_image_path, shell_path, terminal_paths_text};
 
 #[path = "bar_gutter.rs"]
 mod bar_gutter;
@@ -213,23 +213,11 @@ pub(crate) fn terminal_clipboard_text(item: ClipboardItem) -> Option<String> {
     item.text()
 }
 
-/// Shell-quoted path list for paste or drag-drop into the PTY.
-pub(crate) fn terminal_paths_text(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> String {
-    paths
-        .into_iter()
-        .map(shell_path)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 fn save_clipboard_image(image: &Image) -> Result<PathBuf> {
-    let dir = std::env::temp_dir().join("xenon-clipboard");
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join(format!(
-        "clipboard-{}-{}.png",
-        timestamp_nanos(),
-        image.id()
-    ));
+    let path = clipboard_image_path(image.id());
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
     let bytes = image_as_png(image)?;
     std::fs::write(&path, bytes)?;
     Ok(path)
@@ -259,28 +247,6 @@ fn encoded_format(format: ImageFormat) -> Result<EncodedImageFormat> {
         ImageFormat::Pnm => Ok(EncodedImageFormat::Pnm),
         ImageFormat::Svg => anyhow::bail!("SVG clipboard images cannot be converted to PNG"),
     }
-}
-
-fn shell_path(path: impl AsRef<Path>) -> String {
-    shell_quote(&path.as_ref().to_string_lossy())
-}
-
-fn shell_quote(text: &str) -> String {
-    if text.bytes().all(is_shell_safe) {
-        return text.to_string();
-    }
-    format!("'{}'", text.replace('\'', "'\\''"))
-}
-
-fn is_shell_safe(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-' | b':' | b'+' | b'=')
-}
-
-fn timestamp_nanos() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
 }
 
 fn log_paste_error(error: anyhow::Error) {

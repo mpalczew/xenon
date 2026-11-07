@@ -2,8 +2,8 @@
 
 use std::rc::Rc;
 
-use gtk::glib;
 use gtk::prelude::*;
+use gtk::{gdk, glib};
 use vte::TerminalExt;
 
 use crate::app::App;
@@ -45,4 +45,46 @@ impl App {
             }
         });
     }
+
+    /// Paste into the terminal: files as quoted paths, else an image saved as
+    /// a PNG and pasted as its quoted path, else the text.
+    pub(crate) fn paste_terminal(self: &Rc<Self>) {
+        let Some(view) = self.current_term() else {
+            return;
+        };
+        let clipboard = view.term.clipboard();
+        let formats = clipboard.formats();
+        glib::spawn_future_local(async move {
+            let text = if formats.contains_type(gdk::FileList::static_type()) {
+                clipboard_files(&clipboard).await
+            } else if formats.contains_type(gdk::Texture::static_type()) {
+                clipboard_image(&clipboard).await
+            } else {
+                None
+            };
+            match text {
+                Some(text) => view.term.paste_text(&text),
+                None => view.term.paste_clipboard(),
+            }
+        });
+    }
+}
+
+async fn clipboard_files(clipboard: &gdk::Clipboard) -> Option<String> {
+    let value = clipboard
+        .read_value_future(gdk::FileList::static_type(), glib::Priority::DEFAULT)
+        .await
+        .ok()?;
+    let files = value.get::<gdk::FileList>().ok()?;
+    let paths: Vec<_> = files.files().iter().filter_map(|f| f.path()).collect();
+    (!paths.is_empty()).then(|| xenon_core::terminal_paths_text(paths))
+}
+
+async fn clipboard_image(clipboard: &gdk::Clipboard) -> Option<String> {
+    let texture = clipboard.read_texture_future().await.ok().flatten()?;
+    let bytes = texture.save_to_png_bytes();
+    let path = xenon_core::clipboard_image_path(u64::from(glib::random_int()));
+    std::fs::create_dir_all(path.parent()?).ok()?;
+    std::fs::write(&path, &bytes).ok()?;
+    Some(xenon_core::shell_path(path))
 }

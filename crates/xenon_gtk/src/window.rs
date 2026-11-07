@@ -180,11 +180,6 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
             "app.open-finder",
             "Go to File\u{2026}",
         ),
-        (
-            "window-close-symbolic",
-            "app.close-workspace",
-            "Close Workspace",
-        ),
         ("emblem-system-symbolic", "app.settings", "Settings"),
     ];
     for (icon, action, label) in right.into_iter().rev() {

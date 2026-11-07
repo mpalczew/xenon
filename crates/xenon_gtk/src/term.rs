@@ -192,6 +192,23 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
         });
     }
     term.add_controller(keys);
+    // Files dropped from a file manager type their quoted paths.
+    let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
+    {
+        let term = view.term.downgrade();
+        drop.connect_drop(move |_, value, _, _| {
+            let Ok(files) = value.get::<gdk::FileList>() else {
+                return false;
+            };
+            let paths: Vec<_> = files.files().iter().filter_map(|f| f.path()).collect();
+            let (false, Some(term)) = (paths.is_empty(), term.upgrade()) else {
+                return false;
+            };
+            term.paste_text(&xenon_core::terminal_paths_text(paths));
+            true
+        });
+    }
+    term.add_controller(drop);
     let focus = gtk::EventControllerFocus::new();
     focus.connect_enter(move |_| {
         if let Some(app) = weak.upgrade() {

@@ -54,11 +54,9 @@ use terminal::terminal_settings::{AlternateScroll, CursorShape, TerminalSettings
 use terminal::{Terminal, TerminalBuilder};
 use theme::ActiveTheme;
 use util::paths::PathStyle;
-use xenon_core::{IDLE_AFTER, agent_busy_signal};
+use xenon_core::{IDLE_AFTER, agent_busy_signal, terminal_paths_text};
 
-use crate::clipboard::{
-    clean_agent_output, extract_code, terminal_clipboard_text, terminal_paths_text,
-};
+use crate::clipboard::{clean_agent_output, extract_code, terminal_clipboard_text};
 use crate::grid;
 use xenon_design_system::settings::{Copy, Cut, Paste};
 use xenon_settings::TerminalAutoClose;

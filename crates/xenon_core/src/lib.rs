@@ -14,6 +14,7 @@ mod pane_moves;
 mod pane_new_splits;
 mod pane_split;
 mod pane_tree;
+mod paste;
 mod route;
 mod session;
 mod split;
@@ -33,6 +34,7 @@ pub use content::{
 pub use ids::WorkspaceId;
 pub use pane_content::{CloseOutcome, PaneContent, ParkOutcome};
 pub use pane_tree::{PaneLeaf, PaneTab, PaneTree};
+pub use paste::{clipboard_image_path, shell_path, terminal_paths_text};
 pub use route::FileRoute;
 pub use session::{DEFAULT_SIDEBAR_WIDTH, Point, SessionState, clamp_sidebar};
 pub use split::{SplitTree, flatten_split, move_boundary, normalize_sizes};
