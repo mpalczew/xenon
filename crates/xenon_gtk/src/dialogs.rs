@@ -85,12 +85,7 @@ impl App {
         let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
             return;
         };
-        let cwd = view
-            .pid
-            .get()
-            .and_then(|pid| std::fs::read_link(format!("/proc/{pid}/cwd")).ok())
-            .unwrap_or_else(|| view.cwd.clone());
-        match classify(text, &cwd) {
+        match classify(text, &view.live_cwd()) {
             Link::Url(url) => self.launch(&url),
             Link::Path(path) if !path.exists() => {
                 self.toast(&format!("Not found: {}", path.display()));
@@ -100,7 +95,7 @@ impl App {
         }
     }
 
-    fn open_file(self: &Rc<Self>, path: &std::path::Path) {
+    pub(crate) fn open_file(self: &Rc<Self>, path: &std::path::Path) {
         let route = {
             let model = self.model.borrow();
             model.registry.route_file(path, model.active())

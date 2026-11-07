@@ -69,6 +69,7 @@ impl TermView {
             quiet_armed: Cell::new(false),
         });
         crate::links::install(app, &view, ws, tab);
+        crate::term_menu::install(&view);
         connect_signals(app, &view, ws, tab);
         view
     }
@@ -89,6 +90,14 @@ impl TermView {
     pub(crate) fn spawn(self: &Rc<Self>, cwd: &std::path::Path) {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
         self.spawn_command(cwd, &[shell], &[]);
+    }
+
+    /// The shell's current directory, else the one it started in.
+    pub(crate) fn live_cwd(&self) -> std::path::PathBuf {
+        self.pid
+            .get()
+            .and_then(|pid| std::fs::read_link(format!("/proc/{pid}/cwd")).ok())
+            .unwrap_or_else(|| self.cwd.clone())
     }
 
     /// Scrollback and screen as text, for a background task's readiness.

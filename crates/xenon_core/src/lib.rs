@@ -27,7 +27,7 @@ pub use activity::TerminalActivity;
 pub use agent::{ANONYMOUS_BUSY_WAKEUPS, BUSY_WAKEUPS, IDLE_AFTER, agent_busy_signal, agent_title};
 pub use attention::{AttentionReason, WorkspaceDot, workspace_dot, workspace_dot_from_tabs};
 pub use attention_map::AttentionMap;
-pub use clean_output::clean_agent_output;
+pub use clean_output::{clean_agent_output, extract_code};
 pub use content::{
     ContentLayout, DropEdge, LeafPane, MAX_NEST_DEPTH, MAX_SPLIT_CHILDREN, MIN_SIZE, PaneId,
     PaneNode, SplitAxis, TabId, TabState,

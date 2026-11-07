@@ -51,6 +51,40 @@ pub fn clean_agent_output(text: &str) -> String {
     lines.join("\n")
 }
 
+/// Return fenced code blocks, or cleaned text when the selection has no fence.
+pub fn extract_code(text: &str) -> String {
+    let stripped = strip_terminal_control_sequences(text);
+    let mut blocks = Vec::new();
+    let mut current = Vec::new();
+    let mut in_block = false;
+    for line in stripped.lines() {
+        let trimmed = line.trim_start();
+        let marker = trimmed
+            .chars()
+            .next()
+            .filter(|c| matches!(c, '│' | '┃' | '║' | '|'))
+            .map(|border| trimmed[border.len_utf8()..].trim_start())
+            .unwrap_or(trimmed);
+        if marker.starts_with("```") || marker.starts_with("~~~") {
+            if in_block {
+                blocks.push(current.join("\n"));
+            }
+            current.clear();
+            in_block = !in_block;
+        } else if in_block {
+            current.push(line);
+        }
+    }
+    if in_block && !current.is_empty() {
+        blocks.push(current.join("\n"));
+    }
+    if blocks.is_empty() {
+        clean_agent_output(text)
+    } else {
+        blocks.join("\n\n")
+    }
+}
+
 /// Strip one leading/trailing box-drawing gutter. `true` means the line filled
 /// the TUI box (trailing border after padding) and the next line may wrap.
 fn strip_box_gutters(line: &str) -> (String, bool) {

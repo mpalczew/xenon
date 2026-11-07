@@ -67,6 +67,7 @@ const SIMPLE: &[(&str, Handler)] = &[
         }
     }),
     ("copy-clean", |a| a.copy_clean()),
+    ("copy-code", |a| a.copy_code()),
     ("paste", |a| a.paste_terminal()),
     ("zoom-in", |a| a.zoom(1.0)),
     ("zoom-out", |a| a.zoom(-1.0)),
@@ -218,6 +219,15 @@ fn install_automation(app: &Rc<App>) {
             view.find.open();
             view.find.entry.set_text(query);
         }
+    });
+    // The terminal menu's file items: the path is the action's target.
+    string_action(app, "open-path-editor", |app, path| {
+        if let Some(ws) = app.model.borrow().active() {
+            app.open_editor(ws, std::path::Path::new(path));
+        }
+    });
+    string_action(app, "open-path-default", |app, path| {
+        app.open_file(std::path::Path::new(path));
     });
     string_action(app, "open-link", |app, text| {
         let key = {

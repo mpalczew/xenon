@@ -72,6 +72,7 @@ mod tab_ui;
 mod tasks;
 mod tasks_ui;
 mod term;
+mod term_menu;
 mod theme;
 mod window;
 mod worklist;

@@ -46,6 +46,22 @@ impl App {
         });
     }
 
+    /// Copy Code: the fenced code blocks of the selection (or its cleaned
+    /// text) go to the clipboard.
+    pub(crate) fn copy_code(&self) {
+        let selected = self
+            .current_term()
+            .and_then(|view| view.term.text_selected(vte::Format::Text).zip(Some(view)));
+        let Some((text, view)) = selected.filter(|(text, _)| !text.is_empty()) else {
+            self.toast("Nothing to copy");
+            return;
+        };
+        view.term
+            .clipboard()
+            .set_text(&xenon_core::extract_code(&text));
+        self.toast("Copied code");
+    }
+
     /// Paste into the terminal: files as quoted paths, else an image saved as
     /// a PNG and pasted as its quoted path, else the text.
     pub(crate) fn paste_terminal(self: &Rc<Self>) {
