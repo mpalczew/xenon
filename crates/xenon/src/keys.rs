@@ -11,6 +11,7 @@ const ACTIONS: &[(&str, &str)] = &[
     ("xenon::NewWorkspace", "app.new-workspace"),
     ("xenon::AddWorkspace", "app.open-workspace"),
     ("xenon::FilePalette", "app.open-finder"),
+    ("xenon::CommandPalette", "app.command-palette"),
     ("xenon::RunTask", "app.run-task"),
     ("xenon::CaptureWorklist", "app.capture-worklist"),
     ("xenon::OpenWorklist", "app.open-worklist"),

@@ -11,32 +11,20 @@ fn xenon_icon() -> Option<gtk::gdk::Texture> {
     gtk::gdk::Texture::from_bytes(&bytes).ok()
 }
 
-/// Commands the card lists: label, keys exactly as the GPUI catalog
-/// (`xenon_ui/src/commands.rs`) writes them (`display_keys` turns the glyphs
-/// into what this platform and the user's keymap bind), and the GTK action the
-/// row runs. Rows with no action yet are listed but not activatable.
-type Entry = (&'static str, &'static str, Option<&'static str>);
-const WITH_WORKSPACE: [Entry; 5] = [
-    ("Command Palette\u{2026}", "\u{2318}\u{21e7}P", None),
-    ("Focus Terminal", "\u{2318}1", Some("app.focus-terminal")),
-    ("Focus Editor", "\u{2318}2", None),
-    ("Toggle Sidebar", "\u{2318}B", Some("app.toggle-sidebar")),
-    ("Keyboard Shortcuts", "\u{2318}\u{21e7}/", None),
+/// Commands the card lists: label and the GTK action the row runs. The keys
+/// shown come from the keymap in force.
+type Entry = (&'static str, &'static str);
+const WITH_WORKSPACE: [Entry; 4] = [
+    ("Command Palette\u{2026}", "app.command-palette"),
+    ("Go to File\u{2026}", "app.open-finder"),
+    ("Focus Terminal", "app.focus-terminal"),
+    ("Toggle Sidebar", "app.toggle-sidebar"),
 ];
-const WITHOUT_WORKSPACE: [Entry; 5] = [
-    (
-        "New Workspace\u{2026}",
-        "\u{2318}\u{2325}N",
-        Some("app.new-workspace"),
-    ),
-    (
-        "Open Workspace\u{2026}",
-        "\u{2318}\u{21e7}O",
-        Some("app.open-workspace"),
-    ),
-    ("Command Palette\u{2026}", "\u{2318}\u{21e7}P", None),
-    ("Toggle Sidebar", "\u{2318}B", Some("app.toggle-sidebar")),
-    ("Keyboard Shortcuts", "\u{2318}\u{21e7}/", None),
+const WITHOUT_WORKSPACE: [Entry; 4] = [
+    ("New Workspace\u{2026}", "app.new-workspace"),
+    ("Open Workspace\u{2026}", "app.open-workspace"),
+    ("Command Palette\u{2026}", "app.command-palette"),
+    ("Toggle Sidebar", "app.toggle-sidebar"),
 ];
 
 fn button(label: &str, action: &str, tip: Option<&str>, primary: bool) -> gtk::Button {
@@ -112,16 +100,15 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
     } else {
         &WITHOUT_WORKSPACE
     };
-    for (label, keys, action) in entries {
+    for (label, action) in entries {
         let row = adw::ActionRow::new();
         row.set_title(label);
-        let chord = gtk::Label::new(Some(&xenon_keymap::display_keys(keys)));
-        chord.add_css_class("dim-label");
-        row.add_suffix(&chord);
-        match action {
-            Some(action) => row.set_action_name(Some(action)),
-            None => row.set_activatable(false),
+        if let Some(chord) = app.chord(action) {
+            let keys = gtk::Label::new(Some(&chord));
+            keys.add_css_class("dim-label");
+            row.add_suffix(&keys);
         }
+        row.set_action_name(Some(action));
         list.append(&row);
     }
     let shortcuts = gtk::Box::new(gtk::Orientation::Vertical, 6);

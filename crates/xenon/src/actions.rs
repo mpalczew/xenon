@@ -22,6 +22,7 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("open-workspace", |a| a.open_workspace_picker()),
     ("browse-workspace", |a| a.open_workspace_dialog()),
     ("open-finder", |a| a.open_finder()),
+    ("command-palette", |a| a.open_command_palette()),
     ("run-task", |a| a.open_task_picker()),
     ("capture-worklist", |a| a.capture_worklist()),
     ("open-worklist", |a| a.open_worklist()),
@@ -66,6 +67,7 @@ const SIMPLE: &[(&str, Handler)] = &[
             view.term.copy_clipboard_format(vte::Format::Text);
         }
     }),
+    ("cut", |a| a.cut()),
     ("copy-clean", |a| a.copy_clean()),
     ("copy-code", |a| a.copy_code()),
     ("paste", |a| a.paste_terminal()),

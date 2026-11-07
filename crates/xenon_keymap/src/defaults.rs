@@ -12,6 +12,7 @@ const SHARED: &[Row] = &[
     (None, "cmd-n", "xenon::NewTerminal"),
     (None, "cmd-alt-n", "xenon::NewWorkspace"),
     (None, "cmd-p", "xenon::FilePalette"),
+    (None, "cmd-shift-p", "xenon::CommandPalette"),
     (None, "cmd-shift-o", "xenon::AddWorkspace"),
     (None, "cmd-shift-r", "xenon::RunTask"),
     (None, "cmd-shift-b", "xenon::RunBuildTask"),

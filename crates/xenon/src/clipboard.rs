@@ -14,15 +14,7 @@ impl App {
     /// editor it is a plain copy.
     pub(crate) fn copy_clean(self: &Rc<Self>) {
         let Some(view) = self.current_term() else {
-            let editor = {
-                let model = self.model.borrow();
-                let ws = model.active();
-                let tab = ws
-                    .and_then(|w| model.spaces.get(&w))
-                    .and_then(|s| s.content.active_tab());
-                ws.zip(tab.map(|t| t.id))
-            };
-            match editor.and_then(|key| self.editors.borrow().get(&key).cloned()) {
+            match self.current_editor() {
                 Some(editor) => editor.view.emit_copy_clipboard(),
                 None => self.toast("Nothing to copy"),
             }
@@ -44,6 +36,28 @@ impl App {
                 None => app.toast("Nothing to copy"),
             }
         });
+    }
+
+    /// Cut: the focused editor cuts; a terminal only copies, because its
+    /// scrollback is not deleted.
+    pub(crate) fn cut(self: &Rc<Self>) {
+        match (self.current_term(), self.current_editor()) {
+            (Some(view), _) => view.term.copy_clipboard_format(vte::Format::Text),
+            (None, Some(editor)) => editor.view.emit_cut_clipboard(),
+            (None, None) => self.toast("Nothing to cut"),
+        }
+    }
+
+    fn current_editor(&self) -> Option<Rc<crate::editor::EditorView>> {
+        let key = {
+            let model = self.model.borrow();
+            let ws = model.active();
+            let tab = ws
+                .and_then(|w| model.spaces.get(&w))
+                .and_then(|s| s.content.active_tab());
+            ws.zip(tab.map(|t| t.id))
+        };
+        self.editors.borrow().get(&key?).cloned()
     }
 
     /// Copy Code: the fenced code blocks of the selection (or its cleaned

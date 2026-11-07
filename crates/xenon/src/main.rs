@@ -21,6 +21,7 @@ use gtk::{gio, glib};
 mod actions;
 mod app;
 mod clipboard;
+mod command_palette;
 mod commands;
 mod dialogs;
 mod diff_text;
