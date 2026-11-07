@@ -225,9 +225,9 @@ impl EditorView {
         let (line, col) = (cursor.line(), cursor.line_offset());
         let scroll = self.scroller.vadjustment().value();
         self.loading.set(true);
-        // No irreversible action: Vim insert mode keeps a user action open
-        // on the buffer, and GTK refuses to begin one inside it.
+        self.buffer.begin_irreversible_action();
         self.buffer.set_text(text);
+        self.buffer.end_irreversible_action();
         self.buffer.set_modified(false);
         self.loading.set(false);
         let at = self
@@ -382,9 +382,6 @@ impl EditorView {
 
 impl Drop for EditorView {
     fn drop(&mut self) {
-        // Let the Vim input method end its open user action while the view
-        // and buffer are still alive; otherwise GTK ends it on a freed buffer.
-        self.detach_vim();
         if let Some(monitor) = self.monitor.take() {
             monitor.cancel();
         }

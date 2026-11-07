@@ -101,9 +101,9 @@ impl DiffView {
         auto_label.add_css_class("dim-label");
         auto_label.add_css_class("caption");
         let plus = gtk::Label::new(None);
-        plus.add_css_class("xk-added");
+        plus.add_css_class("success");
         let minus = gtk::Label::new(None);
-        minus.add_css_class("xk-deleted");
+        minus.add_css_class("error");
 
         let (modes_box, modes, pill) = mode_buttons();
         let head = gtk::Box::new(gtk::Orientation::Horizontal, 12);

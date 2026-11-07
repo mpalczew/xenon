@@ -270,7 +270,6 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     connect_window(&app, &win);
     app.sidebar.set_hints(&app);
     app.sidebar.rebuild(&app.model.borrow());
-    app.sidebar.root.append(&app.remote.footer.root);
     start_workspace(&app);
     app.remote_boot();
     app

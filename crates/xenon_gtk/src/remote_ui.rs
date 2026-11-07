@@ -1,4 +1,4 @@
-//! What the remote shows in the window: the sidebar footer line, the "Connect
+//! What the remote shows in the window: the "Connect
 //! Phone" dialog (QR, six digits, address), and the actions that open them.
 //! The `remote-state` action publishes the same facts as JSON for scripts.
 
@@ -8,71 +8,11 @@ use std::time::Instant;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use qrcode::{Color, QrCode};
-use xenon_remote::{RemoteFooter, RemoteStatus, device_short_name, pairing_url};
+use xenon_remote::{RemoteStatus, pairing_url};
 
 use crate::app::App;
 
-/// The sidebar footer: one flat button, shown only while the remote is on.
-pub(crate) struct Footer {
-    pub root: gtk::Button,
-    label: gtk::Label,
-}
-
-impl Footer {
-    pub(crate) fn new() -> Self {
-        let label = gtk::Label::new(None);
-        label.set_xalign(0.0);
-        label.set_hexpand(true);
-        label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        row.append(&gtk::Image::from_icon_name("phone-symbolic"));
-        row.append(&label);
-        let root = gtk::Button::new();
-        root.set_child(Some(&row));
-        root.add_css_class("flat");
-        root.set_action_name(Some("app.connect-phone"));
-        root.set_tooltip_text(Some("Connect Phone"));
-        root.set_focusable(false);
-        root.set_visible(false);
-        Self { root, label }
-    }
-}
-
 impl App {
-    /// What the footer says now (None while the remote is off).
-    pub(crate) fn remote_footer(&self, status: &RemoteStatus) -> Option<RemoteFooter> {
-        if status.waiting {
-            return Some(RemoteFooter::Waiting);
-        }
-        let rt = self.remote.rt.borrow();
-        let rt = rt.as_ref()?;
-        let devices: Vec<String> = rt
-            .conns
-            .values()
-            .map(|c| {
-                device_short_name(rt.devices.label(&c.device_id).unwrap_or("Phone")).to_string()
-            })
-            .collect();
-        let model = self.model.borrow();
-        let driving = rt.conns.values().find_map(|c| {
-            let a = c.attach.as_ref()?;
-            let device = model.tab(a.ws, a.tab)?.phone_device.clone()?;
-            Some((device, model.rec(a.ws)?.name.clone()))
-        });
-        Some(RemoteFooter::from_facts(false, &devices, driving))
-    }
-
-    pub(crate) fn remote_paint_footer(&self, status: &RemoteStatus) {
-        let footer = self.remote_footer(status);
-        let shown = &self.remote.footer;
-        shown.root.set_visible(footer.is_some());
-        if let Some(footer) = footer {
-            shown.label.set_text(&footer.label());
-            crate::pane::set_class(&shown.label, "accent", footer.active());
-            crate::pane::set_class(&shown.label, "dim-label", !footer.active());
-        }
-    }
-
     /// The `remote-state` action: status, and the pairing code while the
     /// dialog is open.
     pub(crate) fn publish_remote_state(&self, status: &RemoteStatus) {

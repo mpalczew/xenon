@@ -26,7 +26,6 @@ use xenon_remote::{
 use crate::app::App;
 use crate::remote_fit::TabFit;
 use crate::remote_session::Conn;
-use crate::remote_ui::Footer;
 
 const PORT_RETRY: Duration = Duration::from_secs(5);
 const NETWORK_EVERY: Duration = Duration::from_secs(30);
@@ -48,7 +47,6 @@ pub(crate) struct Remote {
     pub rt: RefCell<Option<Runtime>>,
     wait: RefCell<Option<glib::SourceId>>,
     wait_logged: Cell<bool>,
-    pub footer: Footer,
     pub fits: RefCell<HashMap<(WorkspaceId, TabId), TabFit>>,
     /// Told after every status change (the Settings page redraws from it).
     pub on_change: RefCell<Option<Rc<dyn Fn()>>>,
@@ -61,7 +59,6 @@ impl Remote {
             rt: RefCell::new(None),
             wait: RefCell::new(None),
             wait_logged: Cell::new(false),
-            footer: Footer::new(),
             fits: RefCell::default(),
             on_change: RefCell::new(None),
             connect_dialog: RefCell::new(None),
@@ -286,7 +283,6 @@ impl App {
         if let Some(rt) = self.remote.rt.borrow_mut().as_mut() {
             rt.keep_awake.sync(hold);
         }
-        self.remote_paint_footer(&status);
         self.publish_remote_state(&status);
         let callback = self.remote.on_change.borrow().clone();
         if let Some(callback) = callback {

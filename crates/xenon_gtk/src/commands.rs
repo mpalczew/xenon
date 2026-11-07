@@ -130,13 +130,7 @@ impl App {
             .map(|t| t.id);
         drop(model);
         if let (Some(ws), Some(tab)) = (ws, tab) {
-            // Not inside the key event: the focused view may be mid user action.
-            let weak = Rc::downgrade(self);
-            glib::idle_add_local_once(move || {
-                if let Some(app) = weak.upgrade() {
-                    app.close_tab_ui(ws, tab);
-                }
-            });
+            self.close_tab_ui(ws, tab);
         }
     }
 

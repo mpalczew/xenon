@@ -15,43 +15,24 @@ use crate::git::GitHub;
 use crate::git_section::GitView;
 use crate::model::{Fold, Model};
 use crate::pane::set_class;
+use crate::sidebar_ui::{Row, Section};
 
-struct Row {
+struct WsRow {
     id: WorkspaceId,
     row: gtk::ListBoxRow,
-    dot: gtk::Box,
-    tick: gtk::Box,
+    dot: gtk::Image,
+    tick: gtk::Image,
 }
 
 pub(crate) struct Sidebar {
     pub root: gtk::Box,
     pub files: Rc<FilesView>,
     pub git: Rc<GitView>,
-    workspaces: gtk::Box,
-    reveal: gtk::Revealer,
+    workspaces: Section,
     pub list: gtk::ListBox,
     add: gtk::MenuButton,
     app: Weak<App>,
-    rows: RefCell<Vec<Row>>,
-}
-
-/// A section header that folds its section on click, Enter and Space.
-pub(crate) fn fold_button(
-    child: &impl IsA<gtk::Widget>,
-    fold: Fold,
-    app: &Weak<App>,
-) -> gtk::Button {
-    let button = gtk::Button::new();
-    button.set_child(Some(child));
-    button.add_css_class("flat");
-    button.add_css_class("xfold");
-    let app = app.clone();
-    button.connect_clicked(move |_| {
-        if let Some(app) = app.upgrade() {
-            app.toggle_fold(fold);
-        }
-    });
-    button
+    rows: RefCell<Vec<WsRow>>,
 }
 
 /// `$HOME` shown as `~`.
@@ -66,10 +47,6 @@ pub(crate) fn short_path(path: &str) -> String {
 
 impl Sidebar {
     pub(crate) fn new(app: Weak<App>) -> Self {
-        let title = gtk::Label::new(Some("WORKSPACES"));
-        title.add_css_class("xheading");
-        title.set_xalign(0.0);
-        title.set_hexpand(true);
         let menu = gio::Menu::new();
         menu.append(Some("New workspace\u{2026}"), Some("app.new-workspace"));
         menu.append(Some("Open workspace\u{2026}"), Some("app.open-workspace"));
@@ -78,12 +55,6 @@ impl Sidebar {
         add.set_menu_model(Some(&menu));
         add.add_css_class("flat");
         add.set_focusable(false);
-        let head = fold_button(&title, Fold::Workspaces, &app);
-        head.set_hexpand(true);
-        let header = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        header.add_css_class("xsection-head");
-        header.append(&head);
-        header.append(&add);
 
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Browse);
@@ -95,11 +66,8 @@ impl Sidebar {
                 app.activate_workspace_index(row.index().max(0) as usize);
             }
         });
-        let app_for_files = app.clone();
-        let app_for_git = app.clone();
-        let app_for_rows = app.clone();
         let keys = gtk::EventControllerKey::new();
-        let weak = app;
+        let weak = app.clone();
         keys.connect_key_pressed(move |_, key, _, _| {
             if key == gdk::Key::Escape
                 && let Some(app) = weak.upgrade()
@@ -110,28 +78,16 @@ impl Sidebar {
             glib::Propagation::Proceed
         });
         list.add_controller(keys);
-        Self::accept_drops(&list, app_for_rows.clone());
-        let scroll = gtk::ScrolledWindow::new();
-        scroll.set_child(Some(&list));
-        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_propagate_natural_height(true);
-        scroll.set_max_content_height(300);
+        Self::accept_drops(&list, app.clone());
 
-        let workspaces = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        workspaces.add_css_class("xsection");
-        let reveal = gtk::Revealer::new();
-        reveal.set_transition_type(gtk::RevealerTransitionType::SlideDown);
-        reveal.set_transition_duration(160);
-        reveal.set_reveal_child(true);
-        reveal.set_child(Some(&scroll));
-        scroll.set_vexpand(true);
-        workspaces.append(&header);
-        workspaces.append(&reveal);
-        let files = FilesView::new(app_for_files);
-        let git = GitView::new(app_for_git);
+        let workspaces = Section::new("WORKSPACES", Fold::Workspaces, &list, Some(300), &app);
+        workspaces.set_trailing(&add);
+        workspaces.sep.set_visible(false);
+        let files = FilesView::new(app.clone());
+        let git = GitView::new(app.clone());
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        root.add_css_class("xsidebar");
-        root.append(&workspaces);
+        root.add_css_class("sidebar-pane");
+        root.append(&workspaces.root);
         root.append(&files.root);
         root.append(&git.root);
         Self {
@@ -139,10 +95,9 @@ impl Sidebar {
             files,
             git,
             workspaces,
-            reveal,
             list,
             add,
-            app: app_for_rows,
+            app,
             rows: RefCell::default(),
         }
     }
@@ -200,12 +155,13 @@ impl Sidebar {
     /// Draw each section folded or open as the model says.
     pub(crate) fn apply_folds(&self, model: &Model) {
         let folds = model.folds;
-        self.reveal.set_reveal_child(!folds.workspaces);
+        self.workspaces.show_fold(folds.workspaces);
         self.files.show_fold(folds.files);
         self.git.show_fold(folds.git);
         // Open Files takes the free space; with Files folded, Workspaces takes it.
         self.files.root.set_vexpand(!folds.files);
         self.workspaces
+            .root
             .set_vexpand(folds.files && !folds.workspaces);
     }
 
@@ -213,37 +169,20 @@ impl Sidebar {
     pub(crate) fn rebuild(&self, model: &Model) {
         self.apply_folds(model);
         let mut rows = self.rows.borrow_mut();
-        while let Some(child) = self.list.first_child() {
-            self.list.remove(&child);
-        }
+        self.list.remove_all();
         rows.clear();
         for rec in &model.registry.workspaces {
-            let name = gtk::Label::new(Some(&rec.name));
-            name.add_css_class("xname");
-            name.set_xalign(0.0);
-            name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-            name.set_hexpand(true);
-            let body = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-            let glyph = gtk::Image::from_icon_name("folder-symbolic");
-            glyph.add_css_class("xrow-icon");
-            body.append(&glyph);
-            body.append(&name);
-            body.set_tooltip_text(Some(&rec.display_root()));
-            let dot = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            dot.add_css_class("xdot");
-            let line = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            line.append(&dot);
-            line.append(&body);
-            body.set_hexpand(true);
-            let tick = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            tick.add_css_class("xtick");
-            tick.set_valign(gtk::Align::Center);
-            tick.set_halign(gtk::Align::End);
+            let line = Row::new();
+            line.set(Some("folder-symbolic"), &rec.name, "");
+            line.root.set_tooltip_text(Some(&rec.display_root()));
+            let dot = gtk::Image::from_icon_name("media-record-symbolic");
+            let tick = gtk::Image::from_icon_name("document-edit-symbolic");
+            let status = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+            status.append(&dot);
+            status.append(&tick);
             let close = gtk::Button::from_icon_name("window-close-symbolic");
-            close.add_css_class("flat");
-            close.add_css_class("xrow-close");
+            close.set_has_frame(false);
             close.set_focusable(false);
-            close.set_valign(gtk::Align::Center);
             if let Some(app) = self.app.upgrade() {
                 close.set_tooltip_text(Some(&app.tip("Close", "app.close-workspace")));
             }
@@ -254,13 +193,9 @@ impl Sidebar {
                     app.close_workspace_id(id);
                 }
             });
-            let gutter = gtk::Overlay::new();
-            gutter.add_css_class("xgutter");
-            gutter.set_child(Some(&tick));
-            gutter.add_overlay(&close);
-            line.append(&gutter);
+            line.swap_on_hover(&status, &close);
             let row = gtk::ListBoxRow::new();
-            row.set_child(Some(&line));
+            row.set_child(Some(&line.root));
             let drag = gtk::DragSource::new();
             drag.set_actions(gdk::DragAction::MOVE);
             drag.connect_prepare({
@@ -279,7 +214,7 @@ impl Sidebar {
             });
             row.add_controller(drag);
             self.list.append(&row);
-            rows.push(Row {
+            rows.push(WsRow {
                 id: rec.id,
                 row,
                 dot,
@@ -296,20 +231,16 @@ impl Sidebar {
                 self.list.select_row(Some(&r.row));
             }
             let dot = model.workspace_dot(r.id);
-            set_class(
-                &r.dot,
-                "working",
-                matches!(dot, Some(WorkspaceDot::Working)),
-            );
-            set_class(
-                &r.dot,
-                "attention",
-                matches!(dot, Some(WorkspaceDot::Attention(_))),
-            );
+            let working = matches!(dot, Some(WorkspaceDot::Working));
+            let attention = matches!(dot, Some(WorkspaceDot::Attention(_)));
+            r.dot.set_visible(working || attention);
+            set_class(&r.dot, "accent", working);
+            set_class(&r.dot, "warning", attention);
             r.dot.set_opacity(1.0);
             let dirt = git.dirt(r.id);
-            set_class(&r.tick, "dirty", dirt == DirtState::Dirty);
-            set_class(&r.tick, "index", dirt == DirtState::IndexOnly);
+            r.tick.set_visible(dirt != DirtState::Clean);
+            set_class(&r.tick, "warning", dirt == DirtState::Dirty);
+            set_class(&r.tick, "dim-label", dirt == DirtState::IndexOnly);
             r.tick.set_tooltip_text(match dirt {
                 DirtState::Clean => None,
                 DirtState::Dirty => Some("Changes since HEAD"),
@@ -320,7 +251,7 @@ impl Sidebar {
 
     pub(crate) fn pulse(&self, opacity: f64) {
         for r in self.rows.borrow().iter() {
-            if r.dot.has_css_class("working") {
+            if r.dot.has_css_class("accent") {
                 r.dot.set_opacity(opacity);
             }
         }
