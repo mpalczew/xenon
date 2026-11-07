@@ -7,6 +7,8 @@
 /// libadwaita's named colors or the text color at low strength.
 pub(crate) const CSS: &str = "\
 listview.xfiles > row { min-height: 24px; padding: 0 6px; }
+listview.xfiles treeexpander:drop(active) { background: alpha(@accent_color, 0.25); }
+listview.xfiles:drop(active) { box-shadow: inset 0 0 0 2px @accent_color; }
 vte-terminal { padding: 4px 8px; }
 row.drop-before { box-shadow: 0 -1px 0 1px @accent_color; }
 row.drop-after { box-shadow: 0 1px 0 1px @accent_color; }

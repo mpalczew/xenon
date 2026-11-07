@@ -3,6 +3,7 @@
 //! move, files from other apps copy. Where a drop lands is decided in
 //! `xenon_finder::fileops`.
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
@@ -53,11 +54,13 @@ impl FilesView {
         expander.add_controller(source);
 
         let (weak_row, o) = (expander.downgrade(), owner.clone());
-        expander.add_controller(drop_target(move |paths| {
+        let drop = drop_target(move |paths| {
             let target = target_of(&weak_row.upgrade()?)?;
             let dest = fileops::new_item_dir(&target.path, target.is_dir);
             Some(o.get()?.dropped(paths, dest))
-        }));
+        });
+        spring_open(&drop, expander);
+        expander.add_controller(drop);
     }
 
     /// Files were dropped on `dest`. Our own rows move; anything else copies.
@@ -190,9 +193,45 @@ fn drop_target(drop: impl Fn(Vec<PathBuf>) -> Option<bool> + 'static) -> gtk::Dr
     target
 }
 
+/// Hovering a closed folder during a drag opens it after a moment. The expand
+/// runs from the timeout, never inside the drag signal.
+fn spring_open(drop: &gtk::DropTarget, expander: &gtk::TreeExpander) {
+    let timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::default();
+    let (t, weak) = (timer.clone(), expander.downgrade());
+    drop.connect_enter(move |_, _, _| {
+        if let Some(old) = t.borrow_mut().take() {
+            old.remove();
+        }
+        let (t2, weak) = (t.clone(), weak.clone());
+        let id = glib::timeout_add_local_once(std::time::Duration::from_millis(700), move || {
+            t2.borrow_mut().take();
+            if let Some(row) = weak.upgrade().and_then(|e| e.list_row())
+                && row.is_expandable()
+                && !row.is_expanded()
+            {
+                row.set_expanded(true);
+            }
+        });
+        *t.borrow_mut() = Some(id);
+        gdk::DragAction::empty()
+    });
+    let t = timer.clone();
+    drop.connect_leave(move |_| {
+        if let Some(id) = t.borrow_mut().take() {
+            id.remove();
+        }
+    });
+    drop.connect_drop(move |_, _, _, _| {
+        if let Some(id) = timer.borrow_mut().take() {
+            id.remove();
+        }
+        false
+    });
+}
+
 /// Where the Files view lives, for handlers made before the view exists.
 #[derive(Clone, Default)]
-pub(super) struct OwnerCell(pub Rc<std::cell::RefCell<Weak<FilesView>>>);
+pub(super) struct OwnerCell(pub Rc<RefCell<Weak<FilesView>>>);
 
 impl OwnerCell {
     pub(super) fn get(&self) -> Option<Rc<FilesView>> {
