@@ -12,7 +12,7 @@ pub trait FontProbe {
 }
 
 /// Map marketing / legacy names to Core Text family names.
-pub fn canonicalize_mono_family(family: &str) -> String {
+pub(crate) fn canonicalize_mono_family(family: &str) -> String {
     match family.trim() {
         "SF Mono" | "SFMono" | "SFMono-Regular" => ".SF NS Mono".into(),
         "Zed Mono" | ".ZedMono" | "Zed Plex Mono" => "Lilex".into(),
@@ -21,7 +21,7 @@ pub fn canonicalize_mono_family(family: &str) -> String {
 }
 
 /// Human label for a stored family (settings dropdown trigger).
-pub fn display_mono_family(family: &str) -> &str {
+pub(crate) fn display_mono_family(family: &str) -> &str {
     match family {
         ".SF NS Mono" => "SF Mono",
         other => other,
@@ -29,7 +29,7 @@ pub fn display_mono_family(family: &str) -> &str {
 }
 
 /// Resolve aliases and require a monospaced face; otherwise fall back to Lilex.
-pub fn ensure_mono_family(family: &str, probe: &dyn FontProbe) -> String {
+pub(crate) fn ensure_mono_family(family: &str, probe: &dyn FontProbe) -> String {
     let candidate = canonicalize_mono_family(family);
     if probe.is_monospace(&candidate) {
         return candidate;
@@ -44,7 +44,7 @@ pub fn ensure_mono_family(family: &str, probe: &dyn FontProbe) -> String {
 }
 
 /// Resolve a UI face name; fall back to system UI font when unusable.
-pub fn ensure_ui_family(family: &str, probe: &dyn FontProbe) -> String {
+pub(crate) fn ensure_ui_family(family: &str, probe: &dyn FontProbe) -> String {
     let candidate = family.trim();
     if candidate.is_empty() {
         return DEFAULT_UI_FONT_FAMILY.into();
@@ -57,12 +57,4 @@ pub fn ensure_ui_family(family: &str, probe: &dyn FontProbe) -> String {
         return DEFAULT_UI_FONT_FAMILY.into();
     }
     candidate.to_string()
-}
-
-/// Human label for a stored UI family (settings dropdown).
-pub fn display_ui_family(family: &str) -> &str {
-    match family {
-        ".SystemUIFont" | ".AppleSystemUIFont" => "System",
-        other => other,
-    }
 }

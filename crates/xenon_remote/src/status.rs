@@ -6,7 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use xenon_store::RemoteDevice;
 
 use crate::frame::Rgb;
-use crate::network::{base_url, normalize_hostname};
 use crate::protocol::ThemeWire;
 
 /// One paired device as Settings lists it.
@@ -52,12 +51,6 @@ impl RemoteStatus {
             (None, _) => off_hint.to_string(),
         }
     }
-}
-
-/// The phone URL for a running server.
-pub fn phone_base_url(host_override: &str, magic_host: &str, port: u16) -> String {
-    let host = normalize_hostname(host_override);
-    base_url(if host.is_empty() { magic_host } else { &host }, port)
 }
 
 /// Device list rows; `connected` says whether a device has a live session.

@@ -35,11 +35,6 @@ impl DeviceBook {
         self.pairing = None;
     }
 
-    /// Show a fixed code (screenshots and tests).
-    pub fn set_pairing(&mut self, code: PairingCode) {
-        self.pairing = Some(code);
-    }
-
     /// Consume the pairing code and add a device. None = wrong/expired code.
     /// The code is single use; a fresh one replaces it for the next phone.
     pub(crate) fn pair(&mut self, code: &str, label: &str, now: Instant) -> Option<NewDevice> {
@@ -61,7 +56,7 @@ impl DeviceBook {
     }
 
     /// Device id for a presented token.
-    pub fn authenticate(&self, token: &str) -> Option<String> {
+    pub(crate) fn authenticate(&self, token: &str) -> Option<String> {
         if token.is_empty() {
             return None;
         }

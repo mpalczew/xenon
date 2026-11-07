@@ -37,10 +37,10 @@ pub struct WindowGeometry {
 
 impl WindowGeometry {
     /// Minimum restored size so a tiny/corrupt rect never traps the UI.
-    pub const MIN_WIDTH: f32 = 400.0;
-    pub const MIN_HEIGHT: f32 = 300.0;
+    pub(crate) const MIN_WIDTH: f32 = 400.0;
+    pub(crate) const MIN_HEIGHT: f32 = 300.0;
     /// Reject absurd values (corrupt file / multi-monitor coordinate blowup).
-    pub const MAX_EXTENT: f32 = 20_000.0;
+    pub(crate) const MAX_EXTENT: f32 = 20_000.0;
 
     pub fn new(x: f32, y: f32, width: f32, height: f32, state: WindowState) -> Self {
         Self {
@@ -139,8 +139,6 @@ pub struct AppSettings {
     /// Optional host for copyable phone URLs (MagicDNS name).
     #[serde(default)]
     pub remote_hostname: String,
-    #[serde(default)]
-    pub lsp: LspSettings,
     /// Markdown prose mode look.
     #[serde(default)]
     pub prose: crate::ProseSettings,
@@ -174,7 +172,6 @@ impl Default for AppSettings {
             remote_keep_awake_while_connected: false,
             remote_port: default_remote_port(),
             remote_hostname: String::new(),
-            lsp: LspSettings::default(),
             prose: crate::ProseSettings::default(),
         }
     }
@@ -182,44 +179,6 @@ impl Default for AppSettings {
 
 fn default_sidebar_width() -> f32 {
     240.0
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LspCommand {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub command: Option<String>,
-    #[serde(default)]
-    pub args: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LspSettings {
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    #[serde(default)]
-    pub rust: LspCommand,
-    #[serde(default = "default_typescript_lsp")]
-    pub typescript: LspCommand,
-}
-
-impl Default for LspSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            rust: LspCommand {
-                command: None,
-                args: Vec::new(),
-            },
-            typescript: default_typescript_lsp(),
-        }
-    }
-}
-
-fn default_typescript_lsp() -> LspCommand {
-    LspCommand {
-        command: None,
-        args: vec!["--stdio".into()],
-    }
 }
 
 fn default_font_size() -> f32 {

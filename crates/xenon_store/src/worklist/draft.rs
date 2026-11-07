@@ -119,7 +119,7 @@ impl ItemDraft {
     }
 
     /// Track the item after `change` landed; returns its row index.
-    pub fn commit(&mut self, source: &str, change: &Change) -> Option<usize> {
+    pub(crate) fn commit(&mut self, source: &str, change: &Change) -> Option<usize> {
         let (index, range) = change.item_start.and_then(|start| {
             entries(source)
                 .into_iter()

@@ -17,7 +17,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(400);
 const IO_TIMEOUT: Duration = Duration::from_millis(2_000);
 
 /// Path of the per-data-dir control socket.
-pub fn socket_path() -> PathBuf {
+pub(crate) fn socket_path() -> PathBuf {
     data_dir().join("ipc.sock")
 }
 
@@ -68,23 +68,10 @@ pub enum IpcRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct IpcResponse {
+pub(crate) struct IpcResponse {
     pub ok: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-}
-
-/// If a live primary is listening, deliver `paths` (or Activate) and return true.
-/// False means this process should become primary (or cold-start).
-pub fn try_handoff(paths: &[PathBuf]) -> bool {
-    let req = if paths.is_empty() {
-        IpcRequest::Activate
-    } else {
-        IpcRequest::Open {
-            paths: paths.to_vec(),
-        }
-    };
-    try_handoff_request(&req)
 }
 
 /// Same as [`try_handoff`] for an already-built request (`open` included).
@@ -93,7 +80,7 @@ pub fn try_handoff_request(req: &IpcRequest) -> bool {
 }
 
 /// Connect and send one request; Ok only when the peer replies `ok: true`.
-pub fn send_request(req: &IpcRequest) -> std::io::Result<IpcResponse> {
+pub(crate) fn send_request(req: &IpcRequest) -> std::io::Result<IpcResponse> {
     let path = socket_path();
     let mut stream = connect_socket(&path)?;
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
@@ -194,7 +181,7 @@ fn write_response(mut stream: &UnixStream, resp: IpcResponse) -> std::io::Result
 }
 
 /// Expand CLI args into absolute paths (cwd-relative). Skips flags.
-pub fn parse_cli_paths(args: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
+pub(crate) fn parse_cli_paths(args: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for arg in args {

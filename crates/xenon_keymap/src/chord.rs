@@ -13,7 +13,7 @@ impl Platform {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Chord {
+pub(crate) struct Chord {
     ctrl: bool,
     alt: bool,
     shift: bool,
@@ -22,33 +22,8 @@ pub struct Chord {
 }
 
 impl Chord {
-    /// gpui form: `cmd-alt-shift-w`, `cmd--`, `f12`. One keystroke only.
-    pub fn parse(text: &str) -> Option<Self> {
-        let mut chord = Self::default();
-        let mut rest = text;
-        while let Some((head, tail)) = rest.split_once('-') {
-            if tail.is_empty() || !chord.set_modifier(head) {
-                break;
-            }
-            rest = tail;
-        }
-        chord.key = rest.to_owned();
-        (!chord.key.is_empty()).then_some(chord)
-    }
-
-    fn set_modifier(&mut self, name: &str) -> bool {
-        match name {
-            "ctrl" => self.ctrl = true,
-            "alt" => self.alt = true,
-            "shift" => self.shift = true,
-            "cmd" | "super" | "win" => self.cmd = true,
-            _ => return false,
-        }
-        true
-    }
-
     /// Glyph form: `⌘⇧P`, `⌃⇥`, `⌥↩`, `F12`.
-    pub fn from_glyphs(text: &str) -> Option<Self> {
+    pub(crate) fn from_glyphs(text: &str) -> Option<Self> {
         let mut chord = Self::default();
         let mut key = String::new();
         for ch in text.chars() {
@@ -65,7 +40,7 @@ impl Chord {
     }
 
     /// Stable identity for lookups, independent of modifier order or glyphs.
-    pub fn canonical(&self) -> String {
+    pub(crate) fn canonical(&self) -> String {
         let mut out = String::new();
         for (on, name) in [
             (self.ctrl, "ctrl-"),
@@ -98,7 +73,7 @@ impl Chord {
     }
 
     /// The same chord with ⌘ replaced by Ctrl, the secondary modifier here.
-    pub fn for_linux(mut self) -> Self {
+    pub(crate) fn for_linux(mut self) -> Self {
         if self.cmd {
             self.cmd = false;
             self.ctrl = true;
@@ -130,18 +105,6 @@ fn is_single_key(text: &str) -> bool {
         || (text.len() > 1
             && text.starts_with('F')
             && text[1..].chars().all(|c| c.is_ascii_digit()))
-}
-
-/// Format a (possibly multi-keystroke) gpui binding.
-pub fn format_sequence(keystrokes: &str) -> String {
-    keystrokes
-        .split_whitespace()
-        .map(|part| match Chord::parse(part) {
-            Some(chord) => chord.format(),
-            None => part.to_owned(),
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn key_text(key: &str) -> String {

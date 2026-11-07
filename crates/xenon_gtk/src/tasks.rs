@@ -115,9 +115,6 @@ impl App {
     pub(crate) fn load_workspace_tasks(&self, ws: WorkspaceId) -> Result<LoadedTasks, String> {
         let model = self.model.borrow();
         let rec = model.rec(ws).ok_or("that workspace is gone")?;
-        if rec.ssh.is_some() {
-            return Err(shared::SSH_TASKS.into());
-        }
         shared::load_tasks(&rec.root)
     }
 

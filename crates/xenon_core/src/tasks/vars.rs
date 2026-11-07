@@ -13,7 +13,7 @@ pub struct EditorInfo {
 }
 
 /// Everything variables can read. The caller gathers it; nothing here does I/O.
-pub struct VarContext<'a> {
+pub(crate) struct VarContext<'a> {
     pub workspace: &'a Path,
     pub editor: Option<&'a EditorInfo>,
     pub env: &'a dyn Fn(&str) -> Option<String>,
@@ -29,7 +29,7 @@ pub struct VarContext<'a> {
 
 impl VarContext<'_> {
     /// Values to blank out of anything shown to the user.
-    pub fn secret_values(&self) -> Vec<&str> {
+    pub(crate) fn secret_values(&self) -> Vec<&str> {
         self.secret_inputs
             .iter()
             .filter_map(|id| self.inputs.get(id))
@@ -40,7 +40,7 @@ impl VarContext<'_> {
 }
 
 /// Expand every `${...}` in `text`. Unknown variables are errors.
-pub fn expand(text: &str, ctx: &VarContext) -> Result<String, String> {
+pub(crate) fn expand(text: &str, ctx: &VarContext) -> Result<String, String> {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find("${") {
@@ -57,7 +57,7 @@ pub fn expand(text: &str, ctx: &VarContext) -> Result<String, String> {
 }
 
 /// Ids of every `${input:id}` in `text`.
-pub fn input_refs(text: &str) -> Vec<String> {
+pub(crate) fn input_refs(text: &str) -> Vec<String> {
     let mut ids = Vec::new();
     let mut rest = text;
     while let Some(start) = rest.find("${input:") {

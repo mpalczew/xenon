@@ -14,9 +14,6 @@ pub struct WorkspaceRec {
     pub id: WorkspaceId,
     pub name: String,
     pub root: PathBuf,
-    /// SSH roots use a virtual namespace, never a local filesystem directory.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ssh: Option<xenon_ssh::SshWorkspace>,
     /// Unix seconds when this workspace was last activated (MRU for ⌘⇧O).
     /// Absent on pre-field registry JSON → treated as never opened for sort.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -24,26 +21,8 @@ pub struct WorkspaceRec {
 }
 
 impl WorkspaceRec {
-    pub fn remote(ssh: xenon_ssh::SshWorkspace) -> Self {
-        let id = WorkspaceId::new();
-        let name = std::path::Path::new(&ssh.directory)
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| ssh.host.clone());
-        Self {
-            id,
-            name,
-            root: PathBuf::from("/__xenon_ssh__").join(id.to_string()),
-            ssh: Some(ssh),
-            last_opened: Some(now_unix()),
-        }
-    }
-
     pub fn display_root(&self) -> String {
-        self.ssh
-            .as_ref()
-            .map(|ssh| format!("{}:{}", ssh.host, ssh.directory))
-            .unwrap_or_else(|| self.root.display().to_string())
+        self.root.display().to_string()
     }
 
     /// Register `root`, taking the **default** display name from its final path
@@ -57,7 +36,6 @@ impl WorkspaceRec {
             id: WorkspaceId::new(),
             name,
             root,
-            ssh: None,
             last_opened: Some(now_unix()),
         }
     }
@@ -105,7 +83,7 @@ pub struct Active {
     pub workspace: WorkspaceId,
 }
 
-pub const CURRENT_VERSION: u32 = 2;
+pub(crate) const CURRENT_VERSION: u32 = 2;
 
 fn current_version() -> u32 {
     CURRENT_VERSION

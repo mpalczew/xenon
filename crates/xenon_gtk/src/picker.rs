@@ -217,14 +217,8 @@ impl App {
         };
         reg.workspaces
             .iter()
-            .filter(|r| r.ssh.is_none())
             .map(|r| make(Kind::Open, r))
-            .chain(
-                reg.closed_workspaces
-                    .iter()
-                    .filter(|r| r.ssh.is_none())
-                    .map(|r| make(Kind::Closed, r)),
-            )
+            .chain(reg.closed_workspaces.iter().map(|r| make(Kind::Closed, r)))
             .collect()
     }
 
@@ -252,7 +246,7 @@ impl App {
         self.launcher.open(
             &self.win,
             Handlers {
-                placeholder: "Folder or ssh://host/path\u{2026}".into(),
+                placeholder: "Folder\u{2026}".into(),
                 hint: "return opens  ·  tab completes  ·  esc closes".into(),
                 options: Options {
                     action: Some((

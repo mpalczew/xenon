@@ -7,7 +7,7 @@ pub fn device_short_name(label: &str) -> &str {
     label.split(" · ").next().unwrap_or(label).trim()
 }
 
-pub fn clean_label(label: &str) -> String {
+pub(crate) fn clean_label(label: &str) -> String {
     let label: String = label.chars().filter(|c| !c.is_control()).take(40).collect();
     let label = label.trim();
     if label.is_empty() {
@@ -17,7 +17,7 @@ pub fn clean_label(label: &str) -> String {
     }
 }
 
-pub fn unix_now() -> u64 {
+pub(crate) fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())

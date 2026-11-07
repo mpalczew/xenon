@@ -8,13 +8,13 @@ use std::time::Duration;
 /// Output must be quiet this long before a terminal counts as settled.
 pub const IDLE_AFTER: Duration = Duration::from_millis(2500);
 /// Named-harness title: settled burst this large counts as agent work.
-pub const BUSY_WAKEUPS: u32 = 15;
+pub(crate) const BUSY_WAKEUPS: u32 = 15;
 /// No harness name in title: require a heavier burst.
-pub const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
+pub(crate) const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
 
 /// Burst this large counts as agent work: pulse while output continues, then
 /// the settle timer marks the workspace done.
-pub fn agent_busy_signal(busy: u32, title: &str) -> bool {
+pub(crate) fn agent_busy_signal(busy: u32, title: &str) -> bool {
     if busy == 0 {
         return false;
     }
@@ -25,7 +25,7 @@ pub fn agent_busy_signal(busy: u32, title: &str) -> bool {
 }
 
 /// Title (or process name fragment) suggests a coding agent, not a plain shell.
-pub fn agent_title(title: &str) -> bool {
+pub(crate) fn agent_title(title: &str) -> bool {
     let t = title.to_ascii_lowercase();
     const NAMES: &[&str] = &[
         "claude", "grok", "kimi", "codex", "aider", "gemini", "cursor", "opencode", "windsurf",

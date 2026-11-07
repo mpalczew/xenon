@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::auth::ct_eq;
 
 /// How long a pairing code stays valid after it is shown on the Mac.
-pub const PAIRING_TTL: Duration = Duration::from_secs(10 * 60);
+pub(crate) const PAIRING_TTL: Duration = Duration::from_secs(10 * 60);
 
 /// One-time code shown on the Mac: 6 digits to type, or a secret in the QR link.
 #[derive(Clone, Debug)]
@@ -18,7 +18,7 @@ pub struct PairingCode {
 }
 
 impl PairingCode {
-    pub fn issue(now: Instant) -> Self {
+    pub(crate) fn issue(now: Instant) -> Self {
         let n = Uuid::new_v4().as_u128() % 1_000_000;
         Self {
             digits: format!("{n:06}"),
@@ -32,7 +32,7 @@ impl PairingCode {
         format!("{} {}", &self.digits[..3], &self.digits[3..])
     }
 
-    pub fn is_live(&self, now: Instant) -> bool {
+    pub(crate) fn is_live(&self, now: Instant) -> bool {
         now < self.expires_at
     }
 

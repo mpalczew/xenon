@@ -268,11 +268,8 @@ impl App {
         let rec = model.rec(ws)?;
         match &tab.kind {
             TabKind::Kept(TabState::Editor { path, .. }) => Some(path.display().to_string()),
-            TabKind::Diff { path } => Some(match &rec.ssh {
-                Some(_) => format!("{}/{path}", rec.display_root()),
-                None => rec.root.join(path).display().to_string(),
-            }),
-            TabKind::Terminal if rec.ssh.is_none() => self
+            TabKind::Diff { path } => Some(rec.root.join(path).display().to_string()),
+            TabKind::Terminal => self
                 .terms
                 .borrow()
                 .get(&(ws, tab.id))
@@ -303,10 +300,7 @@ impl App {
                 }
             }
             let name = model.rec(ws).map(|r| r.name.clone()).unwrap_or_default();
-            let local_root = model
-                .rec(ws)
-                .filter(|r| r.ssh.is_none())
-                .map(|r| r.root.clone());
+            let local_root = model.rec(ws).map(|r| r.root.clone());
             let open_file = model
                 .spaces
                 .get(&ws)

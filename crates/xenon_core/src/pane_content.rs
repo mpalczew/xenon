@@ -60,7 +60,7 @@ impl<T> PaneContent<T> {
         self.focused_leaf()?.active_tab()
     }
 
-    pub fn next_pane_id(&self) -> PaneId {
+    pub(crate) fn next_pane_id(&self) -> PaneId {
         PaneId(self.root.as_ref().map(|r| r.max_pane_id()).unwrap_or(0) + 1)
     }
 

@@ -39,7 +39,7 @@ impl Style {
 }
 
 /// `Cell::ch` for the second column of a wide glyph: occupies a cell, sends no text.
-pub const WIDE_SPACER: char = '\0';
+pub(crate) const WIDE_SPACER: char = '\0';
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cell {

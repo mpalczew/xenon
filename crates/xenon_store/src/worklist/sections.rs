@@ -143,7 +143,7 @@ impl SourceEdit {
     }
 }
 
-pub fn newline_of(source: &str) -> &'static str {
+pub(crate) fn newline_of(source: &str) -> &'static str {
     if source.contains("\r\n") {
         "\r\n"
     } else {
@@ -189,7 +189,7 @@ fn region_end(source: &str, sections: &[Section], section: Option<usize>) -> usi
     }
 }
 
-pub fn append_block(source: &str, target: &Target, block: &str) -> Result<Insertion> {
+pub(crate) fn append_block(source: &str, target: &Target, block: &str) -> Result<Insertion> {
     ensure!(
         super::safe_append_boundary(source),
         "Worklist ends inside an unfinished Markdown block; edit Markdown before capturing"

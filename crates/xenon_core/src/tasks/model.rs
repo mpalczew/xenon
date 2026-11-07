@@ -147,7 +147,7 @@ pub struct InputDef {
 }
 
 impl InputDef {
-    pub fn is_secret(&self) -> bool {
+    pub(crate) fn is_secret(&self) -> bool {
         matches!(self.kind, InputKind::PromptString { password: true })
     }
 }
@@ -166,7 +166,7 @@ impl TaskSet {
     }
 
     /// The default task of a group, if the file marks one.
-    pub fn default_of(&self, kind: GroupKind) -> Option<&TaskDef> {
+    pub(crate) fn default_of(&self, kind: GroupKind) -> Option<&TaskDef> {
         self.tasks
             .iter()
             .find(|t| t.group.is_some_and(|g| g.kind == kind && g.is_default))

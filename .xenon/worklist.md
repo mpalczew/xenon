@@ -2,7 +2,7 @@
 
 ## Now
 
-- [ ] Delete the GPUI app and every crate and line of code the GTK app doesn't use
+- [x] Delete the GPUI app and every crate and line of code the GTK app doesn't use
   - The GPUI crates, `third_party/`, its Vim engine and tree-sitter highlighting.
   - `xenon_ide` (Claude Code and Codex IDE servers), `xenon_lsp` and the Language
     Servers settings rows.

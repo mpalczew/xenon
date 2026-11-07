@@ -6,8 +6,6 @@ cd "$root"
 # shellcheck source=lib/checks.sh
 source "$root/scripts/lib/checks.sh"
 checks_quiet public-surface scripts/check-public-surface
-checks_quiet ui-boundaries scripts/check-ui-boundaries
-checks_quiet zed-pins scripts/check-zed-pins
 checks_quiet attribution scripts/check-attribution
 checks_quiet fmtcheck cargo fmt --all --check
 checks_quiet lint cargo clippy --workspace --all-targets -- -D warnings \

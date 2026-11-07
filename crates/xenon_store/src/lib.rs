@@ -22,26 +22,18 @@ mod skill;
 mod task_trust;
 mod terminal;
 pub mod worklist;
-pub use cli::{CliCommand, parse_cli};
-pub use ipc::{
-    IpcRequest, IpcResponse, OpenFileSpec, OpenPane, bind_server, parse_cli_paths, send_request,
-    serve_forever, socket_path, try_handoff, try_handoff_request,
-};
+pub use cli::parse_cli;
+pub use ipc::{IpcRequest, OpenFileSpec, bind_server, serve_forever, try_handoff_request};
 pub use prose::{
     MarkdownMode, ProseFilePrefs, ProseFont, ProseMarkers, ProseSettings, prose_file_prefs,
     set_prose_file_prefs,
 };
-pub use remote_devices::{
-    RemoteDevice, RemoteDevices, load_remote_devices, save_remote_devices, shared_dir,
-};
+pub use remote_devices::{RemoteDevice, RemoteDevices, load_remote_devices, save_remote_devices};
 pub use settings::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME, DEFAULT_REMOTE_PORT,
-    DEFAULT_UI_FONT_FAMILY, LspCommand, LspSettings, ThemeMode, WindowGeometry, WindowState,
+    DEFAULT_UI_FONT_FAMILY, ThemeMode, WindowGeometry, WindowState,
 };
-pub use skill::{
-    SkillStatus, decline_skill, install_skill, refresh_on_launch, remove_skill,
-    should_prompt_skill, skill_home, skill_status,
-};
+pub use skill::{SkillStatus, install_skill, remove_skill, skill_status};
 pub use task_trust::{TaskTrust, set_task_trust, task_trust};
 pub use terminal::TerminalAutoClose;
 
@@ -148,16 +140,6 @@ pub fn save_session(workspace: WorkspaceId, session: &SessionState) -> Result<()
     write_atomic(&session_path(workspace), session)
 }
 
-/// Remove a workspace session file. Missing file is not an error (already gone).
-pub fn delete_session(workspace: WorkspaceId) -> Result<(), StoreError> {
-    let path = session_path(workspace);
-    match fs::remove_file(&path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
-}
-
 fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> Result<T, StoreError> {
     if !path.exists() {
         return Ok(T::default());
@@ -191,3 +173,5 @@ fn write_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), StoreError> 
     fs::rename(&temp, path)?;
     Ok(())
 }
+
+pub(crate) use ipc::parse_cli_paths;

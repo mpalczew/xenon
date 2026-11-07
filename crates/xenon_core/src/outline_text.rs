@@ -31,11 +31,3 @@ pub fn points_from_details(details: &str) -> Vec<OutlinePoint> {
         })
         .collect()
 }
-
-pub fn details_from_points(points: &[OutlinePoint]) -> String {
-    points
-        .iter()
-        .map(|point| format!("{}{}", "  ".repeat(point.depth as usize), point.text))
-        .collect::<Vec<_>>()
-        .join("\n")
-}

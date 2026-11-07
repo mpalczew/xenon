@@ -12,13 +12,6 @@ fn overrides() -> &'static RwLock<HashMap<String, String>> {
     OVERRIDES.get_or_init(Default::default)
 }
 
-/// Replace the user-keymap overrides (see [`crate::display_overrides`]).
-pub fn set_display_overrides(map: HashMap<String, String>) {
-    if let Ok(mut current) = overrides().write() {
-        *current = map;
-    }
-}
-
 pub fn display_keys(glyphs: &str) -> String {
     display_for(glyphs, Platform::current())
 }

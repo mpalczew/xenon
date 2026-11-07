@@ -31,14 +31,4 @@ impl UiSettings {
             Surface::Terminal => self.terminal.family = ensure_mono_family(family, probe),
         }
     }
-
-    /// Store a theme name in its light or dark slot. The mode does not change.
-    pub fn set_theme_name(&mut self, dark: bool, name: &str) {
-        let slot = if dark {
-            &mut self.theme.dark
-        } else {
-            &mut self.theme.light
-        };
-        *slot = name.to_string();
-    }
 }

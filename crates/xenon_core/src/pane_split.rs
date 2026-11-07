@@ -19,7 +19,7 @@ impl<T> PaneTree<T> {
     }
 
     /// Restore the split invariants everywhere below `self`.
-    pub fn normalize(&mut self) {
+    pub(crate) fn normalize(&mut self) {
         let Self::Split {
             axis,
             children,
@@ -108,21 +108,6 @@ impl<T> PaneTree<T> {
         children.iter_mut().find_map(|c| c.remove_leaf(empty))
     }
 
-    /// A leaf next to `id` in its parent split (the next one, else the previous).
-    pub fn sibling_of(&self, id: PaneId) -> Option<PaneId> {
-        let Self::Split { children, .. } = self else {
-            return None;
-        };
-        if let Some(i) = children
-            .iter()
-            .position(|c| matches!(c, Self::Leaf(l) if l.id == id))
-        {
-            let n = if i + 1 < children.len() { i + 1 } else { i - 1 };
-            return children[n].leaf_ids().first().copied();
-        }
-        children.iter().find_map(|c| c.sibling_of(id))
-    }
-
     /// Saved form. `keep` converts a tab to its persisted state, or `None` to
     /// leave it out; a leaf whose tabs were all dropped stays as a parked pane.
     pub fn snapshot(&self, keep: &dyn Fn(&T) -> Option<TabState>) -> PaneNode {
@@ -155,7 +140,7 @@ impl<T> PaneTree<T> {
 
 impl<T: Clone> PaneTree<T> {
     /// Replace leaf `id`; same-axis splits are spliced into their parent.
-    pub fn replace_leaf(&mut self, id: PaneId, replacement: Self) -> bool {
+    pub(crate) fn replace_leaf(&mut self, id: PaneId, replacement: Self) -> bool {
         let found = self.replace_leaf_inner(id, replacement);
         if found {
             self.normalize();

@@ -6,7 +6,7 @@ use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
 /// Mac keyboard quiet time before a phone fit (re)applies.
-pub const LOCAL_QUIET: Duration = Duration::from_secs(30);
+pub(crate) const LOCAL_QUIET: Duration = Duration::from_secs(30);
 /// Phone fit bounds (anything else is a buggy or hostile client).
 const FIT_COLS: RangeInclusive<u16> = 20..=300;
 const FIT_ROWS: RangeInclusive<u16> = 8..=200;

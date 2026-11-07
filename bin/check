@@ -43,8 +43,6 @@ gate_harness() {
 
 gate_policy() {
   step policy public-surface scripts/check-public-surface
-  step policy ui-boundaries scripts/check-ui-boundaries
-  step policy zed-pins scripts/check-zed-pins
   step policy attribution scripts/check-attribution
 }
 
@@ -73,7 +71,7 @@ policy | rust | harness | dprint) gates=("$1") ;;
   gates=(harness)
   [ -n "$changed" ] && gates+=(policy)
   rg -q '\.(md|mdc|json|jsonc)$' <<<"$changed" && gates+=(dprint)
-  rg -q '^(crates/|third_party/|Cargo\.|rust-toolchain|rustfmt\.toml|clippy\.toml|scripts/(check-rust-shape|rust-shape))' <<<"$changed" && gates+=(rust)
+  rg -q '^(crates/|Cargo\.|rust-toolchain|rustfmt\.toml|clippy\.toml|scripts/(check-rust-shape|rust-shape))' <<<"$changed" && gates+=(rust)
   ;;
 *) echo "usage: bin/check [policy|rust|harness|dprint|all]" >&2; exit 2 ;;
 esac

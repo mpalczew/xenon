@@ -107,7 +107,7 @@ fn git_bytes(root: &Path, args: &[&str]) -> Option<Vec<u8>> {
 
 /// Parse `git status --porcelain=v1 -z --branch`: the `## branch` record,
 /// then `XY path` records (renames and copies are followed by their source).
-pub fn parse_status_z(raw: &[u8]) -> (String, Vec<GitFile>) {
+pub(crate) fn parse_status_z(raw: &[u8]) -> (String, Vec<GitFile>) {
     let text = String::from_utf8_lossy(raw);
     let mut records = text.split('\0');
     let mut branch = String::new();
@@ -158,7 +158,7 @@ fn parse_branch(head: &str) -> String {
 
 /// Parse `git diff --numstat -z`. Binary rows (`-  -`) count as zero.
 /// Renames arrive as `a\tr\t\0old\0new\0` and are keyed by the new path.
-pub fn parse_numstat_z(raw: &[u8]) -> HashMap<String, (u32, u32)> {
+pub(crate) fn parse_numstat_z(raw: &[u8]) -> HashMap<String, (u32, u32)> {
     let text = String::from_utf8_lossy(raw);
     let mut records = text.split('\0');
     let mut out = HashMap::new();
@@ -182,7 +182,7 @@ pub fn parse_numstat_z(raw: &[u8]) -> HashMap<String, (u32, u32)> {
 
 /// Count lines in file bytes the way git numstat does for new text files.
 /// Binary (NUL in content) yields `None`.
-pub fn count_text_lines(bytes: &[u8]) -> Option<u64> {
+pub(crate) fn count_text_lines(bytes: &[u8]) -> Option<u64> {
     if bytes.contains(&0) {
         return None;
     }

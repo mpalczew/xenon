@@ -38,8 +38,6 @@ run() {
 }
 
 run public-surface scripts/check-public-surface
-run ui-boundaries scripts/check-ui-boundaries
-run zed-pins scripts/check-zed-pins
 run attribution scripts/check-attribution
 run fmtcheck cargo fmt --all --check
 run lint-shape scripts/check-rust-shape

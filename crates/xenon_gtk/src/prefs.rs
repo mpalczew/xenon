@@ -92,7 +92,6 @@ impl App {
         add_page(&shell.stack, &prefs_pages::editor(self));
         let agents = prefs_agents::agents(&shell);
         agents.add(&prefs_pages::terminal(self));
-        agents.add(&prefs_agents::servers());
         add_page(&shell.stack, &agents);
         add_page(&shell.stack, &crate::prefs_phone::page(self));
         build_layout(&shell);

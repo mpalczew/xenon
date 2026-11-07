@@ -34,7 +34,7 @@ pub fn load(root: &Path, file: &GitFile, highlight: Highlighter) -> DiffDoc {
 
 /// Build the document from git's three views of one file: HEAD against the
 /// working tree, and (when that is empty) the staged and unstaged halves.
-pub fn compose(
+pub(crate) fn compose(
     path: &str,
     against_head: &str,
     staged: &str,
@@ -161,7 +161,7 @@ fn section(
 }
 
 /// Untracked or added file: every line is an addition.
-pub fn all_added(path: &str, bytes: &[u8], highlight: Highlighter) -> DiffDoc {
+pub(crate) fn all_added(path: &str, bytes: &[u8], highlight: Highlighter) -> DiffDoc {
     if bytes.contains(&0) {
         return doc(
             "untracked · new file",

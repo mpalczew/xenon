@@ -1,8 +1,6 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
-# Vendored gpui_linux is a path patch, not a member (zed's shape, not ours).
-exclude = ["third_party/gpui_linux"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,116 +19,29 @@ unimplemented = "deny"
 
 [workspace.dependencies]
 xenon_core = { path = "crates/xenon_core" }
-xenon_ssh = { path = "crates/xenon_ssh" }
 xenon_store = { path = "crates/xenon_store" }
-xenon_terminal = { path = "crates/xenon_terminal" }
-xenon_editor = { path = "crates/xenon_editor" }
 xenon_finder = { path = "crates/xenon_finder" }
 xenon_git = { path = "crates/xenon_git" }
-xenon_ui = { path = "crates/xenon_ui" }
-xenon_ide = { path = "crates/xenon_ide" }
-xenon_lsp = { path = "crates/xenon_lsp" }
 xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
 xenon_prose = { path = "crates/xenon_prose" }
 xenon_keymap = { path = "crates/xenon_keymap" }
-xenon_memory = { path = "crates/xenon_memory" }
-xenon_design_system = { path = "crates/xenon_design_system" }
 
-# zed crates, pinned to the v1.9.0 release tag. Upgrading this rev is a
-# deliberate chore: bump every rev below together, then fix compile errors.
-# Re-copy third_party/gpui_linux from the new pin and re-apply its portal fix.
-gpui = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd", features = ["font-kit", "wayland", "x11"] }
-terminal = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-theme = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-theme_settings = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-settings = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-release_channel = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-util = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-task = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-collections = { git = "https://github.com/zed-industries/zed", rev = "ced90fc636c4ede05402befc38a63bae7fd741bd" }
-
-semver = "1"
 anyhow = "1"
 thiserror = "2"
 async-channel = "2"
 tungstenite = "0.24"
-lsp-types = "0.97"
-url = "2"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_json_lenient = "0.2"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
-ropey = "1.6"
 regex = "1"
-tree-sitter = "0.26"
-tree-sitter-highlight = "0.26"
-# Bundled highlight grammars (LanguageFn + highlight query crates only).
-tree-sitter-rust = "0.24"
-tree-sitter-json = "0.24"
-tree-sitter-toml-ng = "0.7"
-tree-sitter-python = "0.23"
-tree-sitter-javascript = "0.23"
-tree-sitter-typescript = "0.23"
-tree-sitter-go = "0.25"
-tree-sitter-bash = "0.25"
-tree-sitter-html = "0.23"
-tree-sitter-css = "0.25"
-tree-sitter-yaml = "0.7"
-tree-sitter-c = "0.24"
-tree-sitter-cpp = "0.23"
-tree-sitter-ruby = "0.23"
-tree-sitter-java = "0.23"
-tree-sitter-lua = "0.5"
-tree-sitter-md = "0.5"
-tree-sitter-swift = "0.7"
-tree-sitter-scala = "0.24"
-tree-sitter-elixir = "0.3"
-tree-sitter-haskell = "0.23"
-tree-sitter-php = "0.24"
-tree-sitter-zig = "1.1"
-tree-sitter-make = "1.1"
-tree-sitter-diff = "0.1"
-tree-sitter-xml = "0.7"
-tree-sitter-proto = "0.3"
-tree-sitter-dart = "0.2"
-tree-sitter-r = "1.2"
-tree-sitter-nix = "0.3"
-tree-sitter-solidity = "1.2"
-tree-sitter-ocaml = "0.24"
-tree-sitter-c-sharp = "0.23"
-tree-sitter-cmake = "0.7"
-tree-sitter-glsl = "0.2"
-tree-sitter-regex = "0.24"
-tree-sitter-jsdoc = "0.23"
-tree-sitter-ini = "1.1"
-tree-sitter-scheme = "0.24"
-tree-sitter-powershell = "0.25"
-tree-sitter-elm = "5.8"
-tree-sitter-svelte-ng = "1.0"
 pulldown-cmark = { version = "0.12", default-features = false }
-lucide-icons = "1.23.0"
 nucleo = "0.5"
 ignore = "0.4"
-# Same pin as [patch.crates-io] (zed's fork); direct dep so xenon_ui can watch FS.
-notify = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
-
-# Mirrored from zed v1.9.0 Cargo.toml: [patch.crates-io] does not propagate to
-# downstream consumers, and zed's crates need these forks.
-[patch.crates-io]
-async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
-async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
-notify = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
-notify-types = { git = "https://github.com/zed-industries/notify", rev = "faecbc33db4f59313e5225ef766bfd9e54a54cfd" }
-
-# X11 portal callbacks re-enter X11Client. This tree drops that borrow first.
-# See third_party/gpui_linux/README.md.
-[patch.'https://github.com/zed-industries/zed']
-gpui_linux = { path = "third_party/gpui_linux" }
-terminal = { path = "third_party/terminal" }
+notify = "8"
 
 # Local builds are the only builds: optimized (opt-level 3) so the app is usable,
 # incremental, no LTO. Packed debuginfo, because unpacked writes one .o per

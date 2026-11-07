@@ -4,7 +4,6 @@
 pub const PICKER_PLACEHOLDER: &str = "Run task…";
 pub const PICKER_HINT: &str = "return runs  ·  ⌘return runs in a new tab  ·  esc closes";
 pub const NO_TASKS: &str = "No tasks in .vscode/tasks.json";
-pub const SSH_TASKS: &str = "tasks run on this Mac; SSH workspaces are not supported";
 pub const PICK_WORKSPACE: (&str, &str) = ("Pick a workspace first", "This needs a home.");
 pub const LOAD_FAILED: &str = "Couldn’t load tasks";
 pub const NO_BUILD_TASK: (&str, &str) = ("No build task", "Mark one with \"group\": \"build\".");

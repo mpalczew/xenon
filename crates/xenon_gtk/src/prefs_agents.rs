@@ -1,13 +1,11 @@
-//! Settings › Agents (the managed skill) and › Language Servers. The text and
-//! the command rule come from `xenon_settings`.
+//! Settings › Agents (the managed skill). The text comes from
+//! `xenon_settings`.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use xenon_settings::{
-    LspServer, set_lsp_command, skill_homes, skill_refresh_label, skill_subtitle,
-};
+use xenon_settings::{skill_homes, skill_refresh_label, skill_subtitle};
 use xenon_store::{SkillStatus, install_skill, remove_skill, skill_status};
 
 use crate::prefs_pages::switch_row;
@@ -83,44 +81,4 @@ fn run(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Adde
     };
     dialog.add_toast(&message);
     fill(group, dialog, added);
-}
-
-pub(crate) fn servers() -> adw::PreferencesGroup {
-    let lsp = xenon_store::load_settings().unwrap_or_default().lsp;
-    let group = adw::PreferencesGroup::builder()
-        .title("Language Servers")
-        .description("Empty finds it on PATH")
-        .build();
-    group.add(&switch_row(
-        "Language servers",
-        "Go to definition, highlights, and diagnostics for Rust and TypeScript",
-        lsp.enabled,
-        |on| save(|l| l.enabled = on),
-    ));
-    for (title, server, command) in [
-        ("Rust server", LspServer::Rust, &lsp.rust.command),
-        (
-            "TypeScript server",
-            LspServer::TypeScript,
-            &lsp.typescript.command,
-        ),
-    ] {
-        let row = adw::EntryRow::builder()
-            .title(title)
-            .text(command.as_deref().unwrap_or_default())
-            .show_apply_button(true)
-            .build();
-        row.connect_apply(move |row| {
-            let text = row.text();
-            save(|l| set_lsp_command(l, server, &text));
-        });
-        group.add(&row);
-    }
-    group
-}
-
-fn save(change: impl FnOnce(&mut xenon_store::LspSettings)) {
-    if let Err(error) = xenon_store::update_settings(|s| change(&mut s.lsp)) {
-        eprintln!("[xg] save language server settings: {error}");
-    }
 }

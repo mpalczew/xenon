@@ -19,7 +19,6 @@ impl App {
             .registry
             .workspaces
             .iter()
-            .filter(|r| r.ssh.is_none())
             .map(|r| (r.id, r.root.clone()))
             .collect();
         self.git.set_roots(roots);

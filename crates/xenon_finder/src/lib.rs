@@ -8,13 +8,11 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32Str};
 
 pub mod discover;
-mod remote;
 pub mod tree;
 mod walk;
 
@@ -59,21 +57,6 @@ impl FileIndex {
         FileIndex {
             entries: walk::walk_with_progress(root, |_| true),
         }
-    }
-
-    /// Walk `root`, invoking `on_partial` with snapshots as entries accumulate.
-    /// Return `false` from the callback to cancel. The final index is returned
-    /// (and is also passed to `on_partial` as the last call).
-    pub fn build_with_progress(
-        root: &Path,
-        mut on_partial: impl FnMut(&FileIndex) -> bool,
-    ) -> FileIndex {
-        let entries = walk::walk_with_progress(root, |slice| {
-            on_partial(&FileIndex {
-                entries: slice.to_vec(),
-            })
-        });
-        FileIndex { entries }
     }
 
     /// Number of indexed paths (files + directories).
@@ -162,22 +145,6 @@ impl FileIndex {
             });
         }
         out
-    }
-}
-
-pub struct Finder {
-    index: Arc<FileIndex>,
-}
-
-impl Finder {
-    /// A finder over an already-built (possibly shared) index.
-    pub fn new(index: Arc<FileIndex>) -> Finder {
-        Finder { index }
-    }
-
-    /// Rank entries against `query`. See [`FileIndex::query`].
-    pub fn query(&mut self, query: &str, recents: &[PathBuf]) -> Vec<FileMatch> {
-        self.index.query(query, recents)
     }
 }
 

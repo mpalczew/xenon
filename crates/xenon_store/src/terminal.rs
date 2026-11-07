@@ -45,17 +45,6 @@ impl TerminalAutoClose {
         }
     }
 
-    /// Compact label for the terminal status strip.
-    pub fn short_label(self) -> &'static str {
-        match self {
-            Self::Off => "Keep open",
-            Self::Immediate => "Now",
-            Self::After1s => "1s",
-            Self::After3s => "3s",
-            Self::After5s => "5s",
-        }
-    }
-
     pub fn next(self) -> Self {
         match self {
             Self::Off => Self::Immediate,

@@ -21,7 +21,7 @@ pub struct Outbox {
 
 impl Outbox {
     /// Bound on queued messages per connection.
-    pub const CAPACITY: usize = 16;
+    pub(crate) const CAPACITY: usize = 16;
 
     /// False when the queue is full or the connection is gone.
     pub fn try_send(&self, msg: ServerMsg) -> bool {
@@ -144,4 +144,4 @@ pub enum HostRequest {
     },
 }
 
-pub type HostTx = Sender<HostRequest>;
+pub(crate) type HostTx = Sender<HostRequest>;

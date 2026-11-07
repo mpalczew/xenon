@@ -8,7 +8,7 @@ use serde_json_lenient::{Map, Value};
 use super::model::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Os {
+pub(crate) enum Os {
     Linux,
 }
 
@@ -38,7 +38,7 @@ const INHERITED: [&str; 6] = [
 ];
 
 /// Parse a tasks.json document (comments and trailing commas allowed).
-pub fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
+pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
     let root: Value = serde_json_lenient::from_str(json).map_err(|e| e.to_string())?;
     let Value::Object(mut file) = root else {
         return Err("tasks.json must be a JSON object".into());

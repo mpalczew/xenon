@@ -93,7 +93,7 @@ pub struct TaskOptionWire {
 /// `POST /pair`: the 6-digit code or the QR fragment secret.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PairRequest {
+pub(crate) struct PairRequest {
     pub code: String,
     #[serde(default)]
     pub label: String,
@@ -129,29 +129,6 @@ pub enum NamedKey {
     PageDown,
     CtrlD,
     CtrlU,
-}
-
-impl NamedKey {
-    /// gpui keystroke source (`Keystroke::parse`).
-    pub fn keystroke(self) -> &'static str {
-        match self {
-            Self::Enter => "enter",
-            Self::ShiftEnter => "shift-enter",
-            Self::Esc => "escape",
-            Self::CtrlC => "ctrl-c",
-            Self::Tab => "tab",
-            Self::ShiftTab => "shift-tab",
-            Self::Up => "up",
-            Self::Down => "down",
-            Self::Left => "left",
-            Self::Right => "right",
-            Self::Backspace => "backspace",
-            Self::PageUp => "pageup",
-            Self::PageDown => "pagedown",
-            Self::CtrlD => "ctrl-d",
-            Self::CtrlU => "ctrl-u",
-        }
-    }
 }
 
 /// Phone → Mac over `/ws`. The first message must be `hello`.
@@ -257,11 +234,10 @@ fn is_false(v: &bool) -> bool {
 
 /// `StyleWire::f` bits.
 pub mod style_flags {
-    pub const BOLD: u8 = 1;
-    pub const ITALIC: u8 = 2;
-    pub const UNDERLINE: u8 = 4;
-    pub const DIM: u8 = 8;
-    pub const STRIKE: u8 = 16;
+    pub(crate) const BOLD: u8 = 1;
+    pub(crate) const ITALIC: u8 = 2;
+    pub(crate) const UNDERLINE: u8 = 4;
+    pub(crate) const STRIKE: u8 = 16;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -280,9 +256,9 @@ pub struct CursorWire {
 }
 
 /// A run of text in one style: `[text, styleId]`.
-pub type SpanWire = (String, u32);
+pub(crate) type SpanWire = (String, u32);
 /// A changed row: `[rowIndex, spans]`.
-pub type LineWire = (u16, Vec<SpanWire>);
+pub(crate) type LineWire = (u16, Vec<SpanWire>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -207,11 +207,6 @@ impl Model {
         self.registry.workspace(id)
     }
 
-    /// GTK draws local terminals only; SSH workspaces keep their saved session.
-    pub(crate) fn drawable(&self, id: WorkspaceId) -> bool {
-        self.rec(id).is_some_and(|rec| rec.ssh.is_none())
-    }
-
     /// Build the pane tree from the saved session the first time a workspace
     /// is opened. Terminal slots reopen as fresh shells, like the GPUI app.
     pub(crate) fn materialize(&mut self, id: WorkspaceId) {
@@ -283,9 +278,7 @@ impl Model {
         };
         rec.touch_opened();
         self.registry.active = Some(xenon_core::Active { workspace: id });
-        if self.drawable(id) {
-            self.materialize(id);
-        }
+        self.materialize(id);
         true
     }
 

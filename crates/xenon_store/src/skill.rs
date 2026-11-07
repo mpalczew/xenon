@@ -25,7 +25,7 @@ struct SkillState {
 }
 
 /// User home, or `XENON_SKILL_HOME` (tests). Never the slot data dir.
-pub fn skill_home() -> PathBuf {
+pub(crate) fn skill_home() -> PathBuf {
     if let Some(dir) = std::env::var_os("XENON_SKILL_HOME") {
         return PathBuf::from(dir);
     }
@@ -55,33 +55,6 @@ pub fn remove_skill() -> io::Result<()> {
         let _ = fs::remove_dir(&dir);
     }
     Ok(())
-}
-
-pub fn decline_skill() -> io::Result<()> {
-    save_state(
-        &skill_home(),
-        &SkillState {
-            declined_version: Some(SKILL_VERSION),
-        },
-    )
-}
-
-pub fn should_prompt_skill() -> bool {
-    if !matches!(skill_status(), SkillStatus::Missing) {
-        return false;
-    }
-    !matches!(
-        load_state(&skill_home()).declined_version,
-        Some(v) if v >= SKILL_VERSION
-    )
-}
-
-/// Rewrite managed copies that are older than this binary. Leave user edits.
-pub fn refresh_on_launch() -> io::Result<()> {
-    match skill_status() {
-        SkillStatus::UpdateAvailable { .. } => write_managed(&skill_home()),
-        SkillStatus::Missing | SkillStatus::Installed { .. } | SkillStatus::UserEdited => Ok(()),
-    }
 }
 
 fn skill_dirs(home: &Path) -> [PathBuf; 3] {
@@ -123,13 +96,6 @@ fn write_managed(home: &Path) -> io::Result<()> {
         fs::write(dir.join("SKILL.md"), BUNDLED)?;
     }
     Ok(())
-}
-
-fn load_state(home: &Path) -> SkillState {
-    let Ok(text) = fs::read_to_string(home.join(STATE_NAME)) else {
-        return SkillState::default();
-    };
-    serde_json::from_str(&text).unwrap_or_default()
 }
 
 fn save_state(home: &Path, state: &SkillState) -> io::Result<()> {

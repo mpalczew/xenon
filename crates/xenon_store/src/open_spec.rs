@@ -1,13 +1,6 @@
 //! Rules for where and how an opened file is shown.
 
-use crate::ipc::{OpenFileSpec, OpenPane};
-
-impl OpenPane {
-    /// `--pane focused` is the one policy that should take editor focus.
-    pub fn takes_editor_focus(self) -> bool {
-        matches!(self, Self::Focused)
-    }
-}
+use crate::ipc::OpenFileSpec;
 
 impl OpenFileSpec {
     /// Zero-based (row, column) of the 1-based `line`/`column`, if a line is given.

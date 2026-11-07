@@ -105,9 +105,6 @@ impl App {
         if self.model.borrow().rec(ws).is_none() {
             return Err("unknown workspace".into());
         }
-        if !self.model.borrow().drawable(ws) {
-            return Err("SSH workspaces are not available".into());
-        }
         self.model.borrow_mut().materialize(ws);
         self.sync(ws);
         Ok(())

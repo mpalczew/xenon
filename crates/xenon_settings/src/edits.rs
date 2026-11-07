@@ -6,16 +6,8 @@ use crate::values::sanitize_prose;
 use crate::{DEFAULT_FONT_SIZE, ProseSettings, UiSettings};
 
 impl UiSettings {
-    pub fn nudge_editor_font_size(&mut self, delta: f32) {
-        self.editor.nudge(delta);
-    }
-
     pub fn nudge_terminal_font_size(&mut self, delta: f32) {
         self.terminal.nudge(delta);
-    }
-
-    pub fn nudge_ui_font_size(&mut self, delta: f32) {
-        self.ui.nudge(delta);
     }
 
     pub fn reset_font_sizes(&mut self) {
@@ -29,15 +21,6 @@ impl UiSettings {
             self.wrap_prose
         } else {
             self.wrap_code
-        }
-    }
-
-    /// Flip wrap for the open file. No path flips the prose default.
-    pub fn toggle_editor_wrap(&mut self, path: Option<&Path>) {
-        if path.is_none_or(is_prose_path) {
-            self.wrap_prose = !self.wrap_prose;
-        } else {
-            self.wrap_code = !self.wrap_code;
         }
     }
 

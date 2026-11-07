@@ -127,7 +127,7 @@ impl UiSettings {
 
     /// Write these values over `settings`, leaving fields we do not own (such
     /// as chrome section prefs) untouched.
-    pub fn write_into(&self, settings: &mut AppSettings) {
+    pub(crate) fn write_into(&self, settings: &mut AppSettings) {
         settings.editor_font_size = self.editor.size;
         settings.editor_font_family.clone_from(&self.editor.family);
         settings.terminal_font_size = self.terminal.size;

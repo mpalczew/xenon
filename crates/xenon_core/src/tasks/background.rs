@@ -15,7 +15,7 @@ const TSC_BEGINS: &str = r"^\s*(?:message TS6032:|\[?\d{1,2}:\d{1,2}:\d{1,2}(?: 
 const TSC_ENDS: &str = r"^\s*(?:message TS6042:|\[?\d{1,2}:\d{1,2}:\d{1,2}(?: AM| PM)?\]? (?:- )?Found \d+ errors?\. Watching for file changes\.)";
 
 /// Patterns for the built-in matchers Xenon knows.
-pub fn builtin(name: &str) -> Option<Background> {
+pub(crate) fn builtin(name: &str) -> Option<Background> {
     match name {
         "$tsc-watch" => Some(Background {
             active_on_start: true,
@@ -49,10 +49,6 @@ impl Readiness {
             active,
             ready: false,
         }
-    }
-
-    pub fn is_ready(&self) -> bool {
-        self.ready
     }
 
     /// Feed complete output lines. True the first time the task becomes ready.

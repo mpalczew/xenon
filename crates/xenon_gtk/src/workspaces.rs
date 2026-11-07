@@ -12,12 +12,8 @@ impl App {
         if !self.model.borrow_mut().activate(id) {
             return;
         }
-        if self.model.borrow().drawable(id) {
-            self.sync(id);
-            self.check_folder_open_tasks(id);
-        } else {
-            self.show_unsupported(id);
-        }
+        self.sync(id);
+        self.check_folder_open_tasks(id);
         self.stack.set_visible_child_name(&id.to_string());
         self.model.borrow_mut().dismiss_viewed();
         self.paint_all();
@@ -73,7 +69,7 @@ impl App {
             .spaces
             .get(&id)
             .is_some_and(|s| s.live && s.content.root.is_none());
-        if empty && self.model.borrow().drawable(id) {
+        if empty {
             self.new_terminal();
         }
     }

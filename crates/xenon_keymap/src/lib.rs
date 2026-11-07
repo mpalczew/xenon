@@ -7,13 +7,9 @@ mod defaults;
 mod display;
 mod effective;
 
-pub use chord::{Chord, Platform};
-pub use defaults::{defaults, to_json};
-pub use display::{display_keys, display_text, set_display_overrides};
-pub use effective::display_overrides;
-
-/// File content written by "Open Keymap" when the file does not exist yet.
-pub const STARTER_KEYMAP: &str = "[\n  {\n    \"bindings\": {}\n  }\n]\n";
+pub use chord::Platform;
+pub use defaults::defaults;
+pub use display::{display_keys, display_text};
 
 /// One binding: `action` of `None` unbinds the keystroke (JSON `null`).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,3 +28,5 @@ impl Entry {
         }
     }
 }
+
+pub(crate) use chord::Chord;

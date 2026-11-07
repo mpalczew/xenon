@@ -6,7 +6,7 @@ use crate::{Registry, WorkspaceId};
 
 impl Registry {
     /// Longest open workspace root that is a prefix of `path`.
-    pub fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
+    pub(crate) fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
         let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let mut best: Option<(usize, WorkspaceId)> = None;
         for rec in &self.workspaces {

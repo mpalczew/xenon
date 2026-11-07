@@ -26,7 +26,7 @@ pub struct ResolvedTask {
 /// a launcher-started Xenon still sees the user's PATH.
 const DEFAULT_SHELL_ARGS: [&str; 2] = ["-l", "-c"];
 
-pub fn resolve_task(
+pub(crate) fn resolve_task(
     def: &TaskDef,
     ctx: &VarContext,
     default_shell: &str,
@@ -149,7 +149,7 @@ fn safe_byte(b: u8) -> bool {
 
 /// Command line as the picker and trust prompt show it. Variables are expanded
 /// where the context allows and left as written otherwise.
-pub fn preview_line(def: &TaskDef, ctx: &VarContext) -> String {
+pub(crate) fn preview_line(def: &TaskDef, ctx: &VarContext) -> String {
     let keep = |s: &str| expand(s, ctx).unwrap_or_else(|_| s.to_string());
     let Some(command) = &def.command else {
         return String::new();

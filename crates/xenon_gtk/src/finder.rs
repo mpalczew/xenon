@@ -56,14 +56,10 @@ impl App {
         };
         let root = {
             let model = self.model.borrow();
-            match model.rec(ws) {
-                Some(rec) if rec.ssh.is_none() => rec.root.clone(),
-                _ => {
-                    drop(model);
-                    self.toast("The finder does not search SSH workspaces");
-                    return;
-                }
-            }
+            let Some(rec) = model.rec(ws) else {
+                return;
+            };
+            rec.root.clone()
         };
         let session = Rc::new(Session {
             ws,

@@ -20,21 +20,6 @@ fn expand_home(text: &str) -> PathBuf {
 }
 
 impl App {
-    /// An SSH workspace: keep its session, say why nothing is drawn.
-    pub(crate) fn show_unsupported(self: &Rc<Self>, id: WorkspaceId) {
-        self.ensure_slot(id);
-        let slots = self.slots.borrow();
-        if let Some(slot) = slots.get(&id)
-            && slot.holder.first_child().is_none()
-        {
-            let page = adw::StatusPage::new();
-            page.set_icon_name(Some("network-server-symbolic"));
-            page.set_title("SSH workspace");
-            page.set_description(Some("Its session is kept as saved."));
-            slot.holder.append(&page);
-        }
-    }
-
     /// Folder chooser for "Open workspace".
     pub(crate) fn open_workspace_dialog(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::new();

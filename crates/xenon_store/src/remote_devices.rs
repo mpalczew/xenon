@@ -34,7 +34,7 @@ const SLOT_DIRS: &[&str] = &[".xenon-a", ".xenon-b"];
 
 /// State every instance of this user shares: `XENON_SHARED_DIR`, else the
 /// `.xenon-shared` sibling of an a/b slot dir, else the data dir.
-pub fn shared_dir() -> PathBuf {
+pub(crate) fn shared_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("XENON_SHARED_DIR") {
         return PathBuf::from(dir);
     }

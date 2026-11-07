@@ -6,12 +6,12 @@ use std::path::Path;
 
 /// Syntax colouring supplied by the frontend: for a file path and source text,
 /// `(start, end, color key)` byte spans. The model attaches them to diff lines.
-pub type Highlighter = fn(&Path, &str) -> Vec<(usize, usize, &'static str)>;
+pub(crate) type Highlighter = fn(&Path, &str) -> Vec<(usize, usize, &'static str)>;
 
 /// Auto switches to side-by-side at or above this pane width.
-pub const AUTO_SPLIT_MIN_PX: f32 = 860.;
+pub(crate) const AUTO_SPLIT_MIN_PX: f32 = 860.;
 /// Past this many diff lines the rest is cut off.
-pub const MAX_LINES: usize = 6000;
+pub(crate) const MAX_LINES: usize = 6000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineKind {
@@ -48,21 +48,6 @@ pub struct Hunk {
     pub header: String,
     pub lines: Vec<DiffLine>,
     pub rows: Vec<SplitRow>,
-}
-
-impl Hunk {
-    /// The new-file line to open in an editor for this hunk: the first added
-    /// line, else where the removal sits (the next surviving line), else the
-    /// header's start.
-    pub fn target_line(&self) -> u32 {
-        let first_change = self.lines.iter().position(|l| l.kind != LineKind::Context);
-        if let Some(i) = first_change
-            && let Some(n) = self.lines[i..].iter().find_map(|l| l.new_no)
-        {
-            return n;
-        }
-        parse_hunk_starts(self.header.strip_prefix("@@ ").unwrap_or(&self.header)).1
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -135,7 +120,7 @@ type Ranges = Vec<(usize, usize)>;
 
 /// Parse unified-diff text into hunks. Headers before the first `@@` are
 /// ignored.
-pub fn parse_unified(path: &str, text: &str, highlight: Highlighter) -> Vec<Hunk> {
+pub(crate) fn parse_unified(path: &str, text: &str, highlight: Highlighter) -> Vec<Hunk> {
     let mut raw: Vec<(String, Vec<RawLine>)> = Vec::new();
     let (mut old_no, mut new_no) = (0u32, 0u32);
     let mut total = 0;

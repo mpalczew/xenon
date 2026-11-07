@@ -29,16 +29,9 @@ for e in "${entries[@]}"; do
     fi
 done
 
-# Files that merely point at ATTRIBUTION.md (no copied code of their own).
-pointers=(
-    crates/xenon_terminal/src/init.rs
-    crates/xenon_terminal/src/lib.rs
-    crates/xenon_settings/src/fonts.rs
-)
-
 covered() {
     local f="$1" e
-    for e in "${entries[@]}" "${pointers[@]}"; do
+    for e in "${entries[@]}"; do
         # shellcheck disable=SC2053
         [[ "$f" == $e ]] && return 0
     done
@@ -51,7 +44,7 @@ while IFS= read -r f; do
         echo "$f:$n: marked as third-party but not listed in ATTRIBUTION.md" >&2
         fail=1
     fi
-done < <(rg -l -F 'ATTRIBUTION.md' crates third_party --glob '!*.md' || true)
+done < <(rg -l -F 'ATTRIBUTION.md' crates --glob '!*.md' || true)
 
 [[ "$fail" -eq 0 ]] || exit 1
 echo "check-attribution: ok"

@@ -9,11 +9,11 @@ use crate::split::flatten_split;
 
 /// Max axis alternations root→leaf. Same-axis splits are flat, so a long row
 /// costs one level.
-pub const MAX_NEST_DEPTH: u32 = 3;
+pub(crate) const MAX_NEST_DEPTH: u32 = 3;
 /// Max children of one split (each keeps at least `MIN_SIZE`).
-pub const MAX_SPLIT_CHILDREN: usize = 8;
+pub(crate) const MAX_SPLIT_CHILDREN: usize = 8;
 /// Smallest fraction of a split any child keeps.
-pub const MIN_SIZE: f32 = 0.1;
+pub(crate) const MIN_SIZE: f32 = 0.1;
 
 /// Stable id for a leaf pane within a session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -52,7 +52,7 @@ impl DropEdge {
     }
 
     /// True when the dropped tab should land in the *first* child of the split.
-    pub fn tab_in_first(self) -> bool {
+    pub(crate) fn tab_in_first(self) -> bool {
         matches!(self, Self::Left | Self::Top)
     }
 }
@@ -201,7 +201,7 @@ impl ContentLayout {
     }
 
     /// Repair focused pointer after load (split sizes are fixed on parse).
-    pub fn normalize(&mut self) {
+    pub(crate) fn normalize(&mut self) {
         if let Some(root) = &mut self.root {
             let leaves = root.leaf_ids();
             if leaves.is_empty() {

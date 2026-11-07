@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::content::ContentLayout;
 
 /// Default workspace-sidebar width (px).
-pub const DEFAULT_SIDEBAR_WIDTH: f32 = 240.;
+pub(crate) const DEFAULT_SIDEBAR_WIDTH: f32 = 240.;
 /// Zero-based cursor position in characters.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Point {
@@ -14,7 +14,7 @@ pub struct Point {
     pub col: usize,
 }
 
-pub fn clamp_sidebar(width: f32) -> f32 {
+pub(crate) fn clamp_sidebar(width: f32) -> f32 {
     width.clamp(140., 480.)
 }
 
@@ -33,14 +33,6 @@ impl Default for SessionState {
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             content: ContentLayout::default(),
         }
-    }
-}
-
-impl SessionState {
-    pub fn clamp_widths(mut self) -> Self {
-        self.sidebar_width = clamp_sidebar(self.sidebar_width);
-        self.content.normalize();
-        self
     }
 }
 

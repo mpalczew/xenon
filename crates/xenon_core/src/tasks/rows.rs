@@ -54,7 +54,11 @@ pub fn picker_empty_message(load_failed: bool, query_empty: bool) -> &'static st
 
 /// Run `f` with a variable context that knows only the workspace (no editor,
 /// no inputs): what the picker and the trust prompt can show before a run.
-pub fn with_preview_ctx<R>(set: &TaskSet, folder: &Path, f: impl FnOnce(&VarContext) -> R) -> R {
+pub(crate) fn with_preview_ctx<R>(
+    set: &TaskSet,
+    folder: &Path,
+    f: impl FnOnce(&VarContext) -> R,
+) -> R {
     let env = |k: &str| std::env::var(k).ok();
     let empty = BTreeMap::new();
     let secrets = BTreeSet::new();
@@ -100,7 +104,7 @@ pub fn task_rows(set: &TaskSet, folder: &Path) -> Vec<TaskRow> {
 }
 
 /// The command line a row or trust line shows, with its dependencies.
-pub fn row_command(task: &TaskDef, ctx: &VarContext) -> String {
+pub(crate) fn row_command(task: &TaskDef, ctx: &VarContext) -> String {
     let line = preview_line(task, ctx);
     if task.depends_on.is_empty() {
         return line;

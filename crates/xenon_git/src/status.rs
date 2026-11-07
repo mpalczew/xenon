@@ -58,7 +58,7 @@ impl GitFile {
         self.index == '?'
     }
 
-    pub fn is_conflict(&self) -> bool {
+    pub(crate) fn is_conflict(&self) -> bool {
         matches!(
             (self.index, self.worktree),
             ('U', _) | (_, 'U') | ('A', 'A') | ('D', 'D')
@@ -102,7 +102,7 @@ impl GitFile {
     /// the last two segments (`src/app`) when they fit, else the last segment
     /// alone (`sidebar`), else its tail (`…ar_footer`). The row truncates at
     /// the end, so the distinguishing leaf must never be what gets cut.
-    pub fn dir_tail(&self) -> String {
+    pub(crate) fn dir_tail(&self) -> String {
         const BUDGET: usize = 10;
         let parts: Vec<&str> = self.dir().split('/').filter(|p| !p.is_empty()).collect();
         let tail = &parts[parts.len().saturating_sub(2)..];

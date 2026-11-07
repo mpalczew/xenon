@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
 /// Failed-auth throttle: per source IP and globally, over a sliding minute.
-pub struct RateLimiter {
+pub(crate) struct RateLimiter {
     per_ip: HashMap<IpAddr, Vec<Instant>>,
     global: Vec<Instant>,
 }
@@ -35,7 +35,7 @@ impl RateLimiter {
         ip_fails < PER_IP_LIMIT && self.global.len() < GLOBAL_LIMIT
     }
 
-    pub fn record_failure(&mut self, ip: IpAddr, now: Instant) {
+    pub(crate) fn record_failure(&mut self, ip: IpAddr, now: Instant) {
         self.per_ip.entry(ip).or_default().push(now);
         self.global.push(now);
     }

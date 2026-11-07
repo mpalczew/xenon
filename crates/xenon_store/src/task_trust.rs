@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{StoreError, data_dir, read_json, write_atomic};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TaskTrustRecord {
+pub(crate) struct TaskTrustRecord {
     pub hash: String,
     pub allowed: bool,
 }

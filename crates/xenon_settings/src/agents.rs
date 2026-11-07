@@ -1,7 +1,7 @@
-//! Text for the Agents and Language Servers settings: what the managed skill's
-//! status says, and how a typed server command is stored.
+//! Text for the Agents settings: what the managed skill's
+//! status says.
 
-use xenon_store::{LspSettings, SkillStatus};
+use xenon_store::SkillStatus;
 
 /// The line under the Agent skill switch.
 pub fn skill_subtitle(status: &SkillStatus) -> String {
@@ -37,20 +37,4 @@ pub fn skill_homes(status: &SkillStatus) -> String {
     ["~/.agents", "~/.claude", "~/.grok"]
         .map(|home| format!("{:<22} {mark}", format!("{home}/skills/xenon")))
         .join("\n")
-}
-
-/// Which language server a command belongs to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LspServer {
-    Rust,
-    TypeScript,
-}
-
-/// Store an edited server command; empty text means find it on PATH.
-pub fn set_lsp_command(lsp: &mut LspSettings, server: LspServer, text: &str) {
-    let command = Some(text.trim().to_string()).filter(|c| !c.is_empty());
-    match server {
-        LspServer::Rust => lsp.rust.command = command,
-        LspServer::TypeScript => lsp.typescript.command = command,
-    }
 }

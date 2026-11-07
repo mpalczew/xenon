@@ -198,39 +198,3 @@ fn linux(mut entries: Vec<Entry>) -> Vec<Entry> {
     );
     entries
 }
-
-/// zed-shaped keymap JSON: consecutive entries with one context share a section.
-pub fn to_json(entries: &[Entry]) -> String {
-    let mut sections: Vec<serde_json::Value> = Vec::new();
-    let mut previous: Option<&Option<String>> = None;
-    for entry in entries {
-        if previous != Some(&entry.context) {
-            sections.push(new_section(&entry.context));
-            previous = Some(&entry.context);
-        }
-        let bindings = sections
-            .last_mut()
-            .and_then(|section| section.get_mut("bindings"))
-            .and_then(|bindings| bindings.as_object_mut());
-        if let Some(bindings) = bindings {
-            bindings.insert(entry.keystroke.clone(), action_value(&entry.action));
-        }
-    }
-    serde_json::Value::Array(sections).to_string()
-}
-
-fn new_section(context: &Option<String>) -> serde_json::Value {
-    let mut section = serde_json::Map::new();
-    if let Some(context) = context {
-        section.insert("context".into(), context.clone().into());
-    }
-    section.insert("bindings".into(), serde_json::Map::new().into());
-    section.into()
-}
-
-fn action_value(action: &Option<String>) -> serde_json::Value {
-    match action {
-        Some(name) => name.clone().into(),
-        None => serde_json::Value::Null,
-    }
-}

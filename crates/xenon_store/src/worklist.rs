@@ -13,7 +13,6 @@ pub mod sections;
 pub mod view;
 pub use draft::{Change, ItemDraft};
 pub use item::{TITLE_LIMIT, WorkItem, title_length};
-pub use sections::Insertion;
 pub use sections::{
     SourceEdit, Target, capture_targets, delete_empty_section, insert_section, rename_section,
 };
@@ -187,3 +186,5 @@ pub fn read_source(root: &Path) -> String {
         .and_then(|bytes| String::from_utf8(bytes).ok())
         .unwrap_or_default()
 }
+
+pub(crate) use sections::Insertion;

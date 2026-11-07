@@ -6,7 +6,7 @@ use super::model::{TaskDef, TaskSet};
 
 /// folderOpen tasks plus everything they depend on, each once, in file order.
 /// This is exactly what an approval covers.
-pub fn folder_open_closure(set: &TaskSet) -> Vec<&TaskDef> {
+pub(crate) fn folder_open_closure(set: &TaskSet) -> Vec<&TaskDef> {
     let mut wanted: Vec<&str> = set
         .tasks
         .iter()
