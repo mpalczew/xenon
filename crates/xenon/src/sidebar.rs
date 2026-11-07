@@ -201,6 +201,30 @@ impl Sidebar {
         self.inner.set_resize_end_child(folds.files);
     }
 
+    /// Put back the sizes saved by the last run, and save again after each drag.
+    pub(crate) fn restore_sizes(&self, workspaces: Option<f32>, files: Option<f32>) {
+        for (paned, size) in [(&self.outer, workspaces), (&self.inner, files)] {
+            if let Some(size) = size {
+                paned.set_position(size as i32);
+            }
+            let app = self.app.clone();
+            paned.connect_position_notify(move |_| {
+                let app = app.clone();
+                glib::idle_add_local_once(move || {
+                    if let Some(app) = app.upgrade() {
+                        app.schedule_save();
+                    }
+                });
+            });
+        }
+    }
+
+    /// The dragged sizes, `None` for a section that sizes to its content.
+    pub(crate) fn sizes(&self) -> (Option<f32>, Option<f32>) {
+        let size = |p: &gtk::Paned| p.is_position_set().then(|| p.position() as f32);
+        (size(&self.outer), size(&self.inner))
+    }
+
     /// Forget dragged section sizes.
     pub(crate) fn reset_sizes(&self) {
         self.inner.set_property("position-set", false);
@@ -321,6 +345,9 @@ impl App {
         // Folding drops any dragged size so a folded section shrinks to its header.
         self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
+        if let Some(app) = self.sidebar.app.upgrade() {
+            app.schedule_save();
+        }
     }
 
     pub(crate) fn toggle_fold(&self, fold: Fold) {

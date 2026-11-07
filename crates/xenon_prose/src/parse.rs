@@ -146,6 +146,8 @@ impl Walk<'_> {
             Event::TaskListMarker(checked) => {
                 let line = self.items.last().map(|i| i.0.clone()).unwrap_or_default();
                 let range = self.conv.range(&r);
+                // The checkbox stands in for the bullet of its item.
+                self.doc.bullets.pop();
                 self.doc.spans.push(Span {
                     range: range.clone(),
                     kind: Kind::Checkbox(checked),

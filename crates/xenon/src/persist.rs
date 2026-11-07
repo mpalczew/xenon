@@ -46,6 +46,18 @@ impl App {
             self.save_session(id);
         }
         self.save_registry();
+        self.save_sizes();
+    }
+
+    fn save_sizes(&self) {
+        let (workspaces, files) = self.sidebar.sizes();
+        let result = xenon_store::update_settings(|s| {
+            s.workspaces_section_height = workspaces;
+            s.files_section_height = files;
+        });
+        if let Err(error) = result {
+            eprintln!("[xg] save settings: {error}");
+        }
     }
 
     /// Coalesce bursts (divider drags) into one write.

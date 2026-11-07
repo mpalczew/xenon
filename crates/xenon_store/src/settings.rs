@@ -113,14 +113,13 @@ pub struct AppSettings {
     /// Left panel Git section collapsed.
     #[serde(default)]
     pub git_collapsed: bool,
-    /// Pinned Git section body height (px); `None` = size to content.
+    /// Dragged height (px) of the Files section; `None` = size to content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub git_section_height: Option<f32>,
+    pub files_section_height: Option<f32>,
     /// Global width of the left sidebar (px).
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: f32,
-    /// Pinned Workspaces list height (px) when Files is also open.
-    /// `None` = size to content (workspaces-first; no artificial cap).
+    /// Dragged height (px) of the Workspaces section; `None` = size to content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspaces_section_height: Option<f32>,
     /// Last main window position/size (None until the user has moved/resized once).
@@ -164,7 +163,7 @@ impl Default for AppSettings {
             workspaces_collapsed: false,
             files_open: true,
             git_collapsed: false,
-            git_section_height: None,
+            files_section_height: None,
             sidebar_width: 240.0,
             workspaces_section_height: None,
             window: None,

@@ -264,6 +264,10 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     app.split
         .set_position(settings.sidebar_width.clamp(140.0, 480.0) as i32);
     app.split.set_wide_handle(false);
+    app.sidebar.restore_sizes(
+        settings.workspaces_section_height,
+        settings.files_section_height,
+    );
     toasts.set_child(Some(&app.split));
     let view = adw::ToolbarView::new();
     view.add_top_bar(&header(&app, &title));
