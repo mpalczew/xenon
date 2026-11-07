@@ -116,22 +116,15 @@ impl Palette {
              headerbar windowtitle .subtitle {{ font-size: 0.8em; color: {muted}; opacity: 1; }}\n\
              vte-terminal {{ padding: 4px 8px; }}\n\
              .xsidebar {{ background: {panel}; }}\n\
-             .xsidebar row, .xsidebar row:selected, .xsidebar row:hover, .xsidebar row:focus {{ background: transparent; outline: none; }}\n\
-             .xsection-head {{ min-height: 52px; padding: 0 16px; }}\n\
-             .xsection-head.xfirst {{ min-height: 60px; padding-right: 8px; }}\n\
+             .xsidebar list:not(.navigation-sidebar) row, .xsidebar list:not(.navigation-sidebar) row:selected, .xsidebar list:not(.navigation-sidebar) row:hover, .xsidebar list:not(.navigation-sidebar) row:focus {{ background: transparent; outline: none; }}\n\
+             .xsection-head {{ min-height: 32px; padding: 0 8px 0 12px; }}\n\
              .xheading {{ color: {muted}; font-size: 0.74em; font-weight: 700; letter-spacing: 0.1em; }}\n\
              .xsection button.flat {{ min-width: 24px; min-height: 24px; padding: 0; color: {muted}; border-radius: 6px; }}\n\
              .xsection button.flat:hover {{ color: {fg}; background: {hover}; }}\n\
              .xsidebar row.drop-before {{ box-shadow: 0 -1px 0 1px {accent}; }}\n\
              .xsidebar row.drop-after {{ box-shadow: 0 1px 0 1px {accent}; }}\n\
-             .xrow {{ border-radius: 6px; margin: 1px 8px; padding: 7px 8px; }}\n\
-             .xrow:hover {{ background: {hover}; }}\n\
-             .xrow.selected {{ background: {selected}; box-shadow: inset 2px 0 {fg}; border-radius: 0 6px 6px 0; }}\n\
-             .xrow .xname {{ font-weight: 600; font-size: 0.95em; }}\n\
-             .xrow .xpath {{ color: {muted}; font-size: 0.78em; }}\n\
-             .xrow-icon {{ color: {muted}; margin: 2px 8px 0 2px; -gtk-icon-size: 15px; }}\n\
-             .xrow.selected .xrow-icon {{ color: {accent}; }}\n\
-             .xdot {{ min-width: 3px; border-radius: 2px; margin: 6px 0; }}\n\
+             .xrow-icon {{ color: {muted}; }}\n\
+             .xdot {{ min-width: 3px; border-radius: 2px; margin: 2px 6px 2px 0; }}\n\
              .xdot.working {{ background: {info}; }}\n\
              .xdot.attention {{ background: {warning}; }}\n\
              .xfiles {{ padding: 2px 0 8px 0; }}\n\
@@ -166,7 +159,7 @@ impl Palette {
              .xgutter {{ min-width: 20px; margin-right: 0; }}\n\
              .xrow-close {{ min-width: 20px; min-height: 20px; padding: 0; opacity: 0; }}\n\
              row:hover .xrow-close, .xrow-close:focus {{ opacity: 0.8; }}\n\
-             .xrow:hover .xtick {{ opacity: 0; }}\n\
+             row:hover .xtick {{ opacity: 0; }}\n\
              .xhints {{ border-top: 1px solid {border}; padding-top: 12px; margin-top: 4px; }}\n\
              .xhints-head {{ color: {muted}; font-size: 0.82em; margin-bottom: 4px; }}\n\
              .xhints-name {{ color: {muted}; font-size: 0.85em; }}\n\
@@ -174,10 +167,8 @@ impl Palette {
              .xtick {{ min-width: 5px; min-height: 18px; border-radius: 3px; }}\n\
              .xtick.dirty {{ background: {modified}; }}\n\
              .xtick.index {{ border: 2px solid {modified}; }}\n\
-             .xsection button.xgit-head {{ margin: 0; padding: 0 16px; min-height: 52px; border-radius: 0; }}\n\
-             .xsection button.xfold {{ padding: 0; min-height: 52px; border-radius: 0; }}\n\
-             .xsection-head.xfirst button.xfold {{ min-height: 60px; }}\n\
-             .xsection button.xgit-head {{ padding: 0 16px; }}\n\
+             .xsection button.xgit-head {{ margin: 0; padding: 0 12px; min-height: 32px; border-radius: 0; }}\n\
+             .xsection button.xfold {{ padding: 0; min-height: 32px; border-radius: 0; }}\n\
              .xsection button.xfold:hover {{ background: transparent; }}\n\
              .xfold:hover .xheading {{ color: {fg}; }}\n\
              .xgit-section {{ border-top: 1px solid {border}; }}\n\

@@ -11,7 +11,7 @@
       Ctrl+E for Files; saved in settings)
 - [x] GTK: Settings moves and resizes like a window; pages balanced
 - [ ] GTK: workspace picker gets the Browse… row its no-match message names
-- [ ] GTK: Workspaces section looks bad (waiting on what, from the user)
+- [x] GTK: Workspaces section looks bad (waiting on what, from the user)
 
 - [x] GTK: task runner (task picker, Run Build Task, inputs and trust prompts, Run
       Task button)
