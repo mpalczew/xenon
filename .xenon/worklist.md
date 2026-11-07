@@ -13,7 +13,7 @@
 - [ ] GTK: workspace picker gets the Browse… row its no-match message names
 - [ ] GTK: Workspaces section looks bad (waiting on what, from the user)
 
-- [ ] GTK: task runner (task picker, Run Build Task, inputs and trust prompts, Run
+- [x] GTK: task runner (task picker, Run Build Task, inputs and trust prompts, Run
       Task button)
 
 ## Next

@@ -14,6 +14,7 @@ impl App {
         }
         if self.model.borrow().drawable(id) {
             self.sync(id);
+            self.check_folder_open_tasks(id);
         } else {
             self.show_unsupported(id);
         }

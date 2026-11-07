@@ -24,6 +24,8 @@ pub(crate) struct TermView {
     /// Directory the shell started in, for relative link targets.
     pub cwd: std::path::PathBuf,
     pub pid: Cell<Option<i32>>,
+    /// The wait status of the child once it ended (a task reads how it ended).
+    pub status: Cell<Option<i32>>,
     pub last_output: Cell<Instant>,
     pub quiet_armed: Cell<bool>,
 }
@@ -63,6 +65,7 @@ impl TermView {
             spawn_dir,
             cwd: cwd.to_path_buf(),
             pid: Cell::new(None),
+            status: Cell::new(None),
             last_output: Cell::new(Instant::now()),
             quiet_armed: Cell::new(false),
         });
@@ -86,14 +89,43 @@ impl TermView {
 
     pub(crate) fn spawn(self: &Rc<Self>, cwd: &std::path::Path) {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
-        let shell_name = shell.clone();
-        let env: Vec<String> = child_env();
+        self.spawn_command(cwd, &[shell], &[]);
+    }
+
+    /// Scrollback and screen as text, for a background task's readiness.
+    pub(crate) fn all_text(&self) -> String {
+        let last = self.term.row_count() - 1;
+        let (all, _) = self
+            .term
+            .text_range_format(vte::Format::Text, -1_000_000, 0, last, -1);
+        all.map_or_else(
+            || {
+                self.term
+                    .text_format(vte::Format::Text)
+                    .unwrap_or_default()
+                    .to_string()
+            },
+            |text| text.to_string(),
+        )
+    }
+
+    /// Start `argv` (a task) instead of the shell; `extra_env` adds to ours.
+    pub(crate) fn spawn_command(
+        self: &Rc<Self>,
+        cwd: &std::path::Path,
+        argv: &[String],
+        extra_env: &[String],
+    ) {
+        let shell_name = argv.first().cloned().unwrap_or_default();
+        let mut env: Vec<String> = child_env();
+        env.extend(extra_env.iter().cloned());
         let env_refs: Vec<&str> = env.iter().map(String::as_str).collect();
+        let argv_refs: Vec<&str> = argv.iter().map(String::as_str).collect();
         let this = self.clone();
         self.term.spawn_async(
             vte::PtyFlags::DEFAULT,
             Some(&cwd.to_string_lossy()),
-            &[&shell],
+            &argv_refs,
             &env_refs,
             glib::SpawnFlags::SEARCH_PATH,
             || {},
@@ -165,7 +197,11 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     }
     {
         let weak = weak.clone();
+        let view = Rc::downgrade(view);
         term.connect_child_exited(move |_, status| {
+            if let Some(view) = view.upgrade() {
+                view.status.set(Some(status));
+            }
             if let Some(app) = weak.upgrade() {
                 app.term_exited(ws, tab, (status >> 8) & 0xff);
             }

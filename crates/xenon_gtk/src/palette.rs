@@ -13,6 +13,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
+use crate::palette_list::row_list;
+
 /// One row, as the model wants it drawn.
 #[derive(Clone, Default)]
 pub(crate) struct PaletteRow {
@@ -24,10 +26,28 @@ pub(crate) struct PaletteRow {
     pub enabled: bool,
 }
 
+/// What only some palettes need; the default suits a plain list.
+#[derive(Default)]
+pub(crate) struct Options {
+    /// A line above the field: the question of an input prompt.
+    pub prompt: Option<String>,
+    /// Text the field starts with.
+    pub initial: String,
+    /// Hide what is typed (password inputs).
+    pub masked: bool,
+    /// Enter answers with the field text even when no row is selected.
+    pub free_text: bool,
+    /// Escape or a click outside the panel; a close by code does not call it.
+    pub on_dismiss: Option<Box<dyn Fn()>>,
+    /// Ctrl+Enter on the selected row.
+    pub on_accept_alt: Option<Box<dyn Fn(usize)>>,
+}
+
 /// What the models answer to.
 pub(crate) struct Handlers {
-    pub placeholder: &'static str,
-    pub hint: &'static str,
+    pub placeholder: String,
+    pub hint: String,
+    pub options: Options,
     pub on_query: Box<dyn Fn(&str)>,
     pub on_accept: Box<dyn Fn(usize)>,
     /// Tab: complete the selected row into the field.
@@ -37,6 +57,7 @@ pub(crate) struct Handlers {
 pub(crate) struct Palette {
     pub scrim: gtk::Box,
     entry: gtk::Entry,
+    prompt: gtk::Label,
     hint: gtk::Label,
     empty: gtk::Label,
     scroller: gtk::ScrolledWindow,
@@ -55,98 +76,6 @@ pub(crate) struct Palette {
     enabled: RefCell<Vec<bool>>,
 }
 
-/// `text` as Pango markup with the matched letters in the accent color.
-pub(crate) fn markup(text: &str, hits: &[u32], accent: &str) -> String {
-    let mut out = String::new();
-    let mut open = false;
-    for (i, c) in text.chars().enumerate() {
-        let hit = hits.binary_search(&(i as u32)).is_ok();
-        if hit && !open {
-            out.push_str(&format!("<span foreground=\"{accent}\" weight=\"bold\">"));
-            open = true;
-        } else if !hit && open {
-            out.push_str("</span>");
-            open = false;
-        }
-        out.push_str(&glib::markup_escape_text(&c.to_string()));
-    }
-    if open {
-        out.push_str("</span>");
-    }
-    out
-}
-
-/// The result list: a store of `PaletteRow`s shown by a `GtkListView` whose
-/// rows draw the title (matched letters in the accent color), detail and badge.
-fn row_list(accent: &Rc<RefCell<String>>) -> (gio::ListStore, gtk::SingleSelection, gtk::ListView) {
-    let store = gio::ListStore::new::<glib::BoxedAnyObject>();
-    let selection = gtk::SingleSelection::new(Some(store.clone()));
-    selection.set_autoselect(true);
-    selection.set_can_unselect(false);
-    let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let title = gtk::Label::new(None);
-        title.set_xalign(0.0);
-        title.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
-        title.add_css_class("xp-title");
-        let detail = gtk::Label::new(None);
-        detail.set_xalign(1.0);
-        detail.set_ellipsize(gtk::pango::EllipsizeMode::Start);
-        detail.add_css_class("xp-detail");
-        let badge = gtk::Label::new(None);
-        badge.add_css_class("xp-badge");
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        row.add_css_class("xp-row");
-        title.set_hexpand(true);
-        row.append(&title);
-        row.append(&detail);
-        row.append(&badge);
-        item.set_child(Some(&row));
-    });
-    let accent_for_bind = accent.clone();
-    factory.connect_bind(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let (Some(obj), Some(row)) = (
-            item.item().and_downcast::<glib::BoxedAnyObject>(),
-            item.child().and_downcast::<gtk::Box>(),
-        ) else {
-            return;
-        };
-        let data = obj.borrow::<PaletteRow>();
-        let mut kids = Vec::new();
-        let mut child = row.first_child();
-        while let Some(w) = child {
-            child = w.next_sibling();
-            kids.push(w);
-        }
-        if let [title, detail, badge] = &kids[..]
-            && let (Some(title), Some(detail), Some(badge)) = (
-                title.downcast_ref::<gtk::Label>(),
-                detail.downcast_ref::<gtk::Label>(),
-                badge.downcast_ref::<gtk::Label>(),
-            )
-        {
-            title.set_markup(&markup(&data.title, &data.hits, &accent_for_bind.borrow()));
-            detail.set_text(data.detail.as_deref().unwrap_or(""));
-            detail.set_visible(data.detail.is_some());
-            badge.set_text(data.badge.as_deref().unwrap_or(""));
-            badge.set_visible(data.badge.is_some());
-        }
-        row.set_opacity(if data.enabled { 1.0 } else { 0.5 });
-    });
-    let view = gtk::ListView::new(Some(selection.clone()), Some(factory));
-    view.add_css_class("xpalette-list");
-    view.set_focusable(false);
-    view.set_single_click_activate(false);
-
-    (store, selection, view)
-}
-
 impl Palette {
     pub(crate) fn new() -> Rc<Self> {
         let entry = gtk::Entry::new();
@@ -163,6 +92,11 @@ impl Palette {
         scroller.set_propagate_natural_height(true);
         scroller.set_focusable(false);
 
+        let prompt = gtk::Label::new(None);
+        prompt.add_css_class("xp-hint");
+        prompt.set_xalign(0.0);
+        prompt.set_wrap(true);
+        prompt.set_visible(false);
         let empty = gtk::Label::new(None);
         empty.add_css_class("xp-empty");
         empty.set_xalign(0.0);
@@ -176,6 +110,7 @@ impl Palette {
         panel.set_halign(gtk::Align::Center);
         panel.set_valign(gtk::Align::Start);
         panel.set_margin_top(72);
+        panel.append(&prompt);
         panel.append(&entry);
         panel.append(&scroller);
         panel.append(&empty);
@@ -191,6 +126,7 @@ impl Palette {
         let this = Rc::new(Self {
             scrim,
             entry,
+            prompt,
             hint,
             empty,
             scroller,
@@ -227,7 +163,7 @@ impl Palette {
                 .is_some_and(|b| b.contains_point(&gtk::graphene::Point::new(x as f32, y as f32)));
             if !inside {
                 gesture.set_state(gtk::EventSequenceState::Claimed);
-                this.close();
+                this.dismiss();
             }
         });
         self.scrim.add_controller(click);
@@ -269,7 +205,11 @@ impl Palette {
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             let handled = match key {
                 gdk::Key::Escape => {
-                    this.close();
+                    this.dismiss();
+                    true
+                }
+                gdk::Key::Return | gdk::Key::KP_Enter if ctrl => {
+                    this.accept_alt();
                     true
                 }
                 gdk::Key::Down => this.step(1),
@@ -320,8 +260,9 @@ impl Palette {
     /// A key by name, as the entry's own key handling would treat it.
     pub(crate) fn key(&self, name: &str) {
         match name {
-            "escape" => self.close(),
+            "escape" => self.dismiss(),
             "enter" => self.accept(),
+            "ctrl-enter" => self.accept_alt(),
             "tab" => {
                 self.complete();
             }
@@ -345,15 +286,21 @@ impl Palette {
 
     /// Show the palette. `win` supplies the focus to give back on close.
     pub(crate) fn open(&self, win: &impl IsA<gtk::Window>, handlers: Handlers) {
-        let (placeholder, hint, initial) = (handlers.placeholder, handlers.hint, "");
+        let placeholder = handlers.placeholder.clone();
+        let (hint, initial) = (handlers.hint.clone(), handlers.options.initial.clone());
+        let initial = initial.as_str();
+        self.entry.set_visibility(!handlers.options.masked);
+        self.prompt
+            .set_text(handlers.options.prompt.as_deref().unwrap_or(""));
+        self.prompt.set_visible(handlers.options.prompt.is_some());
         if !self.open.get() {
             *self.restore.borrow_mut() = win.focus();
         }
         self.open.set(true);
         self.epoch.set(self.epoch.get() + 1);
         *self.handlers.borrow_mut() = Some(Rc::new(handlers));
-        self.entry.set_placeholder_text(Some(placeholder));
-        self.hint.set_text(hint);
+        self.entry.set_placeholder_text(Some(&placeholder));
+        self.hint.set_text(&hint);
         self.entry.set_text(initial);
         self.entry.set_position(-1);
         self.scrim.set_visible(true);
@@ -363,6 +310,21 @@ impl Palette {
         let handlers = self.handlers.borrow().clone();
         if let Some(h) = handlers {
             (h.on_query)(initial);
+        }
+    }
+
+    /// Escape or a click outside: close, then tell the model it was a cancel.
+    fn dismiss(&self) {
+        let handlers = self.handlers.borrow().clone();
+        if !self.open.get() {
+            return;
+        }
+        self.close();
+        if let Some(cancel) = handlers
+            .as_ref()
+            .and_then(|h| h.options.on_dismiss.as_ref())
+        {
+            cancel();
         }
     }
 
@@ -408,7 +370,7 @@ impl Palette {
         self.changed();
     }
 
-    fn select(&self, index: u32) {
+    pub(crate) fn select(&self, index: u32) {
         self.selection.set_selected(index);
         self.view.scroll_to(index, gtk::ListScrollFlags::NONE, None);
         self.changed();
@@ -449,9 +411,23 @@ impl Palette {
             .borrow()
             .get(at as usize)
             .copied()
-            .unwrap_or(false);
+            .unwrap_or(false)
+            || handlers.as_ref().is_some_and(|h| h.options.free_text);
         if let (Some(h), true) = (handlers, ok) {
             (h.on_accept)(at as usize);
+        }
+    }
+
+    fn accept_alt(&self) {
+        let handlers = self.handlers.borrow().clone();
+        let at = self.selection.selected() as usize;
+        match handlers
+            .as_ref()
+            .and_then(|h| h.options.on_accept_alt.as_ref())
+        {
+            Some(alt) if self.enabled.borrow().get(at).copied().unwrap_or(false) => alt(at),
+            Some(_) => {}
+            None => self.accept(),
         }
     }
 

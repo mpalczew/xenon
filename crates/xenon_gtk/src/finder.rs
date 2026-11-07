@@ -14,7 +14,7 @@ use xenon_core::WorkspaceId;
 use xenon_finder::{FileIndex, FileMatch};
 
 use crate::app::App;
-use crate::palette::{Handlers, PaletteRow};
+use crate::palette::{Handlers, Options, PaletteRow};
 
 /// Wait this long after the last keystroke before scoring.
 const DEBOUNCE: Duration = Duration::from_millis(40);
@@ -84,8 +84,10 @@ impl App {
                     "Search files…"
                 } else {
                     "Indexing…"
-                },
-                hint: "return opens  ·  esc closes",
+                }
+                .into(),
+                hint: "return opens  ·  esc closes".into(),
+                options: Options::default(),
                 on_query: Box::new(move |query| {
                     if let Some(app) = weak_q.upgrade() {
                         app.finder_query(&sq, query);

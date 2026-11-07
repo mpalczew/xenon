@@ -26,7 +26,7 @@ protocol), `xenon_settings`, `xenon_git`, `xenon_finder`, `xenon_keymap`,
 ## Gaps
 
 - **Toolbar.** Not drawn yet: Go Back and Go Forward, Cut, Toggle File Tree, the two
-  worklist buttons, Run Task, Save (shown when an editor is dirty).
+  worklist buttons, Save (shown when an editor is dirty).
 - **Empty screen.** The Command Palette, Focus Editor and Keyboard Shortcuts rows are
   listed with their keys but do nothing.
 - **Sidebar.** The Git section has no draggable height.

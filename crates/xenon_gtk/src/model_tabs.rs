@@ -18,7 +18,10 @@ pub(crate) enum SplitResult {
 }
 
 impl Model {
-    fn space_content(&mut self, ws: WorkspaceId) -> Option<&mut xenon_core::PaneContent<Tab>> {
+    pub(super) fn space_content(
+        &mut self,
+        ws: WorkspaceId,
+    ) -> Option<&mut xenon_core::PaneContent<Tab>> {
         self.spaces.get_mut(&ws).map(|s| &mut s.content)
     }
 
@@ -33,7 +36,11 @@ impl Model {
     /// also the last pane that had focus, since focus moving to the sidebar or
     /// a dialog does not change it. With no valid one it is the first pane;
     /// with no pane, a new one.
-    fn push_tab(&mut self, ws: WorkspaceId, make: impl FnOnce(TabId) -> Tab) -> Option<TabId> {
+    pub(super) fn push_tab(
+        &mut self,
+        ws: WorkspaceId,
+        make: impl FnOnce(TabId) -> Tab,
+    ) -> Option<TabId> {
         let content = self.space_content(ws)?;
         let id = content.next_tab_id();
         if content.root.is_none() {

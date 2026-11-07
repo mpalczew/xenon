@@ -20,7 +20,7 @@ use xenon_finder::discover::{
 };
 
 use crate::app::App;
-use crate::palette::{Handlers, PaletteRow};
+use crate::palette::{Handlers, Options, PaletteRow};
 use crate::sidebar::short_path;
 
 const DEBOUNCE: Duration = Duration::from_millis(60);
@@ -136,7 +136,7 @@ fn filter_known(known: &[Candidate], query: &str) -> Vec<Candidate> {
 }
 
 /// Char indexes of `query` in `text`, for the letters to emphasise.
-fn hits(text: &str, query: &str) -> Vec<u32> {
+pub(crate) fn hits(text: &str, query: &str) -> Vec<u32> {
     if query.is_empty() {
         return Vec::new();
     }
@@ -247,8 +247,9 @@ impl App {
         self.launcher.open(
             &self.win,
             Handlers {
-                placeholder: "Folder or ssh://host/path\u{2026}",
-                hint: "return opens  ·  tab completes  ·  esc closes",
+                placeholder: "Folder or ssh://host/path\u{2026}".into(),
+                hint: "return opens  ·  tab completes  ·  esc closes".into(),
+                options: Options::default(),
                 on_query: Box::new(move |query| {
                     if let Some(app) = wq.upgrade() {
                         app.picker_query(&sq, query);

@@ -69,6 +69,8 @@ pub(crate) struct App {
     pub pending_drop: Cell<Option<(PaneId, TabId, Option<xenon_core::DropEdge>)>>,
     pub save_pending: Cell<bool>,
     pub remote: crate::remote::Remote,
+    pub tasks: crate::tasks::Tasks,
+    pub trust_card: crate::tasks_ui::TrustCard,
 }
 
 impl App {
@@ -186,6 +188,7 @@ impl App {
         for key in stale {
             self.bodies.borrow_mut().remove(&key);
             self.terms.borrow_mut().remove(&key);
+            self.task_tab_gone(key.0, key.1);
             self.editors.borrow_mut().remove(&key);
             self.remote_tab_gone(key.0, key.1);
             self.diffs.borrow_mut().remove(&key);
@@ -199,7 +202,10 @@ impl App {
                 TabKind::Terminal => {
                     let view = TermView::new(self, ws, tab.id, &cwd);
                     self.restyle_term(&view);
-                    view.spawn(&cwd);
+                    match self.tasks.take_spawn(ws, tab.id) {
+                        Some(task) => view.spawn_command(&task.cwd, &task.argv, &task.env),
+                        None => view.spawn(&cwd),
+                    }
                     let root = view.root.clone().upcast();
                     self.terms.borrow_mut().insert(key, view);
                     root

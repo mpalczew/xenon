@@ -142,7 +142,7 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     };
     // GPUI toolbar order (xenon_ui/src/toolbar.rs), left to right. Buttons for
     // commands GTK does not have yet (Go Back, Go Forward, Cut,
-    // File Browser, worklist capture and open, Run Task, Save) are not drawn.
+    // File Browser, worklist capture and open, Save) are not drawn.
     let left = [
         (
             "sidebar-show-symbolic",
@@ -179,6 +179,11 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
             "system-search-symbolic",
             "app.open-finder",
             "Go to File\u{2026}",
+        ),
+        (
+            "media-playback-start-symbolic",
+            "app.run-task",
+            "Run Task\u{2026}",
         ),
         ("emblem-system-symbolic", "app.settings", "Settings"),
     ];
@@ -239,6 +244,8 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         pending_drop: Cell::new(None),
         save_pending: Cell::new(false),
         remote: crate::remote::Remote::new(),
+        tasks: crate::tasks::Tasks::default(),
+        trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),
     });
     gtk::style_context_add_provider_for_display(
         &gtk::prelude::WidgetExt::display(&win),
@@ -269,10 +276,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     let view = adw::ToolbarView::new();
     view.add_top_bar(&header(&app, &title));
     view.set_content(Some(&toasts));
-    let overlay = gtk::Overlay::new();
-    overlay.set_child(Some(&view));
-    overlay.add_overlay(&app.launcher.scrim);
-    win.set_content(Some(&overlay));
+    win.set_content(Some(&layered(&app, &view)));
     {
         let weak = Rc::downgrade(&app);
         app.launcher.set_on_change(move || {
@@ -290,6 +294,15 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
     start_workspace(&app);
     app.remote_boot();
     app
+}
+
+/// The window content with the folderOpen card and the palette above it.
+fn layered(app: &App, view: &adw::ToolbarView) -> gtk::Overlay {
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(view));
+    overlay.add_overlay(&app.trust_card.root);
+    overlay.add_overlay(&app.launcher.scrim);
+    overlay
 }
 
 fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {

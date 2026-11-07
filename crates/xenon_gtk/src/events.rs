@@ -21,6 +21,7 @@ const PULSE_LEVELS: i32 = 5;
 impl App {
     pub(crate) fn term_output(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         let became_working = self.model.borrow_mut().on_output(ws, tab);
+        self.task_output(ws, tab);
         let view = self.terms.borrow().get(&(ws, tab)).cloned();
         if let Some(view) = view {
             view.last_output.set(Instant::now());
@@ -153,6 +154,11 @@ impl App {
             );
         }
         self.sync(ws);
+        if self.tasks.owns(ws, tab) {
+            // A task tab stays for its output; the run decides what follows.
+            self.task_finished(ws, tab);
+            return;
+        }
         let delay = self.settings.borrow().terminal_auto_close.delay();
         if let Some(delay) = delay {
             let weak = Rc::downgrade(self);
