@@ -6,8 +6,51 @@ use std::path::Path;
 use std::process::Command;
 
 use similar::{ChangeTag, DiffOp, InlineChange, TextDiff};
-use xenon_git::diff::Layout;
 use xenon_git::status::GitFile;
+
+/// Auto switches to side-by-side at or above this pane width.
+const AUTO_SPLIT_MIN_PX: f32 = 860.;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum LayoutMode {
+    #[default]
+    Auto,
+    Split,
+    Unified,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Layout {
+    Split,
+    Unified,
+}
+
+impl LayoutMode {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "Auto",
+            Self::Split => "Split",
+            Self::Unified => "Unified",
+        }
+    }
+
+    pub(crate) fn next(self) -> Self {
+        match self {
+            Self::Auto => Self::Split,
+            Self::Split => Self::Unified,
+            Self::Unified => Self::Auto,
+        }
+    }
+
+    pub(crate) fn resolve(self, width_px: f32) -> Layout {
+        match self {
+            Self::Split => Layout::Split,
+            Self::Unified => Layout::Unified,
+            Self::Auto if width_px >= AUTO_SPLIT_MIN_PX => Layout::Split,
+            Self::Auto => Layout::Unified,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {

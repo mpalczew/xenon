@@ -13,11 +13,10 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use sourceview::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
-use xenon_git::diff::{Layout, LayoutMode};
 use xenon_git::status::GitFile;
 
 use crate::app::App;
-use crate::diff_text::{self, Doc, Page};
+use crate::diff_text::{self, Doc, Layout, LayoutMode, Page};
 use crate::pane::focus_inside;
 
 mod numbers;
