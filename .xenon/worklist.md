@@ -2,7 +2,6 @@
 
 ## Now
 
-- [ ] GTK: diff tab shows hunks only again, three lines around each change
 - [ ] GTK: Markdown writing mode
 - [ ] GTK: open a file in the selected pane, or the last selected one
 - [ ] GTK: Copy Clean in the toolbar
