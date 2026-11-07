@@ -10,6 +10,7 @@
 //! the tags of its own range in one step so nothing flickers.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
@@ -24,6 +25,8 @@ use xenon_settings::{ProseFont, ProseMarkers, ProseSettings};
 use crate::app::App;
 use crate::prose_tags::{Look, Tags};
 
+mod code;
+mod decor;
 mod input;
 mod style;
 pub(crate) use style::css;
@@ -65,6 +68,12 @@ pub(crate) struct Prose {
     /// Column width in characters, fitted to the document when it loads.
     column: Cell<f32>,
     pub(crate) images: crate::prose_images::Images,
+    /// Overlay that draws quote bars, bullets and table rules.
+    decor: gtk::DrawingArea,
+    decor_pending: Cell<bool>,
+    /// Tags made from the style scheme for code blocks, and their results.
+    syntax: RefCell<Vec<gtk::TextTag>>,
+    lit: RefCell<HashMap<String, code::Lit>>,
 }
 
 impl Prose {
@@ -100,6 +109,10 @@ impl Prose {
             margin: Cell::new(-1),
             column: Cell::new(xenon_prose::column_width(&text)),
             images: crate::prose_images::Images::default(),
+            decor: gtk::DrawingArea::new(),
+            decor_pending: Cell::new(false),
+            syntax: RefCell::default(),
+            lit: RefCell::default(),
         });
         this.connect();
         this
@@ -107,6 +120,18 @@ impl Prose {
 
     fn connect(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
+        self.decor.set_can_target(false);
+        self.decor.set_visible(false);
+        self.view.add_overlay(&self.decor, 0, 0);
+        self.decor.set_draw_func(glib::clone!(
+            #[strong(rename_to = this)]
+            weak,
+            move |_, cr, _, _| {
+                if let Some(this) = this.upgrade() {
+                    this.draw_decor(cr);
+                }
+            }
+        ));
         // Before the default handler: positions are those of the edit.
         self.buffer.connect_insert_text(glib::clone!(
             #[strong(rename_to = this)]
@@ -156,6 +181,7 @@ impl Prose {
                 move |_| {
                     if let Some(this) = this.upgrade() {
                         this.images.schedule_move(&this);
+                        this.sync_decor();
                     }
                 }
             ));
@@ -281,7 +307,7 @@ impl Prose {
             doc.spans[to].range.start.min(total)
         };
         let b = b.max(a);
-        for tag in self.tags.all() {
+        for tag in self.tags.all().into_iter().chain(&*self.syntax.borrow()) {
             self.buffer.remove_tag(tag, &self.at(a), &self.at(b));
         }
         let clip = |r: &std::ops::Range<usize>| r.start.max(a)..r.end.min(b);
@@ -300,6 +326,12 @@ impl Prose {
                 self.tag_range(&self.tags.hide, range);
             }
         }
+        for m in doc.bullets_in(&(a..b)) {
+            if self.hide.get() && shown.is_none_or(|_| m.block != shown) {
+                self.tag_range(&self.tags.bullet, clip(&m.range));
+            }
+        }
+        self.color_code(&doc, a, b);
         drop(doc);
         if to < n {
             let this = Rc::downgrade(self);
@@ -310,6 +342,7 @@ impl Prose {
             });
         } else {
             self.images.rebuild(self);
+            self.sync_decor();
         }
     }
 
@@ -329,6 +362,9 @@ impl Prose {
             for ix in doc.markup_in(old) {
                 self.tag_range(&self.tags.hide, doc.markup[ix].range.clone());
             }
+            for m in doc.bullets_in(old) {
+                self.tag_range(&self.tags.bullet, m.range.clone());
+            }
         }
         if let Some(new) = now.and_then(|b| doc.blocks.get(b)) {
             for ix in doc.markup_in(new) {
@@ -336,8 +372,14 @@ impl Prose {
                 self.buffer
                     .remove_tag(&self.tags.hide, &self.at(r.start), &self.at(r.end));
             }
+            for m in doc.bullets_in(new) {
+                let r = &m.range;
+                self.buffer
+                    .remove_tag(&self.tags.bullet, &self.at(r.start), &self.at(r.end));
+            }
         }
         drop(doc);
+        self.sync_decor();
         self.images.schedule_move(self);
     }
 
@@ -353,12 +395,13 @@ impl Prose {
     /// Turn prose mode on or off for this view and restyle it.
     pub(crate) fn set_on(self: &Rc<Self>, on: bool, app: &App) {
         let was = self.on.replace(on);
+        self.decor.set_visible(on);
         if on {
             self.restyle(app, !was);
         } else if was {
             self.applies.set(self.applies.get() + 1);
             let (a, b) = self.buffer.bounds();
-            for tag in self.tags.all() {
+            for tag in self.tags.all().into_iter().chain(&*self.syntax.borrow()) {
                 self.buffer.remove_tag(tag, &a, &b);
             }
             self.images.clear(self);

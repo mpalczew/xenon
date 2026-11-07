@@ -183,10 +183,10 @@ impl EditorView {
             let handled = match key {
                 gdk::Key::_1 if alt => this.set_mode(MarkdownMode::Prose),
                 gdk::Key::_3 if alt => this.set_mode(MarkdownMode::Source),
-                gdk::Key::Return | gdk::Key::KP_Enter if ctrl => this
-                    .prose
-                    .as_ref()
-                    .is_some_and(|p| p.on.get() && p.toggle_task()),
+                gdk::Key::Return | gdk::Key::KP_Enter => {
+                    let plain = state.is_empty() && this.vim.borrow().is_none();
+                    this.prose.as_ref().is_some_and(|p| p.enter(ctrl, plain))
+                }
                 _ => false,
             };
             if handled {

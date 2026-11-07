@@ -41,10 +41,12 @@ impl Prose {
         self.margin.set(margin);
         self.view.set_left_margin(margin);
         self.view.set_right_margin(margin);
+        // New colors: drop the code colors made from the old scheme.
+        let recolor = self.drop_syntax();
         if fresh {
             self.edits.set(self.edits.get() + 1);
             self.arm(Duration::ZERO);
-        } else if hide_changed {
+        } else if hide_changed || recolor {
             self.reapply();
         }
         self.images.schedule_move(self);

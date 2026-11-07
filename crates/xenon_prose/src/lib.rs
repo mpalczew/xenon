@@ -10,8 +10,11 @@
 use std::ops::Range;
 
 mod conv;
+mod enter;
 mod parse;
 mod query;
+
+pub use enter::{Enter, list_enter};
 
 /// What a styled range is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,6 +89,22 @@ pub struct Checkbox {
     pub checked: bool,
 }
 
+/// One table row: its line, where the cell borders are, and whether it is the
+/// first row of its table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Row {
+    pub line: Range<usize>,
+    pub pipes: Vec<usize>,
+    pub top: bool,
+}
+
+/// The body of a fenced code block and the language named on its fence.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CodeRef {
+    pub lang: String,
+    pub body: Range<usize>,
+}
+
 /// A parsed document.
 #[derive(Clone, Debug, Default)]
 pub struct Doc {
@@ -99,6 +118,11 @@ pub struct Doc {
     pub links: Vec<LinkRef>,
     pub images: Vec<ImageRef>,
     pub checkboxes: Vec<Checkbox>,
+    /// The `-`, `*` or `+` of bullet items, sorted; shown as a round bullet
+    /// away from the caret. `block` is the item's text block.
+    pub bullets: Vec<Markup>,
+    pub rows: Vec<Row>,
+    pub code: Vec<CodeRef>,
 }
 
 impl Doc {
@@ -142,6 +166,12 @@ impl Doc {
         self.spans.iter_mut().for_each(|s| fix(&mut s.range));
         self.markup.iter_mut().for_each(|m| fix(&mut m.range));
         self.blocks.iter_mut().for_each(fix);
+        self.bullets.iter_mut().for_each(|m| fix(&mut m.range));
+        self.code.iter_mut().for_each(|c| fix(&mut c.body));
+        for row in &mut self.rows {
+            fix(&mut row.line);
+            row.pipes.iter_mut().for_each(|p| *p = map(*p));
+        }
         self.links.iter_mut().for_each(|l| fix(&mut l.range));
         for image in &mut self.images {
             fix(&mut image.range);

@@ -6,7 +6,7 @@ use std::ops::Range;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 use crate::conv::Conv;
-use crate::{Checkbox, Doc, ImageRef, Kind, LinkRef, Markup, Span};
+use crate::{Checkbox, CodeRef, Doc, ImageRef, Kind, LinkRef, Markup, Row, Span};
 
 /// A link or image whose text extent is still being learned.
 struct Frame {
@@ -199,8 +199,36 @@ impl Walk<'_> {
                 self.block(&r);
                 let t = self.conv.trim_end(&r);
                 self.span_lines(t.clone(), Kind::CodeBlock);
-                if let CodeBlockKind::Fenced(_) = kind {
-                    self.fences(&t);
+                if let CodeBlockKind::Fenced(info) = kind {
+                    let body = self.fences(&t);
+                    let lang = info.split_whitespace().next().unwrap_or_default();
+                    if let (Some(body), false) = (body, lang.is_empty()) {
+                        self.doc.code.push(CodeRef {
+                            lang: lang.to_string(),
+                            body: self.conv.range(&body),
+                        });
+                    }
+                }
+            }
+            Tag::TableHead | Tag::TableRow => {
+                let head = matches!(tag, Tag::TableHead);
+                let (a, b) = (self.conv.line_start(r.start), self.conv.line_end(r.start));
+                let pipes = (a..b)
+                    .filter(|&i| {
+                        self.text.as_bytes()[i] == b'|'
+                            && (i == a || self.text.as_bytes()[i - 1] != b'\\')
+                    })
+                    .map(|i| self.conv.at(i))
+                    .collect();
+                self.doc.rows.push(Row {
+                    line: self.conv.range(&(a..b)),
+                    pipes,
+                    top: head,
+                });
+                if head {
+                    // The `---|---` line under the header hides with the markup.
+                    let next = (b + 1).min(self.text.len());
+                    self.mark(next..(self.conv.line_end(next) + 1).min(self.text.len()));
                 }
             }
             Tag::Table(_) | Tag::HtmlBlock => {
@@ -241,6 +269,12 @@ impl Walk<'_> {
                 };
                 if let Some(len) = len {
                     self.span(r.start..r.start + len, Kind::ListMarker);
+                    if digits == 0 {
+                        self.doc.bullets.push(Markup {
+                            range: self.conv.range(&(r.start..r.start + 1)),
+                            block: None,
+                        });
+                    }
                 }
                 self.items.push((line, None));
             }
@@ -275,20 +309,24 @@ impl Walk<'_> {
         self.mark(r.end.saturating_sub(n).max(r.start + n)..r.end);
     }
 
-    fn fences(&mut self, t: &Range<usize>) {
+    /// Mark the fence lines; returns the bytes between them.
+    fn fences(&mut self, t: &Range<usize>) -> Option<Range<usize>> {
         let first_end = self.conv.line_end(t.start);
         let fence = |s: &str| {
             let s = s.trim_start();
             s.starts_with("```") || s.starts_with("~~~")
         };
         if !fence(&self.text[t.start..first_end]) {
-            return;
+            return None;
         }
         self.mark(t.start..(first_end + 1).min(self.text.len()));
+        let body = (first_end + 1).min(t.end);
         let last = self.conv.line_start(t.end);
         if last > first_end && fence(&self.text[last..t.end]) {
             self.mark(last..(self.conv.line_end(last) + 1).min(self.text.len()));
+            return Some(body..last.max(body));
         }
+        Some(body..t.end)
     }
 
     fn quote_marks(&mut self, t: &Range<usize>) {
@@ -374,7 +412,8 @@ impl Walk<'_> {
             let ix = blocks.partition_point(|b| b.start <= pos).checked_sub(1)?;
             (pos <= blocks[ix].end).then_some(ix)
         };
-        for m in &mut doc.markup {
+        doc.bullets.sort_by_key(|m| m.range.start);
+        for m in doc.markup.iter_mut().chain(&mut doc.bullets) {
             m.block = lookup(m.range.start, &doc.blocks);
         }
         self.doc

@@ -7,6 +7,16 @@ impl Prose {
         self.doc.borrow().images.clone()
     }
 
+    /// Enter: Ctrl flips the task box, a plain Enter continues a list.
+    pub(crate) fn enter(self: &Rc<Self>, ctrl: bool, plain: bool) -> bool {
+        self.on.get()
+            && if ctrl {
+                self.toggle_task()
+            } else {
+                plain && self.continue_list()
+            }
+    }
+
     /// Plain click on a task box flips it; Ctrl+click on a link opens it.
     pub(super) fn clicked(self: &Rc<Self>, x: f64, y: f64, ctrl: bool) {
         if !self.on.get() || self.buffer.has_selection() {
@@ -42,6 +52,45 @@ impl Prose {
             }
             None => false,
         }
+    }
+
+    /// Enter at the end of a list item: start the next item, or end the list
+    /// when the item is empty. The edit is one undo step, made after the key.
+    pub(crate) fn continue_list(self: &Rc<Self>) -> bool {
+        let end = self.at(self.caret());
+        if !self.on.get() || self.buffer.has_selection() || !end.ends_line() {
+            return false;
+        }
+        let mut start = end;
+        start.set_line_offset(0);
+        let (a, b) = (start.offset(), end.offset());
+        if !self.doc.borrow().is_item_line(a as usize) {
+            return false;
+        }
+        let Some(action) = xenon_prose::list_enter(&self.buffer.text(&start, &end, true)) else {
+            return false;
+        };
+        let this = Rc::downgrade(self);
+        glib::idle_add_local_once(move || {
+            let Some(this) = this.upgrade() else { return };
+            let buffer = &this.buffer;
+            if buffer.char_count() < b {
+                return;
+            }
+            buffer.begin_user_action();
+            match action {
+                xenon_prose::Enter::End => {
+                    buffer.delete(&mut buffer.iter_at_offset(a), &mut buffer.iter_at_offset(b));
+                }
+                xenon_prose::Enter::Continue(prefix) => {
+                    buffer.place_cursor(&buffer.iter_at_offset(b));
+                    buffer.insert_at_cursor(&format!("\n{prefix}"));
+                }
+            }
+            buffer.end_user_action();
+            this.view.scroll_mark_onscreen(&buffer.get_insert());
+        });
+        true
     }
 
     pub(super) fn flip(&self, c: &xenon_prose::Checkbox) {

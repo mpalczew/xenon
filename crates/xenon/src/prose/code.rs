@@ -1,0 +1,119 @@
+//! Colored code in fenced blocks. A scratch GtkSourceView buffer highlights
+//! the block with the language named on the fence and the buffer's style
+//! scheme; its tag colors are copied onto the same ranges of the prose buffer.
+
+use std::ops::Range;
+
+use super::*;
+
+/// Colored stretches of one block, as offsets into its body.
+pub(super) type Lit = Rc<Vec<(Range<usize>, gtk::TextTag)>>;
+
+/// Longest block, in characters, that gets colors.
+const LIMIT: usize = 20_000;
+/// What a scheme tag sets, and the property that says it is set.
+const LOOK: [(&str, &str); 4] = [
+    ("foreground-rgba", "foreground-set"),
+    ("weight", "weight-set"),
+    ("style", "style-set"),
+    ("underline", "underline-set"),
+];
+
+impl Prose {
+    /// Color the fenced blocks that overlap `a..b`.
+    pub(super) fn color_code(&self, doc: &Doc, a: usize, b: usize) {
+        for block in doc
+            .code
+            .iter()
+            .filter(|c| c.body.end > a && c.body.start < b)
+        {
+            let from = block.body.start;
+            for (r, tag) in self.lit(&block.lang, &block.body).iter() {
+                self.tag_range(tag, (r.start + from).max(a)..(r.end + from).min(b));
+            }
+        }
+    }
+
+    fn lit(&self, lang: &str, body: &Range<usize>) -> Lit {
+        let text = self
+            .buffer
+            .text(&self.at(body.start), &self.at(body.end), true);
+        let key = format!("{lang}\0{text}");
+        if let Some(hit) = self.lit.borrow().get(&key) {
+            return hit.clone();
+        }
+        let found = if body.len() > LIMIT {
+            Vec::new()
+        } else {
+            self.highlight(lang, &text)
+        };
+        let mut cache = self.lit.borrow_mut();
+        if cache.len() > 32 {
+            cache.clear();
+        }
+        cache.entry(key).or_insert(Rc::new(found)).clone()
+    }
+
+    fn highlight(&self, lang: &str, text: &str) -> Vec<(Range<usize>, gtk::TextTag)> {
+        let langs = sourceview::LanguageManager::default();
+        let Some(lang) = langs
+            .language(lang)
+            .or_else(|| langs.guess_language(Some(&format!("x.{lang}")), None))
+        else {
+            return Vec::new();
+        };
+        let scratch = sourceview::Buffer::with_language(&lang);
+        scratch.set_style_scheme(self.buffer.style_scheme().as_ref());
+        scratch.set_text(text);
+        let (mut it, end) = scratch.bounds();
+        scratch.ensure_highlight(&it, &end);
+        let mut out = Vec::new();
+        loop {
+            let from = it.offset() as usize;
+            let tags = it.tags();
+            let more = it.forward_to_tag_toggle(None::<&gtk::TextTag>);
+            let to = it.offset() as usize;
+            for tag in tags {
+                if let (Some(mine), true) = (self.syntax_tag(&tag), from < to) {
+                    out.push((from..to, mine));
+                }
+            }
+            if !more {
+                return out;
+            }
+        }
+    }
+
+    /// Our copy of a scheme tag, made on first use; none if it sets no look.
+    fn syntax_tag(&self, theirs: &gtk::TextTag) -> Option<gtk::TextTag> {
+        let name = format!("xp-sv-{}", theirs.name()?);
+        let table = self.buffer.tag_table();
+        if let Some(tag) = table.lookup(&name) {
+            return Some(tag);
+        }
+        let ours = gtk::TextTag::new(Some(&name));
+        let mut any = false;
+        for (prop, flag) in LOOK {
+            if theirs.property::<bool>(flag) {
+                ours.set_property_from_value(prop, &theirs.property_value(prop));
+                any = true;
+            }
+        }
+        any.then(|| {
+            table.add(&ours);
+            self.syntax.borrow_mut().push(ours.clone());
+            ours
+        })
+    }
+
+    /// Forget the scheme colors; true if there were any to redo.
+    pub(super) fn drop_syntax(&self) -> bool {
+        let table = self.buffer.tag_table();
+        self.lit.borrow_mut().clear();
+        let old: Vec<_> = self.syntax.borrow_mut().drain(..).collect();
+        for tag in &old {
+            table.remove(tag);
+        }
+        !old.is_empty()
+    }
+}

@@ -31,6 +31,8 @@ pub(crate) struct Tags {
     pub dim: gtk::TextTag,
     /// Markup out of the caret's block, with `markers = hide`.
     pub hide: gtk::TextTag,
+    /// A list dash drawn as a round bullet instead (see `prose/decor.rs`).
+    pub bullet: gtk::TextTag,
 }
 
 /// Measurements the tags need, in pixels.
@@ -72,6 +74,7 @@ impl Tags {
             alt: t("alt"),
             dim: t("dim"),
             hide: t("hide"),
+            bullet: t("bullet"),
         }
     }
 
@@ -95,6 +98,7 @@ impl Tags {
             &self.alt,
             &self.dim,
             &self.hide,
+            &self.bullet,
         ]);
         all
     }
@@ -215,6 +219,10 @@ impl Tags {
         );
         set(&self.dim, &[("foreground-rgba", &dim)]);
         set(&self.hide, &[("invisible", &true)]);
+        set(
+            &self.bullet,
+            &[("foreground-rgba", &gdk::RGBA::new(0.0, 0.0, 0.0, 0.0))],
+        );
     }
 
     /// Character styles: bold, italic, struck, code chip, link, picture text.
