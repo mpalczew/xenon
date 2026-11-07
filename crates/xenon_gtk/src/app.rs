@@ -271,13 +271,11 @@ impl App {
         if let Some(ws) = model.active() {
             if let Some(space) = model.spaces.get(&ws) {
                 let slots = self.slots.borrow();
-                let multi = space.content.leaf_ids().len() > 1;
                 if let (Some(root), Some(slot)) = (space.content.root.as_ref(), slots.get(&ws)) {
                     root.for_each_leaf(&mut |leaf| {
                         let Some(pane) = slot.panes.get(&leaf.id) else {
                             return;
                         };
-                        pane.set_ring(multi && space.content.focused == Some(leaf.id));
                         for (index, tab) in leaf.tabs.iter().enumerate() {
                             let dot = model.tab_dot(ws, tab.id);
                             pane.paint(tab, index, index == leaf.active, dot);

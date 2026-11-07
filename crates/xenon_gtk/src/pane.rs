@@ -290,10 +290,6 @@ impl PaneView {
     pub(crate) fn set_multi(&self, multi: bool) {
         self.multi.set(multi);
     }
-
-    pub(crate) fn set_ring(&self, on: bool) {
-        set_class(&self.root, "ring", on);
-    }
 }
 
 /// True when the keyboard focus of `widget`'s window is `widget` or inside it.

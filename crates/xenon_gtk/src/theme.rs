@@ -147,7 +147,7 @@ impl Palette {
              .xfile .xlink {{ font-style: italic; }}\n\
              .xdrop {{ background: alpha({accent}, 0.35); border: 2px solid {accent}; }}\n\
              .xpane {{ border-top: 2px solid transparent; }}\n\
-             .xpane.ring {{ border-top-color: {accent}; }}\n\
+             .xpane:focus-within:not(:only-child) {{ border-top-color: {accent}; }}\n\
              .xfind {{ background: {panel}; border-bottom: 1px solid {border}; padding: 4px 8px; }}\n\
              .xplaceholder {{ background: {bg}; color: {muted}; }}\n\
              .xscrim {{ background: alpha(black, 0.38); }}\n\
