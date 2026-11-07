@@ -38,7 +38,7 @@ accelerating. A daily-driver shell for parallel agent work is the bet.
 
 App: `xenon-bin`; CLI: `xenon`. Data: `~/.xenon`. Env: `XENON_DATA_DIR` / `XENON_SLOT`.
 App id `dev.xenon.Xenon`. Crate paths `crates/xenon_*`. GitHub: `mpalczew/xenon`
-(public). Checklist: `docs/release.md`.
+(public).
 
 ## Anti-IDE (product rule, not slogan)
 
@@ -99,7 +99,8 @@ works, it directly helps real daily work.
 - **Harness-agnostic shell:** any agent that speaks a terminal. Zero special config for
   a default Claude install. Not a deep multi-provider control plane (yet); the vision is
   the shell, not reimplementing every harness UI.
-- **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer. Image files (png, jpg, gif, webp, svg and more) open in a tab that shows the picture.
+- **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer.
+  Image files (png, jpg, gif, webp, svg and more) open in a tab that shows the picture.
 
 ## Differentiators
 
@@ -160,8 +161,7 @@ Visions are directional. Goals are concrete.
 ## Name (release gate)
 
 The public rename to Xenon is complete in the app, binary, data directory, crate paths,
-and GitHub (`mpalczew/xenon`, public). Remaining packaging: a Linux package format. See
-`docs/release.md`.
+and GitHub (`mpalczew/xenon`, public). Remaining packaging: a Linux package format.
 
 ## Brand personality
 

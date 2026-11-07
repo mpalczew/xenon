@@ -6,6 +6,7 @@ cd "$root"
 # shellcheck source=lib/checks.sh
 source "$root/scripts/lib/checks.sh"
 checks_quiet fmtcheck cargo fmt --all --check
+checks_quiet dprint dprint check
 checks_quiet lint cargo clippy --workspace --all-targets -- -D warnings \
     -D clippy::cognitive_complexity \
     -D clippy::too_many_lines

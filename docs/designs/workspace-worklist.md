@@ -121,7 +121,8 @@ metadata, database, or dedicated agent protocol.
 
 ## Item format
 
-Each item is a bold, scannable title with indented detail bullets. The Markdown convention is:
+Each item is a bold, scannable title with indented detail bullets. The Markdown
+convention is:
 
 ```md
 # Worklist
@@ -165,16 +166,15 @@ meaning rather than wrapping a sentence at the limit. The agent skill uses this 
 convention now; the native List view still flattens nested details, so nested items
 require Markdown mode until the list renderer and editor support them.
 
-The title is
-the first row in the canvas. Enter or Down from it enters the first point, creating that
-point if needed; Up from the first point returns to the title. The editor accepts plain
-text and serializes bullets to Markdown without typed markers or a Task/Note choice. Tab
-indents the focused point at any caret position. Backspace at its start outdents it, or
-merges a top-level point into the previous point. Existing note entries remain readable.
-The native editor is this outline. Edits save as you type. A task's checkbox stays
-clickable while editing. Delete is a destructive button, also reached with ⌘⌫. Escape
-closes the editor. There is no item counter, move control, or Save button; the title
-count appears only near the soft limit.
+The title is the first row in the canvas. Enter or Down from it enters the first point,
+creating that point if needed; Up from the first point returns to the title. The editor
+accepts plain text and serializes bullets to Markdown without typed markers or a
+Task/Note choice. Tab indents the focused point at any caret position. Backspace at its
+start outdents it, or merges a top-level point into the previous point. Existing note
+entries remain readable. The native editor is this outline. Edits save as you type. A
+task's checkbox stays clickable while editing. Delete is a destructive button, also
+reached with ⌘⌫. Escape closes the editor. There is no item counter, move control, or
+Save button; the title count appears only near the soft limit.
 
 ## Verification and boundaries
 

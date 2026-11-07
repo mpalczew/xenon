@@ -46,6 +46,7 @@ run() {
 }
 
 run fmtcheck cargo fmt --all --check
+run dprint dprint check
 run lint-shape scripts/check-rust-shape
 run lint cargo clippy --workspace --all-targets -- \
     -D warnings -D clippy::cognitive_complexity -D clippy::too_many_lines

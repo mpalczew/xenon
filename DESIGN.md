@@ -1,8 +1,8 @@
 # DESIGN.md
 
 Visual system for the Xenon agent shell. Complements `PRODUCT.md`. The implementation is
-`crates/xenon`: stock GTK 4 and libadwaita widgets that follow the desktop's light
-or dark look, plus a small CSS sheet.
+`crates/xenon`: stock GTK 4 and libadwaita widgets that follow the desktop's light or
+dark look, plus a small CSS sheet.
 
 ## Register
 
@@ -64,8 +64,8 @@ carry status.
 
 ## GTK frontend
 
-`crates/xenon` draws the product on GTK 4, libadwaita, VTE and GtkSourceView. The
-rule is stock widgets plus one small CSS sheet (`theme.rs`); Xenon-owned drawing code is
+`crates/xenon` draws the product on GTK 4, libadwaita, VTE and GtkSourceView. The rule
+is stock widgets plus one small CSS sheet (`theme.rs`); Xenon-owned drawing code is
 zero.
 
 - **Theme.** The desktop's. Colors, accent and light or dark come from libadwaita and

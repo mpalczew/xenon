@@ -127,5 +127,3 @@ only cross-cutting decisions and traps that are expensive to rediscover.
 
 - Find replace.
 - Keyboard paths for terminal On-exit, open-target choice, and workspace reorder.
-- Public packaging left in `docs/release.md` (Linux package format, screenshots)—repo is
-  already `mpalczew/xenon` and public.

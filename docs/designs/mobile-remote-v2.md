@@ -1,9 +1,9 @@
 # Tech design: Mobile remote v2 (phone as a real Xenon client)
 
 **Status:** implemented in `crates/xenon_remote` (server, protocol, pairing) and
-`crates/xenon/src/remote*.rs` (the GTK side). This page keeps the scope, contract
-and decisions. Known gap: the phone always shows its cursor, because VTE has no way to
-read whether the program hid it. **Date:** 2026-09-29
+`crates/xenon/src/remote*.rs` (the GTK side). This page keeps the scope, contract and
+decisions. Known gap: the phone always shows its cursor, because VTE has no way to read
+whether the program hid it. **Date:** 2026-09-29
 
 ---
 

@@ -145,26 +145,26 @@ Ctrl+A, Z, C stay with vim.
 
 ### Built in the GTK app
 
-`crates/xenon` builds its accelerators from the same Linux defaults and
-`keymap.json` in the slot dir (the layered file works as above), for the commands it
-has: new terminal, new and open workspace, tab next, previous and close, close other
-tabs, next pane, workspace next, previous and close, split right and down, reserve empty
-pane, focus terminal (Ctrl+1), focus the Files tree (Ctrl+3), file finder (Ctrl+P),
-workspace picker (Ctrl+Shift+O; Ctrl+O too when focus is not in a terminal), terminal
-find, copy, paste, font size, and quit. Keys the shell owns stay with the shell.
-Differences: Ctrl+Alt+B toggles the sidebar (Ctrl+B is the shell's). In the Files tree
-↑/↓ move, →/← open and close a folder (or step in and out), Return opens a file, and
-Escape returns to the terminal. The finder and the picker are one palette: type to
-filter, ↑/↓ or Ctrl+N/Ctrl+P move, Return opens, Tab completes a path (picker), Escape
-closes, and focus goes back to where it was. Git: Ctrl+Alt+G focuses the Git section
-(opening it); pressed again it folds the section and returns to the pane. ↑/↓ move,
-Return opens the file's diff tab, Escape returns to the pane. In a diff tab: n or ] next
-hunk, p or [ previous hunk, Return, o or e open the file in an editor tab at the hunk's
-line, j/k and ↑/↓ scroll, Space and PageUp/PageDown page, l or Ctrl+Alt+Shift+D cycles
-Auto / Split / Unified, q closes the tab (Ctrl+W too). Button and menu hints show these
-chords from the same key map. While a palette is open the other app shortcuts wait.
-Focus follows the terminal that has the cursor, so a click or a key in a pane makes it
-the pane that commands target.
+`crates/xenon` builds its accelerators from the same Linux defaults and `keymap.json` in
+the slot dir (the layered file works as above), for the commands it has: new terminal,
+new and open workspace, tab next, previous and close, close other tabs, next pane,
+workspace next, previous and close, split right and down, reserve empty pane, focus
+terminal (Ctrl+1), focus the Files tree (Ctrl+3), file finder (Ctrl+P), workspace picker
+(Ctrl+Shift+O; Ctrl+O too when focus is not in a terminal), terminal find, copy, paste,
+font size, and quit. Keys the shell owns stay with the shell. Differences: Ctrl+Alt+B
+toggles the sidebar (Ctrl+B is the shell's). In the Files tree ↑/↓ move, →/← open and
+close a folder (or step in and out), Return opens a file, and Escape returns to the
+terminal. The finder and the picker are one palette: type to filter, ↑/↓ or
+Ctrl+N/Ctrl+P move, Return opens, Tab completes a path (picker), Escape closes, and
+focus goes back to where it was. Git: Ctrl+Alt+G focuses the Git section (opening it);
+pressed again it folds the section and returns to the pane. ↑/↓ move, Return opens the
+file's diff tab, Escape returns to the pane. In a diff tab: n or ] next hunk, p or [
+previous hunk, Return, o or e open the file in an editor tab at the hunk's line, j/k and
+↑/↓ scroll, Space and PageUp/PageDown page, l or Ctrl+Alt+Shift+D cycles Auto / Split /
+Unified, q closes the tab (Ctrl+W too). Button and menu hints show these chords from the
+same key map. While a palette is open the other app shortcuts wait. Focus follows the
+terminal that has the cursor, so a click or a key in a pane makes it the pane that
+commands target.
 
 ## Focus ownership
 

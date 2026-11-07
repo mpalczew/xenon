@@ -17,17 +17,17 @@ Status: implemented. Spec: VS Code
 
 ## Code map
 
-| Piece                                         | Where                                                               |
-| --------------------------------------------- | ------------------------------------------------------------------- |
-| JSONC parse, OS overrides, file-level globals | `xenon_core/src/tasks/parse.rs`                                     |
-| Typed definitions                             | `tasks/model.rs`                                                    |
-| `${...}` variables                            | `tasks/vars.rs`                                                     |
-| Command line, spawn args, secret redaction    | `tasks/resolve.rs`                                                  |
-| `dependsOn` state machine                     | `tasks/plan.rs`                                                     |
-| Background readiness                          | `tasks/background.rs`                                               |
-| folderOpen closure and approval hash          | `tasks/trust.rs`                                                    |
+| Piece                                         | Where                                                           |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| JSONC parse, OS overrides, file-level globals | `xenon_core/src/tasks/parse.rs`                                 |
+| Typed definitions                             | `tasks/model.rs`                                                |
+| `${...}` variables                            | `tasks/vars.rs`                                                 |
+| Command line, spawn args, secret redaction    | `tasks/resolve.rs`                                              |
+| `dependsOn` state machine                     | `tasks/plan.rs`                                                 |
+| Background readiness                          | `tasks/background.rs`                                           |
+| folderOpen closure and approval hash          | `tasks/trust.rs`                                                |
 | Runs, tabs, inputs, trust card (GTK)          | `xenon/src/model_tasks.rs`, `tasks.rs`, `tasks_ui.rs`, `tasks/` |
-| Approval store                                | `xenon_store/src/task_trust.rs`                                     |
+| Approval store                                | `xenon_store/src/task_trust.rs`                                 |
 
 ## Mapping: VS Code field to Xenon behaviour
 
