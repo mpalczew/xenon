@@ -15,9 +15,10 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use gtk::glib;
-use notify::{RecursiveMode, Watcher};
+use notify::{EventKind, RecursiveMode, Watcher, event::ModifyKind};
 use xenon_core::WorkspaceId;
 use xenon_git::status::{DirtState, GitStatus};
+use xenon_git::watch::DirSet;
 
 use crate::app::App;
 
@@ -37,7 +38,8 @@ enum Msg {
     SetRoots(Roots),
     /// Measure now (window focus), still subject to `MIN_GAP`.
     Refresh(WorkspaceId),
-    Fs(PathBuf),
+    /// A path changed. The flag is set when it may be new (created or renamed in).
+    Fs(PathBuf, bool),
     /// The poll timer fired (only used without a watcher).
     PollAll,
 }
@@ -139,15 +141,24 @@ struct Worker {
     pending: HashSet<WorkspaceId>,
     /// Some root has no watch: fall back to slow polling.
     polling: bool,
+    /// The watched folders of each root.
+    sets: HashMap<WorkspaceId, DirSet>,
+    /// Roots added but not yet scanned (done after their first status).
+    unscanned: Vec<WorkspaceId>,
 }
 
 impl Worker {
     fn take(&mut self, msg: Msg) {
         match msg {
             Msg::SetRoots(next) => {
-                let (added, watched) =
-                    sync_watches(&mut self.watcher, &self.events, &self.roots, &next);
-                self.polling = !watched;
+                self.unwatch_removed(&next);
+                let old: HashSet<WorkspaceId> = self.roots.iter().map(|(id, _)| *id).collect();
+                let added: Vec<WorkspaceId> = next
+                    .iter()
+                    .map(|(id, _)| *id)
+                    .filter(|id| !old.contains(id))
+                    .collect();
+                self.unscanned.extend(&added);
                 self.pending.extend(added);
                 self.roots = next;
             }
@@ -157,11 +168,105 @@ impl Worker {
             Msg::PollAll => {
                 self.pending.extend(self.roots.iter().map(|(id, _)| *id));
             }
-            Msg::Fs(path) => {
+            Msg::Fs(path, new) => {
                 if let Some(ws) = xenon_git::watch::owner_of(&self.roots, &path) {
                     self.pending.insert(ws);
+                    self.follow(ws, &path, new);
                 }
             }
+        }
+    }
+
+    /// Keep the watched folders in step with one event: forget a removed
+    /// folder, watch a newly created one (and only its own subtree).
+    fn follow(&mut self, ws: WorkspaceId, path: &std::path::Path, new: bool) {
+        let (Some(set), Some(watcher)) = (self.sets.get_mut(&ws), self.watcher.as_mut()) else {
+            return;
+        };
+        if !new {
+            set.shrink(path);
+            return;
+        }
+        for dir in set.grow(path) {
+            if let Err(error) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
+                eprintln!("[xg] git: cannot watch {}: {error}", dir.display());
+                set.full = true;
+                self.polling = true;
+                break;
+            }
+        }
+    }
+
+    /// Drop the watches of roots that closed.
+    fn unwatch_removed(&mut self, next: &Roots) {
+        let keep: HashSet<WorkspaceId> = next.iter().map(|(id, _)| *id).collect();
+        let gone: Vec<WorkspaceId> = self
+            .sets
+            .keys()
+            .copied()
+            .filter(|id| !keep.contains(id))
+            .collect();
+        for id in gone {
+            if let (Some(set), Some(w)) = (self.sets.remove(&id), self.watcher.as_mut()) {
+                for dir in set.dirs() {
+                    let _ = w.unwatch(dir);
+                }
+            }
+        }
+        self.unscanned.retain(|id| keep.contains(id));
+    }
+
+    /// Scan and watch the roots added since the last call. Runs after their
+    /// first status was published, so a slow walk never delays the sidebar.
+    fn watch_new_roots(&mut self) {
+        if self.watcher.is_none() {
+            let tx = self.events.clone();
+            self.watcher =
+                notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+                    let Ok(event) = res else { return };
+                    let new = matches!(
+                        event.kind,
+                        EventKind::Create(_) | EventKind::Modify(ModifyKind::Name(_))
+                    );
+                    for path in event.paths {
+                        if !xenon_git::watch::is_noise(&path) {
+                            let _ = tx.send(Msg::Fs(path, new));
+                        }
+                    }
+                })
+                .map_err(|error| {
+                    eprintln!("[xg] git: no file watcher ({error}); polling every 10s")
+                })
+                .ok();
+        }
+        let Some(watcher) = self.watcher.as_mut() else {
+            self.unscanned.clear();
+            self.polling = true;
+            return;
+        };
+        for ws in std::mem::take(&mut self.unscanned) {
+            let Some((_, root)) = self.roots.iter().find(|(id, _)| *id == ws) else {
+                continue;
+            };
+            let mut set = DirSet::scan(root);
+            for dir in set.dirs() {
+                if let Err(error) = watcher.watch(dir, RecursiveMode::NonRecursive) {
+                    eprintln!("[xg] git: cannot watch {}: {error}", dir.display());
+                    self.polling = true;
+                    break;
+                }
+            }
+            if set.full {
+                eprintln!(
+                    "[xg] git: {} has too many folders to watch; polling",
+                    root.display()
+                );
+                self.polling = true;
+            }
+            if self.polling {
+                set.full = true;
+            }
+            self.sets.insert(ws, set);
         }
     }
 }
@@ -173,6 +278,8 @@ fn worker(rx: mpsc::Receiver<Msg>, events: mpsc::Sender<Msg>, out: async_channel
         events,
         pending: HashSet::new(),
         polling: false,
+        sets: HashMap::new(),
+        unscanned: Vec::new(),
     };
     let mut last: HashMap<WorkspaceId, Instant> = HashMap::new();
     let mut carry: Vec<Msg> = Vec::new();
@@ -227,56 +334,12 @@ fn worker(rx: mpsc::Receiver<Msg>, events: mpsc::Sender<Msg>, out: async_channel
         if !batch.is_empty() && out.send_blocking(batch).is_err() {
             return;
         }
+        w.watch_new_roots();
         // Our own git calls can touch `.git`; that is not a change to act on.
         while let Ok(msg) = rx.try_recv() {
-            if !matches!(&msg, Msg::Fs(path) if xenon_git::watch::is_git_meta(path)) {
+            if !matches!(&msg, Msg::Fs(path, _) if xenon_git::watch::is_git_meta(path)) {
                 carry.push(msg);
             }
         }
     }
-}
-
-/// Watch added roots, drop removed ones. Returns the added workspaces.
-fn sync_watches(
-    watcher: &mut Option<notify::RecommendedWatcher>,
-    events: &mpsc::Sender<Msg>,
-    old: &Roots,
-    new: &Roots,
-) -> (Vec<WorkspaceId>, bool) {
-    let mut watched = true;
-    if watcher.is_none() {
-        let tx = events.clone();
-        *watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if let Ok(event) = res {
-                for path in event.paths {
-                    if !xenon_git::watch::is_noise(&path) {
-                        let _ = tx.send(Msg::Fs(path));
-                    }
-                }
-            }
-        })
-        .map_err(|error| eprintln!("[xg] git: no file watcher ({error}); polling every 10s"))
-        .ok();
-    }
-    watched &= watcher.is_some();
-    let old_paths: HashSet<&PathBuf> = old.iter().map(|(_, p)| p).collect();
-    let new_paths: HashSet<&PathBuf> = new.iter().map(|(_, p)| p).collect();
-    if let Some(w) = watcher.as_mut() {
-        for path in old_paths.difference(&new_paths) {
-            let _ = w.unwatch(path);
-        }
-        for path in new_paths.difference(&old_paths) {
-            if let Err(error) = w.watch(path, RecursiveMode::Recursive) {
-                eprintln!("[xg] git: cannot watch {}: {error}", path.display());
-                watched = false;
-            }
-        }
-    }
-    let old_ids: HashSet<WorkspaceId> = old.iter().map(|(id, _)| *id).collect();
-    let added = new
-        .iter()
-        .map(|(id, _)| *id)
-        .filter(|id| !old_ids.contains(id))
-        .collect();
-    (added, watched)
 }
