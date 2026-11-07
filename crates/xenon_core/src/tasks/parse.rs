@@ -1,5 +1,5 @@
-//! tasks.json (JSONC) to `TaskSet`: OS overrides, file-level globals, and the
-//! legacy 0.1.0 fields, merged at the JSON value level the way VS Code does.
+//! tasks.json (JSONC) to `TaskSet`: OS overrides and file-level globals,
+//! merged at the JSON value level the way VS Code does.
 
 use std::collections::BTreeMap;
 
@@ -28,11 +28,10 @@ impl Os {
 /// are dropped.
 const OS_KEYS: [&str; 3] = ["osx", "linux", "windows"];
 /// File-level properties a task inherits when it does not set its own.
-const INHERITED: [&str; 6] = [
+const INHERITED: [&str; 5] = [
     "type",
     "options",
     "presentation",
-    "problemMatcher",
     "isBackground",
     "runOptions",
 ];
@@ -44,10 +43,6 @@ pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
         return Err("tasks.json must be a JSON object".into());
     };
     apply_os(&mut file, os);
-    let legacy = file
-        .get("version")
-        .and_then(Value::as_str)
-        .is_some_and(|v| v.starts_with("0."));
     let mut set = TaskSet::default();
     for input in file
         .get("inputs")
@@ -69,7 +64,7 @@ pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
                 .push(format!("task {} is not an object", i + 1));
             continue;
         };
-        let merged = merge_task(&file, task, os, legacy);
+        let merged = merge_task(&file, task, os);
         match parse_task(&merged) {
             Ok(def) if set.get(&def.label).is_some() => {
                 set.warnings
@@ -107,12 +102,7 @@ fn merge_key(obj: &mut Map<String, Value>, key: String, over: Value) {
     }
 }
 
-fn merge_task(
-    file: &Map<String, Value>,
-    task: &Map<String, Value>,
-    os: Os,
-    legacy: bool,
-) -> Map<String, Value> {
+fn merge_task(file: &Map<String, Value>, task: &Map<String, Value>, os: Os) -> Map<String, Value> {
     let mut out = Map::new();
     for key in INHERITED {
         if let Some(v) = file.get(key) {
@@ -131,15 +121,6 @@ fn merge_task(
     {
         out.insert("command".into(), command);
         let mut args = file_args.unwrap_or_default();
-        let name = own.get("taskName").or_else(|| own.get("label"));
-        let suppress = own.get("suppressTaskName").and_then(Value::as_bool);
-        let suppress = suppress.or_else(|| file.get("suppressTaskName").and_then(Value::as_bool));
-        if legacy
-            && suppress != Some(true)
-            && let Some(name) = name
-        {
-            args.push(name.clone());
-        }
         args.extend(
             own.get("args")
                 .and_then(Value::as_array)
@@ -153,7 +134,6 @@ fn merge_task(
 
 fn parse_task(t: &Map<String, Value>) -> Result<TaskDef, String> {
     let label = str_of(t, "label")
-        .or_else(|| str_of(t, "taskName"))
         .filter(|l| !l.is_empty())
         .ok_or("missing label")?;
     let mut unsupported = None;
@@ -184,7 +164,10 @@ fn parse_task(t: &Map<String, Value>) -> Result<TaskDef, String> {
     if unsupported.is_none() && command.is_none() && depends_on.is_empty() {
         unsupported = Some("no command".into());
     }
-    let (is_background, background) = background_of(t);
+    let is_background = t
+        .get("isBackground")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let run_on = t
         .get("runOptions")
         .and_then(|r| r.get("runOn"))
@@ -201,7 +184,6 @@ fn parse_task(t: &Map<String, Value>) -> Result<TaskDef, String> {
         depends_on,
         depends_sequence: str_of(t, "dependsOrder").as_deref() == Some("sequence"),
         is_background,
-        background,
         run_on_folder_open: run_on == Some("folderOpen"),
         hide: t.get("hide").and_then(Value::as_bool).unwrap_or(false),
         unsupported,
@@ -293,14 +275,6 @@ fn options_of(v: Option<&Value>) -> TaskOptions {
 
 fn presentation_of(t: &Map<String, Value>) -> Presentation {
     let mut p = Presentation::default();
-    match t.get("showOutput").and_then(Value::as_str) {
-        Some("silent") => p.reveal = Reveal::Silent,
-        Some("never") => p.reveal = Reveal::Never,
-        _ => {}
-    }
-    if let Some(echo) = t.get("echoCommand").and_then(Value::as_bool) {
-        p.echo = echo;
-    }
     let Some(Value::Object(o)) = t.get("presentation") else {
         return p;
     };
@@ -345,56 +319,6 @@ fn group_of(t: &Map<String, Value>) -> Option<Group> {
             let is_default = o.get("isDefault").and_then(Value::as_bool).unwrap_or(false);
             Some(Group { kind, is_default })
         }
-        _ if t.get("isBuildCommand").and_then(Value::as_bool) == Some(true) => Some(Group {
-            kind: GroupKind::Build,
-            is_default: false,
-        }),
-        _ if t.get("isTestCommand").and_then(Value::as_bool) == Some(true) => Some(Group {
-            kind: GroupKind::Test,
-            is_default: false,
-        }),
-        _ => None,
-    }
-}
-
-fn background_of(t: &Map<String, Value>) -> (bool, Option<Background>) {
-    let flag = t
-        .get("isBackground")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let matchers: Vec<&Value> = match t.get("problemMatcher") {
-        Some(Value::Array(a)) => a.iter().collect(),
-        Some(Value::Null) | None => Vec::new(),
-        Some(other) => vec![other],
-    };
-    let found = matchers.into_iter().find_map(|m| match m {
-        Value::String(name) => super::background::builtin(name),
-        Value::Object(o) => {
-            let bg = o.get("background").or_else(|| o.get("watching"));
-            match bg {
-                Some(Value::Object(b)) => Some(Background {
-                    active_on_start: b
-                        .get("activeOnStart")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false),
-                    begins: pattern(b.get("beginsPattern")),
-                    ends: pattern(b.get("endsPattern")),
-                }),
-                _ => o
-                    .get("base")
-                    .and_then(Value::as_str)
-                    .and_then(super::background::builtin),
-            }
-        }
-        _ => None,
-    });
-    (flag, found)
-}
-
-fn pattern(v: Option<&Value>) -> Option<String> {
-    match v? {
-        Value::String(s) => Some(s.clone()),
-        Value::Object(o) => o.get("regexp").and_then(Value::as_str).map(str::to_string),
         _ => None,
     }
 }

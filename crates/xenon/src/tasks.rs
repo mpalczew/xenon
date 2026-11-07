@@ -17,9 +17,7 @@ use xenon_core::tasks::{
     self as shared, BuildChoice, LoadedTasks, RunVars, TaskQuestion, choose_build_task,
     resolve_for_run, terminal_command,
 };
-use xenon_core::{
-    Action, EditorInfo, Orchestrator, Readiness, TabId, TabState, TaskSet, WorkspaceId,
-};
+use xenon_core::{Action, EditorInfo, Orchestrator, TabId, TabState, TaskSet, WorkspaceId};
 use xenon_remote::ConnId;
 
 use crate::app::App;
@@ -75,9 +73,9 @@ struct Pending {
 }
 
 pub(crate) struct Launched {
-    /// Background task: readiness tracker and how many lines it has seen.
-    watch: Option<(Readiness, usize)>,
-    ready: bool,
+    /// A background task counts as done once launched: its dependents start
+    /// then, and its exit no longer fails the run.
+    background: bool,
     /// The process ended.
     done: bool,
 }
@@ -324,15 +322,25 @@ impl App {
                     self.with_run(run_id, |r| r.plan.orch.satisfied(&label))
                         .unwrap_or_default(),
                 );
-            } else if let Err(error) = self.launch_one(run_id, &label) {
-                self.fail_run(run_id, &label, &error);
-                return;
+            } else {
+                match self.launch_one(run_id, &label) {
+                    Ok(true) => queue.extend(
+                        self.with_run(run_id, |r| r.plan.orch.satisfied(&label))
+                            .unwrap_or_default(),
+                    ),
+                    Ok(false) => {}
+                    Err(error) => {
+                        self.fail_run(run_id, &label, &error);
+                        return;
+                    }
+                }
             }
         }
         self.finish_if_done(run_id);
     }
 
-    fn launch_one(self: &Rc<Self>, run_id: u64, label: &str) -> Result<(), String> {
+    /// True for a background task, which is satisfied as soon as it is launched.
+    fn launch_one(self: &Rc<Self>, run_id: u64, label: &str) -> Result<bool, String> {
         let (resolved, ws, force_new, quiet) = self
             .with_run(run_id, |run| {
                 let plan = &run.plan;
@@ -369,20 +377,16 @@ impl App {
         if let Some((conn, root)) = announce {
             self.remote_task_started(conn, ws, &root, tab);
         }
-        let watch = resolved
-            .is_background
-            .then(|| (Readiness::new(resolved.background.as_ref()), 0));
         self.with_run(run_id, |run| {
             run.launched.insert(
                 label.to_string(),
                 Launched {
-                    watch,
-                    ready: false,
+                    background: resolved.is_background,
                     done: false,
                 },
             );
         });
-        Ok(())
+        Ok(resolved.is_background)
     }
 
     pub(super) fn fail_run(self: &Rc<Self>, run_id: u64, label: &str, reason: &str) {

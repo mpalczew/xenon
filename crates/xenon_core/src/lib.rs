@@ -38,7 +38,6 @@ pub use session::{Point, SessionState};
 
 pub use tab_label::{clean_terminal_title, terminal_tab_label};
 pub use tasks::{
-    Action, Background, EditorInfo, Orchestrator, Panel, Readiness, ResolvedTask, Reveal, TaskSet,
-    folder_open_hash,
+    Action, EditorInfo, Orchestrator, Panel, ResolvedTask, Reveal, TaskSet, folder_open_hash,
 };
 pub use workspace::{Active, Registry, WorkspaceRec};

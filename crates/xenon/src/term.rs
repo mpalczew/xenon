@@ -100,23 +100,6 @@ impl TermView {
             .unwrap_or_else(|| self.cwd.clone())
     }
 
-    /// Scrollback and screen as text, for a background task's readiness.
-    pub(crate) fn all_text(&self) -> String {
-        let last = self.term.row_count() - 1;
-        let (all, _) = self
-            .term
-            .text_range_format(vte::Format::Text, -1_000_000, 0, last, -1);
-        all.map_or_else(
-            || {
-                self.term
-                    .text_format(vte::Format::Text)
-                    .unwrap_or_default()
-                    .to_string()
-            },
-            |text| text.to_string(),
-        )
-    }
-
     /// Start `argv` (a task) instead of the shell; `extra_env` adds to ours.
     pub(crate) fn spawn_command(
         self: &Rc<Self>,

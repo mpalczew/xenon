@@ -7,6 +7,5 @@ are not listed; see `Cargo.toml`.
 
 Every copied/adapted file also carries a header comment naming its entry here.
 
-| Files                                       | Source repo      | Rev                           | License | Notes                                                                                                                                                            |
-| ------------------------------------------- | ---------------- | ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/xenon_core/src/tasks/background.rs` | microsoft/vscode | (problem matcher definitions) | MIT     | The `$tsc-watch` `beginsPattern` / `endsPattern` regexes, copied from VS Code's built-in TypeScript problem matcher so a watch task's readiness matches VS Code. |
+| Files | Source repo | Rev | License | Notes |
+| ----- | ----------- | --- | ------- | ----- |

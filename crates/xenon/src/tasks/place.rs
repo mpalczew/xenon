@@ -100,14 +100,14 @@ impl App {
             .get(&(ws, tab))
             .and_then(|view| view.status.get())
             .and_then(|status| (status & 0x7f == 0).then_some((status >> 8) & 0xff));
-        let Some((pres, was_ready)) = self.with_run(run_id, |run| {
+        let Some((pres, background)) = self.with_run(run_id, |run| {
             let launched = run.launched.get_mut(&label);
-            let was_ready = launched.as_ref().is_some_and(|l| l.ready);
+            let background = launched.as_ref().is_some_and(|l| l.background);
             if let Some(l) = launched {
                 l.done = true;
             }
             let pres = run.plan.set.get(&label).map(|d| d.presentation);
-            (pres.unwrap_or_default(), was_ready)
+            (pres.unwrap_or_default(), background)
         }) else {
             return;
         };
@@ -125,50 +125,8 @@ impl App {
             self.model.borrow_mut().select_tab(ws, tab);
             self.sync(ws);
         }
-        if !was_ready {
+        if !background {
             self.fail_run(run_id, &label, &shared::exit_reason(code));
-        }
-    }
-
-    /// Output arrived on a task terminal: has a background task become ready?
-    pub(crate) fn task_output(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        let Some((run_id, label)) = self.tasks.owners.borrow().get(&(ws, tab)).cloned() else {
-            return;
-        };
-        let watching = self
-            .with_run(run_id, |r| {
-                r.launched
-                    .get(&label)
-                    .is_some_and(|l| l.watch.is_some() && !l.ready)
-            })
-            .unwrap_or(false);
-        let Some(view) = self
-            .terms
-            .borrow()
-            .get(&(ws, tab))
-            .cloned()
-            .filter(|_| watching)
-        else {
-            return;
-        };
-        let text = view.all_text();
-        let became_ready = self
-            .with_run(run_id, |run| {
-                let l = run.launched.get_mut(&label)?;
-                let (readiness, seen) = l.watch.as_mut()?;
-                let lines: Vec<&str> = text.split('\n').collect();
-                let ready = readiness.feed(&lines[(*seen).min(lines.len())..]);
-                *seen = lines.len().saturating_sub(1);
-                l.ready |= ready;
-                Some(ready)
-            })
-            .flatten()
-            .unwrap_or(false);
-        if became_ready {
-            let actions = self
-                .with_run(run_id, |r| r.plan.orch.satisfied(&label))
-                .unwrap_or_default();
-            self.apply_actions(run_id, actions);
         }
     }
 
@@ -179,7 +137,9 @@ impl App {
         let Some((run_id, label)) = owner else { return };
         let unfinished = self
             .with_run(run_id, |r| {
-                r.launched.get(&label).is_some_and(|l| !l.done && !l.ready)
+                r.launched
+                    .get(&label)
+                    .is_some_and(|l| !l.done && !l.background)
             })
             .unwrap_or(false);
         if unfinished {

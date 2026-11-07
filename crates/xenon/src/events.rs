@@ -21,7 +21,6 @@ const PULSE_LEVELS: i32 = 5;
 impl App {
     pub(crate) fn term_output(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         let became_working = self.model.borrow_mut().on_output(ws, tab);
-        self.task_output(ws, tab);
         let view = self.terms.borrow().get(&(ws, tab)).cloned();
         if let Some(view) = view {
             view.last_output.set(Instant::now());

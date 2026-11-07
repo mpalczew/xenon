@@ -1,7 +1,6 @@
 //! VS Code `tasks.json` support: pure parse, resolve, and orchestration.
 //! I/O (reading the file, spawning terminals) stays at the call site.
 
-mod background;
 mod consent;
 mod load;
 mod model;
@@ -17,10 +16,9 @@ mod vars;
 
 use std::path::{Path, PathBuf};
 
-pub use background::Readiness;
 pub use consent::*;
 pub use load::*;
-pub use model::{Background, Panel, Reveal, TaskSet};
+pub use model::{Panel, Reveal, TaskSet};
 
 pub use plan::{Action, Orchestrator};
 pub use question::*;

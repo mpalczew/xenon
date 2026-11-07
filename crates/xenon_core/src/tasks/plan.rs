@@ -20,7 +20,7 @@ pub enum Outcome {
 enum State {
     Waiting,
     Running,
-    /// Finished with success, or a background task that reported ready.
+    /// Finished with success, or a background task that was launched.
     Satisfied,
 }
 
@@ -124,7 +124,7 @@ impl Orchestrator {
         self.advance()
     }
 
-    /// A task finished successfully, or a background task reported ready.
+    /// A task finished successfully, or a background task was launched.
     pub fn satisfied(&mut self, label: &str) -> Vec<Action> {
         if let Some(node) = self.nodes.get_mut(label) {
             node.state = State::Satisfied;

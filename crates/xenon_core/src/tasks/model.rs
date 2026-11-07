@@ -91,14 +91,6 @@ pub struct Group {
     pub is_default: bool,
 }
 
-/// `problemMatcher.background` patterns, as regex source text.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct Background {
-    pub active_on_start: bool,
-    pub begins: Option<String>,
-    pub ends: Option<String>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaskDef {
     pub label: String,
@@ -112,7 +104,6 @@ pub struct TaskDef {
     pub depends_on: Vec<String>,
     pub depends_sequence: bool,
     pub is_background: bool,
-    pub background: Option<Background>,
     pub run_on_folder_open: bool,
     pub hide: bool,
     /// Why this task cannot run in Xenon (extension-contributed type, no

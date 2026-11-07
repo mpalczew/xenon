@@ -16,7 +16,6 @@ pub struct ResolvedTask {
     pub env: BTreeMap<String, String>,
     pub presentation: Presentation,
     pub is_background: bool,
-    pub background: Option<Background>,
     /// Human-readable command line with secret input values blanked. The only
     /// form that may be printed, logged, or shown.
     pub display: String,
@@ -94,7 +93,6 @@ fn resolve_inner(
         env,
         presentation: def.presentation,
         is_background: def.is_background,
-        background: def.background.clone(),
         display,
     })
 }
