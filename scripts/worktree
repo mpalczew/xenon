@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Worktrees for agents working in parallel. Each shares the main checkout's
 # target/, so libraries build once; cargo's lock keeps builds one at a time.
-#   scripts/worktree new NAME    .worktrees/NAME on branch wt/NAME, from main
+#   scripts/worktree new NAME    .worktrees/NAME on branch wt/NAME, from origin/main
 #   scripts/worktree done NAME   remove it and its branch, only once merged
 #   scripts/worktree list
 set -euo pipefail
@@ -12,7 +12,8 @@ case "${1:-}" in
     new)
         name="${2:?usage: scripts/worktree new NAME}"
         wt="$(dir "$name")"
-        git -C "$main" worktree add -q -b "wt/$name" "$wt" main
+        git -C "$main" fetch -q origin main
+        git -C "$main" worktree add -q -b "wt/$name" "$wt" origin/main
         mkdir -p "$main/target"
         ln -s "$main/target" "$wt/target"
         echo "$wt"
@@ -24,8 +25,9 @@ case "${1:-}" in
             echo "$wt has uncommitted changes; not removed" >&2
             exit 1
         fi
-        if ! git -C "$main" merge-base --is-ancestor "wt/$name" main; then
-            echo "wt/$name is not merged into main; not removed" >&2
+        git -C "$main" fetch -q origin main
+        if ! git -C "$main" merge-base --is-ancestor "wt/$name" origin/main; then
+            echo "wt/$name is not merged into origin/main; not removed" >&2
             exit 1
         fi
         [[ -L "$wt/target" ]] && rm "$wt/target"
