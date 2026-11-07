@@ -155,6 +155,18 @@ go to the PTY. App shortcuts win over the shell for Ctrl+P, N, W, J, `\`, and th
 of the tables. Editor word and file motion on Linux is Ctrl+←/→ and Ctrl+Home/End; with
 vim mode on, Ctrl+A, Z, C stay with vim.
 
+### GTK frontend
+
+`crates/xenon_gtk` builds its accelerators from the same Linux defaults and
+`~/.xenon-gtk/keymap.json` (the layered file works as above), for the commands it has:
+new terminal, new and open workspace, tab next, previous and close, close other tabs,
+next pane, workspace next, previous and close, split right and down, reserve empty pane,
+focus terminal (Ctrl+1), focus the workspace list (Ctrl+3), terminal find, copy, paste,
+font size, and quit. Keys the shell owns stay with the shell. Differences: Ctrl+Alt+B
+toggles the sidebar (Ctrl+B is the shell's), and in the workspace list ↑/↓ move, Return
+opens, and Escape returns to the terminal. Focus follows the terminal that has the
+cursor, so a click or a key in a pane makes it the pane that commands target.
+
 ## Focus ownership
 
 GPUI actions run on the focused node's path. An active Xenon window always has a logical

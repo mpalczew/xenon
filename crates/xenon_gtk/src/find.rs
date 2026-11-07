@@ -9,6 +9,17 @@ use vte::prelude::*;
 const PCRE2_MULTILINE: u32 = 0x0000_0400;
 const PCRE2_CASELESS: u32 = 0x0000_0008;
 
+/// A signal handler that runs `$body` on the terminal while it still exists.
+macro_rules! weak_term_fn {
+    ($weak:expr, |$t:ident| $body:expr) => {{
+        let weak = $weak.clone();
+        move |_: &_| {
+            if let Some($t) = weak.upgrade() {
+                $body;
+            }
+        }
+    }};
+}
 /// Search text as a literal PCRE2 pattern, plus whether to ignore case
 /// (smartcase: only when the query has no capital letters).
 pub(crate) fn search_pattern(query: &str) -> Option<(String, bool)> {
@@ -56,33 +67,28 @@ impl FindBar {
         revealer.set_transition_type(gtk::RevealerTransitionType::SlideDown);
         revealer.set_transition_duration(120);
 
-        let t = term.clone();
-        entry.connect_search_changed(move |e| set_query(&t, &e.text()));
-        let t = term.clone();
-        entry.connect_activate(move |_| {
-            t.search_find_next();
+        // Weak references: these closures live on widgets inside the revealer,
+        // so a strong capture of it (or the terminal) would be a cycle that keeps
+        // the terminal, and the shell under it, alive after its tab closes.
+        let weak_term = term.downgrade();
+        entry.connect_search_changed({
+            let weak = weak_term.clone();
+            move |e| {
+                if let Some(t) = weak.upgrade() {
+                    set_query(&t, &e.text());
+                }
+            }
         });
-        let t = term.clone();
-        entry.connect_next_match(move |_| {
-            t.search_find_next();
-        });
-        let t = term.clone();
-        entry.connect_previous_match(move |_| {
-            t.search_find_previous();
-        });
-        let t = term.clone();
-        prev.connect_clicked(move |_| {
-            t.search_find_previous();
-        });
-        let t = term.clone();
-        next.connect_clicked(move |_| {
-            t.search_find_next();
-        });
+        entry.connect_activate(weak_term_fn!(weak_term, |t| t.search_find_next()));
+        entry.connect_next_match(weak_term_fn!(weak_term, |t| t.search_find_next()));
+        entry.connect_previous_match(weak_term_fn!(weak_term, |t| t.search_find_previous()));
+        prev.connect_clicked(weak_term_fn!(weak_term, |t| t.search_find_previous()));
+        next.connect_clicked(weak_term_fn!(weak_term, |t| t.search_find_next()));
         let bar = Self { revealer, entry };
-        let (r, t) = (bar.revealer.clone(), term.clone());
-        close.connect_clicked(move |_| hide(&r, &t));
-        let (r, t) = (bar.revealer.clone(), term.clone());
-        bar.entry.connect_stop_search(move |_| hide(&r, &t));
+        let weak_revealer = bar.revealer.downgrade();
+        close.connect_clicked(hide_fn(&weak_revealer, &weak_term));
+        bar.entry
+            .connect_stop_search(hide_fn(&weak_revealer, &weak_term));
         bar
     }
 
@@ -94,13 +100,22 @@ impl FindBar {
     }
 }
 
-fn hide(revealer: &gtk::Revealer, term: &vte::Terminal) {
-    revealer.set_reveal_child(false);
-    term.search_set_regex(None, 0);
-    let term = term.clone();
-    glib::idle_add_local_once(move || {
-        term.grab_focus();
-    });
+/// Close the strip, clear the search, and give the terminal the cursor back.
+fn hide_fn<T>(
+    revealer: &glib::WeakRef<gtk::Revealer>,
+    term: &glib::WeakRef<vte::Terminal>,
+) -> impl Fn(&T) + 'static {
+    let (revealer, term) = (revealer.clone(), term.clone());
+    move |_| {
+        let (Some(revealer), Some(term)) = (revealer.upgrade(), term.upgrade()) else {
+            return;
+        };
+        revealer.set_reveal_child(false);
+        term.search_set_regex(None, 0);
+        glib::idle_add_local_once(move || {
+            term.grab_focus();
+        });
+    }
 }
 
 fn set_query(term: &vte::Terminal, query: &str) {

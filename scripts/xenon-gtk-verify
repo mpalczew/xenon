@@ -318,6 +318,17 @@ def run(app, ws_a, ws_b, ws_c, state_dir):
     app.until(lambda s: total(s) == n1, "exited tab auto-closes", 20)
     check(True, "a shell that exited had its tab closed")
 
+    # Closing a tab ends the shell under it: a leaked widget would keep it alive.
+    marker = f"sleep {31000 + os.getpid() % 1000}"
+    running = lambda: subprocess.run(["pgrep", "-f", marker], capture_output=True).returncode == 0
+    app.act("new-terminal")
+    app.until(lambda s: total(s) == n1 + 1 and all(t["label"] != "terminal" for p in s["panes"] for t in p["tabs"]), "tab for close")
+    app.type(marker + "\n")
+    wait_for(running, f"'{marker}' running")
+    app.act("close-tab")
+    wait_for(lambda: not running(), f"'{marker}' ended after its tab closed", 15)
+    check(True, "closing a tab with a running command ended it")
+
     # Font zoom persists through the shared settings.
     def font_size():
         try:
