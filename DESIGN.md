@@ -251,17 +251,28 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
 - **Layout.** Header bar (36px: sidebar toggle, title with the workspace name, split
   buttons), a resizable `GtkPaned` sidebar (`settings.sidebar_width`) and the pane tree
   as nested `GtkPaned`. A focused pane gets a 2px accent top edge only when the layout
-  has more than one pane (the GPUI ring). Each pane has its own tab strip.
+  has more than one pane (the GPUI ring). A pane shows its tab strip only when it has
+  more than one tab or the workspace has more than one pane; a lone terminal gets the
+  whole window and the header subtitle names its tab.
 - **Tabs.** A strip of chips (plain boxes and labels) in a scrolled window, not
   `AdwTabBar`: the status rail needs a widget we own, and the pane model, not the
   widget, owns tab order. A chip is label, close button on hover and selection, and a
   2px rail. Selected: accent rail, text weight 600, `bg` fill. Unselected: muted text;
   the rail is the warning color (static, needs you) or the info color (pulsing,
   working). Same rules as above: selected tabs carry no status.
-- **Sidebar.** `GtkListBox` with the navigation-sidebar style neutralised: a two-line
-  row (name semibold, `~` path muted), a 3px status line in the left margin, and for the
-  active row the neutral-text left edge plus `element.selected` fill. Header
-  "WORKSPACES" with a `+` menu button. No Files or Git sections yet.
+- **Sidebar.** Two sections in a vertical `GtkPaned`. WORKSPACES is a `GtkListBox`: a
+  folder icon, name semibold and the `~` path muted (cut at the start so the folder name
+  stays), a 3px status line in the left margin, and for the active row the neutral-text
+  left edge plus `element.selected` fill. FILES is a `GtkListBox` tree (chevron, icon,
+  name; the open file is accent and semibold). No diff-status section yet.
+- **Palettes.** One shell (`palette.rs`): a scrim over the window and a 640px panel at
+  elevation 2 with a field, a `GtkListView` (matched letters in the accent color, detail
+  and badge on the right) and a hint line. Focus stays in the field; the models in
+  `finder.rs` and `picker.rs` decide the rows. Selection is element.selected plus a 2px
+  accent left edge.
+- **Titles.** Tab chips show the shared title cleanup: `user@host:path` prompts become
+  the directory name, or the shell name (`bash · 1`) when it is the folder the terminal
+  started in.
 - **Pulse.** Working rails and workspace lines fade between five opacity steps over
   about 1.4s. One 10 Hz timer exists only while something is working; a frame is drawn
   only when the step changes (about 6 per second), and only the small rail widgets are

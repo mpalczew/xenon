@@ -61,9 +61,16 @@ keymap. Install it beside the GPUI app with `scripts/release/install-gtk` (binar
   `xenon_store` files, `UiSettings`, `xenon_keymap`. New in `xenon_core`:
   `TerminalActivity` (output-burst to working and settled), so the next frontend does
   not copy the rule. The GPUI terminal view still carries its own copy of that logic.
-- **Not drawn yet.** Editor tabs (kept as saved, shown as a note), Files and Git sidebar
-  sections, SSH workspaces (session kept), palettes, settings and theme panels, tab drag
-  and drop, divider keyboard resize, the `xenon open` socket server, phone remote.
+- **Since step 2.** Ctrl+P finder and Ctrl+Shift+O workspace picker (one palette shell;
+  ranking and discovery from `xenon_finder`, which now also holds `discover` and
+  `tree::list_dir`, moved out of `xenon_ui`), the Files section (lists every entry like
+  the GPUI tree; only expanded folders are watched, at most 48), and a stand-in editor tab
+  (GtkSourceView, Vim input method per settings, Ctrl+S saves; files over 4 MB or not
+  UTF-8 open in the default app).
+- **Not drawn yet.** The diff-status sidebar section, the real editor (LSP, diff gutter,
+  prose mode, Markdown), SSH workspaces (session kept) and the SSH part of the pickers,
+  command palette, settings and theme panels, tab drag and drop, divider keyboard resize,
+  the `xenon open` socket server, phone remote.
 - **Checks.** `scripts/xenon-gtk-verify` drives a real window over D-Bus actions and
   AT-SPI and writes screenshots; `scripts/xenon-gtk-idle` (run by `scripts/health`)
   fails on idle CPU or wakeups above budget.
