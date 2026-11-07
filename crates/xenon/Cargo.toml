@@ -11,7 +11,6 @@ anyhow.workspace = true
 xenon_store.workspace = true
 xenon_settings.workspace = true
 xenon_prose.workspace = true
-xenon_keymap.workspace = true
 xenon_finder.workspace = true
 xenon_remote.workspace = true
 xenon_git.workspace = true
@@ -20,7 +19,6 @@ notify.workspace = true
 qrcode = { version = "0.14", default-features = false }
 nucleo.workspace = true
 serde_json.workspace = true
-serde_json_lenient.workspace = true
 gtk = { package = "gtk4", version = "0.11", features = ["v4_18"] }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_9"] }
 sourceview = { package = "sourceview5", version = "0.11", features = ["v5_18"] }

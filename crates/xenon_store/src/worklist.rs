@@ -17,9 +17,6 @@ pub use sections::{
     SourceEdit, Target, capture_targets, delete_empty_section, insert_section, rename_section,
 };
 
-/// Quick-capture chord, shown in the empty list. The app's command catalog asserts it matches.
-pub const CAPTURE_KEYS: &str = "⌘⇧K";
-
 /// The source bytes are the revision. Worklists are intentionally small text files.
 pub struct WorklistFile {
     root: PathBuf,

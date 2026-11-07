@@ -250,7 +250,10 @@ impl App {
                 hint: "return opens  ·  tab completes  ·  esc closes".into(),
                 options: Options {
                     action: Some((
-                        xenon_keymap::display_text("Browse… ⌘⇧O"),
+                        format!(
+                            "Browse\u{2026} {}",
+                            crate::keys::action_label("app.open-workspace").unwrap_or_default()
+                        ),
                         Box::new(move || {
                             if let Some(app) = wb.upgrade() {
                                 app.launcher.close();

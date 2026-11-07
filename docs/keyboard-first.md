@@ -90,38 +90,11 @@ Vim mode includes normal/visual/visual-line/visual-block (`Ctrl-v`), `/` and `?`
 `n`/`N`, `%`, join/indent/number-bump/scroll-center edits, and the supported ex
 commands.
 
-## Customizing keys
+## Key table
 
-Shortcuts are bindings you can change. Create `~/.xenon/keymap.json` (`XENON_DATA_DIR`
-moves it). The file is a JSON array of `{context?, bindings}` sections (comments and
-trailing commas are fine); your entries layer on top of the defaults, and a later entry
-wins:
-
-```json
-[
-  {
-    "bindings": {
-      "ctrl-alt-p": "xenon::FilePalette",
-      "cmd-shift-p": null
-    }
-  },
-  {
-    "context": "Terminal",
-    "bindings": { "ctrl-b": "xenon::ToggleSidebar" }
-  }
-]
-```
-
-- Keys are `ctrl`, `alt`, `shift`, `cmd` (Super on Linux) plus a key, and a space
-  separates a chord sequence (`ctrl-k ctrl-t`).
-- `null` unbinds a default.
-- Action names are `xenon::` plus the command, for example `xenon::NewTerminal`; the
-  defaults in `crates/xenon_keymap/src/defaults.rs` list them.
-- `context` is optional. The GTK app reads global entries and `Terminal` entries. On the
-  focused terminal a global binding and a `Terminal` binding tie; the later entry wins.
-- The file is read at startup. A missing file means defaults only; Xenon never creates
-  it on its own.
-- Tooltips, menus, and the shortcut list show your bindings.
+Every binding is one entry in the table in `crates/xenon/src/keys.rs`: a GTK action and
+its accelerators. Shortcuts shown in tooltips, menus, the palette and the empty screen
+are read from that table. Keys are not user-configurable.
 
 ### Linux differences
 
@@ -145,16 +118,15 @@ Ctrl+A, Z, C stay with vim.
 
 ### Built in the GTK app
 
-`crates/xenon` builds its accelerators from the same Linux defaults and `keymap.json` in
-the slot dir (the layered file works as above), for the commands it has: new terminal,
-new and open workspace, tab next, previous and close, close other tabs, next pane,
-workspace next, previous and close, split right and down, reserve empty pane, focus
-terminal (Ctrl+1), focus the Files tree (Ctrl+3), file finder (Ctrl+P), workspace picker
-(Ctrl+Shift+O; Ctrl+O too when focus is not in a terminal), terminal find, copy, paste,
-font size, and quit. Keys the shell owns stay with the shell. Differences: Ctrl+Alt+B
-toggles the sidebar (Ctrl+B is the shell's). In the Files tree ↑/↓ move, →/← open and
-close a folder (or step in and out), Return opens a file, and Escape returns to the
-terminal. The finder and the picker are one palette: type to filter, ↑/↓ or
+`crates/xenon/src/keys.rs` lists the accelerators for the commands the app has: new
+terminal, new and open workspace, tab next, previous and close, close other tabs, next
+pane, workspace next, previous and close, split right and down, reserve empty pane,
+focus terminal (Ctrl+1), focus the Files tree (Ctrl+3), file finder (Ctrl+P), workspace
+picker (Ctrl+Shift+O; Ctrl+O too when focus is not in a terminal), terminal find, copy,
+paste, font size, and quit. Keys the shell owns stay with the shell. Differences:
+Ctrl+Alt+B toggles the sidebar (Ctrl+B is the shell's). In the Files tree ↑/↓ move, →/←
+open and close a folder (or step in and out), Return opens a file, and Escape returns to
+the terminal. The finder and the picker are one palette: type to filter, ↑/↓ or
 Ctrl+N/Ctrl+P move, Return opens, Tab completes a path (picker), Escape closes, and
 focus goes back to where it was. Git: Ctrl+Alt+G focuses the Git section (opening it);
 pressed again it folds the section and returns to the pane. ↑/↓ move, Return opens the

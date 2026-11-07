@@ -81,7 +81,10 @@ impl App {
             &self.win,
             Handlers {
                 placeholder: error.unwrap_or_else(|| shared::PICKER_PLACEHOLDER.to_string()),
-                hint: xenon_keymap::display_text(shared::PICKER_HINT),
+                hint: format!(
+                    "return runs  \u{b7}  {} runs in a new tab  \u{b7}  esc closes",
+                    crate::keys::label("<Control>Return")
+                ),
                 options: Options {
                     on_accept_alt: Some(Box::new(move |row| accept_alt(row, true))),
                     ..Options::default()
@@ -247,7 +250,11 @@ impl TrustCard {
         buttons.set_halign(gtk::Align::End);
         buttons.append(&button(shared::TRUST_DENY, false));
         buttons.append(&button(shared::TRUST_ALLOW, true));
-        let hint = gtk::Label::new(Some(&xenon_keymap::display_text(shared::TRUST_HINT)));
+        let hint = gtk::Label::new(Some(&format!(
+            "{} allow  \u{b7}  {} don\u{2019}t allow  \u{b7}  asks again if tasks.json changes",
+            crate::keys::action_label("app.allow-folder-tasks").unwrap_or_default(),
+            crate::keys::action_label("app.deny-folder-tasks").unwrap_or_default(),
+        )));
         hint.set_xalign(0.0);
         hint.set_wrap(true);
         hint.add_css_class("caption");

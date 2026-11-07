@@ -9,7 +9,6 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use vte::prelude::*;
 use xenon_core::SplitAxis;
-use xenon_keymap::Entry;
 
 use crate::app::App;
 use crate::model::Fold;
@@ -88,7 +87,7 @@ impl App {
     }
 }
 
-pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
+pub(crate) fn install(app: &Rc<App>) {
     for (name, handler) in SIMPLE {
         let action = gio::SimpleAction::new(name, None);
         let weak = Rc::downgrade(app);
@@ -115,10 +114,7 @@ pub(crate) fn install(app: &Rc<App>, user_keys: &[Entry]) {
     install_term_actions(app);
     crate::remote_ui::install(app);
     install_palette_keys(app);
-    for (action, accels) in crate::keys::bindings(user_keys) {
-        let refs: Vec<&str> = accels.iter().map(String::as_str).collect();
-        app.gtk.set_accels_for_action(action, &refs);
-    }
+    crate::keys::install(&app.gtk);
 }
 
 /// Actions that still run while the palette is open.

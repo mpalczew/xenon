@@ -2,7 +2,6 @@
 
 /// Picker input hint when it has nothing to say.
 pub const PICKER_PLACEHOLDER: &str = "Run task…";
-pub const PICKER_HINT: &str = "return runs  ·  ⌘return runs in a new tab  ·  esc closes";
 pub const NO_TASKS: &str = "No tasks in .vscode/tasks.json";
 pub const PICK_WORKSPACE: (&str, &str) = ("Pick a workspace first", "This needs a home.");
 pub const LOAD_FAILED: &str = "Couldn’t load tasks";
@@ -15,6 +14,5 @@ pub const TRUST_DETAIL: &str =
     "This folder’s tasks.json asks to run these commands every time it opens. They run as you.";
 pub const TRUST_DENY: &str = "Don’t allow";
 pub const TRUST_ALLOW: &str = "Allow";
-pub const TRUST_HINT: &str = "⌘⌥↩ allow  ·  ⌘⌥⌫ don’t allow  ·  asks again if tasks.json changes";
 
 pub const NO_MATCHING_CHOICES: &str = "No matching choices";

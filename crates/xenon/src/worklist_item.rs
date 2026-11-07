@@ -127,13 +127,13 @@ impl ItemEdit {
         let close_button = gtk::Button::with_label("Close");
         close_button.set_tooltip_text(Some(&format!(
             "Close \u{b7} {}",
-            xenon_keymap::display_keys("Esc")
+            crate::keys::label("Escape")
         )));
         let delete = gtk::Button::with_label("Delete");
         delete.add_css_class("destructive-action");
         delete.set_tooltip_text(Some(&format!(
             "Delete \u{b7} {}",
-            xenon_keymap::display_keys("\u{2318}\u{232b}")
+            crate::keys::label("<Control>BackSpace")
         )));
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.append(&close_button);

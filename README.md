@@ -134,8 +134,7 @@ scripts/health              # full gate: fmt + clippy + shape
 | Save                            | Ctrl+S                             |
 | Connect phone (QR)              | Ctrl+Shift+M                       |
 
-Full map and how to rebind with `~/.xenon/keymap.json`:
-[`docs/keyboard-first.md`](docs/keyboard-first.md#customizing-keys).
+Full map: [`docs/keyboard-first.md`](docs/keyboard-first.md).
 
 ---
 
@@ -158,8 +157,7 @@ run agents this way—not vanity stars.
 | `xenon_core`     | Pure session / workspace / pane-tree model    |
 | `xenon_store`    | `~/.xenon` JSON persistence, CLI, open socket |
 | `xenon_settings` | Settings model                                |
-| `xenon_keymap`   | Default key bindings and `keymap.json`        |
-| `xenon_git`      | Git status and diff model                     |
+| `xenon_git`      | Git status model                              |
 | `xenon_finder`   | Ignore-respecting walk + fuzzy match          |
 | `xenon_prose`    | Markdown prose mode                           |
 | `xenon_remote`   | Phone remote server                           |

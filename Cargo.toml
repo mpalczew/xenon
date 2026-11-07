@@ -25,7 +25,6 @@ xenon_git = { path = "crates/xenon_git" }
 xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
 xenon_prose = { path = "crates/xenon_prose" }
-xenon_keymap = { path = "crates/xenon_keymap" }
 
 anyhow = "1"
 thiserror = "2"

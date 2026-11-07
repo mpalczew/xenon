@@ -12,7 +12,7 @@ fn xenon_icon() -> Option<gtk::gdk::Texture> {
 }
 
 /// Commands the card lists: label and the GTK action the row runs. The keys
-/// shown come from the keymap in force.
+/// shown come from the key table.
 type Entry = (&'static str, &'static str);
 const WITH_WORKSPACE: [Entry; 4] = [
     ("Command Palette\u{2026}", "app.command-palette"),

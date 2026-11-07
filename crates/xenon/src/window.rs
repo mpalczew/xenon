@@ -73,15 +73,12 @@ impl App {
         self.remote_theme_changed();
     }
 
-    /// The first key bound to `action` as text (`Ctrl+Shift+O`), from the
-    /// keymap in force (defaults plus the user's `keymap.json`).
+    /// The first key bound to `action` as text (`Ctrl+Shift+O`).
     pub(crate) fn chord(&self, action: &str) -> Option<String> {
-        let accel = self.gtk.accels_for_action(action).into_iter().next()?;
-        let (key, mods) = gtk::accelerator_parse(&accel)?;
-        Some(gtk::accelerator_get_label(key, mods).to_string())
+        crate::keys::action_label(action)
     }
 
-    /// Tooltip text in the GPUI app's form: `Label · chord`.
+    /// Tooltip text: `Label · chord`.
     pub(crate) fn tip(&self, text: &str, action: &str) -> String {
         match self.chord(action) {
             Some(chord) => format!("{text} \u{b7} {chord}"),
@@ -185,7 +182,7 @@ fn save_button() -> gtk::Button {
     b
 }
 
-pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry]) -> Rc<App> {
+pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     // Symbolic icons that exist in every install, whatever the desktop's theme.
     if let Some(gtk_settings) = gtk::Settings::default() {
         gtk_settings.set_gtk_icon_theme_name(Some("Adwaita"));
@@ -257,7 +254,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         }
     });
 
-    crate::actions::install(&app, user_keys);
+    crate::actions::install(&app);
     app.stack
         .add_named(&crate::empty::all_clear(&app, false), Some("none"));
     app.split.set_start_child(Some(&app.sidebar.root));

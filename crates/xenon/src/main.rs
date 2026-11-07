@@ -120,15 +120,12 @@ fn main() -> glib::ExitCode {
         .flags(gio::ApplicationFlags::NON_UNIQUE)
         .build();
     let slot: Rc<RefCell<Option<Rc<App>>>> = Rc::default();
-    let keymap_text =
-        std::fs::read_to_string(xenon_store::data_dir().join("keymap.json")).unwrap_or_default();
-    let user_keys = keys::user_entries(&keymap_text);
 
     let ensure = {
         let slot = slot.clone();
         move |gtk_app: &adw::Application| -> Rc<App> {
             slot.borrow_mut()
-                .get_or_insert_with(|| window::build(gtk_app, &user_keys))
+                .get_or_insert_with(|| window::build(gtk_app))
                 .clone()
         }
     };

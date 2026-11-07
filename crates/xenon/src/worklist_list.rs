@@ -16,7 +16,7 @@ use anyhow::anyhow;
 use gtk::{gdk, glib};
 use xenon_store::worklist::entries::{Entry, parse};
 use xenon_store::worklist::view::{Cursor, toggle};
-use xenon_store::worklist::{CAPTURE_KEYS, SourceEdit, Target, WorklistFile, read_source};
+use xenon_store::worklist::{SourceEdit, Target, WorklistFile, read_source};
 
 mod draw;
 mod edit;
@@ -142,7 +142,7 @@ impl WorklistList {
         first.set_halign(gtk::Align::Center);
         let capture = gtk::Label::new(Some(&format!(
             "{} from anywhere",
-            xenon_keymap::display_keys(CAPTURE_KEYS)
+            crate::keys::action_label("app.capture-worklist").unwrap_or_default()
         )));
         capture.add_css_class("dim-label");
         let hints = gtk::Box::new(gtk::Orientation::Vertical, 12);

@@ -90,18 +90,17 @@ zero.
   list. Focus stays in the field; the models in `finder.rs` and `picker.rs` decide the
   rows.
 - **Hints.** Every header button and similar control shows the chord of the action it
-  runs, read from `xenon_keymap` plus the user's `keymap.json` at startup (`App::chord`,
-  `App::tip`), as `Label · Ctrl+Shift+O`. Never typed by hand.
+  runs, read from the key table in `keys.rs` (`App::chord`, `App::tip`), as `Label ·
+  Ctrl+Shift+O`. Never typed by hand.
 - **Empty screen.** An `AdwStatusPage` with the Xenon icon, buttons and the "Useful
   shortcuts" list.
 - **Find.** A `GtkSearchEntry` strip above the terminal with VTE's own match highlight.
   Escape closes it and returns to the terminal.
 - **Toasts.** `AdwToastOverlay` for results. Dialogs are `AdwAlertDialog`; Open
   workspace is the native `GtkFileDialog`.
-- **Keys.** Accelerators are generated from `xenon_keymap` (Linux defaults plus the
-  user's `keymap.json`), minus every key the focused terminal hands to the shell
-  (Ctrl+C, X, B, E, O, S). Ctrl+Alt+B toggles the sidebar because Ctrl+B belongs to the
-  shell.
+- **Keys.** Accelerators are one table in `keys.rs`, with no entry for the keys the
+  focused terminal hands to the shell (Ctrl+C, X, B, E, O, S). Ctrl+Alt+B toggles the
+  sidebar because Ctrl+B belongs to the shell.
 - **Markdown prose mode.** A `.md` file opens as writing, not source: the same text view
   with text tags (headings 1.7/1.4/1.2/1.08 times the body, bold, italic, struck, code
   chip, links in the accent color, a tinted quote and code block, accent list marks and
