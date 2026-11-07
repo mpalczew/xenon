@@ -8,7 +8,7 @@
   - Split down has its own icon now.
   - Still missing, no GTK action yet: Go Back, Go Forward, Cut, Copy Clean, Toggle File
     Tree, worklist capture and open, Run Task, Save.
-- [ ] GTK: replace our tab strip with AdwTabView and AdwTabBar
+- [x] GTK: replace our tab strip with AdwTabView and AdwTabBar
   - The close button on each tab closes it.
   - No custom underline on the selected tab.
   - Drag a tab to a pane edge to split, as the GPUI app did.
@@ -36,7 +36,7 @@
   - Key hints use GPUI's format with Linux chords from the key map.
   - Remove the "not built yet" notes.
 - [ ] GTK: drop the "(GTK)" suffix from the launcher entry and window title
-- [ ] GTK: Shift+Enter sends a line feed, as the GPUI terminal did
+- [x] GTK: Shift+Enter sends a line feed, as the GPUI terminal did
 - [ ] GTK: drag to reorder workspaces
 - [ ] Cutover: rename the app to `xenon` and point `~/bin/xenon` at it
   - `scripts/release/install` installs the GTK app; `install-gtk` goes away.
