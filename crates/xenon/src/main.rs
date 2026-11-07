@@ -40,6 +40,7 @@ mod keys;
 mod layout;
 mod links;
 mod model;
+mod model_paths;
 mod model_status;
 mod model_tabs;
 mod model_tasks;

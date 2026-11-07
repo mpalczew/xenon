@@ -24,7 +24,12 @@ const MAX_WATCHED: usize = 48;
 const RELOAD_DELAY: Duration = Duration::from_millis(250);
 const FILE_ATTR: &str = "xenon::file";
 
+mod drop;
+mod ops;
 mod watch;
+
+use drop::OwnerCell;
+use ops::Target;
 
 type Stores = Rc<RefCell<HashMap<PathBuf, gio::ListStore>>>;
 
@@ -52,6 +57,11 @@ pub(crate) struct FilesView {
     restoring: Cell<bool>,
     /// Bumped when the root changes, so a late directory read is dropped.
     epoch: Cell<u64>,
+    /// The menu for the file ops, and what it was opened on.
+    menu: gtk::PopoverMenu,
+    ctx: RefCell<Option<Target>>,
+    /// Paths of the rows being dragged out of this tree.
+    drag: RefCell<Vec<PathBuf>>,
 }
 
 fn path_of(item: &glib::Object) -> Option<PathBuf> {
@@ -129,14 +139,19 @@ impl FilesView {
         selection.set_can_unselect(true);
         let bound: Rc<RefCell<Vec<gtk::ListItem>>> = Rc::default();
         let open_file: Rc<RefCell<Option<PathBuf>>> = Rc::default();
+        let owner = OwnerCell::default();
         let factory = gtk::SignalListItemFactory::new();
-        factory.connect_setup(|_, item| {
-            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-                return;
-            };
-            let expander = gtk::TreeExpander::new();
-            expander.set_child(Some(&Row::new().root));
-            item.set_child(Some(&expander));
+        factory.connect_setup({
+            let owner = owner.clone();
+            move |_, item| {
+                let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+                    return;
+                };
+                let expander = gtk::TreeExpander::new();
+                expander.set_child(Some(&Row::new().root));
+                FilesView::row_events(&owner, &expander);
+                item.set_child(Some(&expander));
+            }
         });
         factory.connect_bind({
             let (bound, open) = (bound.clone(), open_file.clone());
@@ -183,10 +198,15 @@ impl FilesView {
             reveal_target: RefCell::new(None),
             restoring: Cell::new(false),
             epoch: Cell::new(0),
+            menu: gtk::PopoverMenu::from_model(None::<&gio::MenuModel>),
+            ctx: RefCell::new(None),
+            drag: RefCell::default(),
         });
+        *owner.0.borrow_mut() = Rc::downgrade(&this);
         // The sidebar's paned handle draws the line between sections.
         this.section.sep.set_visible(false);
         this.wire();
+        this.wire_ops();
         this
     }
 
@@ -253,6 +273,12 @@ impl FilesView {
             let handled = match key {
                 gdk::Key::Right | gdk::Key::l => this.step_in(),
                 gdk::Key::Left | gdk::Key::h => this.step_out(),
+                gdk::Key::F2 => this.act_on_selected("rename"),
+                gdk::Key::Delete | gdk::Key::KP_Delete => this.act_on_selected("trash"),
+                gdk::Key::Menu => this.popup_selected(),
+                gdk::Key::F10 if state.contains(gdk::ModifierType::SHIFT_MASK) => {
+                    this.popup_selected()
+                }
                 gdk::Key::Escape => {
                     if let Some(app) = this.app.upgrade() {
                         app.focus_terminal();

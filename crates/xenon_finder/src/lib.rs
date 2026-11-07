@@ -13,6 +13,8 @@ use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32Str};
 
 pub mod discover;
+pub mod fileops;
+pub mod fsops;
 pub mod tree;
 mod walk;
 

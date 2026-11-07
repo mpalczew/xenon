@@ -64,6 +64,17 @@ impl<T> PaneTree<T> {
         }
     }
 
+    pub fn for_each_leaf_mut(&mut self, f: &mut dyn FnMut(&mut PaneLeaf<T>)) {
+        match self {
+            Self::Leaf(leaf) => f(leaf),
+            Self::Split { children, .. } => {
+                for c in children {
+                    c.for_each_leaf_mut(f);
+                }
+            }
+        }
+    }
+
     pub fn leaf_ids(&self) -> Vec<PaneId> {
         let mut out = Vec::new();
         self.for_each_leaf(&mut |leaf| out.push(leaf.id));

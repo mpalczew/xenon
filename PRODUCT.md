@@ -100,7 +100,10 @@ works, it directly helps real daily work.
   a default Claude install. Not a deep multi-provider control plane (yet); the vision is
   the shell, not reimplementing every harness UI.
 - **Editor + tree + cmd-p:** enough to live here; terminal is first-class, not a drawer.
-  Image files (png, jpg, gif, webp, svg and more) open in a tab that shows the picture.
+  The Files tree manages files with stock behavior: a context menu (new, rename, trash,
+  copy path, open, show in the file manager) and drag and drop to move; drops from other
+  apps copy. Trash only, never a hard delete. Image files (png, jpg, gif, webp, svg and
+  more) open in a tab that shows the picture.
 - **Worklist:** `.xenon/worklist.md` is the one task list per workspace, for you and
   your agents. It opens as a stock sections-and-checkboxes list, or as plain Markdown.
 
