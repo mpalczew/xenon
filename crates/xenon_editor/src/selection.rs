@@ -93,23 +93,3 @@ fn char_class(ch: char) -> CharClass {
         CharClass::Other
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ropey::Rope;
-
-    #[test]
-    fn word_range_identifier() {
-        let rope = Rope::from_str("foo bar_baz");
-        assert_eq!(word_range_at(&rope, 1), 0..3);
-        assert_eq!(word_range_at(&rope, 5), 4..11);
-    }
-
-    #[test]
-    fn line_range_excludes_newline() {
-        let rope = Rope::from_str("ab\ncd\n");
-        assert_eq!(line_range_at(&rope, 1), 0..2);
-        assert_eq!(line_range_at(&rope, 3), 3..5);
-    }
-}

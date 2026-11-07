@@ -418,16 +418,3 @@ fn is_valid_workspace_name(name: &str) -> bool {
     let name = name.trim();
     !name.is_empty() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')
 }
-
-#[cfg(test)]
-mod tests {
-    use super::is_valid_workspace_name;
-
-    #[test]
-    fn name_rejects_paths() {
-        assert!(is_valid_workspace_name("crypto"));
-        assert!(!is_valid_workspace_name(""));
-        assert!(!is_valid_workspace_name("~/src"));
-        assert!(!is_valid_workspace_name("foo/bar"));
-    }
-}

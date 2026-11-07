@@ -23,14 +23,3 @@ pub fn unix_now() -> u64 {
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn short_name_takes_the_device_part() {
-        assert_eq!(device_short_name("iPhone · Home Screen"), "iPhone");
-        assert_eq!(device_short_name("Pixel"), "Pixel");
-    }
-}

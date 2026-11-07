@@ -1,7 +1,6 @@
 //! Settings for agents and scripts: the `settings-state` action publishes what
 //! the window and the dialog look like (JSON), and `settings-page` and
 //! `settings-set` drive the dialog through the same handlers its widgets use.
-//! `scripts/xenon-gtk-verify` and `scripts/xenon-gtk-idle` read and drive these.
 
 use std::cell::RefCell;
 use std::collections::HashMap;

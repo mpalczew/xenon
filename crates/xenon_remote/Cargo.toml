@@ -21,5 +21,3 @@ unicode-width = "0.2"
 sha2 = "0.10"
 tungstenite.workspace = true
 mio = { version = "1", features = ["net", "os-poll"] }
-
-[dev-dependencies]

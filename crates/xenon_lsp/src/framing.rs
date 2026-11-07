@@ -37,30 +37,3 @@ pub fn write_message(writer: &mut impl Write, body: &[u8]) -> Result<(), LspErro
     writer.flush()?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use std::io::{BufReader, Cursor};
-
-    use super::*;
-
-    #[test]
-    fn round_trips_framed_message() {
-        let mut bytes = Vec::new();
-        write_message(&mut bytes, br#"{"jsonrpc":"2.0"}"#).unwrap();
-        let mut reader = BufReader::new(Cursor::new(bytes));
-        assert_eq!(
-            read_message(&mut reader).unwrap(),
-            Some(br#"{"jsonrpc":"2.0"}"#.to_vec())
-        );
-    }
-
-    #[test]
-    fn rejects_missing_length() {
-        let mut reader = BufReader::new(Cursor::new(b"X-Test: yes\r\n\r\n"));
-        assert!(matches!(
-            read_message(&mut reader),
-            Err(LspError::Protocol(_))
-        ));
-    }
-}

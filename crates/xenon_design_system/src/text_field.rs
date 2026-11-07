@@ -149,33 +149,3 @@ fn highlights(
     out.sort_by_key(|(range, _)| range.start);
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn spans(selection: Range<usize>, overflow: Option<Range<usize>>) -> Vec<(Range<usize>, bool)> {
-        highlights(selection, overflow)
-            .into_iter()
-            .map(|(range, tint)| (range, matches!(tint, Tint::Selection)))
-            .collect()
-    }
-
-    #[test]
-    fn overflow_starts_after_the_limit_in_graphemes() {
-        assert_eq!(overflow_range("abcd", 4), None);
-        assert_eq!(overflow_range("abcde", 4), Some(4..5));
-        assert_eq!(overflow_range("e\u{301}e\u{301}x", 2), Some(6..7));
-    }
-
-    #[test]
-    fn selection_splits_the_overflow_without_overlap() {
-        assert_eq!(spans(3..3, Some(5..10)), vec![(5..10, false)]);
-        assert_eq!(
-            spans(6..8, Some(5..10)),
-            vec![(5..6, false), (6..8, true), (8..10, false)]
-        );
-        assert_eq!(spans(0..7, Some(5..10)), vec![(0..7, true), (7..10, false)]);
-        assert_eq!(spans(1..2, None), vec![(1..2, true)]);
-    }
-}

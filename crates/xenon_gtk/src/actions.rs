@@ -215,7 +215,6 @@ fn install_theme_actions(app: &Rc<App>) {
 fn install_automation(app: &Rc<App>) {
     string_action(app, "feed-child", |app, text| {
         if let Some(view) = app.current_term() {
-            crate::latency::input();
             view.term.feed_child(text.as_bytes());
         }
     });

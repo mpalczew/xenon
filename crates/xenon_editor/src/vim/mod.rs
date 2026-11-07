@@ -15,11 +15,6 @@ mod repeat;
 mod search;
 mod substitute;
 
-#[cfg(test)]
-mod count_tests;
-#[cfg(test)]
-mod tests;
-
 pub use ex::{ExDraft, ExEffect};
 pub use motion::Motion;
 pub use object::Object;

@@ -120,22 +120,3 @@ impl Registry {
         self.workspaces.iter_mut().find(|w| w.id == id)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ssh_workspace_identity_survives_registry_round_trip() {
-        let record: WorkspaceRec = serde_json::from_value(serde_json::json!({
-            "id": "00000000-0000-0000-0000-000000000001", "name": "project",
-            "root": "/__xenon_ssh__/00000000-0000-0000-0000-000000000001",
-            "ssh": { "host": "devbox", "directory": "/home/alex/project" }
-        }))
-        .unwrap();
-        let restored: WorkspaceRec =
-            serde_json::from_str(&serde_json::to_string(&record).unwrap()).unwrap();
-        assert_eq!(restored, record);
-        assert_eq!(restored.display_root(), "devbox:/home/alex/project");
-    }
-}

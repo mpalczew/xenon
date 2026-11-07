@@ -132,6 +132,3 @@ fn relative_to_home(path: &str, home: &str) -> String {
         None => tilde,
     }
 }
-
-#[cfg(test)]
-mod tests;

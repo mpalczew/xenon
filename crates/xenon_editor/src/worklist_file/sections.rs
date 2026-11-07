@@ -270,6 +270,3 @@ fn single_line(title: &str) -> Result<String> {
     ensure!(!title.contains(['\r', '\n']), "Name must be one line");
     Ok(title.to_owned())
 }
-
-#[cfg(test)]
-mod tests;

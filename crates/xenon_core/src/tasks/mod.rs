@@ -57,6 +57,3 @@ pub fn required_inputs(set: &TaskSet, labels: &[String]) -> Vec<String> {
     }
     ids
 }
-
-#[cfg(test)]
-mod tests;

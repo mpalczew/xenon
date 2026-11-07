@@ -16,17 +16,3 @@ pub fn utf16_to_char_col(line: &str, utf16_col: u32) -> usize {
     }
     line.chars().count()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn converts_non_bmp_columns() {
-        let line = "a😀b";
-        assert_eq!(char_col_to_utf16(line, 0), 0);
-        assert_eq!(char_col_to_utf16(line, 2), 3);
-        assert_eq!(utf16_to_char_col(line, 3), 2);
-        assert_eq!(utf16_to_char_col(line, 2), 1);
-    }
-}

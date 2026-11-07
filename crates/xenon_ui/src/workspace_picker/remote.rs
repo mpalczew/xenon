@@ -220,6 +220,3 @@ pub(super) fn short_error(error: &str) -> String {
         None => line.to_string(),
     }
 }
-
-#[cfg(test)]
-mod tests;

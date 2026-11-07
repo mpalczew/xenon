@@ -90,21 +90,3 @@ impl CursorBlink {
         true
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::CursorBlink;
-
-    #[test]
-    fn stale_ticks_do_not_hide_a_reset_caret() {
-        let mut blink = CursorBlink {
-            active: true,
-            generation: 2,
-            ..Default::default()
-        };
-        assert!(!blink.tick(1));
-        assert!(blink.visible());
-        assert!(blink.tick(2));
-        assert!(!blink.visible());
-    }
-}

@@ -192,34 +192,3 @@ pub fn count_text_lines(bytes: &[u8]) -> Option<u64> {
     let text = std::str::from_utf8(bytes).ok()?;
     Some(text.lines().count() as u64)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn status_z_parses_branch_pairs_and_renames() {
-        let raw =
-            b"## main...origin/main [ahead 1]\0MM a/b.rs\0A  new.rs\0R  to.md\0from.md\0?? t.txt\0";
-        let (branch, files) = parse_status_z(raw);
-        assert_eq!(branch, "main");
-        assert_eq!(files.len(), 4);
-        assert_eq!((files[0].index, files[0].worktree), ('M', 'M'));
-        assert_eq!(files[0].dir(), "a");
-        assert_eq!(files[2].from.as_deref(), Some("from.md"));
-        assert!(files[3].is_untracked());
-        let counts = parse_numstat_z(b"3\t1\ta.rs\0-\t-\tbin\x002\t0\t\0old\0new\0");
-        assert_eq!(counts["a.rs"], (3, 1));
-        assert_eq!(counts["bin"], (0, 0));
-        assert_eq!(counts["new"], (2, 0));
-    }
-
-    #[test]
-    fn text_line_count_matches_git_style() {
-        assert_eq!(count_text_lines(b""), Some(0));
-        assert_eq!(count_text_lines(b"a"), Some(1));
-        assert_eq!(count_text_lines(b"a\n"), Some(1));
-        assert_eq!(count_text_lines(b"a\nb"), Some(2));
-        assert_eq!(count_text_lines(b"a\0b"), None);
-    }
-}

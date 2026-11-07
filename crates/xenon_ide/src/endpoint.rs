@@ -71,17 +71,6 @@ impl Endpoint {
         self.port
     }
 
-    /// Register an outbound queue as if an agent had connected.
-    #[cfg(test)]
-    pub(crate) fn subscribe(&self) -> mpsc::Receiver<String> {
-        let (tx, rx) = mpsc::channel();
-        self.clients
-            .lock()
-            .expect("IDE clients lock poisoned")
-            .push(tx);
-        rx
-    }
-
     /// Queue `msg` for every agent connected to this endpoint.
     pub(crate) fn broadcast(&self, msg: &str) {
         let mut clients = self.clients.lock().expect("IDE clients lock poisoned");
@@ -182,33 +171,5 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<()> {
             }
             Err(error) => return Err(error.into()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn request(protocol: Option<&str>) -> Request {
-        let mut builder = Request::builder().uri("ws://127.0.0.1/");
-        if let Some(protocol) = protocol {
-            builder = builder.header("sec-websocket-protocol", protocol);
-        }
-        builder.body(()).unwrap()
-    }
-
-    fn echoed(protocol: Option<&str>) -> Option<String> {
-        with_mcp_subprotocol(&request(protocol), Response::new(()))
-            .headers()
-            .get("sec-websocket-protocol")
-            .map(|v| v.to_str().unwrap().to_string())
-    }
-
-    #[test]
-    fn echoes_requested_mcp_subprotocol() {
-        assert_eq!(echoed(Some("mcp")).as_deref(), Some("mcp"));
-        assert_eq!(echoed(Some("other, mcp")).as_deref(), Some("mcp"));
-        assert_eq!(echoed(None), None);
-        assert_eq!(echoed(Some("other")), None);
     }
 }

@@ -9943,7 +9943,6 @@ dependencies = [
  "pulldown-cmark",
  "regex",
  "ropey",
- "tempfile",
  "theme",
  "thiserror 2.0.18",
  "tree-sitter",
@@ -10002,7 +10001,6 @@ version = "0.1.0"
 dependencies = [
  "ignore",
  "nucleo",
- "tempfile",
 ]
 
 [[package]]
@@ -10069,7 +10067,6 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "tempfile",
 ]
 
 [[package]]
@@ -10115,7 +10112,6 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "tempfile",
  "thiserror 2.0.18",
  "xenon_core",
 ]
@@ -10162,7 +10158,6 @@ dependencies = [
  "serde",
  "serde_json",
  "settings",
- "tempfile",
  "theme",
  "trash 5.2.6",
  "xenon_core",

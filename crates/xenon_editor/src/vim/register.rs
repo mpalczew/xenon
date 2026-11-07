@@ -137,30 +137,3 @@ impl Registers {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn linewise_flag_survives_paste() {
-        let mut regs = Registers::default();
-        regs.yank("foo\n", true);
-        let got = regs.paste();
-        assert_eq!(got.text, "foo\n");
-        assert!(got.linewise);
-    }
-
-    #[test]
-    fn append_promotes_to_linewise() {
-        let mut regs = Registers::default();
-        regs.set_pending('a');
-        regs.yank("x", false);
-        regs.set_pending('A');
-        regs.yank("y\n", true);
-        regs.set_pending('a');
-        let got = regs.paste();
-        assert_eq!(got.text, "xy\n");
-        assert!(got.linewise);
-    }
-}

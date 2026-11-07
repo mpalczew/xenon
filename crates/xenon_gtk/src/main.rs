@@ -39,7 +39,6 @@ mod git;
 mod git_ops;
 mod git_section;
 mod keys;
-mod latency;
 mod layout;
 mod links;
 mod model;

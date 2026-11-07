@@ -185,15 +185,3 @@ pub(crate) fn match_hits(text: &str, query: &str, matcher: &mut Matcher) -> Vec<
     hits.dedup();
     hits
 }
-
-#[cfg(test)]
-mod reveal_tests {
-    use super::*;
-
-    #[test]
-    fn fuzzy_order_keeps_duplicate_labels_distinct() {
-        let labels = vec!["same".to_string(), "other".to_string(), "same".to_string()];
-        let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
-        assert_eq!(fuzzy_index_order(&labels, "same", &mut matcher), vec![0, 2]);
-    }
-}

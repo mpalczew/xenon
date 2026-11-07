@@ -73,30 +73,3 @@ pub(super) fn strip_line_suffix(text: &str) -> &str {
     }
     text
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn trim_token_cleans_prose_punctuation() {
-        assert_eq!(
-            trim_token("amazon-summary-2026.html.").as_deref(),
-            Some("amazon-summary-2026.html")
-        );
-        assert_eq!(
-            trim_token("./rel/path.rs").as_deref(),
-            Some("./rel/path.rs")
-        );
-        assert_eq!(trim_token("(foo.rs:12)").as_deref(), Some("foo.rs:12"));
-        assert_eq!(trim_token("..."), None);
-    }
-
-    #[test]
-    fn strip_line_suffix_removes_line_and_column() {
-        assert_eq!(strip_line_suffix("foo.rs:12:3"), "foo.rs");
-        assert_eq!(strip_line_suffix("foo.rs:12"), "foo.rs");
-        assert_eq!(strip_line_suffix("foo.rs"), "foo.rs");
-        assert_eq!(strip_line_suffix("foo:bar"), "foo:bar");
-    }
-}

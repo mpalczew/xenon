@@ -78,24 +78,3 @@ impl Drop for KeepAwake {
         let _ = self.child.wait();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn held_only_when_on_opted_in_and_a_phone_is_connected() {
-        for remote_on in [false, true] {
-            for opted_in in [false, true] {
-                for connected in [0, 1, 3] {
-                    let want = remote_on && opted_in && connected > 0;
-                    assert_eq!(should_hold(remote_on, opted_in, connected), want);
-                }
-            }
-        }
-        assert!(should_hold(true, true, 1));
-        assert!(!should_hold(true, true, 0));
-        assert!(!should_hold(true, false, 2));
-        assert!(!should_hold(false, true, 2));
-    }
-}

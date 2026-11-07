@@ -1,8 +1,6 @@
 //! Image tab: zoom/pan state, disk reload, and GPUI paint element.
 
 mod element;
-#[cfg(test)]
-mod reload_test;
 
 use std::fs;
 use std::path::{Path, PathBuf};

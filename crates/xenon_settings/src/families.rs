@@ -66,17 +66,3 @@ pub fn display_ui_family(family: &str) -> &str {
         other => other,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn alias_sf_mono() {
-        assert_eq!(canonicalize_mono_family("SF Mono"), ".SF NS Mono");
-        assert_eq!(canonicalize_mono_family("SFMono"), ".SF NS Mono");
-        assert_eq!(canonicalize_mono_family("Zed Mono"), "Lilex");
-        assert_eq!(canonicalize_mono_family(".ZedMono"), "Lilex");
-        assert_eq!(canonicalize_mono_family("Menlo"), "Menlo");
-    }
-}

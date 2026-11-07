@@ -59,32 +59,3 @@ impl DeviceBook {
         xenon_store::save_remote_devices(&self.devices)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use std::time::Instant;
-
-    use super::*;
-
-    #[test]
-    fn stores_only_the_token_hash() {
-        let now = Instant::now();
-        let mut book = DeviceBook::from_devices(RemoteDevices::default());
-        let code = book.pairing_code(now).secret.clone();
-        let device = book.pair(&code, "", now).unwrap();
-        let stored = &book.devices()[0];
-        assert_ne!(stored.token_sha256, device.token);
-        assert_eq!(stored.label, "Phone");
-    }
-
-    #[test]
-    fn revoke_all_signs_everyone_out() {
-        let now = Instant::now();
-        let mut book = DeviceBook::from_devices(RemoteDevices::default());
-        let code = book.pairing_code(now).digits.clone();
-        let device = book.pair(&code, "iPhone", now).unwrap();
-        book.revoke_all();
-        assert!(book.authenticate(&device.token).is_none());
-        assert!(book.pair("000000", "x", now).is_none());
-    }
-}

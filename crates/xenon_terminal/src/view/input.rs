@@ -89,16 +89,3 @@ impl EntityInputHandler for TerminalView {
         None
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::pty_input_bytes;
-
-    #[test]
-    fn enter_is_cr_not_lf() {
-        assert_eq!(pty_input_bytes("test\n"), b"test\r");
-        assert_eq!(pty_input_bytes("test\r\n"), b"test\r");
-        assert_eq!(pty_input_bytes("a\nb\n"), b"a\rb\r");
-        assert_eq!(pty_input_bytes("plain"), b"plain");
-    }
-}

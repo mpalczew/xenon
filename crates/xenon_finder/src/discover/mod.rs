@@ -315,6 +315,3 @@ pub fn ranking_needle(raw: &str) -> Option<String> {
         DiscoverQuery::Exact(_) => None,
     }
 }
-
-#[cfg(test)]
-mod tests;

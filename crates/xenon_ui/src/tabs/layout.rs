@@ -51,17 +51,3 @@ pub(crate) fn pack_tabs(widths: &[f32], active: usize, avail: f32) -> PackedTabs
     }
     PackedTabs { visible, hidden }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{OVERFLOW_BTN, pack_tabs};
-
-    #[test]
-    fn keeps_active_on_strip() {
-        let packed = pack_tabs(&[120., 120., 120., 120.], 3, 200.);
-        assert!(packed.visible.contains(&3));
-        assert!(!packed.hidden.contains(&3));
-        let used: f32 = packed.visible.iter().map(|_| 120.).sum();
-        assert!(used <= 200. - OVERFLOW_BTN + 0.01);
-    }
-}

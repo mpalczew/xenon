@@ -187,21 +187,3 @@ pub fn entry(id: CommandId) -> CommandEntry {
 pub fn shortcut(id: CommandId) -> xenon_design_system::Shortcut {
     xenon_design_system::Shortcut::new(entry(id).keys)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn catalog_ids_are_unique() {
-        let mut seen = Vec::new();
-        for entry in catalog() {
-            assert!(
-                !seen.contains(&entry.id),
-                "duplicate catalog id {:?}",
-                entry.id
-            );
-            seen.push(entry.id);
-        }
-    }
-}

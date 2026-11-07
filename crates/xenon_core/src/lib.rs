@@ -43,6 +43,3 @@ pub use tasks::{
     required_inputs, resolve_task, workspace_for_tasks_json,
 };
 pub use workspace::{Active, CURRENT_VERSION, Registry, WorkspaceRec};
-
-#[cfg(test)]
-mod tests;

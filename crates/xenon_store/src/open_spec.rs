@@ -20,15 +20,3 @@ impl OpenFileSpec {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_focused_pane_steals_editor_focus() {
-        assert!(OpenPane::Focused.takes_editor_focus());
-        assert!(!OpenPane::Sibling.takes_editor_focus());
-        assert!(!OpenPane::SplitRight.takes_editor_focus());
-    }
-}

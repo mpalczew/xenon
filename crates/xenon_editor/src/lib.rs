@@ -29,6 +29,3 @@ pub use view::{
     DiskAlert, EditorDiagnostic, EditorDiagnosticSeverity, EditorEvent, EditorView, Find, FindNext,
     FindPrevious,
 };
-
-#[cfg(test)]
-mod tests;

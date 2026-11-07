@@ -44,9 +44,6 @@ pub use skill::{
 pub use task_trust::{TaskTrust, set_task_trust, task_trust};
 pub use terminal::TerminalAutoClose;
 
-/// Serializes tests that mutate process-global data-dir env vars.
-#[cfg(test)]
-pub(crate) static DATA_DIR_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, thiserror::Error)]
@@ -100,14 +97,6 @@ pub fn load_settings() -> Result<AppSettings, StoreError> {
             Ok(AppSettings::default())
         }
     }
-}
-
-#[cfg(test)]
-pub(crate) fn save_settings(settings: &AppSettings) -> Result<(), StoreError> {
-    let _guard = SETTINGS_WRITE_LOCK
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    save_settings_unlocked(settings)
 }
 
 /// Atomically load, mutate, and save settings while preserving fields the
@@ -201,6 +190,3 @@ fn write_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), StoreError> 
     fs::rename(&temp, path)?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

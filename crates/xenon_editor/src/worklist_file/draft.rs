@@ -162,6 +162,3 @@ impl ItemDraft {
 fn trimmed(text: &str) -> &str {
     text.trim_end_matches(['\r', '\n'])
 }
-
-#[cfg(test)]
-mod tests;

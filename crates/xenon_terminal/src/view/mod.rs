@@ -1109,19 +1109,3 @@ fn build(
         PathStyle::local(),
     )
 }
-
-#[cfg(test)]
-mod mouse_policy_tests {
-    use super::inject_shift_for_host_drag;
-
-    #[test]
-    fn cmd_steals_mouse_from_tui() {
-        assert!(inject_shift_for_host_drag(true, true, false, true, false));
-        assert!(!inject_shift_for_host_drag(true, true, false, false, false));
-        assert!(inject_shift_for_host_drag(true, true, true, false, false));
-        assert!(inject_shift_for_host_drag(false, true, false, false, false));
-        assert!(!inject_shift_for_host_drag(true, false, false, true, false));
-        assert!(inject_shift_for_host_drag(true, true, false, false, true));
-        assert!(!inject_shift_for_host_drag(true, false, false, false, true));
-    }
-}

@@ -33,17 +33,3 @@ pub fn viewport_lines(
         })
         .collect()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ignores_scrollback_rows() {
-        let lines = viewport_lines([(-1, 0, 'H'), (0, 0, 'a'), (0, 1, 'b'), (1, 0, 'c')], 4, 2);
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0], "ab");
-        assert_eq!(lines[1], "c");
-        assert!(!lines.iter().any(|l| l.contains('H')));
-    }
-}

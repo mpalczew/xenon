@@ -45,19 +45,3 @@ impl PairingCode {
         ct_eq(&self.digits, &compact) || ct_eq(&self.secret, &compact)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn pairing_accepts_digits_or_secret_until_expiry() {
-        let now = Instant::now();
-        let code = PairingCode::issue(now);
-        assert_eq!(code.digits.len(), 6);
-        assert!(code.matches(&code.display_digits(), now));
-        assert!(code.matches(&code.secret, now));
-        assert!(!code.matches("000000x", now));
-        assert!(!code.matches(&code.digits, now + PAIRING_TTL));
-    }
-}

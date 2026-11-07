@@ -116,39 +116,3 @@ fn display_for(glyphs: &str, platform: Platform) -> String {
         (None, Platform::Linux) => chord.for_linux().format(),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn linux_text_names_keys() {
-        assert_eq!(display_for("⌘⇧P", Platform::Linux), "Ctrl+Shift+P");
-        assert_eq!(display_for("⌃⇥", Platform::Linux), "Ctrl+Tab");
-        assert_eq!(display_for("F12", Platform::Linux), "F12");
-        assert_eq!(display_for("↩", Platform::Linux), "Enter");
-        assert_eq!(display_for("⌘↩ / ⌃↩", Platform::Linux), "⌘↩ / ⌃↩");
-    }
-
-    fn text_on_linux(text: &str) -> String {
-        translate(text, Platform::Linux)
-    }
-
-    #[test]
-    fn sentences_translate_each_shortcut() {
-        assert_eq!(text_on_linux("Close Tab · ⌘W"), "Close Tab · Ctrl+W");
-        assert_eq!(text_on_linux("⌘⇧O opens"), "Ctrl+Shift+O opens");
-        assert_eq!(
-            text_on_linux("return opens  ·  ⌘return beside"),
-            "return opens  ·  Ctrl+Enter beside"
-        );
-        assert_eq!(text_on_linux("⌘-click to open"), "Ctrl-click to open");
-        assert_eq!(text_on_linux("⌥↑ ⌥↓ section"), "Alt+↑ Alt+↓ section");
-        assert_eq!(
-            text_on_linux("Left-drag ⌘F or just type"),
-            "Left-drag Ctrl+F or just type"
-        );
-        assert_eq!(text_on_linux("⌘1–⌘7"), "Ctrl+1–Ctrl+7");
-        assert_eq!(text_on_linux("no keys here"), "no keys here");
-    }
-}

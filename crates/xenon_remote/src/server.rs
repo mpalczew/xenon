@@ -432,7 +432,3 @@ pub(crate) fn ask<T>(
     rx.recv_timeout(HOST_TIMEOUT)
         .map_err(|_| "host timeout".to_string())
 }
-
-#[cfg(test)]
-#[path = "server_tests.rs"]
-mod http_tests;

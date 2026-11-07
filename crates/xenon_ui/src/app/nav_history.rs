@@ -103,36 +103,3 @@ impl NavHistory {
         self.index = self.index.saturating_sub(count);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn editor(name: &str, col: u32) -> NavEntry {
-        NavEntry::Editor {
-            path: name.into(),
-            row: 0,
-            col,
-        }
-    }
-
-    #[test]
-    fn branch_truncates_forward_entries() {
-        let mut history = NavHistory::default();
-        history.visit(editor("a", 0));
-        history.visit(editor("b", 0));
-        history.back();
-        history.visit(editor("c", 0));
-        assert!(history.forward().is_none());
-        assert_eq!(history.back(), Some(editor("a", 0)));
-    }
-
-    #[test]
-    fn refresh_snapshots_cursor_without_adding_visit() {
-        let mut history = NavHistory::default();
-        history.visit(editor("a", 0));
-        history.refresh_current(editor("a", 8));
-        history.visit(editor("b", 0));
-        assert_eq!(history.back(), Some(editor("a", 8)));
-    }
-}

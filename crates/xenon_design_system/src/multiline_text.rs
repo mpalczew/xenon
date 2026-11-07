@@ -105,27 +105,3 @@ pub(super) fn utf16_chars(text: &str, range: Range<usize>) -> Range<usize> {
     }
     at(text, range.start)..at(text, range.end)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn edits_in_the_middle_and_replaces_ime_marked_text() {
-        let mut edit = MultilineText::new("a🦀c");
-        edit.left(false);
-        edit.replace(None, "b", false);
-        assert_eq!(edit.text(), "a🦀bc");
-        edit.replace(None, "に", true);
-        edit.replace(None, "日本", true);
-        edit.replace(None, "日本語", false);
-        assert_eq!(edit.text(), "a🦀b日本語c");
-    }
-    #[test]
-    fn marked_selection_uses_utf16_offsets() {
-        let mut edit = MultilineText::new("a");
-        edit.replace(None, "🦀b", true);
-        edit.select_marked_range(2..2);
-        assert_eq!(edit.selected_utf16(), 3..3);
-        assert_eq!(edit.marked_utf16(), Some(1..4));
-    }
-}

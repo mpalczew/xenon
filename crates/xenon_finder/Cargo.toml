@@ -10,6 +10,3 @@ workspace = true
 [dependencies]
 ignore.workspace = true
 nucleo.workspace = true
-
-[dev-dependencies]
-tempfile = "3"

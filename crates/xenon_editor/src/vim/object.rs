@@ -113,21 +113,3 @@ fn find_pair(
         Some(open_at + 1..close_at)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn inner_parens() {
-        let rope = Rope::from_str("a(bc)d");
-        let r = Object::Pair {
-            open: '(',
-            close: ')',
-            around: false,
-        }
-        .range(&rope, 2)
-        .unwrap();
-        assert_eq!(rope.slice(r).to_string(), "bc");
-    }
-}

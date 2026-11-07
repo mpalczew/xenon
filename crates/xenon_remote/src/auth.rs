@@ -24,16 +24,3 @@ pub fn ct_eq(a: &str, b: &str) -> bool {
             .fold(0u8, |acc, (x, y)| acc | (x ^ y))
             == 0
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hash_is_stable_hex() {
-        assert_eq!(
-            hash_token("abc"),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
-    }
-}

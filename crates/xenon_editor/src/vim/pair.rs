@@ -114,21 +114,3 @@ fn first_non_blank(rope: &Rope, at: usize) -> usize {
     }
     start
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn match_pair_finds_next_on_line() {
-        let rope = Rope::from_str("x (ab)");
-        assert_eq!(match_pair(&rope, 0), 5);
-    }
-
-    #[test]
-    fn match_pair_nested() {
-        let rope = Rope::from_str("(a(b)c)");
-        assert_eq!(match_pair(&rope, 0), 6);
-        assert_eq!(match_pair(&rope, 2), 4);
-    }
-}

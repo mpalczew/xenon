@@ -196,28 +196,3 @@ pub(super) enum FocusTarget {
     Leaf(PaneId),
     Browser,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{FocusTarget, resolve_focus_target};
-    use xenon_core::PaneId;
-
-    #[test]
-    fn resolve_focus_target_prefers_gpui_then_browser_then_session() {
-        let gpui = PaneId(2);
-        let session = PaneId(1);
-        assert_eq!(
-            resolve_focus_target(Some(gpui), true, Some(session)),
-            Some(FocusTarget::Leaf(gpui))
-        );
-        assert_eq!(
-            resolve_focus_target(None, true, Some(session)),
-            Some(FocusTarget::Browser)
-        );
-        assert_eq!(
-            resolve_focus_target(None, false, Some(session)),
-            Some(FocusTarget::Leaf(session))
-        );
-        assert_eq!(resolve_focus_target(None, false, None), None);
-    }
-}

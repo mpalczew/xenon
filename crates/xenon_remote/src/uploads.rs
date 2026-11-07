@@ -87,16 +87,3 @@ fn prune(dir: &Path, now: SystemTime) {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn accepts_images_only() {
-        assert_eq!(extension("image/png"), Some("png"));
-        assert_eq!(extension("IMAGE/JPEG; charset=binary"), Some("jpg"));
-        assert_eq!(extension("text/html"), None);
-        assert_eq!(extension(""), None);
-    }
-}

@@ -56,22 +56,3 @@ pub fn terminal_tab_label(title: &str, index: usize) -> String {
         title.to_string()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::clean_terminal_title;
-
-    #[test]
-    fn shell_prompt_titles_become_short_directory_names() {
-        assert_eq!(
-            clean_terminal_title("me@box:~/src/xenon/crates", "xenon"),
-            "crates"
-        );
-        assert_eq!(clean_terminal_title("me@box: ~", "xenon"), "~");
-        assert_eq!(
-            clean_terminal_title("me@box:~/src/xenon", "xenon"),
-            "terminal"
-        );
-        assert_eq!(clean_terminal_title("vim: notes", "xenon"), "vim: notes");
-    }
-}

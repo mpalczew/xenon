@@ -284,7 +284,6 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
             }
         });
     }
-    crate::latency::watch_frames(&win);
 
     crate::git::listen(&app, git_rx);
     connect_window(&app, &win);

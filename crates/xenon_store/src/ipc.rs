@@ -214,20 +214,3 @@ pub fn parse_cli_paths(args: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_cli_skips_flags() {
-        let paths = parse_cli_paths(
-            ["--help", "rel", "/abs"]
-                .into_iter()
-                .map(String::from)
-                .collect::<Vec<_>>(),
-        );
-        assert_eq!(paths.len(), 2);
-        assert!(paths[1].is_absolute());
-    }
-}

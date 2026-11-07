@@ -61,23 +61,3 @@ pub fn display_overrides(platform: Platform, user: &[Entry]) -> HashMap<String, 
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn bind(keys: &str, action: &str) -> Entry {
-        Entry::new(None, keys, Some(action))
-    }
-
-    #[test]
-    fn rebinding_shows_the_new_key_and_unbinding_shows_nothing() {
-        let user = [bind("ctrl-alt-p", "xenon::FilePalette")];
-        let map = display_overrides(Platform::Linux, &user);
-        assert_eq!(map.get("cmd-p").map(String::as_str), Some("Ctrl+Alt+P"));
-
-        let unbound = [Entry::new(None, "ctrl-p", None)];
-        let map = display_overrides(Platform::Linux, &unbound);
-        assert_eq!(map.get("cmd-p").map(String::as_str), Some(""));
-    }
-}

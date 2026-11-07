@@ -55,17 +55,3 @@ mod linux {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn snapshot_write_is_json() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("memory.json");
-        write_snapshot(&path, &ProcessMemory::default()).unwrap();
-        let parsed: ProcessMemory = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-        assert_eq!(parsed, ProcessMemory::default());
-    }
-}

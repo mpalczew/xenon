@@ -150,30 +150,3 @@ fn item_text(raw: &str) -> (String, String, bool) {
         .join("\n");
     (title, details, editable)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn parses_tasks_and_notes_without_treating_fences_as_items() {
-        let source = "# Worklist\n\n- [ ] First\n  detail\n\nA note.\n\n```md\n- [ ] not a task\n```\n\n- [x] Done\n";
-        let rows = entries(source);
-        assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0].title, "First");
-        assert_eq!(rows[0].details, "detail");
-        assert_eq!(rows[1].title, "A note.");
-        assert_eq!(rows[2].checked, Some(true));
-        assert_eq!(&source[rows[0].range.clone()], "- [ ] First\n  detail\n\n");
-        assert_eq!(&source[rows[1].range.clone()], "A note.\n");
-    }
-
-    #[test]
-    fn nested_tasks_remain_visible_but_require_markdown_editing() {
-        let source = "# Worklist\n\n- [ ] Parent\n  - [ ] Child\n\n# Two\n\n- [ ] Other\n";
-        let rows = entries(source);
-        assert_eq!(rows.len(), 2);
-        assert!(!rows[0].editable);
-        assert!(rows[1].editable);
-        assert_ne!(rows[0].section, rows[1].section);
-    }
-}

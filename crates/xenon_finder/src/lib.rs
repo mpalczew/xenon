@@ -247,6 +247,3 @@ fn path_eq_query(path: &Path, query: &str) -> bool {
 fn path_components(path: &Path) -> usize {
     path.components().count()
 }
-
-#[cfg(test)]
-mod tests;

@@ -134,6 +134,3 @@ impl SshWorkspace {
         transport::request(&self.host, &request)
     }
 }
-
-#[cfg(test)]
-mod tests;

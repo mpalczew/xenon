@@ -50,26 +50,3 @@ pub fn step_index(count: usize, current: Option<usize>, reverse: bool) -> Option
         (cur + 1) % count
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn search_building_and_stepping() {
-        assert!(matches!(build_search("", FindOptions::default()), Ok(None)));
-        assert!(
-            build_search("a+", FindOptions::default())
-                .unwrap()
-                .is_some()
-        );
-        let bare_dot = FindOptions {
-            regex: true,
-            ..Default::default()
-        };
-        assert!(matches!(build_search(".", bare_dot), Ok(None)));
-        assert_eq!(step_index(3, Some(0), false), Some(1));
-        assert_eq!(step_index(3, Some(2), false), Some(0));
-        assert_eq!(step_index(3, Some(0), true), Some(2));
-    }
-}

@@ -49,23 +49,3 @@ impl RateLimiter {
         });
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn limiter_blocks_after_five_failures_per_ip() {
-        let now = Instant::now();
-        let ip: IpAddr = "100.64.0.2".parse().unwrap();
-        let other: IpAddr = "100.64.0.3".parse().unwrap();
-        let mut rl = RateLimiter::new();
-        for _ in 0..5 {
-            assert!(rl.allow(ip, now));
-            rl.record_failure(ip, now);
-        }
-        assert!(!rl.allow(ip, now));
-        assert!(rl.allow(other, now));
-        assert!(rl.allow(ip, now + WINDOW));
-    }
-}

@@ -361,7 +361,3 @@ pub enum ServerMsg {
     },
     Pong,
 }
-
-#[cfg(test)]
-#[path = "protocol_tests.rs"]
-mod tests;

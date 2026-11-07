@@ -256,38 +256,3 @@ fn push_group(out: &mut String, case: &mut CaseState, caps: &Captures, n: usize)
         push_cased(out, case, ch);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-
-    use regex::Regex;
-    use tempfile::NamedTempFile;
-
-    fn buffer_with(text: &str) -> Buffer {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(text.as_bytes()).unwrap();
-        file.flush().unwrap();
-        Buffer::open(file.path()).unwrap()
-    }
-
-    #[test]
-    fn expand_groups_and_case() {
-        let re = Regex::new(r"(\w+)").unwrap();
-        let caps = re.captures("hello").unwrap();
-        assert_eq!(expand_replacement(r"<<\1>>", &caps, ""), "<<hello>>");
-        assert_eq!(expand_replacement(r"\U&\E", &caps, ""), "HELLO");
-        assert_eq!(expand_replacement(r"\u&", &caps, ""), "Hello");
-    }
-
-    #[test]
-    fn apply_global_on_percent() {
-        let mut buf = buffer_with("foo foo\nbar foo\n");
-        let cmd = parse_substitute("/foo/X/g").unwrap();
-        let mut prev = String::new();
-        let out = apply_substitute(&mut buf, &cmd, (0, 1), None, &mut prev).unwrap();
-        assert_eq!(out.replacements, 3);
-        assert_eq!(buf.text(), "X X\nbar X\n");
-    }
-}

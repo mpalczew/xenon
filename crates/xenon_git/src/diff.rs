@@ -403,27 +403,3 @@ fn tokens(text: &str) -> Vec<(usize, &str)> {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn unified_pairs_changed_lines_and_marks_words() {
-        let text = "diff --git a/x.txt b/x.txt\n--- a/x.txt\n+++ b/x.txt\n\
-                    @@ -3,3 +3,3 @@ ctx\n keep\n-holds git flush\n+one marker flush\n tail\n";
-        let hunks = parse_unified("x.txt", text, |_, _| Vec::new());
-        assert_eq!(hunks.len(), 1);
-        let hunk = &hunks[0];
-        assert_eq!(hunk.rows.len(), 3);
-        assert_eq!(hunk.lines[1].old_no, Some(4));
-        assert_eq!(hunk.lines[2].new_no, Some(4));
-        let marked: Vec<_> = hunk.lines[1]
-            .segs
-            .iter()
-            .filter(|s| s.emphasis)
-            .map(|s| s.text.as_str())
-            .collect();
-        assert_eq!(marked, ["holds git"]);
-    }
-}

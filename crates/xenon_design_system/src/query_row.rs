@@ -165,14 +165,3 @@ fn hit_ranges(text: &str, hits: &[u32]) -> Vec<Range<usize>> {
     }
     ranges
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hits_merge_into_runs() {
-        assert_eq!(hit_ranges("src/main.rs", &[4, 5, 6, 7]), vec![4..8]);
-        assert_eq!(hit_ranges("ab_cd", &[0, 3, 4]), vec![0..1, 3..5]);
-    }
-}

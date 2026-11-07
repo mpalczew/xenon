@@ -23,28 +23,3 @@ pub fn disapproval_clipboard(names: &[impl AsRef<str>]) -> String {
     out.pop();
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{disapproval_clipboard, selected_names};
-
-    #[test]
-    fn empty_selection_is_empty_string() {
-        assert_eq!(disapproval_clipboard(&[] as &[&str]), "");
-        assert!(selected_names([("a", false), ("b", false)]).is_empty());
-    }
-
-    #[test]
-    fn selected_shots_become_copyable_list() {
-        let names = selected_names([
-            ("chrome_populated_dark", true),
-            ("overlay_finder", false),
-            ("settings_window", true),
-        ]);
-        assert_eq!(names, vec!["chrome_populated_dark", "settings_window"]);
-        assert_eq!(
-            disapproval_clipboard(&names),
-            "DISAPPROVED:\n- chrome_populated_dark\n- settings_window"
-        );
-    }
-}

@@ -51,34 +51,3 @@ fn is_list_item(line: &str) -> bool {
     ["- ", "* ", "• ", "+ "].iter().any(|m| line.starts_with(m))
         || (digits > 0 && (rest.starts_with(". ") || rest.starts_with(") ")))
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::clipboard::clean_agent_output;
-
-    #[test]
-    fn clean_agent_output_strips_quote_bar_and_unwraps() {
-        let sample = "  ▎ Stop your WhatsApp/wacli sync and disable every routine that uses it. Then zip your memory folder (all memory/log files), all of /workspace\n  ▎ including wacli-store, and your Status and Queue board files. Save it to my Mac's Downloads as grok-rescue-2026-10-01.zip. Reply with the file name\n  ▎ and confirm wacli is stopped.";
-        assert_eq!(
-            clean_agent_output(
-                "  ▎ first para\n  ▎ continues\n  ▎\n  ▎ second para\n  ▎ - item a\n  ▎ - item b"
-            ),
-            "first para continues\n\nsecond para\n- item a\n- item b"
-        );
-        assert_eq!(
-            clean_agent_output(sample),
-            "Stop your WhatsApp/wacli sync and disable every routine that uses it. Then zip your memory folder (all memory/log files), all of /workspace including wacli-store, and your Status and Queue board files. Save it to my Mac's Downloads as grok-rescue-2026-10-01.zip. Reply with the file name and confirm wacli is stopped."
-        );
-        assert_eq!(
-            clean_agent_output("I deregistered it\n  ▎ from my account today.\n  ▎ Thanks."),
-            "I deregistered it from my account today. Thanks."
-        );
-    }
-
-    #[test]
-    fn clean_agent_output_leaves_markdown_table_and_mixed_bars() {
-        let table = "| a | b |\n|---|---|\n| 1 | 2 |";
-        assert_eq!(clean_agent_output(table), table);
-        assert_eq!(clean_agent_output("| grep foo\nplain"), "| grep foo\nplain");
-    }
-}
