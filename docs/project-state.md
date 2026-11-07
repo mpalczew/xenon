@@ -108,14 +108,20 @@ only cross-cutting decisions and traps that are expensive to rediscover.
   refs), by window focus, and every 5 s for the active workspace while the window is
   focused. gio cannot watch a tree recursively, and one monitor per folder blew up
   memory on big trees, so edits to working-tree files are caught by that timer.
-- A completed `bin/install` updates the app on disk, but a running process keeps the old
-  binary. Never kill Xenon to force the switch.
+- A completed `scripts/release/install` updates the app on disk, but a running process
+  keeps the old binary. Never kill Xenon to force the switch.
 - Quitting Xenon kills what its terminals started. The launcher `setsid`s before exec so
   a Xenon launched from another Xenon's terminal (slot flip) outlives it; ignoring
   SIGHUP alone was not enough.
 - No crash handler. A vanished instance: panics land in the slot's `xenon.log` (stderr
-  goes there); a SIGSEGV or abort leaves no line, and `journalctl` or `coredumpctl`
-  dates it.
+  goes there); a SIGSEGV or abort leaves no line. The launcher turns core dumps on, so
+  `coredumpctl info PID` gives the stack.
+- GTK event rule: never read or change a list model, expand a row, or mutate or destroy
+  a widget inside that object's own signal handler (activate, notify, items-changed,
+  gestures, drag and drop, menu actions). Capture plain values and defer with
+  `glib::idle_add_local_once`. Every segfault so far (libgtk tree-list code) broke this.
+- GtkSourceView's syntax tags are anonymous; code that copies them must key on the look,
+  not the tag name.
 - Phone page: setting `disabled` on a focused input blurs it, and iOS never gives focus
   back. `renderStale()` remembers the focused input and refocuses it on reconnect; any
   new disable-while-stale input needs the same.
