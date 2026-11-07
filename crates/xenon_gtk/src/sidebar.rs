@@ -20,6 +20,7 @@ use crate::sidebar_ui::{Row, Section};
 struct WsRow {
     id: WorkspaceId,
     row: gtk::ListBoxRow,
+    title: gtk::Label,
     dot: gtk::Image,
     tick: gtk::Image,
 }
@@ -158,11 +159,9 @@ impl Sidebar {
         self.workspaces.show_fold(folds.workspaces);
         self.files.show_fold(folds.files);
         self.git.show_fold(folds.git);
-        // Open Files takes the free space; with Files folded, Workspaces takes it.
+        // Open Files takes the free space; Workspaces and Git size to their
+        // content up to a cap. With Files folded the free space stays below.
         self.files.root.set_vexpand(!folds.files);
-        self.workspaces
-            .root
-            .set_vexpand(folds.files && !folds.workspaces);
     }
 
     /// Rebuild the rows from the registry and select the active one.
@@ -173,7 +172,8 @@ impl Sidebar {
         rows.clear();
         for rec in &model.registry.workspaces {
             let line = Row::new();
-            line.set(Some("folder-symbolic"), &rec.name, "");
+            line.set(None, &rec.name, &short_path(&rec.display_root()));
+            line.stack();
             line.root.set_tooltip_text(Some(&rec.display_root()));
             let dot = gtk::Image::from_icon_name("media-record-symbolic");
             let tick = gtk::Image::from_icon_name("document-edit-symbolic");
@@ -217,6 +217,7 @@ impl Sidebar {
             rows.push(WsRow {
                 id: rec.id,
                 row,
+                title: line.title.clone(),
                 dot,
                 tick,
             });
@@ -230,6 +231,7 @@ impl Sidebar {
             if Some(r.id) == active {
                 self.list.select_row(Some(&r.row));
             }
+            set_class(&r.title, "heading", Some(r.id) == active);
             let dot = model.workspace_dot(r.id);
             let working = matches!(dot, Some(WorkspaceDot::Working));
             let attention = matches!(dot, Some(WorkspaceDot::Attention(_)));

@@ -58,7 +58,7 @@ impl Section {
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_child(Some(list));
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_vexpand(true);
+        scroll.set_vexpand(cap.is_none());
         if let Some(cap) = cap {
             scroll.set_propagate_natural_height(true);
             scroll.set_max_content_height(cap);
@@ -71,6 +71,8 @@ impl Section {
 
         let sep = gtk::Separator::new(gtk::Orientation::Horizontal);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        // Never grows on its own; the sidebar says which section does.
+        root.set_vexpand(false);
         root.append(&sep);
         root.append(&head);
         root.append(&body);
@@ -167,6 +169,18 @@ impl Row {
         }
         self.title.set_text(title);
         self.detail.set_text(detail);
+    }
+
+    /// Put the detail under the title instead of beside it.
+    pub(crate) fn stack(&self) {
+        let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        text.set_hexpand(true);
+        text.set_valign(gtk::Align::Center);
+        self.root.insert_child_after(&text, Some(&self.icon));
+        self.root.remove(&self.title);
+        self.root.remove(&self.detail);
+        text.append(&self.title);
+        text.append(&self.detail);
     }
 
     /// Mark the row as the one shown in the main area.
