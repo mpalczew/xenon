@@ -14,6 +14,7 @@ use xenon_git::bar::{BarCell, change_bar};
 use xenon_git::status::{ChangeKind, GitFile, GitStatus};
 
 use crate::app::App;
+use crate::model::Fold;
 use crate::pane::{focus_inside, set_class};
 
 /// Rows drawn at most; a repo with more changes shows the first ones and a
@@ -62,9 +63,7 @@ impl GitView {
         line.append(&title);
         line.append(&branch);
         line.append(&count);
-        let head = gtk::Button::new();
-        head.set_child(Some(&line));
-        head.add_css_class("flat");
+        let head = crate::sidebar::fold_button(&line, Fold::Git, &app);
         head.add_css_class("xgit-head");
 
         let list = gtk::ListBox::new();
@@ -106,12 +105,6 @@ impl GitView {
     }
 
     fn wire(self: &Rc<Self>) {
-        let weak = Rc::downgrade(self);
-        self.head.connect_clicked(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.set_collapsed(this.reveal.reveals_child());
-            }
-        });
         let weak = Rc::downgrade(self);
         self.list.connect_row_activated(move |_, row| {
             if let Some(this) = weak.upgrade() {
@@ -164,7 +157,8 @@ impl GitView {
         }
     }
 
-    fn set_collapsed(&self, collapsed: bool) {
+    /// Draw the fold the model decided.
+    pub(crate) fn show_fold(&self, collapsed: bool) {
         self.reveal.set_reveal_child(!collapsed);
         set_class(&self.head, "collapsed", collapsed);
         self.publish();
@@ -279,7 +273,9 @@ impl GitView {
     /// Put the cursor in the section, opening it first.
     pub(crate) fn focus(&self) {
         self.root.set_visible(self.status.borrow().is_some());
-        self.set_collapsed(false);
+        if let Some(app) = self.app.upgrade() {
+            app.set_fold(Fold::Git, false);
+        }
         let first = self.files.borrow().first().map(|f| f.path.clone());
         match self.selected_path().or(first) {
             Some(path) => self.select_path(&path, true),
@@ -292,7 +288,9 @@ impl GitView {
 
     /// Fold the section away (the second press of the focus chord).
     pub(crate) fn fold(&self) {
-        self.set_collapsed(true);
+        if let Some(app) = self.app.upgrade() {
+            app.set_fold(Fold::Git, true);
+        }
     }
 
     /// Move the selection by `delta` rows (scripts).

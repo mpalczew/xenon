@@ -110,6 +110,62 @@ pub(crate) struct Model {
     pub activity: HashMap<(WorkspaceId, TabId), TerminalActivity>,
     /// The window has keyboard focus; a tab the user can see is "viewed".
     pub window_active: bool,
+    /// Which sidebar sections are folded away (saved in settings.json).
+    pub folds: Folds,
+}
+
+/// A sidebar section that folds to its header.
+#[derive(Clone, Copy)]
+pub(crate) enum Fold {
+    Workspaces,
+    Files,
+    Git,
+}
+
+/// Fold state of each sidebar section; `true` is folded.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Folds {
+    pub workspaces: bool,
+    pub files: bool,
+    pub git: bool,
+}
+
+impl Folds {
+    fn load() -> Self {
+        let s = xenon_store::load_settings().unwrap_or_default();
+        Self {
+            workspaces: s.workspaces_collapsed,
+            files: !s.files_open,
+            git: s.git_collapsed,
+        }
+    }
+
+    pub(crate) fn get(&self, fold: Fold) -> bool {
+        match fold {
+            Fold::Workspaces => self.workspaces,
+            Fold::Files => self.files,
+            Fold::Git => self.git,
+        }
+    }
+
+    pub(crate) fn set(&mut self, fold: Fold, folded: bool) {
+        match fold {
+            Fold::Workspaces => self.workspaces = folded,
+            Fold::Files => self.files = folded,
+            Fold::Git => self.git = folded,
+        }
+    }
+
+    pub(crate) fn save(&self) {
+        let result = xenon_store::update_settings(|s| {
+            s.workspaces_collapsed = self.workspaces;
+            s.files_open = !self.files;
+            s.git_collapsed = self.git;
+        });
+        if let Err(error) = result {
+            eprintln!("[xg] save settings: {error}");
+        }
+    }
 }
 
 impl Model {
@@ -138,6 +194,7 @@ impl Model {
             attention: AttentionMap::default(),
             activity: HashMap::new(),
             window_active: true,
+            folds: Folds::load(),
         }
     }
 

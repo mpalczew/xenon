@@ -25,6 +25,7 @@ const ACTIONS: &[(&str, &str)] = &[
     ("xenon::FocusTerminal", "app.focus-terminal"),
     ("xenon::FocusBrowser", "app.focus-sidebar"),
     ("xenon::FocusGit", "app.focus-git"),
+    ("xenon::ToggleBrowser", "app.toggle-files"),
     ("xenon::ToggleSettings", "app.settings"),
     ("xenon::CycleDiffLayout", "app.cycle-diff-layout"),
     ("xenon::ToggleSidebar", "app.toggle-sidebar"),

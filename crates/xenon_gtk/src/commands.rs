@@ -8,6 +8,7 @@ use gtk::{gio, glib};
 use xenon_core::{PaneId, ParkOutcome, SplitAxis, TabId, WorkspaceId};
 
 use crate::app::App;
+use crate::model::Fold;
 use crate::model_tabs::SplitResult;
 
 impl App {
@@ -197,6 +198,7 @@ impl App {
                 .iter()
                 .position(|r| r.id == id)
         });
+        self.set_fold(Fold::Workspaces, false);
         if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
             row.grab_focus();
         }

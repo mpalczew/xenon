@@ -12,6 +12,7 @@ use xenon_core::SplitAxis;
 use xenon_keymap::Entry;
 
 use crate::app::App;
+use crate::model::Fold;
 
 type Handler = fn(&Rc<App>);
 
@@ -35,6 +36,7 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("focus-terminal", |a| a.focus_terminal()),
     ("focus-sidebar", |a| a.focus_sidebar()),
     ("focus-git", |a| a.focus_git()),
+    ("toggle-files", |a| a.toggle_fold(Fold::Files)),
     ("cycle-diff-layout", |a| a.cycle_diff_layout()),
     ("toggle-sidebar", |a| a.toggle_sidebar()),
     ("find", |a| {

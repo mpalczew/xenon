@@ -175,8 +175,11 @@ impl Palette {
              .xtick.dirty {{ background: {modified}; }}\n\
              .xtick.index {{ border: 2px solid {modified}; }}\n\
              .xsection button.xgit-head {{ margin: 0; padding: 0 16px; min-height: 52px; border-radius: 0; }}\n\
-             .xsection button.xgit-head:hover {{ background: transparent; }}\n\
-             .xgit-head:hover .xheading {{ color: {fg}; }}\n\
+             .xsection button.xfold {{ padding: 0; min-height: 52px; border-radius: 0; }}\n\
+             .xsection-head.xfirst button.xfold {{ min-height: 60px; }}\n\
+             .xsection button.xgit-head {{ padding: 0 16px; }}\n\
+             .xsection button.xfold:hover {{ background: transparent; }}\n\
+             .xfold:hover .xheading {{ color: {fg}; }}\n\
              .xgit-section {{ border-top: 1px solid {border}; }}\n\
              .xgit-branch {{ color: {muted}; font-size: 0.85em; margin-right: 6px; }}\n\
              .xcount {{ background: {selected}; margin: 0 0 0 0; color: {fg}; font-size: 0.78em; font-weight: 600; border-radius: 10px; padding: 0 7px; min-width: 6px; }}\n\

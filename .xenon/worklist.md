@@ -5,7 +5,7 @@
 - [ ] GTK: Markdown writing mode
 - [ ] GTK: open a file in the selected pane, or the last selected one
 - [ ] GTK: Copy Clean in the toolbar
-- [ ] GTK: Workspaces, Files and Git sections collapse
+- [x] GTK: Workspaces, Files and Git sections collapse (header click, Enter, Space; Ctrl+E for Files; saved in settings)
 - [ ] GTK: Settings moves and resizes like a window; pages balanced
 - [ ] GTK: workspace picker gets the Browse… row its no-match message names
 - [ ] GTK: Workspaces section looks bad (waiting on what, from the user)

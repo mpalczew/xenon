@@ -13,7 +13,7 @@ use crate::app::App;
 use crate::files::FilesView;
 use crate::git::GitHub;
 use crate::git_section::GitView;
-use crate::model::Model;
+use crate::model::{Fold, Model};
 use crate::pane::set_class;
 
 struct Row {
@@ -29,10 +29,30 @@ pub(crate) struct Sidebar {
     pub files: Rc<FilesView>,
     pub git: Rc<GitView>,
     split: gtk::Paned,
+    reveal: gtk::Revealer,
     pub list: gtk::ListBox,
     add: gtk::MenuButton,
     app: Weak<App>,
     rows: RefCell<Vec<Row>>,
+}
+
+/// A section header that folds its section on click, Enter and Space.
+pub(crate) fn fold_button(
+    child: &impl IsA<gtk::Widget>,
+    fold: Fold,
+    app: &Weak<App>,
+) -> gtk::Button {
+    let button = gtk::Button::new();
+    button.set_child(Some(child));
+    button.add_css_class("flat");
+    button.add_css_class("xfold");
+    let app = app.clone();
+    button.connect_clicked(move |_| {
+        if let Some(app) = app.upgrade() {
+            app.toggle_fold(fold);
+        }
+    });
+    button
 }
 
 /// `$HOME` shown as `~`.
@@ -59,10 +79,12 @@ impl Sidebar {
         add.set_menu_model(Some(&menu));
         add.add_css_class("flat");
         add.set_focusable(false);
+        let head = fold_button(&title, Fold::Workspaces, &app);
+        head.set_hexpand(true);
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         header.add_css_class("xsection-head");
         header.add_css_class("xfirst");
-        header.append(&title);
+        header.append(&head);
         header.append(&add);
 
         let list = gtk::ListBox::new();
@@ -100,8 +122,13 @@ impl Sidebar {
 
         let workspaces = gtk::Box::new(gtk::Orientation::Vertical, 0);
         workspaces.add_css_class("xsection");
+        let reveal = gtk::Revealer::new();
+        reveal.set_transition_type(gtk::RevealerTransitionType::SlideDown);
+        reveal.set_transition_duration(160);
+        reveal.set_reveal_child(true);
+        reveal.set_child(Some(&scroll));
         workspaces.append(&header);
-        workspaces.append(&scroll);
+        workspaces.append(&reveal);
         let files = FilesView::new(app_for_files);
         let split = gtk::Paned::new(gtk::Orientation::Vertical);
         split.set_start_child(Some(&workspaces));
@@ -121,6 +148,7 @@ impl Sidebar {
             files,
             git,
             split,
+            reveal,
             list,
             add,
             app: app_for_rows,
@@ -178,11 +206,24 @@ impl Sidebar {
         self.git.set_hint(&app.tip("Git", "app.focus-git"));
     }
 
-    /// Rebuild the rows from the registry and select the active one.
-    pub(crate) fn rebuild(&self, model: &Model) {
+    /// Draw each section folded or open as the model says.
+    pub(crate) fn apply_folds(&self, model: &Model) {
+        let folds = model.folds;
+        self.reveal.set_reveal_child(!folds.workspaces);
+        self.files.show_fold(folds.files);
+        self.git.show_fold(folds.git);
         // Room for every workspace row (up to a cap), the Files section gets the rest.
         let wanted = 72 + 47 * model.registry.workspaces.len() as i32;
-        self.split.set_position(wanted.clamp(110, 380));
+        self.split.set_position(if folds.workspaces {
+            0
+        } else {
+            wanted.clamp(110, 380)
+        });
+    }
+
+    /// Rebuild the rows from the registry and select the active one.
+    pub(crate) fn rebuild(&self, model: &Model) {
+        self.apply_folds(model);
         let mut rows = self.rows.borrow_mut();
         while let Some(child) = self.list.first_child() {
             self.list.remove(&child);
@@ -306,5 +347,25 @@ impl Sidebar {
                 r.dot.set_opacity(opacity);
             }
         }
+    }
+}
+
+impl App {
+    /// Fold or unfold a sidebar section and remember it.
+    pub(crate) fn set_fold(&self, fold: Fold, folded: bool) {
+        {
+            let mut model = self.model.borrow_mut();
+            if model.folds.get(fold) == folded {
+                return;
+            }
+            model.folds.set(fold, folded);
+            model.folds.save();
+        }
+        self.sidebar.apply_folds(&self.model.borrow());
+    }
+
+    pub(crate) fn toggle_fold(&self, fold: Fold) {
+        let folded = self.model.borrow().folds.get(fold);
+        self.set_fold(fold, !folded);
     }
 }

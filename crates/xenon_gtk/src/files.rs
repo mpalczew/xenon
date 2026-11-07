@@ -18,6 +18,7 @@ use xenon_finder::tree::list_dir;
 use crate::files_rows::{FilesModel, Row, make_row};
 
 use crate::app::App;
+use crate::model::Fold;
 
 /// Most folders watched at once; deeper expansions are not watched.
 const MAX_WATCHED: usize = 48;
@@ -28,6 +29,7 @@ pub(crate) struct FilesView {
     pub root: gtk::Box,
     pub list: gtk::ListBox,
     title: gtk::Label,
+    reveal: gtk::Revealer,
     app: Weak<App>,
     model: RefCell<Option<FilesModel>>,
     rows: RefCell<Vec<Row>>,
@@ -46,9 +48,11 @@ impl FilesView {
         title.add_css_class("xheading");
         title.set_xalign(0.0);
         title.set_hexpand(true);
+        let head = crate::sidebar::fold_button(&title, Fold::Files, &app);
+        head.set_hexpand(true);
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         header.add_css_class("xsection-head");
-        header.append(&title);
+        header.append(&head);
 
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Single);
@@ -59,12 +63,18 @@ impl FilesView {
         scroll.set_vexpand(true);
         scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 
+        let reveal = gtk::Revealer::new();
+        reveal.set_transition_type(gtk::RevealerTransitionType::SlideDown);
+        reveal.set_transition_duration(160);
+        reveal.set_reveal_child(true);
+        reveal.set_child(Some(&scroll));
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("xsection");
         root.append(&header);
-        root.append(&scroll);
+        root.append(&reveal);
         let this = Rc::new(Self {
             root,
+            reveal,
             list,
             title,
             app,
@@ -342,7 +352,15 @@ impl FilesView {
     }
 
     /// Put the keyboard in the tree.
+    /// Draw the fold the model decided.
+    pub(crate) fn show_fold(&self, folded: bool) {
+        self.reveal.set_reveal_child(!folded);
+    }
+
     pub(crate) fn focus(&self) {
+        if let Some(app) = self.app.upgrade() {
+            app.set_fold(Fold::Files, false);
+        }
         let target = self
             .list
             .selected_row()
