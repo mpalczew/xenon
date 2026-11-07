@@ -85,25 +85,33 @@ impl Prose {
     }
 
     /// Our copy of a scheme tag, made on first use; none if it sets no look.
+    /// Scheme tags are anonymous, so ours is named by the look it carries.
     fn syntax_tag(&self, theirs: &gtk::TextTag) -> Option<gtk::TextTag> {
-        let name = format!("xp-sv-{}", theirs.name()?);
+        let set: Vec<_> = LOOK
+            .iter()
+            .filter(|(_, flag)| theirs.property::<bool>(flag))
+            .map(|(prop, _)| (*prop, theirs.property_value(prop)))
+            .collect();
+        if set.is_empty() {
+            return None;
+        }
+        let name = set.iter().fold(String::from("xp-sv"), |name, (prop, v)| {
+            match v.get::<gdk::RGBA>() {
+                Ok(rgba) => format!("{name}-{prop}={rgba}"),
+                Err(_) => format!("{name}-{prop}={v:?}"),
+            }
+        });
         let table = self.buffer.tag_table();
         if let Some(tag) = table.lookup(&name) {
             return Some(tag);
         }
         let ours = gtk::TextTag::new(Some(&name));
-        let mut any = false;
-        for (prop, flag) in LOOK {
-            if theirs.property::<bool>(flag) {
-                ours.set_property_from_value(prop, &theirs.property_value(prop));
-                any = true;
-            }
+        for (prop, v) in &set {
+            ours.set_property_from_value(prop, v);
         }
-        any.then(|| {
-            table.add(&ours);
-            self.syntax.borrow_mut().push(ours.clone());
-            ours
-        })
+        table.add(&ours);
+        self.syntax.borrow_mut().push(ours.clone());
+        Some(ours)
     }
 
     /// Forget the scheme colors; true if there were any to redo.
