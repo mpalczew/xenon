@@ -21,6 +21,11 @@
 
 ## Next
 
+- [ ] Delete every test and test script; nothing runs tests any more
+  - Rust tests (about 100 files), `crates/xenon_ui/tests/`, the Python helper test.
+  - `scripts/xenon-gtk-verify`, `-idle`, `-latency`, `-remote-client`,
+    `scripts/xenon_cli_test.sh`, `scripts/check-test-determinism`.
+  - Their steps in `bin/check`, `scripts/health` and the pre-commit hook.
 - [ ] GTK: A/B slots, so a new build starts beside the running one
   - `~/bin/xenon` launches the GTK app; state in `~/.xenon-a` and `~/.xenon-b`.
   - One process per slot, opens routed over each slot's socket (`xenon open`).
