@@ -115,7 +115,7 @@ impl App {
         });
         *self.remote.connect_dialog.borrow_mut() = Some(dialog.clone());
         self.refresh_connect_dialog();
-        dialog.present(Some(&self.win));
+        dialog.present(Some(&self.front_window()));
         self.remote_publish();
     }
 

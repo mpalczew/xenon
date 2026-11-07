@@ -62,7 +62,6 @@ impl App {
             "focus": focus,
             "term_font": term.as_ref().and_then(|t| t.term.font_desc()).map(|f| f.to_string()),
             "term_bg": term.as_ref().map(|t| t.term.color_background_for_draw().to_string()),
-            "ui_size": live.ui.size,
             "terminal_size": live.terminal.size,
         })
         .to_string();

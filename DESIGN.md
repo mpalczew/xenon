@@ -343,8 +343,7 @@ is stock widgets plus one CSS sheet; Xenon-owned drawing code is zero. Decisions
   Ctrl+1 to 5 jump to a page; Escape or Ctrl+W closes. No search.
   Theme tiles are buttons painted by one generated sheet in each theme's own colors. The
   picker page re-themes the window as the selection moves; Enter keeps, Escape or Back
-  reverts. The interface size scales the window font as a percentage of 14; the default
-  size and the System face add no rule.
+  reverts. The interface font is the system font; Settings has no row for it.
 
 - **Phone remote.** Settings has a Phone Remote page (switch with status line, network,
   keep-awake, address override, port, Connect Phone, paired devices with Revoke).

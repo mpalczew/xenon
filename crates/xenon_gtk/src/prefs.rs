@@ -18,7 +18,7 @@ const PAGES: [&str; 4] = ["fonts", "editor", "agents", "phone"];
 /// The open Settings window and the parts the pages talk to.
 #[derive(Clone)]
 pub(crate) struct Shell {
-    window: adw::Window,
+    pub(crate) window: adw::Window,
     toasts: adw::ToastOverlay,
     nav: adw::NavigationView,
     stack: adw::ViewStack,
@@ -59,6 +59,16 @@ fn add_page(stack: &adw::ViewStack, page: &adw::PreferencesPage) {
 }
 
 impl App {
+    /// The window the user is working in: Settings while it is the active one,
+    /// the main window otherwise. Dialogs and toasts go here so they are not
+    /// hidden behind Settings.
+    pub(crate) fn front_window(&self) -> gtk::Window {
+        match crate::prefs::open_dialog() {
+            Some(shell) if shell.window.is_active() => shell.window.clone().upcast(),
+            _ => self.win.clone().upcast(),
+        }
+    }
+
     /// Open Settings, or raise it when it is already open.
     pub(crate) fn toggle_settings(self: &Rc<Self>) {
         if let Some(shell) = open_dialog() {

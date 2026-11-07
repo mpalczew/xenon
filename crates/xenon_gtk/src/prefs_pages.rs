@@ -8,7 +8,7 @@ use adw::prelude::*;
 use xenon_settings::{
     FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_MEASURES,
     PROSE_SIZES, ProseMarkers, Surface, TerminalAutoClose, UiSettings, format_size,
-    mono_font_choices, nearest_index, ui_font_choices,
+    mono_font_choices, nearest_index,
 };
 
 use crate::app::App;
@@ -59,7 +59,7 @@ pub(crate) fn switch_row(
 fn font_group(
     app: &Rc<App>,
     (title, detail): (&str, &str),
-    surface: Surface,
+    (surface, id): (Surface, &'static str),
     choices: Vec<FontChoice>,
     current: (&str, f32),
 ) -> adw::PreferencesGroup {
@@ -94,11 +94,6 @@ fn font_group(
     size.connect_value_notify(move |row| {
         app.change_settings(|s| s.set_font_size(surface, row.value() as f32));
     });
-    let id = match surface {
-        Surface::Ui => "size-ui",
-        Surface::Editor => "size-editor",
-        Surface::Terminal => "size-terminal",
-    };
     let weak = size.downgrade();
     crate::prefs_state::register(id, move |v| {
         if let (Some(row), Ok(v)) = (weak.upgrade(), v.parse::<f64>()) {
@@ -113,7 +108,6 @@ pub(crate) fn fonts(app: &Rc<App>) -> adw::PreferencesPage {
     let page = page("fonts", "Fonts", "font-x-generic-symbolic");
     let probe = PangoProbe(gtk::Label::new(None).pango_context());
     let families = probe.0.list_families();
-    let all: Vec<String> = families.iter().map(|f| f.name().to_string()).collect();
     let mono: Vec<String> = families
         .iter()
         .filter(|f| f.is_monospace())
@@ -122,22 +116,15 @@ pub(crate) fn fonts(app: &Rc<App>) -> adw::PreferencesPage {
     let ui = app.settings.borrow().clone();
     page.add(&font_group(
         app,
-        ("Interface", "Sidebar, tabs, and menus"),
-        Surface::Ui,
-        ui_font_choices(all, &ui.ui.family),
-        (&ui.ui.family, ui.ui.size),
-    ));
-    page.add(&font_group(
-        app,
         ("Editor", "Monospaced faces only"),
-        Surface::Editor,
+        (Surface::Editor, "size-editor"),
         mono_font_choices(mono.clone(), &ui.editor.family),
         (&ui.editor.family, ui.editor.size),
     ));
     page.add(&font_group(
         app,
         ("Terminal", "Monospaced faces only"),
-        Surface::Terminal,
+        (Surface::Terminal, "size-terminal"),
         mono_font_choices(mono, &ui.terminal.family),
         (&ui.terminal.family, ui.terminal.size),
     ));

@@ -106,10 +106,27 @@ impl App {
         {
             view.set_title(tab, &label);
         }
-        let model = self.model.borrow();
-        if let Some(ws) = model.active() {
-            self.title
-                .set_subtitle(&crate::app::space_label(&model, ws));
+        {
+            let model = self.model.borrow();
+            if let Some(ws) = model.active() {
+                self.title
+                    .set_subtitle(&crate::app::space_label(&model, ws));
+            }
+        }
+        self.refresh_save_button();
+    }
+
+    /// Show Save only while the focused pane's editor has unsaved changes.
+    pub(crate) fn refresh_save_button(&self) {
+        let dirty = self.model.borrow().active_editor_dirty();
+        self.save_button.set_visible(dirty);
+    }
+
+    /// Save the focused pane's editor.
+    pub(crate) fn save_active_editor(&self, app: &Rc<Self>) {
+        let key = self.model.borrow().active_editor_key();
+        if let Some(editor) = key.and_then(|k| self.editors.borrow().get(&k).cloned()) {
+            editor.save(&Rc::downgrade(app));
         }
     }
 

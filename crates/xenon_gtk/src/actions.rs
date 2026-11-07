@@ -71,6 +71,7 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("zoom-in", |a| a.zoom(1.0)),
     ("zoom-out", |a| a.zoom(-1.0)),
     ("zoom-reset", |a| a.zoom(0.0)),
+    ("save", |a| a.save_active_editor(a)),
     ("save-now", |a| a.save_all()),
     ("settings", |a| a.toggle_settings()),
     ("quit", |a| a.quit()),

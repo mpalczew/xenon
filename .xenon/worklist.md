@@ -3,9 +3,9 @@
 ## Now
 
 - [x] GTK: Files rows more compact; Git folds to one header line when clean
-- [ ] GTK: Save button in the toolbar (shown when an editor is dirty)
-- [ ] GTK: Connect Phone opens in front of Settings, not behind it
-- [ ] GTK: delete the Interface font setting; the app follows the system font
+- [x] GTK: Save button in the toolbar (shown when an editor is dirty)
+- [x] GTK: Connect Phone opens in front of Settings, not behind it
+- [x] GTK: delete the Interface font setting; the app follows the system font
 - [ ] GTK: worklist view (what is still missing: waiting on the user)
 
 ## Next

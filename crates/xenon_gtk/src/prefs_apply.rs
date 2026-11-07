@@ -4,28 +4,10 @@
 use std::rc::Rc;
 
 use gtk::prelude::WidgetExt;
-use xenon_settings::{DEFAULT_FONT_SIZE, FaceFont, UiSettings};
+use xenon_settings::UiSettings;
 
 use crate::app::App;
 use crate::window::{PangoProbe, mono_face};
-
-/// Sheet rules owned by Settings: the interface face and size as one rule on
-/// the window (empty when both are the defaults, so an untouched setup keeps
-/// the desktop's own look).
-pub(crate) fn extra_css(ui: &FaceFont) -> String {
-    let mut rules = String::new();
-    if !matches!(ui.family.as_str(), ".SystemUIFont" | ".AppleSystemUIFont") {
-        rules += &format!("font-family: \"{}\"; ", ui.family);
-    }
-    if (ui.size - DEFAULT_FONT_SIZE).abs() > 0.01 {
-        rules += &format!("font-size: {:.1}%; ", ui.size / DEFAULT_FONT_SIZE * 100.0);
-    }
-    if rules.is_empty() {
-        String::new()
-    } else {
-        format!("window {{ {rules}}}\n")
-    }
-}
 
 impl App {
     /// Change the live settings, save them, and restyle everything.

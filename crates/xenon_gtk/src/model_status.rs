@@ -10,6 +10,22 @@ use xenon_core::{
 use crate::model::{Model, Tab, TabKind};
 
 impl Model {
+    /// The focused pane's active tab in the active workspace, when it is an
+    /// editor.
+    pub(crate) fn active_editor_key(&self) -> Option<(WorkspaceId, TabId)> {
+        let ws = self.active()?;
+        let tab = self.spaces.get(&ws)?.content.focused_leaf()?.active_tab()?;
+        matches!(tab.kind, TabKind::Kept(xenon_core::TabState::Editor { .. }))
+            .then_some((ws, tab.id))
+    }
+
+    /// The active editor has unsaved changes.
+    pub(crate) fn active_editor_dirty(&self) -> bool {
+        self.active_editor_key()
+            .and_then(|(ws, tab)| self.tab(ws, tab))
+            .is_some_and(|t| t.modified)
+    }
+
     /// The tab is on screen in the focused pane of the open workspace while
     /// the window has focus.
     pub(crate) fn is_viewed(&self, ws: WorkspaceId, tab: TabId) -> bool {

@@ -53,9 +53,8 @@ impl App {
     pub(crate) fn apply_theme(&self) {
         let ui = self.settings.borrow().clone();
         let sheet = format!(
-            "{}\n{}textview.xeditor, textview.xdiff-code {{ font-family: \"{}\", monospace; font-size: {}px; }}\n{}",
+            "{}\ntextview.xeditor, textview.xdiff-code {{ font-family: \"{}\", monospace; font-size: {}px; }}\n{}",
             theme::CSS,
-            crate::prefs_apply::extra_css(&ui.ui),
             ui.editor.family,
             ui.editor.size,
             crate::prose::css(&ui.prose, &self.mono.borrow())
@@ -116,7 +115,7 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     };
     // GPUI toolbar order (xenon_ui/src/toolbar.rs), left to right. Buttons for
     // commands GTK does not have yet (Go Back, Go Forward, Cut,
-    // File Browser, Save) are not drawn.
+    // File Browser) are not drawn.
     let left = [
         (
             "sidebar-show-symbolic",
@@ -167,10 +166,24 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         ),
         ("emblem-system-symbolic", "app.settings", "Settings"),
     ];
-    for (icon, action, label) in right.into_iter().rev() {
+    // Save sits between Run Task and Settings; the model decides when it shows.
+    let mut right = right.into_iter().rev();
+    if let Some((icon, action, label)) = right.next() {
+        bar.pack_end(&button(icon, action, app.tip(label, action)));
+    }
+    bar.pack_end(&app.save_button);
+    for (icon, action, label) in right {
         bar.pack_end(&button(icon, action, app.tip(label, action)));
     }
     bar
+}
+
+fn save_button() -> gtk::Button {
+    let b = gtk::Button::from_icon_name("document-save-symbolic");
+    b.set_action_name(Some("app.save"));
+    b.set_focusable(false);
+    b.set_visible(false);
+    b
 }
 
 pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry]) -> Rc<App> {
@@ -222,6 +235,7 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         refused_drag: Cell::new(false),
         pending_drop: Cell::new(None),
         save_pending: Cell::new(false),
+        save_button: save_button(),
         remote: crate::remote::Remote::new(),
         tasks: crate::tasks::Tasks::default(),
         trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),
@@ -233,6 +247,8 @@ pub(crate) fn build(gtk_app: &adw::Application, user_keys: &[xenon_keymap::Entry
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
     app.apply_theme();
+    app.save_button
+        .set_tooltip_text(Some(&app.tip("Save", "app.save")));
     let style = adw::StyleManager::default();
     let weak = Rc::downgrade(&app);
     style.connect_dark_notify(move |_| {

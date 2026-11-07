@@ -13,7 +13,10 @@ use crate::model_tabs::SplitResult;
 
 impl App {
     pub(crate) fn toast(&self, text: &str) {
-        self.toasts.add_toast(adw::Toast::new(text));
+        match crate::prefs::open_dialog() {
+            Some(shell) if shell.window.is_active() => shell.add_toast(text),
+            _ => self.toasts.add_toast(adw::Toast::new(text)),
+        }
     }
 
     /// Put the cursor in the active tab once the widgets have settled.

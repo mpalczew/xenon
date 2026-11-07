@@ -66,6 +66,8 @@ pub(crate) struct App {
     /// A tab dropped on a pane body, waiting for the bar to finish its drag.
     pub pending_drop: Cell<Option<(PaneId, TabId, Option<xenon_core::DropEdge>)>>,
     pub save_pending: Cell<bool>,
+    /// Header Save button; shown while the active editor has unsaved changes.
+    pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
     pub tasks: crate::tasks::Tasks,
     pub trust_card: crate::tasks_ui::TrustCard,
@@ -306,6 +308,7 @@ impl App {
             self.title.set_subtitle("");
         }
         drop(model);
+        self.refresh_save_button();
         self.sync_git_roots();
         self.publish_state();
         self.remote_dots();
