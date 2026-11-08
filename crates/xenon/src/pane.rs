@@ -94,16 +94,11 @@ impl PaneView {
     /// silent (`App::tab_sync`).
     fn connect(&self, app: &Rc<App>) {
         let (ws, pane) = (self.ws, self.pane);
-        // A tab dropped outside every bar and pane is refused: Xenon is one
-        // window. The bar insists on a view to put it in, so it goes back into
-        // its own, and the next `sync` puts it in its place.
-        let weak = Rc::downgrade(app);
-        self.view.connect_create_window(move |view| {
-            if let Some(app) = weak.upgrade() {
-                app.refused_drag.set(true);
-            }
-            Some(view.clone())
-        });
+        // Xenon is one window. A drag that ends off every bar (a pane body
+        // drop included) makes the bar ask for a new window and attach the
+        // page there at position 0. We hand back this view; the sync at the
+        // end of the drag puts the page where the model says.
+        self.view.connect_create_window(|view| Some(view.clone()));
         let weak = Rc::downgrade(app);
         self.view.connect_close_page(move |view, page| {
             // The page stays until the model's answer removes it, so the
@@ -140,14 +135,16 @@ impl PaneView {
                 });
             }
         });
-        // A drag between bars (or onto a pane body) is over once the page is
-        // back in a view; only then does the model hear about it.
+        // Every view of the group reports the end of a drag; handle it once,
+        // after the bar has put the page back in a view.
         let weak = Rc::downgrade(app);
         self.view.connect_is_transferring_page_notify(move |view| {
             if view.is_transferring_page() {
                 return;
             }
-            if let Some(app) = weak.upgrade().filter(|a| !a.tab_sync.get()) {
+            if let Some(app) = weak.upgrade().filter(|a| !a.tab_sync.get())
+                && !app.transfer_queued.replace(true)
+            {
                 gtk::glib::idle_add_local_once(move || app.tab_transfer_done(ws));
             }
         });

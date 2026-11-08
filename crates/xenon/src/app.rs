@@ -63,10 +63,12 @@ pub(crate) struct App {
     pub started: Instant,
     /// True while `sync` changes the tab views, so their signals stay silent.
     pub tab_sync: Cell<bool>,
-    /// A tab drag ended outside every bar and pane.
-    pub refused_drag: Cell<bool>,
-    /// A tab dropped on a pane body, waiting for the bar to finish its drag.
-    pub pending_drop: Cell<Option<(PaneId, TabId, Option<xenon_core::DropEdge>)>>,
+    /// An idle `tab_transfer_done` is queued (every view in the group reports
+    /// the end of a drag; one run is enough).
+    pub transfer_queued: Cell<bool>,
+    /// A tab was dropped on a pane body during this drag; the model already
+    /// has the move, so view order must not be read back.
+    pub body_dropped: Cell<bool>,
     pub save_pending: Cell<bool>,
     /// Header Save button; shown while the active editor has unsaved changes.
     pub save_button: gtk::Button,

@@ -85,11 +85,12 @@ pub(crate) fn install(app: &Rc<App>, body: &gtk::Overlay, ws: WorkspaceId, pane:
             return false;
         };
         let edge = zone(x, y, body.width(), body.height());
-        // Applied when the bar has put the page back (`tab_transfer_done`).
         let Some(tab) = app.tab_of(ws, &page.child()) else {
             return false;
         };
-        app.pending_drop.replace(Some((pane, tab, edge)));
+        // Only the model changes now; the views are redrawn from it once the
+        // bar has put the page back (`tab_transfer_done`).
+        app.tab_dropped(ws, pane, tab, edge);
         true
     });
     body.add_controller(target);

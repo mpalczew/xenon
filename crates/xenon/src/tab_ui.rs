@@ -35,21 +35,18 @@ impl App {
             .map(|((_, t), _)| *t)
     }
 
-    /// A tab drag ended. A drop on a pane body is applied; a drop on a bar
-    /// has already moved the page, so the model learns where it went.
+    /// A tab drag ended. After a drop on a pane body the model already has
+    /// the move, so the views are redrawn from it. A drop on a bar has moved
+    /// the page itself, so the model learns where it went.
     pub(crate) fn tab_transfer_done(self: &Rc<Self>, ws: WorkspaceId) {
-        let refused = self.refused_drag.take();
-        if let Some((pane, tab, edge)) = self.pending_drop.take() {
-            self.tab_dropped(ws, pane, tab, edge);
-            return;
-        }
-        if refused {
-            self.sync(ws);
-            return;
-        }
-        let moved = self.moved_tab(ws);
-        if let Some((tab, pane, index)) = moved {
+        self.transfer_queued.set(false);
+        if self.body_dropped.take() {
+            self.changed(ws);
+        } else if let Some((tab, pane, index)) = self.moved_tab(ws) {
             self.tab_placed(ws, pane, tab, index);
+        } else {
+            // The bar may have put a cancelled drag's page back at 0.
+            self.sync(ws);
         }
     }
 
@@ -105,7 +102,8 @@ impl App {
         self.changed(ws);
     }
 
-    /// The user dropped `tab` on `pane`'s body: an edge splits, the middle moves.
+    /// The user dropped `tab` on `pane`'s body: an edge splits, the middle
+    /// moves. Model only; the caller redraws.
     pub(crate) fn tab_dropped(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -117,6 +115,6 @@ impl App {
             Some(edge) => self.model.borrow_mut().drop_on_edge(ws, tab, pane, edge),
             None => self.model.borrow_mut().place_tab(ws, tab, pane, None),
         };
-        self.changed(ws);
+        self.body_dropped.set(true);
     }
 }
