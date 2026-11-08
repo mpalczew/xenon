@@ -33,21 +33,11 @@ rm -f "$data_home/applications/dev.xenon.Gtk.desktop" "$bin_dir/xenon-gtk"
 # Before the desktop file was named after the app id (Wayland matches windows by it).
 rm -f "$data_home/applications/xenon.desktop" "$data_home"/icons/hicolor/*/apps/xenon.png
 
-# Icon: 512px when ImageMagick is available, else the 1024px source as-is.
-icon_src="$root/assets/xenon-icon-source.png"
-if command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1; then
-    size=512
-else
-    size=1024
-fi
-icon_dir="$data_home/icons/hicolor/${size}x${size}/apps"
-mkdir -p "$icon_dir"
-if [[ $size == 512 ]]; then
-    resize="$(command -v magick || command -v convert)"
-    "$resize" "$icon_src" -resize 512x512 "$icon_dir/dev.xenon.Xenon.png"
-else
-    cp "$icon_src" "$icon_dir/dev.xenon.Xenon.png"
-fi
+# Icon: 512px is the largest size the hicolor theme lists; a bigger one isn't found.
+rm -f "$data_home"/icons/hicolor/1024x1024/apps/dev.xenon.Xenon.png \
+    "$data_home"/icons/hicolor/*/apps/xenon-gtk.png
+install -D -m 644 "$root/assets/xenon-icon-512.png" \
+    "$data_home/icons/hicolor/512x512/apps/dev.xenon.Xenon.png"
 
 cat >"$data_home/applications/dev.xenon.Xenon.desktop" <<DESKTOP
 [Desktop Entry]
