@@ -461,6 +461,9 @@ impl EditorView {
 
 impl Drop for EditorView {
     fn drop(&mut self) {
+        // The Vim input method pops its state off the buffer when it is freed.
+        // Detach now, while the view and buffer are still alive.
+        self.detach_vim();
         if let Some(monitor) = self.monitor.take() {
             monitor.cancel();
         }
