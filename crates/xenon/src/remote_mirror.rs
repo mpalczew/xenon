@@ -139,21 +139,30 @@ impl Shared {
 /// The visible screen, its size, the cursor in viewport rows, and whether the
 /// viewport is scrolled back.
 fn capture(term: &vte::Terminal, (default_fg, default_bg): (Rgb, Rgb)) -> VteSnapshot {
-    let html = term
-        .text_format(vte::Format::Html)
-        .map(|s| s.to_string())
-        .unwrap_or_default();
     let cols = term.column_count().clamp(1, i64::from(u16::MAX)) as u16;
     let rows = term.row_count().clamp(1, i64::from(u16::MAX)) as u16;
     let (col, row) = term.cursor_position();
-    let unit = term.char_height().max(1) as f64;
+    // VTE's adjustment counts rows, not pixels.
     let (top, scrolled) = match term.vadjustment() {
         Some(adj) => (
-            (adj.value() / unit).round() as i64,
-            adj.value() + unit / 2.0 < adj.upper() - adj.page_size(),
+            adj.value().round() as i64,
+            adj.value() + 0.5 < adj.upper() - adj.page_size(),
         ),
         None => (0, false),
     };
+    // An explicit row range: the plain dump stops at the widget's height, and
+    // a tab never shown on the Mac (one the phone made) has none.
+    let html = term
+        .text_range_format(
+            vte::Format::Html,
+            top as _,
+            0,
+            (top + i64::from(rows) - 1) as _,
+            i64::from(cols) as _,
+        )
+        .0
+        .map(|s| s.to_string())
+        .unwrap_or_default();
     let view_row = row - top;
     let cursor = (0..i64::from(rows))
         .contains(&view_row)

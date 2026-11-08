@@ -1,6 +1,6 @@
 //! VTE's HTML dump of the visible screen → a wire `Screen`.
 //!
-//! `vte_terminal_get_text_format(HTML)` returns `<pre>` with one `\n` per row
+//! `vte_terminal_get_text_range_format(HTML)` returns `<pre>` with one `\n` per row
 //! and spans for what is not default: `<font color>`, `<b>`, `<i>`, `<u>`,
 //! `<strike>`, and `<span style="background-color:...">`. It has no markup for
 //! hyperlinks or the cursor (dim is already folded into the color), and does not mark the second column of a
