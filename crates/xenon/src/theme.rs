@@ -1,3 +1,4 @@
+// Terminal palette in `terminal` is copied from Ptyxis: see ATTRIBUTION.md, "Ptyxis GNOME palette".
 //! The look is the desktop's: stock libadwaita colors, backgrounds and accent,
 //! following light and dark through `adw::StyleManager`. What is left is the
 //! static sheet for our own widgets and two small light or dark switches, the
@@ -34,16 +35,21 @@ pub(crate) fn dark() -> bool {
 }
 
 /// Terminal foreground, background and the 16 ANSI colors for light or dark.
-/// The ANSI colors are the Tango palette (public domain, the Tango Desktop
-/// Project); the defaults follow Adwaita's window colors.
+/// Both come from the default "GNOME" palette of Ptyxis (GPL-3.0-or-later),
+/// its Light and Dark variants, with that palette's own foreground and
+/// background. See ATTRIBUTION.md, entry "Ptyxis GNOME palette".
 pub(crate) fn terminal(dark: bool) -> (&'static str, &'static str, [&'static str; 16]) {
     const LIGHT: [&str; 16] = [
-        "#2e3436", "#cc0000", "#4e9a06", "#c4a000", "#3465a4", "#75507b", "#06989a", "#d3d7cf",
-        "#555753", "#ef2929", "#8ae234", "#fce94f", "#729fcf", "#ad7fa8", "#34e2e2", "#eeeeec",
+        "#1d1d20", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2aa1b3", "#cfcfcf",
+        "#5d5d5d", "#f66151", "#33d17a", "#e9ad0c", "#2a7bde", "#c061cb", "#33c7de", "#ffffff",
+    ];
+    const DARK: [&str; 16] = [
+        "#241f31", "#c01c28", "#2ec27e", "#f5c211", "#1e78e4", "#9841bb", "#0ab9dc", "#c0bfbc",
+        "#5e5c64", "#ed333b", "#57e389", "#f8e45c", "#51a1ff", "#c061cb", "#4fd2fd", "#f6f5f4",
     ];
     if dark {
-        ("#ffffff", "#242424", LIGHT)
+        ("#ffffff", "#1c1c1f", DARK)
     } else {
-        ("#2e3436", "#ffffff", LIGHT)
+        ("#1d1d20", "#ffffff", LIGHT)
     }
 }
