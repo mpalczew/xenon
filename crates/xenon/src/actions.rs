@@ -70,7 +70,7 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("cut", |a| a.cut()),
     ("copy-clean", |a| a.copy_clean()),
     ("copy-code", |a| a.copy_code()),
-    ("paste", |a| a.paste_terminal()),
+    ("paste", |a| a.paste()),
     ("zoom-in", |a| a.zoom(1.0)),
     ("zoom-out", |a| a.zoom(-1.0)),
     ("zoom-reset", |a| a.zoom(0.0)),

@@ -86,6 +86,26 @@ impl App {
         self.toast("Copied code");
     }
 
+    /// Paste into the focused text field or editor, else the terminal. Ctrl+V
+    /// is an app shortcut, so it reaches here before any text widget sees it.
+    pub(crate) fn paste(self: &Rc<Self>) {
+        let focus = self
+            .win
+            .application()
+            .and_then(|a| a.active_window())
+            .and_then(|w| gtk::prelude::RootExt::focus(&w));
+        if let Some(view) = focus
+            .as_ref()
+            .and_then(|w| w.downcast_ref::<gtk::TextView>())
+        {
+            view.emit_paste_clipboard();
+        } else if let Some(text) = focus.as_ref().and_then(|w| w.downcast_ref::<gtk::Text>()) {
+            text.emit_by_name::<()>("paste-clipboard", &[]);
+        } else {
+            self.paste_terminal();
+        }
+    }
+
     /// Paste into the terminal: files as quoted paths, else an image saved as
     /// a PNG and pasted as its quoted path, else the text.
     pub(crate) fn paste_terminal(self: &Rc<Self>) {
