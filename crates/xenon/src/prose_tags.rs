@@ -171,6 +171,9 @@ impl Tags {
                 ],
             );
         }
+        // Table rows and HTML stay on one line each (the view scrolls sideways), so
+        // the rules drawn over the pipes stay on their row.
+        set(&self.verbatim, &[("wrap-mode", &gtk::WrapMode::None)]);
         set(
             &self.meta,
             &[
