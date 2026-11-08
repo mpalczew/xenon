@@ -5,7 +5,6 @@ Rules and traps that cut across the code. The code has the details.
 Other docs:
 
 - `PRODUCT.md`: what Xenon is and does.
-- `docs/keyboard-first.md`: keys and focus.
 - `docs/designs/mobile-remote-v2.md`: the phone remote.
 - `docs/designs/vscode-tasks.md`: VS Code tasks.
 
@@ -26,6 +25,12 @@ Other docs:
   with `glib::idle_add_local_once`. Every crash so far broke this rule.
 - The commit check (`crates/xenon_eventcheck`) flags such changes in `connect_*`
   closures. Mark a safe one with `// sync: <reason>` on that line or the line above.
+- Every flow needs a keyboard path, through shortcuts rather than Tab. App shortcuts are
+  one table in `crates/xenon/src/keys.rs`; tooltips and the command palette read it.
+- A focused terminal keeps Ctrl+C, X, B, E, O and S, and any Ctrl key the app doesn't
+  bind, for the shell. Ctrl+V is Xenon's paste.
+- Commands act on the pane you last clicked or typed in. When something closes, focus
+  moves to an editor or terminal that still exists; palettes give focus back.
 - GtkSourceView's syntax tags have no names. Code that copies them must match on how
   they look.
 

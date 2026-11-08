@@ -75,7 +75,7 @@ drive my running agents from my phone, so I never use the remote.
 **Mac entry points**
 
 - Command palette: **Connect Phone…** (enables remote if off, opens pairing sheet).
-  Keybinding: `cmd-shift-m`-class, final pick checked against `docs/keyboard-first.md`.
+  Keybinding: Ctrl+Shift+M.
 - Existing **Toggle Mobile Remote** stays (no sheet).
 - Sidebar footer indicator (only when enabled): phone glyph, muted = listening, accent =
   ≥1 device connected. Enter/click opens the pairing sheet. Tooltip: "Phone remote on ·

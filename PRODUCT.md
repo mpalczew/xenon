@@ -4,9 +4,8 @@ Xenon is a fast, native Linux shell for running many coding agents at once. It i
 written in Rust on GTK 4, libadwaita and VTE. It is licensed GPL-3.0-or-later and the
 repo is public at `mpalczew/xenon`.
 
-For current decisions and traps, see `docs/project-state.md`. For the keyboard map and
-focus model, see `docs/keyboard-first.md`. For the phone remote, see
-`docs/designs/mobile-remote-v2.md`.
+For current decisions and traps, see `docs/project-state.md`. For the phone remote, see
+`docs/designs/mobile-remote-v2.md`. Shortcuts are in `crates/xenon/src/keys.rs`.
 
 ## What it is
 

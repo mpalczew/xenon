@@ -123,18 +123,19 @@ scripts/health              # full gate: fmt + clippy + shape
 
 ## Keyboard (daily)
 
-| Action                          | Keys                               |
-| ------------------------------- | ---------------------------------- |
-| New terminal / new file         | Ctrl+N / Ctrl+Shift+N              |
-| Open workspace / file           | Ctrl+Shift+O / Ctrl+P              |
-| Command palette / tasks         | Ctrl+Shift+P / Ctrl+Shift+R        |
-| Focus terminal / editor / files | Ctrl+1 / Ctrl+2 / Ctrl+3           |
-| Workspace next / previous       | Ctrl+Alt+↓ / Ctrl+Alt+↑            |
-| Tab next / previous / close     | Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+W |
-| Save                            | Ctrl+S                             |
-| Connect phone (QR)              | Ctrl+Shift+M                       |
+| Action                      | Keys                               |
+| --------------------------- | ---------------------------------- |
+| New terminal                | Ctrl+N                             |
+| Open workspace / file       | Ctrl+Shift+O / Ctrl+P              |
+| Command palette / tasks     | Ctrl+Shift+P / Ctrl+Shift+R        |
+| Focus terminal / files      | Ctrl+1 / Ctrl+3                    |
+| Workspace next / previous   | Ctrl+Alt+↓ / Ctrl+Alt+↑            |
+| Tab next / previous / close | Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+W |
+| Save                        | Ctrl+S                             |
+| Connect phone (QR)          | Ctrl+Shift+M                       |
 
-Full map: [`docs/keyboard-first.md`](docs/keyboard-first.md).
+The full list is in the command palette (Ctrl+Shift+P) and
+[`keys.rs`](crates/xenon/src/keys.rs).
 
 ---
 
@@ -162,7 +163,7 @@ run agents this way—not vanity stars.
 | `xenon_prose`    | Markdown prose mode                           |
 | `xenon_remote`   | Phone remote server                           |
 
-Product vision: [`PRODUCT.md`](PRODUCT.md). Visual system: [`DESIGN.md`](DESIGN.md).
+Product: [`PRODUCT.md`](PRODUCT.md).
 
 ---
 
