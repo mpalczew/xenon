@@ -69,9 +69,10 @@ blank name deletes an empty section), and ⇧Return starts a new section after t
 one. Clicking a header folds it. There is no key or button to move items between
 sections; that is a Markdown edit. On an empty list, Return adds the first item. Item
 editing saves as you type. Escape closes it. ⌘⌫ deletes the item. An empty virtual
-worklist can be saved with ⌘S. In the GTK app the Worklist button and ⌥4 show the list,
-and the Markdown button, ⌥1 and ⌥3 show the file as text; the choice is remembered per
-file.
+worklist can be saved with ⌘S. In the GTK app the Tasks button and ⌥4 show the list, and
+the Markdown and Code buttons, ⌥1 and ⌥3 show the file as text; the choice is remembered
+per file. Every Markdown tab has a Markdown | Code switch at its top (plus Tasks on the
+worklist) that follows these keys.
 
 The sidebar Workspaces `+` opens a two-item menu (⌘⌥N New workspace, ⌘⇧O Open
 workspace). Arrow keys and Return choose a row. New workspace accepts the directory name

@@ -11,7 +11,7 @@ use super::EditorView;
 use crate::worklist_list::WorklistList;
 
 /// Is `path` a workspace's worklist?
-fn is_worklist(path: &Path) -> bool {
+pub(super) fn is_worklist(path: &Path) -> bool {
     path.ends_with(".xenon/worklist.md")
 }
 
@@ -34,7 +34,7 @@ pub(super) fn pages(
 }
 
 impl EditorView {
-    /// Add the list view and its header (the List | Markdown toggle) to a
+    /// Add the list view and its header (with the view switch) to a
     /// worklist file's tab, and the keys that switch between the two.
     pub(super) fn attach_list(self: &Rc<Self>) {
         let Some(stack) = &self.stack else {
@@ -50,22 +50,14 @@ impl EditorView {
             root.insert_child_after(&list.header, Some(&self.bar));
         }
         let showing = prose_file_prefs(&self.path).list;
-        list.toggle
-            .set_active_name(Some(if showing { "list" } else { "text" }));
         list.show_actions(showing);
-        list.toggle.connect_active_name_notify({
-            let weak = weak.clone();
-            move |toggle| {
-                let on = toggle.active_name().as_deref() == Some("list");
-                let weak = weak.clone();
-                // Deferred: switching may set the toggle back.
-                glib::idle_add_local_once(move || {
-                    if let Some(this) = weak.upgrade() {
-                        this.set_list(on);
-                    }
-                });
+        if let Some(switch) = self.switch.as_ref() {
+            // The view switch moves from its own row into the worklist header.
+            if let Some(row) = switch.parent() {
+                row.unparent();
             }
-        });
+            list.header.prepend(switch);
+        }
         let _ = self.list.set(list);
         // Alt+1 and Alt+3 leave the list for that Markdown mode; Alt+4 returns to it.
         let keys = gtk::EventControllerKey::new();
@@ -123,11 +115,9 @@ impl EditorView {
                     "Markdown edits need to land before the list view.",
                 );
             }
-            list.toggle.set_active_name(Some("text"));
+            self.sync_switch();
             return true;
         }
-        list.toggle
-            .set_active_name(Some(if on { "list" } else { "text" }));
         list.show_actions(on);
         let mut prefs = prose_file_prefs(&self.path);
         if prefs.list != on {
@@ -140,6 +130,7 @@ impl EditorView {
         if on {
             list.show();
         }
+        self.sync_switch();
         self.focus();
         true
     }

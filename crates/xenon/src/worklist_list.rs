@@ -32,9 +32,8 @@ enum Focus {
 }
 
 pub(crate) struct WorklistList {
-    /// The tab header: List | Markdown toggle, title, add and menu buttons.
+    /// The tab header: title, add and menu buttons (the editor adds its view switch).
     pub(crate) header: gtk::Box,
-    pub(crate) toggle: adw::ToggleGroup,
     /// The list page itself.
     pub(crate) root: gtk::Box,
     actions: gtk::Box,
@@ -66,14 +65,6 @@ fn item_with(label: &str, action: &str, target: Option<glib::Variant>) -> gio::M
 impl WorklistList {
     /// `workspace` is the folder that holds `.xenon`.
     pub(crate) fn new(workspace: PathBuf, app: Weak<App>) -> Rc<Self> {
-        let toggle = adw::ToggleGroup::new();
-        for (name, label) in [("list", "List"), ("text", "Markdown")] {
-            let item = adw::Toggle::new();
-            item.set_name(Some(name));
-            item.set_label(Some(label));
-            toggle.add(item);
-        }
-        toggle.set_active_name(Some("list"));
         let title = gtk::Label::new(Some("Worklist"));
         title.add_css_class("heading");
         title.set_hexpand(true);
@@ -94,7 +85,6 @@ impl WorklistList {
         actions.append(&more);
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         header.add_css_class("toolbar");
-        header.append(&toggle);
         header.append(&title);
         header.append(&actions);
 
@@ -122,7 +112,6 @@ impl WorklistList {
 
         let this = Rc::new(Self {
             header,
-            toggle,
             root,
             actions,
             workspace,

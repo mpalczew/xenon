@@ -20,6 +20,7 @@ use crate::prose::{self, Prose};
 use crate::worklist_list::WorklistList;
 
 mod list;
+mod switch;
 
 /// Files above this size open in the default app instead.
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
@@ -36,6 +37,10 @@ pub(crate) struct EditorView {
     /// Markdown writing mode, for Markdown files.
     pub(crate) prose: Option<Rc<Prose>>,
     mode: Cell<MarkdownMode>,
+    /// Markdown files only: Markdown | Code (| Tasks) switch for the view.
+    switch: Option<adw::ToggleGroup>,
+    /// True while we set the switch from code, so it does not switch the view again.
+    syncing: Cell<bool>,
     /// The worklist file only: the list view and the stack it shares with the text.
     list: OnceCell<Rc<WorklistList>>,
     stack: Option<gtk::Stack>,
@@ -73,6 +78,21 @@ fn browser_root(path: &Path) -> gtk::Box {
     button.add_css_class("flat");
     root.append(&button);
     root
+}
+
+/// The hidden "file changed on disk" bar: the bar, its message and its buttons.
+fn disk_bar() -> (gtk::Box, gtk::Label, gtk::Box) {
+    let text = gtk::Label::new(None);
+    text.set_hexpand(true);
+    text.set_xalign(0.0);
+    text.set_wrap(true);
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    bar.add_css_class("toolbar");
+    bar.append(&text);
+    bar.append(&actions);
+    bar.set_visible(false);
+    (bar, text, actions)
 }
 
 /// Why a file cannot open here, if it cannot (cheap: no read).
@@ -120,18 +140,10 @@ impl EditorView {
         let mode = prose
             .as_ref()
             .map_or(MarkdownMode::Source, |_| prose_file_prefs(path).mode);
-        let bar_text = gtk::Label::new(None);
-        bar_text.set_hexpand(true);
-        bar_text.set_xalign(0.0);
-        bar_text.set_wrap(true);
-        let bar_actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        let bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        bar.add_css_class("toolbar");
-        bar.append(&bar_text);
-        bar.append(&bar_actions);
-        bar.set_visible(false);
+        let (bar, bar_text, bar_actions) = disk_bar();
         let root = browser_root(path);
         root.append(&bar);
+        let switch = prose.as_ref().map(|_| switch::add_row(path, &root));
         let stack = list::pages(path, &root, &scroller);
         let editor = Rc::new(Self {
             root: root.upcast(),
@@ -148,11 +160,15 @@ impl EditorView {
             vim: RefCell::new(None),
             prose,
             mode: Cell::new(mode),
+            switch,
+            syncing: Cell::new(false),
             list: OnceCell::new(),
             stack,
             app: Rc::downgrade(app),
         });
         editor.attach_list();
+        editor.connect_switch();
+        editor.sync_switch();
         editor.restyle(app);
         let weak: Weak<App> = Rc::downgrade(app);
         {
@@ -414,6 +430,7 @@ impl EditorView {
                 self.restyle(&app);
             }
         }
+        self.sync_switch();
         true
     }
 
