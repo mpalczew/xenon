@@ -13,8 +13,8 @@ it. There is no frontmatter, ID, date, database or agent protocol.
 - Capture edits the same item form as the tab: a title and one point per line (Enter
   adds a point, Tab indents). It saves as you type once there is a title. Escape,
   Ctrl+Return or an outside click closes it. Ctrl+Backspace deletes the item. A saved
-  item shows a toast with Undo for four seconds. Unsaved text stays for that workspace
-  until the app closes.
+  item shows a toast with Undo. Unsaved text stays for that workspace until the app
+  closes.
 - When the file has sections, capture shows "Into Section", cycled with Alt+Up and
   Alt+Down. It starts on the last section used in this session. The item is appended at
   the end of that section. It locks once the first save lands.

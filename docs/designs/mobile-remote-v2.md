@@ -41,14 +41,14 @@ Code: `crates/xenon_remote` (server, protocol, pairing) and
 
 - Workspace list shows a working or needs-you dot, with needs-you first. Closed
   workspaces sit under a collapsed "Recent". Opening one from the phone must not change
-  the Mac's active workspace or tab. The same holds for New terminal and Close.
+  the computer's active workspace or tab. The same holds for New terminal and Close.
 - A workspace with one terminal opens straight into it.
 - The terminal is drawn as real text from cell frames. Only changed rows are sent, and
-  an idle terminal sends nothing. Inverse is resolved on the Mac. The page forces at
-  least 4.5:1 contrast on every text color, because programs pick colors for the Mac's
-  background.
+  an idle terminal sends nothing. Inverse is resolved on the computer. The page forces
+  at least 4.5:1 contrast on every text color, because programs pick colors for the
+  computer's background.
 - Dragging scrolls like a trackpad. Tapping is a click only while the program has mouse
-  mode on. VTE has no getter for that, so the Mac infers it from the pointer shape
+  mode on. VTE has no getter for that, so the computer infers it from the pointer shape
   (arrow instead of text cursor). Only the SGR mouse form is sent.
 - Typing has two modes, remembered per device. Field: edit a line, then Send, which
   sends the line and then Enter after a short pause so a paste-detecting TUI (Codex)
@@ -57,24 +57,24 @@ Code: `crates/xenon_remote` (server, protocol, pairing) and
   resize the terminal. The 1 2 3 keys answer numbered prompts in Claude Code.
 - The image button uploads to `<data dir>/remote/uploads` (25 MB cap, files over 7 days
   old are deleted on each save) and puts the path into the message field, unsent.
-- A Tasks list shows the workspace's tasks.json. Running one behaves as on the Mac and
-  never changes the Mac's tab or focus. Questions go only to the phone that started the
-  run, and a dropped phone cancels the run. See `vscode-tasks.md`.
+- A Tasks list shows the workspace's tasks.json. Running one behaves as on the computer
+  and never changes the computer's tab or focus. Questions go only to the phone that
+  started the run, and a dropped phone cancels the run. See `vscode-tasks.md`.
 - OSC 8 links are rebuilt from VTE per cell and opened only if they are `http(s)` or
   `mailto`.
-- The page follows a dark, light or auto setting. The Mac keeps its own look.
+- The page follows a dark, light or auto setting. The computer keeps its own look.
 - The page sends a ping every 15 seconds and treats 5 seconds of silence as a dead
   socket. It reconnects with backoff and keeps the last frame on screen.
 
 ## Sizing
 
-While a phone is attached and the Mac has had no keyboard input on that tab for 30
+While a phone is attached and the computer has had no keyboard input on that tab for 30
 seconds, the terminal is resized to the phone's size (clamped to 20-300 columns by 8-200
-rows). Mac typing on that tab, or the last phone detaching, restores the desktop size.
-With several phones, the smallest wins. The Mac shows a banner on the tab and the tab
-title ends in "iPhone".
+rows). Typing on the computer on that tab, or the last phone detaching, restores the
+desktop size. With several phones, the smallest wins. The tab's title shows the phone's
+name.
 
-## Mac side
+## Computer side
 
 - A sidebar indicator shows off, listening, or phone connected.
 - Settings has the toggle, paired devices, sign out all, and an opt-in "keep this

@@ -57,4 +57,4 @@ ignored.
 - Password inputs are never logged or typed into the terminal, and the echoed command
   and picker blank them. The value still reaches the process through its argv or env as
   the task wrote it, and argv is visible to other local processes, so prefer `env`.
-- Phone-started runs skip nothing: folderOpen approval happens only on the Mac.
+- Phone-started runs skip nothing: folderOpen approval happens only on the computer.
