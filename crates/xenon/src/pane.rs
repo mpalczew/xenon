@@ -98,7 +98,13 @@ impl PaneView {
         // drop included) makes the bar ask for a new window and attach the
         // page there at position 0. We hand back this view; the sync at the
         // end of the drag puts the page where the model says.
-        self.view.connect_create_window(|view| Some(view.clone()));
+        let weak = Rc::downgrade(app);
+        self.view.connect_create_window(move |view| {
+            if let Some(app) = weak.upgrade() {
+                app.off_bar.set(true);
+            }
+            Some(view.clone())
+        });
         let weak = Rc::downgrade(app);
         self.view.connect_close_page(move |view, page| {
             // The page stays until the model's answer removes it, so the

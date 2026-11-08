@@ -235,7 +235,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         started: Instant::now(),
         tab_sync: Cell::new(false),
         transfer_queued: Cell::new(false),
-        body_dropped: Cell::new(false),
+        off_bar: Cell::new(false),
         save_pending: Cell::new(false),
         save_button: save_button(),
         remote: crate::remote::Remote::new(),

@@ -35,18 +35,16 @@ impl App {
             .map(|((_, t), _)| *t)
     }
 
-    /// A tab drag ended. After a drop on a pane body the model already has
-    /// the move, so the views are redrawn from it. A drop on a bar has moved
-    /// the page itself, so the model learns where it went.
+    /// A tab drag ended. A drag that ended off every bar left the model in
+    /// charge (a pane body drop already moved the tab there), so the views are
+    /// redrawn from it. A drop on a bar moved the page itself, so the model
+    /// learns where it went.
     pub(crate) fn tab_transfer_done(self: &Rc<Self>, ws: WorkspaceId) {
         self.transfer_queued.set(false);
-        if self.body_dropped.take() {
+        if self.off_bar.take() {
             self.changed(ws);
         } else if let Some((tab, pane, index)) = self.moved_tab(ws) {
             self.tab_placed(ws, pane, tab, index);
-        } else {
-            // The bar may have put a cancelled drag's page back at 0.
-            self.sync(ws);
         }
     }
 
@@ -115,6 +113,6 @@ impl App {
             Some(edge) => self.model.borrow_mut().drop_on_edge(ws, tab, pane, edge),
             None => self.model.borrow_mut().place_tab(ws, tab, pane, None),
         };
-        self.body_dropped.set(true);
+        self.off_bar.set(true);
     }
 }

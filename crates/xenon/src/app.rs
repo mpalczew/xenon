@@ -66,9 +66,9 @@ pub(crate) struct App {
     /// An idle `tab_transfer_done` is queued (every view in the group reports
     /// the end of a drag; one run is enough).
     pub transfer_queued: Cell<bool>,
-    /// A tab was dropped on a pane body during this drag; the model already
-    /// has the move, so view order must not be read back.
-    pub body_dropped: Cell<bool>,
+    /// This drag ended off every bar (on a pane body, or nowhere), so the bar
+    /// did not place the page and view order must not be read back.
+    pub off_bar: Cell<bool>,
     pub save_pending: Cell<bool>,
     /// Header Save button; shown while the active editor has unsaved changes.
     pub save_button: gtk::Button,
