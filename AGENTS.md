@@ -7,10 +7,9 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 
 - `crates/xenon/` - the app.
 - Other `crates/` - shared crates with no GTK: rules, state and parsing.
-- `PRODUCT.md`, `DESIGN.md` - product and visual design. Read both before UX work;
-  update them when a decision settles.
-- `docs/project-state.md` - cross-cutting decisions.
-- `docs/keyboard-first.md` - keyboard map and focus model.
+- `PRODUCT.md` - what Xenon is and does. Read it before UX work; update it when a
+  decision settles.
+- `crates/xenon/src/keys.rs` - every app shortcut.
 - `docs/designs/mobile-remote-v2.md` - phone remote.
 - `ATTRIBUTION.md` - copied source; each copy gets an entry and a file-header marker.
 

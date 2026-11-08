@@ -27,6 +27,8 @@ struct Walk<'a> {
     in_leaf: bool,
 }
 
+/// YAML front matter needs the metadata option: without it the closing `---`
+/// turns the line above into a setext heading.
 pub(crate) fn parse(text: &str) -> Doc {
     let options = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH

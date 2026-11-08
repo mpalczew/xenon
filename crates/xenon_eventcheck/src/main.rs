@@ -1,4 +1,4 @@
-//! Commit check for the GTK event rule (docs/project-state.md): no list model, row or
+//! Commit check for the GTK event rule (every crash so far broke it): no list model, row or
 //! widget changes inside a GTK signal handler, here a closure passed to a `connect_*`
 //! method. Code inside a deferral (`glib::idle_add_local_once` and friends) is fine.
 //! Only direct calls are seen; a helper that mutates internally is not.

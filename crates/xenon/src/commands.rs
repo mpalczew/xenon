@@ -20,6 +20,8 @@ impl App {
     }
 
     /// Put the cursor in the active tab once the widgets have settled.
+    /// Commands act on the pane last clicked or typed in; after a close or a
+    /// palette, focus lands here, never on a widget that is going away.
     pub(crate) fn focus_terminal(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         glib::idle_add_local_once(move || {

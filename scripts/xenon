@@ -373,7 +373,8 @@ open_paths() {
 }
 
 main() {
-    # Let systemd-coredump keep a dump when the app crashes.
+    # Let systemd-coredump keep a dump when the app crashes. A panic lands in
+    # the slot's xenon.log; a segfault leaves nothing there: `coredumpctl info PID`.
     ulimit -c unlimited 2>/dev/null || true
     if [[ ! -x "$APP" ]]; then
         echo "Xenon app binary not found: $APP" >&2

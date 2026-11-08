@@ -1193,7 +1193,8 @@ function setKeys(on) {
 
 function renderStale() {
   const stale = !S.connected && !S.fixtureLive;
-  // Disabling blurs the inputs; put focus back when the socket is live again.
+  // Disabling a focused input blurs it, and iOS never gives focus back, so put focus
+  // back when the socket is live again. A new input disabled while stale needs the same.
   if (stale && !S.stale) {
     const a = document.activeElement;
     S.refocus = a && (a.id === "direct" || a.id === "msg") ? a.id : null;
