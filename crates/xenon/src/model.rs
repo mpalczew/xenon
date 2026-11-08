@@ -305,6 +305,21 @@ impl Model {
         true
     }
 
+    /// Move `id` `delta` places along the list; false at either end.
+    pub(crate) fn shift_workspace(&mut self, id: WorkspaceId, delta: isize) -> bool {
+        let list = &self.registry.workspaces;
+        let Some(from) = list.iter().position(|r| r.id == id) else {
+            return false;
+        };
+        let to = from as isize + delta;
+        if to < 0 || to >= list.len() as isize {
+            return false;
+        }
+        // The row now at `to` (moving up) or just after it (moving down).
+        let before = list.get(to as usize + usize::from(delta > 0)).map(|r| r.id);
+        self.move_workspace(id, before)
+    }
+
     /// Move `id` to the closed list and pick the neighbour to show next.
     pub(crate) fn close_workspace(&mut self, id: WorkspaceId) -> Option<WorkspaceId> {
         let index = self.registry.workspaces.iter().position(|r| r.id == id)?;

@@ -40,6 +40,11 @@ const BINDINGS: &[(&str, &[&str])] = &[
     ("app.next-pane", &["<Control>grave"]),
     ("app.next-workspace", &["<Control><Alt>Down"]),
     ("app.prev-workspace", &["<Control><Alt>Up"]),
+    ("app.move-workspace-up", &["<Control><Alt><Shift>Page_Up"]),
+    (
+        "app.move-workspace-down",
+        &["<Control><Alt><Shift>Page_Down"],
+    ),
     ("app.close-workspace", &["<Control><Alt>w"]),
     ("app.split-right", &["<Control>backslash"]),
     (

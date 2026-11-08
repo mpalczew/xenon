@@ -44,10 +44,27 @@ impl App {
             id.is_some_and(|id| model.move_workspace(id, before))
         };
         if moved {
-            self.sidebar.rebuild(&self.model.borrow());
-            self.paint_all();
-            self.save_registry();
+            self.redraw_workspaces();
         }
+    }
+
+    /// Move the open workspace one place up (`-1`) or down (`1`) the list.
+    pub(crate) fn shift_workspace(self: &Rc<Self>, delta: isize) {
+        let moved = {
+            let mut model = self.model.borrow_mut();
+            model
+                .active()
+                .is_some_and(|id| model.shift_workspace(id, delta))
+        };
+        if moved {
+            self.redraw_workspaces();
+        }
+    }
+
+    fn redraw_workspaces(self: &Rc<Self>) {
+        self.sidebar.rebuild(&self.model.borrow());
+        self.paint_all();
+        self.save_registry();
     }
 
     pub(crate) fn step_workspace(self: &Rc<Self>, delta: isize) {

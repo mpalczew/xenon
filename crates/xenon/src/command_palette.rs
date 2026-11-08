@@ -32,6 +32,8 @@ const COMMANDS: &[(&str, &str)] = &[
     ("Next Pane", "app.next-pane"),
     ("Next Workspace", "app.next-workspace"),
     ("Previous Workspace", "app.prev-workspace"),
+    ("Move Workspace Up", "app.move-workspace-up"),
+    ("Move Workspace Down", "app.move-workspace-down"),
     ("Close Workspace", "app.close-workspace"),
     ("Split Right", "app.split-right"),
     ("Split Down", "app.split-down"),

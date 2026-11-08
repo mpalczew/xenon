@@ -1,7 +1,7 @@
 //! The workspaces sidebar: a list box with a compact two-line row per
 //! workspace and a status line in the left margin.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
@@ -36,6 +36,8 @@ pub(crate) struct Sidebar {
     add: gtk::MenuButton,
     app: Weak<App>,
     rows: RefCell<Vec<WsRow>>,
+    /// Index of the row being dragged.
+    dragging: Rc<Cell<Option<usize>>>,
 }
 
 /// `$HOME` shown as `~`.
@@ -86,9 +88,33 @@ impl Sidebar {
             glib::Propagation::Proceed
         });
         list.add_controller(keys);
-        Self::accept_drops(&list, app.clone());
+        list.add_css_class("xworkspaces");
+        // The insertion line floats over the list, above the rows.
+        let rule = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        rule.set_valign(gtk::Align::Start);
+        rule.set_can_target(false);
+        rule.set_visible(false);
+        rule.set_margin_start(6);
+        rule.set_margin_end(6);
+        for cap in [true, false] {
+            if !cap {
+                let line = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+                line.add_css_class("xdrop-line");
+                line.set_hexpand(true);
+                line.set_valign(gtk::Align::Center);
+                rule.append(&line);
+            }
+            let dot = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            dot.add_css_class("xdrop-cap");
+            rule.append(&dot);
+        }
+        let overlay = gtk::Overlay::new();
+        overlay.set_child(Some(&list));
+        overlay.add_overlay(&rule);
+        let dragging = Rc::new(Cell::new(None));
+        Self::accept_drops(&list, &rule, &dragging, app.clone());
 
-        let workspaces = Section::new("WORKSPACES", Fold::Workspaces, &list, Some(300), &app);
+        let workspaces = Section::new("WORKSPACES", Fold::Workspaces, &overlay, Some(300), &app);
         workspaces.set_trailing(&add);
         workspaces.sep.set_visible(false);
         let files = FilesView::new(app.clone());
@@ -120,59 +146,74 @@ impl Sidebar {
             add,
             app,
             rows: RefCell::default(),
+            dragging,
         }
     }
 
-    /// Dropping a dragged row on the list: a row takes the dragged one's place,
-    /// the space below the last row sends it to the end.
-    fn accept_drops(list: &gtk::ListBox, app: Weak<App>) {
+    /// Dropping a dragged row on the list: a line shows the gap it would land
+    /// in, picked by the row midpoints; only below the last row means the end.
+    fn accept_drops(
+        list: &gtk::ListBox,
+        rule: &gtk::Box,
+        dragging: &Rc<Cell<Option<usize>>>,
+        app: Weak<App>,
+    ) {
         let target = gtk::DropTarget::new(u32::static_type(), gdk::DragAction::MOVE);
-        // Mark where the row would land; `None` clears every mark.
-        let mark = |list: &gtk::ListBox, y: Option<f64>| {
+        // The gap for a pointer at `y`, and where to draw the line for it.
+        let slot_at = |list: &gtk::ListBox, y: f64| {
             let rows = list.observe_children().n_items() as i32;
-            let hit = y.and_then(|y| list.row_at_y(y as i32));
-            for i in 0..rows {
-                if let Some(row) = list.row_at_index(i) {
-                    set_class(
-                        &row,
-                        "drop-before",
-                        y.is_some() && hit.as_ref() == Some(&row),
-                    );
-                    set_class(
-                        &row,
-                        "drop-after",
-                        y.is_some() && hit.is_none() && i == rows - 1,
-                    );
-                }
-            }
-            hit
+            let bounds = |i: i32| {
+                let b = list.row_at_index(i)?.compute_bounds(list)?;
+                Some((b.y() as f64, (b.y() + b.height()) as f64))
+            };
+            let slot = (0..rows)
+                .find(|&i| bounds(i).is_some_and(|(top, bottom)| y < (top + bottom) / 2.0))
+                .unwrap_or(rows);
+            let line = match slot {
+                0 => bounds(0).map(|b| b.0),
+                s if s == rows => bounds(rows - 1).map(|b| b.1),
+                s => bounds(s - 1).zip(bounds(s)).map(|(a, b)| (a.1 + b.0) / 2.0),
+            };
+            (slot as usize, line.unwrap_or(0.0))
+        };
+        // A drop in the dragged row's own gap, or the one after it, moves nothing.
+        let moves = {
+            let dragging = dragging.clone();
+            move |slot: usize| dragging.get().is_some_and(|d| slot != d && slot != d + 1)
         };
         target.connect_motion({
             let list = list.clone();
+            let rule = rule.clone();
+            let moves = moves.clone();
             move |_, _, y| {
-                mark(&list, Some(y));
+                let (slot, line) = slot_at(&list, y);
+                rule.set_margin_top(line as i32 - 3);
+                rule.set_visible(moves(slot));
                 gdk::DragAction::MOVE
             }
         });
         target.connect_leave({
-            let list = list.clone();
-            move |_| {
-                mark(&list, None);
-            }
+            let rule = rule.clone();
+            move |_| rule.set_visible(false)
         });
         target.connect_drop({
             let list = list.clone();
+            let rule = rule.clone();
             move |_, value, _, y| {
-                let hit = list.row_at_y(y as i32).map(|r| r.index().max(0) as usize);
-                mark(&list, None);
+                rule.set_visible(false);
+                let (slot, _) = slot_at(&list, y);
                 let Ok(from) = value.get::<u32>() else {
                     return false;
                 };
+                if !moves(slot) {
+                    return false;
+                }
+                let end = slot == list.observe_children().n_items() as usize;
                 // Deferred: reordering rebuilds the list mid-drop.
                 let app = app.clone();
                 glib::idle_add_local_once(move || {
                     if let Some(app) = app.upgrade() {
-                        app.reorder_workspace(from as usize, hit);
+                        app.reorder_workspace(from as usize, (!end).then_some(slot));
                     }
                 });
                 true
@@ -279,8 +320,30 @@ impl Sidebar {
             });
             drag.connect_drag_begin({
                 let row = row.clone();
-                move |source, _| {
-                    source.set_icon(Some(&gtk::WidgetPaintable::new(Some(&row))), 0, 0);
+                let dragging = self.dragging.clone();
+                let name = rec.name.clone();
+                move |_, drag| {
+                    dragging.set(Some(row.index().max(0) as usize));
+                    row.add_css_class("xdragging");
+                    // The name, below and right of the pointer so the line stays clear.
+                    let ghost = gtk::Label::new(Some(&name));
+                    ghost.add_css_class("xdrag-ghost");
+                    ghost.set_margin_start(14);
+                    ghost.set_margin_top(20);
+                    if let Some(icon) =
+                        gtk::DragIcon::for_drag(drag).downcast_ref::<gtk::DragIcon>()
+                    {
+                        // sync: the icon window is new and belongs to this drag
+                        icon.set_child(Some(&ghost));
+                    }
+                }
+            });
+            drag.connect_drag_end({
+                let row = row.clone();
+                let dragging = self.dragging.clone();
+                move |_, _, _| {
+                    dragging.set(None);
+                    row.remove_css_class("xdragging");
                 }
             });
             row.add_controller(drag);

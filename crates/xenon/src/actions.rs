@@ -37,6 +37,8 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("next-pane", |a| a.next_pane()),
     ("next-workspace", |a| a.step_workspace(1)),
     ("prev-workspace", |a| a.step_workspace(-1)),
+    ("move-workspace-up", |a| a.shift_workspace(-1)),
+    ("move-workspace-down", |a| a.shift_workspace(1)),
     ("close-workspace", |a| a.close_workspace()),
     ("split-right", |a| a.split(SplitAxis::Horizontal)),
     ("split-down", |a| a.split(SplitAxis::Vertical)),

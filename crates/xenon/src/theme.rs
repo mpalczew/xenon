@@ -11,8 +11,12 @@ listview.xfiles > row { min-height: 24px; padding: 0 6px; }
 listview.xfiles treeexpander:drop(active) { background: alpha(@accent_color, 0.25); }
 listview.xfiles:drop(active) { box-shadow: inset 0 0 0 2px @accent_color; }
 vte-terminal { padding: 4px 8px; }
-row.drop-before { box-shadow: 0 -1px 0 1px @accent_color; }
-row.drop-after { box-shadow: 0 1px 0 1px @accent_color; }
+listbox.xworkspaces:drop(active) { box-shadow: none; }
+listbox.xworkspaces > row.xdragging { opacity: 0.45; }
+.xdrop-line, .xdrop-cap { background: @accent_color; border-radius: 99px; }
+.xdrop-line { min-height: 2px; }
+.xdrop-cap { min-width: 6px; min-height: 6px; }
+.xdrag-ghost { background: @view_bg_color; border-radius: 99px; padding: 3px 10px; font-weight: bold; box-shadow: 0 1px 3px alpha(black, 0.18), 0 6px 16px alpha(black, 0.14); }
 .xdrop { background: alpha(@accent_color, 0.35); border: 2px solid @accent_color; }
 .xpane { border-top: 2px solid transparent; }
 .xpane:focus-within:not(:only-child) { border-top-color: @accent_color; }
