@@ -1,177 +1,65 @@
 # Workspace worklist
 
-The worklist is a title-and-bullets list per workspace. The interaction uses two quiet
-toolbar actions, a quick capture popover, and a closable worklist tab. The item format
-below is implemented.
+Each workspace has one worklist, a Markdown file at
+`<workspace-root>/.xenon/worklist.md`. It is plain context for people and agents. Xenon
+does not assign, dispatch or run items, and a listed task is never permission to execute
+it. There is no frontmatter, ID, date, database or agent protocol.
 
-## Experience
+## Using it
 
-Each workspace has one worklist at `<workspace-root>/.xenon/worklist.md`. Nothing is
-permanently visible or automatically opened. The toolbar's **Add to Worklist** button
-(`⌘⇧K`) opens quick capture without opening a tab. **Open Worklist** (`⌘⌥K`) opens or
-focuses the same ordinary, closable editor tab, including one in another pane. Closing
-the tab keeps the file. A previously open tab may return through normal session
-restoration.
+- Ctrl+Shift+K (Add to Worklist) opens a quick capture popover. Ctrl+Alt+K (Open
+  Worklist) opens or focuses the ordinary, closable worklist editor tab. Closing the tab
+  keeps the file. With no workspace, both explain that one is needed.
+- Capture edits the same item form as the tab: a title and one point per line (Enter
+  adds a point, Tab indents). It saves as you type once there is a title. Escape,
+  Ctrl+Return or an outside click closes it. Ctrl+Backspace deletes the item. A saved
+  item shows a toast with Undo for four seconds. Unsaved text stays for that workspace
+  until the app closes.
+- When the file has sections, capture shows "Into Section", cycled with Alt+Up and
+  Alt+Down. It starts on the last section used in this session. The item is appended at
+  the end of that section. It locks once the first save lands.
+- The tab opens in List mode, with a List | Markdown toggle. The list shows sections as
+  headings (rename and delete from a menu), items as rows with a check button, the
+  title, and the points joined as a subtitle, and an "Add item" row at the end of each
+  section. Done items stay in place, dimmed, unless Hide Completed is on. Move to
+  Section appends an item to another section. Items cannot be reordered. Deletes show an
+  Undo toast.
+- Markdown mode is the normal editor over the same buffer. Switching back to List needs
+  the Markdown edits saved or undone first. An item the list cannot safely rewrite
+  (nested checkboxes, code, tables) stays visible and says to use Markdown.
 
-The two icon buttons sit together in the toolbar's right group after a divider. Their
-pointer and keyboard-focus hints show the command name and registered chord; icons
-without shortcuts show a name only. The command catalog drives labels and chords for the
-toolbar, command palette, and keyboard help. A toolbar action leaves the editor or
-terminal focused where appropriate. With no workspace, the worklist actions explain that
-a workspace is needed.
+## File format
 
-Toolbar capture hosts the same item editor as the worklist tab (title, points, and task
-checkbox), with no header, hints, or Save button. The title placeholder names the
-workspace. Title receives focus each time capture opens. Enter adds a point and Tab
-indents. The item saves as you type once it has a valid title: the first save appends
-it, later saves rewrite it in place. Escape, ⌘Enter, or outside click closes the popover
-and restores the previous focus. A fully saved item starts a fresh capture next time and
-shows a toast offering Undo (⌘Z) for four seconds; unsaved text (no title yet, or a
-failed save) stays for that workspace during this app session. ⌘⌫ deletes the item and
-closes. A failure explains the error inline. Capture stays bound to the workspace where
-it began. When that workspace's worklist tab is open, capture writes through the tab's
-buffer so the file has one writer; if the tab has unsaved Markdown changes, the user
-must resolve them before capture writes.
+- An item is a title line with indented point bullets. A `- [ ]` checkbox makes it a
+  task; without one it is a note. Titles are one line and aim for 80 characters; longer
+  ones save, with a warning in the editor. Keep points short, and use child bullets for
+  longer ideas. The list flattens nested points into the subtitle, so nested items are
+  edited in Markdown.
+- Sections are plain headings. The first `#` heading is the document title and is not a
+  section. Any later `#` or `##` starts one (`##` preferred); `###` and below are
+  ordinary content. Items before the first section show at the top with no heading.
+- Existing Markdown stays valid and is rewritten only when that item is edited. Edits
+  keep the file's line endings and leave unrelated text alone. Hard-wrapped lines belong
+  to the title or point above them.
+- An absent file opens as an empty unsaved document. The directory and file are created
+  on the first write.
 
-The worklist tab opens in **List** presentation by default. Its header holds a List |
-Markdown toggle, a **+** button (Add to Worklist for the section that has focus) and a
-menu with **Hide Completed**. The list reads the Markdown file directly and shows each
-section as a heading with a menu (Rename, Delete) above a stock boxed list. An item row
-has a round check button that toggles done, the title, the detail bullets joined with "
-· " as the subtitle, and a menu (Edit, Move to Section, Delete). Done items are dimmed
-and struck through and stay in place. Activating a row opens the Add to Worklist form
-prefilled, with a Delete button; it saves as you type. The last row of every section is
-an "Add item…" row: type, press Enter, and the item is added there and the row stays
-focused for the next one. **New Section** under the last section asks for a name.
-Deleting an item or section shows a toast with Undo, which restores the file as it was
-if nothing else has changed it. The list has no keys of its own beyond what GTK gives.
-An item the list cannot safely rewrite (nested checkboxes, code, tables) stays visible
-and says to use **Markdown**. Markdown mode is the normal editor over the same buffer,
-with ordinary selection, find, Vim editing, dirty state, and Save. Switching back to
-List requires saving or undoing Markdown edits first. Hard-wrapped lines (indented, no
-marker) belong to the title or bullet above them. There is no duplicate task store or
-separate worklist window.
+## Writing safely
 
-## Sections
+- Capture, list actions and Markdown Save all go through one validated path with an
+  exact-bytes revision check, and write by temporary file and rename. If the file
+  changed on disk, the write is refused and your text stays available. `:w!` cannot
+  override that.
+- When the worklist tab is open, capture writes through the tab's buffer so there is one
+  writer. If the tab has unsaved Markdown edits, resolve them first.
+- Clean open tabs poll for outside changes, so agent edits show up without refocusing.
+- Symlinks that leave the workspace are rejected. An unclosed code fence or frontmatter
+  blocks capture with an error.
+- Without file locking, a writer racing between the last check and the rename can still
+  win.
 
-Sections are plain Markdown headings; there is no other storage. The first `#` heading
-is the document title (`# Worklist`), not a section, and the list does not show it. Any
-later `#` or `##` heading starts a section (`##` preferred). `###` and deeper are
-ordinary content. Items above the first section show at the top without a header. A file
-with no sections looks exactly as before.
+## Out of scope
 
-```md
-# Worklist
-
-- Reply to the maintainers <- unsectioned, shown at the top
-
-## Now
-
-- [ ] Fix focus after closing a split
-
-## Next
-```
-
-**List.** Each section is a heading with a menu (Rename, Delete) above its own boxed
-list and "Add item…" row. Delete removes the heading and everything under it (Undo
-restores it). Items above the first section show first without a heading. Renaming or
-creating a section edits only its heading line; other text is untouched, and line
-endings are preserved. Sections do not fold.
-
-**Capture.** When the file has sections, quick capture shows "Into ‹ Section ›" under
-the editor. ⌥↑/⌥↓ (or the ‹ › buttons) cycle the options: the sections in file order,
-preceded by the top when unsectioned items exist. The default is the last section
-captured into for that workspace during this app session, otherwise the first option.
-The item is appended at the end of the chosen section, before the next heading, without
-reformatting anything else. Once the first save lands the chip locks. With no sections
-the chip is absent and capture appends at the end of the file.
-
-**Moving.** An item's menu has Move to Section, which cuts the item and appends it to
-the end of the chosen section. There is no reordering within a section.
-
-## File behavior
-
-Opening an absent worklist creates an empty virtual document; it does not create
-`.xenon` or mark the tab dirty. Save is available in this empty state and creates the
-file with `# Worklist`. The directory and file are otherwise created on the first
-successful write. Task capture appends `- [ ] Title` with indented detail bullets; Note
-capture appends `- Title` with the same detail bullets. Captures preserve the file's
-line-ending style and do not reformat existing text. An unclosed code fence or
-frontmatter blocks capture with a recoverable error.
-
-Capture, list actions, and Markdown Save share one validated file path and exact-byte
-revision check. Writes use a temporary file and atomic rename. A detected external
-change refuses the write and keeps local text available for reconciliation; `:w!` cannot
-bypass this for the worklist. Clean open tabs poll for external changes so agent edits
-appear without refocusing the tab. Symlinks that resolve outside the workspace are
-rejected. The revision check closes ordinary read–write conflicts but, without
-filesystem locking, cannot guarantee exclusion of a simultaneous writer between the last
-check and rename.
-
-Agents interface with the worklist as an ordinary project file. They may read it, append
-a task or note, or edit/check off an item when instructed, preserving unrelated
-Markdown. Xenon does not infer ownership, dispatch tasks, or treat a listed task as
-authorization to execute it. The file needs no frontmatter, IDs, timestamps, proprietary
-metadata, database, or dedicated agent protocol.
-
-## Item format
-
-Each item is a bold, scannable title with indented detail bullets. The Markdown
-convention is:
-
-```md
-# Worklist
-
-- [ ] Change Cloudflare account email
-  - Confirm password sign-in and access to the current inbox.
-  - Change the login email in the existing account.
-  - Rotate API tokens afterward.
-
-- Account context
-  - Keep the bucket in the existing account.
-```
-
-Every item has a nonempty, single-line title of at most 80 user-perceived characters. A
-checkbox distinguishes a task from a note; both take optional detail bullets. One idea
-or action goes in each bullet. No required labels, dates, IDs, or fixed bullet
-categories. Existing Markdown stays valid and is rewritten in this format only when the
-user edits that item. The list displays titles prominently and bullets beneath them,
-without concatenating them into a paragraph. Long bullet text may wrap; titles remain
-bounded.
-
-Inline edit and quick capture focus a one-line Title field and expose an optional
-Details field that accepts one point per line, generating the indented Markdown bullets.
-Task is the default; changing to Note is one click. Saving requires a title. The
-80-character title limit is soft: longer titles save. The editor stays quiet until 12
-characters remain, then counts down; past 80 the overflow text is tinted amber and a
-note says long titles wrap in the list. The count uses user-perceived characters
-(graphemes). Editing a bullet must leave the title in place and preserve unrelated
-Markdown. Nested subtasks and complex Markdown blocks still require Markdown mode.
-
-The Xenon-installed skill describes this exact file convention and tells agents to
-create or update items with concise titles and bullet details, preserving unrelated
-entries. It also clarifies that the worklist is context, not permission to execute a
-task.
-
-## Proposed nested bullets and typography
-
-Keep each bullet to at most 100 visible user-perceived characters. When an idea needs
-more room, use a short parent bullet with two-space-indented child bullets. Split by
-meaning rather than wrapping a sentence at the limit. The agent skill uses this file
-convention now; the native List view flattens nested details into the subtitle, so
-nested items require Markdown mode to edit.
-
-The title is the first row in the canvas. Enter or Down from it enters the first point,
-creating that point if needed; Up from the first point returns to the title. The editor
-accepts plain text and serializes bullets to Markdown without typed markers or a
-Task/Note choice. Tab indents the focused point at any caret position. Backspace at its
-start outdents it, or merges a top-level point into the previous point. Existing note
-entries remain readable. The native editor is this outline. Edits save as you type. A
-task's checkbox stays clickable while editing. Delete is a destructive button, also
-reached with ⌘⌫. Escape closes the editor. There is no item counter, move control, or
-Save button; the title count appears only near the soft limit.
-
-## Verification and boundaries
-
-Due dates, priorities, ownership, background task runners, sync, and search across
-workspaces are outside this version. The app and this spec define the current behavior.
+Due dates, priorities, owners, background runners, sync, and search across workspaces.
+The Xenon-installed agent skill describes this format and tells agents to add concise
+titles and points and to preserve unrelated entries.
