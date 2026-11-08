@@ -16,7 +16,6 @@ It is for people who run several agents across several checkouts.
 - A workspace is a project folder plus its saved layout and tabs. Workspaces are the
   unit of work.
 - Each workspace has a tree of panes, and each pane holds a stack of tabs. Opening a
-  file adds a tab in the focused pane. Closing the last tab in a pane leaves the pane
-  empty, showing its empty page.
+  file adds a tab in the focused pane.
 - The optional sidebar lists workspaces, then Files, then Git for the active workspace.
 - The phone remote lets you see and use your terminals from a phone.
