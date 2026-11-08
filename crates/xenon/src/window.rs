@@ -9,7 +9,7 @@ use std::time::Instant;
 use adw::prelude::*;
 use gtk::gio;
 use xenon_settings::{FontProbe, UiSettings};
-use xenon_store::{AppSettings, WindowState};
+use xenon_store::{AppSettings, ThemeMode, WindowState};
 
 use crate::app::App;
 use crate::model::Model;
@@ -52,6 +52,12 @@ impl App {
     /// settings that show in the sheet.
     pub(crate) fn apply_theme(&self) {
         let ui = self.settings.borrow().clone();
+        // A change of scheme fires `dark` notify, which runs this again first.
+        adw::StyleManager::default().set_color_scheme(match ui.theme.mode {
+            ThemeMode::System => adw::ColorScheme::Default,
+            ThemeMode::Light => adw::ColorScheme::ForceLight,
+            ThemeMode::Dark => adw::ColorScheme::ForceDark,
+        });
         let sheet = format!(
             "{}\ntextview.xeditor, textview.xdiff-code {{ font-family: \"{}\", monospace; font-size: {}px; }}\n{}",
             theme::CSS,

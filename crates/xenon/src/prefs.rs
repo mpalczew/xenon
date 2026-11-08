@@ -76,6 +76,7 @@ impl App {
             nav: adw::NavigationView::new(),
             stack: adw::ViewStack::new(),
         };
+        add_page(&shell.stack, &prefs_pages::appearance(self));
         add_page(&shell.stack, &prefs_pages::fonts(self));
         add_page(&shell.stack, &prefs_pages::editor(self));
         let agents = prefs_agents::agents(&shell);

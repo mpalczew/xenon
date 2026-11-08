@@ -1,4 +1,4 @@
-//! Settings pages made of plain rows: Fonts, Editor, Terminal. The choices,
+//! Settings pages made of plain rows: Appearance, Fonts, Editor, Terminal. The choices,
 //! clamps and healing all come from `xenon_settings`; a row only reads a value
 //! and hands the new one to `App::change_settings`.
 
@@ -7,8 +7,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use xenon_settings::{
     FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_SIZES,
-    ProseMarkers, Surface, TerminalAutoClose, UiSettings, format_size, mono_font_choices,
-    nearest_index,
+    ProseMarkers, Surface, TerminalAutoClose, ThemeMode, UiSettings, format_size,
+    mono_font_choices, nearest_index,
 };
 
 use crate::app::App;
@@ -96,6 +96,40 @@ fn font_group(
     });
     group.add(&size);
     group
+}
+
+/// System, Light or Dark. System follows the desktop.
+pub(crate) fn appearance(app: &Rc<App>) -> adw::PreferencesPage {
+    let page = page("appearance", "Appearance", "applications-graphics-symbolic");
+    let group = adw::PreferencesGroup::new();
+    let row = adw::ActionRow::builder()
+        .title("Mode")
+        .subtitle("System follows the desktop's light and dark")
+        .build();
+    let toggles = adw::ToggleGroup::new();
+    toggles.set_valign(gtk::Align::Center);
+    for (name, label) in [("system", "System"), ("light", "Light"), ("dark", "Dark")] {
+        toggles.add(adw::Toggle::builder().name(name).label(label).build());
+    }
+    toggles.set_active_name(Some(match app.settings.borrow().theme.mode {
+        ThemeMode::System => "system",
+        ThemeMode::Light => "light",
+        ThemeMode::Dark => "dark",
+    }));
+    let app = app.clone();
+    toggles.connect_active_name_notify(move |t| {
+        let mode = match t.active_name().as_deref() {
+            Some("light") => ThemeMode::Light,
+            Some("dark") => ThemeMode::Dark,
+            _ => ThemeMode::System,
+        };
+        app.change_settings(|s| s.theme.mode = mode);
+    });
+    row.add_suffix(&toggles);
+    row.set_activatable_widget(Some(&toggles));
+    group.add(&row);
+    page.add(&group);
+    page
 }
 
 pub(crate) fn fonts(app: &Rc<App>) -> adw::PreferencesPage {

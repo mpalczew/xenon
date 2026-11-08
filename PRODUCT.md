@@ -178,7 +178,8 @@ Cool, dense, calm cockpit. Power-user confident, not playful mascot.
   consistent icons.
 - **Option 3-lite:** agent-cockpit bias (workspace attention, terminal status, cool
   density) without a full IA rewrite yet.
-- **Look:** the desktop's own light or dark libadwaita look; no theme packs.
+- **Look:** the desktop's own libadwaita look; Mode (System, Light, Dark) can force
+  light or dark. No theme packs.
 
 ## Anti-references
 

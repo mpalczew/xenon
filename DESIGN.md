@@ -71,7 +71,8 @@ zero.
 - **Theme.** The desktop's. Colors, accent and light or dark come from libadwaita and
   follow `AdwStyleManager`. The editor and diff use the Adwaita or Adwaita-dark
   GtkSourceView scheme; the terminal uses a fixed light or dark palette. There is no
-  theme picker.
+  theme picker. Settings › Appearance › Mode (System, Light, Dark) can force light or
+  dark; System follows the desktop.
 - **Layout.** A header bar, a resizable sidebar (Workspaces, Files, Git) and the pane
   tree as nested `GtkPaned`. A focused pane gets a 2px accent top edge only when the
   layout has more than one pane.
