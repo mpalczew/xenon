@@ -454,9 +454,10 @@ alongside the tailnet path, never in place of it.
 - Cursor hiding is not possible: VTE does not expose the hide-cursor mode (DECTCEM) and
   sends no signal for it, so the phone cursor stays visible.
 - Light and dark: the page's `appearance` (Auto follows `prefers-color-scheme`) picks
-  the default colors in `theme`. The 16 ANSI colors are the same in both looks, so cell
-  colors from VTE stay valid; only default text and background change. The Mac's own
-  look is untouched.
+  the default colors in `theme`; the Mac's own look is untouched. Programs choose their
+  colors for the Mac's background, so the page keeps every text color at 4.5:1 contrast
+  against what it is drawn on (`readable` in `page.html`), moving it toward black or
+  white. Default text on a background a program set gets the same treatment.
 - Tasks: `ListTasks` is the Mac picker's rows. `runTask` starts a quiet run (no tab or
   focus change on the Mac). Its `inputs` questions go to the phone that started the run
   as `taskInput`; a dropped phone cancels the run. `taskStarted` names the run's first

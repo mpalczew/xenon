@@ -357,11 +357,35 @@ const Core = (() => {
     return { rows, acc: next - rows * lineH };
   }
 
-  /** CSS for one interned style; colors are validated so the server can't inject CSS. */
-  function styleRule(id, st) {
+  /** Least contrast text keeps against what it is drawn on (WCAG AA). */
+  const MIN_CONTRAST = 4.5;
+
+  /** `fg`, moved toward black or white until it reads on `bg`. Programs pick
+   *  colors for the Mac's background; the phone may show a different one. */
+  function readable(fg, bg) {
+    if (luminance(fg) == null || luminance(bg) == null || contrast(fg, bg) >= MIN_CONTRAST) return fg;
+    const h = fg.length === 4 ? fg.slice(1).replace(/./g, "$&$&") : fg.slice(1, 7);
+    const rgb = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const goal = contrast("#000000", bg) > contrast("#ffffff", bg) ? 0 : 255;
+    const mix = (t) => "#" + rgb.map((v) => Math.round(v + (goal - v) * t).toString(16).padStart(2, "0")).join("");
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + hi) / 2;
+      if (contrast(mix(mid), bg) >= MIN_CONTRAST) hi = mid; else lo = mid;
+    }
+    return mix(hi);
+  }
+
+  /** CSS for one interned style; colors are validated so the server can't inject CSS.
+   *  `theme` is the page's terminal colors, which unstyled text and background use. */
+  function styleRule(id, st, theme) {
     const d = [];
-    if (st.fg && COLOR.test(st.fg)) d.push("color:" + st.fg);
-    if (st.bg && COLOR.test(st.bg)) d.push("background:" + st.bg);
+    const bg = st.bg && COLOR.test(st.bg) ? st.bg : null;
+    const fg = st.fg && COLOR.test(st.fg) ? st.fg : null;
+    const under = bg || (theme && theme.bg);
+    if (fg) d.push("color:" + readable(fg, under));
+    else if (bg && theme && theme.fg) d.push("color:" + readable(theme.fg, bg));
+    if (bg) d.push("background:" + bg);
     const f = st.f | 0;
     if (f & F.BOLD) d.push("font-weight:700");
     if (f & F.ITALIC) d.push("font-style:italic");
@@ -468,7 +492,7 @@ const Core = (() => {
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
-  fixture: false, themed: false, view: null,
+  fixture: false, themed: false, theme: null, view: null,
   ws: null, connected: false, attempt: 0, retryTimer: 0, pongTimer: 0,
   workspaces: [], recentOpen: false, tasks: [], taskInput: null, runningTask: null,
   wsSel: null, terminals: [], skippedList: false,
@@ -1001,13 +1025,15 @@ function applyTheme(th) {
   }
   if (ok(th.fg)) root.setProperty("--term-fg", th.fg);
   if (ok(th.cursor)) root.setProperty("--cursor", th.cursor);
+  S.theme = ok(th.bg) && ok(th.fg) ? { bg: th.bg, fg: th.fg } : null;
+  addStyles({});
 }
 
 /** Interned styles can be re-sent with the same id (new socket, reset table): rebuild, never append. */
 function addStyles(add) {
   for (const id in add || {}) S.styles[id] = add[id];
   let css = "";
-  for (const id in S.styles) css += "#term " + Core.styleRule(id, S.styles[id]) + "\n";
+  for (const id in S.styles) css += "#term " + Core.styleRule(id, S.styles[id], S.theme) + "\n";
   $("term-styles").textContent = css;
 }
 
