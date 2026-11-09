@@ -50,12 +50,18 @@ impl TermView {
         term.set_audible_bell(false);
         term.set_scroll_on_output(false);
         term.set_scroll_unit_is_pixels(true);
+        // Let GTK's scrolled window handle touchpad scrolling (speed, momentum) like Ptyxis.
+        term.set_enable_fallback_scrolling(false);
         term.set_scroll_on_keystroke(true);
         term.set_cursor_blink_mode(vte::CursorBlinkMode::Off);
         let find = FindBar::new(&term);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.append(&find.revealer);
-        root.append(&term);
+        let scroller = gtk::ScrolledWindow::new();
+        scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
+        scroller.set_vexpand(true);
+        scroller.set_child(Some(&term));
+        root.append(&scroller);
         let spawn_dir = cwd
             .file_name()
             .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
