@@ -65,3 +65,6 @@ case ":$PATH:" in
     *":$bin_dir:"*) ;;
     *) echo "note: $bin_dir is not on PATH" >&2 ;;
 esac
+
+# Drop build files untouched for two weeks, so target/ doesn't grow without end.
+"$root/scripts/prune-target"
