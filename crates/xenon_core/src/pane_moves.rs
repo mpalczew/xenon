@@ -71,9 +71,10 @@ impl<T: PaneTab> PaneContent<T> {
         self.root.as_ref()?.find_tab(tab)
     }
 
-    /// Close a tab. A pane that still has tabs (or is parked) stays; an
-    /// emptied pane is removed unless it is the last one. Focus follows the
-    /// closed tab only when the user was looking at it. `None` if no such tab.
+    /// Close a tab. The pane stays, even when this empties it; only closing
+    /// the pane removes it. The last pane is the exception: emptying it clears
+    /// the workspace. Focus follows the closed tab only when the user was
+    /// looking at it. `None` if no such tab.
     pub fn close_tab(&mut self, tab: TabId) -> Option<CloseOutcome> {
         let focused_before = self.focused;
         let root = self.root.as_mut()?;
@@ -84,32 +85,18 @@ impl<T: PaneTab> PaneContent<T> {
                 .is_some_and(|leaf| leaf.active_tab().is_some_and(|a| a.tab_id() == tab));
         let leaf = root.find_leaf_mut(pane)?;
         leaf.tabs.remove(idx);
-        if !leaf.tabs.is_empty() || leaf.parked {
-            if !leaf.tabs.is_empty() {
-                fix_active_idx(&mut leaf.active, idx, leaf.tabs.len());
-            }
-            if was_showing {
-                self.focused = Some(pane);
-                Some(CloseOutcome::FocusPane(pane))
-            } else {
-                Some(CloseOutcome::Kept)
-            }
+        if !leaf.tabs.is_empty() {
+            fix_active_idx(&mut leaf.active, idx, leaf.tabs.len());
         } else if self.leaf_ids().len() <= 1 {
             self.root = None;
             self.focused = None;
-            Some(CloseOutcome::Empty)
+            return Some(CloseOutcome::Empty);
+        }
+        if was_showing {
+            self.focused = Some(pane);
+            Some(CloseOutcome::FocusPane(pane))
         } else {
-            self.unsplit_empty(pane);
-            if !was_showing
-                && let Some(prev) = focused_before
-                && self
-                    .root
-                    .as_ref()
-                    .is_some_and(|root| root.find_leaf(prev).is_some())
-            {
-                self.focused = Some(prev);
-            }
-            Some(CloseOutcome::Unsplit)
+            Some(CloseOutcome::Kept)
         }
     }
 

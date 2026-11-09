@@ -21,8 +21,6 @@ pub enum ParkOutcome {
 pub enum CloseOutcome {
     /// The pane stays and shows the tab the user was looking at: focus it.
     FocusPane(PaneId),
-    /// The emptied pane was removed; `focused` now names the pane to focus.
-    Unsplit,
     /// That was the last tab in the last pane: the tree is gone.
     Empty,
     /// Nothing visible changed.

@@ -356,7 +356,7 @@ impl Model {
 fn live_node(node: &PaneNode) -> PaneTree<Tab> {
     match node {
         PaneNode::Leaf(leaf) => {
-            let mut tabs: Vec<Tab> = leaf
+            let tabs: Vec<Tab> = leaf
                 .tabs
                 .iter()
                 .map(|state| match state {
@@ -379,9 +379,6 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                     },
                 })
                 .collect();
-            if tabs.is_empty() && !leaf.parked {
-                tabs.push(Tab::terminal(TabId(leaf.id.0.saturating_mul(1000) + 1)));
-            }
             let active = leaf.active.min(tabs.len().saturating_sub(1));
             PaneTree::Leaf(PaneLeaf {
                 id: leaf.id,

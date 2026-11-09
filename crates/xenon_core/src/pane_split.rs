@@ -109,7 +109,7 @@ impl<T> PaneTree<T> {
     }
 
     /// Saved form. `keep` converts a tab to its persisted state, or `None` to
-    /// leave it out; a leaf whose tabs were all dropped stays as a parked pane.
+    /// leave it out; a leaf whose tabs were all dropped stays as an empty pane.
     pub fn snapshot(&self, keep: &dyn Fn(&T) -> Option<TabState>) -> PaneNode {
         match self {
             Self::Leaf(leaf) => {
@@ -121,7 +121,7 @@ impl<T> PaneTree<T> {
                 PaneNode::Leaf(LeafPane {
                     id: leaf.id,
                     active: kept_before.min(tabs.len().saturating_sub(1)),
-                    parked: leaf.parked || (tabs.is_empty() && !leaf.tabs.is_empty()),
+                    parked: tabs.is_empty(),
                     tabs,
                 })
             }
