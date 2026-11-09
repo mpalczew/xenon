@@ -15,9 +15,8 @@ use crate::model::Tab;
 
 pub(crate) struct PaneView {
     pub root: gtk::Box,
-    bar: adw::TabBar,
     view: adw::TabView,
-    /// The workspace has more than one pane (every pane then shows its bar).
+    /// The workspace has more than one pane (the empty card then offers removal).
     multi: Cell<bool>,
     /// The tab view, or the empty card when the pane has no tabs.
     stack: gtk::Stack,
@@ -66,7 +65,6 @@ impl PaneView {
         root.append(&body);
         let this = Rc::new(Self {
             root,
-            bar,
             view,
             multi: Cell::new(false),
             stack,
@@ -171,9 +169,6 @@ impl PaneView {
         leaf: &PaneLeaf<Tab>,
         bodies: &HashMap<TabId, gtk::Widget>,
     ) {
-        // A lone tab in a lone pane needs no bar; the header names it.
-        self.bar
-            .set_visible(self.multi.get() || leaf.tabs.len() > 1);
         // A page whose tab is gone is closed. One whose tab lives in another
         // pane now stays until that pane takes it with `transfer_page`: a
         // closed page keeps its body inside the page's own wrapper, so the
