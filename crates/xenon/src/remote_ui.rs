@@ -57,11 +57,13 @@ impl App {
         let weak = Rc::downgrade(self);
         dialog.connect_closed(move |_| {
             let Some(app) = weak.upgrade() else { return };
-            *app.remote.connect_dialog.borrow_mut() = None;
-            if let Some(rt) = app.remote.rt.borrow_mut().as_mut() {
-                rt.devices.forget_pairing();
-            }
-            app.remote_publish();
+            glib::idle_add_local_once(move || {
+                *app.remote.connect_dialog.borrow_mut() = None;
+                if let Some(rt) = app.remote.rt.borrow_mut().as_mut() {
+                    rt.devices.forget_pairing();
+                }
+                app.remote_publish();
+            });
         });
         *self.remote.connect_dialog.borrow_mut() = Some(dialog.clone());
         self.refresh_connect_dialog();
@@ -139,7 +141,7 @@ impl App {
         let link = url.clone().unwrap_or_default();
         let weak = dialog.downgrade();
         copy.connect_clicked(move |button| {
-            button.clipboard().set_text(&link);
+            button.clipboard().set_text(&link); // sync: no widget changes
             if let Some(dialog) = weak.upgrade() {
                 // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                 dialog.close();
@@ -156,7 +158,7 @@ impl App {
                 // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                 dialog.close();
             }
-            gtk_app.activate_action("settings", None);
+            gtk_app.activate_action("settings", None); // sync: the action defers its own work
         });
         let done = gtk::Button::with_label("Done  esc");
         done.add_css_class("suggested-action");
@@ -250,7 +252,7 @@ pub(crate) fn install(app: &Rc<App>) {
     let weak = Rc::downgrade(app);
     toggle.connect_activate(move |_, _| {
         if let Some(app) = weak.upgrade() {
-            app.remote_toggle();
+            glib::idle_add_local_once(move || app.remote_toggle());
         }
     });
     app.gtk.add_action(&toggle);

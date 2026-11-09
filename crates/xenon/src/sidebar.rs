@@ -82,7 +82,7 @@ impl Sidebar {
             if key == gdk::Key::Escape
                 && let Some(app) = weak.upgrade()
             {
-                app.focus_terminal();
+                glib::idle_add_local_once(move || app.focus_terminal());
                 return glib::Propagation::Stop;
             }
             glib::Propagation::Proceed

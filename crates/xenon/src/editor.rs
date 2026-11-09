@@ -176,7 +176,8 @@ impl EditorView {
             let this = Rc::downgrade(&editor);
             editor.buffer.connect_modified_changed(move |b| {
                 if let (Some(app), Some(_)) = (weak.upgrade(), this.upgrade()) {
-                    app.editor_modified(ws, tab, b.is_modified());
+                    let modified = b.is_modified();
+                    glib::idle_add_local_once(move || app.editor_modified(ws, tab, modified));
                 }
             });
         }
@@ -186,6 +187,7 @@ impl EditorView {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let this = Rc::downgrade(&editor);
+        // sync: Return and Alt+1/3 must say at once whether the key was consumed (Ctrl+S is deferred).
         keys.connect_key_pressed(move |_, key, _, state| {
             let Some(this) = this.upgrade() else {
                 return glib::Propagation::Proceed;
@@ -193,7 +195,8 @@ impl EditorView {
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             let alt = state.contains(gdk::ModifierType::ALT_MASK);
             if ctrl && matches!(key, gdk::Key::s | gdk::Key::S) {
-                this.save(&weak);
+                let weak = weak.clone();
+                glib::idle_add_local_once(move || this.save(&weak));
                 return glib::Propagation::Stop;
             }
             let handled = match key {
@@ -317,16 +320,17 @@ impl EditorView {
             let this = Rc::downgrade(self);
             keep.connect_clicked(move |_| {
                 if let Some(this) = this.upgrade() {
-                    this.bar.set_visible(false);
+                    glib::idle_add_local_once(move || this.bar.set_visible(false));
                 }
             });
             let reload = gtk::Button::with_label("Load disk");
             let this = Rc::downgrade(self);
             reload.connect_clicked(move |_| {
                 if let Some(this) = this.upgrade()
+                    // sync: reads the file now; the reload itself is deferred.
                     && let Ok(text) = load(&this.path)
                 {
-                    this.replace_text(&text);
+                    glib::idle_add_local_once(move || this.replace_text(&text));
                 }
             });
             self.bar_actions.append(&keep);
@@ -345,7 +349,8 @@ impl EditorView {
         let (this, weak) = (Rc::downgrade(self), weak.clone());
         vim.connect_write(move |_, _, _| {
             if let Some(this) = this.upgrade() {
-                this.save(&weak);
+                let weak = weak.clone();
+                glib::idle_add_local_once(move || this.save(&weak));
             }
         });
         *self.vim.borrow_mut() = Some((vim, keys));

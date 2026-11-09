@@ -52,7 +52,11 @@ pub(crate) fn switch_row(
         .subtitle(subtitle)
         .active(on)
         .build();
-    row.connect_active_notify(move |row| toggle(row.is_active()));
+    let toggle = Rc::new(toggle);
+    row.connect_active_notify(move |row| {
+        let (toggle, on) = (toggle.clone(), row.is_active());
+        gtk::glib::idle_add_local_once(move || toggle(on));
+    });
     row
 }
 
@@ -92,7 +96,10 @@ fn font_group(
     size.set_value(f64::from(current.1));
     let app = app.clone();
     size.connect_value_notify(move |row| {
-        app.change_settings(|s| s.set_font_size(surface, row.value() as f32));
+        let (app, size) = (app.clone(), row.value() as f32);
+        gtk::glib::idle_add_local_once(move || {
+            app.change_settings(|s| s.set_font_size(surface, size))
+        });
     });
     group.add(&size);
     group
@@ -123,7 +130,8 @@ pub(crate) fn appearance(app: &Rc<App>) -> adw::PreferencesPage {
             Some("dark") => ThemeMode::Dark,
             _ => ThemeMode::System,
         };
-        app.change_settings(|s| s.theme.mode = mode);
+        let app = app.clone();
+        gtk::glib::idle_add_local_once(move || app.change_settings(|s| s.theme.mode = mode));
     });
     row.add_suffix(&toggles);
     row.set_activatable_widget(Some(&toggles));
@@ -277,7 +285,8 @@ pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesGroup {
     );
     row.connect_selected_notify(|row| {
         if let Some(mode) = TerminalAutoClose::ALL.get(row.selected() as usize) {
-            row.set_subtitle(&new_tabs_detail(*mode));
+            let (row, mode) = (row.clone(), *mode);
+            gtk::glib::idle_add_local_once(move || row.set_subtitle(&new_tabs_detail(mode)));
         }
     });
     let group = adw::PreferencesGroup::builder().title("Terminal").build();

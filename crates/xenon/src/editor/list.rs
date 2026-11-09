@@ -69,20 +69,18 @@ impl EditorView {
             if !state.contains(gdk::ModifierType::ALT_MASK) {
                 return glib::Propagation::Proceed;
             }
-            match key {
-                gdk::Key::_1 => {
-                    this.set_list(false);
-                    this.set_mode(MarkdownMode::Prose);
-                }
-                gdk::Key::_3 => {
-                    this.set_list(false);
-                    this.set_mode(MarkdownMode::Source);
-                }
-                gdk::Key::_4 => {
-                    this.set_list(true);
-                }
+            let (list, mode) = match key {
+                gdk::Key::_1 => (false, Some(MarkdownMode::Prose)),
+                gdk::Key::_3 => (false, Some(MarkdownMode::Source)),
+                gdk::Key::_4 => (true, None),
                 _ => return glib::Propagation::Proceed,
-            }
+            };
+            glib::idle_add_local_once(move || {
+                this.set_list(list);
+                if let Some(mode) = mode {
+                    this.set_mode(mode);
+                }
+            });
             glib::Propagation::Stop
         });
         self.root.add_controller(keys);

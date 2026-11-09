@@ -47,7 +47,7 @@ impl Section {
         let weak = app.clone();
         button.connect_clicked(move |_| {
             if let Some(app) = weak.upgrade() {
-                app.toggle_fold(fold);
+                gtk::glib::idle_add_local_once(move || app.toggle_fold(fold));
             }
         });
         let head = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -210,8 +210,14 @@ impl Row {
             hover.set_visible(over);
         };
         let show = swap.clone();
-        motion.connect_enter(move |_, _, _| show(true));
-        motion.connect_leave(move |_| swap(false));
+        motion.connect_enter(move |_, _, _| {
+            let show = show.clone();
+            gtk::glib::idle_add_local_once(move || show(true));
+        });
+        motion.connect_leave(move |_| {
+            let swap = swap.clone();
+            gtk::glib::idle_add_local_once(move || swap(false));
+        });
         self.root.add_controller(motion);
     }
 }

@@ -96,15 +96,17 @@ pub(crate) fn install(app: &Rc<App>) {
         let weak = Rc::downgrade(app);
         let handler = *handler;
         let name = *name;
+        // sync: `palette_passes` is a pure check; the palette key and the command are deferred.
         action.connect_activate(move |_, _| {
             if let Some(app) = weak.upgrade() {
                 if app.launcher.is_open() && !palette_passes(name) {
                     // Ctrl+N / Ctrl+P move in the palette; the rest wait.
-                    match name {
-                        "new-terminal" => app.launcher.key("down"),
-                        "open-finder" => app.launcher.key("up"),
-                        _ => {}
-                    }
+                    let key = match name {
+                        "new-terminal" => "down",
+                        "open-finder" => "up",
+                        _ => return,
+                    };
+                    glib::idle_add_local_once(move || app.launcher.key(key));
                     return;
                 }
                 // Deferred: commands rebuild panes and lists, possibly the ones
@@ -181,7 +183,7 @@ fn install_term_actions(app: &Rc<App>) {
             ws.zip(tab.map(|t| t.id))
         };
         if let Some((ws, tab)) = key {
-            app.term_interaction(ws, tab);
+            glib::idle_add_local_once(move || app.term_interaction(ws, tab));
         }
     });
     app.gtk.add_action(&local);

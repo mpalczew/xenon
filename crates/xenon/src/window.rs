@@ -255,7 +255,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     let weak = Rc::downgrade(&app);
     style.connect_dark_notify(move |_| {
         if let Some(app) = weak.upgrade() {
-            app.apply_theme();
+            gtk::glib::idle_add_local_once(move || app.apply_theme());
         }
     });
 
@@ -298,6 +298,7 @@ fn layered(app: &App, view: &adw::ToolbarView) -> gtk::Overlay {
 
 fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
     let weak = Rc::downgrade(app);
+    // sync: the session must be saved before the window goes.
     win.connect_close_request(move |_| {
         if let Some(app) = weak.upgrade() {
             app.save_all();
@@ -308,12 +309,15 @@ fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
     let weak = Rc::downgrade(app);
     win.connect_is_active_notify(move |w| {
         let Some(app) = weak.upgrade() else { return };
-        app.model.borrow_mut().window_active = w.is_active();
-        if w.is_active() {
-            app.git_refresh_active();
-        }
-        app.model.borrow_mut().dismiss_viewed();
-        app.paint_all();
+        let active = w.is_active();
+        app.model.borrow_mut().window_active = active;
+        gtk::glib::idle_add_local_once(move || {
+            if active {
+                app.git_refresh_active();
+            }
+            app.model.borrow_mut().dismiss_viewed();
+            app.paint_all();
+        });
     });
 }
 

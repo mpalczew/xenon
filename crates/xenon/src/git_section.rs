@@ -111,7 +111,7 @@ impl GitView {
                 && !state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK)
             {
                 if let Some(app) = this.app.upgrade() {
-                    app.focus_terminal();
+                    glib::idle_add_local_once(move || app.focus_terminal());
                 }
                 return glib::Propagation::Stop;
             }

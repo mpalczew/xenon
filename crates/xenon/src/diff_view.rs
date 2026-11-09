@@ -198,7 +198,7 @@ impl DiffView {
                     && b.is_active()
                     && !this.busy.get()
                 {
-                    this.set_mode(mode);
+                    glib::idle_add_local_once(move || this.set_mode(mode));
                 }
             });
         }
@@ -234,7 +234,7 @@ impl DiffView {
                 gdk::Key::space => "page-down",
                 _ => return glib::Propagation::Proceed,
             };
-            this.key(name);
+            glib::idle_add_local_once(move || this.key(name));
             glib::Propagation::Stop
         });
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);

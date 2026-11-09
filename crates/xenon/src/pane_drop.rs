@@ -67,18 +67,26 @@ pub(crate) fn install(app: &Rc<App>, body: &gtk::Overlay, ws: WorkspaceId, pane:
         let marker = marker.clone();
         target.connect_motion(move |target, x, y| {
             if let Some(body) = target.widget() {
-                light(&marker, zone(x, y, body.width(), body.height()));
+                // sync: pure geometry.
+                let edge = zone(x, y, body.width(), body.height());
+                let marker = marker.clone();
+                gtk::glib::idle_add_local_once(move || light(&marker, edge));
             }
             gdk::DragAction::MOVE
         });
     }
     {
         let marker = marker.clone();
-        target.connect_leave(move |_| marker.set_visible(false));
+        target.connect_leave(move |_| {
+            let marker = marker.clone();
+            gtk::glib::idle_add_local_once(move || marker.set_visible(false));
+        });
     }
     let weak = Rc::downgrade(app);
+    // sync: must say at once whether the drop was taken; the model change must come before the bar's transfer-done idle.
     target.connect_drop(move |target, value, x, y| {
-        marker.set_visible(false);
+        let marker = marker.clone();
+        gtk::glib::idle_add_local_once(move || marker.set_visible(false));
         let (Some(app), Some(body), Ok(page)) =
             (weak.upgrade(), target.widget(), value.get::<adw::TabPage>())
         else {

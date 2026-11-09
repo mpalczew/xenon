@@ -232,14 +232,18 @@ impl Capture {
             let length = length.clone();
             move || {
                 if let Some(this) = weak.upgrade() {
-                    this.changed(&length);
+                    let length = length.clone();
+                    glib::idle_add_local_once(move || this.changed(&length));
                 }
             }
         };
         let f = changed.clone();
+        // sync: `changed` defers its work.
         self.title.buffer().connect_changed(move |_| f());
         let f = changed.clone();
+        // sync: `changed` defers its work.
         self.details.buffer().connect_changed(move |_| f());
+        // sync: `changed` defers its work.
         self.check.connect_toggled(move |_| changed());
 
         // Return in the title goes on to the points.
@@ -249,7 +253,10 @@ impl Capture {
             let plain =
                 !state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK);
             if plain && matches!(key, gdk::Key::Return | gdk::Key::KP_Enter) {
-                details.grab_focus();
+                let details = details.clone();
+                glib::idle_add_local_once(move || {
+                    details.grab_focus();
+                });
                 return glib::Propagation::Stop;
             }
             glib::Propagation::Proceed
@@ -260,7 +267,7 @@ impl Capture {
             let weak = Rc::downgrade(self);
             button.connect_clicked(move |_| {
                 if let Some(this) = weak.upgrade() {
-                    this.cycle(delta);
+                    glib::idle_add_local_once(move || this.cycle(delta));
                 }
             });
         }
@@ -276,9 +283,15 @@ impl Capture {
             let alt = state.contains(gdk::ModifierType::ALT_MASK);
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             match key {
-                gdk::Key::Up if alt => this.cycle(-1),
-                gdk::Key::Down if alt => this.cycle(1),
-                gdk::Key::BackSpace if ctrl => this.discard(),
+                gdk::Key::Up if alt => {
+                    glib::idle_add_local_once(move || this.cycle(-1));
+                }
+                gdk::Key::Down if alt => {
+                    glib::idle_add_local_once(move || this.cycle(1));
+                }
+                gdk::Key::BackSpace if ctrl => {
+                    glib::idle_add_local_once(move || this.discard());
+                }
                 gdk::Key::Return | gdk::Key::KP_Enter if ctrl => {
                     // sync: AdwDialog.close animates out; nothing is destroyed during this event.
                     this.dialog.close();
@@ -292,7 +305,7 @@ impl Capture {
         let weak = Rc::downgrade(self);
         self.dialog.connect_closed(move |_| {
             if let Some(this) = weak.upgrade() {
-                this.closed();
+                glib::idle_add_local_once(move || this.closed());
             }
         });
     }

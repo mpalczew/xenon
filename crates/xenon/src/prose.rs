@@ -133,6 +133,7 @@ impl Prose {
             }
         ));
         // Before the default handler: positions are those of the edit.
+        // sync: the edit's positions are valid only inside this handler.
         self.buffer.connect_insert_text(glib::clone!(
             #[strong(rename_to = this)]
             weak,
@@ -142,6 +143,7 @@ impl Prose {
                 }
             }
         ));
+        // sync: the edit's positions are valid only inside this handler.
         self.buffer.connect_delete_range(glib::clone!(
             #[strong(rename_to = this)]
             weak,
@@ -157,7 +159,7 @@ impl Prose {
             weak,
             move |_| {
                 if let Some(this) = this.upgrade() {
-                    this.caret_moved();
+                    glib::idle_add_local_once(move || this.caret_moved());
                 }
             }
         ));
@@ -185,8 +187,10 @@ impl Prose {
                 weak,
                 move |_| {
                     if let Some(this) = this.upgrade() {
-                        this.images.schedule_move(&this);
-                        this.sync_decor();
+                        glib::idle_add_local_once(move || {
+                            this.images.schedule_move(&this);
+                            this.sync_decor();
+                        });
                     }
                 }
             ));
@@ -200,7 +204,7 @@ impl Prose {
                 let ctrl = gesture
                     .current_event_state()
                     .contains(gdk::ModifierType::CONTROL_MASK);
-                this.clicked(x, y, ctrl);
+                glib::idle_add_local_once(move || this.clicked(x, y, ctrl));
             }
         ));
         self.view.add_controller(click);

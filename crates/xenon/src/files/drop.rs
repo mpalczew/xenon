@@ -39,6 +39,7 @@ impl FilesView {
         let source = gtk::DragSource::new();
         source.set_actions(gdk::DragAction::MOVE);
         let (weak_row, o) = (expander.downgrade(), owner.clone());
+        // sync: must return the content provider; it only records the dragged path.
         source.connect_prepare(move |_, _, _| {
             let target = target_of(&weak_row.upgrade()?)?;
             *o.get()?.drag.borrow_mut() = vec![target.path.clone()];
@@ -189,6 +190,7 @@ fn drop_target(drop: impl Fn(Vec<PathBuf>) -> Option<bool> + 'static) -> gtk::Dr
         gdk::FileList::static_type(),
         gdk::DragAction::MOVE | gdk::DragAction::COPY,
     );
+    // sync: the drop handler must say now whether it took the files.
     target.connect_drop(move |_, value, _, _| drop(dropped_paths(value)).unwrap_or(false));
     target
 }
@@ -198,6 +200,7 @@ fn drop_target(drop: impl Fn(Vec<PathBuf>) -> Option<bool> + 'static) -> gtk::Dr
 fn spring_open(drop: &gtk::DropTarget, expander: &gtk::TreeExpander) {
     let timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::default();
     let (t, weak) = (timer.clone(), expander.downgrade());
+    // sync: must return the drag action; the expand itself runs from the timeout.
     drop.connect_enter(move |_, _, _| {
         if let Some(old) = t.borrow_mut().take() {
             old.remove();

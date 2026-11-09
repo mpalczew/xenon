@@ -111,7 +111,7 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
             let want = row.is_active();
             let now = app.remote.running() || app.remote.waiting();
             if !live.setting.get() && want != now {
-                app.remote_toggle();
+                gtk::glib::idle_add_local_once(move || app.remote_toggle());
             }
         });
     }
@@ -123,24 +123,32 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
             if live.setting.get() || want == app.remote_status().keep_awake {
                 return;
             }
-            if let Err(error) =
-                xenon_store::update_settings(|s| s.remote_keep_awake_while_connected = want)
-            {
-                eprintln!("[xg] save keep-awake: {error}");
-            }
-            app.remote_publish();
+            gtk::glib::idle_add_local_once(move || {
+                if let Err(error) =
+                    xenon_store::update_settings(|s| s.remote_keep_awake_while_connected = want)
+                {
+                    eprintln!("[xg] save keep-awake: {error}");
+                }
+                app.remote_publish();
+            });
         });
     }
     {
         let weak = weak.clone();
         hostname.connect_apply(move |row| {
-            let host = xenon_remote::normalize_hostname(&row.text());
-            if let Err(error) = xenon_store::update_settings(|s| s.remote_hostname = host.clone()) {
-                eprintln!("[xg] save hostname: {error}");
-            }
-            if let Some(app) = weak.upgrade() {
-                app.remote_publish();
-            }
+            let text = row.text();
+            let weak = weak.clone();
+            gtk::glib::idle_add_local_once(move || {
+                let host = xenon_remote::normalize_hostname(&text);
+                if let Err(error) =
+                    xenon_store::update_settings(|s| s.remote_hostname = host.clone())
+                {
+                    eprintln!("[xg] save hostname: {error}");
+                }
+                if let Some(app) = weak.upgrade() {
+                    app.remote_publish();
+                }
+            });
         });
     }
     {
@@ -202,7 +210,7 @@ fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
         let weak = Rc::downgrade(app);
         button.connect_clicked(move |_| {
             if let Some(app) = weak.upgrade() {
-                app.remote_revoke(None);
+                gtk::glib::idle_add_local_once(move || app.remote_revoke(None));
             }
         });
         all.add_suffix(&button);
@@ -232,7 +240,8 @@ fn device_row(app: &Rc<App>, device: &DeviceRow) -> gtk::Widget {
     let (weak, id) = (Rc::downgrade(app), device.id.clone());
     button.connect_clicked(move |_| {
         if let Some(app) = weak.upgrade() {
-            app.remote_revoke(Some(&id));
+            let id = id.clone();
+            gtk::glib::idle_add_local_once(move || app.remote_revoke(Some(&id)));
         }
     });
     row.add_suffix(&button);

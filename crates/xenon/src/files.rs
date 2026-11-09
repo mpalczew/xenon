@@ -214,6 +214,7 @@ impl FilesView {
         let weak = Rc::downgrade(self);
         // Act after the click or key has finished: changing the tree or the
         // panes inside the list's own activate handler crashes GTK.
+        // sync: `tree_row` only reads the item; the work is deferred.
         self.list.connect_activate(move |_, pos| {
             let Some(this) = weak.upgrade() else { return };
             let Some(row) = tree_row(this.tree.item(pos)) else {
@@ -235,6 +236,7 @@ impl FilesView {
         // Folders are read when opened and forgotten when closed, however the
         // row was opened (arrow, key or click).
         let weak = Rc::downgrade(self);
+        // sync: `tree_row`, `is_dir` and `row_path` only read; the work is deferred.
         self.tree.connect_items_changed(move |tree, pos, _, added| {
             for i in pos..pos + added {
                 let Some(row) =
@@ -245,6 +247,7 @@ impl FilesView {
                 let weak = weak.clone();
                 // GTK sends this while the tree is still adding or removing the
                 // folder's rows; reading the tree before it finishes crashes.
+                // sync: `row_path` only reads the row; the work is deferred.
                 row.connect_expanded_notify(move |row| {
                     let (Some(path), expanded) = (row_path(row), row.is_expanded()) else {
                         return;
@@ -263,6 +266,7 @@ impl FilesView {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let weak = Rc::downgrade(self);
+        // sync: must say at once whether it consumed the key; the tree steps act on the selection it was meant for.
         keys.connect_key_pressed(move |_, key, _, state| {
             let Some(this) = weak.upgrade() else {
                 return glib::Propagation::Proceed;
@@ -281,7 +285,7 @@ impl FilesView {
                 }
                 gdk::Key::Escape => {
                     if let Some(app) = this.app.upgrade() {
-                        app.focus_terminal();
+                        glib::idle_add_local_once(move || app.focus_terminal());
                     }
                     true
                 }

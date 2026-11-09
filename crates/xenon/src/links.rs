@@ -123,6 +123,7 @@ pub(crate) fn install(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: 
         view.root.downgrade(),
         view.term.downgrade(),
     );
+    // sync: reads the terminal under the pointer and claims the gesture now; opening the link is deferred.
     click.connect_pressed(move |gesture, _, x, y| {
         let state = gesture.current_event_state();
         if !state.contains(gdk::ModifierType::CONTROL_MASK)

@@ -95,9 +95,13 @@ impl App {
             *app.remote.on_change.borrow_mut() = None;
             match before.as_ref().and_then(|w| w.upgrade()) {
                 Some(widget) if widget.is_mapped() => {
-                    widget.grab_focus();
+                    glib::idle_add_local_once(move || {
+                        widget.grab_focus();
+                    });
                 }
-                _ => app.focus_terminal(),
+                _ => {
+                    glib::idle_add_local_once(move || app.focus_terminal());
+                }
             }
             glib::Propagation::Proceed
         });
@@ -129,7 +133,8 @@ fn build_layout(shell: &Shell) {
     let stack = shell.stack.clone();
     list.connect_row_selected(move |_, row| {
         if let Some(row) = row {
-            stack.set_visible_child_name(PAGES[row.index() as usize]);
+            let (stack, name) = (stack.clone(), PAGES[row.index() as usize]);
+            glib::idle_add_local_once(move || stack.set_visible_child_name(name));
         }
     });
     let content_page = adw::NavigationPage::new(&toolbar(&shell.stack), "Settings");

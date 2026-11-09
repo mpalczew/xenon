@@ -20,8 +20,10 @@ pub(super) fn title_view(placeholder: &str) -> (gtk::TextView, gtk::Widget) {
     hint.set_margin_start(8);
     hint.set_can_target(false);
     let shown = hint.clone();
-    view.buffer()
-        .connect_changed(move |buffer| shown.set_visible(buffer.char_count() == 0));
+    view.buffer().connect_changed(move |buffer| {
+        let (shown, empty) = (shown.clone(), buffer.char_count() == 0);
+        gtk::glib::idle_add_local_once(move || shown.set_visible(empty));
+    });
     let overlay = gtk::Overlay::new();
     overlay.set_child(Some(&view));
     overlay.add_overlay(&hint);

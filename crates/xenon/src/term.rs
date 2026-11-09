@@ -175,7 +175,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
         let weak = weak.clone();
         term.connect_contents_changed(move |_| {
             if let Some(app) = weak.upgrade() {
-                app.term_output(ws, tab);
+                glib::idle_add_local_once(move || app.term_output(ws, tab));
             }
         });
     }
@@ -183,7 +183,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
         let weak = weak.clone();
         term.connect_bell(move |_| {
             if let Some(app) = weak.upgrade() {
-                app.term_bell(ws, tab);
+                glib::idle_add_local_once(move || app.term_bell(ws, tab));
             }
         });
     }
@@ -192,7 +192,8 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
         term.connect_termprop_changed(Some("xterm.title"), move |t, name| {
             let (title, _) = t.termprop_string(name);
             if let Some(app) = weak.upgrade() {
-                app.term_title(ws, tab, title.as_deref().unwrap_or(""));
+                let title = title.map(|t| t.to_string()).unwrap_or_default();
+                glib::idle_add_local_once(move || app.term_title(ws, tab, &title));
             }
         });
     }
@@ -219,6 +220,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     {
         let weak = weak.clone();
         let term = view.term.downgrade();
+        // sync: keystrokes must reach the shell in order and the key must be consumed now; the interaction note runs first.
         keys.connect_key_pressed(move |_, key, _, state| {
             if let Some(app) = weak.upgrade() {
                 app.term_interaction(ws, tab);
@@ -237,6 +239,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     {
         let term = view.term.downgrade();
+        // sync: must say at once whether the drop was taken; it only types the paths.
         drop.connect_drop(move |_, value, _, _| {
             let Ok(files) = value.get::<gdk::FileList>() else {
                 return false;

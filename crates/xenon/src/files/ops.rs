@@ -80,7 +80,7 @@ impl FilesView {
             let weak = Rc::downgrade(self);
             action.connect_activate(move |_, _| {
                 if let Some(this) = weak.upgrade() {
-                    this.run_action(name);
+                    glib::idle_add_local_once(move || this.run_action(name));
                 }
             });
             group.add_action(&action);
@@ -96,6 +96,7 @@ impl FilesView {
         let click = gtk::GestureClick::new();
         click.set_button(gdk::BUTTON_SECONDARY);
         let weak = Rc::downgrade(self);
+        // sync: reads the row under the pointer now, before the list changes; the popup is deferred.
         click.connect_pressed(move |_, _, x, y| {
             let Some(this) = weak.upgrade() else { return };
             let target = this
@@ -375,13 +376,17 @@ impl FilesView {
             };
             let text = entry.text();
             let quiet = text.trim().is_empty() || current.as_deref() == Some(text.trim());
+            // sync: pure name check.
             let result = check_live(&text);
-            note.set_visible(!quiet && result.is_err());
-            note.set_text(result.as_ref().err().map_or("", String::as_str));
-            dialog.set_response_enabled("ok", result.is_ok());
+            glib::idle_add_local_once(move || {
+                note.set_visible(!quiet && result.is_err());
+                note.set_text(result.as_ref().err().map_or("", String::as_str));
+                dialog.set_response_enabled("ok", result.is_ok());
+            });
         });
         let (weak, weak_entry) = (Rc::downgrade(self), entry.downgrade());
         let then = std::cell::Cell::new(Some(then));
+        // sync: `check` is a pure name check; `then` is deferred.
         dialog.connect_response(None, move |_, id| {
             let (Some(this), Some(entry), "ok") = (weak.upgrade(), weak_entry.upgrade(), id) else {
                 return;

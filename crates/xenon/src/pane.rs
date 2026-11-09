@@ -36,7 +36,7 @@ impl PaneView {
         let weak = Rc::downgrade(app);
         add.connect_clicked(move |_| {
             if let Some(app) = weak.upgrade() {
-                app.new_terminal_in(ws, pane);
+                glib::idle_add_local_once(move || app.new_terminal_in(ws, pane));
             }
         });
         let view = adw::TabView::new();
@@ -80,7 +80,7 @@ impl PaneView {
         let weak = Rc::downgrade(app);
         focus.connect_enter(move |_| {
             if let Some(app) = weak.upgrade() {
-                app.pane_focused(ws, pane);
+                glib::idle_add_local_once(move || app.pane_focused(ws, pane));
             }
         });
         this.root.add_controller(focus);
@@ -104,6 +104,7 @@ impl PaneView {
             Some(view.clone())
         });
         let weak = Rc::downgrade(app);
+        // sync: `close_page_finish` is the answer to the signal and must be given before it returns.
         self.view.connect_close_page(move |view, page| {
             // The page stays until the model's answer removes it, so the
             // close button does exactly what the close-tab action does.
@@ -236,8 +237,11 @@ impl PaneView {
                 #[weak]
                 overlay,
                 move |_, _, _, _| {
+                    // sync: pure focus check.
                     if !focus_inside(&overlay) {
-                        overlay.child_focus(gtk::DirectionType::TabForward);
+                        glib::idle_add_local_once(move || {
+                            overlay.child_focus(gtk::DirectionType::TabForward);
+                        });
                     }
                 }
             ));

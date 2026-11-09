@@ -1,37 +1,235 @@
-//! Commit check for the GTK event rule (every crash so far broke it): no list model, row or
-//! widget changes inside a GTK signal handler, here a closure passed to a `connect_*`
-//! method. Code inside a deferral (`glib::idle_add_local_once` and friends) is fine.
-//! Only direct calls are seen; a helper that mutates internally is not.
+//! Commit check for the GTK event rule (every crash so far broke it): a GTK signal handler,
+//! here a closure passed to a `connect_*` method, may only read and defer. Outside a
+//! deferral (`glib::idle_add_local_once` and friends) every call in it must be a read:
+//! a getter or query (`get_*`, `is_*`, `has_*`, `upgrade`, `borrow`, `clone`, ...), an
+//! Option/Result/iterator combinator, a constructor like `Some(..)`, or a call that only
+//! updates our own Rust state (`Cell`, or a `borrow_mut()` collection). Anything else,
+//! including our own helpers, changes widgets, models, buffers or styles while GTK may
+//! be mid-layout, so it must move into a deferral.
 //! Escape: `// sync: <reason>` on the line of, or the line above, the call or the
-//! `connect_*` call.
+//! `connect_*` call (the latter covers the whole handler). Use it when the handler must
+//! act at once, such as returning a value or consuming a key.
 
 use std::{fs, process::ExitCode};
 
 use proc_macro2::{Span, TokenStream, TokenTree};
+use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprCall, ExprMethodCall, Macro};
 
-/// Calls that change a model, a row or a widget tree.
-const MUTATORS: &[&str] = &[
-    "set_expanded",
-    "remove",
-    "remove_all",
-    "append",
-    "insert",
-    "splice",
-    "items_changed",
-    "set_model",
-    "set_child",
-    "unparent",
-    "destroy",
-    "close",
-    "set_selected",
-    "select_row",
-    "unselect_all",
-    "select_item",
-    "set_root",
-    "close_page",
+/// Method names that only read, or work on plain Rust values.
+const READS: &[&str] = &[
+    "upgrade",
+    "downgrade",
+    "clone",
+    "borrow",
+    "get",
+    "unwrap",
+    "expect",
+    "unwrap_or",
+    "unwrap_or_default",
+    "unwrap_or_else",
+    "ok",
+    "ok_or",
+    "ok_or_else",
+    "err",
+    "map",
+    "map_or",
+    "map_or_else",
+    "and_then",
+    "or",
+    "or_else",
+    "filter",
+    "as_ref",
+    "as_deref",
+    "cloned",
+    "copied",
+    "iter",
+    "len",
+    "contains",
+    "starts_with",
+    "ends_with",
+    "eq",
+    "ne",
+    "cmp",
+    "min",
+    "max",
+    "to_string",
+    "to_owned",
+    "to_vec",
+    "into",
+    "from",
+    "try_from",
+    "try_into",
+    "format",
+    "trim",
+    "split",
+    "join",
+    "chars",
+    "bytes",
+    "lines",
+    "first",
+    "last",
+    "next",
+    "count",
+    "any",
+    "all",
+    "find",
+    "position",
+    "collect",
+    "rev",
+    "take",
+    "skip",
+    "zip",
+    "enumerate",
+    "sum",
+    "abs",
+    "powi",
+    "round",
+    "floor",
+    "ceil",
+    "clamp",
+    "text",
+    "label",
+    "name",
+    "path",
+    "selected",
+    "selected_item",
+    "n_items",
+    "item",
+    "keyval",
+    "keycode",
+    "state",
+    "modifiers",
+    "parent",
+    "root",
+    "ancestor",
+    "child",
+    "first_child",
+    "last_child",
+    "next_sibling",
+    "prev_sibling",
+    "display",
+    "surface",
+    "downcast",
+    "downcast_ref",
+    "downcast_ref_unchecked",
+    "dynamic_cast_ref",
+    "type_",
+    "start_iter",
+    "end_iter",
+    "iter_at_offset",
+    "iter_at_line",
+    "iter_at_mark",
+    "iter_at_location",
+    "iter_location",
+    "slice",
+    "line",
+    "line_offset",
+    "offset",
+    "bounds",
+    "selection_bounds",
+    "value",
+    "lower",
+    "upper",
+    "page_size",
+    "step_increment",
+    "page_increment",
+    "width",
+    "height",
+    "x",
+    "y",
+    "allocation",
+    "compute_point",
+    "compute_bounds",
+    "translate_coordinates",
+    "pick",
+    "current_event",
+    "widget",
+    "stop_signal_emission_by_name",
+    "stop_signal_emission",
+    "set",
+    "replace",
+    "take",
+    "is_some",
+    "is_none",
+    "is_ok",
+    "is_err",
+    "exists",
+    "to_str",
+    "to_str_lossy",
+    "to_string_lossy",
+    "file_name",
+    "extension",
+    "join",
+    "display",
+    "unwrap_or_else",
+    "as_str",
+    "as_slice",
+    "as_bytes",
+    "as_path",
+    "to_lowercase",
+    "to_uppercase",
+    "get_or_insert_with",
+    "is_empty",
+    "borrow_mut",
+    "intersects",
+    "contains_point",
+    "index",
+    "abs_diff",
+    "current_event_state",
+    "and_downcast",
+    "and_downcast_ref",
+    "clipboard",
+    "char_count",
+    "basename",
+    "with",
+    "send",
+    "active_name",
+    "selected_page",
+    "running",
+    "waiting",
+    "termprop_string",
+    "remote_status",
+    "str",
+    "active",
+    "active_tab",
 ];
+
+/// Prefixes of read-only method names.
+const READ_PREFIXES: &[&str] = &[
+    "get_", "is_", "has_", "can_", "as_", "to_", "try_", "iter_", "n_",
+];
+
+/// Path calls that build a value: `Some(..)`, `Rc::clone(..)`, `Propagation::Stop`.
+fn plain_call(call: &ExprCall) -> bool {
+    let Expr::Path(p) = &*call.func else {
+        return false;
+    };
+    let segs: Vec<String> = p
+        .path
+        .segments
+        .iter()
+        .map(|s| s.ident.to_string())
+        .collect();
+    let last = segs.last().map(String::as_str).unwrap_or("");
+    let upper = last.chars().next().is_some_and(char::is_uppercase);
+    let constructor = segs.len() >= 2 && ["new", "default", "empty", "none"].contains(&last)
+        || ["from_", "with_", "for_"]
+            .iter()
+            .any(|p| last.starts_with(p));
+    upper
+        || constructor
+        || (segs.len() == 1 && ["drop", "Some", "Ok", "Err", "Box", "Rc"].contains(&last))
+        || READS.contains(&last)
+        || READ_PREFIXES.iter().any(|p| last.starts_with(p))
+        || (segs.len() >= 2
+            && [
+                "Rc", "Arc", "Cell", "RefCell", "Box", "Some", "String", "Instant", "Duration",
+                "Path", "PathBuf",
+            ]
+            .contains(&segs[segs.len() - 2].as_str()))
+}
 
 /// Calls whose closure runs after the current event.
 const DEFERS: &[&str] = &[
@@ -44,6 +242,8 @@ const DEFERS: &[&str] = &[
     "timeout_add_seconds_local_once",
     "spawn_future_local",
     "spawn_local",
+    // `App::tab_event` runs its closure from an idle.
+    "tab_event",
 ];
 
 struct Check<'a> {
@@ -89,9 +289,13 @@ fn clone_closure(mac: &Macro) -> Option<Expr> {
 
 /// `cell.borrow_mut().insert(..)` is a Rust collection, and `id.remove()` a
 /// `glib::SourceId`; neither touches GTK.
-fn plain_collection(call: &ExprMethodCall) -> bool {
+fn read_only(call: &ExprMethodCall) -> bool {
+    let name = call.method.to_string();
     let borrowed = matches!(&*call.receiver, Expr::MethodCall(r) if r.method == "borrow_mut");
-    borrowed || (call.method == "remove" && call.args.is_empty())
+    borrowed
+        || (name == "remove" && call.args.is_empty())
+        || READS.contains(&name.as_str())
+        || READ_PREFIXES.iter().any(|p| name.starts_with(p))
 }
 
 fn last_segment(expr: &Expr) -> Option<String> {
@@ -105,13 +309,14 @@ impl<'ast> Visit<'ast> for Check<'_> {
     fn visit_expr_method_call(&mut self, call: &'ast ExprMethodCall) {
         let name = call.method.to_string();
         if let Some(handler) = &self.handler
-            && MUTATORS.contains(&name.as_str())
-            && !plain_collection(call)
+            && !DEFERS.contains(&name.as_str())
+            && !name.starts_with("connect_")
+            && !read_only(call)
             && !self.marked(call.method.span())
         {
             let line = call.method.span().start().line;
             println!(
-                "{}:{line}: `{name}` inside a `{handler}` handler; defer it with \
+                "{}:{line}: `{name}` is not a read inside a `{handler}` handler; defer it with \
                  glib::idle_add_local_once or mark it `// sync: <reason>`",
                 self.file
             );
@@ -139,6 +344,19 @@ impl<'ast> Visit<'ast> for Check<'_> {
     }
 
     fn visit_expr_call(&mut self, call: &'ast ExprCall) {
+        if let Some(handler) = &self.handler
+            && !plain_call(call)
+            && !last_segment(&call.func).is_some_and(|f| DEFERS.contains(&f.as_str()))
+            && !self.marked(call.func.span())
+        {
+            let line = call.func.span().start().line;
+            println!(
+                "{}:{line}: call is not a read inside a `{handler}` handler; defer it with \
+                 glib::idle_add_local_once or mark it `// sync: <reason>`",
+                self.file
+            );
+            self.found += 1;
+        }
         if last_segment(&call.func).is_some_and(|f| DEFERS.contains(&f.as_str())) {
             self.walk(None, |c| call.args.iter().for_each(|a| c.visit_expr(a)));
         } else {

@@ -132,17 +132,20 @@ impl App {
         toast.set_use_markup(false);
         toast.set_button_label(Some("Undo"));
         toast.connect_button_clicked(move |_| {
-            let result = WorklistFile::new(&root).and_then(|file| {
-                let old = file.read()?;
-                anyhow::ensure!(
-                    old.as_deref() == Some(after.as_bytes()),
-                    "the worklist changed since"
-                );
-                file.write(old.as_deref(), before.as_bytes())
+            let (root, before, after) = (root.clone(), before.clone(), after.clone());
+            gtk::glib::idle_add_local_once(move || {
+                let result = WorklistFile::new(&root).and_then(|file| {
+                    let old = file.read()?;
+                    anyhow::ensure!(
+                        old.as_deref() == Some(after.as_bytes()),
+                        "the worklist changed since"
+                    );
+                    file.write(old.as_deref(), before.as_bytes())
+                });
+                if let Err(error) = result {
+                    eprintln!("[xg] worklist undo failed: {error}");
+                }
             });
-            if let Err(error) = result {
-                eprintln!("[xg] worklist undo failed: {error}");
-            }
         });
         self.toasts.add_toast(toast);
     }

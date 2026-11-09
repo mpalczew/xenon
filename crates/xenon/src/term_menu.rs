@@ -22,6 +22,7 @@ pub(crate) fn install(view: &Rc<TermView>) {
     click.set_propagation_phase(gtk::PropagationPhase::Capture);
     // Weak: the controller lives on the terminal, so a strong capture is a cycle.
     let weak = Rc::downgrade(view);
+    // sync: runs before VTE's own handler, which reads the menu model right after.
     click.connect_pressed(move |_, _, x, y| {
         if let Some(view) = weak.upgrade() {
             view.term

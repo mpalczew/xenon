@@ -241,7 +241,7 @@ impl TrustCard {
             let app = app.clone();
             b.connect_clicked(move |_| {
                 if let Some(app) = app.upgrade() {
-                    app.answer_folder_tasks(allow);
+                    gtk::glib::idle_add_local_once(move || app.answer_folder_tasks(allow));
                 }
             });
             b

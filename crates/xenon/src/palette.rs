@@ -166,13 +166,15 @@ impl Palette {
         let w = weak.clone();
         self.dialog.connect_closed(move |_| {
             if let Some(this) = w.upgrade() {
-                this.dismiss();
+                glib::idle_add_local_once(move || this.dismiss());
             }
         });
         let w = weak.clone();
         self.action.connect_clicked(move |_| {
             if let Some(this) = w.upgrade() {
-                this.run_action();
+                glib::idle_add_local_once(move || {
+                    this.run_action();
+                });
             }
         });
         let w = weak.clone();
@@ -183,7 +185,8 @@ impl Palette {
             }
             let handlers = this.handlers.borrow().clone();
             if let Some(h) = handlers {
-                (h.on_query)(entry.text().as_str());
+                let text = entry.text();
+                glib::idle_add_local_once(move || (h.on_query)(text.as_str()));
             }
         });
         let w = weak.clone();
@@ -212,6 +215,7 @@ impl Palette {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let w = weak;
+        // sync: must say at once whether it consumed the key; moving the selection is the key's whole job.
         keys.connect_key_pressed(move |_, key, _, state| {
             let Some(this) = w.upgrade() else {
                 return glib::Propagation::Proceed;

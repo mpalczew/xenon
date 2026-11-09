@@ -55,6 +55,7 @@ pub(crate) fn row_list() -> (gio::ListStore, gtk::SingleSelection, gtk::ListView
         row.append(&badge);
         item.set_child(Some(&row));
     });
+    // sync: a list factory must fill the row it is binding right now.
     factory.connect_bind(|_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
             return;

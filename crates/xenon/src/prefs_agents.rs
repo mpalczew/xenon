@@ -58,7 +58,10 @@ fn fill(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Add
         button.add_css_class("suggested-action");
         button.set_valign(gtk::Align::Center);
         let (group, dialog, added) = (group.clone(), dialog.clone(), added.clone());
-        button.connect_clicked(move |_| run(&group, &dialog, &added, true));
+        button.connect_clicked(move |_| {
+            let (group, dialog, added) = (group.clone(), dialog.clone(), added.clone());
+            gtk::glib::idle_add_local_once(move || run(&group, &dialog, &added, true));
+        });
         let row = adw::ActionRow::builder()
             .title("Bundled skill")
             .subtitle("Replace your copy with the one shipped in this build")
