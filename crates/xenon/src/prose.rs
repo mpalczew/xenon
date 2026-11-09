@@ -161,16 +161,21 @@ impl Prose {
                 }
             }
         ));
-        // The column follows the width of the view.
+        // The column follows the width of the view. The page size changes
+        // during the text view's own layout pass; restyling then trips GTK's
+        // onscreen-validated assertion, so wait for the pass to finish.
         self.scroller
             .hadjustment()
             .connect_page_size_notify(glib::clone!(
                 #[strong(rename_to = this)]
                 weak,
                 move |_| {
-                    if let Some(this) = this.upgrade() {
-                        this.fit_column();
-                    }
+                    let this = this.clone();
+                    glib::idle_add_local_once(move || {
+                        if let Some(this) = this.upgrade() {
+                            this.fit_column();
+                        }
+                    });
                 }
             ));
         self.scroller
