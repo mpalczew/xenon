@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{self, Write};
 use std::net::{Shutdown, TcpStream};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,6 +24,27 @@ const TRY_AGAIN: u16 = 1011;
 const MAX_MESSAGE: usize = 64 * 1024;
 
 type Socket = WebSocket<TcpStream>;
+type Reader = WebSocket<ReadHalf>;
+
+/// The reader's side of the stream. Its writes are dropped, so tungstenite's
+/// automatic pong and close replies can't interleave with the writer's frames;
+/// the read loop forwards pings to the writer instead.
+struct ReadHalf(TcpStream);
+
+impl io::Read for ReadHalf {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl Write for ReadHalf {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Result<()> {
     if !same_origin(req) {
@@ -48,7 +69,8 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
     };
     // One socket per direction over the same TCP stream: the reader blocks in
     // `read` while the writer sends, so they cannot share one WebSocket.
-    let mut reader = WebSocket::from_raw_socket(stream.try_clone()?, Role::Server, Some(config));
+    let mut reader =
+        WebSocket::from_raw_socket(ReadHalf(stream.try_clone()?), Role::Server, Some(config));
     let writer = Mutex::new(WebSocket::from_raw_socket(
         stream,
         Role::Server,
@@ -65,7 +87,7 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
             return Ok(());
         }
     };
-    reader.get_ref().set_read_timeout(None)?;
+    reader.get_ref().0.set_read_timeout(None)?;
     let conn = shared.next_conn();
     let (out, rx) = Outbox::channel();
     shared
@@ -104,7 +126,7 @@ enum Hello {
     HostBusy,
 }
 
-fn await_hello(socket: &mut Socket, shared: &Shared) -> Hello {
+fn await_hello(socket: &mut Reader, shared: &Shared) -> Hello {
     let deadline = Instant::now() + HELLO_TIMEOUT;
     while Instant::now() < deadline {
         match read(socket) {
@@ -116,20 +138,21 @@ fn await_hello(socket: &mut Socket, shared: &Shared) -> Hello {
                 };
             }
             Read::Msg(_) | Read::Closed => return Hello::Unknown,
-            Read::Other => {}
+            Read::Ping(_) | Read::Other => {}
         }
     }
     Hello::Unknown
 }
 
 fn read_loop(
-    socket: &mut Socket,
+    socket: &mut Reader,
     writer: &Mutex<Socket>,
     conn: ConnId,
     shared: &Shared,
 ) -> Result<()> {
     loop {
         match read(socket) {
+            Read::Ping(data) => lock(writer).send(Message::Pong(data))?,
             Read::Msg(ClientMsg::Ping) => send(&mut lock(writer), &ServerMsg::Pong)?,
             Read::Msg(msg) => shared
                 .host
@@ -208,11 +231,12 @@ fn send(socket: &mut Socket, msg: &ServerMsg) -> Result<()> {
 
 enum Read {
     Msg(ClientMsg),
+    Ping(Vec<u8>),
     Other,
     Closed,
 }
 
-fn read(socket: &mut Socket) -> Read {
+fn read(socket: &mut Reader) -> Read {
     match socket.read() {
         Ok(Message::Text(text)) => match serde_json::from_str::<ClientMsg>(&text) {
             Ok(msg) => Read::Msg(msg),
@@ -221,6 +245,7 @@ fn read(socket: &mut Socket) -> Read {
                 Read::Other
             }
         },
+        Ok(Message::Ping(data)) => Read::Ping(data),
         Ok(Message::Close(_)) => Read::Closed,
         Ok(_) => Read::Other,
         Err(tungstenite::Error::Io(e))

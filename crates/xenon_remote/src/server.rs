@@ -325,6 +325,8 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
 }
 
 const NOT_FOUND: &str = "not found";
+const HOST_GONE: &str = "host gone";
+const HOST_SLOW: &str = "host timeout";
 
 fn decode(segment: &str) -> Result<String, String> {
     percent_decode_str(segment)
@@ -338,6 +340,7 @@ fn decode(segment: &str) -> Result<String, String> {
 fn reply<T: serde::Serialize>(stream: &mut TcpStream, result: Result<T, String>) -> Result<()> {
     match result {
         Ok(value) => http::write_json(stream, &value),
+        Err(e) if e == HOST_GONE || e == HOST_SLOW => http::write_json_error(stream, 503, &e),
         Err(e) => http::write_json_error(stream, 404, &e),
     }
 }
@@ -358,7 +361,7 @@ pub(crate) fn ask<T>(
 ) -> Result<T, String> {
     let (tx, rx) = mpsc::sync_channel(1);
     host.send_blocking(make(tx))
-        .map_err(|_| "host gone".to_string())?;
+        .map_err(|_| HOST_GONE.to_string())?;
     rx.recv_timeout(HOST_TIMEOUT)
-        .map_err(|_| "host timeout".to_string())
+        .map_err(|_| HOST_SLOW.to_string())
 }
