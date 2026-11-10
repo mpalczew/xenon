@@ -309,7 +309,7 @@ impl Sidebar {
                     if let Some(icon) =
                         gtk::DragIcon::for_drag(drag).downcast_ref::<gtk::DragIcon>()
                     {
-                        // sync: the icon window is new and belongs to this drag
+                        // sync: answer or ordering before return: the icon window is new and belongs to this drag
                         icon.set_child(Some(&ghost));
                     }
                 }

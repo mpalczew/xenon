@@ -250,7 +250,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     {
         let weak = weak.clone();
         let term = view.term.downgrade();
-        // sync: keystrokes must reach the shell in order and the key must be consumed now; the interaction note runs first.
+        // sync: answer or ordering before return: keystrokes must reach the shell in order and the key must be consumed now; the interaction note runs first.
         keys.connect_key_pressed(move |_, key, _, state| {
             if let Some(app) = weak.upgrade() {
                 app.term_interaction(ws, tab);
@@ -268,7 +268,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     {
         let term = view.term.downgrade();
-        // sync: must say at once whether the drop was taken; it only types the paths.
+        // sync: answer or ordering before return: must say at once whether the drop was taken; it only types the paths.
         drop.connect_drop(move |_, value, _, _| {
             let Ok(files) = value.get::<gdk::FileList>() else {
                 return false;

@@ -218,23 +218,22 @@ impl Capture {
 
     fn wire(self: &Rc<Self>, body: &gtk::Box, length: &gtk::Box) {
         let weak = Rc::downgrade(self);
-        let changed = {
-            let length = length.clone();
-            move || {
-                if let Some(this) = weak.upgrade() {
-                    let length = length.clone();
-                    glib::idle_add_local_once(move || this.changed(&length));
+        macro_rules! on_change {
+            () => {{
+                let (weak, length) = (weak.clone(), length.clone());
+                move |_| {
+                    let (weak, length) = (weak.clone(), length.clone());
+                    glib::idle_add_local_once(move || {
+                        if let Some(this) = weak.upgrade() {
+                            this.changed(&length);
+                        }
+                    });
                 }
-            }
-        };
-        let f = changed.clone();
-        // sync: `changed` defers its work.
-        self.title.buffer().connect_changed(move |_| f());
-        let f = changed.clone();
-        // sync: `changed` defers its work.
-        self.details.buffer().connect_changed(move |_| f());
-        // sync: `changed` defers its work.
-        self.check.connect_toggled(move |_| changed());
+            }};
+        }
+        self.title.buffer().connect_changed(on_change!());
+        self.details.buffer().connect_changed(on_change!());
+        self.check.connect_toggled(on_change!());
 
         let details = self.details.clone();
         let enter = gtk::EventControllerKey::new();
@@ -281,8 +280,9 @@ impl Capture {
                     glib::idle_add_local_once(move || this.discard());
                 }
                 gdk::Key::Return | gdk::Key::KP_Enter if ctrl => {
-                    // sync: AdwDialog.close animates out; nothing is destroyed during this event.
-                    this.dialog.close();
+                    glib::idle_add_local_once(move || {
+                        this.dialog.close();
+                    });
                 }
                 _ => return glib::Propagation::Proceed,
             }

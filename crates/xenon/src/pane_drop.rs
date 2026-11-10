@@ -56,10 +56,10 @@ pub(crate) fn install(app: &Rc<App>, body: &gtk::Overlay, ws: WorkspaceId, pane:
         let marker = marker.clone();
         target.connect_motion(move |target, x, y| {
             if let Some(body) = target.widget() {
-                // sync: pure geometry.
-                let edge = zone(x, y, body.width(), body.height());
                 let marker = marker.clone();
-                gtk::glib::idle_add_local_once(move || light(&marker, edge));
+                gtk::glib::idle_add_local_once(move || {
+                    light(&marker, zone(x, y, body.width(), body.height()));
+                });
             }
             gdk::DragAction::MOVE
         });
@@ -72,7 +72,7 @@ pub(crate) fn install(app: &Rc<App>, body: &gtk::Overlay, ws: WorkspaceId, pane:
         });
     }
     let weak = Rc::downgrade(app);
-    // sync: must say at once whether the drop was taken; the model change must come before the bar's transfer-done idle.
+    // sync: answer or ordering before return: must say at once whether the drop was taken; the model change must come before the bar's transfer-done idle.
     target.connect_drop(move |target, value, x, y| {
         let marker = marker.clone();
         gtk::glib::idle_add_local_once(move || marker.set_visible(false));

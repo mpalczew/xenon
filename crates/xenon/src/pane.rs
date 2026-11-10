@@ -91,7 +91,7 @@ impl PaneView {
             Some(view.clone())
         });
         let weak = Rc::downgrade(app);
-        // sync: `close_page_finish` is the answer to the signal and must be given before it returns.
+        // sync: answer or ordering before return: `close_page_finish` is the answer to the signal and must be given before it returns.
         self.view.connect_close_page(move |view, page| {
             let app = weak.upgrade().filter(|a| !a.tab_sync.get());
             view.close_page_finish(page, app.is_none());
@@ -215,12 +215,11 @@ impl PaneView {
                 #[weak]
                 overlay,
                 move |_, _, _, _| {
-                    // sync: pure focus check.
-                    if !focus_inside(&overlay) {
-                        glib::idle_add_local_once(move || {
+                    glib::idle_add_local_once(move || {
+                        if !focus_inside(&overlay) {
                             overlay.child_focus(gtk::DirectionType::TabForward);
-                        });
-                    }
+                        }
+                    });
                 }
             ));
             overlay.add_controller(click);

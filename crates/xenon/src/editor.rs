@@ -37,6 +37,7 @@ pub(crate) struct EditorView {
     bar_actions: gtk::Box,
     monitor: RefCell<Option<gio::FileMonitor>>,
     sync_pending: Cell<bool>,
+    disk_epoch: Cell<u32>,
 }
 
 const DISK_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
@@ -94,9 +95,7 @@ pub(crate) fn load(path: &Path) -> Result<String, String> {
 
 impl EditorView {
     pub(crate) fn new(app: &Rc<App>, ws: WorkspaceId, tab: TabId, path: &Path) -> Rc<Self> {
-        let text = load(path).unwrap_or_else(|why| format!("{why}\n"));
         let buffer = sourceview::Buffer::new(None);
-        buffer.set_text(&text);
         buffer.set_highlight_syntax(true);
         if let Some(lang) =
             sourceview::LanguageManager::default().guess_language(Some(path), None::<&str>)
@@ -105,6 +104,7 @@ impl EditorView {
         }
         let view = sourceview::View::with_buffer(&buffer);
         view.add_css_class("xeditor");
+        view.set_editable(false);
         view.set_monospace(true);
         view.set_hexpand(true);
         view.set_vexpand(true);
@@ -131,10 +131,11 @@ impl EditorView {
             bar_actions,
             monitor: RefCell::new(None),
             sync_pending: Cell::new(false),
+            disk_epoch: Cell::new(0),
             view,
             buffer,
             path: path.to_path_buf(),
-            loading: Cell::new(false),
+            loading: Cell::new(true),
             vim: RefCell::new(None),
             prose,
             mode: Cell::new(mode),
@@ -165,7 +166,7 @@ impl EditorView {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let this = Rc::downgrade(&editor);
-        // sync: Return and Alt+1/3 must say at once whether the key was consumed (Ctrl+S is deferred).
+        // sync: answer or ordering before return: Return and Alt+1/3 must say at once whether the key was consumed (Ctrl+S is deferred).
         keys.connect_key_pressed(move |_, key, _, state| {
             let Some(this) = this.upgrade() else {
                 return glib::Propagation::Proceed;
@@ -195,7 +196,31 @@ impl EditorView {
         editor.root.add_controller(keys);
         editor.buffer.set_modified(false);
         editor.watch_disk();
+        editor.open_text();
         editor
+    }
+
+    fn open_text(self: &Rc<Self>) {
+        self.read_disk(|this, result| {
+            this.view.set_editable(true);
+            this.replace_text(&result.unwrap_or_else(|why| format!("{why}\n")));
+        });
+    }
+
+    fn read_disk(self: &Rc<Self>, then: impl FnOnce(&Rc<Self>, Result<String, String>) + 'static) {
+        let epoch = self.disk_epoch.get() + 1;
+        self.disk_epoch.set(epoch);
+        let (path, weak) = (self.path.clone(), Rc::downgrade(self));
+        glib::spawn_future_local(async move {
+            let Ok(result) = gio::spawn_blocking(move || load(&path)).await else {
+                return;
+            };
+            if let Some(this) = weak.upgrade()
+                && this.disk_epoch.get() == epoch
+            {
+                then(&this, result);
+            }
+        });
     }
 
     fn watch_disk(self: &Rc<Self>) {
@@ -229,6 +254,9 @@ impl EditorView {
     }
 
     fn sync_from_disk(self: &Rc<Self>) {
+        if self.loading.get() {
+            return;
+        }
         if !self.path.exists() {
             self.show_bar(
                 "File was deleted on disk. Your buffer is still open.",
@@ -237,18 +265,20 @@ impl EditorView {
             self.buffer.set_modified(true);
             return;
         }
-        let Ok(text) = load(&self.path) else { return };
-        let (a, b) = self.buffer.bounds();
-        if self.buffer.text(&a, &b, true) == text {
-            self.bar.set_visible(false);
-        } else if self.buffer.is_modified() {
-            self.show_bar(
-                "File changed on disk. Keep your edits, or reload from disk?",
-                true,
-            );
-        } else {
-            self.replace_text(&text);
-        }
+        self.read_disk(|this, result| {
+            let Ok(text) = result else { return };
+            let (a, b) = this.buffer.bounds();
+            if this.buffer.text(&a, &b, true) == text {
+                this.bar.set_visible(false);
+            } else if this.buffer.is_modified() {
+                this.show_bar(
+                    "File changed on disk. Keep your edits, or reload from disk?",
+                    true,
+                );
+            } else {
+                this.replace_text(&text);
+            }
+        });
     }
 
     fn replace_text(self: &Rc<Self>, text: &str) {
@@ -299,11 +329,14 @@ impl EditorView {
             let reload = gtk::Button::with_label("Load disk");
             let this = Rc::downgrade(self);
             reload.connect_clicked(move |_| {
-                if let Some(this) = this.upgrade()
-                    // sync: reads the file now; the reload itself is deferred.
-                    && let Ok(text) = load(&this.path)
-                {
-                    glib::idle_add_local_once(move || this.replace_text(&text));
+                if let Some(this) = this.upgrade() {
+                    glib::idle_add_local_once(move || {
+                        this.read_disk(|this, result| {
+                            if let Ok(text) = result {
+                                this.replace_text(&text);
+                            }
+                        });
+                    });
                 }
             });
             self.bar_actions.append(&keep);

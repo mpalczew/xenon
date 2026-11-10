@@ -283,7 +283,7 @@ fn layered(app: &App, view: &adw::ToolbarView) -> gtk::Overlay {
 
 fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
     let weak = Rc::downgrade(app);
-    // sync: the session must be saved before the window goes.
+    // sync: answer or ordering before return: the session must be saved before the window goes.
     win.connect_close_request(move |_| {
         if let Some(app) = weak.upgrade() {
             app.save_all();

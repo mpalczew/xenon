@@ -155,7 +155,7 @@ impl WorklistList {
         );
         let hide = gio::SimpleAction::new_stateful("hide-completed", None, &false.to_variant());
         let weak = Rc::downgrade(self);
-        // sync: a stateful action sets its own state in its activate; the list change is deferred.
+        // sync: answer or ordering before return: a stateful action sets its own state in its activate; the list change is deferred.
         hide.connect_activate(move |action, _| {
             let on = !action
                 .state()

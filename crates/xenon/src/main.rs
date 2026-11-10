@@ -129,7 +129,7 @@ fn main() -> glib::ExitCode {
     };
     let listener = RefCell::new(listener);
     let boot = RefCell::new(Some(request));
-    // sync: application activation builds the first window or answers a request; no layout is running.
+    // sync: answer or ordering before return: application activation builds the first window or answers a request; no layout is running.
     gtk_app.connect_activate(move |gtk_app| {
         let app = ensure(gtk_app);
         if let Some(listener) = listener.take() {

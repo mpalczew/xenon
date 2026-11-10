@@ -111,7 +111,7 @@ impl Prose {
                 }
             }
         ));
-        // sync: the edit's positions are valid only inside this handler.
+        // sync: event-time read: the edit's positions are valid only inside this handler.
         self.buffer.connect_insert_text(glib::clone!(
             #[strong(rename_to = this)]
             weak,
@@ -121,7 +121,7 @@ impl Prose {
                 }
             }
         ));
-        // sync: the edit's positions are valid only inside this handler.
+        // sync: event-time read: the edit's positions are valid only inside this handler.
         self.buffer.connect_delete_range(glib::clone!(
             #[strong(rename_to = this)]
             weak,

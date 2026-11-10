@@ -17,7 +17,7 @@ pub(crate) fn install(view: &Rc<TermView>) {
     click.set_button(gdk::BUTTON_SECONDARY);
     click.set_propagation_phase(gtk::PropagationPhase::Capture);
     let weak = Rc::downgrade(view);
-    // sync: runs before VTE's own handler, which reads the menu model right after.
+    // sync: answer or ordering before return: runs before VTE's own handler, which reads the menu model right after.
     click.connect_pressed(move |_, _, x, y| {
         if let Some(view) = weak.upgrade() {
             view.term

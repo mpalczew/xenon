@@ -58,14 +58,18 @@ impl Mirror {
             jobs,
         });
         let watcher = shared.clone();
-        // sync: `poke` only schedules a timeout.
-        let handler = term.connect_contents_changed(move |_| watcher.poke());
+        let handler = term.connect_contents_changed(move |_| {
+            let watcher = watcher.clone();
+            glib::idle_add_local_once(move || watcher.poke());
+        });
         let watcher = shared.clone();
         let scroll = term.vadjustment().map(|adj| {
             (
                 adj.clone(),
-                // sync: `poke` only schedules a timeout.
-                adj.connect_value_changed(move |_| watcher.poke()),
+                adj.connect_value_changed(move |_| {
+                    let watcher = watcher.clone();
+                    glib::idle_add_local_once(move || watcher.poke());
+                }),
             )
         });
         shared.poke();

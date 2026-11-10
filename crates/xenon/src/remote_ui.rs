@@ -131,16 +131,7 @@ impl App {
         content.append(&address);
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.set_halign(gtk::Align::Center);
-        let copy = gtk::Button::with_label("Copy link");
-        let link = url.clone().unwrap_or_default();
-        let weak = dialog.downgrade();
-        copy.connect_clicked(move |button| {
-            button.clipboard().set_text(&link); // sync: no widget changes
-            if let Some(dialog) = weak.upgrade() {
-                // sync: AdwDialog.close animates out; nothing is destroyed during this event.
-                dialog.close();
-            }
-        });
+        let copy = copy_button(&dialog, url.clone().unwrap_or_default());
         let settings = gtk::Button::with_label(&match self.chord("app.settings") {
             Some(chord) => format!("Settings\u{2026}  {chord}"),
             None => "Settings\u{2026}".to_string(),
@@ -148,19 +139,22 @@ impl App {
         let weak = dialog.downgrade();
         let gtk_app = self.gtk.clone();
         settings.connect_clicked(move |_| {
-            if let Some(dialog) = weak.upgrade() {
-                // sync: AdwDialog.close animates out; nothing is destroyed during this event.
-                dialog.close();
-            }
-            gtk_app.activate_action("settings", None); // sync: the action defers its own work
+            let (dialog, gtk_app) = (weak.upgrade(), gtk_app.clone());
+            glib::idle_add_local_once(move || {
+                if let Some(dialog) = dialog {
+                    dialog.close();
+                }
+                gtk_app.activate_action("settings", None);
+            });
         });
         let done = gtk::Button::with_label("Done  esc");
         done.add_css_class("suggested-action");
         let weak = dialog.downgrade();
         done.connect_clicked(move |_| {
             if let Some(dialog) = weak.upgrade() {
-                // sync: AdwDialog.close animates out; nothing is destroyed during this event.
-                dialog.close();
+                glib::idle_add_local_once(move || {
+                    dialog.close();
+                });
             }
         });
         if url.is_some() {
@@ -171,6 +165,21 @@ impl App {
         content.append(&buttons);
         dialog.set_child(Some(&content));
     }
+}
+
+fn copy_button(dialog: &adw::Dialog, link: String) -> gtk::Button {
+    let copy = gtk::Button::with_label("Copy link");
+    let weak = dialog.downgrade();
+    copy.connect_clicked(move |button| {
+        let (clipboard, link, dialog) = (button.clipboard(), link.clone(), weak.upgrade());
+        glib::idle_add_local_once(move || {
+            clipboard.set_text(&link);
+            if let Some(dialog) = dialog {
+                dialog.close();
+            }
+        });
+    });
+    copy
 }
 
 fn expiry_label(expires_at: Instant) -> gtk::Label {

@@ -91,19 +91,19 @@ pub(crate) fn install(app: &Rc<App>) {
         let weak = Rc::downgrade(app);
         let handler = *handler;
         let name = *name;
-        // sync: `palette_passes` is a pure check; the palette key and the command are deferred.
         action.connect_activate(move |_, _| {
             if let Some(app) = weak.upgrade() {
-                if app.launcher.is_open() && !palette_passes(name) {
-                    let key = match name {
-                        "new-terminal" => "down",
-                        "open-finder" => "up",
-                        _ => return,
-                    };
-                    glib::idle_add_local_once(move || app.launcher.key(key));
-                    return;
-                }
-                glib::idle_add_local_once(move || handler(&app));
+                glib::idle_add_local_once(move || {
+                    if app.launcher.is_open() && !palette_passes(name) {
+                        match name {
+                            "new-terminal" => app.launcher.key("down"),
+                            "open-finder" => app.launcher.key("up"),
+                            _ => {}
+                        }
+                        return;
+                    }
+                    handler(&app);
+                });
             }
         });
         app.gtk.add_action(&action);

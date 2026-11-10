@@ -122,15 +122,16 @@ fn place(paned: &gtk::Paned, orientation: gtk::Orientation, fraction: f32, busy:
 fn watch(ctx: &Ctx, paned: &gtk::Paned, orientation: gtk::Orientation, before: f32, key: PaneId) {
     let (weak, busy, ws): (Weak<App>, _, _) = (Rc::downgrade(ctx.app), ctx.busy.clone(), ctx.ws);
     paned.connect_position_notify(move |p| {
-        // sync: pure size read.
-        let size = extent(p, orientation);
-        if busy.get() || size <= 0 {
-            return;
-        }
-        let within = f64::from(p.position()) / f64::from(size);
-        let cumulative = before + (1.0 - before) * within as f32;
-        if let Some(app) = weak.upgrade() {
-            gtk::glib::idle_add_local_once(move || app.divider_moved(ws, key, cumulative));
-        }
+        let Some(app) = weak.upgrade() else { return };
+        let (busy, paned) = (busy.clone(), p.clone());
+        gtk::glib::idle_add_local_once(move || {
+            let size = extent(&paned, orientation);
+            if busy.get() || size <= 0 {
+                return;
+            }
+            let within = f64::from(paned.position()) / f64::from(size);
+            let cumulative = before + (1.0 - before) * within as f32;
+            app.divider_moved(ws, key, cumulative);
+        });
     });
 }

@@ -47,15 +47,22 @@ impl App {
         let weak = Rc::downgrade(self);
         let field = entry.clone();
         dialog.connect_response(None, move |_, response| {
-            // sync: pure path expansion.
-            let path = expand_home(field.text().trim());
-            if response != "create" || path.as_os_str().is_empty() {
+            if response != "create" {
                 return;
             }
             let Some(app) = weak.upgrade() else { return };
-            glib::idle_add_local_once(move || match std::fs::create_dir_all(&path) {
-                Ok(()) => app.open_workspace(&path),
-                Err(error) => app.toast(&format!("Couldn\u{2019}t create that folder: {error}")),
+            let field = field.clone();
+            glib::idle_add_local_once(move || {
+                let path = expand_home(field.text().trim());
+                if path.as_os_str().is_empty() {
+                    return;
+                }
+                match std::fs::create_dir_all(&path) {
+                    Ok(()) => app.open_workspace(&path),
+                    Err(error) => {
+                        app.toast(&format!("Couldn\u{2019}t create that folder: {error}"));
+                    }
+                }
             });
         });
         dialog.present(Some(&self.win));

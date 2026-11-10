@@ -7,8 +7,11 @@
 //! including our own helpers, changes widgets, models, buffers or styles while GTK may
 //! be mid-layout, so it must move into a deferral.
 //! Escape: `// sync: <reason>` on the line of, or the line above, the call or the
-//! `connect_*` call (the latter covers the whole handler). Use it when the handler must
-//! act at once, such as returning a value or consuming a key.
+//! `connect_*` call (the latter covers the whole handler). Use it for exactly two reasons:
+//! GTK needs an answer or an ordering before the handler returns (a return value, a
+//! consumed key, an accepted drop, a list factory), or the read is tied to the moment of
+//! the event (text-iter positions, the row under the pointer, a list index that may shift).
+//! Otherwise move the work, reads included, into a deferral.
 
 use std::{fs, process::ExitCode};
 

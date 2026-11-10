@@ -80,13 +80,13 @@ impl FilesView {
         self.menu.set_has_arrow(false);
         self.menu.set_halign(gtk::Align::Start);
         let menu = self.menu.clone();
-        // sync: the popover must leave its parent while the parent is destroyed.
+        // sync: answer or ordering before return: the popover must leave its parent while the parent is destroyed.
         self.list.connect_destroy(move |_| menu.unparent());
 
         let click = gtk::GestureClick::new();
         click.set_button(gdk::BUTTON_SECONDARY);
         let weak = Rc::downgrade(self);
-        // sync: reads the row under the pointer now, before the list changes; the popup is deferred.
+        // sync: event-time read: reads the row under the pointer now, before the list changes; the popup is deferred.
         click.connect_pressed(move |_, _, x, y| {
             let Some(this) = weak.upgrade() else { return };
             let target = this
@@ -362,9 +362,9 @@ impl FilesView {
             };
             let text = entry.text();
             let quiet = text.trim().is_empty() || current.as_deref() == Some(text.trim());
-            // sync: pure name check.
-            let result = check_live(&text);
+            let check_live = check_live.clone();
             glib::idle_add_local_once(move || {
+                let result = check_live(&text);
                 note.set_visible(!quiet && result.is_err());
                 note.set_text(result.as_ref().err().map_or("", String::as_str));
                 dialog.set_response_enabled("ok", result.is_ok());
@@ -372,14 +372,18 @@ impl FilesView {
         });
         let (weak, weak_entry) = (Rc::downgrade(self), entry.downgrade());
         let then = std::cell::Cell::new(Some(then));
-        // sync: `check` is a pure name check; `then` is deferred.
         dialog.connect_response(None, move |_, id| {
-            let (Some(this), Some(entry), "ok") = (weak.upgrade(), weak_entry.upgrade(), id) else {
+            let (Some(this), Some(entry), "ok", Some(then)) =
+                (weak.upgrade(), weak_entry.upgrade(), id, then.take())
+            else {
                 return;
             };
-            if let (Ok(name), Some(then)) = (check(&entry.text()), then.take()) {
-                glib::idle_add_local_once(move || then(&this, name));
-            }
+            let check = check.clone();
+            glib::idle_add_local_once(move || {
+                if let Ok(name) = check(&entry.text()) {
+                    then(&this, name);
+                }
+            });
         });
         dialog.present(self.list.root().as_ref());
         let stem = fileops::stem_chars(&initial) as i32;

@@ -188,7 +188,7 @@ impl Palette {
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let w = weak;
-        // sync: must say at once whether it consumed the key; moving the selection is the key's whole job.
+        // sync: answer or ordering before return: must say at once whether it consumed the key; moving the selection is the key's whole job.
         keys.connect_key_pressed(move |_, key, _, state| {
             let Some(this) = w.upgrade() else {
                 return glib::Propagation::Proceed;
