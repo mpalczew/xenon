@@ -4,6 +4,9 @@ use std::net::{IpAddr, TcpStream};
 use anyhow::{Result, bail};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 
+// Parsed here with httparse rather than a server crate: tiny_http (checked
+// at 0.12) has no header size cap, connection cap or read timeout, and this
+// port reads requests before it checks the device token.
 const MAX_HEAD: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
 pub(crate) const MAX_BODY: usize = 8 * 1024;
