@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::io::Read;
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -9,10 +7,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
+use percent_encoding::percent_decode_str;
 
 use crate::host::{ConnId, HostRequest, HostTx, PairError};
-use crate::http;
-use crate::protocol::{PairRequest, PairResponse, TaskInfo, TerminalInfo, WorkspaceInfo};
+use crate::http::{self, Request};
+use crate::protocol::{PairRequest, PairResponse};
 use crate::rate_limit::RateLimiter;
 use crate::uploads;
 use crate::ws;
@@ -194,65 +193,38 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
     }
 }
 
-pub(crate) struct Request {
-    pub(crate) method: String,
-    pub(crate) path: String,
-    pub(crate) headers: HashMap<String, String>,
-    pub(crate) body: Vec<u8>,
-    pub(crate) peer: IpAddr,
-}
-
 fn read_request(stream: &mut TcpStream, shared: &Shared) -> Result<Option<Request>> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
     let peer = stream.peer_addr()?.ip();
-    let mut buf = vec![0u8; 16 * 1024];
-    let n = stream.read(&mut buf)?;
-    if n == 0 {
+    let Some(mut req) = http::read_head(stream, peer)? else {
         return Ok(None);
-    }
-    let head = String::from_utf8_lossy(&buf[..n]).into_owned();
-    let (req_line, headers, body_start) = http::split_http(&head)?;
-    let mut parts = req_line.split_whitespace();
-    let method = parts.next().unwrap_or("").to_string();
-    let (path, _query) = http::split_path_query(parts.next().unwrap_or("/"));
-    let path = path.to_string();
-    let clen = http::content_length(&headers);
-    let upload = method == "POST" && path == UPLOAD_PATH && signed_in(&headers, shared);
+    };
+    let upload = req.method == ::http::Method::POST
+        && req.path == UPLOAD_PATH
+        && matches!(shared.authenticate(bearer(&req)), Ok(Some(_)));
     let limit = if upload {
         uploads::MAX_UPLOAD
     } else {
         http::MAX_BODY
     };
-    if clen > limit {
+    if req.content_length() > limit {
         http::write_json_error(stream, 413, "too large")?;
         return Ok(None);
     }
-    let body = http::extract_body(&buf[..n], body_start, clen, stream)?;
-    Ok(Some(Request {
-        method,
-        path,
-        headers,
-        body,
-        peer,
-    }))
-}
-
-fn signed_in(headers: &HashMap<String, String>, shared: &Shared) -> bool {
-    matches!(shared.authenticate(bearer(headers)), Ok(Some(_)))
+    http::read_body(&mut req, stream)?;
+    Ok(Some(req))
 }
 
 fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
     let Some(req) = read_request(&mut stream, shared)? else {
         return Ok(());
     };
+    let html = "text/html; charset=utf-8";
     match (req.method.as_str(), req.path.as_str()) {
-        ("GET", "/" | "/index.html" | "/pair") => http::write_http(
-            &mut stream,
-            200,
-            "text/html; charset=utf-8",
-            PAGE.as_bytes(),
-        ),
+        ("GET", "/" | "/index.html" | "/pair") => {
+            http::write_http(&mut stream, 200, html, PAGE.as_bytes())
+        }
         ("GET", "/manifest.webmanifest") => http::write_http(
             &mut stream,
             200,
@@ -284,10 +256,7 @@ fn pair(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
     })
     .unwrap_or_else(|e| Err(PairError::Storage(e)));
     match result {
-        Ok(resp) => {
-            let bytes = serde_json::to_vec(&resp)?;
-            http::write_http(stream, 200, "application/json", &bytes)
-        }
+        Ok(resp) => http::write_json(stream, &resp),
         Err(PairError::Rejected) => {
             shared.fail(req.peer);
             http::write_json_error(stream, 401, "code not recognized")
@@ -297,99 +266,84 @@ fn pair(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
 }
 
 fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
-    match shared.authenticate(bearer(&req.headers)) {
+    match shared.authenticate(bearer(req)) {
         Ok(Some(_)) => {}
         Ok(None) => return http::write_json_error(stream, 401, "unauthorized"),
         Err(e) => return http::write_json_error(stream, 503, &e),
     }
-    if req.method == "GET" && req.path == "/api/workspaces" {
-        let list: Vec<WorkspaceInfo> =
-            ask(&shared.host, |reply| HostRequest::ListWorkspaces { reply })
-                .map_err(|e| anyhow!(e))?;
-        return write_json(stream, &list);
-    }
-    let Some(rest) = req.path.strip_prefix("/api/workspaces/") else {
-        return http::write_json_error(stream, 404, "not found");
-    };
-    let Some((id_enc, tail)) = rest.split_once('/') else {
-        return http::write_json_error(stream, 404, "not found");
-    };
-    if id_enc.is_empty() {
-        return http::write_json_error(stream, 404, "not found");
-    }
-    let workspace_id = http::urlencoding_decode(id_enc);
-    if tail == "terminals" {
-        if req.method == "POST" {
-            let created: Result<TerminalInfo, String> =
-                ask(&shared.host, |reply| HostRequest::CreateTerminal {
+    let host = &shared.host;
+    let segments: Vec<&str> = req.path.split('/').skip(1).collect();
+    match (req.method.as_str(), segments.as_slice()) {
+        ("GET", ["api", "workspaces"]) => reply(
+            stream,
+            ask(host, |reply| HostRequest::ListWorkspaces { reply }),
+        ),
+        ("GET", ["api", "workspaces", id, "terminals"]) => reply(
+            stream,
+            decode(id).and_then(|workspace_id| {
+                ask(host, |reply| HostRequest::ListTerminals {
                     workspace_id,
                     reply,
                 })
-                .and_then(|r| r);
-            return match created {
-                Ok(info) => write_json(stream, &info),
-                Err(e) => http::write_json_error(stream, 404, &e),
-            };
+                .flatten()
+            }),
+        ),
+        ("POST", ["api", "workspaces", id, "terminals"]) => reply(
+            stream,
+            decode(id).and_then(|workspace_id| {
+                ask(host, |reply| HostRequest::CreateTerminal {
+                    workspace_id,
+                    reply,
+                })
+                .flatten()
+            }),
+        ),
+        ("GET", ["api", "workspaces", id, "tasks"]) => reply(
+            stream,
+            decode(id).and_then(|workspace_id| {
+                ask(host, |reply| HostRequest::ListTasks {
+                    workspace_id,
+                    reply,
+                })
+                .flatten()
+            }),
+        ),
+        ("DELETE", ["api", "workspaces", id, "terminals", tab]) => {
+            let closed = decode(id).and_then(|workspace_id| {
+                let tab_id = tab.parse::<u64>().map_err(|_| NOT_FOUND.to_string())?;
+                ask(host, |reply| HostRequest::CloseTerminal {
+                    workspace_id,
+                    tab_id,
+                    reply,
+                })
+                .flatten()
+            });
+            reply(stream, closed.map(|()| serde_json::json!({})))
         }
-        if req.method != "GET" {
-            return http::write_json_error(stream, 404, "not found");
-        }
-        let terminals: Result<Vec<TerminalInfo>, String> =
-            ask(&shared.host, |reply| HostRequest::ListTerminals {
-                workspace_id,
-                reply,
-            })
-            .and_then(|r| r);
-        return match terminals {
-            Ok(list) => write_json(stream, &list),
-            Err(e) => http::write_json_error(stream, 404, &e),
-        };
+        _ => http::write_json_error(stream, 404, NOT_FOUND),
     }
-    if tail == "tasks" {
-        if req.method != "GET" {
-            return http::write_json_error(stream, 404, "not found");
-        }
-        let tasks: Result<Vec<TaskInfo>, String> =
-            ask(&shared.host, |reply| HostRequest::ListTasks {
-                workspace_id,
-                reply,
-            })
-            .and_then(|r| r);
-        return match tasks {
-            Ok(list) => write_json(stream, &list),
-            Err(e) => http::write_json_error(stream, 404, &e),
-        };
-    }
-    let Some(tab_enc) = tail.strip_prefix("terminals/") else {
-        return http::write_json_error(stream, 404, "not found");
-    };
-    if req.method != "DELETE" || tab_enc.is_empty() || tab_enc.contains('/') {
-        return http::write_json_error(stream, 404, "not found");
-    }
-    let Ok(tab_id) = tab_enc.parse::<u64>() else {
-        return http::write_json_error(stream, 404, "not found");
-    };
-    let closed: Result<(), String> = ask(&shared.host, |reply| HostRequest::CloseTerminal {
-        workspace_id,
-        tab_id,
-        reply,
-    })
-    .and_then(|r| r);
-    match closed {
-        Ok(()) => write_json(stream, &serde_json::json!({})),
+}
+
+const NOT_FOUND: &str = "not found";
+
+fn decode(segment: &str) -> Result<String, String> {
+    percent_decode_str(segment)
+        .decode_utf8()
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .ok_or_else(|| NOT_FOUND.to_string())
+}
+
+fn reply<T: serde::Serialize>(stream: &mut TcpStream, result: Result<T, String>) -> Result<()> {
+    match result {
+        Ok(value) => http::write_json(stream, &value),
         Err(e) => http::write_json_error(stream, 404, &e),
     }
 }
 
-fn write_json<T: serde::Serialize>(stream: &mut TcpStream, value: &T) -> Result<()> {
-    let bytes = serde_json::to_vec(value)?;
-    http::write_http(stream, 200, "application/json", &bytes)
-}
-
-pub(crate) fn bearer(headers: &HashMap<String, String>) -> &str {
-    headers
-        .get("authorization")
-        .map(String::as_str)
+pub(crate) fn bearer(req: &Request) -> &str {
+    req.header("authorization")
         .and_then(|a| {
             a.strip_prefix("Bearer ")
                 .or_else(|| a.strip_prefix("bearer "))

@@ -5,6 +5,9 @@ use xenon_store::RemoteDevice;
 use crate::frame::Rgb;
 use crate::protocol::ThemeWire;
 
+pub const KEEP_AWAKE_LABEL: &str = "Keep this computer awake while a phone is connected";
+pub const KEEP_AWAKE_DETAIL: &str = "Ignores your sleep setting until the phone disconnects";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceRow {
     pub id: String,
@@ -27,6 +30,11 @@ pub struct RemoteStatus {
 }
 
 impl RemoteStatus {
+    /// Whether the computer should stay awake for a connected phone.
+    pub fn hold_awake(&self) -> bool {
+        self.enabled && self.keep_awake && self.connected > 0
+    }
+
     pub fn subtitle(&self, off_hint: &str) -> String {
         if self.waiting {
             return "On — the other Xenon has the phone remote until it quits".into();

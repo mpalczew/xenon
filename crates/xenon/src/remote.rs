@@ -3,11 +3,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use std::time::Duration;
 
+use gtk::prelude::GtkApplicationExt;
 use gtk::{gio, glib};
 use xenon_core::{TabId, WorkspaceId};
-use xenon_remote::{
-    DeviceBook, HostRequest, Inhibitor, Reachability, RemoteServer, RemoteStatus, StartError,
-};
+use xenon_remote::{DeviceBook, HostRequest, Reachability, RemoteServer, RemoteStatus, StartError};
 
 use crate::app::App;
 use crate::remote_fit::TabFit;
@@ -23,7 +22,6 @@ pub(crate) struct Runtime {
     pub host_name: String,
     pub devices: DeviceBook,
     pub conns: BTreeMap<xenon_remote::ConnId, Conn>,
-    keep_awake: Inhibitor,
     net_timer: Option<glib::SourceId>,
 }
 
@@ -34,6 +32,7 @@ pub(crate) struct Remote {
     pub fits: RefCell<HashMap<(WorkspaceId, TabId), TabFit>>,
     pub on_change: RefCell<Option<Rc<dyn Fn()>>>,
     pub connect_dialog: RefCell<Option<adw::Dialog>>,
+    keep_awake: Cell<Option<u32>>,
 }
 
 impl Remote {
@@ -45,6 +44,7 @@ impl Remote {
             fits: RefCell::default(),
             on_change: RefCell::new(None),
             connect_dialog: RefCell::new(None),
+            keep_awake: Cell::new(None),
         }
     }
 
@@ -132,10 +132,9 @@ impl App {
             port: server.port,
             _server: server,
             reach,
-            host_name: String::new(),
+            host_name: glib::host_name().to_string(),
             devices: DeviceBook::load(),
             conns: BTreeMap::new(),
-            keep_awake: Inhibitor::default(),
             net_timer: Some(net_timer),
         });
         glib::spawn_future_local(async move {
@@ -203,19 +202,12 @@ impl App {
     fn remote_names(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
-            let names = gio::spawn_blocking(|| {
-                (
-                    xenon_remote::magic_dns_name(),
-                    xenon_remote::computer_name(),
-                )
-            })
-            .await;
-            let (Ok((dns, name)), Some(app)) = (names, weak.upgrade()) else {
+            let dns = gio::spawn_blocking(xenon_remote::magic_dns_name).await;
+            let (Ok(dns), Some(app)) = (dns, weak.upgrade()) else {
                 return;
             };
             if let Some(rt) = app.remote.rt.borrow_mut().as_mut() {
                 rt.reach.magic_dns = dns;
-                rt.host_name = name;
             }
             app.remote_publish();
         });
@@ -255,14 +247,29 @@ impl App {
 
     pub(crate) fn remote_publish(self: &Rc<Self>) {
         let status = self.remote_status();
-        let hold = xenon_remote::should_hold(status.enabled, status.keep_awake, status.connected);
-        if let Some(rt) = self.remote.rt.borrow_mut().as_mut() {
-            rt.keep_awake.sync(hold);
-        }
+        self.remote_keep_awake(status.hold_awake());
         self.refresh_connect_dialog();
         let callback = self.remote.on_change.borrow().clone();
         if let Some(callback) = callback {
             callback();
+        }
+    }
+
+    fn remote_keep_awake(&self, hold: bool) {
+        match (hold, self.remote.keep_awake.get()) {
+            (true, None) => {
+                let cookie = self.gtk.inhibit(
+                    None::<&gtk::Window>,
+                    gtk::ApplicationInhibitFlags::IDLE,
+                    Some("A phone is connected to Xenon"),
+                );
+                self.remote.keep_awake.set((cookie != 0).then_some(cookie));
+            }
+            (false, Some(cookie)) => {
+                self.gtk.uninhibit(cookie);
+                self.remote.keep_awake.set(None);
+            }
+            _ => {}
         }
     }
 }

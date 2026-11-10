@@ -6,10 +6,7 @@ pub(crate) fn new_device_token() -> String {
 }
 
 pub(crate) fn hash_token(token: &str) -> String {
-    Sha256::digest(token.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    format!("{:x}", Sha256::digest(token.as_bytes()))
 }
 
 pub(crate) fn ct_eq(a: &str, b: &str) -> bool {
