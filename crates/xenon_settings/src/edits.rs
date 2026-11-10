@@ -1,5 +1,3 @@
-//! Rules that change settings in place: font nudges, wrap flips, prose look.
-
 use std::path::Path;
 
 use crate::values::sanitize_prose;
@@ -15,7 +13,6 @@ impl UiSettings {
         self.terminal.size = DEFAULT_FONT_SIZE;
     }
 
-    /// Whether this file should soft-wrap. Prose defaults on; code defaults off.
     pub fn editor_wraps(&self, path: &Path) -> bool {
         if is_prose_path(path) {
             self.wrap_prose
@@ -24,7 +21,6 @@ impl UiSettings {
         }
     }
 
-    /// Change the prose look; values are clamped to their allowed range.
     pub fn update_prose(&mut self, change: impl FnOnce(&mut ProseSettings)) {
         change(&mut self.prose);
         self.prose = sanitize_prose(self.prose.clone());

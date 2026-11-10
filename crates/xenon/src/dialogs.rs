@@ -1,6 +1,3 @@
-//! Dialogs and hand-offs: choose or create a workspace folder, and open a
-//! clicked terminal link.
-
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -22,7 +19,6 @@ fn expand_home(text: &str) -> PathBuf {
 }
 
 impl App {
-    /// Folder chooser for "Open workspace".
     pub(crate) fn open_workspace_dialog(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::new();
         dialog.set_title("Open workspace");
@@ -36,7 +32,6 @@ impl App {
         });
     }
 
-    /// "New workspace": type a folder path; it is created when missing.
     pub(crate) fn new_workspace_dialog(self: &Rc<Self>) {
         let dialog =
             adw::AlertDialog::new(Some("New workspace"), Some("Folder to create or open."));
@@ -67,9 +62,6 @@ impl App {
         entry.grab_focus();
     }
 
-    /// Ctrl+click landed on `text` in a terminal. Xenon shows what it can (files
-    /// in an editor tab of the terminal's workspace, folders in Files); the
-    /// default app gets the rest.
     pub(crate) fn open_link(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, text: &str) {
         let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
             return;
@@ -91,9 +83,6 @@ impl App {
         }
     }
 
-    /// A reference that is not on disk where the terminal is: look for files in
-    /// the workspace that end with it. One match opens; several go to the file
-    /// finder with the reference typed in; none says so.
     fn search_link(self: &Rc<Self>, ws: WorkspaceId, reference: String, line: u32) {
         let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {
             return;
@@ -103,7 +92,6 @@ impl App {
         glib::spawn_future_local(async move {
             let mut index = cached;
             let mut found = Vec::new();
-            // A cached index can be stale: rebuild once before giving up.
             for fresh in [false, true] {
                 if index.is_none() || fresh {
                     let dir = root.clone();

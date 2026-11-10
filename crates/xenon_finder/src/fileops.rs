@@ -1,14 +1,7 @@
-//! Rules for managing files from the Files tree: what a new name may be, where
-//! a move or copy lands, how open paths follow a rename, and the folder copy.
-//! No GTK here; the view only asks and draws the answer.
-
 use std::path::{Path, PathBuf};
 
-/// The longest file name most file systems accept, in bytes.
 const MAX_NAME_BYTES: usize = 255;
 
-/// The name to use for `typed` in `dir`, or the sentence to show the user.
-/// `current` is the item's own name when renaming.
 pub fn check_name(dir: &Path, typed: &str, current: Option<&str>) -> Result<String, String> {
     let name = typed.trim();
     if name.is_empty() {
@@ -43,7 +36,6 @@ pub fn stem_chars(name: &str) -> usize {
     }
 }
 
-/// The folder a "new file" or "new folder" goes in for a click on `path`.
 pub fn new_item_dir(path: &Path, is_dir: bool) -> PathBuf {
     if is_dir {
         path.to_path_buf()
@@ -64,7 +56,6 @@ pub fn move_target(src: &Path, dest_dir: &Path) -> Result<Option<PathBuf>, Strin
     landing(src, dest_dir).map(Some)
 }
 
-/// Where a copy of `src` lands in `dest_dir`.
 pub fn copy_target(src: &Path, dest_dir: &Path) -> Result<PathBuf, String> {
     if dest_dir.starts_with(src) {
         return Err("A folder can't be copied into itself.".into());
@@ -90,7 +81,6 @@ pub fn rebase(path: &Path, old: &Path, new: &Path) -> Option<PathBuf> {
     path.strip_prefix(old).ok().map(|rest| new.join(rest))
 }
 
-/// `path` relative to `root`, or the whole path when it is outside.
 pub fn relative(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)

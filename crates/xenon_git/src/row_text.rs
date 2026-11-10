@@ -1,10 +1,6 @@
-//! Text a Git row shows for one changed file.
-
 use crate::status::GitFile;
 
 impl GitFile {
-    /// Muted text after the name in a Git row: the rename source, else the
-    /// deepest directories.
     pub fn detail(&self) -> String {
         match &self.from {
             Some(from) => format!("\u{2190} {from}"),
@@ -12,7 +8,6 @@ impl GitFile {
         }
     }
 
-    /// Hover text: the repo-relative path (with its rename source) and the change size.
     pub fn tooltip(&self) -> String {
         match &self.from {
             Some(from) => format!(
@@ -23,8 +18,6 @@ impl GitFile {
         }
     }
 
-    /// Hover text: the full path under `root` (with its rename source) and
-    /// the change size.
     pub fn full_tooltip(&self, root: &std::path::Path) -> String {
         let full = root.join(&self.path).display().to_string();
         match &self.from {

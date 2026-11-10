@@ -1,7 +1,3 @@
-//! Ctrl+click on terminal links: URLs, OSC 8 hyperlinks, and file paths.
-//! Shift+click is left to VTE (its "bypass mouse reporting" modifier); plain
-//! clicks stay with the shell or TUI.
-
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -15,28 +11,22 @@ use crate::term::TermView;
 // PCRE2_MULTILINE: VTE requires it for match regexes.
 const PCRE2_MULTILINE: u32 = 0x0000_0400;
 const URL_RE: &str = r#"https?://[^\s<>"'`)]+"#;
-// A path with a slash, or a bare file name with a letter-led extension.
 const PATH_RE: &str = r"(?:(?:\.{0,2}/)?[\w.\-+@~]+(?:/[\w.\-+@~]+)+|[\w\-+@][\w.\-+@]*\.[A-Za-z][A-Za-z0-9]{0,7})(?::\d+){0,2}";
 
-/// What a click landed on.
 pub(crate) enum Link {
     Url(String),
-    /// A local file or folder, with the `:line` of a `path:line:col` suffix.
     Path(PathBuf, Option<u32>),
 }
 
-/// What to do with a link: Xenon shows what it can, the default app gets the rest.
 pub(crate) enum Opening {
     Editor(PathBuf, u32),
     Reveal(PathBuf),
     Launch(String),
     Default(PathBuf),
     Missing(PathBuf),
-    /// A relative reference found nowhere on disk; look it up in the workspace index.
     Search(String, u32),
 }
 
-/// Split a trailing `:line` or `:line:col` off `text`.
 fn split_line(text: &str) -> (&str, Option<u32>) {
     let (mut raw, mut numbers) = (text, Vec::new());
     while let Some((head, tail)) = raw.rsplit_once(':') {
@@ -49,8 +39,6 @@ fn split_line(text: &str) -> (&str, Option<u32>) {
     (raw, numbers.last().copied())
 }
 
-/// Classify matched text. Relative paths resolve against `cwd`; `~/` against
-/// home. A trailing `:line` or `:line:col` is split off; `file://` URIs are paths.
 pub(crate) fn classify(text: &str, cwd: &Path) -> Link {
     if text.starts_with("file://")
         && let Some(path) = gio::File::for_uri(text).path()
@@ -71,7 +59,6 @@ pub(crate) fn classify(text: &str, cwd: &Path) -> Link {
     Link::Path(path, line)
 }
 
-/// What to do with a path that exists or not.
 pub(crate) fn opening_for(path: PathBuf, line: Option<u32>) -> Opening {
     if !path.exists() {
         Opening::Missing(path)
@@ -84,8 +71,6 @@ pub(crate) fn opening_for(path: PathBuf, line: Option<u32>) -> Opening {
     }
 }
 
-/// The decision for a clicked link. Order: absolute, relative to the terminal's
-/// `cwd`, relative to the workspace `root`, then a search of the workspace files.
 pub(crate) fn decide(text: &str, cwd: &Path, root: &Path) -> Opening {
     match classify(text, cwd) {
         Link::Url(url) => Opening::Launch(url),
@@ -116,8 +101,6 @@ pub(crate) fn install(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: 
     let click = gtk::GestureClick::new();
     click.set_button(gdk::BUTTON_PRIMARY);
     click.set_propagation_phase(gtk::PropagationPhase::Capture);
-    // Weak: the controller lives on `root`, so a strong capture would be a cycle
-    // that keeps the terminal (and its shell) alive after the tab closes.
     let (weak_app, root, term) = (
         Rc::downgrade(app),
         view.root.downgrade(),
@@ -144,7 +127,6 @@ pub(crate) fn install(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: 
             .or_else(|| term.check_match_at(px, py).0.map(|s| s.to_string()));
         if let (Some(text), Some(app)) = (text, weak_app.upgrade()) {
             gesture.set_state(gtk::EventSequenceState::Claimed);
-            // Deferred: opening a link can switch tabs under this gesture.
             glib::idle_add_local_once(move || app.open_link(ws, tab, &text));
         }
     });

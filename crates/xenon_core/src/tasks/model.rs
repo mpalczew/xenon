@@ -1,7 +1,3 @@
-//! Typed VS Code task definitions after OS overrides and file-level globals
-//! have been merged in. Strings still contain `${...}` variables; see `vars`
-//! and `resolve`.
-
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -13,7 +9,6 @@ pub enum Quoting {
     Weak,
 }
 
-/// A command or argument: plain text or `{ value, quoting }`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Quoted {
     pub value: String,
@@ -106,8 +101,6 @@ pub struct TaskDef {
     pub is_background: bool,
     pub run_on_folder_open: bool,
     pub hide: bool,
-    /// Why this task cannot run in Xenon (extension-contributed type, no
-    /// command, unsupported `dependsOn` form). Listed but not runnable.
     pub unsupported: Option<String>,
 }
 
@@ -147,7 +140,6 @@ impl InputDef {
 pub struct TaskSet {
     pub tasks: Vec<TaskDef>,
     pub inputs: BTreeMap<String, InputDef>,
-    /// Tasks or sections skipped while parsing, one line each.
     pub warnings: Vec<String>,
 }
 
@@ -156,7 +148,6 @@ impl TaskSet {
         self.tasks.iter().find(|t| t.label == label)
     }
 
-    /// The default task of a group, if the file marks one.
     pub(crate) fn default_of(&self, kind: GroupKind) -> Option<&TaskDef> {
         self.tasks
             .iter()
@@ -165,7 +156,6 @@ impl TaskSet {
 }
 
 impl TaskDef {
-    /// Every string that is expanded when the task runs.
     pub fn strings(&self) -> Vec<&str> {
         let mut out: Vec<&str> = Vec::new();
         out.extend(self.command.iter().map(|c| c.value.as_str()));

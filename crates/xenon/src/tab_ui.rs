@@ -1,7 +1,3 @@
-//! What the tab bar reports. Each event names a page; the app finds its tab,
-//! asks the model, and syncs, the same path the keyboard commands take. Events
-//! run on the next idle turn so the bar finishes its own drag first.
-
 use std::rc::Rc;
 
 use gtk::glib;
@@ -10,7 +6,6 @@ use xenon_core::{DropEdge, PaneId, TabId, WorkspaceId};
 use crate::app::App;
 
 impl App {
-    /// Run `then` for the tab whose body is `child`, once the bar is done.
     pub(crate) fn tab_event(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -26,7 +21,6 @@ impl App {
         });
     }
 
-    /// The tab whose body is `child`.
     pub(crate) fn tab_of(&self, ws: WorkspaceId, child: &gtk::Widget) -> Option<TabId> {
         self.bodies
             .borrow()
@@ -35,10 +29,6 @@ impl App {
             .map(|((_, t), _)| *t)
     }
 
-    /// A tab drag ended. A drag that ended off every bar left the model in
-    /// charge (a pane body drop already moved the tab there), so the views are
-    /// redrawn from it. A drop on a bar moved the page itself, so the model
-    /// learns where it went.
     pub(crate) fn tab_transfer_done(self: &Rc<Self>, ws: WorkspaceId) {
         self.transfer_queued.set(false);
         if self.off_bar.take() {
@@ -48,8 +38,6 @@ impl App {
         }
     }
 
-    /// A tab that a view shows somewhere else than the model puts it: first
-    /// one that changed pane, then one that changed place.
     fn moved_tab(&self, ws: WorkspaceId) -> Option<(TabId, PaneId, usize)> {
         let slots = self.slots.borrow();
         let model = self.model.borrow();
@@ -72,7 +60,6 @@ impl App {
         reordered
     }
 
-    /// The user picked a tab on the bar of `pane`.
     pub(crate) fn tab_selected(self: &Rc<Self>, ws: WorkspaceId, pane: PaneId, tab: TabId) {
         let here = self
             .model
@@ -86,7 +73,6 @@ impl App {
         }
     }
 
-    /// The user dragged `tab` to `index` of `pane`'s bar (reorder or move).
     pub(crate) fn tab_placed(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -100,8 +86,6 @@ impl App {
         self.changed(ws);
     }
 
-    /// The user dropped `tab` on `pane`'s body: an edge splits, the middle
-    /// moves. Model only; the caller redraws.
     pub(crate) fn tab_dropped(
         self: &Rc<Self>,
         ws: WorkspaceId,

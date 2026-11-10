@@ -1,7 +1,3 @@
-//! Terminal tab status: attention (done/bell) and working, and the workspace
-//! row derived from its tabs so sidebar and chips cannot disagree.
-
-/// Why a tab attention badge is lit. Last write wins on that tab; for debug tooltips.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AttentionReason {
     Bell,
@@ -17,7 +13,6 @@ impl AttentionReason {
     }
 }
 
-/// Terminal tab status. Working outranks a settled attention mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WorkspaceDot {
     Working,
@@ -33,7 +28,6 @@ impl WorkspaceDot {
     }
 }
 
-/// One terminal tab's visible pip. Shared by the tab chip and the workspace aggregate.
 pub fn workspace_dot(working: bool, attention: Option<AttentionReason>) -> Option<WorkspaceDot> {
     if working {
         Some(WorkspaceDot::Working)

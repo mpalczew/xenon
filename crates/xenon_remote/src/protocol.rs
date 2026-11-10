@@ -1,11 +1,7 @@
-//! JSON wire types for the mobile remote: REST lists, pairing, and the
-//! WebSocket session. `page.html` is the only client; keep the two in step.
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-/// Terminal / workspace status pip, mirroring the desktop sidebar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Dot {
@@ -21,7 +17,6 @@ pub struct WorkspaceInfo {
     /// Live in this app process (terminals available without reopening).
     #[serde(default)]
     pub open: bool,
-    /// Root path for display (`~` for `$HOME`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub root: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -79,7 +74,6 @@ impl std::fmt::Debug for Secret {
 #[serde(rename_all = "camelCase")]
 pub enum TaskInputKind {
     Text,
-    /// Masked on the phone; never stored there.
     Password,
     Pick,
 }
@@ -90,7 +84,6 @@ pub struct TaskOptionWire {
     pub value: String,
 }
 
-/// `POST /pair`: the 6-digit code or the QR fragment secret.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PairRequest {
@@ -104,7 +97,6 @@ pub(crate) struct PairRequest {
 pub struct PairResponse {
     pub device_id: String,
     pub token: String,
-    /// Human name of the Mac, for the "Paired" screen.
     pub host_name: String,
 }
 
@@ -166,7 +158,6 @@ pub enum ClientMsg {
     Wheel {
         rows: i32,
     },
-    /// Jump the terminal viewport back to the live row.
     Bottom,
     /// Left click on a live-grid cell. The Mac reports it only while the
     /// program has mouse mode on.
@@ -204,7 +195,6 @@ pub enum AppearanceWire {
     Light,
 }
 
-/// Theme colors so the page matches the Mac terminal.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThemeWire {
     pub bg: String,
@@ -219,10 +209,8 @@ pub struct StyleWire {
     pub fg: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bg: Option<String>,
-    /// Bit flags: see `style_flags`.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub f: u8,
-    /// Hyperlink target (OSC 8); the page opens it on tap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub h: Option<String>,
 }
@@ -235,7 +223,6 @@ fn is_false(v: &bool) -> bool {
     !*v
 }
 
-/// `StyleWire::f` bits.
 pub mod style_flags {
     pub(crate) const BOLD: u8 = 1;
     pub(crate) const ITALIC: u8 = 2;
@@ -271,7 +258,6 @@ pub enum ClosedReason {
     ServerStopping,
 }
 
-/// Mac → phone over `/ws`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "camelCase")]
 pub enum ServerMsg {
@@ -281,7 +267,6 @@ pub enum ServerMsg {
         device_id: String,
         host_name: String,
     },
-    /// Colors for the appearance the page asked for (`appearance`).
     Theme {
         theme: ThemeWire,
     },
@@ -298,7 +283,6 @@ pub enum ServerMsg {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cursor: Option<CursorWire>,
         lines: Vec<LineWire>,
-        /// The terminal viewport is above its live row (shell scrollback).
         #[serde(default, skip_serializing_if = "is_false")]
         scrolled: bool,
     },

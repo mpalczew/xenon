@@ -1,14 +1,10 @@
-//! Device tokens: generation, hashing, comparison.
-
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// A fresh 256-bit-ish device token (two v4 UUIDs, hex). Shown to the phone once.
 pub(crate) fn new_device_token() -> String {
     format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
 
-/// SHA-256 hex digest; the only form of a device token that is stored.
 pub(crate) fn hash_token(token: &str) -> String {
     Sha256::digest(token.as_bytes())
         .iter()
@@ -16,7 +12,6 @@ pub(crate) fn hash_token(token: &str) -> String {
         .collect()
 }
 
-/// Constant-time equality for equal-length secrets.
 pub(crate) fn ct_eq(a: &str, b: &str) -> bool {
     a.len() == b.len()
         && a.bytes()

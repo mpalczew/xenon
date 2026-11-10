@@ -1,8 +1,5 @@
-//! Prose mode look: the Markdown writing settings, the column and the tag sizes.
-
 use super::*;
 
-/// The font and size rule for a prose view, added to the window sheet.
 pub(crate) fn css(prose: &ProseSettings, mono: &str) -> String {
     let family = match prose.font {
         ProseFont::Auto | ProseFont::Serif => "serif".to_string(),
@@ -16,7 +13,6 @@ pub(crate) fn css(prose: &ProseSettings, mono: &str) -> String {
 }
 
 impl Prose {
-    /// Apply the Markdown writing settings and the theme.
     pub(crate) fn restyle(self: &Rc<Self>, app: &App, fresh: bool) {
         let settings = app.settings.borrow();
         let p = settings.prose.clone();
@@ -41,7 +37,6 @@ impl Prose {
         self.margin.set(margin);
         self.view.set_left_margin(margin);
         self.view.set_right_margin(margin);
-        // New colors: drop the code colors made from the old scheme.
         let recolor = self.drop_syntax();
         if fresh {
             self.edits.set(self.edits.get() + 1);
@@ -52,7 +47,6 @@ impl Prose {
         self.images.schedule_move(self);
     }
 
-    /// Run the stored document over the buffer again (a setting changed).
     pub(super) fn reapply(self: &Rc<Self>) {
         let generation = self.applies.get() + 1;
         self.applies.set(generation);
@@ -65,7 +59,6 @@ impl Prose {
         self.slice(generation, 0, 0, Vec::new());
     }
 
-    /// Width of `text` in the prose font at the prose size.
     pub(super) fn text_width(&self, p: &ProseSettings, text: &str) -> i32 {
         let layout = pango::Layout::new(&self.view.pango_context());
         let mut font = pango::FontDescription::new();
@@ -85,14 +78,12 @@ impl Prose {
         layout.pixel_size().0.max(1)
     }
 
-    /// Side margin that centers the column fitted to the document.
     pub(super) fn column_margin(&self, p: &ProseSettings) -> i32 {
         let ch = self.text_width(p, "0");
         let column = (self.column.get() * ch as f32) as i32;
         ((self.scroller.width() - column) / 2).max(24)
     }
 
-    /// The tag measurements for the current settings and column.
     pub(super) fn look(&self, app: &App, p: &ProseSettings, margin: i32) -> Look {
         let extra = (f64::from(p.size) * (f64::from(p.line_height) - 1.2)).max(0.0) as i32;
         Look {
@@ -103,7 +94,6 @@ impl Prose {
         }
     }
 
-    /// Re-center the column after the window changed width.
     pub(super) fn fit_column(self: &Rc<Self>) {
         if !self.on.get() {
             return;

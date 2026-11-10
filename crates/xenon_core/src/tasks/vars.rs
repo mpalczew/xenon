@@ -1,13 +1,9 @@
-//! `${...}` variable expansion (VS Code variables reference).
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-/// State of the active editor pane, for the file-derived variables.
 #[derive(Debug, Clone, Default)]
 pub struct EditorInfo {
     pub file: PathBuf,
-    /// 1-based line of the cursor.
     pub line: u32,
     pub selected_text: String,
 }
@@ -17,7 +13,6 @@ pub(crate) struct VarContext<'a> {
     pub workspace: &'a Path,
     pub editor: Option<&'a EditorInfo>,
     pub env: &'a dyn Fn(&str) -> Option<String>,
-    /// Flattened Xenon settings for `${config:...}`.
     pub config: &'a BTreeMap<String, String>,
     pub inputs: &'a BTreeMap<String, String>,
     /// Input ids whose values must never be echoed.
@@ -28,7 +23,6 @@ pub(crate) struct VarContext<'a> {
 }
 
 impl VarContext<'_> {
-    /// Values to blank out of anything shown to the user.
     pub(crate) fn secret_values(&self) -> Vec<&str> {
         self.secret_inputs
             .iter()
@@ -56,7 +50,6 @@ pub(crate) fn expand(text: &str, ctx: &VarContext) -> Result<String, String> {
     Ok(out)
 }
 
-/// Ids of every `${input:id}` in `text`.
 pub(crate) fn input_refs(text: &str) -> Vec<String> {
     let mut ids = Vec::new();
     let mut rest = text;

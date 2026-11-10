@@ -1,6 +1,3 @@
-//! Markdown prose-mode preferences: global look (`settings.json`) and the
-//! per-file view state (`prose-files.json` in the data dir).
-
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -8,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{StoreError, data_dir, read_json, write_atomic};
 
-/// How inline Markdown syntax (`**`, `#`, `[`…) is drawn in prose mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProseMarkers {
@@ -17,7 +13,6 @@ pub enum ProseMarkers {
     Hide,
 }
 
-/// Face for prose text. Auto is serif on Paper and the UI sans otherwise.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProseFont {
@@ -58,7 +53,6 @@ impl Default for ProseSettings {
     }
 }
 
-/// The three ways to look at a Markdown file.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MarkdownMode {
@@ -68,7 +62,6 @@ pub enum MarkdownMode {
     Source,
 }
 
-/// View state remembered for one Markdown file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProseFilePrefs {
     #[serde(default)]
@@ -78,7 +71,6 @@ pub struct ProseFilePrefs {
     /// Leading `<!-- -->` lines shown instead of folded into the chip.
     #[serde(default)]
     pub comments_open: bool,
-    /// The worklist file opens as the list rather than as Markdown.
     #[serde(default = "yes")]
     pub list: bool,
 }
@@ -116,7 +108,6 @@ fn load() -> ProseFiles {
     read_json(&path).unwrap_or_default()
 }
 
-/// Remembered view state for `path`, or the defaults.
 pub fn prose_file_prefs(path: &Path) -> ProseFilePrefs {
     load()
         .files

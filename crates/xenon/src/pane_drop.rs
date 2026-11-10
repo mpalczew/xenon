@@ -1,10 +1,3 @@
-//! Dropping a dragged tab on a pane's body: the left, right, top and bottom
-//! bands split the pane that way, the middle moves the tab there. The bands
-//! are 40 px wide, lit while the tab hovers. `AdwTabBar` offers
-//! the dragged `AdwTabPage` to a plain `gtk::DropTarget` (checked), so nothing
-//! else is needed; ours runs in the capture phase because the bar puts a target
-//! of its own on the view.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -13,11 +6,8 @@ use xenon_core::{DropEdge, PaneId, WorkspaceId};
 
 use crate::app::App;
 
-/// Width of an edge band.
 const EDGE: i32 = 40;
 
-/// The band under (x, y); `None` is the middle. Left and right run the full
-/// height, top and bottom sit between them.
 fn zone(x: f64, y: f64, width: i32, height: i32) -> Option<DropEdge> {
     let (x, y) = (x as i32, y as i32);
     if x < EDGE {
@@ -33,7 +23,6 @@ fn zone(x: f64, y: f64, width: i32, height: i32) -> Option<DropEdge> {
     }
 }
 
-/// Place the lit rectangle over `edge` (or the middle).
 fn light(marker: &gtk::Box, edge: Option<DropEdge>) {
     let fill = gtk::Align::Fill;
     let (h, v, w, t, inset_x, inset_y) = match edge {
@@ -96,8 +85,6 @@ pub(crate) fn install(app: &Rc<App>, body: &gtk::Overlay, ws: WorkspaceId, pane:
         let Some(tab) = app.tab_of(ws, &page.child()) else {
             return false;
         };
-        // Only the model changes now; the views are redrawn from it once the
-        // bar has put the page back (`tab_transfer_done`).
         app.tab_dropped(ws, pane, tab, edge);
         true
     });

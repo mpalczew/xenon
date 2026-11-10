@@ -1,6 +1,3 @@
-//! Terminal tab titles: what to show for the title a program set.
-
-/// Title text the terminal reports before any program sets one.
 const PLACEHOLDER: &str = "terminal";
 
 /// Clean a raw terminal title. The default title is `{cwd} — {process}`; drop
@@ -25,8 +22,6 @@ pub fn clean_terminal_title(raw: &str, spawn_dir: &str) -> String {
     }
 }
 
-/// The path of a shell prompt title (`user@host: ~/src/xenon`,
-/// `user@host:/tmp`), which bash and zsh set by default.
 fn prompt_path(raw: &str) -> Option<&str> {
     let (who, path) = raw.split_once(':')?;
     let (user, host) = who.split_once('@')?;
@@ -34,7 +29,6 @@ fn prompt_path(raw: &str) -> Option<&str> {
     (word(user) && word(host)).then(|| path.trim())
 }
 
-/// A directory as a short tab label: its own name, `~` for home, `/` for root.
 fn short_dir(path: &str) -> String {
     let trimmed = path.trim_end_matches('/');
     if trimmed.is_empty() {

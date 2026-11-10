@@ -1,14 +1,9 @@
-//! The diff tab's model: the two texts of one file (HEAD against the working
-//! tree, or HEAD against the index when the tree matches HEAD) and the lines
-//! of each side, computed with `similar`. The view only draws these lines.
-
 use std::path::Path;
 use std::process::Command;
 
 use similar::{ChangeTag, DiffOp, InlineChange, TextDiff};
 use xenon_git::status::GitFile;
 
-/// Auto switches to side-by-side at or above this pane width.
 const AUTO_SPLIT_MIN_PX: f32 = 860.;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -57,9 +52,7 @@ pub(crate) enum Kind {
     Context,
     Added,
     Removed,
-    /// The empty half of a split row.
     Filler,
-    /// A hunk's `@@` line.
     Header,
 }
 
@@ -117,7 +110,6 @@ impl Line {
     }
 }
 
-/// One change block: the line to show it at and the new-file line to open.
 pub(crate) struct Hunk {
     pub line: i32,
     pub target: u32,
@@ -171,7 +163,6 @@ impl Doc {
         }
     }
 
-    /// The lines of each side for a layout.
     pub(crate) fn build(&self, layout: Layout) -> Page {
         let split = layout == Layout::Split;
         let diff = TextDiff::from_lines(self.old.as_str(), self.new.as_str());
@@ -237,7 +228,6 @@ impl Doc {
     }
 }
 
-/// A blob from git (`HEAD:path`, `:path`); none when git has no such blob.
 fn show(root: &Path, spec: &str) -> Option<Vec<u8>> {
     let out = Command::new("git")
         .args(["show", spec])

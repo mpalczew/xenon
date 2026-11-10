@@ -1,23 +1,14 @@
-//! Where the phone remote listens and how the phone reaches it: Tailscale
-//! address (by interface, no CLI needed), MagicDNS name, and the pairing URL.
-//! The tailnet (Tailscale or Headscale) is the only network path.
-
 use std::net::{IpAddr, Ipv4Addr};
 
 use crate::names::interface_ipv4s;
 
-/// What the phone needs to reach this computer.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reachability {
-    /// This computer's Tailscale IPv4 (100.64.0.0/10), if connected.
     pub tailscale_ip: Option<Ipv4Addr>,
-    /// MagicDNS name, e.g. `mbp.tail7c2e.ts.net`.
     pub magic_dns: Option<String>,
 }
 
 impl Reachability {
-    /// Interface addresses only (cheap; no subprocess). MagicDNS comes later
-    /// from `magic_dns_name` off the UI thread.
     pub fn probe_local() -> Self {
         let addrs = interface_ipv4s();
         Self {
@@ -26,10 +17,6 @@ impl Reachability {
         }
     }
 
-    /// Addresses the server binds: this computer's Tailscale/CGNAT address
-    /// (100.64.0.0/10, so Headscale too) and loopback. Never `0.0.0.0` and
-    /// never a LAN address: plain HTTP on Wi-Fi would let anyone there read
-    /// the device token and rewrite the page.
     pub fn bind_ips(&self) -> Vec<IpAddr> {
         self.tailscale_ip
             .into_iter()
@@ -52,7 +39,6 @@ impl Reachability {
         }
     }
 
-    /// The phone can reach us from off this computer.
     pub fn reachable(&self) -> bool {
         self.tailscale_ip.is_some()
     }
@@ -72,7 +58,6 @@ pub fn pairing_url(base: &str, secret: &str) -> String {
     format!("{base}/pair#{secret}")
 }
 
-/// Strip scheme/path noise; keep `host` or `host:port`.
 pub fn normalize_hostname(raw: &str) -> String {
     let s = raw.trim();
     let s = s

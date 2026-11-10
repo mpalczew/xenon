@@ -1,5 +1,3 @@
-//! Writing the worklist list view's changes back to the file.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -126,7 +124,6 @@ impl WorklistList {
         });
     }
 
-    /// Ask for a section name in a small dialog; `done` gets what was typed.
     fn ask_name(
         self: &Rc<Self>,
         heading: &str,
@@ -158,8 +155,6 @@ impl WorklistList {
             }
         });
     }
-
-    // ---- the capture form ----
 
     pub(super) fn add_via_form(self: &Rc<Self>) {
         if let Some(app) = self.app.upgrade() {

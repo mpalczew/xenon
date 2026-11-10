@@ -1,9 +1,5 @@
-//! Form fields shared by the capture dialog.
-
 use gtk::prelude::*;
 
-/// The title field: a wrapping text view that looks like an entry, with a
-/// placeholder shown while it is empty.
 pub(super) fn title_view(placeholder: &str) -> (gtk::TextView, gtk::Widget) {
     let view = gtk::TextView::new();
     view.set_wrap_mode(gtk::WrapMode::WordChar);
@@ -37,7 +33,6 @@ pub(super) fn title_view(placeholder: &str) -> (gtk::TextView, gtk::Widget) {
     (view, scroller.upcast())
 }
 
-/// The text of a view.
 pub(super) fn text_of(view: &gtk::TextView) -> String {
     let buffer = view.buffer();
     let (start, end) = buffer.bounds();

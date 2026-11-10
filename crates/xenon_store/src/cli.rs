@@ -1,10 +1,7 @@
-//! `xenon open` argv: path, optional location, pane.
-
 use std::path::PathBuf;
 
 use crate::ipc::{IpcRequest, OpenFileSpec, OpenPane};
 
-/// What a second process should send (or a cold start should apply).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CliCommand {
     Paths(Vec<PathBuf>),
@@ -25,7 +22,6 @@ impl CliCommand {
     }
 }
 
-/// Parse argv after the binary name.
 pub fn parse_cli(args: impl IntoIterator<Item = String>) -> CliCommand {
     let args: Vec<String> = args.into_iter().collect();
     if args.first().is_some_and(|a| a == "open") {

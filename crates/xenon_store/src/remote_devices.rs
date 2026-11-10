@@ -14,10 +14,8 @@ use crate::{StoreError, data_dir, load_or_default, write_atomic};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteDevice {
     pub id: String,
-    /// e.g. "iPhone · Home Screen".
     pub label: String,
     pub token_sha256: String,
-    /// Unix seconds.
     pub created_at: u64,
     pub last_seen_at: u64,
 }
@@ -29,7 +27,6 @@ pub struct RemoteDevices {
 }
 
 const FILE: &str = "remote_devices.json";
-/// Slot data dirs the launcher uses; their shared sibling is `.xenon-shared`.
 const SLOT_DIRS: &[&str] = &[".xenon-a", ".xenon-b"];
 
 /// State every instance of this user shares: `XENON_SHARED_DIR`, else the
@@ -52,7 +49,6 @@ fn devices_path() -> PathBuf {
     shared_dir().join(FILE)
 }
 
-/// Paired devices, or none if the file is missing or corrupt.
 pub fn load_remote_devices() -> Result<RemoteDevices, StoreError> {
     load_or_default(&devices_path())
 }

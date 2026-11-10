@@ -1,8 +1,5 @@
-//! Device labels: sanitize what the phone sends; shorten for the Mac banner.
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// "iPhone · Home Screen" → "iPhone" for the terminal banner.
 pub fn device_short_name(label: &str) -> &str {
     label.split(" · ").next().unwrap_or(label).trim()
 }

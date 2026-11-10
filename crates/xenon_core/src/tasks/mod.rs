@@ -1,6 +1,3 @@
-//! VS Code `tasks.json` support: pure parse, resolve, and orchestration.
-//! I/O (reading the file, spawning terminals) stays at the call site.
-
 mod consent;
 mod load;
 mod model;
@@ -29,7 +26,6 @@ pub use texts::*;
 pub use trust::folder_open_hash;
 pub use vars::EditorInfo;
 
-/// Walk up from `start` looking for `.vscode/tasks.json`.
 pub(crate) fn find_tasks_json(start: &Path) -> Option<PathBuf> {
     let mut dir = start.to_path_buf();
     loop {
@@ -43,7 +39,6 @@ pub(crate) fn find_tasks_json(start: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Workspace root for a tasks.json path (`…/.vscode/tasks.json` → `…`).
 pub(crate) fn workspace_for_tasks_json(tasks_json: &Path) -> Option<PathBuf> {
     tasks_json.parent()?.parent().map(|p| p.to_path_buf())
 }

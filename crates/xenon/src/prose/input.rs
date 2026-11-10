@@ -1,5 +1,3 @@
-//! Prose mode input and state: clicks, task boxes and links.
-
 use super::*;
 
 impl Prose {
@@ -7,7 +5,6 @@ impl Prose {
         self.doc.borrow().images.clone()
     }
 
-    /// Enter: Ctrl flips the task box, a plain Enter continues a list.
     pub(crate) fn enter(self: &Rc<Self>, ctrl: bool, plain: bool) -> bool {
         self.on.get()
             && if ctrl {
@@ -17,7 +14,6 @@ impl Prose {
             }
     }
 
-    /// Plain click on a task box flips it; Ctrl+click on a link opens it.
     pub(super) fn clicked(self: &Rc<Self>, x: f64, y: f64, ctrl: bool) {
         if !self.on.get() || self.buffer.has_selection() {
             return;
@@ -42,7 +38,6 @@ impl Prose {
         }
     }
 
-    /// Flip the task box on the caret's line (Ctrl+Enter).
     pub(crate) fn toggle_task(self: &Rc<Self>) -> bool {
         let found = self.doc.borrow().checkbox_on_line_of(self.caret()).cloned();
         match found {
@@ -54,8 +49,6 @@ impl Prose {
         }
     }
 
-    /// Enter at the end of a list item: start the next item, or end the list
-    /// when the item is empty. The edit is one undo step, made after the key.
     pub(crate) fn continue_list(self: &Rc<Self>) -> bool {
         let end = self.at(self.caret());
         if !self.on.get() || self.buffer.has_selection() || !end.ends_line() {

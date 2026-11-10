@@ -1,12 +1,8 @@
-//! Tabs that run a task.
-
 use xenon_core::{TabId, WorkspaceId};
 
 use crate::model::{Model, Tab};
 
 impl Model {
-    /// Add a terminal that will run task `label`. Without `select` the pane
-    /// keeps showing the tab it had.
     pub(crate) fn new_task_terminal(
         &mut self,
         ws: WorkspaceId,
@@ -27,7 +23,6 @@ impl Model {
         Some(id)
     }
 
-    /// Ready an exited task tab for a new process of task `label`.
     pub(crate) fn recycle_terminal(&mut self, ws: WorkspaceId, tab: TabId, label: &str) {
         if let Some(t) = self.tab_mut(ws, tab) {
             t.exited = None;

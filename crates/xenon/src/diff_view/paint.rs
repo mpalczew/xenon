@@ -1,7 +1,3 @@
-//! Painting the diff: the header strip, one GtkSourceView per side with line
-//! backgrounds from mark categories and changed words from text tags, and the
-//! current-hunk mark. A child of `diff_view`, so it reaches the view's fields.
-
 use super::*;
 use crate::diff_text::{Kind, Line};
 use numbers::Numbers;
@@ -25,7 +21,6 @@ fn set_text(label: &gtk::Label, text: Option<&str>) {
     label.set_text(text.unwrap_or_default());
 }
 
-/// Line backgrounds as source marks, changed words as text tags.
 fn mark_lines(buf: &sourceview::Buffer, lines: &[Line], words: &[(&str, gdk::RGBA); 2]) {
     for (at, line) in lines.iter().enumerate() {
         let category = match line.kind {
@@ -53,7 +48,6 @@ fn mark_lines(buf: &sourceview::Buffer, lines: &[Line], words: &[(&str, gdk::RGB
     }
 }
 
-/// Whole-line backgrounds for the mark categories; the current hunk also gets an arrow.
 fn set_marks(view: &sourceview::View, tints: &[(&str, gdk::RGBA)]) {
     for (name, bg) in tints {
         let attrs = sourceview::MarkAttributes::new();
@@ -85,15 +79,12 @@ impl DiffView {
         set_text(&self.note, doc.note.as_deref());
     }
 
-    /// Put one view per side in the body; the panes of a split share the
-    /// vertical adjustment, so GTK scrolls them together.
     pub(super) fn fill(&self, page: &Page) {
         while let Some(child) = self.body.first_child() {
             self.body.remove(&child);
         }
         self.views.borrow_mut().clear();
         let accent = adw::StyleManager::default().accent_color_rgba();
-        // Adwaita palette green_5 and red_3; the accent is the system one.
         let (green, red) = ("#26a269", "#e01b24");
         let tints = [
             ("added", rgba(green, Some(0.14))),
@@ -175,7 +166,6 @@ impl DiffView {
         }
     }
 
-    /// Mark the current hunk's first line.
     pub(super) fn mark_current(&self) {
         let line = self.hunks.borrow().get(self.current.get()).map(|h| h.0);
         for view in self.views.borrow().iter() {

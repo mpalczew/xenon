@@ -71,14 +71,12 @@ const BINDINGS: &[(&str, &[&str])] = &[
     ("app.quit", &["<Control>q"]),
 ];
 
-/// Register every accelerator on the application.
 pub(crate) fn install(app: &impl IsA<gtk::Application>) {
     for (action, accels) in BINDINGS {
         app.set_accels_for_action(action, accels);
     }
 }
 
-/// An accelerator as text: `<Control><Shift>p` -> `Ctrl+Shift+P`.
 pub(crate) fn label(accel: &str) -> String {
     match gtk::accelerator_parse(accel) {
         Some((key, mods)) => gtk::accelerator_get_label(key, mods).to_string(),
@@ -86,7 +84,6 @@ pub(crate) fn label(accel: &str) -> String {
     }
 }
 
-/// The first key bound to `action`, as text.
 pub(crate) fn action_label(action: &str) -> Option<String> {
     let (_, accels) = BINDINGS.iter().find(|(name, _)| *name == action)?;
     accels.first().map(|accel| label(accel))

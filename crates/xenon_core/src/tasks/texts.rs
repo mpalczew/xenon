@@ -1,6 +1,3 @@
-//! Texts both frontends show for tasks.
-
-/// Picker input hint when it has nothing to say.
 pub const PICKER_PLACEHOLDER: &str = "Run task…";
 pub const NO_TASKS: &str = "No tasks in .vscode/tasks.json";
 pub const PICK_WORKSPACE: (&str, &str) = ("Pick a workspace first", "This needs a home.");

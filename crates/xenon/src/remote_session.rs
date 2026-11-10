@@ -1,6 +1,3 @@
-//! One phone connection: attach to a terminal, forward input, scroll, fit,
-//! and keep the phone's status dots current.
-
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -20,7 +17,6 @@ pub(crate) struct Conn {
     pub device_id: String,
     pub out: Outbox,
     pub attach: Option<Attach>,
-    /// The phone's own light or dark choice; `None` follows the Mac.
     appearance: Option<AppearanceWire>,
     low_bandwidth: bool,
     last_dots: Option<ServerMsg>,
@@ -33,7 +29,6 @@ pub(crate) struct Attach {
     pub mirror: Mirror,
 }
 
-/// Scrollback lines sent to a phone.
 const HISTORY_LIMIT: i64 = 1000;
 
 fn rgb(hex: &str) -> [u8; 3] {
@@ -43,9 +38,6 @@ fn rgb(hex: &str) -> [u8; 3] {
 }
 
 impl App {
-    /// Terminal default background, foreground and cursor for the page, in
-    /// the phone's chosen look. The ANSI palette is the same in both looks, so
-    /// only the defaults differ and cell colors from VTE still match.
     fn remote_colors(appearance: Option<AppearanceWire>) -> [[u8; 3]; 3] {
         let dark = match appearance {
             Some(look) => look == AppearanceWire::Dark,
@@ -214,7 +206,6 @@ impl App {
         }
     }
 
-    /// The attached tab closed or its shell exited: release it and tell the phone.
     pub(crate) fn remote_tab_gone(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         let gone: Vec<ConnId> = self
             .remote
@@ -244,8 +235,6 @@ impl App {
         }
     }
 
-    /// Typed or named-key bytes go to the shell as if the Mac had typed them,
-    /// without counting as Mac typing (so the phone fit stays).
     fn remote_write(self: &Rc<Self>, conn: ConnId, bytes: &[u8]) {
         let (Some(view), Some((ws, tab))) = (self.attached_term(conn), self.attached(conn)) else {
             return;
@@ -284,13 +273,11 @@ impl App {
             return;
         };
         scroll.scroll_to(match rows {
-            // Positive rows show older lines: the viewport moves up.
             Some(rows) => scroll.top() - f64::from(rows),
             None => scroll.live_top(),
         });
     }
 
-    /// Scrollback above the live screen as plain text, oldest first.
     fn remote_history(&self, conn: ConnId) {
         let Some(view) = self.attached_term(conn) else {
             return;
@@ -316,8 +303,6 @@ impl App {
         self.send_to(conn, ServerMsg::History { lines });
     }
 
-    /// Push workspace and attached-tab dots to every phone whose view changed.
-    /// Called after every repaint; nothing to do while no phone is connected.
     pub(crate) fn remote_dots(&self) {
         let mut guard = self.remote.rt.borrow_mut();
         let Some(rt) = guard.as_mut().filter(|rt| !rt.conns.is_empty()) else {
@@ -352,7 +337,6 @@ impl App {
         }
     }
 
-    /// The Mac's theme changed: new colors for every phone, rows resent.
     pub(crate) fn remote_theme_changed(&self) {
         let mut guard = self.remote.rt.borrow_mut();
         let Some(rt) = guard.as_mut().filter(|rt| !rt.conns.is_empty()) else {
@@ -369,7 +353,6 @@ impl App {
         }
     }
 
-    /// Re-dump every terminal a phone watches in this tab (after a resize).
     pub(crate) fn remote_poke_mirrors(&self, ws: WorkspaceId, tab: TabId) {
         if let Some(rt) = self.remote.rt.borrow().as_ref() {
             for a in rt.conns.values().filter_map(|c| c.attach.as_ref()) {
@@ -380,7 +363,6 @@ impl App {
         }
     }
 
-    /// Sign a device out: tell its phones, drop their sessions.
     pub(crate) fn remote_drop_devices(self: &Rc<Self>, device: Option<&str>) {
         let doomed: Vec<ConnId> = self
             .remote

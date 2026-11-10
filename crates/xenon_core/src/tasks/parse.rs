@@ -1,6 +1,3 @@
-//! tasks.json (JSONC) to `TaskSet`: OS overrides and file-level globals,
-//! merged at the JSON value level the way VS Code does.
-
 use std::collections::BTreeMap;
 
 use serde_json_lenient::{Map, Value};
@@ -27,7 +24,6 @@ impl Os {
 /// Override keys VS Code files may carry; only `linux` applies here, the rest
 /// are dropped.
 const OS_KEYS: [&str; 3] = ["osx", "linux", "windows"];
-/// File-level properties a task inherits when it does not set its own.
 const INHERITED: [&str; 5] = [
     "type",
     "options",
@@ -36,7 +32,6 @@ const INHERITED: [&str; 5] = [
     "runOptions",
 ];
 
-/// Parse a tasks.json document (comments and trailing commas allowed).
 pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
     let root: Value = serde_json_lenient::from_str(json).map_err(|e| e.to_string())?;
     let Value::Object(mut file) = root else {

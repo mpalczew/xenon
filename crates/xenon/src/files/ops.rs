@@ -1,11 +1,3 @@
-//! Files section, part three: managing files. The context menu (right click,
-//! Menu key, Shift+F10), name prompts, trash, and drag and drop to move or copy.
-//! What a name may be and where a drop lands is decided in
-//! `xenon_finder::fileops`; this file only asks and shows the answer.
-//!
-//! Every action starts from a GTK signal, so each one captures plain paths and
-//! does its work in an idle callback or a future, never inside the signal.
-
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -15,7 +7,6 @@ use xenon_finder::fileops;
 
 use super::{FilesView, path_of, row_path};
 
-/// What the open menu is about: a file or folder, or the empty area (`None`).
 #[derive(Clone)]
 pub(super) struct Target {
     pub(super) path: PathBuf,
@@ -63,7 +54,6 @@ fn menu_model(on_item: bool) -> gio::Menu {
     menu
 }
 
-/// The row a widget in the list belongs to, as a plain path.
 pub(super) fn target_of(expander: &gtk::TreeExpander) -> Option<Target> {
     let item = expander.list_row()?.item()?;
     Some(Target {
@@ -117,7 +107,6 @@ impl FilesView {
         self.wire_drop();
     }
 
-    /// Show the menu for `target` (`None`: the empty area) at `at`.
     fn popup(self: &Rc<Self>, target: Option<Target>, at: gdk::Rectangle) {
         if let Some(target) = &target {
             self.select_path(&target.path, false);
@@ -129,7 +118,6 @@ impl FilesView {
         self.menu.popup();
     }
 
-    /// Menu key or Shift+F10: the menu for the selected row.
     pub(super) fn popup_selected(self: &Rc<Self>) -> bool {
         let Some(row) = self.selected_row() else {
             return false;
@@ -167,7 +155,6 @@ impl FilesView {
         found.unwrap_or_else(|| gdk::Rectangle::new(0, 0, 1, 1))
     }
 
-    /// F2 and Delete act on the selected row.
     pub(super) fn act_on_selected(self: &Rc<Self>, action: &'static str) -> bool {
         let Some(row) = self.selected_row() else {
             return false;
@@ -335,7 +322,6 @@ impl FilesView {
         });
     }
 
-    /// Ask for a name for an item in `dir`; `then` gets the checked name.
     fn ask_name(self: &Rc<Self>, prompt: Prompt, then: impl FnOnce(&Rc<Self>, String) + 'static) {
         let Prompt {
             heading,
@@ -396,7 +382,6 @@ impl FilesView {
             }
         });
         dialog.present(self.list.root().as_ref());
-        // Rename selects the name without its extension.
         let stem = fileops::stem_chars(&initial) as i32;
         glib::idle_add_local_once(move || {
             entry.grab_focus();
@@ -407,8 +392,6 @@ impl FilesView {
     }
 }
 
-/// What a name prompt asks: titles, the folder the item lands in, the text to
-/// start with and, when renaming, the current name.
 struct Prompt {
     heading: String,
     ok: String,

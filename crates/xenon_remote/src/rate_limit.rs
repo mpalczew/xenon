@@ -1,10 +1,7 @@
-//! Failed-auth throttle.
-
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
-/// Failed-auth throttle: per source IP and globally, over a sliding minute.
 pub(crate) struct RateLimiter {
     per_ip: HashMap<IpAddr, Vec<Instant>>,
     global: Vec<Instant>,

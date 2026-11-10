@@ -1,6 +1,3 @@
-//! One terminal tab body: a VTE widget in a box with its find bar. It reports
-//! raw signals to the `App`, which asks the model what they mean.
-
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
 use std::time::Instant;
@@ -14,18 +11,13 @@ use crate::app::App;
 use crate::find::FindBar;
 
 pub(crate) struct TermView {
-    /// What goes into the pane's stack: find bar above the terminal.
     pub root: gtk::Box,
     pub term: vte::Terminal,
     pub find: FindBar,
-    /// Name of the directory the shell started in (title cleanup).
     pub spawn_dir: String,
-    /// Directory the shell started in, for relative link targets.
     pub cwd: std::path::PathBuf,
-    /// The workspace this terminal belongs to; the shell gets it as `XENON_WORKSPACE`.
     workspace: WorkspaceId,
     pub pid: Cell<Option<i32>>,
-    /// The wait status of the child once it ended (a task reads how it ended).
     pub status: Cell<Option<i32>>,
     pub last_output: Cell<Instant>,
     pub quiet_armed: Cell<bool>,
@@ -50,7 +42,6 @@ impl TermView {
         term.set_audible_bell(false);
         term.set_scroll_on_output(false);
         term.set_scroll_unit_is_pixels(true);
-        // Let GTK's scrolled window handle touchpad scrolling (speed, momentum) like Ptyxis.
         term.set_enable_fallback_scrolling(false);
         term.set_scroll_on_keystroke(true);
         term.set_cursor_blink_mode(vte::CursorBlinkMode::Off);
@@ -83,7 +74,6 @@ impl TermView {
         view
     }
 
-    /// Font and colors from the current settings and theme.
     pub(crate) fn restyle(&self, family: &str, size_px: f32, dark: bool) {
         let mut font = gtk::pango::FontDescription::new();
         font.set_family(family);
@@ -101,7 +91,6 @@ impl TermView {
         self.spawn_command(cwd, &[shell], &[]);
     }
 
-    /// The shell's current directory, else the one it started in.
     pub(crate) fn live_cwd(&self) -> std::path::PathBuf {
         self.pid
             .get()
@@ -109,7 +98,6 @@ impl TermView {
             .unwrap_or_else(|| self.cwd.clone())
     }
 
-    /// Start `argv` (a task) instead of the shell; `extra_env` adds to ours.
     pub(crate) fn spawn_command(
         self: &Rc<Self>,
         cwd: &std::path::Path,
@@ -143,10 +131,6 @@ impl TermView {
     }
 }
 
-/// The environment shells see: ours, minus what only this frontend uses, so a
-/// program started here does not inherit it. `XENON_DATA_DIR` and `XENON_SLOT` stay, so
-/// `xenon open` in a terminal reaches the slot that runs it. `XENON_WORKSPACE` is
-/// added per terminal.
 fn child_env() -> Vec<String> {
     const DROP: [&str; 4] = [
         "TERM",
@@ -170,7 +154,6 @@ fn child_env() -> Vec<String> {
 /// through here. Rows count from the oldest scrollback row VTE still keeps.
 pub(crate) struct ScrollRows {
     adj: gtk::Adjustment,
-    /// Pixels per row, or 1 when the adjustment already counts rows.
     unit: f64,
 }
 
@@ -187,27 +170,22 @@ impl ScrollRows {
         })
     }
 
-    /// The row at the top of the viewport.
     pub(crate) fn top(&self) -> f64 {
         self.adj.value() / self.unit
     }
 
-    /// The oldest row in scrollback.
     pub(crate) fn first(&self) -> f64 {
         self.adj.lower() / self.unit
     }
 
-    /// The top row of the live screen: where the viewport sits when not scrolled back.
     pub(crate) fn live_top(&self) -> f64 {
         ((self.adj.upper() - self.adj.page_size()) / self.unit).max(self.first())
     }
 
-    /// Whether the viewport shows scrollback rather than the live screen.
     pub(crate) fn scrolled_back(&self) -> bool {
         self.top() + 0.5 < self.live_top()
     }
 
-    /// Put `row` at the top of the viewport, kept within scrollback and the live screen.
     pub(crate) fn scroll_to(&self, row: f64) {
         let row = row.clamp(self.first(), self.live_top());
         self.adj.set_value(row * self.unit);
@@ -259,7 +237,6 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
             if let Some(view) = view.upgrade() {
                 view.status.set(Some(status));
             }
-            // Deferred: the exit syncs the panes and may close the tab.
             let weak = weak.clone();
             glib::idle_add_local_once(move || {
                 if let Some(app) = weak.upgrade() {
@@ -268,8 +245,6 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
             });
         });
     }
-    // Typing is interaction: capture phase, so the key is seen even when an
-    // app accelerator or the find bar handles it first.
     let keys = gtk::EventControllerKey::new();
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     {
@@ -290,7 +265,6 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
         });
     }
     term.add_controller(keys);
-    // Files dropped from a file manager type their quoted paths.
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     {
         let term = view.term.downgrade();

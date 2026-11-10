@@ -1,18 +1,12 @@
-//! Stock-widget stand-ins: the empty workspace and tabs the GTK frontend
-//! cannot draw yet.
-
 use adw::prelude::*;
 use xenon_core::TabState;
 
-/// The Xenon icon.
 fn xenon_icon() -> Option<gtk::gdk::Texture> {
     let bytes =
         gtk::glib::Bytes::from_static(include_bytes!("../../../assets/xenon-icon-source.png"));
     gtk::gdk::Texture::from_bytes(&bytes).ok()
 }
 
-/// Commands the card lists: label and the GTK action the row runs. The keys
-/// shown come from the key table.
 type Entry = (&'static str, &'static str);
 const WITH_WORKSPACE: [Entry; 4] = [
     ("Command Palette\u{2026}", "app.command-palette"),
@@ -38,8 +32,6 @@ fn button(label: &str, action: &str, tip: Option<&str>, primary: bool) -> gtk::B
     b
 }
 
-/// The empty state: a workspace with nothing open in a pane, or no workspace.
-/// An `AdwStatusPage` carries the icon, title and subtitle.
 pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widget {
     let page = adw::StatusPage::new();
     page.set_paintable(xenon_icon().as_ref());
@@ -121,7 +113,6 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
     page.upcast()
 }
 
-/// An editor tab: kept as saved, shown as a note.
 pub(crate) fn placeholder(state: &TabState) -> gtk::Widget {
     let (title, detail) = match state {
         TabState::Editor { path, .. } => (

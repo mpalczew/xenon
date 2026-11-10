@@ -1,5 +1,3 @@
-//! folderOpen tasks and the hash that keys their approval.
-
 use sha2::{Digest, Sha256};
 
 use super::model::{TaskDef, TaskSet};

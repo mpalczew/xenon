@@ -1,7 +1,3 @@
-//! Terminal signals in, status out. Each handler passes a raw signal to the
-//! model and repaints only when the model says something visible changed.
-//! The pulse runs only while something is working.
-
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -11,11 +7,8 @@ use xenon_core::{IDLE_AFTER, PaneId, TabId, WorkspaceId};
 
 use crate::app::App;
 
-/// The pulse redraws at most this often.
 const PULSE_TICK: Duration = Duration::from_millis(100);
-/// One full fade in and out.
 const PULSE_PERIOD_S: f64 = 1.4;
-/// Distinct opacities in a fade.
 const PULSE_LEVELS: i32 = 5;
 
 impl App {
@@ -33,8 +26,6 @@ impl App {
         }
     }
 
-    /// One timer per burst, not per output batch: when it fires it either
-    /// settles the terminal or sleeps for the time still left.
     fn arm_quiet(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, delay: Duration) {
         let weak = Rc::downgrade(self);
         glib::timeout_add_local_once(delay, move || {
@@ -86,7 +77,6 @@ impl App {
         self.relabel(ws, tab);
     }
 
-    /// Only the tab title changes; a full sync would touch every page.
     pub(crate) fn relabel(&self, ws: WorkspaceId, tab: TabId) {
         let located = {
             let model = self.model.borrow();
@@ -114,13 +104,11 @@ impl App {
         self.refresh_save_button();
     }
 
-    /// Show Save only while the focused pane's editor has unsaved changes.
     pub(crate) fn refresh_save_button(&self) {
         let dirty = self.model.borrow().active_editor_dirty();
         self.save_button.set_visible(dirty);
     }
 
-    /// Save the focused pane's editor.
     pub(crate) fn save_active_editor(&self, app: &Rc<Self>) {
         let key = self.model.borrow().active_editor_key();
         if let Some(editor) = key.and_then(|k| self.editors.borrow().get(&k).cloned()) {
@@ -128,7 +116,6 @@ impl App {
         }
     }
 
-    /// An editor's unsaved state changed.
     pub(crate) fn editor_modified(&self, ws: WorkspaceId, tab: TabId, modified: bool) {
         if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab) {
             t.modified = modified;
@@ -136,12 +123,7 @@ impl App {
         self.relabel(ws, tab);
     }
 
-    /// Keyboard focus entered a pane (click or key, on a terminal, editor,
-    /// diff or the empty card): the model's focused pane follows it, so
-    /// commands and new tabs target what the user is using.
     pub(crate) fn pane_focused(self: &Rc<Self>, ws: WorkspaceId, pane: PaneId) {
-        // Focus that moves while `sync` rearranges the tabs, or that the
-        // palette hands back on close, is not the user's.
         if self.tab_sync.get() || self.launcher.restoring.get() {
             return;
         }
@@ -157,8 +139,6 @@ impl App {
     }
 
     pub(crate) fn term_exited(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, code: i32) {
-        // A terminal whose tab `sync` just removed ends while its page is
-        // let go; nothing is left to update.
         if self.tab_sync.get() {
             return;
         }
@@ -172,7 +152,6 @@ impl App {
         }
         self.sync(ws);
         if self.tasks.owns(ws, tab) {
-            // A task tab stays for its output; the run decides what follows.
             self.task_finished(ws, tab);
             return;
         }
@@ -198,7 +177,6 @@ impl App {
         }
     }
 
-    /// Start the pulse timer if something is working and it is not running.
     pub(crate) fn ensure_pulse(self: &Rc<Self>) {
         let working = self.model.borrow().any_working();
         let running = self.pulse_source.borrow().is_some();
@@ -219,9 +197,6 @@ impl App {
         if !self.model.borrow().any_working() {
             return self.stop_pulse();
         }
-        // Five steps per fade: the timer wakes at 10 Hz but a frame is drawn
-        // only when the step changes (about 6 per second), which is what the
-        // idle budget pays for.
         let t = self.started.elapsed().as_secs_f64();
         let wave = 0.5 + 0.5 * (t * std::f64::consts::TAU / PULSE_PERIOD_S).cos();
         let level = (wave * (PULSE_LEVELS - 1) as f64).round() as i32;
@@ -233,7 +208,6 @@ impl App {
         glib::ControlFlow::Continue
     }
 
-    /// Drop the timer source and repaint so the dots return to full strength.
     fn stop_pulse(self: &Rc<Self>) -> glib::ControlFlow {
         *self.pulse_source.borrow_mut() = None;
         self.paint_all();

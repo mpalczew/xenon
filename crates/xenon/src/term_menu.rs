@@ -1,8 +1,5 @@
-//! The terminal's right-click menu: VTE's own context menu fed a `gio::Menu`.
 //! VTE leaves the click to a program that grabs the mouse (Shift bypasses
 //! that) and opens the menu from the Menu key and Shift+F10 too. A press
-//! rebuilds the model first, because "Open in Editor" and "Open in Default
-//! App" appear only when a file path is under the pointer.
 
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -18,9 +15,7 @@ pub(crate) fn install(view: &Rc<TermView>) {
     view.term.set_context_menu_model(Some(&model(None)));
     let click = gtk::GestureClick::new();
     click.set_button(gdk::BUTTON_SECONDARY);
-    // Capture runs before VTE's own handler; it never claims the press.
     click.set_propagation_phase(gtk::PropagationPhase::Capture);
-    // Weak: the controller lives on the terminal, so a strong capture is a cycle.
     let weak = Rc::downgrade(view);
     // sync: runs before VTE's own handler, which reads the menu model right after.
     click.connect_pressed(move |_, _, x, y| {
@@ -32,7 +27,6 @@ pub(crate) fn install(view: &Rc<TermView>) {
     view.term.add_controller(click);
 }
 
-/// The existing file whose path is written at the terminal point (x, y).
 fn path_at(view: &TermView, x: f64, y: f64) -> Option<PathBuf> {
     let text = view.term.check_match_at(x, y).0?;
     match classify(&text, &view.live_cwd()) {
@@ -58,7 +52,6 @@ fn model(path: Option<PathBuf>) -> gio::Menu {
             Some(path),
         ));
     }
-    // Cut copies: terminal scrollback is not deleted.
     menu.append_item(&item("Cut", "app.copy", None));
     menu.append_item(&item("Copy", "app.copy", None));
     menu.append_item(&item("Copy Clean", "app.copy-clean", None));

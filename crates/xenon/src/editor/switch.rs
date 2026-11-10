@@ -1,5 +1,3 @@
-//! The Markdown | Code (| Tasks) switch at the top of a Markdown tab.
-
 use std::rc::Rc;
 
 use gtk::{glib, prelude::*};
@@ -8,7 +6,6 @@ use xenon_settings::MarkdownMode;
 
 use super::EditorView;
 
-/// Add the view switch in its own row to `root`; Tasks only on the worklist.
 pub(super) fn add_row(path: &Path, root: &gtk::Box) -> adw::ToggleGroup {
     let switch = view_switch(path);
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -42,7 +39,6 @@ fn view_switch(path: &Path) -> adw::ToggleGroup {
 }
 
 impl EditorView {
-    /// Show the view the switch names: `prose`, `source` or `list`.
     pub(super) fn connect_switch(self: &Rc<Self>) {
         let Some(switch) = &self.switch else { return };
         let weak = Rc::downgrade(self);
@@ -52,7 +48,6 @@ impl EditorView {
                 return;
             }
             let name = switch.active_name().unwrap_or_default();
-            // Deferred: switching changes the view and may set the switch back.
             glib::idle_add_local_once(move || match name.as_str() {
                 "list" => {
                     this.set_list(true);
@@ -69,7 +64,6 @@ impl EditorView {
         });
     }
 
-    /// Make the switch show the view that is on screen.
     pub(super) fn sync_switch(&self) {
         let Some(switch) = &self.switch else { return };
         let name = if self.list_showing() {

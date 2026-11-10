@@ -1,5 +1,3 @@
-//! What the worklist list view needs from the file: the checkbox flip and inline Markdown.
-
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 use super::SourceEdit;

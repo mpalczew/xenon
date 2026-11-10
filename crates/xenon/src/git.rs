@@ -1,13 +1,4 @@
-//! Git state for every open workspace, measured off the main thread.
-//!
-//! One worker thread runs `xenon_git::measure`. It sleeps in a blocking receive.
-//! Changes reach it from three places: `gio` file monitors on each repository's
-//! `.git` (commits, checkouts, staging), a window-focus refresh, and a slow
-//! timer for the active workspace that catches edits to working-tree files (gio
-//! cannot watch a tree recursively, and a monitor per folder would cost memory
-//! on big trees). Events are debounced, and one workspace is measured at most
-//! once per `MIN_GAP`, so a build or a save burst makes a few git calls, never
-//! one per event. The main thread only receives finished statuses.
+//! `gio` cannot watch a tree recursively, so a slow timer catches working-tree edits.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -23,23 +14,16 @@ use xenon_git::status::{DirtState, GitStatus};
 
 use crate::app::App;
 
-/// Quiet time after the last event before git runs.
 const DEBOUNCE: Duration = Duration::from_millis(400);
-/// Least time between two measurements of one workspace.
 const MIN_GAP: Duration = Duration::from_millis(1500);
-/// While the window is focused, the active workspace is measured this often.
 const POLL: Duration = Duration::from_secs(5);
 
 type Roots = Vec<(WorkspaceId, PathBuf)>;
-/// `None` status: the folder is not a git work tree (or was closed).
 type Batch = Vec<(WorkspaceId, Option<GitStatus>)>;
 
 enum Msg {
     SetRoots(Roots),
-    /// Measure now (window focus), still subject to `MIN_GAP`.
     Refresh(WorkspaceId),
-    /// Something in the repository's `.git` changed. Measuring touches `.git`
-    /// itself, so these arriving during a measurement are dropped.
     Meta(WorkspaceId),
 }
 
@@ -51,7 +35,6 @@ pub(crate) struct GitHub {
 }
 
 impl GitHub {
-    /// The hub and the channel the main thread listens on.
     pub(crate) fn new() -> (Self, async_channel::Receiver<Batch>) {
         let (tx, rx) = mpsc::channel();
         let (out_tx, out_rx) = async_channel::unbounded();
@@ -81,7 +64,6 @@ impl GitHub {
         self.status.borrow().get(&ws).cloned()
     }
 
-    /// Tell the worker which folders to watch, when that set changed.
     pub(crate) fn set_roots(&self, roots: Roots) {
         if *self.roots.borrow() == roots {
             return;
@@ -141,7 +123,6 @@ impl GitHub {
     }
 }
 
-/// Apply finished measurements. Returns the workspaces whose status changed.
 pub(crate) fn apply(hub: &GitHub, batch: Batch) -> Vec<WorkspaceId> {
     let open: HashSet<WorkspaceId> = hub.roots.borrow().iter().map(|(id, _)| *id).collect();
     let mut changed = Vec::new();
@@ -167,7 +148,6 @@ pub(crate) fn apply(hub: &GitHub, batch: Batch) -> Vec<WorkspaceId> {
     changed
 }
 
-/// Receive batches on the main loop for as long as the app lives.
 pub(crate) fn listen(app: &Rc<App>, rx: async_channel::Receiver<Batch>) {
     let weak: Weak<App> = Rc::downgrade(app);
     let timer = weak.clone();
@@ -232,7 +212,6 @@ fn worker(rx: mpsc::Receiver<Msg>, out: async_channel::Sender<Batch>) {
         for msg in carry.drain(..) {
             w.take(msg);
         }
-        // Debounce: keep collecting until things go quiet.
         loop {
             match rx.recv_timeout(DEBOUNCE) {
                 Ok(msg) => w.take(msg),
@@ -240,7 +219,6 @@ fn worker(rx: mpsc::Receiver<Msg>, out: async_channel::Sender<Batch>) {
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
         }
-        // Rate limit: wait out what is left of the gap, then take what came.
         let wait = w
             .pending
             .iter()
@@ -266,7 +244,6 @@ fn worker(rx: mpsc::Receiver<Msg>, out: async_channel::Sender<Batch>) {
         if !batch.is_empty() && out.send_blocking(batch).is_err() {
             return;
         }
-        // Our own git calls can touch `.git`; that is not a change to act on.
         while let Ok(msg) = rx.try_recv() {
             if !matches!(msg, Msg::Meta(_)) {
                 carry.push(msg);

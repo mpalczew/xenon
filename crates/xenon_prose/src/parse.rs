@@ -1,6 +1,3 @@
-//! pulldown-cmark events to [`Doc`]. Byte offsets from the parser become char
-//! offsets here, once, so no caller has to convert.
-
 use std::ops::Range;
 
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
@@ -8,11 +5,9 @@ use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use crate::conv::Conv;
 use crate::{Checkbox, CodeRef, Doc, ImageRef, Kind, LinkRef, Markup, Row, Span};
 
-/// A link or image whose text extent is still being learned.
 struct Frame {
     image: bool,
     url: String,
-    /// Smallest start and largest end of the events inside.
     extent: Option<(usize, usize)>,
 }
 
@@ -22,7 +17,6 @@ struct Walk<'a> {
     doc: Doc,
     stack: Vec<Frame>,
     list_depth: usize,
-    /// Per open item: the first-line char range and the open tight text block.
     items: Vec<(Range<usize>, Option<usize>)>,
     in_leaf: bool,
 }
@@ -59,9 +53,6 @@ impl Walk<'_> {
         }
     }
 
-    /// A block-level span: it starts at the line start, so paragraph tags
-    /// (margins, indent) see a tagged first character even when the block is
-    /// nested inside a list item or quote.
     fn span_lines(&mut self, bytes: Range<usize>, kind: Kind) {
         let start = self.conv.line_start(bytes.start);
         self.span(start..bytes.end, kind);
@@ -76,7 +67,6 @@ impl Walk<'_> {
         }
     }
 
-    /// A leaf block covering whole lines of `bytes`.
     fn block(&mut self, bytes: &Range<usize>) -> usize {
         let t = self.conv.trim_end(bytes);
         let start = self.conv.line_start(t.start);
@@ -85,7 +75,6 @@ impl Walk<'_> {
         self.doc.blocks.len() - 1
     }
 
-    /// Tight list items have text with no paragraph; give it a block.
     fn open_item_text(&mut self) {
         if self.in_leaf {
             return;
@@ -148,7 +137,6 @@ impl Walk<'_> {
             Event::TaskListMarker(checked) => {
                 let line = self.items.last().map(|i| i.0.clone()).unwrap_or_default();
                 let range = self.conv.range(&r);
-                // The checkbox stands in for the bullet of its item.
                 self.doc.bullets.pop();
                 self.doc.spans.push(Span {
                     range: range.clone(),
@@ -190,7 +178,6 @@ impl Walk<'_> {
                         .count();
                     self.mark(t.start..t.start + hashes + gap);
                 } else if let Some(nl) = src.rfind('\n') {
-                    // Setext: the underline is the last line.
                     self.mark(t.start + nl..t.end);
                 }
             }
@@ -230,7 +217,6 @@ impl Walk<'_> {
                     top: head,
                 });
                 if head {
-                    // The `---|---` line under the header hides with the markup.
                     let next = (b + 1).min(self.text.len());
                     self.mark(next..(self.conv.line_end(next) + 1).min(self.text.len()));
                 }
@@ -254,7 +240,6 @@ impl Walk<'_> {
             }
             Tag::List(_) => {
                 let at = self.conv.line_start(r.start);
-                // Text before a nested list ends where the list begins.
                 self.close_item_text(at.saturating_sub(1));
                 self.list_depth += 1;
             }
@@ -313,7 +298,6 @@ impl Walk<'_> {
         self.mark(r.end.saturating_sub(n).max(r.start + n)..r.end);
     }
 
-    /// Mark the fence lines; returns the bytes between them.
     fn fences(&mut self, t: &Range<usize>) -> Option<Range<usize>> {
         let first_end = self.conv.line_end(t.start);
         let fence = |s: &str| {

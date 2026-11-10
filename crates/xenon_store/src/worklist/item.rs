@@ -1,5 +1,3 @@
-//! Validated worklist item and Markdown format.
-
 use anyhow::{Result, ensure};
 use unicode_segmentation::UnicodeSegmentation;
 use xenon_core::outline_text::{OutlinePoint, points_from_details};

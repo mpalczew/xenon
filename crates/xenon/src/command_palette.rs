@@ -1,7 +1,3 @@
-//! Ctrl+Shift+P: the command palette. The model lists the app's commands by
-//! name, filters them with the query, and runs the chosen one as its GTK
-//! action, so a key, a button and this list share one path. `palette.rs` draws.
-
 use std::rc::Rc;
 
 use gtk::glib;
@@ -13,7 +9,6 @@ use crate::app::App;
 use crate::palette::{Handlers, Options, PaletteRow};
 use crate::picker::hits;
 
-/// Every command with a menu entry or a key: name and GTK action.
 const COMMANDS: &[(&str, &str)] = &[
     ("New Terminal", "app.new-terminal"),
     ("New Workspace\u{2026}", "app.new-workspace"),
@@ -61,8 +56,6 @@ const COMMANDS: &[(&str, &str)] = &[
     ("Quit", "app.quit"),
 ];
 
-/// The commands that match `query`, best match first; all of them when the
-/// query is empty.
 fn filter(query: &str) -> Vec<(&'static str, &'static str)> {
     if query.is_empty() {
         return COMMANDS.to_vec();
@@ -85,7 +78,6 @@ fn filter(query: &str) -> Vec<(&'static str, &'static str)> {
 
 impl App {
     pub(crate) fn open_command_palette(self: &Rc<Self>) {
-        // The rows the open palette shows, so Enter maps a row to its action.
         let shown: Rc<std::cell::RefCell<Vec<&'static str>>> = Rc::default();
         let (weak_q, weak_a) = (Rc::downgrade(self), Rc::downgrade(self));
         let (shown_q, shown_a) = (shown.clone(), shown);
@@ -117,7 +109,6 @@ impl App {
                         return;
                     };
                     app.launcher.close();
-                    // Run once the palette's widgets have settled.
                     glib::idle_add_local_once(move || {
                         app.gtk.activate_action(&action["app.".len()..], None);
                     });

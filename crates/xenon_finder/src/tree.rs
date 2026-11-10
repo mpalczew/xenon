@@ -1,10 +1,5 @@
-//! One directory level for the Files tree: directories first, then names
-//! case-insensitively. Every entry is listed (no ignore rules), like the file
-//! tree has always done.
-
 use std::path::{Path, PathBuf};
 
-/// An entry of a directory listing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeEntry {
     pub path: PathBuf,

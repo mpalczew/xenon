@@ -1,9 +1,3 @@
-//! The Settings window (Ctrl+,): its own top-level window, transient for the
-//! main one, with a sidebar of pages (`AdwNavigationSplitView`) beside the
-//! `AdwPreferencesPage`s. Ctrl+1 to Ctrl+4 jump to a page, Escape (or Ctrl+W)
-//! closes and focus returns to where
-//! it was. `app.settings` opens it, or raises it when it is already open.
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -15,7 +9,6 @@ use crate::{prefs_agents, prefs_pages};
 
 const PAGES: [&str; 4] = ["fonts", "editor", "agents", "phone"];
 
-/// The open Settings window and the parts the pages talk to.
 #[derive(Clone)]
 pub(crate) struct Shell {
     pub(crate) window: adw::Window,
@@ -34,7 +27,6 @@ thread_local! {
     static OPEN: RefCell<Option<Shell>> = const { RefCell::new(None) };
 }
 
-/// The Settings window while it is open.
 pub(crate) fn open_dialog() -> Option<Shell> {
     OPEN.with(|o| o.borrow().clone())
 }
@@ -47,9 +39,6 @@ fn add_page(stack: &adw::ViewStack, page: &adw::PreferencesPage) {
 }
 
 impl App {
-    /// The window the user is working in: Settings while it is the active one,
-    /// the main window otherwise. Dialogs and toasts go here so they are not
-    /// hidden behind Settings.
     pub(crate) fn front_window(&self) -> gtk::Window {
         match crate::prefs::open_dialog() {
             Some(shell) if shell.window.is_active() => shell.window.clone().upcast(),
@@ -57,7 +46,6 @@ impl App {
         }
     }
 
-    /// Open Settings, or raise it when it is already open.
     pub(crate) fn toggle_settings(self: &Rc<Self>) {
         if let Some(shell) = open_dialog() {
             shell.window.present();
@@ -110,7 +98,6 @@ impl App {
     }
 }
 
-/// Sidebar of pages on the left, the visible page on the right.
 fn build_layout(shell: &Shell) {
     let list = gtk::ListBox::builder()
         .css_classes(["navigation-sidebar"])

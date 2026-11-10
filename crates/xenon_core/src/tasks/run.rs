@@ -1,5 +1,3 @@
-//! Resolving a task for a run, its terminal command, and how a run ends.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -7,8 +5,6 @@ use super::model::{GroupKind, TaskDef, TaskSet};
 use super::resolve::{ResolvedTask, resolve_task};
 use super::vars::{EditorInfo, VarContext};
 
-/// What a run's variables read besides the workspace: the active editor, the
-/// settings as `${config:...}`, and the answered inputs.
 #[derive(Default)]
 pub struct RunVars {
     pub editor: Option<EditorInfo>,
@@ -17,7 +13,6 @@ pub struct RunVars {
     pub secrets: BTreeSet<String>,
 }
 
-/// Resolve `def` for a run.
 pub fn resolve_for_run(
     set: &TaskSet,
     folder: &Path,
@@ -44,8 +39,6 @@ pub fn resolve_for_run(
     resolve_task(def, &ctx, &shell)
 }
 
-/// The program and arguments a task terminal starts: the task itself, behind a
-/// dim echo of its command line when the presentation asks for one.
 pub fn terminal_command(task: &ResolvedTask) -> (String, Vec<String>) {
     if !task.presentation.echo {
         return (task.program.clone(), task.args.clone());
@@ -61,7 +54,6 @@ pub fn terminal_command(task: &ResolvedTask) -> (String, Vec<String>) {
     ("/bin/sh".to_string(), args)
 }
 
-/// Xenon settings as `${config:key}` values: scalar leaves, dotted keys.
 pub fn flatten_config(value: &serde_json::Value) -> BTreeMap<String, String> {
     fn walk(prefix: &str, value: &serde_json::Value, out: &mut BTreeMap<String, String>) {
         match value {
@@ -89,7 +81,6 @@ pub fn flatten_config(value: &serde_json::Value) -> BTreeMap<String, String> {
     out
 }
 
-/// Title and detail of the toast for a failed task.
 pub fn failure_toast(root: &str, label: &str, reason: &str) -> (String, String) {
     let detail = if root == label {
         reason.to_string()
@@ -99,7 +90,6 @@ pub fn failure_toast(root: &str, label: &str, reason: &str) -> (String, String) 
     (format!("Task {label} failed"), detail)
 }
 
-/// Why a task process ended, for the failure toast.
 pub fn exit_reason(code: Option<i32>) -> String {
     match code {
         Some(code) => format!("exited with code {code}"),

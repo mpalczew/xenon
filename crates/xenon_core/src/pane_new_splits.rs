@@ -1,5 +1,3 @@
-//! Splitting a pane in a workspace's pane content, and parking empty panes.
-
 use crate::content::{DropEdge, PaneId, SplitAxis};
 use crate::pane_content::{PaneContent, ParkOutcome};
 use crate::pane_tree::{PaneLeaf, PaneTree};
@@ -19,7 +17,6 @@ impl<T> PaneContent<T> {
         Some((moved, remaining))
     }
 
-    /// Fresh leaf holding `tab`.
     fn leaf_with(id: PaneId, tabs: Vec<T>) -> PaneTree<T> {
         PaneTree::Leaf(PaneLeaf {
             id,
@@ -29,8 +26,6 @@ impl<T> PaneContent<T> {
         })
     }
 
-    /// Finish a split of `src_pane`: it keeps `source_tabs`, a new pane beside
-    /// it (right or below per `axis`) holds `moved` and takes focus.
     pub fn finish_split(
         &mut self,
         src_pane: PaneId,
@@ -79,8 +74,6 @@ impl<T> PaneContent<T> {
         Some(new_pane)
     }
 
-    /// Add a deliberately empty pane beside the focused one (or create the
-    /// first two panes when there are none).
     pub fn park_empty(&mut self, axis: SplitAxis) -> ParkOutcome
     where
         T: Clone,

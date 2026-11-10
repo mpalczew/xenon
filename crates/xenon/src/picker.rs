@@ -1,10 +1,3 @@
-//! Ctrl+Shift+O: the workspace picker. Open and closed workspaces, folders
-//! found by name under the usual project roots, and path completion for typed
-//! paths. The rules: known workspaces beat discovered
-//! folders, a used workspace beats a random folder with a similar name, and a
-//! missing folder is shown but never opened. Discovery is
-//! `xenon_finder::discover`; it runs on a worker thread after a short debounce.
-
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -29,10 +22,7 @@ const DEBOUNCE: Duration = Duration::from_millis(60);
 enum Kind {
     Open,
     Closed,
-    /// A folder on disk. `found`: discovered or completed, not typed exactly.
-    Path {
-        found: bool,
-    },
+    Path { found: bool },
 }
 
 #[derive(Clone)]
@@ -63,7 +53,6 @@ impl Candidate {
         !self.missing && path_is_dir(&self.root)
     }
 
-    /// Lower is better. Known workspaces always beat discovery.
     fn tier(&self) -> u8 {
         match self.kind {
             Kind::Path { found: false } => 0,
@@ -87,7 +76,6 @@ impl Candidate {
     }
 }
 
-/// Lower is better: exact basename match to the discovery needle first.
 fn basename_rank(c: &Candidate, needle: Option<&str>) -> u8 {
     let Some(needle) = needle else { return 1 };
     match MatchQuality::of_basename(&c.name, needle) {
@@ -113,7 +101,6 @@ fn compare(a: &Candidate, b: &Candidate, needle: Option<&str>) -> Ordering {
         .then_with(|| a.name.cmp(&b.name))
 }
 
-/// The known candidates that match `query`, best fuzzy score first.
 fn filter_known(known: &[Candidate], query: &str) -> Vec<Candidate> {
     if query.is_empty() {
         return known.to_vec();
@@ -135,7 +122,6 @@ fn filter_known(known: &[Candidate], query: &str) -> Vec<Candidate> {
     scored.into_iter().map(|(_, i)| known[i].clone()).collect()
 }
 
-/// Char indexes of `query` in `text`, for the letters to emphasise.
 pub(crate) fn hits(text: &str, query: &str) -> Vec<u32> {
     if query.is_empty() {
         return Vec::new();
@@ -149,7 +135,6 @@ pub(crate) fn hits(text: &str, query: &str) -> Vec<u32> {
     out
 }
 
-/// Disk answers for one query: discovered folders and path completions.
 struct Found {
     discovered: Vec<PathBuf>,
     completions: Vec<PathBuf>,
@@ -169,7 +154,6 @@ fn search_disk(query: &str) -> Found {
     }
 }
 
-/// One open picker.
 struct Session {
     known: Vec<Candidate>,
     found: RefCell<Found>,
@@ -178,8 +162,6 @@ struct Session {
 }
 
 impl Session {
-    /// Rebuild the ranked rows for `query` from known workspaces plus the
-    /// latest disk answers.
     fn refilter(&self, query: &str) -> Vec<Candidate> {
         let mut results = filter_known(&self.known, query);
         let found = self.found.borrow();
@@ -232,7 +214,6 @@ impl App {
             results: RefCell::default(),
             generation: Cell::new(0),
         });
-        // A second Ctrl+Shift+O while the picker is open is Browse….
         if self.launcher.run_action() {
             return;
         }
@@ -294,7 +275,6 @@ impl App {
     }
 
     fn picker_query(self: &Rc<Self>, session: &Rc<Session>, query: &str) {
-        // Known workspaces answer at once; disk answers follow.
         session.found.replace(Found {
             discovered: Vec::new(),
             completions: Vec::new(),

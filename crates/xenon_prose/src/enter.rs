@@ -1,11 +1,6 @@
-//! What Enter does on a list item line.
-
-/// What Enter does on a list item line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Enter {
-    /// Start the next item with this prefix (indent, marker, empty task box).
     Continue(String),
-    /// The item is empty: end the list.
     End,
 }
 

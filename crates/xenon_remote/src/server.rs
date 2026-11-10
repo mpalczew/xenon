@@ -1,6 +1,3 @@
-//! HTTP + WebSocket server for the mobile remote. One OS thread per
-//! connection; everything stateful lives in the host behind `HostRequest`.
-
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
@@ -27,12 +24,9 @@ const ICON_192: &[u8] = include_bytes!("../assets/icon-192.png");
 const ICON_512: &[u8] = include_bytes!("../assets/icon-512.png");
 const UPLOAD_PATH: &str = "/api/uploads";
 const HOST_TIMEOUT: Duration = Duration::from_secs(5);
-/// Concurrent connections (phones hold one socket; the rest are short requests).
 const MAX_CONNECTIONS: usize = 32;
-/// How often a listener checks for shutdown between accepts.
 const ACCEPT_POLL: Duration = Duration::from_millis(250);
 
-/// State shared by every connection thread.
 pub(crate) struct Shared {
     pub(crate) host: HostTx,
     pub(crate) enabled: AtomicBool,
@@ -79,7 +73,6 @@ impl Shared {
     }
 }
 
-/// Why the server did not start.
 #[derive(Debug)]
 pub enum StartError {
     /// Another process (typically the other a/b Xenon slot) holds the port.
@@ -100,7 +93,6 @@ impl std::fmt::Display for StartError {
 /// port is released, so a restart (or the other slot) can bind it at once.
 pub struct RemoteServer {
     pub port: u16,
-    /// Addresses actually bound (e.g. Tailscale IP + loopback).
     pub binds: Vec<SocketAddr>,
     shared: Arc<Shared>,
     accepts: Vec<thread::JoinHandle<()>>,
@@ -140,7 +132,6 @@ impl RemoteServer {
         let _ = self.shared.uploads_dir.set(dir);
     }
 
-    /// Listeners notice within `ACCEPT_POLL` and release their ports.
     pub fn stop(&self) {
         self.shared.enabled.store(false, Ordering::SeqCst);
     }
@@ -213,7 +204,6 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
     }
 }
 
-/// A parsed request head plus body.
 pub(crate) struct Request {
     pub(crate) method: String,
     pub(crate) path: String,
@@ -258,7 +248,6 @@ fn read_request(stream: &mut TcpStream, shared: &Shared) -> Result<Option<Reques
     }))
 }
 
-/// Only a signed-in phone may send an image-sized body.
 fn signed_in(headers: &HashMap<String, String>, shared: &Shared) -> bool {
     matches!(shared.authenticate(bearer(headers)), Ok(Some(_)))
 }
@@ -317,8 +306,6 @@ fn pair(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
     }
 }
 
-/// Device tokens are 256-bit: no throttle here, so a stranger's bad guesses
-/// can never lock out paired phones.
 fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
     match shared.authenticate(bearer(&req.headers)) {
         Ok(Some(_)) => {}
@@ -421,7 +408,6 @@ pub(crate) fn bearer(headers: &HashMap<String, String>) -> &str {
         .trim()
 }
 
-/// Send one request to the host and wait for its reply.
 pub(crate) fn ask<T>(
     host: &HostTx,
     make: impl FnOnce(mpsc::SyncSender<T>) -> HostRequest,

@@ -1,8 +1,3 @@
-//! Paired phones and the one-time pairing code. Tokens are only ever stored
-//! hashed; the plain token goes to the phone once, in the pair response.
-//! Both frontends keep one `DeviceBook` while the remote is on; the pairing
-//! and sign-in steps are in `device_flow.rs`.
-
 use xenon_store::{RemoteDevice, RemoteDevices};
 
 use crate::pairing::PairingCode;
@@ -49,7 +44,6 @@ impl DeviceBook {
             .map(|d| d.label.as_str())
     }
 
-    /// Sign out every device and invalidate any shown code.
     pub fn revoke_all(&mut self) {
         self.devices.devices.clear();
         self.pairing = None;

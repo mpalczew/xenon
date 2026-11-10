@@ -1,10 +1,3 @@
-//! A file tab: GtkSourceView with syntax highlighting and, when the settings
-//! ask for it, the Vim input method. Ctrl+S and `:w` write the file. This is
-//! the stand-in editor until the GTK editor exists; it is a plain text view
-//! with no LSP or diff gutter. Markdown files open in prose mode (`prose.rs`);
-//! Alt+1 and Alt+3 switch between Prose and Source. The worklist file opens as
-//! the list view (`worklist_list.rs`); Alt+4 or the Worklist button brings it back.
-
 use std::cell::{Cell, OnceCell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
@@ -22,7 +15,6 @@ use crate::worklist_list::WorklistList;
 mod list;
 mod switch;
 
-/// Files above this size open in the default app instead.
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
 
 pub(crate) struct EditorView {
@@ -30,40 +22,29 @@ pub(crate) struct EditorView {
     pub view: sourceview::View,
     pub buffer: sourceview::Buffer,
     pub path: PathBuf,
-    /// True while we load text, so loading does not count as an edit.
     loading: Cell<bool>,
-    /// The Vim input method and its key controller while Vim mode is on.
     vim: RefCell<Option<(sourceview::VimIMContext, gtk::EventControllerKey)>>,
-    /// Markdown writing mode, for Markdown files.
     pub(crate) prose: Option<Rc<Prose>>,
     mode: Cell<MarkdownMode>,
-    /// Markdown files only: Markdown | Code (| Tasks) switch for the view.
     switch: Option<adw::ToggleGroup>,
-    /// True while we set the switch from code, so it does not switch the view again.
     syncing: Cell<bool>,
-    /// The worklist file only: the list view and the stack it shares with the text.
     list: OnceCell<Rc<WorklistList>>,
     stack: Option<gtk::Stack>,
     app: Weak<App>,
     scroller: gtk::ScrolledWindow,
-    /// "File changed on disk" bar: message and its two buttons.
     bar: gtk::Box,
     bar_text: gtk::Label,
     bar_actions: gtk::Box,
     monitor: RefCell<Option<gio::FileMonitor>>,
-    /// True from the first disk event of a burst until it is handled.
     sync_pending: Cell<bool>,
 }
 
-/// Wait this long after a disk event, so an agent's several writes read once.
 const DISK_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
 
-/// True when the platform's content-type guess says `path` is an HTML page.
 pub(crate) fn is_html(path: &Path) -> bool {
     gio::content_type_guess(Some(path), None::<&[u8]>).0 == "text/html"
 }
 
-/// The editor's column; an HTML file starts it with an "Open in Browser" button.
 fn browser_root(path: &Path) -> gtk::Box {
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     if !is_html(path) {
@@ -80,7 +61,6 @@ fn browser_root(path: &Path) -> gtk::Box {
     root
 }
 
-/// The hidden "file changed on disk" bar: the bar, its message and its buttons.
 fn disk_bar() -> (gtk::Box, gtk::Label, gtk::Box) {
     let text = gtk::Label::new(None);
     text.set_hexpand(true);
@@ -95,7 +75,6 @@ fn disk_bar() -> (gtk::Box, gtk::Label, gtk::Box) {
     (bar, text, actions)
 }
 
-/// Why a file cannot open here, if it cannot (cheap: no read).
 pub(crate) fn check(path: &Path) -> Result<(), String> {
     let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
     if !meta.is_file() {
@@ -107,7 +86,6 @@ pub(crate) fn check(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Why a file cannot open here, or the text to show.
 pub(crate) fn load(path: &Path) -> Result<String, String> {
     check(path)?;
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
@@ -220,7 +198,6 @@ impl EditorView {
         editor
     }
 
-    /// Watch the file; every event schedules one settled look at the disk.
     fn watch_disk(self: &Rc<Self>) {
         let file = gio::File::for_path(&self.path);
         let Ok(monitor) = file.monitor_file(
@@ -251,9 +228,6 @@ impl EditorView {
         *self.monitor.borrow_mut() = Some(monitor);
     }
 
-    /// Show the disk text in a clean buffer, or say why it cannot. A dirty
-    /// buffer is never overwritten; a deleted file leaves the buffer open
-    /// and unsaved.
     fn sync_from_disk(self: &Rc<Self>) {
         if !self.path.exists() {
             self.show_bar(
@@ -277,7 +251,6 @@ impl EditorView {
         }
     }
 
-    /// Swap in new text, keeping the cursor line and the scroll position.
     fn replace_text(self: &Rc<Self>, text: &str) {
         let cursor = self.buffer.iter_at_offset(self.buffer.cursor_position());
         let (line, col) = (cursor.line(), cursor.line_offset());
@@ -364,8 +337,6 @@ impl EditorView {
         }
     }
 
-    /// Put the cursor on 1-based `line` and `column` (clamped to the line's
-    /// end) and bring it into view.
     pub(crate) fn goto_line(&self, line: u32, column: u32) {
         let Some(mut iter) = self.buffer.iter_at_line(line.saturating_sub(1) as i32) else {
             return;
@@ -388,7 +359,6 @@ impl EditorView {
         });
     }
 
-    /// Font, wrap and color scheme from the settings and theme.
     pub(crate) fn restyle(self: &Rc<Self>, app: &App) {
         self.buffer
             .set_style_scheme(crate::theme::scheme(crate::theme::dark()).as_ref());
@@ -420,7 +390,6 @@ impl EditorView {
         }
     }
 
-    /// Prose or Source for a Markdown file; remembered per file.
     fn set_mode(self: &Rc<Self>, mode: MarkdownMode) -> bool {
         if self.prose.is_none() {
             return false;
@@ -444,7 +413,6 @@ impl EditorView {
             return;
         }
         let (a, b) = self.buffer.bounds();
-        // Hidden markup is still part of the file.
         let text = self.buffer.text(&a, &b, true);
         let result = std::fs::write(&self.path, text.as_str());
         let name = self

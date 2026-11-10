@@ -1,5 +1,3 @@
-//! Workspaces and the persisted registry that indexes them.
-
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -7,8 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::ids::WorkspaceId;
 
-/// A registered project folder. Session details live in their own files
-/// (see `xenon_store`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceRec {
     pub id: WorkspaceId,
@@ -40,7 +36,6 @@ impl WorkspaceRec {
         }
     }
 
-    /// Mark as most-recently opened (activate / reopen).
     pub fn touch_opened(&mut self) {
         self.last_opened = Some(now_unix());
     }
@@ -53,7 +48,6 @@ fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
-/// The root persisted record (backs `~/.xenon/workspaces.json`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Registry {
     #[serde(default = "current_version")]
@@ -77,7 +71,6 @@ impl Default for Registry {
     }
 }
 
-/// Which workspace was focused when the app last closed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Active {
     pub workspace: WorkspaceId,

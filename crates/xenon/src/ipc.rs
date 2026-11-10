@@ -1,6 +1,3 @@
-//! `xenon open` and path handoff. `xenon_store` runs the slot's `ipc.sock` on a
-//! thread; each request comes back to the main loop through a channel.
-
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -11,7 +8,6 @@ use xenon_store::{IpcRequest, OpenFileSpec, OpenPane};
 
 use crate::app::App;
 
-/// Serve `listener` for the life of the app.
 pub(crate) fn serve(app: &Rc<App>, listener: std::os::unix::net::UnixListener) {
     type Reply = std::sync::mpsc::Sender<Result<(), String>>;
     let (tx, rx) = async_channel::unbounded::<(IpcRequest, Reply)>();
@@ -32,7 +28,6 @@ pub(crate) fn serve(app: &Rc<App>, listener: std::os::unix::net::UnixListener) {
 }
 
 impl App {
-    /// Apply one request, then bring the window up.
     pub(crate) fn handle_request(self: &Rc<Self>, req: IpcRequest) -> Result<(), String> {
         let result = match req {
             IpcRequest::Open { paths } => {
@@ -55,9 +50,6 @@ impl App {
         result
     }
 
-    /// A folder becomes a workspace. A file opens in the workspace `--workspace`
-    /// names, else the one that holds it (`Registry::route_file`), at its line, in
-    /// the pane `--pane` names.
     fn open_path(self: &Rc<Self>, spec: OpenFileSpec) -> Result<(), String> {
         let named = match &spec.workspace {
             Some(key) => Some(
@@ -102,10 +94,6 @@ impl App {
         Ok(())
     }
 
-    /// Choose the pane the next opened tab lands in. `Focused` keeps the
-    /// focused pane. `Sibling` moves focus to the next pane, or splits right
-    /// when there is only one. `SplitRight` splits right. With no room to
-    /// split, the focused pane stays.
     fn aim_pane(&self, ws: WorkspaceId, pane: OpenPane) {
         let mut model = self.model.borrow_mut();
         let leaves = model

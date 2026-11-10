@@ -1,9 +1,6 @@
-//! Terminal-related durable settings.
-
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// Close a terminal tab after its shell process exits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalAutoClose {

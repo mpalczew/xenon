@@ -13,7 +13,6 @@
 <link rel="apple-touch-icon" href="/icon-180.png">
 <title>Xenon</title>
 <style>
-/* ===== Tokens: One Dark, as Xenon ships it. Theme bg/fg arrive in `ready`. ===== */
 :root {
   --canvas:#000; --chrome:#0d0e11; --panel:#1e2128; --panel-2:#252932; --line:#353a44; --hair:#15171c;
   --text:#dcdfe4; --muted:#9aa2b1; --faint:#5f6776;
@@ -28,7 +27,6 @@
   --sal:env(safe-area-inset-left, 0px); --sar:env(safe-area-inset-right, 0px);
   color-scheme:dark;
 }
-/* Light chrome: chosen from ready.theme.bg luminance, or prefers-color-scheme before `ready`. */
 :root.light {
   --canvas:#fff; --chrome:#f3f4f6; --panel:#eef0f3; --panel-2:#fff; --line:#d3d7de; --hair:#eceef2;
   --text:#1f2329; --muted:#5c6370; --faint:#8a919c;
@@ -51,13 +49,11 @@ html.in-session { background:var(--chrome); }
   display:flex; flex-direction:column; padding:var(--sat) var(--sar) 0 var(--sal); }
 .view { flex:1; min-height:0; display:flex; flex-direction:column; }
 
-/* ===== Header ===== */
 .hdr { flex:none; display:flex; align-items:center; gap:8px; min-height:48px; padding:4px 16px 4px; border-bottom:1px solid var(--line); }
 .hdr .back { width:40px; height:40px; margin-left:-12px; color:var(--accent); font-size:28px; line-height:1; display:grid; place-items:center; }
 .hdr .title { font-size:17px; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .keys-btn, .new-btn { flex:none; height:32px; padding:0 10px; border-radius:8px; color:var(--accent); font-size:15px; font-weight:600; }
 .keys-btn[aria-pressed="true"] { background:var(--accent-dim); }
-/* Session controls do not fit beside the title at phone width. */
 #v-session > .hdr { flex-wrap:wrap; row-gap:0; padding-bottom:2px; }
 #v-session > .hdr .acts { flex:1 0 100%; display:flex; justify-content:flex-end; align-items:center; gap:2px; }
 #v-session > .hdr .keys-btn, #v-session > .hdr .new-btn { height:30px; padding:0 8px; font-size:14px; }
@@ -73,7 +69,6 @@ html.in-session { background:var(--chrome); }
 .conn.off { background:var(--faint); box-shadow:none; }
 .scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:var(--sab); }
 
-/* ===== Lists (workspaces, terminals) ===== */
 .sect { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:18px 16px 6px; }
 .ws { width:100%; text-align:left; display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--hair); min-height:64px; }
 .ws:active { background:var(--panel); }
@@ -96,7 +91,6 @@ html.in-session { background:var(--chrome); }
 .note { color:var(--muted); font-size:15px; padding:28px 16px; text-align:center; }
 .note.err { color:var(--err); }
 
-/* ===== Tasks ===== */
 .task .path { font-family:var(--mono); font-size:12px; }
 .task.unsupported { opacity:.5; }
 .task .why { font-size:12px; color:var(--muted); white-space:normal; }
@@ -116,7 +110,6 @@ html.in-session { background:var(--chrome); }
 .btn.sec { background:var(--panel); color:var(--text); }
 .sheet .sec-note { color:var(--muted); font-size:12px; margin:0; }
 
-/* ===== Session ===== */
 .banner { flex:none; margin:8px 10px 0; padding:9px 12px; border-radius:10px; background:var(--warn-dim); color:var(--warn); font-size:13px; font-weight:600; display:flex; gap:8px; align-items:center; }
 .spin { width:13px; height:13px; flex:none; border-radius:50%; border:2px solid var(--warn); border-right-color:transparent; animation:spin .9s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
@@ -159,7 +152,6 @@ html.in-session { background:var(--chrome); }
 .attach[aria-busy="true"] .spin { display:block; }
 .send { flex:none; width:40px; height:40px; border-radius:50%; background:var(--accent); color:var(--on-accent); display:grid; place-items:center; font-weight:800; font-size:18px; }
 
-/* ===== Pair screens ===== */
 .center { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 32px; text-align:center; overflow-y:auto; }
 .badge { width:72px; height:72px; border-radius:20px; border:2px solid var(--accent); display:grid; place-items:center; color:var(--accent); font-size:34px; font-weight:800; margin-bottom:22px; box-shadow:0 0 40px var(--glow); flex:none; }
 .center h1 { font-size:24px; margin:0 0 8px; }
@@ -357,11 +349,8 @@ const Core = (() => {
     return { rows, acc: next - rows * lineH };
   }
 
-  /** Least contrast text keeps against what it is drawn on (WCAG AA). */
   const MIN_CONTRAST = 4.5;
 
-  /** `fg`, moved toward black or white until it reads on `bg`. Programs pick
-   *  colors for the Mac's background; the phone may show a different one. */
   function readable(fg, bg) {
     if (luminance(fg) == null || luminance(bg) == null || contrast(fg, bg) >= MIN_CONTRAST) return fg;
     const h = fg.length === 4 ? fg.slice(1).replace(/./g, "$&$&") : fg.slice(1, 7);
@@ -376,8 +365,6 @@ const Core = (() => {
     return mix(hi);
   }
 
-  /** CSS for one interned style; colors are validated so the server can't inject CSS.
-   *  `theme` is the page's terminal colors, which unstyled text and background use. */
   function styleRule(id, st, theme) {
     const d = [];
     const bg = st.bg && COLOR.test(st.bg) ? st.bg : null;
@@ -398,7 +385,6 @@ const Core = (() => {
   // East Asian wide / emoji code points occupy two cells; the server's spacer cell adds no text.
   const WIDE = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6\u{1F300}-\u{1F64F}\u{1F900}-\u{1F9FF}\u{20000}-\u{3FFFD}]/u;
 
-  /** The glyph covering cell `c` (cursor overlay text); positioning itself is `c` in ch units. */
   function cellAt(spans, c) {
     let i = 0;
     for (const [text] of spans || []) {
@@ -439,7 +425,6 @@ const Core = (() => {
     return changed;
   }
 
-  /** WCAG relative luminance of `#rgb` / `#rrggbb`; null when unparseable. */
   function luminance(hex) {
     const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex || "");
     if (!m) return null;
@@ -457,7 +442,6 @@ const Core = (() => {
     return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   }
 
-  /** Chrome scheme for a terminal theme: light chrome when bg is light; accent from the cursor when readable. */
   function scheme(theme) {
     const light = (luminance(theme && theme.bg) ?? 0) > 0.5;
     const accent = light && contrast(theme.cursor, "#ffffff") >= 4.5 ? theme.cursor : null;
@@ -488,7 +472,6 @@ const Core = (() => {
 })();
 // </core>
 
-// ===== State =====
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
@@ -519,7 +502,6 @@ function isStandalone() {
   return navigator.standalone === true || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
 }
 
-// ===== Net: pairing + REST =====
 async function pair(code) {
   const label = Core.deviceLabel(navigator.userAgent, navigator.maxTouchPoints || 0, isStandalone());
   let r;
@@ -554,7 +536,6 @@ function unpair(msg) {
   showCode(msg);
 }
 
-// ===== Net: WebSocket (one per app session) =====
 function connect() {
   if (!S.token || S.fixture || S.ws) return;
   clearTimeout(S.retryTimer);
@@ -572,7 +553,6 @@ function connect() {
   };
 }
 
-/** Forget the current socket (dead or closed) and retry with backoff. */
 function dropSocket() {
   const ws = S.ws;
   S.ws = null;
@@ -623,11 +603,8 @@ function onMsg(m) {
 function onReady(m) {
   S.attempt = 0;
   S.suppressCloseToast = false;
-  // Each socket starts a fresh style table on the Mac.
   S.styles = {};
   $("term-styles").textContent = "";
-  // Only take the Mac theme when it already matches the chosen appearance (no flash);
-  // otherwise the Mac sends a `theme` for it right after `appearance`.
   if (m.theme && Core.scheme(m.theme).light === (resolvedAppearance() === "light")) applyTheme(m.theme);
   if (m.hostName) { S.hostName = m.hostName; store(KEY.host, S.hostName); renderHost(); }
   setConnected(true);
@@ -637,7 +614,6 @@ function onReady(m) {
 
 function onDots(m) {
   if (Core.applyDots(S.workspaces, "id", m.workspaces) && S.view === "list") renderWorkspaces();
-  // Tab dots describe the attached workspace only; ignore them for any other list.
   const forList = m.workspace && S.wsSel && m.workspace === S.wsSel.id;
   if (forList && Core.applyDots(S.terminals, "tabId", m.tabs) && S.view === "terms") renderTerminals();
 }
@@ -647,8 +623,6 @@ function onClosed(reason) {
   if (reason === "tabClosed") {
     const own = S.suppressCloseToast;
     S.suppressCloseToast = false;
-    // A phone close already moves the UI. This must not leave a session the
-    // user opened while the close was in flight.
     if (!own) {
       toast("Terminal closed");
       if (S.view === "session") leaveSession();
@@ -663,7 +637,6 @@ function onVisible() {
   if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
 }
 
-// ===== Navigation =====
 function show(view) {
   S.view = view;
   for (const v of ["paired", "code", "list", "terms", "tasks", "session"]) $("v-" + v).hidden = v !== view;
@@ -745,7 +718,6 @@ function goBack() {
   else if (S.view === "terms") showWorkspaces();
 }
 
-// ===== Render: lists =====
 function renderHost() {
   $("list-host").textContent = S.hostName ? "· " + S.hostName : "";
 }
@@ -806,7 +778,6 @@ async function closeTerminal(tab) {
   S.suppressCloseToast = true;
   const wsId = S.wsSel.id;
   const tabId = tab.tabId;
-  // Attached closes get tabClosed. A list close of some other tab does not.
   const attached = !!(S.want && S.want.tabId === tabId);
   try {
     await api("/api/workspaces/" + encodeURIComponent(wsId) + "/terminals/" + tabId, { method: "DELETE" });
@@ -838,7 +809,6 @@ async function closeTerminal(tab) {
   }
 }
 
-// ===== Tasks =====
 function taskRow(t, i) {
   const tags = (t.group ? '<span class="tag group">' + esc(t.group + (t.default ? " · default" : "")) + "</span>" : "");
   const cmd = t.unsupported
@@ -886,8 +856,6 @@ async function onTaskStarted(m) {
   if (tab) { S.skippedList = false; openSession(tab); }
 }
 
-// A question from a run started here. The answer, a password included, lives
-// only in the form field until sent; it is never put in storage or the DOM tree.
 function onTaskInput(m) {
   const T = S.taskInput = { token: m.token, kind: m.kind, options: m.options || [], pick: 0 };
   $("ti-title").textContent = m.description || m.id;
@@ -965,21 +933,18 @@ async function createTerminal() {
   }
 }
 
-// ===== Render: terminal =====
 function setScheme(light, accent) {
   const root = document.documentElement;
   root.classList.toggle("light", light);
   if (accent) root.style.setProperty("--accent", accent); else root.style.removeProperty("--accent");
 }
 
-/** "dark" or "light": the chosen appearance, or the device's when on auto. */
 function resolvedAppearance() {
   if (S.appearance === "dark" || S.appearance === "light") return S.appearance;
   const mq = window.matchMedia && matchMedia("(prefers-color-scheme: light)");
   return mq && mq.matches ? "light" : "dark";
 }
 
-/** Tell the Mac which colors to resolve cells against. */
 function sendAppearance() {
   send({ t: "appearance", appearance: resolvedAppearance() });
 }
@@ -999,7 +964,6 @@ function cycleAppearance() {
   setAppearance({ auto: "dark", dark: "light", light: "auto" }[S.appearance], true);
 }
 
-/** Before `ready`, chrome follows the OS appearance. */
 function followSystemScheme() {
   const mq = window.matchMedia && matchMedia("(prefers-color-scheme: light)");
   if (!mq) return;
@@ -1029,7 +993,6 @@ function applyTheme(th) {
   addStyles({});
 }
 
-/** Interned styles can be re-sent with the same id (new socket, reset table): rebuild, never append. */
 function addStyles(add) {
   for (const id in add || {}) S.styles[id] = add[id];
   let css = "";
@@ -1216,7 +1179,6 @@ function renderAgo() {
   $("reconnect-txt").textContent = "Reconnecting…" + since;
 }
 
-// ===== Fit (cells from viewport) =====
 function measureChar() {
   const p = $("probe");
   if (!p.textContent) p.textContent = "M".repeat(100);
@@ -1265,7 +1227,6 @@ function onViewport() {
   if (S.view === "session") { scheduleFit(250); if (S.follow) scrollToLive(); }
 }
 
-// ===== Input =====
 function sendKeyButton(btn) {
   if (btn.dataset.key) send({ t: "key", key: btn.dataset.key });
   else if (btn.dataset.text) send({ t: "text", data: btn.dataset.text });
@@ -1307,7 +1268,6 @@ function onDirectKey(e) {
 
 const MODIFIER_KEYS = ["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn", "FnLock", "AltGraph", "OS", "Dead"];
 
-/** Hardware keyboard with nothing focused: route the key to the terminal input instead of dropping it. */
 function onStrayKey(e) {
   if (S.view !== "session" || !S.connected || S.taskInput || e.defaultPrevented || e.isComposing) return;
   const a = document.activeElement;
@@ -1337,7 +1297,7 @@ function onMsgKeyDown(e) {
 
 function onKeyClick(e) {
   const btn = e.target.closest("button");
-  if (btn && e.detail === 0) sendKeyButton(btn); // keyboard activation only; taps went through pointerdown
+  if (btn && e.detail === 0) sendKeyButton(btn);
 }
 
 let submitGuard = false;
@@ -1355,7 +1315,6 @@ function submitText(e) {
   if (wait) setTimeout(fire, wait); else fire();
 }
 
-/** Shift+Enter: flush the field into the prompt, then a newline (LF) instead of submit. */
 function newlineText() {
   const input = $("msg");
   if (input.value && !send({ t: "text", data: input.value })) return;
@@ -1395,7 +1354,6 @@ async function onCodeInput() {
   }
 }
 
-// ===== Images =====
 const AGENT_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 async function attachImage(file) {
@@ -1435,7 +1393,6 @@ async function uploadImage(blob) {
   return data.path;
 }
 
-// Drop the path at the caret, space-separated, and leave it unsent for context.
 function insertPath(path) {
   const input = $("msg");
   const v = input.value;
@@ -1605,7 +1562,6 @@ function wireEvents() {
   setInterval(ping, 15000);
 }
 
-// ===== Fixtures (visual tests; no network) =====
 const FX = {
   tasks: [
     { label: "demo-build", command: "cargo build --release", detail: "Build the demo", group: "build", default: true },
@@ -1791,7 +1747,6 @@ window.xenonFixture = function (name) {
   }
 };
 
-// ===== Boot =====
 function boot() {
   const style = document.createElement("style");
   style.id = "term-styles";

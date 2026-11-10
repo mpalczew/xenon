@@ -1,7 +1,3 @@
-//! What the phone asks the GTK app for: workspace and terminal lists, new and
-//! closed terminals, pairing and sign-in. None of it changes the screen the
-//! user is looking at.
-
 use std::rc::Rc;
 
 use xenon_core::{TabId, WorkspaceId};
@@ -87,8 +83,6 @@ impl App {
         })
     }
 
-    /// Make the workspace live without showing it: reopen it from Recent when
-    /// closed, then start its terminals.
     pub(crate) fn remote_live(self: &Rc<Self>, ws: WorkspaceId) -> Result<(), String> {
         let closed_root = {
             let model = self.model.borrow();
@@ -140,7 +134,6 @@ impl App {
             .new_terminal(ws)
             .ok_or("could not open a terminal")?;
         if let Some(before) = before {
-            // The user keeps looking at what they were looking at.
             self.model.borrow_mut().select_tab(ws, before);
         }
         self.sync(ws);

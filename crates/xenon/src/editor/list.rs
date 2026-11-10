@@ -1,5 +1,3 @@
-//! The worklist file's list view inside an editor tab, and the switch to its Markdown.
-
 use std::path::Path;
 use std::rc::Rc;
 
@@ -10,13 +8,10 @@ use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 use super::EditorView;
 use crate::worklist_list::WorklistList;
 
-/// Is `path` a workspace's worklist?
 pub(super) fn is_worklist(path: &Path) -> bool {
     path.ends_with(".xenon/worklist.md")
 }
 
-/// A worklist file shows the list or the text, on the stack that goes into
-/// `root`. Other files put just the text in `root`.
 pub(super) fn pages(
     path: &Path,
     root: &gtk::Box,
@@ -34,8 +29,6 @@ pub(super) fn pages(
 }
 
 impl EditorView {
-    /// Add the list view and its header (with the view switch) to a
-    /// worklist file's tab, and the keys that switch between the two.
     pub(super) fn attach_list(self: &Rc<Self>) {
         let Some(stack) = &self.stack else {
             return;
@@ -52,14 +45,12 @@ impl EditorView {
         let showing = prose_file_prefs(&self.path).list;
         list.show_actions(showing);
         if let Some(switch) = self.switch.as_ref() {
-            // The view switch moves from its own row into the worklist header.
             if let Some(row) = switch.parent() {
                 row.unparent();
             }
             list.header.prepend(switch);
         }
         let _ = self.list.set(list);
-        // Alt+1 and Alt+3 leave the list for that Markdown mode; Alt+4 returns to it.
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         keys.connect_key_pressed(move |_, key, _, state| {
@@ -100,8 +91,6 @@ impl EditorView {
             .is_some_and(|stack| stack.visible_child_name().as_deref() == Some("list"))
     }
 
-    /// Show the worklist as the list (true) or as Markdown (false). The list
-    /// reads the file, so Markdown edits must be saved first. Remembered per file.
     pub(super) fn set_list(self: &Rc<Self>, on: bool) -> bool {
         let (Some(stack), Some(list)) = (&self.stack, self.list.get()) else {
             return false;
@@ -133,7 +122,6 @@ impl EditorView {
         true
     }
 
-    /// Put the cursor where typing goes: the list when it shows, else the text.
     pub(crate) fn focus(&self) {
         match self.list.get() {
             Some(list) if self.list_showing() => list.focus(),

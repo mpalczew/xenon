@@ -1,6 +1,3 @@
-//! Split rules on a pane tree: depth and fan-out limits, flattening, divider
-//! drags, and replacing or removing a leaf.
-
 use crate::content::{
     LeafPane, MAX_NEST_DEPTH, MAX_SPLIT_CHILDREN, PaneId, PaneNode, SplitAxis, TabState,
 };
@@ -8,8 +5,6 @@ use crate::pane_tree::PaneTree;
 use crate::split::{flatten_split, move_boundary};
 
 impl<T> PaneTree<T> {
-    /// Two-child split with equal halves. Splice it into the tree with
-    /// [`Self::replace_leaf`], which flattens same-axis nesting.
     pub fn pair(axis: SplitAxis, first: Self, second: Self) -> Self {
         Self::Split {
             axis,
@@ -18,7 +13,6 @@ impl<T> PaneTree<T> {
         }
     }
 
-    /// Restore the split invariants everywhere below `self`.
     pub(crate) fn normalize(&mut self) {
         let Self::Split {
             axis,
@@ -42,7 +36,6 @@ impl<T> PaneTree<T> {
         }
     }
 
-    /// (axis alternations above `leaf`, axis and child count of its parent).
     fn split_context(&self, leaf: PaneId) -> Option<(u32, Option<(SplitAxis, usize)>)> {
         match self {
             Self::Leaf(l) => (l.id == leaf).then_some((0, None)),
@@ -53,7 +46,6 @@ impl<T> PaneTree<T> {
         }
     }
 
-    /// Whether splitting `leaf` along `axis` stays within the depth and fan-out limits.
     pub fn can_split(&self, leaf: PaneId, axis: SplitAxis) -> bool {
         let Some((depth, parent)) = self.split_context(leaf) else {
             return false;
@@ -139,7 +131,6 @@ impl<T> PaneTree<T> {
 }
 
 impl<T: Clone> PaneTree<T> {
-    /// Replace leaf `id`; same-axis splits are spliced into their parent.
     pub(crate) fn replace_leaf(&mut self, id: PaneId, replacement: Self) -> bool {
         let found = self.replace_leaf_inner(id, replacement);
         if found {

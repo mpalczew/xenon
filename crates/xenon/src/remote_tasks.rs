@@ -1,7 +1,3 @@
-//! Tasks from the phone: the list, starting a run, and the run's questions.
-//! The run itself is the Mac's (`tasks.rs`); the phone only starts it, answers
-//! its `inputs`, and is told which terminal it opened first.
-
 use std::rc::Rc;
 
 use xenon_core::tasks::{self as shared, QuestionKind, TaskQuestion};
@@ -14,7 +10,6 @@ use crate::app::App;
 use crate::tasks::Start;
 
 impl App {
-    /// The workspace's tasks for the phone's list, as the Mac's picker shows them.
     pub(crate) fn remote_list_tasks(
         self: &Rc<Self>,
         workspace_id: &str,
@@ -35,7 +30,6 @@ impl App {
             .collect())
     }
 
-    /// Start a run for a phone. Quiet: the Mac's tab and focus stay as they are.
     pub(crate) fn remote_run_task(
         self: &Rc<Self>,
         conn: ConnId,
@@ -60,7 +54,6 @@ impl App {
         }
     }
 
-    /// Ask the phone one question of the run it started.
     pub(crate) fn remote_ask_input(self: &Rc<Self>, conn: ConnId, question: &TaskQuestion) {
         let token = self.tasks.next_token.get() + 1;
         self.tasks.next_token.set(token);
@@ -108,7 +101,6 @@ impl App {
         self.answer_task_input(value.map(|v| v.0));
     }
 
-    /// The phone went away: a question it was asked cancels the run.
     pub(crate) fn remote_task_gone(self: &Rc<Self>, conn: ConnId) {
         let asked = self.tasks.phone_ask.borrow().filter(|(_, c)| *c == conn);
         if let Some((token, _)) = asked {
@@ -116,7 +108,6 @@ impl App {
         }
     }
 
-    /// The run's first terminal exists: the phone opens it.
     pub(crate) fn remote_task_started(
         &self,
         conn: ConnId,

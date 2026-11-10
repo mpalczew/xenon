@@ -1,14 +1,3 @@
-//! Markdown writing mode for an editor tab, built from stock GtkTextView
-//! parts: text tags for the styles, the `invisible` tag for markup away from
-//! the caret, view margins for the column, and line spacing for the line
-//! height. The parsing and the "which markup shows" rule live in
-//! `xenon_prose`; this file only moves them onto the buffer.
-//!
-//! Typing stays cheap: an edit only shifts the stored ranges and arms a
-//! debounce timer. The reparse runs on a worker thread, and its result is
-//! applied to the buffer in slices from idle callbacks, each slice replacing
-//! the tags of its own range in one step so nothing flickers.
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -31,12 +20,9 @@ mod input;
 mod style;
 pub(crate) use style::css;
 
-/// Quiet time after the last edit before the document is parsed again.
 const DEBOUNCE: Duration = Duration::from_millis(120);
-/// Spans applied per idle slice.
 const SLICE: usize = 1500;
 
-/// Is `path` a Markdown file the prose mode can show?
 pub(crate) fn is_markdown(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|e| e.to_str()),
@@ -52,26 +38,19 @@ pub(crate) struct Prose {
     pub(crate) ws: WorkspaceId,
     pub(crate) app: Weak<App>,
     tags: Tags,
-    /// Whether prose mode is showing.
     pub(crate) on: Cell<bool>,
     hide: Cell<bool>,
     doc: RefCell<Doc>,
-    /// Counts edits; a parse started at an older count is dropped.
     edits: Cell<u64>,
-    /// Counts applications; a slice from an older one stops.
     applies: Cell<u64>,
     due: Cell<Option<Instant>>,
     timer: Cell<bool>,
-    /// The block whose markup is showing (markers = hide).
     revealed: Cell<Option<usize>>,
     margin: Cell<i32>,
-    /// Column width in characters, fitted to the document when it loads.
     column: Cell<f32>,
     pub(crate) images: crate::prose_images::Images,
-    /// Overlay that draws quote bars, bullets and table rules.
     decor: gtk::DrawingArea,
     decor_pending: Cell<bool>,
-    /// Tags made from the style scheme for code blocks, and their results.
     syntax: RefCell<Vec<gtk::TextTag>>,
     lit: RefCell<HashMap<String, code::Lit>>,
 }
@@ -132,7 +111,6 @@ impl Prose {
                 }
             }
         ));
-        // Before the default handler: positions are those of the edit.
         // sync: the edit's positions are valid only inside this handler.
         self.buffer.connect_insert_text(glib::clone!(
             #[strong(rename_to = this)]
@@ -219,7 +197,6 @@ impl Prose {
         self.arm(DEBOUNCE);
     }
 
-    /// Parse once the buffer has been quiet for `wait`.
     fn arm(self: &Rc<Self>, wait: Duration) {
         self.due.set(Some(Instant::now() + wait));
         if self.timer.replace(true) {
@@ -247,13 +224,11 @@ impl Prose {
         });
     }
 
-    /// Parse a snapshot on a worker thread; apply it if nothing changed.
     fn parse(self: &Rc<Self>) {
         if !self.on.get() {
             return;
         }
         let (start, end) = self.buffer.bounds();
-        // Hidden characters are part of the text.
         let text = self.buffer.text(&start, &end, true).to_string();
         let edits = self.edits.get();
         let this = Rc::downgrade(self);
@@ -298,7 +273,6 @@ impl Prose {
         }
     }
 
-    /// Replace the tags of one stretch of the buffer, then queue the next.
     fn slice(self: &Rc<Self>, generation: u64, from: usize, a: usize, carry: Vec<Span>) {
         if self.applies.get() != generation || !self.on.get() {
             return;
@@ -355,7 +329,6 @@ impl Prose {
         }
     }
 
-    /// Show the markup of the block the caret entered; hide the block it left.
     fn caret_moved(self: &Rc<Self>) {
         if !self.on.get() || !self.hide.get() {
             return;
@@ -392,7 +365,6 @@ impl Prose {
         self.images.schedule_move(self);
     }
 
-    /// Fit the column to freshly loaded text.
     pub(crate) fn refit_column(self: &Rc<Self>) {
         let (start, end) = self.buffer.bounds();
         let text = self.buffer.text(&start, &end, true);
@@ -401,7 +373,6 @@ impl Prose {
         self.fit_column();
     }
 
-    /// Turn prose mode on or off for this view and restyle it.
     pub(crate) fn set_on(self: &Rc<Self>, on: bool, app: &App) {
         let was = self.on.replace(on);
         self.decor.set_visible(on);

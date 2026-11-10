@@ -1,9 +1,3 @@
-//! The Files section of the sidebar: the workspace folder as a stock
-//! `GtkListView` over a `GtkTreeListModel`. Each folder is a `gio::ListStore` of
-//! `gio::FileInfo` that is read on a worker thread when the folder is opened;
-//! only open folders are watched (a cap keeps the number of watchers bounded).
-//! It lists every entry, folders first.
-
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -18,9 +12,7 @@ use crate::app::App;
 use crate::model::Fold;
 use crate::sidebar_ui::{Row, Section};
 
-/// Most folders watched at once; deeper expansions are not watched.
 const MAX_WATCHED: usize = 48;
-/// Coalesce a burst of file events into one reload.
 const RELOAD_DELAY: Duration = Duration::from_millis(250);
 const FILE_ATTR: &str = "xenon::file";
 
@@ -40,27 +32,19 @@ pub(crate) struct FilesView {
     tree: gtk::TreeListModel,
     selection: gtk::SingleSelection,
     root_store: gio::ListStore,
-    /// The children of each folder the tree has asked about.
     stores: Stores,
     root_dir: RefCell<Option<PathBuf>>,
     app: Weak<App>,
-    /// Rows on screen, so the open-file mark can be redrawn.
     bound: Rc<RefCell<Vec<gtk::ListItem>>>,
     monitors: RefCell<HashMap<PathBuf, gio::FileMonitor>>,
     dirty: RefCell<HashSet<PathBuf>>,
     reload_armed: Cell<bool>,
-    /// File shown in the active editor tab.
     open_file: Rc<RefCell<Option<PathBuf>>>,
-    /// Folder to open and select once its parents are read (`reveal`).
     reveal_target: RefCell<Option<PathBuf>>,
-    /// Set while re-opening folders after a reload, which must not read again.
     restoring: Cell<bool>,
-    /// Bumped when the root changes, so a late directory read is dropped.
     epoch: Cell<u64>,
-    /// The menu for the file ops, and what it was opened on.
     menu: gtk::PopoverMenu,
     ctx: RefCell<Option<Target>>,
-    /// Paths of the rows being dragged out of this tree.
     drag: RefCell<Vec<PathBuf>>,
 }
 
@@ -203,7 +187,6 @@ impl FilesView {
             drag: RefCell::default(),
         });
         *owner.0.borrow_mut() = Rc::downgrade(&this);
-        // The sidebar's paned handle draws the line between sections.
         this.section.sep.set_visible(false);
         this.wire();
         this.wire_ops();
@@ -233,8 +216,6 @@ impl FilesView {
                 }
             });
         });
-        // Folders are read when opened and forgotten when closed, however the
-        // row was opened (arrow, key or click).
         let weak = Rc::downgrade(self);
         // sync: `tree_row`, `is_dir` and `row_path` only read; the work is deferred.
         self.tree.connect_items_changed(move |tree, pos, _, added| {
@@ -252,7 +233,6 @@ impl FilesView {
                     let (Some(path), expanded) = (row_path(row), row.is_expanded()) else {
                         return;
                     };
-                    // Read now: `restoring` is over by the time idle runs.
                     let restoring = weak.upgrade().is_some_and(|t| t.restoring.get());
                     let weak = weak.clone();
                     glib::idle_add_local_once(move || {
@@ -308,7 +288,6 @@ impl FilesView {
         row_path(&self.selected_row()?)
     }
 
-    /// Right: open a closed folder, or step into an open one.
     fn step_in(&self) -> bool {
         let Some(row) = self.selected_row().filter(|r| r.is_expandable()) else {
             return false;
@@ -321,7 +300,6 @@ impl FilesView {
         true
     }
 
-    /// Left: close an open folder, or step out to the parent.
     fn step_out(&self) -> bool {
         let Some(row) = self.selected_row() else {
             return false;
@@ -342,7 +320,6 @@ impl FilesView {
         }
     }
 
-    /// Show `root` (the workspace folder), or nothing.
     pub(crate) fn set_root(self: &Rc<Self>, root: Option<PathBuf>) {
         if *self.root_dir.borrow() == root {
             return;
@@ -368,12 +345,10 @@ impl FilesView {
         }
     }
 
-    /// Draw the fold the model decided.
     pub(crate) fn show_fold(&self, folded: bool) {
         self.section.show_fold(folded);
     }
 
-    /// Put the keyboard in the tree.
     pub(crate) fn focus(&self) {
         if let Some(app) = self.app.upgrade() {
             app.set_fold(Fold::Files, false);
@@ -391,7 +366,6 @@ impl FilesView {
     }
 }
 
-/// Fill one bound list item from its tree row.
 fn draw_item(item: &gtk::ListItem, open: Option<&Path>) {
     let (Some(expander), Some(row)) = (
         item.child().and_downcast::<gtk::TreeExpander>(),

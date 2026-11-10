@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Worktrees for agents working in parallel. Each shares the main checkout's
-# target/, so libraries build once; cargo's lock keeps builds one at a time.
-#   scripts/worktree new NAME    .worktrees/NAME on branch wt/NAME, from origin/main
-#   scripts/worktree done NAME   remove it and its branch, only once merged
-#   scripts/worktree list
 set -euo pipefail
 main="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 dir() { printf '%s/.worktrees/%s\n' "$main" "$1"; }

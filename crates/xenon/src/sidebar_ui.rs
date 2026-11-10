@@ -1,8 +1,3 @@
-//! The two widgets every sidebar section is made of: `Section` (header with a
-//! title, an optional trailing widget and the fold control, then one list
-//! body) and `Row` (icon, title, dim detail, trailing slot). Styling is the
-//! stock libadwaita look; nothing here knows what a workspace or a file is.
-
 use std::rc::Weak;
 
 use adw::prelude::*;
@@ -22,8 +17,6 @@ pub(crate) struct Section {
 }
 
 impl Section {
-    /// `cap` is the tallest the list grows before it scrolls; without one the
-    /// list takes whatever height the section is given.
     pub(crate) fn new(
         title: &str,
         fold: Fold,
@@ -71,7 +64,6 @@ impl Section {
 
         let sep = gtk::Separator::new(gtk::Orientation::Horizontal);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        // Never grows on its own; the sidebar says which section does.
         root.set_vexpand(false);
         root.append(&sep);
         root.append(&head);
@@ -86,12 +78,10 @@ impl Section {
         }
     }
 
-    /// A widget at the end of the header, beside the fold control.
     pub(crate) fn set_trailing(&self, widget: &impl IsA<gtk::Widget>) {
         self.head.append(widget);
     }
 
-    /// Draw the fold the model decided.
     pub(crate) fn show_fold(&self, folded: bool) {
         self.body.set_reveal_child(!folded);
         self.arrow.set_icon_name(Some(if folded {
@@ -101,15 +91,12 @@ impl Section {
         }));
     }
 
-    /// A section with nothing to list is just its header: no fold arrow, no body.
     pub(crate) fn set_foldable(&self, foldable: bool) {
         self.arrow.set_visible(foldable);
         self.body.set_visible(foldable);
     }
 }
 
-/// One list row. The widgets are children of `root` in a fixed order, so a row
-/// found in a list can be read back with `Row::of`.
 pub(crate) struct Row {
     pub root: gtk::Box,
     pub icon: gtk::Image,
@@ -125,7 +112,6 @@ impl Row {
         let title = gtk::Label::new(None);
         title.set_xalign(0.0);
         title.set_ellipsize(pango::EllipsizeMode::End);
-        // Always shown, so its stretch pushes the trailing slot to the end.
         let detail = gtk::Label::new(None);
         detail.add_css_class("dim-label");
         detail.add_css_class("caption");
@@ -148,7 +134,6 @@ impl Row {
         }
     }
 
-    /// The row built by `Row::new` whose root is `root`.
     pub(crate) fn of(root: &gtk::Widget) -> Option<Self> {
         let root = root.downcast_ref::<gtk::Box>()?.clone();
         let icon = root.first_child()?;
@@ -173,7 +158,6 @@ impl Row {
         self.detail.set_text(detail);
     }
 
-    /// Put the detail under the title instead of beside it.
     pub(crate) fn stack(&self) {
         let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
         text.set_hexpand(true);
@@ -185,13 +169,10 @@ impl Row {
         text.append(&self.detail);
     }
 
-    /// Mark the row as the one shown in the main area.
     pub(crate) fn set_open(&self, open: bool) {
         set_class(&self.title, "accent", open);
     }
 
-    /// While the pointer is over the row, `hover` replaces `status` in the
-    /// trailing slot.
     pub(crate) fn swap_on_hover(
         &self,
         status: &impl IsA<gtk::Widget>,
@@ -222,7 +203,6 @@ impl Row {
     }
 }
 
-/// A strikethrough attribute list for a label.
 pub(crate) fn struck(label: &gtk::Label, on: bool) {
     let attrs = pango::AttrList::new();
     if on {

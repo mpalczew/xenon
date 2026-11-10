@@ -1,6 +1,3 @@
-//! `/ws`: one WebSocket per phone app session. Hello → Connected → a loop that
-//! forwards client messages to the host and drains the host's outbox.
-
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -17,15 +14,11 @@ use crate::http;
 use crate::protocol::{ClientMsg, ClosedReason, ServerMsg};
 use crate::server::{Request, Shared};
 
-/// Authentication read timeout; established sessions use readiness and wakeups.
 const TICK: Duration = Duration::from_millis(20);
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const PING_EVERY: Duration = Duration::from_secs(20);
-/// Close code for a missing / revoked device token (the phone forgets its token).
 const UNAUTHORIZED: u16 = 4401;
-/// Close code for "try again": host busy, or this session ended on the Mac.
 const TRY_AGAIN: u16 = 1011;
-/// Client messages are tiny (keys, text lines); cap before auth.
 const MAX_MESSAGE: usize = 64 * 1024;
 
 pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Result<()> {
@@ -103,7 +96,6 @@ fn same_origin(req: &Request) -> bool {
 
 enum Hello {
     Device(String),
-    /// Bad, revoked, or missing token.
     Unknown,
     /// The Mac didn't answer; the token may be fine.
     HostBusy,
@@ -227,13 +219,10 @@ impl Session {
 
 enum Drain {
     Open,
-    /// The Mac revoked this device: the phone must forget its token.
     Revoked,
-    /// The Mac dropped the session (stopping, restarting): reconnect later.
     Ended,
 }
 
-/// Send everything queued.
 fn drain(socket: &mut WebSocket<TcpStream>, rx: &Receiver<ServerMsg>) -> Result<Drain> {
     loop {
         match rx.try_recv() {
@@ -272,9 +261,7 @@ fn accept_write(result: tungstenite::Result<()>) -> Result<bool> {
 
 enum Read {
     Msg(ClientMsg),
-    /// No complete message available.
     Idle,
-    /// Ping/pong/binary/unparseable: ignored.
     Other,
     Closed,
 }

@@ -1,7 +1,3 @@
-//! Terminal status on the model: working, attention, and exit, built from the
-//! shared rules in `xenon_core`. The views report raw signals (output batch,
-//! quiet, bell, key, exit); this decides what they mean.
-
 use xenon_core::{
     AttentionReason, PaneId, TabId, WorkspaceDot, WorkspaceId, clean_terminal_title, workspace_dot,
     workspace_dot_from_tabs,
@@ -10,8 +6,6 @@ use xenon_core::{
 use crate::model::{Model, Tab, TabKind};
 
 impl Model {
-    /// The focused pane's active tab in the active workspace, when it is an
-    /// editor.
     pub(crate) fn active_editor_key(&self) -> Option<(WorkspaceId, TabId)> {
         let ws = self.active()?;
         let tab = self.spaces.get(&ws)?.content.focused_leaf()?.active_tab()?;
@@ -19,15 +13,12 @@ impl Model {
             .then_some((ws, tab.id))
     }
 
-    /// The active editor has unsaved changes.
     pub(crate) fn active_editor_dirty(&self) -> bool {
         self.active_editor_key()
             .and_then(|(ws, tab)| self.tab(ws, tab))
             .is_some_and(|t| t.modified)
     }
 
-    /// The tab is on screen in the focused pane of the open workspace while
-    /// the window has focus.
     pub(crate) fn is_viewed(&self, ws: WorkspaceId, tab: TabId) -> bool {
         self.window_active
             && self.active() == Some(ws)
@@ -54,8 +45,6 @@ impl Model {
     ) -> bool {
         let mut clean = clean_terminal_title(raw, spawn_dir);
         if clean == "terminal" && !raw.is_empty() {
-            // The prompt titled itself with the folder it started in: name the
-            // shell, which `terminal_tab_label` numbers.
             clean = shell_name();
         }
         match self.tab_mut(ws, tab) {
@@ -116,7 +105,6 @@ impl Model {
         changed
     }
 
-    /// Dismiss the mark on the tab the user is looking at.
     pub(crate) fn dismiss_viewed(&mut self) -> bool {
         let Some(ws) = self.active() else {
             return false;
@@ -138,12 +126,10 @@ impl Model {
             .is_some_and(|a| a.is_working())
     }
 
-    /// One terminal's pip: the same rule the tab and the sidebar share.
     pub(crate) fn tab_dot(&self, ws: WorkspaceId, tab: TabId) -> Option<WorkspaceDot> {
         workspace_dot(self.is_working(ws, tab), self.attention.reason(ws, tab))
     }
 
-    /// The workspace row's pip: aggregate over its terminals.
     pub(crate) fn workspace_dot(&self, ws: WorkspaceId) -> Option<WorkspaceDot> {
         let root = self.spaces.get(&ws)?.content.root.as_ref()?;
         let mut tabs = Vec::new();
@@ -162,13 +148,11 @@ impl Model {
         workspace_dot_from_tabs(tabs)
     }
 
-    /// True when any terminal anywhere is pulsing (the ticker needs to run).
     pub(crate) fn any_working(&self) -> bool {
         self.activity.values().any(|a| a.is_working())
     }
 }
 
-/// Name of the user's shell (`zsh`), for tabs that show a plain prompt.
 fn shell_name() -> String {
     std::env::var("SHELL")
         .ok()

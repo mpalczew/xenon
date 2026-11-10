@@ -1,6 +1,3 @@
-//! The steps of a device's life on a `DeviceBook`: show a pairing code, pair,
-//! sign in with a token, revoke.
-
 use std::time::Instant;
 
 use xenon_store::RemoteDevice;
@@ -12,17 +9,14 @@ use crate::labels::{clean_label, unix_now};
 use crate::pairing::PairingCode;
 use crate::protocol::PairResponse;
 
-/// `last_seen_at` is persisted at most this often per device.
 const TOUCH_PERSIST_SECS: u64 = 60 * 60;
 
-/// A device just paired: its id and the only copy of its plain token.
 pub(crate) struct NewDevice {
     pub id: String,
     pub token: String,
 }
 
 impl DeviceBook {
-    /// The live pairing code, issuing a fresh one when missing or expired.
     pub fn pairing_code(&mut self, now: Instant) -> &PairingCode {
         if !self.pairing.as_ref().is_some_and(|c| c.is_live(now)) {
             self.pairing = Some(PairingCode::issue(now));
@@ -30,13 +24,11 @@ impl DeviceBook {
         self.pairing.as_ref().expect("just issued")
     }
 
-    /// The sheet closed: stop accepting its code.
     pub fn forget_pairing(&mut self) {
         self.pairing = None;
     }
 
     /// Consume the pairing code and add a device. None = wrong/expired code.
-    /// The code is single use; a fresh one replaces it for the next phone.
     pub(crate) fn pair(&mut self, code: &str, label: &str, now: Instant) -> Option<NewDevice> {
         if !self.pairing.as_ref().is_some_and(|c| c.matches(code, now)) {
             return None;
@@ -55,7 +47,6 @@ impl DeviceBook {
         Some(NewDevice { id, token })
     }
 
-    /// Device id for a presented token.
     pub(crate) fn authenticate(&self, token: &str) -> Option<String> {
         if token.is_empty() {
             return None;
@@ -68,15 +59,12 @@ impl DeviceBook {
             .map(|d| d.id.clone())
     }
 
-    /// Forget one device.
     pub fn revoke(&mut self, id: &str) -> bool {
         let before = self.devices.devices.len();
         self.devices.devices.retain(|d| d.id != id);
         before != self.devices.devices.len()
     }
 
-    /// `HostRequest::Authenticate`: re-read the file, check the token, and
-    /// record the use (persisted at most hourly).
     pub fn authenticate_touch(&mut self, token: &str) -> Option<String> {
         self.reload();
         let id = self.authenticate(token)?;
@@ -91,7 +79,6 @@ impl DeviceBook {
         Some(id)
     }
 
-    /// `HostRequest::Pair`: spend the code, save, and build the reply.
     pub fn pair_response(
         &mut self,
         code: &str,

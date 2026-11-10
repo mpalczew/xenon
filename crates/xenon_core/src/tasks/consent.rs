@@ -1,12 +1,9 @@
-//! What the folderOpen consent prompt lists.
-
 use std::path::Path;
 
 use super::model::TaskSet;
 use super::rows::{row_command, with_preview_ctx};
 use super::trust::folder_open_closure;
 
-/// Labels of the tasks that run on folder open (each starts its own run).
 pub fn folder_open_labels(set: &TaskSet) -> Vec<String> {
     set.tasks
         .iter()
@@ -15,7 +12,6 @@ pub fn folder_open_labels(set: &TaskSet) -> Vec<String> {
         .collect()
 }
 
-/// What a folderOpen approval covers: label, command line, why it is listed.
 pub fn trust_lines(set: &TaskSet, folder: &Path) -> Vec<(String, String, &'static str)> {
     with_preview_ctx(set, folder, |ctx| {
         folder_open_closure(set)
@@ -32,7 +28,6 @@ pub fn trust_lines(set: &TaskSet, folder: &Path) -> Vec<(String, String, &'stati
     })
 }
 
-/// Title of the trust prompt for a workspace folder.
 pub fn trust_title(folder: &Path) -> String {
     let name = folder
         .file_name()

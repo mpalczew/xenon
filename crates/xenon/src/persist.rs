@@ -1,7 +1,3 @@
-//! Writing state: sessions and the registry through `xenon_store`, and window
-//! geometry through settings. Only workspaces opened this run are written; the
-//! rest keep their files untouched.
-
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -60,7 +56,6 @@ impl App {
         }
     }
 
-    /// Coalesce bursts (divider drags) into one write.
     pub(crate) fn schedule_save(self: &Rc<Self>) {
         if self.save_pending.replace(true) {
             return;
@@ -74,7 +69,6 @@ impl App {
         });
     }
 
-    /// Window size and sidebar width, written when the window closes.
     pub(crate) fn save_window(&self) {
         let (w, h) = (self.win.width(), self.win.height());
         let state = if self.win.is_maximized() {

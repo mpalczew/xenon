@@ -1,33 +1,21 @@
-//! One workspace's pane tree plus the focused leaf, and the moves on it.
-
 use crate::content::{ContentLayout, PaneId, TabId, TabState};
 use crate::pane_tree::{PaneLeaf, PaneTab, PaneTree};
 
-/// What [`PaneContent::park_empty`] did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParkOutcome {
-    /// Nothing to split (no focused pane, or it is missing).
     Unchanged,
-    /// The split would exceed the depth or fan-out limit.
     NoRoom,
-    /// The tree was empty; two panes were created and the first is focused.
     Created,
-    /// A parked pane was added beside this (still focused) pane.
     Added(PaneId),
 }
 
-/// What closing a tab did to the layout; see [`PaneContent::close_tab`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloseOutcome {
-    /// The pane stays and shows the tab the user was looking at: focus it.
     FocusPane(PaneId),
-    /// That was the last tab in the last pane: the tree is gone.
     Empty,
-    /// Nothing visible changed.
     Kept,
 }
 
-/// One workspace's pane tree plus the focused leaf.
 #[derive(Clone)]
 pub struct PaneContent<T> {
     pub root: Option<PaneTree<T>>,

@@ -1,7 +1,3 @@
-//! One pane: an `AdwTabBar` above an `AdwTabView` that holds the tab bodies.
-//! The view mirrors the model; what the user does on the bar is reported to
-//! the model (`tab_ui.rs`), which decides, and the next `sync` draws the answer.
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -16,14 +12,11 @@ use crate::model::Tab;
 pub(crate) struct PaneView {
     pub root: gtk::Box,
     view: adw::TabView,
-    /// The workspace has more than one pane (the empty card then offers removal).
     multi: Cell<bool>,
-    /// The tab view, or the empty card when the pane has no tabs.
     stack: gtk::Stack,
     pages: RefCell<HashMap<TabId, adw::TabPage>>,
     ws: WorkspaceId,
     pane: PaneId,
-    /// "Remove empty pane" on the empty card; shown only with company.
     remove: RefCell<Option<gtk::Button>>,
 }
 
@@ -40,8 +33,6 @@ impl PaneView {
             }
         });
         let view = adw::TabView::new();
-        // Only the shortcuts our key map binds (Ctrl+Tab, Ctrl+Shift+Tab);
-        // the others would take keys from the terminal.
         view.set_shortcuts(
             adw::TabViewShortcuts::CONTROL_TAB | adw::TabViewShortcuts::CONTROL_SHIFT_TAB,
         );
@@ -74,8 +65,6 @@ impl PaneView {
             remove: RefCell::default(),
         });
         this.connect(app);
-        // Focus anywhere in the pane (terminal, editor, diff, empty card)
-        // tells the model which pane the user is in.
         let focus = gtk::EventControllerFocus::new();
         let weak = Rc::downgrade(app);
         focus.connect_enter(move |_| {
@@ -88,8 +77,6 @@ impl PaneView {
         this
     }
 
-    /// Report what the user does on the bar. Our own changes in `sync` are
-    /// silent (`App::tab_sync`).
     fn connect(&self, app: &Rc<App>) {
         let (ws, pane) = (self.ws, self.pane);
         // Xenon is one window. A drag that ends off every bar (a pane body
@@ -106,8 +93,6 @@ impl PaneView {
         let weak = Rc::downgrade(app);
         // sync: `close_page_finish` is the answer to the signal and must be given before it returns.
         self.view.connect_close_page(move |view, page| {
-            // The page stays until the model's answer removes it, so the
-            // close button does exactly what the close-tab action does.
             let app = weak.upgrade().filter(|a| !a.tab_sync.get());
             view.close_page_finish(page, app.is_none());
             if let Some(app) = app {
@@ -140,8 +125,6 @@ impl PaneView {
                 });
             }
         });
-        // Every view of the group reports the end of a drag; handle it once,
-        // after the bar has put the page back in a view.
         let weak = Rc::downgrade(app);
         self.view.connect_is_transferring_page_notify(move |view| {
             if view.is_transferring_page() {
@@ -155,15 +138,12 @@ impl PaneView {
         });
     }
 
-    /// The bodies shown in this view, in tab order.
     pub(crate) fn order(&self) -> Vec<gtk::Widget> {
         (0..self.view.n_pages())
             .map(|at| self.view.nth_page(at).child())
             .collect()
     }
 
-    /// Make the pane show exactly `leaf`'s tabs. `bodies` holds each tab's
-    /// widget; a body that sits in another pane's view is moved here.
     pub(crate) fn sync(
         &self,
         app: &Rc<App>,
@@ -207,7 +187,6 @@ impl PaneView {
         }
     }
 
-    /// The page showing `body` in this view, taking it from wherever it was.
     fn page_for(&self, body: &gtk::Widget, at: i32) -> Option<adw::TabPage> {
         let home = body
             .ancestor(adw::TabView::static_type())
@@ -231,7 +210,6 @@ impl PaneView {
             let card = crate::empty::all_clear(app, true);
             let overlay = gtk::Overlay::new();
             overlay.set_child(Some(&card));
-            // A click on bare space focuses the card, as it would a terminal.
             let click = gtk::GestureClick::new();
             click.connect_pressed(glib::clone!(
                 #[weak]
@@ -259,7 +237,6 @@ impl PaneView {
             let (ws, pane) = (self.ws, self.pane);
             remove.connect_clicked(move |_| {
                 let weak = weak.clone();
-                // Deferred: removing the pane destroys this button.
                 glib::idle_add_local_once(move || {
                     if let Some(app) = weak.upgrade() {
                         app.remove_empty_pane(ws, pane);
@@ -276,14 +253,12 @@ impl PaneView {
         self.stack.set_visible_child_name("empty");
     }
 
-    /// Put the keyboard focus on the empty card's first button.
     pub(crate) fn focus_empty(&self) {
         if let Some(card) = self.stack.child_by_name("empty") {
             card.child_focus(gtk::DirectionType::TabForward);
         }
     }
 
-    /// Show a tab's status on its page. Selected tabs carry no status.
     pub(crate) fn paint(
         &self,
         tab: &Tab,
@@ -336,7 +311,6 @@ impl PaneView {
     }
 }
 
-/// True when the keyboard focus of `widget`'s window is `widget` or inside it.
 pub(crate) fn focus_inside(widget: &impl IsA<gtk::Widget>) -> bool {
     let widget = widget.as_ref();
     widget

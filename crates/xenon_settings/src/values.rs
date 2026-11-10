@@ -1,5 +1,3 @@
-//! The live settings values and how they load from and save to `settings.json`.
-
 use xenon_store::{DEFAULT_FONT_FAMILY, DEFAULT_UI_FONT_FAMILY};
 
 use crate::{
@@ -8,7 +6,6 @@ use crate::{
     ProseSettings, TerminalAutoClose, ThemeMode, ensure_mono_family, ensure_ui_family,
 };
 
-/// Font size + family for one surface (editor, terminal, or UI chrome).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FaceFont {
     pub size: f32,
@@ -41,7 +38,6 @@ pub(crate) fn clamp_size(size: f32) -> f32 {
     size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE)
 }
 
-/// Theme mode and the chosen light/dark theme names.
 #[derive(Clone, Debug)]
 pub struct ThemePreference {
     pub mode: ThemeMode,
@@ -59,7 +55,6 @@ impl Default for ThemePreference {
     }
 }
 
-/// Live values for every app-wide setting.
 #[derive(Clone, Debug)]
 pub struct UiSettings {
     pub editor: FaceFont,
@@ -147,8 +142,6 @@ impl UiSettings {
         settings.terminal_auto_close = self.terminal_auto_close;
     }
 
-    /// Current values merged over the settings on disk, so a save does not
-    /// reset chrome-only prefs (Workspaces/Files collapse).
     pub fn snapshot(&self) -> AppSettings {
         let mut settings = xenon_store::load_settings().unwrap_or_default();
         self.write_into(&mut settings);

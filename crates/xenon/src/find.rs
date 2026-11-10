@@ -1,6 +1,3 @@
-//! The terminal find strip: a search entry above the terminal that drives VTE's
-//! own search (match painting, wrap-around, scrolling to the match).
-
 use adw::prelude::*;
 use gtk::glib;
 use vte::prelude::*;
@@ -9,7 +6,6 @@ use vte::prelude::*;
 const PCRE2_MULTILINE: u32 = 0x0000_0400;
 const PCRE2_CASELESS: u32 = 0x0000_0008;
 
-/// A signal handler that runs `$body` on the terminal while it still exists.
 macro_rules! weak_term_fn {
     ($weak:expr, |$t:ident| $body:expr) => {{
         let weak = $weak.clone();
@@ -20,8 +16,6 @@ macro_rules! weak_term_fn {
         }
     }};
 }
-/// Search text as a literal PCRE2 pattern, plus whether to ignore case
-/// (smartcase: only when the query has no capital letters).
 pub(crate) fn search_pattern(query: &str) -> Option<(String, bool)> {
     if query.is_empty() {
         return None;
@@ -76,9 +70,6 @@ impl FindBar {
         revealer.set_transition_type(gtk::RevealerTransitionType::SlideDown);
         revealer.set_transition_duration(120);
 
-        // Weak references: these closures live on widgets inside the revealer,
-        // so a strong capture of it (or the terminal) would be a cycle that keeps
-        // the terminal, and the shell under it, alive after its tab closes.
         let weak_term = term.downgrade();
         entry.connect_search_changed({
             let weak = weak_term.clone();
@@ -101,7 +92,6 @@ impl FindBar {
         bar
     }
 
-    /// Reveal the strip and put the cursor in the entry.
     pub(crate) fn open(&self) {
         self.revealer.set_reveal_child(true);
         self.entry.grab_focus();
@@ -109,7 +99,6 @@ impl FindBar {
     }
 }
 
-/// Close the strip, clear the search, and give the terminal the cursor back.
 fn hide_fn<T>(
     revealer: &glib::WeakRef<gtk::Revealer>,
     term: &glib::WeakRef<vte::Terminal>,

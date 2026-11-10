@@ -1,10 +1,3 @@
-//! The worklist: quick capture into `.xenon/worklist.md` and "Open Worklist".
-//!
-//! The file model (parse, edit, sections) is `xenon_store::worklist`. Opening
-//! shows the file in the list view (`worklist_list.rs`) or, by choice, the
-//! Markdown writing mode; capture is a stock `adw::Dialog` that saves as you
-//! type.
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -22,13 +15,10 @@ mod capture;
 mod fields;
 use capture::Capture;
 
-/// Capture state that outlives one dialog.
 #[derive(Default)]
 pub(crate) struct Worklist {
     capture: RefCell<Option<Rc<Capture>>>,
-    /// The section new text last went into, per workspace.
     last_section: RefCell<HashMap<WorkspaceId, Target>>,
-    /// The item the showing toast can take back, and which toast that is.
     undo: RefCell<Option<(WorkspaceId, ItemDraft)>>,
     toast_serial: Cell<u64>,
 }
@@ -41,7 +31,6 @@ impl App {
         Some((ws, rec.root.clone(), rec.name.clone()))
     }
 
-    /// Open Worklist: `.xenon/worklist.md` in the list view, made when missing.
     pub(crate) fn open_worklist(self: &Rc<Self>) {
         let Some((ws, root, _)) = self.workspace_for_worklist() else {
             self.no_workspace_toast();
@@ -62,17 +51,14 @@ impl App {
         self.open_editor(ws, &root.join(".xenon/worklist.md"));
     }
 
-    /// Add to Worklist: the capture dialog; the same key again closes it.
     pub(crate) fn capture_worklist(self: &Rc<Self>) {
         self.open_capture(None, None);
     }
 
-    /// Add to Worklist with `section` chosen (from the list view's + button).
     pub(crate) fn capture_worklist_into(self: &Rc<Self>, section: Target) {
         self.open_capture(Some(section), None);
     }
 
-    /// The capture form prefilled with `entry` of `source`, with a Delete button.
     pub(crate) fn edit_worklist_item(self: &Rc<Self>, entry: Entry, source: String) {
         self.open_capture(None, Some((entry, source)));
     }
@@ -98,7 +84,6 @@ impl App {
         capture.title.grab_focus();
     }
 
-    /// Take back the capture the toast offers.
     pub(crate) fn undo_capture(self: &Rc<Self>) {
         let Some((ws, mut draft)) = self.worklist.undo.borrow_mut().take() else {
             return;
@@ -120,7 +105,6 @@ impl App {
         self.toasts.add_toast(toast);
     }
 
-    /// A toast that puts the worklist file back to `before`, while it still reads `after`.
     pub(crate) fn offer_worklist_undo(
         &self,
         root: std::path::PathBuf,

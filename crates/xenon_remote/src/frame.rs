@@ -1,11 +1,7 @@
-//! Screen → wire frames. Pure: the host builds a `Screen` from the terminal
-//! grid; `FrameEncoder` interns styles and sends only rows that changed.
-
 use std::collections::{BTreeMap, HashMap};
 
 use crate::protocol::{CursorWire, LineWire, ServerMsg, SpanWire, StyleWire, style_flags};
 
-/// 8-bit RGB color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
@@ -15,7 +11,6 @@ impl Rgb {
     }
 }
 
-/// Resolved cell style. `None` colors mean the theme default.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Style {
     pub fg: Option<Rgb>,
@@ -26,7 +21,6 @@ pub struct Style {
 }
 
 impl Style {
-    /// A blank in this style is invisible (safe to trim at line end).
     fn blank_is_invisible(self) -> bool {
         self.bg.is_none() && self.flags & (style_flags::UNDERLINE | style_flags::STRIKE) == 0
     }
@@ -41,7 +35,6 @@ impl Style {
     }
 }
 
-/// `Cell::ch` for the second column of a wide glyph: occupies a cell, sends no text.
 pub(crate) const WIDE_SPACER: char = '\0';
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,19 +52,15 @@ impl Default for Cell {
     }
 }
 
-/// One terminal screen: `rows` rows of cells plus the cursor.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Screen {
     pub cols: u16,
     pub rows: Vec<Vec<Cell>>,
     pub cursor: Option<CursorWire>,
-    /// Terminal viewport is above the live row.
     pub scrolled: bool,
-    /// Link targets by `Style::link` key.
     pub links: HashMap<u64, String>,
 }
 
-/// Per-connection encoder: remembers what the phone has so patches stay small.
 #[derive(Default)]
 pub struct FrameEncoder {
     styles: HashMap<Style, u32>,
@@ -87,8 +76,6 @@ struct SentScreen {
 }
 
 impl FrameEncoder {
-    /// Next send is a full frame (reconnect, dropped patch).
-    /// Also re-declares styles: a dropped `Styles` message is never lost.
     pub fn force_full(&mut self) {
         self.sent = None;
         self.styles.clear();

@@ -1,7 +1,3 @@
-//! The product state of the GTK frontend: workspaces, their pane trees, and the
-//! per-terminal status. No widgets here; the views draw whatever this says.
-//! Layout rules come from `xenon_core`'s pane tree.
-
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -10,15 +6,10 @@ use xenon_core::{
     SessionState, TabId, TabState, TerminalActivity, WorkspaceId, WorkspaceRec, terminal_tab_label,
 };
 
-/// What a tab holds. Editor, diff, and image tabs are not drawn yet; they are
-/// kept exactly as saved so a GTK session never drops them.
 #[derive(Clone)]
 pub(crate) enum TabKind {
     Terminal,
-    /// A read-only diff of one changed file (path relative to the workspace).
-    Diff {
-        path: String,
-    },
+    Diff { path: String },
     Kept(TabState),
 }
 
@@ -26,13 +17,9 @@ pub(crate) enum TabKind {
 pub(crate) struct Tab {
     pub id: TabId,
     pub kind: TabKind,
-    /// Cleaned terminal title (see `clean_terminal_title`).
     pub title: String,
-    /// Exit code once the shell has ended.
     pub exited: Option<i32>,
-    /// An editor tab with unsaved changes.
     pub modified: bool,
-    /// Short name of the phone whose grid this terminal has right now.
     pub phone_device: Option<String>,
 }
 
@@ -54,7 +41,6 @@ impl Tab {
         }
     }
 
-    /// Chip text for the tab at `index` in its pane.
     pub(crate) fn label(&self, index: usize) -> String {
         match &self.kind {
             TabKind::Terminal => {
@@ -95,13 +81,9 @@ impl Tab {
     }
 }
 
-/// One registered workspace and its session.
 pub(crate) struct Space {
     pub content: PaneContent<Tab>,
-    /// The session as loaded. A workspace nobody has opened this run is saved
-    /// back exactly like this.
     pub saved: SessionState,
-    /// Terminals exist for this workspace (it was opened this run).
     pub live: bool,
 }
 
@@ -110,13 +92,10 @@ pub(crate) struct Model {
     pub spaces: HashMap<WorkspaceId, Space>,
     pub attention: AttentionMap,
     pub activity: HashMap<(WorkspaceId, TabId), TerminalActivity>,
-    /// The window has keyboard focus; a tab the user can see is "viewed".
     pub window_active: bool,
-    /// Which sidebar sections are folded away (saved in settings.json).
     pub folds: Folds,
 }
 
-/// A sidebar section that folds to its header.
 #[derive(Clone, Copy)]
 pub(crate) enum Fold {
     Workspaces,
@@ -124,7 +103,6 @@ pub(crate) enum Fold {
     Git,
 }
 
-/// Fold state of each sidebar section; `true` is folded.
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Folds {
     pub workspaces: bool,
@@ -171,7 +149,6 @@ impl Folds {
 }
 
 impl Model {
-    /// Read the registry and every session from the current data dir.
     pub(crate) fn load() -> Self {
         let registry = xenon_store::load_registry().unwrap_or_else(|error| {
             eprintln!("[xg] registry: {error}");
@@ -209,8 +186,6 @@ impl Model {
         self.registry.workspace(id)
     }
 
-    /// Build the pane tree from the saved session the first time a workspace
-    /// is opened. Terminal slots reopen as fresh shells.
     pub(crate) fn materialize(&mut self, id: WorkspaceId) {
         let Some(space) = self.spaces.get_mut(&id) else {
             return;
@@ -232,7 +207,6 @@ impl Model {
         space.content = content;
     }
 
-    /// The session to write for `id`.
     pub(crate) fn snapshot(&self, id: WorkspaceId) -> Option<SessionState> {
         let space = self.spaces.get(&id)?;
         if !space.live {
@@ -245,7 +219,6 @@ impl Model {
         })
     }
 
-    /// Register a folder as a workspace (or reuse / reopen it) and return it.
     pub(crate) fn open_dir(&mut self, path: &Path) -> WorkspaceId {
         let root = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         if let Some(rec) = self.registry.workspaces.iter().find(|r| r.root == root) {
@@ -315,12 +288,10 @@ impl Model {
         if to < 0 || to >= list.len() as isize {
             return false;
         }
-        // The row now at `to` (moving up) or just after it (moving down).
         let before = list.get(to as usize + usize::from(delta > 0)).map(|r| r.id);
         self.move_workspace(id, before)
     }
 
-    /// Move `id` to the closed list and pick the neighbour to show next.
     pub(crate) fn close_workspace(&mut self, id: WorkspaceId) -> Option<WorkspaceId> {
         let index = self.registry.workspaces.iter().position(|r| r.id == id)?;
         let rec = self.registry.workspaces.remove(index);
@@ -341,7 +312,6 @@ impl Model {
         next
     }
 
-    /// Id of the workspace `delta` rows from the active one, wrapping.
     pub(crate) fn workspace_offset(&self, delta: isize) -> Option<WorkspaceId> {
         let list = &self.registry.workspaces;
         let current = self

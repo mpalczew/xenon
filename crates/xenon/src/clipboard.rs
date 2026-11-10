@@ -1,5 +1,3 @@
-//! Clipboard commands that need more than the focused widget's own handler.
-
 use std::rc::Rc;
 
 use gtk::prelude::*;
@@ -9,9 +7,6 @@ use vte::TerminalExt;
 use crate::app::App;
 
 impl App {
-    /// Copy Clean: in a terminal, the selection (or what the clipboard holds)
-    /// goes back to the clipboard stripped of agent TUI decoration; in an
-    /// editor it is a plain copy.
     pub(crate) fn copy_clean(self: &Rc<Self>) {
         let Some(view) = self.current_term() else {
             match self.current_editor() {
@@ -38,8 +33,6 @@ impl App {
         });
     }
 
-    /// Cut: the focused editor cuts; a terminal only copies, because its
-    /// scrollback is not deleted.
     pub(crate) fn cut(self: &Rc<Self>) {
         match (self.current_term(), self.current_editor()) {
             (Some(view), _) => view.term.copy_clipboard_format(vte::Format::Text),
@@ -60,7 +53,6 @@ impl App {
         self.editors.borrow().get(&key?).cloned()
     }
 
-    /// Open the focused HTML editor tab's file in the default browser.
     pub(crate) fn open_in_browser(self: &Rc<Self>) {
         match self.current_editor() {
             Some(editor) if crate::editor::is_html(&editor.path) => {
@@ -70,8 +62,6 @@ impl App {
         }
     }
 
-    /// Copy Code: the fenced code blocks of the selection (or its cleaned
-    /// text) go to the clipboard.
     pub(crate) fn copy_code(&self) {
         let selected = self
             .current_term()
@@ -86,8 +76,6 @@ impl App {
         self.toast("Copied code");
     }
 
-    /// Paste into the focused text field or editor, else the terminal. Ctrl+V
-    /// is an app shortcut, so it reaches here before any text widget sees it.
     pub(crate) fn paste(self: &Rc<Self>) {
         let focus = self
             .win
@@ -106,8 +94,6 @@ impl App {
         }
     }
 
-    /// Paste into the terminal: files as quoted paths, else an image saved as
-    /// a PNG and pasted as its quoted path, else the text.
     pub(crate) fn paste_terminal(self: &Rc<Self>) {
         let Some(view) = self.current_term() else {
             return;

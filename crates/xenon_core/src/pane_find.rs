@@ -1,10 +1,7 @@
-//! Looking tabs up in a pane tree.
-
 use crate::content::{PaneId, TabId};
 use crate::pane_tree::{PaneTab, PaneTree};
 
 impl<T> PaneTree<T> {
-    /// First (pane, index) whose tab satisfies `matches`.
     pub(crate) fn find_position(&self, matches: &dyn Fn(&T) -> bool) -> Option<(PaneId, usize)> {
         let mut found = None;
         self.for_each_leaf(&mut |leaf| {
@@ -15,7 +12,6 @@ impl<T> PaneTree<T> {
         found
     }
 
-    /// (pane, index) of a tab.
     pub fn find_tab(&self, tab: TabId) -> Option<(PaneId, usize)>
     where
         T: PaneTab,

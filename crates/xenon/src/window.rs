@@ -1,6 +1,3 @@
-//! Building the window: header bar, sidebar, content stack, theme, and the
-//! first workspace.
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -16,7 +13,6 @@ use crate::model::Model;
 use crate::sidebar::Sidebar;
 use crate::theme;
 
-/// Answers font questions from Pango's installed families.
 pub(crate) struct PangoProbe(pub(crate) gtk::pango::Context);
 
 impl PangoProbe {
@@ -38,7 +34,6 @@ impl FontProbe for PangoProbe {
     }
 }
 
-/// The terminal face to draw: the saved one when installed, else Monospace.
 pub(crate) fn mono_face(ui: &UiSettings, probe: &PangoProbe) -> String {
     if probe.is_monospace(&ui.terminal.family) {
         ui.terminal.family.clone()
@@ -48,11 +43,8 @@ pub(crate) fn mono_face(ui: &UiSettings, probe: &PangoProbe) -> String {
 }
 
 impl App {
-    /// Restyle everything that follows the desktop's light or dark, and the
-    /// settings that show in the sheet.
     pub(crate) fn apply_theme(&self) {
         let ui = self.settings.borrow().clone();
-        // A change of scheme fires `dark` notify, which runs this again first.
         adw::StyleManager::default().set_color_scheme(match ui.theme.mode {
             ThemeMode::System => adw::ColorScheme::Default,
             ThemeMode::Light => adw::ColorScheme::ForceLight,
@@ -79,12 +71,10 @@ impl App {
         self.remote_theme_changed();
     }
 
-    /// The first key bound to `action` as text (`Ctrl+Shift+O`).
     pub(crate) fn chord(&self, action: &str) -> Option<String> {
         crate::keys::action_label(action)
     }
 
-    /// Tooltip text: `Label · chord`.
     pub(crate) fn tip(&self, text: &str, action: &str) -> String {
         match self.chord(action) {
             Some(chord) => format!("{text} \u{b7} {chord}"),
@@ -93,7 +83,6 @@ impl App {
     }
 }
 
-/// Icons Adwaita lacks, compiled in by build.rs.
 fn register_icons() {
     let bytes =
         gtk::glib::Bytes::from_static(include_bytes!(concat!(env!("OUT_DIR"), "/xenon.gresource")));
@@ -115,7 +104,6 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         b.set_focusable(false);
         b
     };
-    // Toolbar buttons, left to right.
     let left = [
         (
             "sidebar-show-symbolic",
@@ -167,7 +155,6 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         ),
         ("emblem-system-symbolic", "app.settings", "Settings"),
     ];
-    // Save sits between Run Task and Settings; the model decides when it shows.
     let mut right = right.into_iter().rev();
     if let Some((icon, action, label)) = right.next() {
         bar.pack_end(&button(icon, action, app.tip(label, action)));
@@ -188,7 +175,6 @@ fn save_button() -> gtk::Button {
 }
 
 pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
-    // Symbolic icons that exist in every install, whatever the desktop's theme.
     if let Some(gtk_settings) = gtk::Settings::default() {
         gtk_settings.set_gtk_icon_theme_name(Some("Adwaita"));
     }
@@ -288,7 +274,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     app
 }
 
-/// The window content with the folderOpen card above it.
 fn layered(app: &App, view: &adw::ToolbarView) -> gtk::Overlay {
     let overlay = gtk::Overlay::new();
     overlay.set_child(Some(view));
@@ -321,7 +306,6 @@ fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
     });
 }
 
-/// Show the workspace that was open last, or the first one, or the empty page.
 fn start_workspace(app: &Rc<App>) {
     let first = {
         let model = app.model.borrow();

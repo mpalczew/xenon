@@ -1,9 +1,3 @@
-//! The worklist list view: each section is a boxed list of items over
-//! `.xenon/worklist.md`, with an "Add item…" row at its end. Parsing and every
-//! edit live in `xenon_store::worklist`; this file draws and writes the result
-//! back. Adding and editing an item use the capture form (`worklist.rs`); the
-//! Markdown tab of the same file follows through its disk watching.
-
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
@@ -18,23 +12,19 @@ use crate::app::App;
 
 mod write;
 
-/// One focusable row: an item (its index in the parsed entries) or an "Add item…" row.
 struct RowInfo {
     widget: gtk::Widget,
     target: Target,
     item: Option<usize>,
 }
 
-/// Where focus was, to put it back after the rows are redrawn.
 enum Focus {
     Item(usize),
     Add(Target),
 }
 
 pub(crate) struct WorklistList {
-    /// The tab header: title, add and menu buttons (the editor adds its view switch).
     pub(crate) header: gtk::Box,
-    /// The list page itself.
     pub(crate) root: gtk::Box,
     actions: gtk::Box,
     workspace: PathBuf,
@@ -42,7 +32,6 @@ pub(crate) struct WorklistList {
     content: gtk::Box,
     error: gtk::Label,
     rows: RefCell<Vec<RowInfo>>,
-    /// The source the rows were built from.
     source: RefCell<String>,
     hide_done: Cell<bool>,
 }
@@ -63,7 +52,6 @@ fn item_with(label: &str, action: &str, target: Option<glib::Variant>) -> gio::M
 }
 
 impl WorklistList {
-    /// `workspace` is the folder that holds `.xenon`.
     pub(crate) fn new(workspace: PathBuf, app: Weak<App>) -> Rc<Self> {
         let title = gtk::Label::new(Some("Worklist"));
         title.add_css_class("heading");
@@ -126,7 +114,6 @@ impl WorklistList {
         this
     }
 
-    /// The add and menu buttons belong to the list, not to the Markdown text.
     pub(crate) fn show_actions(&self, on: bool) {
         self.actions.set_visible(on);
     }
@@ -134,8 +121,6 @@ impl WorklistList {
     fn install_actions(self: &Rc<Self>) {
         let group = gio::SimpleActionGroup::new();
         let weak = Rc::downgrade(self);
-        // An action that runs once the signal that raised it is over: most of
-        // them redraw the rows that hold the widget that activated them.
         let add = |name: &str,
                    kind: Option<&glib::VariantTy>,
                    run: fn(&Rc<Self>, Option<glib::Variant>)| {
@@ -190,13 +175,10 @@ impl WorklistList {
         self.header.insert_action_group("worklist", Some(&group));
     }
 
-    /// Show what is on disk now; used when the view is switched to.
     pub(crate) fn show(self: &Rc<Self>) {
         self.rebuild(read_source(&self.workspace), None);
     }
 
-    /// The file may have changed on disk. Nothing happens while an "Add item…"
-    /// row holds typed text (a redraw would lose it).
     pub(crate) fn refresh(self: &Rc<Self>) {
         let source = read_source(&self.workspace);
         if source != *self.source.borrow() && !self.typing() {
@@ -204,7 +186,6 @@ impl WorklistList {
         }
     }
 
-    /// Put the cursor on the first row.
     pub(crate) fn focus(&self) {
         if let Some(first) = self.rows.borrow().first() {
             first.widget.grab_focus();
@@ -231,7 +212,6 @@ impl WorklistList {
         self.error.set_visible(error.is_some());
     }
 
-    /// The row that has focus now, as something to restore.
     fn current_focus(&self) -> Option<Focus> {
         let focus = self.root.root()?.focus()?;
         let rows = self.rows.borrow();
@@ -244,7 +224,6 @@ impl WorklistList {
         })
     }
 
-    /// The section a new item goes to: where focus is, else the first.
     fn current_target(&self) -> Target {
         let focus = self.root.root().and_then(|root| root.focus());
         let rows = self.rows.borrow();
@@ -255,8 +234,6 @@ impl WorklistList {
         });
         found.unwrap_or_else(|| rows.first().map(|r| r.target.clone()).unwrap_or_default())
     }
-
-    // ---- drawing ----
 
     fn rebuild(self: &Rc<Self>, source: String, focus: Option<Focus>) {
         let focus = focus.or_else(|| self.current_focus());
@@ -308,8 +285,6 @@ impl WorklistList {
         new.set_margin_top(20);
         self.content.append(&new);
 
-        // Put focus back: the same item (or the one now in its place), or the
-        // same section's "Add item…" row.
         let restore = focus.and_then(|focus| match focus {
             Focus::Add(target) => rows.iter().find(|r| r.item.is_none() && r.target == target),
             Focus::Item(at) => rows

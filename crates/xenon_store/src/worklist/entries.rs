@@ -1,5 +1,3 @@
-//! Top-level worklist items located in the Markdown source.
-
 use super::sections::Section;
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
@@ -10,7 +8,6 @@ pub struct Entry {
     pub title: String,
     pub details: String,
     pub checked: Option<bool>,
-    /// Index into the file's sections; None above the first section.
     pub section: Option<usize>,
     pub editable: bool,
 }

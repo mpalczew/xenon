@@ -1,6 +1,3 @@
-//! Directory walk for the file index: gitignore-aware, includes hidden files,
-//! skips heavy/dependency trees (VS Code-style semantic excludes, not all-dot).
-
 use std::path::Path;
 use std::time::Instant;
 
@@ -8,9 +5,7 @@ use ignore::WalkBuilder;
 
 use crate::Entry;
 
-/// Emit a partial snapshot at least this often while walking.
 const EMIT_EVERY_ENTRIES: usize = 400;
-/// Or at least this often in wall time (first paint stays snappy).
 const EMIT_EVERY_MS: u128 = 50;
 
 /// Collect files/dirs under `root`. Calls `on_partial` with a growing snapshot;
@@ -77,8 +72,6 @@ fn keep_entry(entry: &ignore::DirEntry) -> bool {
     true
 }
 
-/// Heavy / dependency / OS dumpsters — never useful as cmd-p destinations at scale.
-/// Deliberately not "all dot dirs": `.github`, `.claude`, `.config` stay walkable.
 pub(crate) fn should_skip_dir(name: &str) -> bool {
     matches!(
         name,

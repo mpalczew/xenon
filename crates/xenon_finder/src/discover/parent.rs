@@ -1,8 +1,3 @@
-//! Parent-folder candidates for New Workspace.
-//!
-//! Path queries (`~/src`, `/Users/…/src/xe`) list that tree, shallower first.
-//! Bare names stay with the home walk + fuzzy filter in the view.
-
 use std::path::PathBuf;
 
 use super::{MAX_VISITS, expand_user_path, resolve_existing_dir, should_skip_dir};

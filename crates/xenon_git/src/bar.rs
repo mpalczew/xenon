@@ -1,6 +1,3 @@
-//! Five-cell change bar for the Git section.
-
-/// One cell of a five-cell change bar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BarCell {
     Added,

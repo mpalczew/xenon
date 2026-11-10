@@ -1,6 +1,3 @@
-//! Commands: what a key, button, or D-Bus action asks the app to do. Each one
-//! asks the model, then syncs the widgets and saves.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -19,9 +16,6 @@ impl App {
         }
     }
 
-    /// Put the cursor in the active tab once the widgets have settled.
-    /// Commands act on the pane last clicked or typed in; after a close or a
-    /// palette, focus lands here, never on a widget that is going away.
     pub(crate) fn focus_terminal(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         glib::idle_add_local_once(move || {
@@ -38,7 +32,6 @@ impl App {
             };
             let Some(ws) = ws else { return };
             let Some(tab) = tab else {
-                // An empty pane: the focus goes to its card.
                 let view = pane.and_then(|p| app.slots.borrow().get(&ws)?.panes.get(&p).cloned());
                 if let Some(view) = view {
                     view.focus_empty();
@@ -63,8 +56,6 @@ impl App {
         });
     }
 
-    /// Show `path` in an editor tab of `ws`; files this tab cannot show open in
-    /// the default app.
     pub(crate) fn open_editor(self: &Rc<Self>, ws: WorkspaceId, path: &std::path::Path) {
         if crate::image::is_image(path) {
         } else if let Err(why) = crate::editor::check(path) {
@@ -81,7 +72,6 @@ impl App {
         }
     }
 
-    /// Show a folder of the workspace in the Files tree.
     pub(crate) fn reveal_dir(self: &Rc<Self>, _ws: WorkspaceId, dir: &std::path::Path) {
         self.sidebar.root.set_visible(true);
         self.sidebar.files.reveal(dir);
@@ -242,7 +232,6 @@ impl App {
         }
     }
 
-    /// The terminal with the cursor, for copy, paste, and find.
     pub(crate) fn current_term(&self) -> Option<Rc<crate::term::TermView>> {
         let model = self.model.borrow();
         let ws = model.active()?;

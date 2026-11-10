@@ -1,6 +1,3 @@
-//! Settings › Agents (the managed skill). The text comes from
-//! `xenon_settings`.
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -24,7 +21,6 @@ pub(crate) fn agents(dialog: &crate::prefs::Shell) -> adw::PreferencesPage {
     page
 }
 
-/// Rebuild the group's rows from the skill's current state.
 fn fill(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Added) {
     for old in added.borrow_mut().drain(..) {
         group.remove(&old);

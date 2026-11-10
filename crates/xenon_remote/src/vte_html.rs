@@ -1,11 +1,8 @@
-//! VTE's HTML dump of the visible screen → a wire `Screen`.
-//!
 //! `vte_terminal_get_text_range_format(HTML)` returns `<pre>` with one `\n` per row
 //! and spans for what is not default: `<font color>`, `<b>`, `<i>`, `<u>`,
 //! `<strike>`, and `<span style="background-color:...">`. It has no markup for
 //! hyperlinks or the cursor (dim is already folded into the color), and does not mark the second column of a
-//! wide glyph, so widths come from Unicode. This is the boundary format the
-//! GTK frontend parses; it knows nothing of GTK.
+//! wide glyph, so widths come from Unicode.
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -15,7 +12,6 @@ use unicode_width::UnicodeWidthChar;
 use crate::frame::{Cell, Rgb, Screen, Style, WIDE_SPACER};
 use crate::protocol::{CursorWire, style_flags};
 
-/// A run of cells on one viewport row that VTE says belong to an OSC 8 link.
 #[derive(Clone)]
 pub struct LinkRun {
     pub row: u16,
@@ -24,7 +20,6 @@ pub struct LinkRun {
     pub uri: String,
 }
 
-/// One dump of a VTE screen plus what the HTML does not carry.
 #[derive(Clone)]
 pub struct VteSnapshot {
     pub html: String,
@@ -32,7 +27,6 @@ pub struct VteSnapshot {
     pub rows: u16,
     pub cursor: Option<CursorWire>,
     pub links: Vec<LinkRun>,
-    /// The viewport is above the live row.
     pub scrolled: bool,
     /// Colors equal to these are the theme default and sent as such.
     pub default_fg: Rgb,
@@ -147,7 +141,6 @@ fn next_char(s: &str) -> (char, usize) {
     (ch, ch.len_utf8())
 }
 
-/// Open or close one tag (`inner` is the text between `<` and `>`).
 fn apply_tag(inner: &str, stack: &mut Vec<Pen>) {
     if inner.starts_with('/') {
         if stack.len() > 1 {
@@ -180,7 +173,6 @@ fn apply_tag(inner: &str, stack: &mut Vec<Pen>) {
     stack.push(pen);
 }
 
-/// The `#rrggbb` right after `key` in a tag.
 fn attr_color(tag: &str, key: &str) -> Option<Rgb> {
     let at = tag.find(key)? + key.len();
     let hex = tag.get(at..)?.trim_start().strip_prefix('#')?.get(..6)?;

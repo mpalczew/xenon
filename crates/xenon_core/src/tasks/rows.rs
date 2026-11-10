@@ -1,5 +1,3 @@
-//! Picker rows: what the Run Task list shows for each task.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -7,17 +5,12 @@ use super::model::{GroupKind, TaskDef, TaskSet};
 use super::resolve::preview_line;
 use super::vars::{EditorInfo, VarContext};
 
-/// One picker row.
 #[derive(Clone, Debug)]
 pub struct TaskRow {
     pub label: String,
-    /// The command line as it will run (variables expanded where known).
     pub command_line: String,
-    /// The task's own `detail` text.
     pub detail: Option<String>,
-    /// Chip text, e.g. "build · default".
     pub tag: Option<String>,
-    /// `build` or `test`.
     pub group: Option<&'static str>,
     pub is_default: bool,
     /// Why it cannot run here; such rows are listed dimmed.
@@ -35,7 +28,6 @@ impl TaskRow {
         }
     }
 
-    /// Chip text: the tag, or "unsupported".
     pub fn chip(&self) -> Option<String> {
         self.unsupported
             .as_ref()
@@ -44,7 +36,6 @@ impl TaskRow {
     }
 }
 
-/// Empty-list text of the picker.
 pub fn picker_empty_message(load_failed: bool, query_empty: bool) -> &'static str {
     if load_failed {
         "No tasks loaded"
@@ -55,8 +46,6 @@ pub fn picker_empty_message(load_failed: bool, query_empty: bool) -> &'static st
     }
 }
 
-/// Run `f` with a variable context that knows only the workspace (no editor,
-/// no inputs): what the picker and the trust prompt can show before a run.
 pub(crate) fn with_preview_ctx<R>(
     set: &TaskSet,
     folder: &Path,
@@ -80,8 +69,6 @@ pub(crate) fn with_preview_ctx<R>(
     })
 }
 
-/// Picker rows: every non-hidden task, unsupported ones included, then one
-/// row per skipped section.
 pub fn task_rows(set: &TaskSet, folder: &Path) -> Vec<TaskRow> {
     let mut rows: Vec<TaskRow> = with_preview_ctx(set, folder, |ctx| {
         set.tasks
@@ -110,7 +97,6 @@ pub fn task_rows(set: &TaskSet, folder: &Path) -> Vec<TaskRow> {
     rows
 }
 
-/// The command line a row or trust line shows, with its dependencies.
 pub(crate) fn row_command(task: &TaskDef, ctx: &VarContext) -> String {
     let line = preview_line(task, ctx);
     if task.depends_on.is_empty() {

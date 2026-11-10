@@ -1,6 +1,3 @@
-//! Mobile remote: an HTTP + WebSocket server so a phone can pair, list
-//! workspaces, and drive a terminal. See `docs/designs/mobile-remote-v2.md`.
-
 mod auth;
 mod device_flow;
 mod devices;

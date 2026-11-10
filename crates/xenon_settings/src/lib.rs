@@ -1,10 +1,3 @@
-//! App-wide UI settings as plain data, shared by every frontend.
-//! Durable values live in `~/.xenon/settings.json` (via `xenon_store`).
-//!
-//! `UiSettings` holds the live values and the rules that change them (clamps,
-//! nudges, wrap defaults). A frontend keeps one in whatever global it likes
-//! and calls `persist` after a change.
-
 mod agents;
 mod choices;
 mod edits;

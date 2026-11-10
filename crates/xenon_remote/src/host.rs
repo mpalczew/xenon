@@ -1,5 +1,3 @@
-//! Requests from the remote server threads into the UI host.
-
 use std::sync::mpsc::{SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 
@@ -7,7 +5,6 @@ use async_channel::Sender;
 
 use crate::protocol::{ClientMsg, PairResponse, ServerMsg, TaskInfo, TerminalInfo, WorkspaceInfo};
 
-/// One WebSocket connection, unique for the server's lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ConnId(pub u64);
 
@@ -20,7 +17,6 @@ pub struct Outbox {
 }
 
 impl Outbox {
-    /// Bound on queued messages per connection.
     pub(crate) const CAPACITY: usize = 16;
 
     /// False when the queue is full or the connection is gone.
@@ -40,7 +36,6 @@ impl Outbox {
         self.wake = Some(wake);
     }
 
-    /// Test/host helper: a detached outbox plus its receiving end.
     pub fn channel() -> (Self, std::sync::mpsc::Receiver<ServerMsg>) {
         let (tx, rx) = std::sync::mpsc::sync_channel(Self::CAPACITY);
         (
@@ -53,8 +48,6 @@ impl Outbox {
     }
 }
 
-/// Input the host can deliver from the connection thread, without a trip
-/// through the UI thread.
 pub trait InputSink: Send + Sync {
     /// True when `msg` was fully handled here.
     fn send(&self, msg: &ClientMsg) -> bool;
@@ -80,13 +73,10 @@ impl InputRoute {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PairError {
-    /// Wrong, used, or expired code.
     Rejected,
     Storage(String),
 }
 
-/// Work the server needs the app to do. Replies go over `reply`;
-/// streaming output for a connection goes to its `Outbox`.
 pub enum HostRequest {
     /// Device token → device id (None = unknown / revoked).
     Authenticate {
@@ -101,12 +91,10 @@ pub enum HostRequest {
     ListWorkspaces {
         reply: SyncSender<Vec<WorkspaceInfo>>,
     },
-    /// Reopens a closed workspace (without changing the Mac's active one).
     ListTerminals {
         workspace_id: String,
         reply: SyncSender<Result<Vec<TerminalInfo>, String>>,
     },
-    /// The workspace's tasks.json tasks, resolved for display.
     ListTasks {
         workspace_id: String,
         reply: SyncSender<Result<Vec<TaskInfo>, String>>,
@@ -129,7 +117,6 @@ pub enum HostRequest {
         out: Outbox,
         input: InputRoute,
     },
-    /// A post-hello client message on `conn`.
     Message {
         conn: ConnId,
         msg: ClientMsg,

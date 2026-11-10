@@ -1,6 +1,3 @@
-//! Pure data model for Xenon: workspaces, session state, and VS Code shell-task
-//! parsing. Persistence lives in `xenon_store`.
-
 mod activity;
 mod agent;
 mod attention;

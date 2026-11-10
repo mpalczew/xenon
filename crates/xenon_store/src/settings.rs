@@ -1,10 +1,7 @@
-//! Durable app settings (`settings.json` schema).
-
 use serde::{Deserialize, Serialize};
 
 use crate::TerminalAutoClose;
 
-/// When to use the light vs dark theme: fixed, or track the OS appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeMode {
@@ -14,7 +11,6 @@ pub enum ThemeMode {
     Dark,
 }
 
-/// Windowed / maximized / fullscreen (restore size is always the rect).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WindowState {
@@ -24,7 +20,6 @@ pub enum WindowState {
     Fullscreen,
 }
 
-/// Last main-window geometry (pixels, global coords).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WindowGeometry {
     pub x: f32,
@@ -36,10 +31,8 @@ pub struct WindowGeometry {
 }
 
 impl WindowGeometry {
-    /// Minimum restored size so a tiny/corrupt rect never traps the UI.
     pub(crate) const MIN_WIDTH: f32 = 400.0;
     pub(crate) const MIN_HEIGHT: f32 = 300.0;
-    /// Reject absurd values (corrupt file / multi-monitor coordinate blowup).
     pub(crate) const MAX_EXTENT: f32 = 20_000.0;
 
     pub fn new(x: f32, y: f32, width: f32, height: f32, state: WindowState) -> Self {
@@ -52,7 +45,6 @@ impl WindowGeometry {
         }
     }
 
-    /// True when size and origin look usable after a restart.
     pub fn is_sane(&self) -> bool {
         self.width.is_finite()
             && self.height.is_finite()
@@ -92,53 +84,38 @@ pub struct AppSettings {
     pub wrap_code: bool,
     #[serde(default)]
     pub vim_mode: bool,
-    /// System / Light / Dark: which appearance to apply (like Zed "Mode").
     #[serde(default)]
     pub theme: ThemeMode,
-    /// Theme name used for light appearance (e.g. "One Light").
     #[serde(default = "default_light_theme")]
     pub light_theme: String,
-    /// Theme name used for dark appearance (e.g. "One Dark").
     #[serde(default = "default_dark_theme")]
     pub dark_theme: String,
-    /// Close terminal tabs when the shell process exits.
     #[serde(default)]
     pub terminal_auto_close: TerminalAutoClose,
-    /// Left panel Workspaces section collapsed.
     #[serde(default)]
     pub workspaces_collapsed: bool,
-    /// Left panel Files section expanded.
     #[serde(default = "default_true")]
     pub files_open: bool,
-    /// Left panel Git section collapsed.
     #[serde(default)]
     pub git_collapsed: bool,
-    /// Dragged height (px) of the Files section; `None` = size to content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub files_section_height: Option<f32>,
-    /// Global width of the left sidebar (px).
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: f32,
-    /// Dragged height (px) of the Workspaces section; `None` = size to content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspaces_section_height: Option<f32>,
-    /// Last main window position/size (None until the user has moved/resized once).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowGeometry>,
-    /// Phone remote server runs at launch (last toggle wins).
     #[serde(default)]
     pub remote_enabled: bool,
     /// Hold a no-idle-sleep assertion while a phone is connected. Opt-in; the
     /// older `remote_keep_awake` key is ignored.
     #[serde(default)]
     pub remote_keep_awake_while_connected: bool,
-    /// Mobile remote bind port (stable across restarts).
     #[serde(default = "default_remote_port")]
     pub remote_port: u16,
-    /// Optional host for copyable phone URLs (MagicDNS name).
     #[serde(default)]
     pub remote_hostname: String,
-    /// Markdown prose mode look.
     #[serde(default)]
     pub prose: crate::ProseSettings,
 }
@@ -196,13 +173,9 @@ fn default_true() -> bool {
     true
 }
 
-/// Default monospaced face (bundled Lilex).
 pub const DEFAULT_FONT_FAMILY: &str = "Lilex";
-/// Default UI (chrome) face: platform system UI font.
 pub const DEFAULT_UI_FONT_FAMILY: &str = ".SystemUIFont";
-/// Default light theme name (One Light).
 pub const DEFAULT_LIGHT_THEME: &str = "One Light";
-/// Default dark theme name (One Dark).
 pub const DEFAULT_DARK_THEME: &str = "One Dark";
 
 fn default_light_theme() -> String {
@@ -213,7 +186,6 @@ fn default_dark_theme() -> String {
     DEFAULT_DARK_THEME.into()
 }
 
-/// Default mobile remote listen port (not ephemeral; survives restart).
 pub const DEFAULT_REMOTE_PORT: u16 = 17890;
 
 fn default_remote_port() -> u16 {

@@ -1,5 +1,3 @@
-//! Creating and copying files for the Files tree.
-
 use std::io;
 use std::path::Path;
 

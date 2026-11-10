@@ -1,15 +1,11 @@
-//! One-time pairing codes shown on the Mac.
-
 use std::time::{Duration, Instant};
 
 use uuid::Uuid;
 
 use crate::auth::ct_eq;
 
-/// How long a pairing code stays valid after it is shown on the Mac.
 pub(crate) const PAIRING_TTL: Duration = Duration::from_secs(10 * 60);
 
-/// One-time code shown on the Mac: 6 digits to type, or a secret in the QR link.
 #[derive(Clone, Debug)]
 pub struct PairingCode {
     pub digits: String,
@@ -27,7 +23,6 @@ impl PairingCode {
         }
     }
 
-    /// `123 456` for display.
     pub fn display_digits(&self) -> String {
         format!("{} {}", &self.digits[..3], &self.digits[3..])
     }

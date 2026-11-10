@@ -1,27 +1,18 @@
-//! Single-instance IPC: one Unix socket per data dir (`ipc.sock`).
-//!
-//! A second process with open paths connects, sends a request, and exits.
-//! Socket path follows `data_dir()` so A/B slots stay isolated; ship uses one
-//! `~/.xenon` socket.
-
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
 use crate::data_dir;
 
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(400);
 const IO_TIMEOUT: Duration = Duration::from_millis(2_000);
 
-/// Path of the per-data-dir control socket.
 pub(crate) fn socket_path() -> PathBuf {
     data_dir().join("ipc.sock")
 }
 
-/// Where an agent-originated file should land.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum OpenPane {
@@ -42,7 +33,6 @@ impl OpenPane {
     }
 }
 
-/// One file to open, with optional 1-based location.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenFileSpec {
     pub path: PathBuf,
@@ -54,7 +44,6 @@ pub struct OpenFileSpec {
     pub end_line: Option<u32>,
     #[serde(default)]
     pub pane: OpenPane,
-    /// Open in this workspace (id, name or root path) instead of routing by path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
 }
@@ -62,11 +51,8 @@ pub struct OpenFileSpec {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum IpcRequest {
-    /// Open zero or more paths (dirs = workspaces, files = editors).
     Open { paths: Vec<PathBuf> },
-    /// Open one file at a location, in a chosen pane. Does not steal focus.
     OpenFile(OpenFileSpec),
-    /// Focus the running window without opening anything.
     Activate,
 }
 
@@ -77,17 +63,12 @@ pub(crate) struct IpcResponse {
     pub error: Option<String>,
 }
 
-/// What came of handing a request to the running instance.
 pub enum Handoff {
-    /// The instance took it.
     Sent,
-    /// The instance answered with an error to show the user.
     Rejected(String),
-    /// Nothing is listening.
     NoServer,
 }
 
-/// Send an already-built request to the running instance.
 pub fn try_handoff_request(req: &IpcRequest) -> Handoff {
     match send_request(req) {
         Ok(_) => Handoff::Sent,
@@ -101,7 +82,7 @@ pub fn try_handoff_request(req: &IpcRequest) -> Handoff {
 /// Connect and send one request; Ok only when the peer replies `ok: true`.
 pub(crate) fn send_request(req: &IpcRequest) -> std::io::Result<IpcResponse> {
     let path = socket_path();
-    let mut stream = connect_socket(&path)?;
+    let mut stream = UnixStream::connect(&path)?;
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
     stream.set_write_timeout(Some(IO_TIMEOUT))?;
     let line = serde_json::to_string(req)
@@ -127,12 +108,6 @@ pub(crate) fn send_request(req: &IpcRequest) -> std::io::Result<IpcResponse> {
     }
 }
 
-fn connect_socket(path: &Path) -> std::io::Result<UnixStream> {
-    // `connect_timeout` is for IP sockets; Unix uses plain connect + short fail.
-    let _ = CONNECT_TIMEOUT;
-    UnixStream::connect(path)
-}
-
 /// Bind as primary. Removes a stale socket file first.
 pub fn bind_server() -> std::io::Result<UnixListener> {
     let dir = data_dir();
@@ -144,7 +119,6 @@ pub fn bind_server() -> std::io::Result<UnixListener> {
     UnixListener::bind(&path)
 }
 
-/// Serve until the listener is dropped / errors. Each request is pushed to `tx`.
 pub fn serve_forever(
     listener: UnixListener,
     tx: impl Fn(IpcRequest) -> Result<(), String> + Send + 'static,

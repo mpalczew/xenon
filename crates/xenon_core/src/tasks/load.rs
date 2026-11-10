@@ -1,5 +1,3 @@
-//! Finding a workspace's tasks.json, choosing the build task, and planning a run.
-
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -8,14 +6,11 @@ use super::model::{GroupKind, InputKind, TaskDef, TaskSet};
 use super::plan::Orchestrator;
 use super::{Os, find_tasks_json, parse_task_set, required_inputs, workspace_for_tasks_json};
 
-/// A tasks.json found for a workspace.
 pub struct LoadedTasks {
     pub set: Arc<TaskSet>,
-    /// Directory that holds `.vscode/` (`${workspaceFolder}`).
     pub folder: PathBuf,
 }
 
-/// Load `.vscode/tasks.json` at or above a workspace root.
 pub fn load_tasks(root: &Path) -> Result<LoadedTasks, String> {
     let path = find_tasks_json(root)
         .ok_or_else(|| format!("no .vscode/tasks.json above {}", root.display()))?;
@@ -29,13 +24,9 @@ pub fn load_tasks(root: &Path) -> Result<LoadedTasks, String> {
     })
 }
 
-/// What Run Build Task does.
 pub enum BuildChoice {
-    /// The default build task, else the only build task.
     Run(String),
-    /// Several build tasks, none the default: show the picker.
     Pick,
-    /// No task is in the build group.
     None,
 }
 
@@ -60,8 +51,6 @@ pub fn choose_build_task(set: &TaskSet) -> BuildChoice {
     }
 }
 
-/// A run, planned: its dependsOn orchestrator, the inputs to ask in order, and
-/// which of them are secret.
 pub struct RunSetup {
     pub orch: Orchestrator,
     pub ids: Vec<String>,

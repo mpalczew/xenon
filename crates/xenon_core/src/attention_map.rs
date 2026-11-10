@@ -1,11 +1,8 @@
-//! Attention marks keyed by terminal tab.
-
 use std::collections::HashMap;
 
 use crate::attention::AttentionReason;
 use crate::{TabId, WorkspaceId};
 
-/// Attention marks keyed by terminal tab. Working is live on the terminal view.
 #[derive(Clone, Debug, Default)]
 pub struct AttentionMap {
     marks: HashMap<(WorkspaceId, TabId), AttentionReason>,

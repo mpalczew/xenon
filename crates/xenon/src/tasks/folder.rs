@@ -1,6 +1,3 @@
-//! folderOpen tasks: run them if the user allowed them for this workspace,
-//! else ask with the consent card.
-
 use std::rc::Rc;
 
 use xenon_core::tasks::{self as shared, LoadedTasks};
@@ -11,8 +8,6 @@ use super::TrustPrompt;
 use crate::app::App;
 
 impl App {
-    /// Once per workspace per session, when it opens: run its folderOpen
-    /// tasks if the user allowed them, else ask.
     pub(crate) fn check_folder_open_tasks(self: &Rc<Self>, ws: WorkspaceId) {
         if !self.tasks.folder_checked.borrow_mut().insert(ws) {
             return;
@@ -56,7 +51,6 @@ impl App {
         });
     }
 
-    /// Allow / Don't allow. Without a showing prompt nothing happens.
     pub(crate) fn answer_folder_tasks(self: &Rc<Self>, allow: bool) {
         let Some(prompt) = self.tasks.trust.borrow_mut().take() else {
             return;

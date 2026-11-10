@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Shared check helper; source it. Copied from aipm tools/lib/checks.sh (checks_quiet).
 
 _C_RED='\033[31m' _C_GREEN='\033[32m' _C_RESET='\033[0m'
 
-# Runs one step with its output captured: a pass prints one line, a failure prints the full log.
 checks_quiet() {
   local name="$1" log rc=0
   shift

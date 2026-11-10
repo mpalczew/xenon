@@ -1,17 +1,10 @@
-//! Live pane tree: the tree type and its basic lookups. Generic over the tab
-//! payload, so each frontend stores its own views in the leaves and shares the
-//! same behaviour. Split rules, tab lookups, and the moves on a workspace's
-//! content live in the sibling `pane_*` modules.
-
 use crate::content::{PaneId, SplitAxis, TabId};
 use crate::split::SplitTree;
 
-/// A tab payload that has a stable id.
 pub trait PaneTab {
     fn tab_id(&self) -> TabId;
 }
 
-/// One leaf: a tab stack with an active tab.
 #[derive(Clone)]
 pub struct PaneLeaf<T> {
     pub id: PaneId,

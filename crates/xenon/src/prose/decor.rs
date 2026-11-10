@@ -1,7 +1,3 @@
-//! Lines drawn over the text: quote bars, round bullets and table rules. A
-//! transparent overlay the size of the text draws them from line positions in
-//! the buffer; the file text is never touched.
-
 use std::f64::consts::TAU;
 
 use gtk::cairo;
@@ -9,7 +5,6 @@ use gtk::cairo;
 use super::*;
 
 impl Prose {
-    /// Size the overlay to the text and redraw it, once layout has settled.
     pub(super) fn sync_decor(self: &Rc<Self>) {
         if self.decor_pending.replace(true) {
             return;

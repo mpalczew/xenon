@@ -1,5 +1,3 @@
-//! Workspace commands: open, switch, close, and the dialogs that ask for a folder.
-
 use std::rc::Rc;
 
 use xenon_core::WorkspaceId;
@@ -7,7 +5,6 @@ use xenon_core::WorkspaceId;
 use crate::app::App;
 
 impl App {
-    /// Make workspace `id` the visible one. Terminals start the first time.
     pub(crate) fn activate_workspace(self: &Rc<Self>, id: WorkspaceId) {
         if !self.model.borrow_mut().activate(id) {
             return;
@@ -34,7 +31,6 @@ impl App {
         }
     }
 
-    /// The user dragged row `from` onto row `to` (`None`: below the last row).
     pub(crate) fn reorder_workspace(self: &Rc<Self>, from: usize, to: Option<usize>) {
         let moved = {
             let mut model = self.model.borrow_mut();
@@ -48,7 +44,6 @@ impl App {
         }
     }
 
-    /// Move the open workspace one place up (`-1`) or down (`1`) the list.
     pub(crate) fn shift_workspace(self: &Rc<Self>, delta: isize) {
         let moved = {
             let mut model = self.model.borrow_mut();
@@ -74,8 +69,6 @@ impl App {
         }
     }
 
-    /// Register `path` as a workspace (or reuse it), show it, and give a new
-    /// one its first terminal.
     pub(crate) fn open_workspace(self: &Rc<Self>, path: &std::path::Path) {
         let id = self.model.borrow_mut().open_dir(path);
         self.sidebar.rebuild(&self.model.borrow());
@@ -103,7 +96,6 @@ impl App {
         let previous = self.model.borrow().active();
         let mut next = self.model.borrow_mut().close_workspace(id);
         if let Some(prev) = previous.filter(|p| *p != id) {
-            // Closing a row that is not the open one leaves the open one alone.
             next = Some(prev);
         }
         let keys: Vec<_> = self

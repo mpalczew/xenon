@@ -1,6 +1,3 @@
-//! What the remote shows in the window: the "Connect
-//! Phone" dialog (QR, six digits, address), and the actions that open them.
-
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -27,7 +24,6 @@ impl App {
         ))
     }
 
-    /// "Connect Phone": turn the remote on if needed and show the dialog.
     pub(crate) fn connect_phone(self: &Rc<Self>) {
         if !self.remote.running() && !self.remote.waiting() {
             self.remote_start();
@@ -44,7 +40,6 @@ impl App {
         }
         let open = self.remote.connect_dialog.borrow().clone();
         if let Some(dialog) = open {
-            // The same key again closes it.
             dialog.close();
             return;
         }
@@ -71,7 +66,6 @@ impl App {
         self.remote_publish();
     }
 
-    /// Redraw the dialog from the live code (a spent code is replaced).
     pub(crate) fn refresh_connect_dialog(&self) {
         let Some(dialog) = self.remote.connect_dialog.borrow().clone() else {
             return;
@@ -179,7 +173,6 @@ impl App {
     }
 }
 
-/// "One-time · expires in M:SS", counting down while it is on screen.
 fn expiry_label(expires_at: Instant) -> gtk::Label {
     let label = gtk::Label::new(None);
     label.add_css_class("dim-label");
@@ -205,7 +198,6 @@ fn expiry_label(expires_at: Instant) -> gtk::Label {
     label
 }
 
-/// The link as a QR code: black modules on white with a quiet border.
 fn qr_texture(text: &str) -> gdk::MemoryTexture {
     const SCALE: usize = 6;
     const QUIET: usize = 2;

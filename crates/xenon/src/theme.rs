@@ -1,11 +1,5 @@
 // Terminal palette in `terminal` is copied from Ptyxis: see ATTRIBUTION.md, "Ptyxis GNOME palette".
-//! The look is the desktop's: stock libadwaita colors, backgrounds and accent,
-//! following light and dark through `adw::StyleManager`. What is left is the
-//! static sheet for our own widgets and two small light or dark switches, the
-//! terminal palette here and the GtkSourceView scheme (`scheme`).
 
-/// Rules for widgets of ours that have no stock equivalent. Colors are
-/// libadwaita's named colors or the text color at low strength.
 pub(crate) const CSS: &str = "\
 listview.xfiles > row { min-height: 24px; padding: 0 6px; }
 listview.xfiles treeexpander:drop(active) { background: alpha(@accent_color, 0.25); }
@@ -28,12 +22,10 @@ listbox.xworkspaces > row.xdragging { opacity: 0.45; }
 .xdiff-half.right { border-left: 1px solid @borders; }
 ";
 
-/// The GtkSourceView scheme that goes with the desktop's light or dark.
 pub(crate) fn scheme(dark: bool) -> Option<sourceview::StyleScheme> {
     sourceview::StyleSchemeManager::default().scheme(if dark { "Adwaita-dark" } else { "Adwaita" })
 }
 
-/// Whether the desktop is showing its dark look.
 pub(crate) fn dark() -> bool {
     adw::StyleManager::default().is_dark()
 }
@@ -42,9 +34,6 @@ pub(crate) fn dark() -> bool {
 /// Both come from the default "GNOME" palette of Ptyxis (GPL-3.0-or-later),
 /// its Light and Dark variants, with that palette's own foreground and
 /// background. See ATTRIBUTION.md, entry "Ptyxis GNOME palette".
-/// Colors that read under 3:1 on their background are moved toward black or
-/// white until they reach it: dark 0 and 1, light 10, 11, 14 and 15. Bright
-/// black (dark) and white (light) reach 4.5:1, since programs use them for text.
 pub(crate) fn terminal(dark: bool) -> (&'static str, &'static str, [&'static str; 16]) {
     const LIGHT: [&str; 16] = [
         "#1d1d20", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2aa1b3", "#767676",

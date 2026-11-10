@@ -1,8 +1,3 @@
-//! Ctrl+P: the file finder. The index (`xenon_finder::FileIndex`) is built on a
-//! worker thread, queries run on a worker thread after a short debounce, and
-//! only the latest answer is drawn. Ranking is `xenon_finder`'s; this turns
-//! its matches into palette rows and says what Enter does.
-
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -16,26 +11,20 @@ use xenon_finder::{FileIndex, FileMatch};
 use crate::app::App;
 use crate::palette::{Handlers, Options, PaletteRow};
 
-/// Wait this long after the last keystroke before scoring.
 const DEBOUNCE: Duration = Duration::from_millis(40);
-/// Recently opened files kept per workspace for ranking.
 const MAX_RECENTS: usize = 50;
 
-/// One open finder.
 struct Session {
     ws: WorkspaceId,
     root: PathBuf,
     recents: Vec<PathBuf>,
     index: RefCell<Option<Arc<FileIndex>>>,
-    /// Bumped per query; an answer for an older number is dropped.
     generation: Cell<u64>,
-    /// The palette opening this session belongs to.
     epoch: Cell<u64>,
     matches: RefCell<Vec<FileMatch>>,
 }
 
 impl App {
-    /// Record `path` (absolute) as the most recently opened file of `ws`.
     pub(crate) fn touch_recent(&self, ws: WorkspaceId, path: &std::path::Path) {
         let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {
             return;
@@ -54,7 +43,6 @@ impl App {
         self.open_finder_with("");
     }
 
-    /// Open the finder with `initial` already typed in the search field.
     pub(crate) fn open_finder_with(self: &Rc<Self>, initial: &str) {
         let Some(ws) = self.model.borrow().active() else {
             return;
@@ -106,7 +94,6 @@ impl App {
             },
         );
         session.epoch.set(self.launcher.epoch());
-        // Build (or refresh) the index off the main thread.
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
             let built = gio::spawn_blocking(move || FileIndex::build(&root)).await;

@@ -1,13 +1,8 @@
-//! Open editor tabs follow a renamed or moved file.
-
 use xenon_core::{TabId, TabState, WorkspaceId};
 
 use crate::model::{Model, TabKind};
 
 impl Model {
-    /// Point the editor tabs for `old`, or for files inside it, at `new` after
-    /// a rename or move. Tabs with unsaved edits keep their buffer and path.
-    /// Returns the tabs that changed.
     pub(crate) fn follow_rename(
         &mut self,
         old: &std::path::Path,

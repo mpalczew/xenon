@@ -1,6 +1,3 @@
-//! Files section, part two: reading and watching folders, reveal, and the
-//! script views of the tree.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -12,7 +9,6 @@ use xenon_finder::tree::{TreeEntry, list_dir};
 use super::{FilesView, MAX_WATCHED, RELOAD_DELAY, draw_item, info_for, row_path, tree_row};
 
 impl FilesView {
-    /// Read `dir` on a worker thread and show it when it arrives.
     pub(super) fn load(self: &Rc<Self>, dir: &Path) {
         let epoch = self.epoch.get();
         let dir = dir.to_path_buf();
@@ -30,7 +26,6 @@ impl FilesView {
         });
     }
 
-    /// Put the entries read from `dir` into its store, keeping what was open.
     pub(super) fn apply(self: &Rc<Self>, dir: &Path, entries: &[TreeEntry]) {
         let store = if self.root_dir.borrow().as_deref() == Some(dir) {
             Some(self.root_store.clone())
@@ -76,7 +71,6 @@ impl FilesView {
                 self.load(path);
             }
         } else {
-            // Closed folders are no longer watched.
             self.monitors
                 .borrow_mut()
                 .retain(|p, _| !p.starts_with(path));
@@ -115,7 +109,6 @@ impl FilesView {
             .insert(dir.to_path_buf(), monitor);
     }
 
-    /// Open every folder on the way to `dir`, show it, and focus the tree.
     pub(crate) fn reveal(self: &Rc<Self>, dir: &Path) {
         if !self
             .root_dir
@@ -129,8 +122,6 @@ impl FilesView {
         self.advance_reveal();
     }
 
-    /// Open the next folder toward the reveal target; each read calls this
-    /// again until the target itself is open and selected.
     pub(super) fn advance_reveal(&self) {
         let Some(target) = self.reveal_target.borrow().clone() else {
             return;
@@ -162,7 +153,6 @@ impl FilesView {
         })
     }
 
-    /// Mark the file shown in the active editor tab.
     pub(crate) fn mark_open(&self, path: Option<PathBuf>) {
         if *self.open_file.borrow() == path {
             return;

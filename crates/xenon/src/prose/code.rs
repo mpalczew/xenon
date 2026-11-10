@@ -1,17 +1,10 @@
-//! Colored code in fenced blocks. A scratch GtkSourceView buffer highlights
-//! the block with the language named on the fence and the buffer's style
-//! scheme; its tag colors are copied onto the same ranges of the prose buffer.
-
 use std::ops::Range;
 
 use super::*;
 
-/// Colored stretches of one block, as offsets into its body.
 pub(super) type Lit = Rc<Vec<(Range<usize>, gtk::TextTag)>>;
 
-/// Longest block, in characters, that gets colors.
 const LIMIT: usize = 20_000;
-/// What a scheme tag sets, and the property that says it is set.
 const LOOK: [(&str, &str); 4] = [
     ("foreground-rgba", "foreground-set"),
     ("weight", "weight-set"),
@@ -20,7 +13,6 @@ const LOOK: [(&str, &str); 4] = [
 ];
 
 impl Prose {
-    /// Color the fenced blocks that overlap `a..b`.
     pub(super) fn color_code(&self, doc: &Doc, a: usize, b: usize) {
         for block in doc
             .code
@@ -84,7 +76,6 @@ impl Prose {
         }
     }
 
-    /// Our copy of a scheme tag, made on first use; none if it sets no look.
     /// Scheme tags are anonymous, so ours is named by the look it carries.
     fn syntax_tag(&self, theirs: &gtk::TextTag) -> Option<gtk::TextTag> {
         let set: Vec<_> = LOOK
@@ -114,7 +105,6 @@ impl Prose {
         Some(ours)
     }
 
-    /// Forget the scheme colors; true if there were any to redo.
     pub(super) fn drop_syntax(&self) -> bool {
         let table = self.buffer.tag_table();
         self.lit.borrow_mut().clear();

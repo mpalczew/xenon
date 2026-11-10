@@ -1,16 +1,9 @@
-//! Resolve workspace paths and discover project dirs under default / scoped roots.
-//!
-//! Discovery walks are intentionally bounded: they must be safe to run on a
-//! background thread without multi-second freezes on large `~/src` trees.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 const MAX_DEPTH: usize = 3;
 const MAX_RESULTS: usize = 20;
-/// Soft collect cap; exact matches may still displace weaker ones.
 const MAX_COLLECT: usize = 64;
-/// Hard stop: never readdir more than this many directories per discover call.
 const MAX_VISITS: usize = 2_500;
 
 mod parent;
@@ -18,7 +11,6 @@ mod paths;
 pub use parent::list_parent_candidates;
 pub use paths::{expand_user_path, path_is_dir, resolve_existing_dir, same_root};
 
-/// Default roots for name-only discovery (only those that exist).
 fn default_search_roots() -> Vec<PathBuf> {
     let home = match std::env::var_os("HOME") {
         Some(h) => PathBuf::from(h),
@@ -31,14 +23,10 @@ fn default_search_roots() -> Vec<PathBuf> {
         .collect()
 }
 
-/// How to interpret the palette query for discovery.
 #[derive(Debug, Clone)]
 pub enum DiscoverQuery {
-    /// Exact existing directory from typed path.
     Exact(PathBuf),
-    /// `~/src personalfiles` → search under root for needle.
     Scoped { root: PathBuf, needle: String },
-    /// Bare name: search under default roots.
     Name(String),
 }
 
@@ -67,14 +55,10 @@ pub fn parse_discover_query(raw: &str) -> Option<DiscoverQuery> {
     None
 }
 
-/// Basename match quality for a discovery needle (lower = better).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum MatchQuality {
-    /// Basename equals needle (case-insensitive).
     Exact = 0,
-    /// Basename starts with needle.
     Prefix = 1,
-    /// Basename contains needle elsewhere.
     Contains = 2,
 }
 
@@ -102,12 +86,9 @@ pub struct FoundRoot {
     pub path: PathBuf,
     pub git: bool,
     pub quality: MatchQuality,
-    /// A directory below the search root (not the root itself) is a git repo
-    /// above this one. Such folders rank after project roots.
     pub inside_repo: bool,
 }
 
-/// On-demand directory discovery (depth + visit capped). Safe for background thread.
 pub fn discover(query: &DiscoverQuery) -> Vec<FoundRoot> {
     match query {
         DiscoverQuery::Exact(path) => vec![FoundRoot {
@@ -147,8 +128,6 @@ fn finish_found(out: &mut Vec<FoundRoot>) {
     out.truncate(MAX_RESULTS);
 }
 
-/// Project roots and plain folders before folders inside a repo, then match
-/// quality, then shallow, short, git, alphabetical.
 fn found_order(a: &FoundRoot, b: &FoundRoot) -> std::cmp::Ordering {
     a.inside_repo
         .cmp(&b.inside_repo)
@@ -167,7 +146,6 @@ fn path_depth(path: &Path) -> usize {
     path.components().count()
 }
 
-/// Breadth-first so shallow complete matches beat deep noise under visit caps.
 fn walk_for_name(root: &Path, needle: &str, out: &mut Vec<FoundRoot>) {
     let mut queue: Vec<(PathBuf, usize, bool)> = vec![(root.to_path_buf(), 0, false)];
     let mut qi = 0;
@@ -262,7 +240,6 @@ fn should_skip_dir(name: &str) -> bool {
     ) || name.starts_with('.')
 }
 
-/// Needle used for basename ranking in the picker (scoped rest or bare name).
 pub fn ranking_needle(raw: &str) -> Option<String> {
     match parse_discover_query(raw)? {
         DiscoverQuery::Scoped { needle, .. } | DiscoverQuery::Name(needle) => Some(needle),

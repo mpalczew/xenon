@@ -1,6 +1,3 @@
-//! Turn a pane tree into nested `GtkPaned` widgets. A split of N children is a
-//! right-leaning chain of N-1 panes; the shared model keeps the sizes.
-
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
@@ -12,7 +9,6 @@ use crate::app::App;
 use crate::model::Tab;
 use crate::pane::PaneView;
 
-/// A string that changes exactly when the tree's shape changes (not its sizes).
 pub(crate) fn shape(node: &PaneTree<Tab>) -> String {
     match node {
         PaneTree::Leaf(leaf) => format!("L{}", leaf.id.0),
@@ -31,7 +27,6 @@ pub(crate) fn shape(node: &PaneTree<Tab>) -> String {
     }
 }
 
-/// Detach everything so the old widgets can be dropped while the panes live on.
 pub(crate) fn detach(widget: &gtk::Widget) {
     if let Some(paned) = widget.downcast_ref::<gtk::Paned>() {
         for child in [paned.start_child(), paned.end_child()]
@@ -45,12 +40,10 @@ pub(crate) fn detach(widget: &gtk::Widget) {
     }
 }
 
-/// What building one workspace's layout needs.
 pub(crate) struct Ctx<'a> {
     pub app: &'a Rc<App>,
     pub ws: WorkspaceId,
     pub panes: &'a HashMap<PaneId, Rc<PaneView>>,
-    /// True while we set divider positions ourselves.
     pub busy: &'a Rc<Cell<bool>>,
 }
 
@@ -112,7 +105,6 @@ fn extent(paned: &gtk::Paned, orientation: gtk::Orientation) -> i32 {
     }
 }
 
-/// Set the divider from a fraction once the pane has a size.
 fn place(paned: &gtk::Paned, orientation: gtk::Orientation, fraction: f32, busy: &Rc<Cell<bool>>) {
     let busy = busy.clone();
     paned.add_tick_callback(move |p, _| {
@@ -127,7 +119,6 @@ fn place(paned: &gtk::Paned, orientation: gtk::Orientation, fraction: f32, busy:
     });
 }
 
-/// Report a user drag to the model as a cumulative fraction of the whole split.
 fn watch(ctx: &Ctx, paned: &gtk::Paned, orientation: gtk::Orientation, before: f32, key: PaneId) {
     let (weak, busy, ws): (Weak<App>, _, _) = (Rc::downgrade(ctx.app), ctx.busy.clone(), ctx.ws);
     paned.connect_position_notify(move |p| {

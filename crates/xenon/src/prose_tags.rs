@@ -1,13 +1,8 @@
-//! The text tags of prose mode: one per `xenon_prose::Kind`, created once in
-//! priority order (later wins) and restyled from the desktop colors and the five
-//! Markdown writing settings. Pure GTK data, no behavior.
-
 use gtk::glib::translate::IntoGlib;
 use gtk::prelude::*;
 use gtk::{gdk, pango};
 use xenon_prose::Kind;
 
-/// Heading scales.
 const HEADING_SCALE: [f64; 4] = [1.7, 1.4, 1.2, 1.08];
 
 pub(crate) struct Tags {
@@ -27,21 +22,14 @@ pub(crate) struct Tags {
     code: gtk::TextTag,
     link: gtk::TextTag,
     alt: gtk::TextTag,
-    /// Markup drawn dim.
     pub dim: gtk::TextTag,
-    /// Markup out of the caret's block, with `markers = hide`.
     pub hide: gtk::TextTag,
-    /// A list dash drawn as a round bullet instead (see `prose/decor.rs`).
     pub bullet: gtk::TextTag,
 }
 
-/// Measurements the tags need, in pixels.
 pub(crate) struct Look {
-    /// Left edge of the text column (the view's left margin).
     pub margin: i32,
-    /// Extra space the line height setting adds between paragraphs.
     pub gap: i32,
-    /// Hanging indent of a list item.
     pub hang: i32,
     pub mono: String,
 }
@@ -124,16 +112,13 @@ impl Tags {
         }
     }
 
-    /// Colors from the desktop and sizes from `look`.
     pub(crate) fn style(&self, view: &impl IsA<gtk::Widget>, look: &Look) {
         let ink = view.color();
         let ink_at = |alpha: f32| gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), alpha);
         let muted = ink_at(0.65);
         let accent = adw::StyleManager::default().accent_color_rgba();
-        // Washes are the ink at low strength, so they read on any theme.
         let (tint, chip) = (ink_at(0.07), ink_at(0.11));
         let rule = ink_at(0.3);
-        // Markup must stay readable: the muted ink at half strength is too faint.
         let dim = muted;
         let bold = pango::Weight::Bold.into_glib();
         let mono = look.mono.as_str();
@@ -171,8 +156,6 @@ impl Tags {
                 ],
             );
         }
-        // Table rows and HTML stay on one line each (the view scrolls sideways), so
-        // the rules drawn over the pipes stay on their row.
         set(&self.verbatim, &[("wrap-mode", &gtk::WrapMode::None)]);
         set(
             &self.meta,
@@ -183,7 +166,6 @@ impl Tags {
             ],
         );
         for (depth, tag) in self.item.iter().enumerate() {
-            // The first line starts at the margin; wrapped lines hang under the text.
             let at = look.margin + look.hang * 2 * depth as i32;
             set(tag, &[("left-margin", &at), ("indent", &(-look.hang))]);
         }
@@ -200,7 +182,6 @@ impl Tags {
                 ("weight", &bold),
             ],
         );
-        // A rule is a tiny line of text whose paragraph is filled: a thin band.
         set(
             &self.rule,
             &[
@@ -228,7 +209,6 @@ impl Tags {
         );
     }
 
-    /// Character styles: bold, italic, struck, code chip, link, picture text.
     fn style_inline(&self, c: &Inks, mono: &str) {
         let Inks {
             ink,
@@ -263,7 +243,6 @@ impl Tags {
     }
 }
 
-/// Tag inks for the character styles.
 struct Inks {
     ink: gdk::RGBA,
     muted: gdk::RGBA,

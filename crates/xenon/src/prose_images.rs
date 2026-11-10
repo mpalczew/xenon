@@ -1,8 +1,3 @@
-//! Images in prose mode. Pictures are overlay children of the text view (not
-//! anchors in the buffer, so the file text is never touched): the image's line
-//! gets extra space below it through a text tag, and the picture sits in that
-//! space. Positions are recomputed when layout or the caret's block changes.
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -14,9 +9,7 @@ use gtk::{gdk, glib};
 
 use crate::prose::Prose;
 
-/// Tallest picture, in pixels.
 const MAX_HEIGHT: f64 = 420.0;
-/// Gap between the picture and the line above it.
 const GAP: i32 = 6;
 
 struct Slot {
@@ -32,9 +25,7 @@ pub(crate) struct Images {
     /// Pictures are kept and reused: overlay children cannot be taken out of
     /// a text view cleanly, so unused ones are only hidden.
     slots: RefCell<Vec<Slot>>,
-    /// How many of `slots` show an image now.
     active: Cell<usize>,
-    /// Names of the height tags currently applied.
     tags: RefCell<Vec<gtk::TextTag>>,
     textures: RefCell<HashMap<PathBuf, Cached>>,
     pending: Cell<bool>,
@@ -56,7 +47,6 @@ fn resolve(base: &Path, url: &str) -> Option<PathBuf> {
 }
 
 impl Images {
-    /// Hide every picture and drop the height tags.
     pub(crate) fn clear(&self, p: &Prose) {
         for slot in self.slots.borrow().iter() {
             slot.picture.set_visible(false);
@@ -82,7 +72,6 @@ impl Images {
         loaded
     }
 
-    /// Lay out the pictures of the current document.
     pub(crate) fn rebuild(&self, p: &Rc<Prose>) {
         self.clear(p);
         let column = (p.scroller.width() - 2 * p.view.left_margin()).max(120);
@@ -135,7 +124,6 @@ impl Images {
         self.schedule_move(p);
     }
 
-    /// Move pictures to their lines once layout has settled.
     pub(crate) fn schedule_move(&self, p: &Rc<Prose>) {
         if self.active.get() == 0 || self.pending.replace(true) {
             return;
@@ -151,7 +139,6 @@ impl Images {
     fn place(&self, p: &Prose) {
         let x = p.view.left_margin();
         for slot in self.slots.borrow().iter().take(self.active.get()) {
-            // The picture sits in the space the height tag adds below the line.
             let iter = p.buffer.iter_at_offset(slot.line_end as i32);
             let (y, height) = p.view.line_yrange(&iter);
             p.view

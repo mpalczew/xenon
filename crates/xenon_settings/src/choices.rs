@@ -1,6 +1,3 @@
-//! Fixed choice lists for settings rows, and the font family lists a frontend
-//! offers, built from whatever faces its text system reports.
-
 use crate::ProseFont;
 
 pub const PROSE_SIZES: [f32; 5] = [16.0, 17.0, 18.0, 20.0, 22.0];
@@ -12,7 +9,6 @@ pub const PROSE_FONTS: [ProseFont; 4] = [
     ProseFont::Mono,
 ];
 
-/// Index of the value in `values` closest to `current`.
 pub fn nearest_index(values: &[f32], current: f32) -> usize {
     values
         .iter()
@@ -21,7 +17,6 @@ pub fn nearest_index(values: &[f32], current: f32) -> usize {
         .map_or(0, |(i, _)| i)
 }
 
-/// A size as shown: `14`, or `14.5`.
 pub fn format_size(size: f32) -> String {
     if (size - size.round()).abs() < 0.01 {
         format!("{}", size.round() as i32)
@@ -30,7 +25,6 @@ pub fn format_size(size: f32) -> String {
     }
 }
 
-/// One font family choice: the stored name and the label shown.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FontChoice {
     pub value: String,
@@ -65,7 +59,6 @@ fn options(
         .collect()
 }
 
-/// Editor and terminal faces: the monospaced families the caller found.
 pub fn mono_font_choices(
     installed: impl IntoIterator<Item = String>,
     current: &str,

@@ -1,5 +1,3 @@
-//! Workspace-local worklist storage shared by capture and the editor.
-
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -157,7 +155,6 @@ pub enum Edit<'a> {
     Remove,
 }
 
-/// Writes `edit` for `draft` into the workspace's worklist file.
 pub fn write_draft(root: &Path, draft: &mut ItemDraft, edit: &Edit) -> anyhow::Result<()> {
     let file = WorklistFile::new(root)?;
     let old = file.read()?;
@@ -176,7 +173,6 @@ pub fn write_draft(root: &Path, draft: &mut ItemDraft, edit: &Edit) -> anyhow::R
     Ok(())
 }
 
-/// The worklist as capture would see it; empty when there is none.
 pub fn read_source(root: &Path) -> String {
     WorklistFile::new(root)
         .and_then(|file| file.read())

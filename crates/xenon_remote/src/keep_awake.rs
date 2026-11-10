@@ -1,20 +1,12 @@
-//! Keep the machine from idle-sleeping while a phone is connected, if the user
-//! opted in. A `systemd-inhibit ... tail --pid` child holds an idle inhibitor
-//! lock until Xenon exits or the child is killed.
-
 use std::process::{Child, Command, Stdio};
 
-/// Sheet and Settings wording.
 pub const KEEP_AWAKE_LABEL: &str = "Keep this computer awake while a phone is connected";
 pub const KEEP_AWAKE_DETAIL: &str = "Ignores your sleep setting until the phone disconnects";
 
-/// The inhibitor is held exactly while the remote is on, the user opted in,
-/// and at least one phone is connected.
 pub fn should_hold(remote_on: bool, opted_in: bool, connected: usize) -> bool {
     remote_on && opted_in && connected > 0
 }
 
-/// Whether the idle-sleep inhibitor is held. Dropping it releases.
 #[derive(Default)]
 pub enum Inhibitor {
     #[default]
@@ -25,7 +17,6 @@ pub enum Inhibitor {
 }
 
 impl Inhibitor {
-    /// Acquire or release so that `hold` is true afterwards (if possible).
     pub fn sync(&mut self, hold: bool) {
         match (hold, &*self) {
             (true, Self::Released) => {

@@ -1,6 +1,3 @@
-//! What Settings and the sidebar say about the remote: one status snapshot,
-//! the footer states, and their wording. Frontends fill them in and draw.
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use xenon_store::RemoteDevice;
@@ -8,7 +5,6 @@ use xenon_store::RemoteDevice;
 use crate::frame::Rgb;
 use crate::protocol::ThemeWire;
 
-/// One paired device as Settings lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceRow {
     pub id: String,
@@ -18,19 +14,15 @@ pub struct DeviceRow {
     pub created_at: u64,
 }
 
-/// Remote status snapshot.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemoteStatus {
     pub enabled: bool,
     /// On, but another Xenon holds the port for now.
     pub waiting: bool,
-    /// Opt-in: hold the machine awake while a phone is connected.
     pub keep_awake: bool,
     /// User override for the phone URL host (empty = automatic).
     pub hostname: String,
-    /// `http://host:port` the phone should open, when running.
     pub base_url: Option<String>,
-    /// A phone can reach us from off this computer (over the tailnet).
     pub reachable: bool,
     pub devices: Vec<DeviceRow>,
     pub connected: usize,
@@ -75,7 +67,6 @@ pub fn effective_port(saved: u16, default: u16) -> u16 {
         .unwrap_or(if saved == 0 { default } else { saved })
 }
 
-/// Terminal background, foreground and cursor colors for the phone page.
 pub fn theme_wire([bg, fg, cursor]: [[u8; 3]; 3]) -> ThemeWire {
     let hex = |c: [u8; 3]| Rgb(c[0], c[1], c[2]).hex();
     ThemeWire {
@@ -85,7 +76,6 @@ pub fn theme_wire([bg, fg, cursor]: [[u8; 3]; 3]) -> ThemeWire {
     }
 }
 
-/// "just now", "5 min ago", "3 hours ago", "2 days ago".
 pub fn ago(unix: u64) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)

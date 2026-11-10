@@ -1,10 +1,5 @@
-//! Output-burst tracking for one terminal. A frontend reports each output
-//! batch, each quiet period, and each user keystroke; this decides when the
-//! terminal counts as an agent at work and when it has settled.
-
 use crate::agent::agent_busy_signal;
 
-/// One terminal's burst state.
 #[derive(Clone, Debug, Default)]
 pub struct TerminalActivity {
     wakeups: u32,
@@ -41,7 +36,6 @@ impl TerminalActivity {
         std::mem::take(&mut self.working)
     }
 
-    /// The shell exited: nothing more will happen on this terminal.
     pub fn on_exit(&mut self) {
         self.wakeups = 0;
         self.working = false;

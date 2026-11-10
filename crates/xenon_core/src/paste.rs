@@ -1,9 +1,6 @@
-//! What a terminal paste of files or an image types: shell-quoted paths.
-
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Shell-quoted path list for paste or drag-drop into the PTY.
 pub fn terminal_paths_text(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> String {
     paths
         .into_iter()
@@ -12,7 +9,6 @@ pub fn terminal_paths_text(paths: impl IntoIterator<Item = impl AsRef<Path>>) ->
         .join(" ")
 }
 
-/// One path, quoted for a POSIX shell only when it needs it.
 pub fn shell_path(path: impl AsRef<Path>) -> String {
     let text = path.as_ref().to_string_lossy();
     if text.bytes().all(is_shell_safe) {

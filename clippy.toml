@@ -1,15 +1,7 @@
-# Clippy thresholds. Stricter numbers belong in review judgment, not a gate.
-
-# GTK signal handlers take (self, widget, event, ...) and clippy counts self, so
-# 5 leaves room for idiomatic callbacks.
 too-many-arguments-threshold = 5
 
-# Widget-building functions are long chains of constructors and setters, so only
-# genuinely huge bodies are gated. (clippy default: 100.)
 too-many-lines-threshold = 100
 
-# clippy default. Nesting-weighted readability score (not cyclomatic complexity).
 cognitive-complexity-threshold = 25
 
-# clippy default. Flags absurdly nested types that deserve a type alias.
 type-complexity-threshold = 250

@@ -1,5 +1,3 @@
-//! Rules for where and how an opened file is shown.
-
 use crate::ipc::OpenFileSpec;
 
 impl OpenFileSpec {

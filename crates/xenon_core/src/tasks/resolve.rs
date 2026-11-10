@@ -1,12 +1,9 @@
-//! `TaskDef` + `VarContext` to a spawnable `ResolvedTask`.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use super::model::*;
 use super::vars::{VarContext, expand};
 
-/// A task ready to spawn as its own process.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedTask {
     pub label: String,
@@ -97,7 +94,6 @@ fn resolve_inner(
     })
 }
 
-/// Shell command line: the command as written, arguments quoted.
 fn command_line(
     command: &str,
     quoting: Option<Quoting>,
@@ -145,8 +141,6 @@ fn safe_byte(b: u8) -> bool {
         )
 }
 
-/// Command line as the picker and trust prompt show it. Variables are expanded
-/// where the context allows and left as written otherwise.
 pub(crate) fn preview_line(def: &TaskDef, ctx: &VarContext) -> String {
     let keep = |s: &str| expand(s, ctx).unwrap_or_else(|_| s.to_string());
     let Some(command) = &def.command else {

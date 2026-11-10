@@ -1,5 +1,3 @@
-//! Minimal HTTP parse/write for the mobile remote server.
-
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -36,7 +34,6 @@ pub(crate) fn split_path_query(path_q: &str) -> (&str, &str) {
     }
 }
 
-/// Largest request body accepted outside uploads (pairing JSON is tiny).
 pub(crate) const MAX_BODY: usize = 8 * 1024;
 
 pub(crate) fn content_length(headers: &HashMap<String, String>) -> usize {
@@ -98,7 +95,6 @@ pub(crate) fn write_http(
     Ok(())
 }
 
-/// `101 Switching Protocols` for a WebSocket upgrade.
 pub(crate) fn write_ws_accept(stream: &mut TcpStream, accept_key: &str) -> Result<()> {
     let header = format!(
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept_key}\r\n\r\n"

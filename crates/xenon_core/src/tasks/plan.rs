@@ -20,13 +20,11 @@ pub enum Outcome {
 enum State {
     Waiting,
     Running,
-    /// Finished with success, or a background task that was launched.
     Satisfied,
 }
 
 #[derive(Debug)]
 struct Node {
-    /// Everything that must be satisfied before this task launches.
     needs: Vec<String>,
     state: State,
 }
@@ -114,17 +112,14 @@ impl Orchestrator {
         }
     }
 
-    /// Labels in the plan.
     pub fn labels(&self) -> Vec<String> {
         self.nodes.keys().cloned().collect()
     }
 
-    /// Launch whatever has no unmet needs.
     pub fn start(&mut self) -> Vec<Action> {
         self.advance()
     }
 
-    /// A task finished successfully, or a background task was launched.
     pub fn satisfied(&mut self, label: &str) -> Vec<Action> {
         if let Some(node) = self.nodes.get_mut(label) {
             node.state = State::Satisfied;
@@ -140,7 +135,6 @@ impl Orchestrator {
         Vec::new()
     }
 
-    /// `Some` once the run is over: root satisfied, or a task failed.
     pub fn outcome(&self) -> Option<Outcome> {
         if let Some((label, reason)) = &self.failed {
             return Some(Outcome::Failed {

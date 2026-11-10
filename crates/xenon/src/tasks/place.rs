@@ -1,5 +1,3 @@
-//! Where a task terminal goes, and what its process ending does to its run.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -11,8 +9,6 @@ use super::{Placement, Spawn};
 use crate::app::App;
 
 impl App {
-    /// Put the task's terminal in a tab per `presentation.panel` / `reveal` /
-    /// `focus`: an exited tab of the panel is reused, else a new one is added.
     pub(super) fn place_task_terminal(
         self: &Rc<Self>,
         task: &ResolvedTask,
@@ -72,8 +68,6 @@ impl App {
         if select && (pres.focus || force_new) {
             self.focus_terminal();
         } else if select {
-            // The task shows but the cursor stays where it was, if that is
-            // still on screen.
             let weak = Rc::downgrade(self);
             glib::idle_add_local_once(move || match before.filter(|w| w.is_mapped()) {
                 Some(widget) => {
@@ -89,7 +83,6 @@ impl App {
         Some(tab)
     }
 
-    /// A task process exited (called by `term_exited`).
     pub(crate) fn task_finished(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         let Some((run_id, label)) = self.tasks.owners.borrow().get(&(ws, tab)).cloned() else {
             return;
@@ -130,7 +123,6 @@ impl App {
         }
     }
 
-    /// A task tab is gone (closed). A process still running fails its run.
     pub(crate) fn task_tab_gone(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         self.tasks.spawns.borrow_mut().remove(&(ws, tab));
         let owner = self.tasks.owners.borrow_mut().remove(&(ws, tab));

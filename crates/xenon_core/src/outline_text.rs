@@ -1,5 +1,3 @@
-//! Plain-text conversion for an outline. No view state.
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutlinePoint {
     pub text: String,

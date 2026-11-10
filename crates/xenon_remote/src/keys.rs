@@ -1,5 +1,3 @@
-//! What the phone's typing becomes on a PTY, for frontends that write bytes.
-
 use crate::protocol::NamedKey;
 
 /// Bytes to write to the PTY for typed or injected text. Enter is CR, so LF

@@ -1,11 +1,8 @@
-//! One item carried across autosaves: appended on the first save, rewritten in place after.
-
 use super::entries::entries;
 use super::{Target, WorkItem, append_item};
 use anyhow::{Context, Result};
 use std::ops::Range;
 
-/// A source edit: `range` becomes `text`.
 #[derive(Clone, Debug)]
 pub struct Change {
     pub range: Range<usize>,
@@ -26,11 +23,9 @@ impl Change {
 pub struct ItemDraft {
     saved: Option<Saved>,
     checked: bool,
-    /// Where the first save files the item.
     target: Target,
 }
 
-/// The item's Markdown as last written, without trailing blank lines.
 #[derive(Clone, Debug)]
 struct Saved {
     start: usize,
@@ -57,7 +52,6 @@ impl ItemDraft {
         self.saved.is_some()
     }
 
-    /// The saved item's title, as its first Markdown line shows it.
     pub fn title(&self) -> Option<&str> {
         let line = self.saved.as_ref()?.raw.lines().next()?;
         let title = ["- [x] ", "- [X] ", "- [ ] ", "- "]
@@ -94,7 +88,6 @@ impl ItemDraft {
         }))
     }
 
-    /// Removes the item and, when it was last, the blank lines before it.
     pub fn remove(&self, source: &str) -> Result<Option<Change>> {
         let Some(start) = self.locate(source)? else {
             return Ok(None);
@@ -118,7 +111,6 @@ impl ItemDraft {
         }))
     }
 
-    /// Track the item after `change` landed; returns its row index.
     pub(crate) fn commit(&mut self, source: &str, change: &Change) -> Option<usize> {
         let (index, range) = change.item_start.and_then(|start| {
             entries(source)
@@ -143,7 +135,6 @@ impl ItemDraft {
         })
     }
 
-    /// Where the item starts now, following it if other edits moved it.
     fn locate(&self, source: &str) -> Result<Option<usize>> {
         let Some(saved) = &self.saved else {
             return Ok(None);

@@ -1,6 +1,3 @@
-//! Compiles the few icons Adwaita lacks (split right, split down) into a
-//! GResource the app registers at start.
-
 use std::{env, path::PathBuf, process::Command};
 
 fn main() {

@@ -17,7 +17,6 @@ use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprCall, ExprMethodCall, Macro};
 
-/// Method names that only read, or work on plain Rust values.
 const READS: &[&str] = &[
     "upgrade",
     "downgrade",
@@ -196,12 +195,10 @@ const READS: &[&str] = &[
     "active_tab",
 ];
 
-/// Prefixes of read-only method names.
 const READ_PREFIXES: &[&str] = &[
     "get_", "is_", "has_", "can_", "as_", "to_", "try_", "iter_", "n_",
 ];
 
-/// Path calls that build a value: `Some(..)`, `Rc::clone(..)`, `Propagation::Stop`.
 fn plain_call(call: &ExprCall) -> bool {
     let Expr::Path(p) = &*call.func else {
         return false;
@@ -231,7 +228,6 @@ fn plain_call(call: &ExprCall) -> bool {
             .contains(&segs[segs.len() - 2].as_str()))
 }
 
-/// Calls whose closure runs after the current event.
 const DEFERS: &[&str] = &[
     "idle_add_local_once",
     "idle_add_local",
@@ -242,14 +238,12 @@ const DEFERS: &[&str] = &[
     "timeout_add_seconds_local_once",
     "spawn_future_local",
     "spawn_local",
-    // `App::tab_event` runs its closure from an idle.
     "tab_event",
 ];
 
 struct Check<'a> {
     file: String,
     lines: Vec<&'a str>,
-    /// The `connect_*` whose handler is being walked, outside any deferral.
     handler: Option<String>,
     found: usize,
 }
@@ -268,7 +262,6 @@ impl Check<'_> {
     }
 }
 
-/// The closure inside `glib::clone!(#[weak] a, move |..| ..)`.
 fn clone_closure(mac: &Macro) -> Option<Expr> {
     if !mac.path.segments.last().is_some_and(|s| s.ident == "clone") {
         return None;
@@ -287,8 +280,6 @@ fn clone_closure(mac: &Macro) -> Option<Expr> {
     syn::parse2(tokens[start..].iter().cloned().collect::<TokenStream>()).ok()
 }
 
-/// `cell.borrow_mut().insert(..)` is a Rust collection, and `id.remove()` a
-/// `glib::SourceId`; neither touches GTK.
 fn read_only(call: &ExprMethodCall) -> bool {
     let name = call.method.to_string();
     let borrowed = matches!(&*call.receiver, Expr::MethodCall(r) if r.method == "borrow_mut");

@@ -1,6 +1,3 @@
-//! The diff's line-number column: a GtkSourceView gutter renderer that prints
-//! the number it was given for each buffer line (blank for filler lines).
-
 use std::cell::RefCell;
 
 use gtk::subclass::prelude::*;
@@ -67,7 +64,6 @@ glib::wrapper! {
 }
 
 impl Numbers {
-    /// A column of `numbers` (one per buffer line), `width` pixels wide.
     pub fn new(numbers: Vec<u32>, width: i32, color: gdk::RGBA) -> Self {
         let this: Self = glib::Object::new();
         *this.imp().numbers.borrow_mut() = numbers;

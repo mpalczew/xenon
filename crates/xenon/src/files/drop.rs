@@ -1,8 +1,3 @@
-//! Files section, part four: drag and drop. Rows drag themselves and take
-//! drops; dropping on the empty area means the workspace folder. Our own rows
-//! move, files from other apps copy. Where a drop lands is decided in
-//! `xenon_finder::fileops`.
-
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
@@ -24,7 +19,6 @@ fn dropped_paths(value: &glib::Value) -> Vec<PathBuf> {
 
 impl FilesView {
     pub(super) fn wire_drop(self: &Rc<Self>) {
-        // Dropping on the empty area means the workspace folder.
         let weak = Rc::downgrade(self);
         self.list.add_controller(drop_target(move |paths| {
             let this = weak.upgrade()?;
@@ -33,8 +27,6 @@ impl FilesView {
         }));
     }
 
-    /// Drag and drop on one row: it drags itself, and takes drops into its
-    /// folder (or its parent folder when it is a file).
     pub(super) fn row_events(owner: &OwnerCell, expander: &gtk::TreeExpander) {
         let source = gtk::DragSource::new();
         source.set_actions(gdk::DragAction::MOVE);
@@ -64,7 +56,6 @@ impl FilesView {
         expander.add_controller(drop);
     }
 
-    /// Files were dropped on `dest`. Our own rows move; anything else copies.
     fn dropped(self: &Rc<Self>, paths: Vec<PathBuf>, dest: PathBuf) -> bool {
         if paths.is_empty() {
             return false;
@@ -142,8 +133,6 @@ impl FilesView {
         });
     }
 
-    /// Read the changed folders again and, if given, select `show` once it
-    /// appears.
     pub(super) fn finish(self: &Rc<Self>, dirs: &[PathBuf], show: Option<PathBuf>) {
         for dir in dirs {
             let known = self.root_dir.borrow().as_deref() == Some(dir.as_path())
@@ -165,8 +154,6 @@ impl FilesView {
 }
 
 impl App {
-    /// A file or folder was renamed or moved: editor tabs follow it. Their
-    /// views are dropped and rebuilt on the new path.
     pub(crate) fn paths_moved(self: &Rc<Self>, old: &Path, new: &Path) {
         let moved = self.model.borrow_mut().follow_rename(old, new);
         for (ws, tab) in &moved {
@@ -183,8 +170,6 @@ impl App {
     }
 }
 
-/// A drop target for files. `drop` gets the dropped paths and says whether it
-/// took them.
 fn drop_target(drop: impl Fn(Vec<PathBuf>) -> Option<bool> + 'static) -> gtk::DropTarget {
     let target = gtk::DropTarget::new(
         gdk::FileList::static_type(),
@@ -195,8 +180,6 @@ fn drop_target(drop: impl Fn(Vec<PathBuf>) -> Option<bool> + 'static) -> gtk::Dr
     target
 }
 
-/// Hovering a closed folder during a drag opens it after a moment. The expand
-/// runs from the timeout, never inside the drag signal.
 fn spring_open(drop: &gtk::DropTarget, expander: &gtk::TreeExpander) {
     let timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::default();
     let (t, weak) = (timer.clone(), expander.downgrade());
@@ -232,7 +215,6 @@ fn spring_open(drop: &gtk::DropTarget, expander: &gtk::TreeExpander) {
     });
 }
 
-/// Where the Files view lives, for handlers made before the view exists.
 #[derive(Clone, Default)]
 pub(super) struct OwnerCell(pub Rc<RefCell<Weak<FilesView>>>);
 

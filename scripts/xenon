@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Slot launcher for Xenon.
-# scripts/release/install puts the GTK app binary at $XENON_APP_DIR/xenon-bin
-# (default ~/.local/share/xenon).
 APP="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
 ACTIVE_FILE="$HOME/.xenon-active-slot"
 
@@ -21,7 +18,6 @@ elif command -v perl >/dev/null 2>&1; then
     # shellcheck disable=SC2016 # perl code, expanded by perl
     DETACH=(perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV or die "exec: $!\n"' --)
 fi
-# State both slots must see (phone-remote paired devices): not copied per slot.
 SHARED_DIR="$HOME/.xenon-shared"
 
 usage() {
@@ -75,7 +71,6 @@ pid_is_live_app() {
     [[ "$comm" == "xenon" || "$comm" == "xenon-bin" ]]
 }
 
-# The slot comes from the process env in /proc.
 pid_slot() {
     local pid="$1" env slot data
     env="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null)" || return 1
@@ -107,7 +102,6 @@ strip_runtime_files() {
     rm -f "$dir/xenon.pid" "$dir/ipc.sock" "$dir/xenon.log"
 }
 
-# Copy durable slot state only. Skips sockets/pidfiles/logs.
 copy_state_dir() {
     local src="$1"
     local dst="$2"

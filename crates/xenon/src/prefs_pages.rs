@@ -1,7 +1,3 @@
-//! Settings pages made of plain rows: Appearance, Fonts, Editor, Terminal. The choices,
-//! clamps and healing all come from `xenon_settings`; a row only reads a value
-//! and hands the new one to `App::change_settings`.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -22,7 +18,6 @@ fn page(name: &str, title: &str, icon: &str) -> adw::PreferencesPage {
         .build()
 }
 
-/// A row with a fixed list of choices; `pick` gets the chosen index.
 pub(crate) fn choice_row(
     title: &str,
     subtitle: &str,
@@ -105,7 +100,6 @@ fn font_group(
     group
 }
 
-/// System, Light or Dark. System follows the desktop.
 pub(crate) fn appearance(app: &Rc<App>) -> adw::PreferencesPage {
     let page = page("appearance", "Appearance", "applications-graphics-symbolic");
     let group = adw::PreferencesGroup::new();
@@ -294,7 +288,6 @@ pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesGroup {
     group
 }
 
-/// The row's detail line.
 fn new_tabs_detail(mode: TerminalAutoClose) -> String {
     format!("New terminal tabs: {}", mode.label().to_lowercase())
 }

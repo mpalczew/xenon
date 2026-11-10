@@ -1,6 +1,3 @@
-//! Worklist sections: `#`/`##` headings after the document title, and the source
-//! edits that add to, rename, and remove them. Edits touch only the lines they name.
-
 use super::entries::parse;
 use anyhow::{Result, bail, ensure};
 use std::ops::Range;
@@ -8,13 +5,9 @@ use std::ops::Range;
 #[derive(Clone, Debug)]
 pub struct Section {
     pub title: String,
-    /// Start of the heading line.
     pub start: usize,
-    /// The heading's text, without its `#` marks.
     pub title_range: Range<usize>,
-    /// First byte after the heading.
     pub body_start: usize,
-    /// Start of the next section's heading, or the end of the source.
     pub end: usize,
 }
 
@@ -52,7 +45,6 @@ impl Section {
     }
 }
 
-/// Where a new item goes: above the first section, or at the end of one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Target {
     #[default]
@@ -86,7 +78,6 @@ impl Target {
         }
     }
 
-    /// The section index this target names now, following a renumbering by title.
     pub fn resolve(&self, sections: &[Section]) -> Result<Option<usize>> {
         let Self::Section { index, title } = self else {
             return Ok(None);
@@ -116,14 +107,12 @@ pub fn capture_targets(source: &str) -> Vec<Target> {
     targets
 }
 
-/// `range` becomes `text`; `block_start` is where the inserted block begins.
 pub struct Insertion {
     pub range: Range<usize>,
     pub text: String,
     pub block_start: usize,
 }
 
-/// A plain replacement in the source.
 pub struct SourceEdit {
     pub range: Range<usize>,
     pub text: String,
@@ -197,7 +186,6 @@ pub(crate) fn append_block(source: &str, target: &Target, block: &str) -> Result
     ))
 }
 
-/// A new, empty section after `after`'s items; at the end of the file when None.
 pub fn insert_section(source: &str, after: Option<&Target>, title: &str) -> Result<SourceEdit> {
     let title = single_line(title)?;
     ensure!(
@@ -228,7 +216,6 @@ pub fn rename_section(source: &str, target: &Target, title: &str) -> Result<Sour
     })
 }
 
-/// Removes a section with everything under its heading.
 pub fn delete_section(source: &str, target: &Target) -> Result<SourceEdit> {
     let sections = parse(source).sections;
     let index = target

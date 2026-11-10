@@ -1,8 +1,3 @@
-//! GTK actions and their accelerators. Every command is an `app.*` action, so
-//! a key, a menu item, and a D-Bus call all take the same path. The extra
-//! actions at the bottom exist for agents and scripts: they type into the
-//! terminal, open a folder, save, and render the window to a PNG.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -100,7 +95,6 @@ pub(crate) fn install(app: &Rc<App>) {
         action.connect_activate(move |_, _| {
             if let Some(app) = weak.upgrade() {
                 if app.launcher.is_open() && !palette_passes(name) {
-                    // Ctrl+N / Ctrl+P move in the palette; the rest wait.
                     let key = match name {
                         "new-terminal" => "down",
                         "open-finder" => "up",
@@ -109,8 +103,6 @@ pub(crate) fn install(app: &Rc<App>) {
                     glib::idle_add_local_once(move || app.launcher.key(key));
                     return;
                 }
-                // Deferred: commands rebuild panes and lists, possibly the ones
-                // whose key or click is being handled.
                 glib::idle_add_local_once(move || handler(&app));
             }
         });
@@ -122,7 +114,6 @@ pub(crate) fn install(app: &Rc<App>) {
     crate::keys::install(&app.gtk);
 }
 
-/// Actions that still run while the palette is open.
 fn palette_passes(name: &str) -> bool {
     matches!(name, "quit" | "save-now" | "open-workspace" | "settings")
 }
@@ -159,7 +150,6 @@ fn string_action(app: &Rc<App>, name: &str, run: fn(&Rc<App>, &str)) {
 }
 
 fn install_term_actions(app: &Rc<App>) {
-    // The terminal menu's file items: the path is the action's target.
     string_action(app, "open-path-editor", |app, path| {
         if let Some(ws) = app.model.borrow().active() {
             app.open_editor(ws, std::path::Path::new(path));
@@ -168,8 +158,6 @@ fn install_term_actions(app: &Rc<App>) {
     string_action(app, "open-path-default", |app, path| {
         app.open_file(std::path::Path::new(path));
     });
-    // What a key press in the terminal reports (the key controller calls the
-    // same function): a Mac keystroke, which takes a phone's grid back.
     let local = gio::SimpleAction::new("term-interaction", None);
     let weak = Rc::downgrade(app);
     local.connect_activate(move |_, _| {

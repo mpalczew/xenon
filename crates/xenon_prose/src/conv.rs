@@ -1,13 +1,8 @@
-//! Byte offsets from the parser to char offsets, and line helpers.
-
 use std::ops::Range;
 
-/// Byte offset to char offset, cheap for ASCII text and for text with a few
-/// non-ASCII lines (one table row per line start).
 pub(crate) struct Conv<'a> {
     pub(crate) text: &'a str,
     ascii: bool,
-    /// (byte, char) of each line start; empty when ASCII.
     lines: Vec<(usize, usize)>,
 }
 
@@ -56,7 +51,6 @@ impl<'a> Conv<'a> {
             .map_or(self.text.len(), |i| byte + i)
     }
 
-    /// `r` without its trailing newline.
     pub(crate) fn trim_end(&self, r: &Range<usize>) -> Range<usize> {
         let mut end = r.end.min(self.text.len());
         while end > r.start && self.text.as_bytes()[end - 1] == b'\n' {

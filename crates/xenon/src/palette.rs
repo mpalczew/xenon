@@ -1,12 +1,3 @@
-//! The one palette shell the finders and pickers share: an `adw::Dialog` with
-//! a search field and a list of rows in stock style classes. It
-//! draws what a model hands it and reports keys back; ranking, discovery and
-//! what Enter does live in the models (`finder.rs`, `picker.rs`).
-//!
-//! Focus stays in the field. Up/Down, Ctrl+N/Ctrl+P (and Ctrl+J/K) move,
-//! Enter accepts, Tab completes, Escape closes and focus returns to the widget
-//! that had it.
-
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -15,45 +6,35 @@ use gtk::{gdk, gio, glib};
 
 use crate::palette_list::{close_on_outside_click, row_list};
 
-/// One row, as the model wants it drawn.
 #[derive(Clone, Default)]
 pub(crate) struct PaletteRow {
     pub title: String,
-    /// Char indexes of `title` to emphasise (the query's matched letters).
     pub hits: Vec<u32>,
     pub detail: Option<String>,
     pub badge: Option<String>,
     pub enabled: bool,
 }
 
-/// What only some palettes need; the default suits a plain list.
 #[derive(Default)]
 pub(crate) struct Options {
-    /// A line above the field: the question of an input prompt.
     pub prompt: Option<String>,
-    /// Text the field starts with.
     pub initial: String,
-    /// Hide what is typed (password inputs).
     pub masked: bool,
-    /// Enter answers with the field text even when no row is selected.
     pub free_text: bool,
     /// Escape or closing the dialog; a close by code does not call it.
     pub on_dismiss: Option<Box<dyn Fn()>>,
-    /// Ctrl+Enter on the selected row.
     pub on_accept_alt: Option<Box<dyn Fn(usize)>>,
     /// A button after the hint, with the text it shows, and what it does.
     /// Its shortcut is the model's business (it calls `Palette::run_action`).
     pub action: Option<(String, Box<dyn Fn()>)>,
 }
 
-/// What the models answer to.
 pub(crate) struct Handlers {
     pub placeholder: String,
     pub hint: String,
     pub options: Options,
     pub on_query: Box<dyn Fn(&str)>,
     pub on_accept: Box<dyn Fn(usize)>,
-    /// Tab: complete the selected row into the field.
     pub on_complete: Option<Box<dyn Fn(usize)>>,
 }
 
@@ -69,18 +50,14 @@ pub(crate) struct Palette {
     selection: gtk::SingleSelection,
     view: gtk::ListView,
     restore: RefCell<Option<gtk::Widget>>,
-    /// True while focus goes back to where it was; the app ignores that move.
     pub(crate) restoring: Cell<bool>,
     handlers: RefCell<Option<Rc<Handlers>>>,
     open: Cell<bool>,
-    /// Counts openings, so late answers for an earlier opening can be dropped.
     epoch: Cell<u64>,
     titles: RefCell<Vec<String>>,
-    /// Row count and which are enabled, for stepping over disabled rows.
     enabled: RefCell<Vec<bool>>,
 }
 
-/// A label with stock style classes and the margins the dialog's content uses.
 fn text_label(classes: &[&str]) -> gtk::Label {
     let label = gtk::Label::new(None);
     label.set_css_classes(classes);
@@ -162,7 +139,6 @@ impl Palette {
     }
 
     fn wire(&self, weak: std::rc::Weak<Self>) {
-        // Escape (the dialog's own), or any close not made by code: a cancel.
         let w = weak.clone();
         self.dialog.connect_closed(move |_| {
             if let Some(this) = w.upgrade() {
@@ -192,18 +168,15 @@ impl Palette {
         let w = weak.clone();
         self.entry.connect_activate(move |_| {
             let w = w.clone();
-            // Deferred: accepting closes the dialog and rebuilds the list.
             glib::idle_add_local_once(move || {
                 if let Some(this) = w.upgrade() {
                     this.accept();
                 }
             });
         });
-        // A row click accepts it.
         let w = weak.clone();
         self.view.connect_activate(move |_, position| {
             let w = w.clone();
-            // Deferred: accepting rebuilds the list inside its own activate handler.
             glib::idle_add_local_once(move || {
                 if let Some(this) = w.upgrade() {
                     this.selection.set_selected(position);
@@ -223,7 +196,6 @@ impl Palette {
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             let handled = match key {
                 gdk::Key::Escape => {
-                    // Deferred: closing empties the list under the key event.
                     let w = Rc::downgrade(&this);
                     glib::idle_add_local_once(move || {
                         if let Some(this) = w.upgrade() {
@@ -259,8 +231,6 @@ impl Palette {
         self.entry.add_controller(keys);
     }
 
-    /// A key by name, as the entry's own key handling would treat it
-    /// (Ctrl+N and Ctrl+P from the window shortcuts).
     pub(crate) fn key(&self, name: &str) {
         match name {
             "escape" => self.dismiss(),
@@ -287,7 +257,6 @@ impl Palette {
         self.open.get()
     }
 
-    /// Show the palette. `win` supplies the focus to give back on close.
     pub(crate) fn open(&self, win: &impl IsA<gtk::Window>, handlers: Handlers) {
         let placeholder = handlers.placeholder.clone();
         let (hint, initial) = (handlers.hint.clone(), handlers.options.initial.clone());
@@ -321,14 +290,12 @@ impl Palette {
         if let Some(text) = self.entry.delegate().and_downcast::<gtk::Text>() {
             text.grab_focus_without_selecting();
         }
-        // Paint the first rows for the initial query.
         let handlers = self.handlers.borrow().clone();
         if let Some(h) = handlers {
             (h.on_query)(initial);
         }
     }
 
-    /// Escape or closing the dialog: close, then tell the model it was a cancel.
     fn dismiss(&self) {
         let handlers = self.handlers.borrow().clone();
         if !self.open.get() {
@@ -358,7 +325,6 @@ impl Palette {
         }
     }
 
-    /// Run the options' button action, if the open palette has one.
     pub(crate) fn run_action(&self) -> bool {
         let handlers = self.handlers.borrow().clone();
         let action = handlers.as_ref().and_then(|h| h.options.action.as_ref());
@@ -369,13 +335,11 @@ impl Palette {
         self.entry.text().to_string()
     }
 
-    /// Replace the field text (completion) and put the cursor at the end.
     pub(crate) fn set_text(&self, text: &str) {
         self.entry.set_text(text);
         self.entry.set_position(-1);
     }
 
-    /// Show `rows`; the first enabled row is selected.
     pub(crate) fn set_rows(&self, rows: Vec<PaletteRow>, empty_text: &str) {
         *self.enabled.borrow_mut() = rows.iter().map(|r| r.enabled).collect();
         *self.titles.borrow_mut() = rows.iter().map(|r| r.title.clone()).collect();

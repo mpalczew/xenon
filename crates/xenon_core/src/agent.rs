@@ -1,19 +1,9 @@
-//! Agent detection from PTY wakeup cadence.
-//!
-//! Named harness titles need fewer wakeups; anonymous shells need a heavier
-//! burst so `npm install` noise does not light the workspace working / done dots.
-
 use std::time::Duration;
 
-/// Output must be quiet this long before a terminal counts as settled.
 pub const IDLE_AFTER: Duration = Duration::from_millis(2500);
-/// Named-harness title: settled burst this large counts as agent work.
 pub(crate) const BUSY_WAKEUPS: u32 = 15;
-/// No harness name in title: require a heavier burst.
 pub(crate) const ANONYMOUS_BUSY_WAKEUPS: u32 = 40;
 
-/// Burst this large counts as agent work: pulse while output continues, then
-/// the settle timer marks the workspace done.
 pub(crate) fn agent_busy_signal(busy: u32, title: &str) -> bool {
     if busy == 0 {
         return false;
@@ -24,7 +14,6 @@ pub(crate) fn agent_busy_signal(busy: u32, title: &str) -> bool {
     busy >= ANONYMOUS_BUSY_WAKEUPS
 }
 
-/// Title (or process name fragment) suggests a coding agent, not a plain shell.
 pub(crate) fn agent_title(title: &str) -> bool {
     let t = title.to_ascii_lowercase();
     const NAMES: &[&str] = &[

@@ -1,5 +1,3 @@
-//! Content layout: N-ary pane tree of mixed tab stacks (terminals + editors).
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -7,20 +5,14 @@ use serde::{Deserialize, Serialize};
 use crate::session::Point;
 use crate::split::flatten_split;
 
-/// Max axis alternations root→leaf. Same-axis splits are flat, so a long row
-/// costs one level.
 pub(crate) const MAX_NEST_DEPTH: u32 = 3;
-/// Max children of one split (each keeps at least `MIN_SIZE`).
 pub(crate) const MAX_SPLIT_CHILDREN: usize = 8;
-/// Smallest fraction of a split any child keeps.
 pub(crate) const MIN_SIZE: f32 = 0.1;
 
-/// Stable id for a leaf pane within a session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PaneId(pub u64);
 
-/// Stable id for a tab slot within a session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TabId(pub u64);
@@ -28,13 +20,10 @@ pub struct TabId(pub u64);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SplitAxis {
-    /// Side by side: first = left, second = right.
     Horizontal,
-    /// Stacked: first = top, second = bottom.
     Vertical,
 }
 
-/// Edge of a leaf used for tab drop → split.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DropEdge {
     Left,
@@ -75,8 +64,10 @@ pub enum TabState {
         #[serde(default)]
         scroll_top: u32,
     },
-    /// A read-only diff of one file (path relative to the workspace).
-    Diff { id: TabId, path: String },
+    Diff {
+        id: TabId,
+        path: String,
+    },
 }
 
 fn default_cwd() -> PathBuf {
@@ -202,7 +193,6 @@ impl ContentLayout {
             .unwrap_or_default()
     }
 
-    /// Repair focused pointer after load (split sizes are fixed on parse).
     pub(crate) fn normalize(&mut self) {
         if let Some(root) = &mut self.root {
             let leaves = root.leaf_ids();

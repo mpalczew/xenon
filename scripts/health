@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Full run (manual, CI). The pre-commit hook is the per-commit gate.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"

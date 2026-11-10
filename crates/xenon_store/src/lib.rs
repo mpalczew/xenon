@@ -49,8 +49,6 @@ pub enum StoreError {
     Corrupt { path: PathBuf, backup: PathBuf },
 }
 
-/// Root directory for app state. Overridable via `XENON_DATA_DIR` (tests /
-/// slot launcher). Default `~/.xenon`.
 pub fn data_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("XENON_DATA_DIR") {
         return PathBuf::from(dir);
@@ -69,7 +67,6 @@ fn settings_path() -> PathBuf {
     data_dir().join("settings.json")
 }
 
-/// Load app settings, or defaults if missing/corrupt.
 pub fn load_settings() -> Result<AppSettings, StoreError> {
     let path = settings_path();
     if !path.exists() {
@@ -126,7 +123,6 @@ pub fn save_registry(registry: &Registry) -> Result<(), StoreError> {
     write_atomic(&registry_path(), registry)
 }
 
-/// Load a workspace session from `sessions/<id>.json`.
 pub fn load_session(workspace: WorkspaceId) -> Result<SessionState, StoreError> {
     let path = session_path(workspace);
     if path.exists() {

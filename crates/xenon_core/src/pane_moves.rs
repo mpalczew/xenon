@@ -1,10 +1,7 @@
-//! Moving and closing tabs in a workspace's pane content.
-
 use crate::content::{PaneId, TabId};
 use crate::pane_content::{CloseOutcome, PaneContent};
 use crate::pane_tree::{PaneTab, PaneTree};
 
-/// Keep `active` pointing at a sensible tab after `removed` left a stack of `len`.
 fn fix_active_idx(active: &mut usize, removed: usize, len: usize) {
     if *active > removed {
         *active -= 1;
@@ -43,7 +40,6 @@ impl<T> PaneContent<T> {
         removable
     }
 
-    /// Take the tab at (`pane`, `index`) out of its stack.
     pub fn take_tab_at(&mut self, pane: PaneId, index: usize) -> Option<T> {
         let leaf = self.root.as_mut()?.find_leaf_mut(pane)?;
         if index >= leaf.tabs.len() {
@@ -56,7 +52,6 @@ impl<T> PaneContent<T> {
         Some(tab)
     }
 
-    /// Put a tab back as the only tab of an emptied pane.
     pub fn put_back(&mut self, pane: PaneId, tab: T) {
         if let Some(leaf) = self.root.as_mut().and_then(|r| r.find_leaf_mut(pane)) {
             leaf.tabs.push(tab);
@@ -66,7 +61,6 @@ impl<T> PaneContent<T> {
 }
 
 impl<T: PaneTab> PaneContent<T> {
-    /// (pane, index) of a tab.
     pub fn find_tab(&self, tab: TabId) -> Option<(PaneId, usize)> {
         self.root.as_ref()?.find_tab(tab)
     }

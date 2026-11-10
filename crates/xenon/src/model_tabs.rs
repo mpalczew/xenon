@@ -1,6 +1,3 @@
-//! Tab and pane commands on the model. Each returns what the view needs to
-//! know; the pane-tree rules themselves live in `xenon_core`.
-
 use xenon_core::{
     CloseOutcome, DropEdge, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, TabState,
     WorkspaceId,
@@ -8,10 +5,7 @@ use xenon_core::{
 
 use crate::model::{Model, Tab, TabKind};
 
-/// What `split` did.
 pub(crate) enum SplitResult {
-    /// Split made; a fresh terminal was added when the source pane would
-    /// otherwise have been left empty.
     Done,
     NoRoom,
     Nothing,
@@ -25,17 +19,10 @@ impl Model {
         self.spaces.get_mut(&ws).map(|s| &mut s.content)
     }
 
-    /// Add a terminal to the receiving pane.
     pub(crate) fn new_terminal(&mut self, ws: WorkspaceId) -> Option<TabId> {
         self.push_tab(ws, Tab::terminal)
     }
 
-    /// Add a tab to the pane that receives new tabs and make it the active
-    /// one. This is the one rule for every way of opening a tab (terminal,
-    /// file, diff, `xenon open`, the finder): the focused pane. `focused` is
-    /// also the last pane that had focus, since focus moving to the sidebar or
-    /// a dialog does not change it. With no valid one it is the first pane;
-    /// with no pane, a new one.
     pub(super) fn push_tab(
         &mut self,
         ws: WorkspaceId,
@@ -63,7 +50,6 @@ impl Model {
         Some(id)
     }
 
-    /// The tab of `ws` that `matches`, if any.
     fn find_tab_where(&mut self, ws: WorkspaceId, matches: impl Fn(&Tab) -> bool) -> Option<TabId> {
         let content = self.space_content(ws)?;
         let mut found = None;
@@ -79,8 +65,6 @@ impl Model {
         found
     }
 
-    /// Show `path` in an editor tab: the one already open for it, or a new tab
-    /// in the focused pane. Returns the tab.
     pub(crate) fn open_editor(&mut self, ws: WorkspaceId, path: &std::path::Path) -> Option<TabId> {
         let existing = self.find_tab_where(
             ws,
@@ -130,14 +114,11 @@ impl Model {
         Some((id, true))
     }
 
-    /// Remove an empty pane that has company (the card's "Remove empty pane").
     pub(crate) fn remove_empty_pane(&mut self, ws: WorkspaceId, pane: PaneId) -> bool {
         self.space_content(ws)
             .is_some_and(|content| content.remove_empty_leaf(pane))
     }
 
-    /// Split the focused pane: its active tab moves to the new pane. A pane
-    /// with one tab keeps it, and the new pane opens blank and takes focus.
     pub(crate) fn split(&mut self, ws: WorkspaceId, axis: SplitAxis) -> SplitResult {
         let Some(content) = self.space_content(ws) else {
             return SplitResult::Nothing;
@@ -174,7 +155,6 @@ impl Model {
         SplitResult::Done
     }
 
-    /// An empty pane kept beside the focused one (drop target for tabs).
     pub(crate) fn park_pane(&mut self, ws: WorkspaceId) -> ParkOutcome {
         self.space_content(ws).map_or(ParkOutcome::Unchanged, |c| {
             c.park_empty(SplitAxis::Horizontal)
@@ -196,7 +176,6 @@ impl Model {
         let Some((src, from)) = content.find_tab(tab) else {
             return false;
         };
-        // `move_tab` takes the slot before the tab is lifted out.
         let at = match index {
             None => usize::MAX,
             Some(i) if src == dest && i > from => i + 1,
@@ -205,9 +184,6 @@ impl Model {
         content.move_tab(tab, dest, at)
     }
 
-    /// A tab dropped on the `edge` of pane `target`: split there and move the
-    /// tab into the new pane. Without room to split, the
-    /// tab joins the pane instead.
     pub(crate) fn drop_on_edge(
         &mut self,
         ws: WorkspaceId,
@@ -253,7 +229,6 @@ impl Model {
         outcome
     }
 
-    /// Ids of every tab in the focused pane except the active one.
     pub(crate) fn other_tabs(&self, ws: WorkspaceId) -> Vec<TabId> {
         let Some(leaf) = self.spaces.get(&ws).and_then(|s| s.content.focused_leaf()) else {
             return Vec::new();
@@ -266,7 +241,6 @@ impl Model {
             .collect()
     }
 
-    /// Show the tab `delta` places along in the focused pane, wrapping.
     pub(crate) fn step_tab(&mut self, ws: WorkspaceId, delta: isize) -> Option<TabId> {
         let leaf = self.space_content(ws)?.focused_leaf_mut()?;
         let n = leaf.tabs.len() as isize;
@@ -277,7 +251,6 @@ impl Model {
         Some(leaf.tabs[leaf.active].id)
     }
 
-    /// Make `tab` the active tab of its pane and that pane the focused one.
     pub(crate) fn select_tab(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
         let Some(content) = self.space_content(ws) else {
             return false;
@@ -299,7 +272,6 @@ impl Model {
         changed
     }
 
-    /// Focus the pane `delta` leaves along (wrapping). Returns the new pane.
     pub(crate) fn step_pane(&mut self, ws: WorkspaceId, delta: isize) -> Option<PaneId> {
         let content = self.space_content(ws)?;
         let leaves = content.leaf_ids();
@@ -311,15 +283,12 @@ impl Model {
         Some(next)
     }
 
-    /// Divider drag: `pos` is the cumulative fraction of the split's extent.
     pub(crate) fn set_divider(&mut self, ws: WorkspaceId, key: PaneId, pos: f32) -> bool {
         self.space_content(ws)
             .and_then(|c| c.root.as_mut())
             .is_some_and(|root| root.set_boundary_for_split(key, pos))
     }
 
-    /// The workspace's terminal tabs in pane order, each with its index in
-    /// its pane (the number the tab label uses).
     pub(crate) fn terminal_ids(&self, ws: WorkspaceId) -> Vec<(TabId, usize)> {
         let mut out = Vec::new();
         if let Some(root) = self.spaces.get(&ws).and_then(|s| s.content.root.as_ref()) {

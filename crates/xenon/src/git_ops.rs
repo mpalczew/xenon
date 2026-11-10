@@ -1,6 +1,3 @@
-//! Git on the app: where measured statuses land, the diff tab commands, and
-//! the section's focus chord. Measuring itself runs in `git.rs`'s worker.
-
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -11,7 +8,6 @@ use crate::app::App;
 use crate::model::TabKind;
 
 impl App {
-    /// Tell the worker which workspace folders to watch.
     pub(crate) fn sync_git_roots(&self) {
         let roots = self
             .model
@@ -24,7 +20,6 @@ impl App {
         self.git.set_roots(roots);
     }
 
-    /// A batch of finished measurements from the worker.
     pub(crate) fn git_measured(
         self: &Rc<Self>,
         batch: Vec<(WorkspaceId, Option<xenon_git::status::GitStatus>)>,
@@ -34,8 +29,6 @@ impl App {
             return;
         }
         self.paint_all();
-        // Open diffs of a changed workspace read again; the file entry may
-        // carry new counts.
         for ws in changed {
             let views: Vec<_> = self
                 .diffs
@@ -54,14 +47,12 @@ impl App {
         }
     }
 
-    /// The window just got focus: look at the active workspace again.
     pub(crate) fn git_refresh_active(&self) {
         if let Some(ws) = self.model.borrow().active() {
             self.git.refresh(ws);
         }
     }
 
-    /// File of the diff tab that is on screen in `ws`, relative to the workspace.
     pub(crate) fn shown_diff_in(
         &self,
         model: &crate::model::Model,
@@ -74,7 +65,6 @@ impl App {
         }
     }
 
-    /// Open (or show again) the diff of `path` in the focused pane.
     pub(crate) fn open_diff(self: &Rc<Self>, path: &str) {
         let Some(ws) = self.model.borrow().active() else {
             return;
@@ -104,7 +94,6 @@ impl App {
         }
     }
 
-    /// Open `path` in an editor tab with the cursor on `line`.
     pub(crate) fn open_file_at(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -129,8 +118,6 @@ impl App {
         }
     }
 
-    /// The Git section chord: focus it (opening it); pressed again while the
-    /// cursor is in it, fold it away and go back to the pane.
     pub(crate) fn focus_git(self: &Rc<Self>) {
         self.sidebar.root.set_visible(true);
         let git = &self.sidebar.git;

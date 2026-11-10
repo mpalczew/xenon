@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Install Xenon for the current user.
-#   ~/.local/share/xenon/xenon-bin   GTK app binary
-#   ~/.local/bin/xenon, ~/bin/xenon  slot launcher (scripts/xenon)
-#   ~/.local/share/applications/dev.xenon.Xenon.desktop + hicolor icon
-# App id dev.xenon.Xenon. State lives in the slot dirs ~/.xenon-a and ~/.xenon-b.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -28,9 +23,7 @@ if [[ -d "$HOME/bin" ]]; then
     echo "installed $HOME/bin/xenon"
 fi
 
-# The old GTK-only install.
 rm -f "$data_home/applications/dev.xenon.Gtk.desktop" "$bin_dir/xenon-gtk"
-# Before the desktop file was named after the app id (Wayland matches windows by it).
 rm -f "$data_home/applications/xenon.desktop" "$data_home"/icons/hicolor/*/apps/xenon.png
 
 # Icon: 512px is the largest size the hicolor theme lists; a bigger one isn't found.
@@ -66,5 +59,4 @@ case ":$PATH:" in
     *) echo "note: $bin_dir is not on PATH" >&2 ;;
 esac
 
-# Drop build files untouched for two weeks, so target/ doesn't grow without end.
 "$root/scripts/prune-target"

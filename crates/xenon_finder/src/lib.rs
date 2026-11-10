@@ -1,10 +1,3 @@
-//! Fuzzy file finder for cmd-p: walk a directory (respecting .gitignore, including
-//! hidden/dot files but not heavy trees) into a shareable `FileIndex`, then rank
-//! its files against a query with nucleo. The walk (`FileIndex::build`) is
-//! separated from the matcher so the index can be built off the UI thread and
-//! shared (`Arc`) by cmd-p and cmd-click resolution. Partial snapshots stream
-//! during the walk so results appear before the tree is fully scanned.
-
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -18,20 +11,16 @@ pub mod fsops;
 pub mod tree;
 mod walk;
 
-/// Cap on results returned to the UI for a single query.
 const MAX_RESULTS: usize = 200;
 
-/// A ranked entry, its path relative to the index's root.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileMatch {
     pub path: PathBuf,
     pub is_dir: bool,
     pub score: u32,
-    /// Char indexes into the relative path where the query matched.
     pub hits: Vec<u32>,
 }
 
-/// A matchable entry; nucleo ranks against its relative path.
 #[derive(Clone)]
 struct Entry {
     path: String,
@@ -44,24 +33,18 @@ impl AsRef<str> for Entry {
     }
 }
 
-/// The walked file/directory list for one root. Immutable once built, so it can
-/// be wrapped in an `Arc` and shared across finders and threads. `Clone` is for
-/// progressive snapshots during a long walk.
 #[derive(Clone)]
 pub struct FileIndex {
     entries: Vec<Entry>,
 }
 
 impl FileIndex {
-    /// Walk `root` to completion. Prefer [`build_with_progress`] when the UI
-    /// should show partial results during a long walk.
     pub fn build(root: &Path) -> FileIndex {
         FileIndex {
             entries: walk::walk_with_progress(root, |_| true),
         }
     }
 
-    /// Number of indexed paths (files + directories).
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -180,7 +163,6 @@ impl FileIndex {
     }
 }
 
-/// Basename match quality for ranking (lower = better).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 enum BasenameRank {
     Exact = 0,
@@ -208,7 +190,6 @@ impl BasenameRank {
     }
 }
 
-/// Map relative path → rank (0 = most recent). Missing paths rank last.
 fn recent_ranks(recents: &[PathBuf]) -> HashMap<PathBuf, u32> {
     let mut ranks = HashMap::with_capacity(recents.len());
     for (i, path) in recents.iter().enumerate() {

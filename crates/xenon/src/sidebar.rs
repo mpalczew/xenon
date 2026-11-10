@@ -1,6 +1,3 @@
-//! The workspaces sidebar: a list box with a compact two-line row per
-//! workspace and a status line in the left margin.
-
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -36,11 +33,9 @@ pub(crate) struct Sidebar {
     add: gtk::MenuButton,
     app: Weak<App>,
     rows: RefCell<Vec<WsRow>>,
-    /// Index of the row being dragged.
     dragging: Rc<Cell<Option<usize>>>,
 }
 
-/// `$HOME` shown as `~`.
 pub(crate) fn short_path(path: &str) -> String {
     match std::env::var("HOME") {
         Ok(home) if !home.is_empty() && path.starts_with(&home) => {
@@ -66,7 +61,6 @@ impl Sidebar {
         list.set_activate_on_single_click(true);
         list.add_css_class("navigation-sidebar");
         let weak = app.clone();
-        // Deferred: rebuilding the list inside its own activate handler crashes GTK.
         list.connect_row_activated(move |_, row| {
             let index = row.index().max(0) as usize;
             let weak = weak.clone();
@@ -89,7 +83,6 @@ impl Sidebar {
         });
         list.add_controller(keys);
         list.add_css_class("xworkspaces");
-        // The insertion line floats over the list, above the rows.
         let rule = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         rule.set_valign(gtk::Align::Start);
         rule.set_can_target(false);
@@ -121,7 +114,6 @@ impl Sidebar {
         let git = GitView::new(app.clone());
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("sidebar-pane");
-        // Drag the handles to resize: Workspaces over (Files over Git).
         let inner = gtk::Paned::new(gtk::Orientation::Vertical);
         inner.set_shrink_start_child(false);
         inner.set_shrink_end_child(false);
@@ -150,8 +142,6 @@ impl Sidebar {
         }
     }
 
-    /// Dropping a dragged row on the list: a line shows the gap it would land
-    /// in, picked by the row midpoints; only below the last row means the end.
     fn accept_drops(
         list: &gtk::ListBox,
         rule: &gtk::Box,
@@ -159,7 +149,6 @@ impl Sidebar {
         app: Weak<App>,
     ) {
         let target = gtk::DropTarget::new(u32::static_type(), gdk::DragAction::MOVE);
-        // The gap for a pointer at `y`, and where to draw the line for it.
         let slot_at = |list: &gtk::ListBox, y: f64| {
             let rows = list.observe_children().n_items() as i32;
             let bounds = |i: i32| {
@@ -176,7 +165,6 @@ impl Sidebar {
             };
             (slot as usize, line.unwrap_or(0.0))
         };
-        // A drop in the dragged row's own gap, or the one after it, moves nothing.
         let moves = {
             let dragging = dragging.clone();
             move |slot: usize| dragging.get().is_some_and(|d| slot != d && slot != d + 1)
@@ -209,7 +197,6 @@ impl Sidebar {
                     return false;
                 }
                 let end = slot == list.observe_children().n_items() as usize;
-                // Deferred: reordering rebuilds the list mid-drop.
                 let app = app.clone();
                 glib::idle_add_local_once(move || {
                     if let Some(app) = app.upgrade() {
@@ -222,27 +209,21 @@ impl Sidebar {
         list.add_controller(target);
     }
 
-    /// Tooltips that show keys; they need the key map, which exists once the
-    /// actions are installed.
     pub(crate) fn set_hints(&self, app: &App) {
         self.add
             .set_tooltip_text(Some(&app.tip("Open Workspace", "app.open-workspace")));
         self.git.set_hint(&app.tip("Git", "app.focus-git"));
     }
 
-    /// Draw each section folded or open as the model says.
     pub(crate) fn apply_folds(&self, model: &Model) {
         let folds = model.folds;
         self.workspaces.show_fold(folds.workspaces);
         self.files.show_fold(folds.files);
         self.git.show_fold(folds.git);
-        // Open Files takes the free space; Workspaces and Git size to their
-        // content up to a cap. With Files folded the free space stays below.
         self.inner.set_resize_start_child(!folds.files);
         self.inner.set_resize_end_child(folds.files);
     }
 
-    /// Put back the sizes saved by the last run, and save again after each drag.
     pub(crate) fn restore_sizes(&self, workspaces: Option<f32>, files: Option<f32>) {
         for (paned, size) in [(&self.outer, workspaces), (&self.inner, files)] {
             if let Some(size) = size {
@@ -260,19 +241,16 @@ impl Sidebar {
         }
     }
 
-    /// The dragged sizes, `None` for a section that sizes to its content.
     pub(crate) fn sizes(&self) -> (Option<f32>, Option<f32>) {
         let size = |p: &gtk::Paned| p.is_position_set().then(|| p.position() as f32);
         (size(&self.outer), size(&self.inner))
     }
 
-    /// Forget dragged section sizes.
     pub(crate) fn reset_sizes(&self) {
         self.inner.set_property("position-set", false);
         self.outer.set_property("position-set", false);
     }
 
-    /// Rebuild the rows from the registry and select the active one.
     pub(crate) fn rebuild(&self, model: &Model) {
         self.apply_folds(model);
         let mut rows = self.rows.borrow_mut();
@@ -298,7 +276,6 @@ impl Sidebar {
             let id = rec.id;
             close.connect_clicked(move |_| {
                 let weak = weak.clone();
-                // Deferred: closing rebuilds the list that holds this button.
                 glib::idle_add_local_once(move || {
                     if let Some(app) = weak.upgrade() {
                         app.close_workspace_id(id);
@@ -325,7 +302,6 @@ impl Sidebar {
                 move |_, drag| {
                     dragging.set(Some(row.index().max(0) as usize));
                     row.add_css_class("xdragging");
-                    // The name, below and right of the pointer so the line stays clear.
                     let ghost = gtk::Label::new(Some(&name));
                     ghost.add_css_class("xdrag-ghost");
                     ghost.set_margin_start(14);
@@ -358,7 +334,6 @@ impl Sidebar {
         }
     }
 
-    /// Select the active row and mark it; paint each row's status.
     pub(crate) fn paint(&self, model: &Model, git: &GitHub) {
         let active = model.active();
         for r in self.rows.borrow().iter() {
@@ -395,7 +370,6 @@ impl Sidebar {
 }
 
 impl App {
-    /// Fold or unfold a sidebar section and remember it.
     pub(crate) fn set_fold(&self, fold: Fold, folded: bool) {
         {
             let mut model = self.model.borrow_mut();
@@ -405,7 +379,6 @@ impl App {
             model.folds.set(fold, folded);
             model.folds.save();
         }
-        // Folding drops any dragged size so a folded section shrinks to its header.
         self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
         if let Some(app) = self.sidebar.app.upgrade() {

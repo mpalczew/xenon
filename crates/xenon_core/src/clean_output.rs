@@ -1,7 +1,3 @@
-//! The cleaning rule behind Copy Clean: terminal text from an agent TUI with
-//! control sequences, box and quote gutters, status suffixes and hard wraps
-//! removed. No view owns it.
-
 mod bar_gutter;
 
 pub fn clean_agent_output(text: &str) -> String {
@@ -51,7 +47,6 @@ pub fn clean_agent_output(text: &str) -> String {
     lines.join("\n")
 }
 
-/// Return fenced code blocks, or cleaned text when the selection has no fence.
 pub fn extract_code(text: &str) -> String {
     let stripped = strip_terminal_control_sequences(text);
     let mut blocks = Vec::new();

@@ -1,5 +1,3 @@
-//! Measure a working tree by running git, and parse its porcelain output.
-
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;

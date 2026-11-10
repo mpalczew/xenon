@@ -37,7 +37,6 @@ fn starts_with_bar(line: &str) -> bool {
     line.trim_start().starts_with(BAR_GLYPHS)
 }
 
-/// Join consecutive text lines into paragraphs, except before list items.
 pub(super) fn mark_hard_wraps(lines: &mut [(String, bool)]) {
     for i in 0..lines.len().saturating_sub(1) {
         let next = lines[i + 1].0.trim_start();

@@ -1,8 +1,3 @@
-//! Task runs: the model behind Run Task. Each run owns a dependsOn
-//! `Orchestrator` (xenon_core) and the task terminals it launched; terminal
-//! signals advance it. Rules come from `xenon_core::tasks`; the picker, the
-//! input prompts and the folderOpen card are drawn in `tasks_ui.rs`.
-
 mod folder;
 mod place;
 
@@ -23,44 +18,32 @@ use xenon_remote::ConnId;
 use crate::app::App;
 use crate::model::TabKind;
 
-/// How a task terminal starts, instead of the shell.
 pub(crate) struct Spawn {
     pub cwd: PathBuf,
     pub argv: Vec<String>,
     pub env: Vec<String>,
 }
 
-/// Where a task terminal goes.
 pub(crate) struct Placement {
-    /// Always a new, revealed, focused tab (the picker's Ctrl+Return).
     force_new: bool,
-    /// Never move the user's tab or focus (folderOpen runs).
     quiet: bool,
 }
 
-/// Who starts a run and how it shows.
 #[derive(Default)]
 pub(crate) struct Start {
-    /// Run the root task in a new, revealed tab (the picker's Ctrl+Return).
     pub new_tab: bool,
-    /// Never move the tab or focus (folderOpen and phone runs).
     pub quiet: bool,
     pub origin: Option<ConnId>,
 }
 
-/// Everything a run needs once its inputs are known.
 pub(crate) struct RunPlan {
     ws: WorkspaceId,
     set: Arc<TaskSet>,
     folder: PathBuf,
     orch: Orchestrator,
     root: String,
-    /// Run the root task in a new tab of its own, revealed (the picker's Ctrl+Return).
     new_tab: bool,
-    /// Started by the app itself (folderOpen): never moves the tab or focus.
     quiet: bool,
-    /// The phone that started the run: it answers the questions and is told
-    /// which tab the run opened first.
     origin: Option<ConnId>,
     announced: bool,
     vars: RunVars,
@@ -68,15 +51,11 @@ pub(crate) struct RunPlan {
 
 struct Pending {
     plan: RunPlan,
-    /// Input ids still to ask, in order.
     ids: Vec<String>,
 }
 
 pub(crate) struct Launched {
-    /// A background task counts as done once launched: its dependents start
-    /// then, and its exit no longer fails the run.
     background: bool,
-    /// The process ended.
     done: bool,
 }
 
@@ -86,7 +65,6 @@ pub(crate) struct ActiveRun {
     launched: BTreeMap<String, Launched>,
 }
 
-/// What folderOpen approval is being asked.
 pub(crate) struct TrustPrompt {
     ws: WorkspaceId,
     folder: PathBuf,
@@ -98,15 +76,12 @@ pub(crate) struct Tasks {
     runs: RefCell<Vec<ActiveRun>>,
     next: Cell<u64>,
     pending: RefCell<Option<Pending>>,
-    /// Task tabs: the run and task label that own them.
     owners: RefCell<HashMap<(WorkspaceId, TabId), (u64, String)>>,
-    /// Terminal tabs that start a task instead of a shell.
     spawns: RefCell<HashMap<(WorkspaceId, TabId), Spawn>>,
     shared: RefCell<HashMap<WorkspaceId, TabId>>,
     dedicated: RefCell<HashMap<(WorkspaceId, String), TabId>>,
     folder_checked: RefCell<HashSet<WorkspaceId>>,
     trust: RefCell<Option<TrustPrompt>>,
-    /// The question a phone has been asked: its token and connection.
     pub(crate) phone_ask: RefCell<Option<(u64, ConnId)>>,
     pub(crate) next_token: Cell<u64>,
 }
@@ -122,12 +97,10 @@ impl Tasks {
 }
 
 impl App {
-    /// A failure as a toast: the title, then what went wrong.
     pub(crate) fn toast_failed(&self, title: &str, detail: &str) {
         self.toast(&format!("{title} \u{2014} {detail}"));
     }
 
-    /// Load `.vscode/tasks.json` for a workspace.
     pub(crate) fn load_workspace_tasks(&self, ws: WorkspaceId) -> Result<LoadedTasks, String> {
         let model = self.model.borrow();
         let rec = model.rec(ws).ok_or("that workspace is gone")?;
@@ -139,8 +112,6 @@ impl App {
         self.toast_failed(title, detail);
     }
 
-    /// Ctrl+Shift+B: the default build task; else the only build task; else
-    /// the picker.
     pub(crate) fn run_build_task(self: &Rc<Self>) {
         let Some(ws) = self.model.borrow().active() else {
             self.no_workspace_toast();
@@ -163,7 +134,6 @@ impl App {
         }
     }
 
-    /// Start a task from the user, toasting a failure to even start.
     pub(crate) fn run_task_checked(self: &Rc<Self>, ws: WorkspaceId, label: String, new_tab: bool) {
         if let Err(error) = self.start_task(
             ws,
@@ -177,7 +147,6 @@ impl App {
         }
     }
 
-    /// Plan a run and ask for its inputs, or launch straight away.
     pub(super) fn start_task(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -212,7 +181,6 @@ impl App {
         Ok(())
     }
 
-    /// Active editor's file, cursor line, and selection.
     fn editor_info(&self, ws: WorkspaceId) -> Option<EditorInfo> {
         let tab = {
             let model = self.model.borrow();
@@ -236,7 +204,6 @@ impl App {
         })
     }
 
-    /// Ask the first unanswered input, or launch when none remain.
     fn ask_next_input(self: &Rc<Self>) {
         let question = {
             let pending = self.tasks.pending.borrow();
@@ -271,8 +238,6 @@ impl App {
         }
     }
 
-    /// An answer (`Some`) or a cancel (`None`, which ends the run) for the
-    /// pending question.
     pub(crate) fn answer_task_input(self: &Rc<Self>, value: Option<String>) {
         {
             let mut pending = self.tasks.pending.borrow_mut();
@@ -295,7 +260,6 @@ impl App {
         runs.iter_mut().find(|r| r.id == id).map(f)
     }
 
-    /// Inputs are collected; plan the terminals.
     fn launch_plan(self: &Rc<Self>, plan: RunPlan) {
         let id = self.tasks.next.get() + 1;
         self.tasks.next.set(id);
@@ -339,7 +303,6 @@ impl App {
         self.finish_if_done(run_id);
     }
 
-    /// True for a background task, which is satisfied as soon as it is launched.
     fn launch_one(self: &Rc<Self>, run_id: u64, label: &str) -> Result<bool, String> {
         let (resolved, ws, force_new, quiet) = self
             .with_run(run_id, |run| {
@@ -410,7 +373,6 @@ impl App {
     }
 }
 
-/// Xenon settings as `${config:key}` values.
 fn settings_config() -> BTreeMap<String, String> {
     xenon_store::load_settings()
         .ok()

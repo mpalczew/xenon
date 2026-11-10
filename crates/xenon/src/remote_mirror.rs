@@ -1,12 +1,3 @@
-//! Mirror one VTE terminal to a phone.
-//!
-//! Costs nothing until a phone attaches: the `contents-changed` handler exists
-//! only while one is watching. Each burst of changes is coalesced into at most
-//! one dump per `GAP` (about 30 a second); the dump is VTE's visible screen as
-//! HTML, which a worker thread parses, diffs against what the phone has, and
-//! queues. The GTK thread does only the dump, so a slow phone link or a big
-//! screen never holds up typing.
-
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
@@ -19,16 +10,12 @@ use xenon_remote::{CursorShapeWire, CursorWire, FrameEncoder, LinkRun, Outbox, R
 
 use crate::term::ScrollRows;
 
-/// Shortest time between dumps; the phone sees at most ~30 frames a second.
 const GAP: Duration = Duration::from_millis(33);
-/// Same, when the phone asked for low bandwidth.
 const LOW_GAP: Duration = Duration::from_millis(100);
-/// Try again after a full outbox (slow phone link).
 const RETRY_AFTER: Duration = Duration::from_millis(250);
 
 enum Job {
     Frame(VteSnapshot),
-    /// Send everything again (new colors, new size).
     Full,
 }
 
@@ -37,7 +24,6 @@ struct Shared {
     pending: Cell<bool>,
     last: Cell<Instant>,
     gap: Cell<Duration>,
-    /// Default foreground and background the phone page uses.
     colors: Cell<(Rgb, Rgb)>,
     jobs: Sender<Job>,
 }
@@ -46,7 +32,6 @@ pub(crate) struct Mirror {
     shared: Rc<Shared>,
     term: vte::Terminal,
     handler: Option<glib::SignalHandlerId>,
-    /// Scrolling moves the viewport without changing the contents.
     scroll: Option<(gtk::Adjustment, glib::SignalHandlerId)>,
 }
 
@@ -92,7 +77,6 @@ impl Mirror {
         }
     }
 
-    /// Dump the screen soon (after a resize, say).
     pub(crate) fn poke(&self) {
         self.shared.poke();
     }
@@ -101,7 +85,6 @@ impl Mirror {
         self.shared.gap.set(if on { LOW_GAP } else { GAP });
     }
 
-    /// New default colors: resend every row.
     pub(crate) fn set_colors(&self, colors: (Rgb, Rgb)) {
         self.shared.colors.set(colors);
         let _ = self.shared.jobs.send(Job::Full);
@@ -121,7 +104,6 @@ impl Drop for Mirror {
 }
 
 impl Shared {
-    /// One dump per quiet gap, however many change signals arrive.
     fn poke(self: &Rc<Self>) {
         if self.pending.replace(true) {
             return;
@@ -140,8 +122,6 @@ impl Shared {
     }
 }
 
-/// The visible screen, its size, the cursor in viewport rows, and whether the
-/// viewport is scrolled back.
 fn capture(term: &vte::Terminal, (default_fg, default_bg): (Rgb, Rgb)) -> VteSnapshot {
     let cols = term.column_count().clamp(1, i64::from(u16::MAX)) as u16;
     let rows = term.row_count().clamp(1, i64::from(u16::MAX)) as u16;
@@ -217,7 +197,6 @@ fn hyperlinks(term: &vte::Terminal, cols: u16, rows: u16) -> Vec<LinkRun> {
     runs
 }
 
-/// Worker: parse, diff, and queue. Blocks while nothing changes.
 fn run(jobs: &Receiver<Job>, out: &Outbox) {
     let mut encoder = FrameEncoder::default();
     let mut last: Option<VteSnapshot> = None;

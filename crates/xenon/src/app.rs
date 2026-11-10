@@ -1,7 +1,3 @@
-//! The app object: widgets plus the model, and the one `sync` that makes the
-//! widgets match the model. Commands live in `commands.rs`, terminal signals in
-//! `events.rs`.
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -22,12 +18,10 @@ use crate::pane::PaneView;
 use crate::sidebar::Sidebar;
 use crate::term::TermView;
 
-/// Widgets of one workspace: its root holder and its panes.
 pub(crate) struct Slot {
     pub holder: gtk::Box,
     pub panes: HashMap<PaneId, Rc<PaneView>>,
     pub shape: String,
-    /// True while we set divider positions ourselves.
     pub busy: Rc<Cell<bool>>,
 }
 
@@ -36,7 +30,6 @@ pub(crate) struct App {
     pub win: adw::ApplicationWindow,
     pub model: RefCell<Model>,
     pub settings: RefCell<UiSettings>,
-    /// Terminal face that exists on this machine (the saved one may not).
     pub mono: RefCell<String>,
     pub css: gtk::CssProvider,
     pub sidebar: Sidebar,
@@ -48,29 +41,19 @@ pub(crate) struct App {
     pub terms: RefCell<HashMap<(WorkspaceId, TabId), Rc<TermView>>>,
     pub bodies: RefCell<HashMap<(WorkspaceId, TabId), gtk::Widget>>,
     pub launcher: Rc<Launcher>,
-    /// Most recently opened files per workspace (relative paths, newest first).
     pub recents: RefCell<HashMap<WorkspaceId, Vec<std::path::PathBuf>>>,
-    /// Last file index built per workspace, so the finder opens with results.
     pub file_indexes: RefCell<HashMap<WorkspaceId, std::sync::Arc<xenon_finder::FileIndex>>>,
     pub editors: RefCell<HashMap<(WorkspaceId, TabId), Rc<EditorView>>>,
-    /// Image tabs: the monitor that reloads the picture.
     pub images: RefCell<HashMap<(WorkspaceId, TabId), gtk::gio::FileMonitor>>,
     pub diffs: RefCell<HashMap<(WorkspaceId, TabId), Rc<DiffView>>>,
     pub git: GitHub,
     pub pulse_source: RefCell<Option<glib::SourceId>>,
-    /// Last pulse step drawn; -1 after a repaint reset the rails.
     pub pulse_level: Cell<i32>,
     pub started: Instant,
-    /// True while `sync` changes the tab views, so their signals stay silent.
     pub tab_sync: Cell<bool>,
-    /// An idle `tab_transfer_done` is queued (every view in the group reports
-    /// the end of a drag; one run is enough).
     pub transfer_queued: Cell<bool>,
-    /// This drag ended off every bar (on a pane body, or nowhere), so the bar
-    /// did not place the page and view order must not be read back.
     pub off_bar: Cell<bool>,
     pub save_pending: Cell<bool>,
-    /// Header Save button; shown while the active editor has unsaved changes.
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
     pub tasks: crate::tasks::Tasks,
@@ -79,8 +62,6 @@ pub(crate) struct App {
 }
 
 impl App {
-    /// Bring the widgets of `ws` in line with its model: terminals, panes,
-    /// tabs, and the split layout.
     pub(crate) fn sync(self: &Rc<Self>, ws: WorkspaceId) {
         let Some(content) = self
             .model
@@ -167,7 +148,6 @@ impl App {
         );
     }
 
-    /// Create bodies for new tabs and drop the ones whose tab is gone.
     fn sync_bodies(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -270,7 +250,6 @@ impl App {
         view.restyle(&family, size, crate::theme::dark());
     }
 
-    /// The full path a tab stands for: its file, or a terminal's folder.
     fn tab_full_path(
         &self,
         model: &Model,
@@ -290,7 +269,6 @@ impl App {
         }
     }
 
-    /// Everything that shows status or selection, repainted from the model.
     pub(crate) fn paint_all(self: &Rc<Self>) {
         let model = self.model.borrow();
         self.sidebar.paint(&model, &self.git);
@@ -353,7 +331,6 @@ impl App {
     }
 }
 
-/// Label of the focused pane's active tab, for the header subtitle.
 pub(crate) fn space_label(model: &crate::model::Model, ws: WorkspaceId) -> String {
     model
         .spaces

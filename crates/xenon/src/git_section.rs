@@ -1,8 +1,3 @@
-//! The Git section of the sidebar: branch and count in the header, one row per
-//! changed file (status badges, colored name, muted folder, five-cell change
-//! bar), or just the header with Clean when there are none. Rows come from `xenon_git`'s status; this
-//! file only makes widgets and moves the keyboard.
-
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -17,8 +12,6 @@ use crate::model::Fold;
 use crate::pane::focus_inside;
 use crate::sidebar_ui::{Row, Section};
 
-/// Rows drawn at most; a repo with more changes shows the first ones and a
-/// note, so a huge dirty tree cannot make the sidebar slow.
 const MAX_ROWS: usize = 400;
 
 pub(crate) struct GitView {
@@ -32,9 +25,7 @@ pub(crate) struct GitView {
     ws: Cell<Option<WorkspaceId>>,
     status: RefCell<Option<GitStatus>>,
     shown: RefCell<Option<String>>,
-    /// Workspace folder, for the full paths in row hints.
     dir: RefCell<std::path::PathBuf>,
-    /// Files in row order (the rows may be capped).
     files: RefCell<Vec<GitFile>>,
 }
 
@@ -120,7 +111,6 @@ impl GitView {
         self.root.add_controller(keys);
     }
 
-    /// Draw the fold the model decided.
     pub(crate) fn show_fold(&self, collapsed: bool) {
         self.section.show_fold(collapsed);
     }
@@ -132,8 +122,6 @@ impl GitView {
         }
     }
 
-    /// Show the status of workspace `ws` (nothing when it is not a git
-    /// folder). `shown` is the file whose diff tab is on screen.
     pub(crate) fn set(
         &self,
         ws: Option<WorkspaceId>,
@@ -240,7 +228,6 @@ impl GitView {
         focus_inside(&self.root)
     }
 
-    /// Put the cursor in the section, opening it first.
     pub(crate) fn focus(&self) {
         self.root.set_visible(self.status.borrow().is_some());
         if let Some(app) = self.app.upgrade() {
@@ -255,7 +242,6 @@ impl GitView {
         }
     }
 
-    /// Fold the section away (the second press of the focus chord).
     pub(crate) fn fold(&self) {
         if let Some(app) = self.app.upgrade() {
             app.set_fold(Fold::Git, true);

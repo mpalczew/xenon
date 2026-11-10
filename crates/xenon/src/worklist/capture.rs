@@ -1,5 +1,3 @@
-//! The capture dialog: one item's title, points and check box, saved as you type.
-
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
@@ -14,7 +12,6 @@ use xenon_store::worklist::{
 use super::fields::{text_of, title_view};
 use crate::app::App;
 
-/// Characters left at which the countdown appears.
 const NEAR_LIMIT: isize = 12;
 
 const MARGINS: [fn(&gtk::Widget, i32); 4] = [
@@ -24,7 +21,6 @@ const MARGINS: [fn(&gtk::Widget, i32); 4] = [
     gtk::Widget::set_margin_end,
 ];
 
-/// The button row at the end of `body`: Delete (when editing) and Save.
 fn buttons(body: &gtk::Box, editing: bool) -> (gtk::Button, gtk::Button) {
     let delete = gtk::Button::with_label("Delete");
     delete.add_css_class("destructive-action");
@@ -41,7 +37,6 @@ fn buttons(body: &gtk::Box, editing: bool) -> (gtk::Button, gtk::Button) {
     (delete, save)
 }
 
-/// The points field in a framed scroller, appended to `body`.
 fn points_view(body: &gtk::Box) -> gtk::TextView {
     let details = gtk::TextView::new();
     details.set_wrap_mode(gtk::WrapMode::WordChar);
@@ -57,7 +52,6 @@ fn points_view(body: &gtk::Box) -> gtk::TextView {
     details
 }
 
-/// Fill the form from an existing item; the draft that tracks it in the file.
 fn prefill(
     entry: &Entry,
     source: &str,
@@ -73,7 +67,6 @@ fn prefill(
     ItemDraft::existing(source, entry.range.clone(), done)
 }
 
-/// One open capture dialog.
 pub(super) struct Capture {
     app: Weak<App>,
     ws: WorkspaceId,
@@ -91,12 +84,9 @@ pub(super) struct Capture {
     next: gtk::Button,
     targets: Vec<Target>,
     selected: Cell<usize>,
-    /// A task has a check box; a note does not.
     task: bool,
-    /// Editing an existing item rather than adding one.
     editing: bool,
     draft: RefCell<ItemDraft>,
-    /// The item and done state as last written.
     landed: RefCell<Option<(WorkItem, bool)>>,
     discarded: Cell<bool>,
 }
@@ -246,7 +236,6 @@ impl Capture {
         // sync: `changed` defers its work.
         self.check.connect_toggled(move |_| changed());
 
-        // Return in the title goes on to the points.
         let details = self.details.clone();
         let enter = gtk::EventControllerKey::new();
         enter.connect_key_pressed(move |_, key, _, state| {
@@ -272,7 +261,6 @@ impl Capture {
             });
         }
 
-        // Alt+Up/Down section, Ctrl+Backspace delete, Ctrl+Return close.
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let weak = Rc::downgrade(self);
@@ -317,7 +305,6 @@ impl Capture {
             .unwrap_or_default()
     }
 
-    /// Once saved, the item stays where it landed; moving it is a Markdown edit.
     fn locked(&self) -> bool {
         self.draft.borrow().is_saved()
     }
@@ -326,7 +313,6 @@ impl Capture {
         text_of(&self.details)
     }
 
-    /// The title on one line; pasted line breaks become spaces.
     fn title_text(&self) -> String {
         text_of(&self.title).replace(['\n', '\r'], " ")
     }
@@ -346,7 +332,6 @@ impl Capture {
         (!unchanged).then_some(item)
     }
 
-    /// True when nothing typed is waiting to be written.
     fn settled(&self) -> bool {
         let typed = !self.title_text().trim().is_empty() || !self.details_text().trim().is_empty();
         !typed || (self.item().is_ok() && self.pending().is_none())
@@ -388,7 +373,6 @@ impl Capture {
         }
     }
 
-    /// Countdown near the soft title limit, and a note once past it.
     fn update_length(&self, length: &gtk::Box) {
         let left = TITLE_LIMIT as isize - title_length(self.title_text().trim()) as isize;
         length.set_visible(left <= NEAR_LIMIT);
@@ -408,7 +392,6 @@ impl Capture {
         self.note.set_text(note);
     }
 
-    /// "Into ‹ Section ›": cycles with Alt+Up/Down or the arrows.
     fn cycle(&self, delta: isize) {
         let count = self.targets.len() as isize;
         if count < 2 || self.locked() {
@@ -437,7 +420,6 @@ impl Capture {
         });
     }
 
-    /// Ctrl+Backspace: drop the item and close.
     fn discard(&self) {
         self.discarded.set(true);
         let before = read_source(&self.root);
@@ -457,7 +439,6 @@ impl Capture {
         self.dialog.close();
     }
 
-    /// A fully saved item gets an Undo notice.
     fn closed(&self) {
         let Some(app) = self.app.upgrade() else {
             return;

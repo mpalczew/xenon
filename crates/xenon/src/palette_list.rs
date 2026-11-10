@@ -1,13 +1,8 @@
-//! The palette's result list: a store of `PaletteRow`s shown by a
-//! `GtkListView` with the stock `navigation-sidebar` look; rows draw the title
-//! (matched letters in bold), detail and badge.
-
 use adw::prelude::*;
 use gtk::{gio, glib};
 
 use crate::palette::PaletteRow;
 
-/// `text` as Pango markup with the matched letters bold.
 pub(crate) fn markup(text: &str, hits: &[u32]) -> String {
     let mut out = String::new();
     let mut open = false;
@@ -32,7 +27,6 @@ fn label(classes: &[&str], xalign: f32) -> gtk::Label {
     label
 }
 
-/// The result list: a store of `PaletteRow`s and the selection over it.
 pub(crate) fn row_list() -> (gio::ListStore, gtk::SingleSelection, gtk::ListView) {
     let store = gio::ListStore::new::<glib::BoxedAnyObject>();
     let selection = gtk::SingleSelection::new(Some(store.clone()));

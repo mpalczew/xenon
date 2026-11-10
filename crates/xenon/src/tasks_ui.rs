@@ -1,7 +1,3 @@
-//! What a task run shows: the Run Task picker, the `inputs` prompts, and the
-//! folderOpen consent card. The picker and prompts are the palette shell
-//! (`palette.rs`); the rules and texts are `xenon_core::tasks`.
-
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
@@ -13,7 +9,6 @@ use xenon_core::tasks::{self as shared, QuestionKind, TaskQuestion, TaskRow};
 use crate::app::App;
 use crate::palette::{Handlers, Options, PaletteRow};
 
-/// Indexes of `labels` that match `query`, best first, with the matched letters.
 fn fuzzy(labels: &[String], query: &str) -> Vec<(usize, Vec<u32>)> {
     if query.is_empty() {
         return (0..labels.len()).map(|i| (i, Vec::new())).collect();
@@ -38,8 +33,6 @@ fn fuzzy(labels: &[String], query: &str) -> Vec<(usize, Vec<u32>)> {
 }
 
 impl App {
-    /// Ctrl+Shift+R: fuzzy-pick a task of the workspace. Enter runs it per its
-    /// presentation; Ctrl+Enter runs it in a new tab of its own.
     pub(crate) fn open_task_picker(self: &Rc<Self>) {
         let Some(ws) = self.model.borrow().active() else {
             self.no_workspace_toast();
@@ -115,8 +108,6 @@ impl App {
         );
     }
 
-    /// Ask one `inputs` entry: a text field (hidden for a password) or a
-    /// filtered pick list. Enter answers, Escape cancels the whole run.
     pub(crate) fn show_input_prompt(self: &Rc<Self>, question: TaskQuestion) {
         let (weak_a, weak_d, weak_q) = (
             Rc::downgrade(self),
@@ -173,7 +164,6 @@ impl App {
                             }
                         })
                         .collect();
-                    // Opening selects the default choice, as the field is empty.
                     let at = default.as_ref().filter(|_| query.is_empty()).and_then(|d| {
                         found
                             .iter()
@@ -207,8 +197,6 @@ impl App {
     }
 }
 
-/// The folderOpen consent card: a corner card that never takes focus or
-/// Escape. Its two keys work from anywhere while it shows.
 pub(crate) struct TrustCard {
     pub root: gtk::Box,
     title: gtk::Label,

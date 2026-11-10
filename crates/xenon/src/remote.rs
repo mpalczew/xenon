@@ -1,17 +1,3 @@
-//! The phone remote in the GTK app: server lifecycle and the status snapshot.
-//! Requests are in `remote_host.rs`, sessions in `remote_session.rs`, terminal
-//! mirroring in `remote_mirror.rs`, phone fit in `remote_fit.rs`.
-//!
-//! One server per machine: the port is the saved `remote_port`
-//! (default 17890), so paired phones need no re-pairing. When the other Xenon
-//! holds it, this one stays quiet ("served by the other Xenon") and tries
-//! again every few seconds, never touching the other server.
-//!
-//! Idle cost: nothing runs while the remote is off. While on, there is one
-//! network re-probe every 30 s and, when waiting for the port, one retry every
-//! 5 s. A connected phone adds no timers; a terminal is mirrored only while a
-//! phone is attached to it.
-
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -30,9 +16,7 @@ use crate::remote_session::Conn;
 const PORT_RETRY: Duration = Duration::from_secs(5);
 const NETWORK_EVERY: Duration = Duration::from_secs(30);
 
-/// Everything alive while the server is up.
 pub(crate) struct Runtime {
-    /// Held for its `Drop`, which stops listening.
     _server: RemoteServer,
     pub port: u16,
     pub reach: Reachability,
@@ -48,7 +32,6 @@ pub(crate) struct Remote {
     wait: RefCell<Option<glib::SourceId>>,
     wait_logged: Cell<bool>,
     pub fits: RefCell<HashMap<(WorkspaceId, TabId), TabFit>>,
-    /// Told after every status change (the Settings page redraws from it).
     pub on_change: RefCell<Option<Rc<dyn Fn()>>>,
     pub connect_dialog: RefCell<Option<adw::Dialog>>,
 }
@@ -86,7 +69,6 @@ pub(crate) fn effective_port() -> u16 {
 }
 
 impl App {
-    /// Start at launch when it was left on last time.
     pub(crate) fn remote_boot(self: &Rc<Self>) {
         if xenon_store::load_settings()
             .unwrap_or_default()
@@ -97,7 +79,6 @@ impl App {
         self.remote_publish();
     }
 
-    /// Menu, palette or Settings switch. Remembers the choice for next launch.
     pub(crate) fn remote_toggle(self: &Rc<Self>) {
         if self.remote.running() || self.remote.waiting() {
             self.remote_stop();
@@ -191,8 +172,6 @@ impl App {
         self.remote_publish();
     }
 
-    /// The other Xenon holds the port: look again in a few seconds. Quiet, and
-    /// never bind a different port: paired phones know this one.
     fn remote_wait_for_port(self: &Rc<Self>) {
         if self.remote.waiting() {
             return;
@@ -209,7 +188,6 @@ impl App {
         *self.remote.wait.borrow_mut() = Some(id);
     }
 
-    /// Tailscale came up or changed address: rebind so the phone can connect.
     fn remote_reprobe(self: &Rc<Self>) {
         let changed =
             self.remote.rt.borrow().as_ref().is_some_and(|rt| {
@@ -222,7 +200,6 @@ impl App {
         }
     }
 
-    /// MagicDNS and computer names come from subprocesses: off the UI thread.
     fn remote_names(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
@@ -276,7 +253,6 @@ impl App {
         status
     }
 
-    /// Recompute the status and tell everything that shows it.
     pub(crate) fn remote_publish(self: &Rc<Self>) {
         let status = self.remote_status();
         let hold = xenon_remote::should_hold(status.enabled, status.keep_awake, status.connected);

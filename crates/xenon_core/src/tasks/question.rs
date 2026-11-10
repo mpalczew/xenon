@@ -1,8 +1,5 @@
-//! The question an `inputs` entry asks.
-
 use super::model::{InputDef, InputKind, PickOption};
 
-/// What to ask for one `inputs` entry.
 #[derive(Clone, Debug)]
 pub struct TaskQuestion {
     pub id: String,

@@ -1,5 +1,3 @@
-//! Opaque identifiers for workspaces (UUID v4, serialized as strings).
-
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

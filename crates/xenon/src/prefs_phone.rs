@@ -1,7 +1,3 @@
-//! Settings > Phone Remote: on or off, keep-awake, address override, port,
-//! pairing, and the paired devices (revoke one or all). The wording and the
-//! status come from `xenon_remote`; the rows redraw when the status changes.
-
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -10,7 +6,6 @@ use xenon_remote::{DeviceBook, DeviceRow, RemoteStatus, ago};
 
 use crate::app::App;
 
-/// The line under the switch while the remote is off.
 fn off_hint(app: &App) -> String {
     match app.chord("app.connect-phone") {
         Some(chord) => format!("Off \u{2014} {chord} connects a phone"),
@@ -18,14 +13,12 @@ fn off_hint(app: &App) -> String {
     }
 }
 
-/// Rows that change with the status; the device group is rebuilt.
 struct Live {
     on: adw::SwitchRow,
     keep: adw::SwitchRow,
     hostname: adw::EntryRow,
     devices: adw::PreferencesGroup,
     device_rows: RefCell<Vec<gtk::Widget>>,
-    /// True while we set a switch ourselves.
     setting: Cell<bool>,
 }
 
@@ -100,7 +93,6 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
     page
 }
 
-/// Hook the rows up to the app: toggles, hostname, Connect, and redraw on change.
 fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
     let (on, keep, hostname) = (live.on.clone(), live.keep.clone(), live.hostname.clone());
     let weak = Rc::downgrade(app);
@@ -178,7 +170,6 @@ fn dim(text: &str) -> gtk::Label {
     label
 }
 
-/// Bring the switches and the device list in line with `status`.
 fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
     live.setting.set(true);
     live.on.set_active(status.enabled || status.waiting);
@@ -249,7 +240,6 @@ fn device_row(app: &Rc<App>, device: &DeviceRow) -> gtk::Widget {
 }
 
 impl App {
-    /// Forget one device (or all) on disk and close their live sessions.
     pub(crate) fn remote_revoke(self: &Rc<Self>, id: Option<&str>) {
         let mut book = self
             .remote

@@ -1,6 +1,3 @@
-//! Images the phone attaches for the agent. Saved under one directory with
-//! server-chosen names; anything older than a week is pruned on each save.
-
 use std::fs;
 use std::io;
 use std::net::TcpStream;
@@ -12,7 +9,6 @@ use anyhow::Result;
 use crate::http;
 use crate::server::{self, Request, Shared};
 
-/// Largest image accepted (full-resolution iPhone photos fit).
 pub(crate) const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 const KEEP: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
@@ -57,7 +53,6 @@ pub(crate) fn extension(content_type: &str) -> Option<&'static str> {
     }
 }
 
-/// Write `bytes` to a fresh file in `dir` and return its path.
 pub(crate) fn save(dir: &Path, ext: &str, bytes: &[u8]) -> io::Result<PathBuf> {
     fs::create_dir_all(dir)?;
     prune(dir, SystemTime::now());

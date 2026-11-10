@@ -1,17 +1,11 @@
-//! What the phone's lists show: workspaces (open, then recent) with the same
-//! status dots as the sidebar. Both frontends pass in what only they know
-//! (status and terminal count of an open workspace).
-
 use std::path::Path;
 
 use xenon_core::{Registry, WorkspaceDot, WorkspaceId};
 
 use crate::protocol::{Dot, WorkspaceInfo};
 
-/// Closed workspaces offered under "Recent".
 const RECENT_LIMIT: usize = 20;
 
-/// The sidebar pip as the phone draws it.
 pub fn wire_dot(dot: WorkspaceDot) -> Dot {
     match dot {
         WorkspaceDot::Working => Dot::Working,
@@ -52,13 +46,11 @@ pub fn list_workspaces(
     open.chain(recent).collect()
 }
 
-/// A workspace id as the phone sends it back.
 pub fn parse_workspace_id(s: &str) -> Result<WorkspaceId, String> {
     serde_json::from_value(serde_json::Value::String(s.to_string()))
         .map_err(|_| "invalid workspace id".to_string())
 }
 
-/// `$HOME` shown as `~`.
 pub fn tilde(path: &Path) -> String {
     let path = path.display().to_string();
     std::env::var("HOME")

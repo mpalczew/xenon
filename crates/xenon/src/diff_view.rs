@@ -1,9 +1,3 @@
-//! The diff tab: one file, HEAD against the working tree (or against the
-//! index when the two match), read only. `diff_text` loads the texts off the
-//! main thread and computes the lines of each side with `similar`; this file
-//! puts them in read-only GtkSourceViews (one for unified, two for split that
-//! share a vertical adjustment).
-
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
@@ -24,9 +18,7 @@ mod paint;
 
 pub(crate) struct DiffView {
     pub root: gtk::Box,
-    /// Holds the one or two panes.
     body: gtk::Box,
-    /// Shared by the panes, so they scroll together.
     vadj: gtk::Adjustment,
     path_label: gtk::Label,
     sub_label: gtk::Label,
@@ -44,18 +36,14 @@ pub(crate) struct DiffView {
     mode: Cell<LayoutMode>,
     layout: Cell<Layout>,
     doc: RefCell<Option<Arc<Doc>>>,
-    /// Header line and editor target line of each hunk.
     hunks: RefCell<Vec<(i32, u32)>>,
     current: Cell<usize>,
     line_h: Cell<f64>,
     views: RefCell<Vec<sourceview::View>>,
-    /// Bumped per load, so an older read that finishes late is dropped.
     epoch: Cell<u64>,
-    /// True while we flip the toggle buttons ourselves.
     busy: Cell<bool>,
 }
 
-/// The Auto / Split / Unified buttons and the Read-only pill.
 fn mode_buttons() -> (gtk::Box, Vec<(LayoutMode, gtk::ToggleButton)>, gtk::Box) {
     let modes_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     modes_box.add_css_class("linked");
@@ -202,7 +190,6 @@ impl DiffView {
                 }
             });
         }
-        // Auto layout follows the width of the pane area.
         let weak = Rc::downgrade(self);
         self.body.add_tick_callback(move |_, _| {
             if let Some(this) = weak.upgrade()
@@ -241,7 +228,6 @@ impl DiffView {
         self.body.add_controller(keys);
     }
 
-    /// A diff command by name (from the keys).
     pub(crate) fn key(self: &Rc<Self>, name: &str) {
         let adj = &self.vadj;
         match name {
@@ -295,8 +281,6 @@ impl DiffView {
         self.mode.get().resolve(self.body.width() as f32)
     }
 
-    /// Read the diff again, off the main thread. `file` is a fresher status
-    /// entry when the caller has one.
     pub(crate) fn reload(self: &Rc<Self>, file: Option<GitFile>) {
         if let Some(file) = file {
             *self.file.borrow_mut() = file;
@@ -318,7 +302,6 @@ impl DiffView {
         });
     }
 
-    /// Draw the document again (new doc, layout, or theme), keeping the place.
     pub(crate) fn rebuild(self: &Rc<Self>) {
         let Some(doc) = self.doc.borrow().clone() else {
             return;

@@ -1,8 +1,5 @@
-//! Shared N-ary split invariants for saved and live pane trees.
-
 use crate::content::{MIN_SIZE, PaneNode, SplitAxis};
 
-/// A tree whose splits can be flattened by [`flatten_split`].
 pub(crate) trait SplitTree: Sized {
     /// `self`'s children and sizes when it is a split on `axis`; else `self`.
     fn into_axis_parts(self, axis: SplitAxis) -> Result<(Vec<Self>, Vec<f32>), Self>;

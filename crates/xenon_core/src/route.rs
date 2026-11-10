@@ -1,11 +1,8 @@
-//! Where a CLI or agent file open lands.
-
 use std::path::{Path, PathBuf};
 
 use crate::{Registry, WorkspaceId};
 
 impl Registry {
-    /// Longest open workspace root that is a prefix of `path`.
     pub(crate) fn workspace_for_path(&self, path: &Path) -> Option<WorkspaceId> {
         let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         let mut best: Option<(usize, WorkspaceId)> = None;
@@ -21,7 +18,6 @@ impl Registry {
         best.map(|(_, id)| id)
     }
 
-    /// The workspace a user or agent named: its id, its name, or its root path.
     pub fn find_workspace(&self, key: &str) -> Option<WorkspaceId> {
         let by = |hit: &dyn Fn(&crate::WorkspaceRec) -> bool| {
             self.workspaces.iter().find(|r| hit(r)).map(|r| r.id)
@@ -54,13 +50,9 @@ impl Registry {
     }
 }
 
-/// Where a CLI/agent file open goes; see [`Registry::route_file`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileRoute {
-    /// An open workspace whose root contains the file: focus it.
     Workspace(WorkspaceId),
-    /// Stay in the current workspace.
     Current,
-    /// No workspace at all: register this folder as one.
     NewWorkspace(PathBuf),
 }

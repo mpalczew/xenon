@@ -1,5 +1,3 @@
-//! The rows of the Git section: one per changed file, a Clean row, a note row.
-
 use xenon_git::bar::{BarCell, change_bar};
 use xenon_git::status::{ChangeKind, GitFile};
 
@@ -7,7 +5,6 @@ use gtk::prelude::*;
 
 use crate::sidebar_ui::{Row, struck};
 
-/// The stock color class for a kind of change.
 fn kind_class(kind: ChangeKind) -> &'static str {
     match kind {
         ChangeKind::Modified => "warning",
@@ -50,7 +47,6 @@ pub(super) fn make_row(file: &GitFile, root: &std::path::Path) -> gtk::ListBoxRo
     row
 }
 
-/// A row that only says something: not selectable, not activatable.
 fn note_row(row: &Row) -> gtk::ListBoxRow {
     let widget = gtk::ListBoxRow::new();
     widget.set_child(Some(&row.root));

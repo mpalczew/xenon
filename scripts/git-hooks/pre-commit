@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# Checks the staged snapshot in a private tree; never touches the working tree,
-# index, or stash. The per-commit gate; scripts/health is the full run (CI).
-# Own target dir (target/precommit): sharing target/ with the real tree serves stale
-# artifacts, since path crates hash relative to the workspace root.
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
-# .claude may hold only the skills symlink (shared harness setup).
 bad="$(git ls-files .claude | rg -vx '\.claude/skills' || true)"
 if [ -e "$root/.claude/skills" ] || [ -L "$root/.claude/skills" ]; then
     [ "$(readlink "$root/.claude/skills")" = "../.agents/skills" ] || bad="$bad .claude/skills"
@@ -29,10 +24,8 @@ until mkdir "$lock" 2>/dev/null; do
 done
 trap 'rm -rf "$snapshot"; rmdir "$lock"' EXIT
 
-# Honors GIT_INDEX_FILE, so `git commit -- <paths>` checks the real commit content.
 git checkout-index -a --prefix="$snapshot/"
 mkdir -p "$work"
-# Sync by content so unchanged files keep their mtimes and cargo stays incremental.
 rsync -a --checksum --delete "$snapshot/" "$work/"
 
 # shellcheck source=../lib/checks.sh

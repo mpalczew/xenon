@@ -1,14 +1,8 @@
-//! Machine facts from the OS: the computer's name, its MagicDNS name, and its
-//! interface addresses. The first two spawn processes: call them off the UI
-//! thread.
-
 use std::net::Ipv4Addr;
 use std::process::Command;
 
-/// CLI locations: `tailscale` on PATH.
 const TAILSCALE_CLIS: &[&str] = &["tailscale"];
 
-/// This machine's user-facing name (its hostname).
 pub fn computer_name() -> String {
     let mut command = Command::new("hostname");
     command
@@ -37,7 +31,6 @@ pub fn magic_dns_name() -> Option<String> {
     })
 }
 
-/// IPv4 addresses of up, non-loopback interfaces.
 pub(crate) fn interface_ipv4s() -> Vec<Ipv4Addr> {
     let mut out = Vec::new();
     let mut head: *mut libc::ifaddrs = std::ptr::null_mut();

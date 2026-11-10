@@ -1,11 +1,9 @@
-//! Session state: sidebar chrome + content pane tree.
 //! Paths in content tabs are relative to the workspace root when possible.
 
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentLayout;
 
-/// Default workspace-sidebar width (px).
 pub(crate) const DEFAULT_SIDEBAR_WIDTH: f32 = 240.;
 /// Zero-based cursor position in characters.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
