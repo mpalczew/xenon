@@ -29,21 +29,12 @@ impl App {
             self.remote_start();
             crate::remote::persist_enabled(self.remote.running() || self.remote.waiting());
         }
-        if self.remote.waiting() {
-            self.toast(&match self.chord("app.connect-phone") {
-                Some(chord) => format!(
-                    "The other Xenon has the phone remote \u{2014} {chord} there, or quit it"
-                ),
-                None => "The other Xenon has the phone remote".to_string(),
-            });
-            return;
-        }
         let open = self.remote.connect_dialog.borrow().clone();
         if let Some(dialog) = open {
             dialog.close();
             return;
         }
-        if !self.remote.running() {
+        if !self.remote.running() && !self.remote.waiting() {
             return;
         }
         let dialog = adw::Dialog::new();
@@ -70,10 +61,7 @@ impl App {
         let Some(dialog) = self.remote.connect_dialog.borrow().clone() else {
             return;
         };
-        let Some((digits, url, expires_at)) = self.pairing_facts() else {
-            return;
-        };
-        let status = self.remote_status();
+        let facts = self.pairing_facts();
         let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
         for set in [
             gtk::Widget::set_margin_top,
@@ -83,6 +71,25 @@ impl App {
         ] {
             set(content.upcast_ref(), 20);
         }
+        let buttons = self.connect_buttons(&dialog, facts.as_ref().and_then(|f| f.1.clone()));
+        let Some((digits, url, expires_at)) = facts else {
+            let warn = gtk::Label::new(Some(&match self.chord("app.connect-phone") {
+                Some(chord) => format!(
+                    "The other Xenon has the phone remote. Press {chord} there, or quit it to use the phone remote here."
+                ),
+                None => {
+                    "The other Xenon has the phone remote. Quit it to use the phone remote here."
+                        .to_string()
+                }
+            }));
+            warn.set_wrap(true);
+            warn.add_css_class("warning");
+            content.append(&warn);
+            content.append(&buttons);
+            dialog.set_child(Some(&content));
+            return;
+        };
+        let status = self.remote_status();
         match &url {
             Some(url) => {
                 let qr = gtk::Picture::for_paintable(&qr_texture(url));
@@ -129,9 +136,14 @@ impl App {
         address.set_selectable(true);
         address.add_css_class("monospace");
         content.append(&address);
+        content.append(&buttons);
+        dialog.set_child(Some(&content));
+    }
+
+    fn connect_buttons(&self, dialog: &adw::Dialog, url: Option<String>) -> gtk::Box {
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.set_halign(gtk::Align::Center);
-        let copy = copy_button(&dialog, url.clone().unwrap_or_default());
+
         let settings = gtk::Button::with_label(&match self.chord("app.settings") {
             Some(chord) => format!("Settings\u{2026}  {chord}"),
             None => "Settings\u{2026}".to_string(),
@@ -157,13 +169,12 @@ impl App {
                 });
             }
         });
-        if url.is_some() {
-            buttons.append(&copy);
+        if let Some(url) = url {
+            buttons.append(&copy_button(dialog, url));
         }
         buttons.append(&settings);
         buttons.append(&done);
-        content.append(&buttons);
-        dialog.set_child(Some(&content));
+        buttons
     }
 }
 
