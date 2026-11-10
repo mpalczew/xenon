@@ -4,34 +4,13 @@ use ignore::WalkBuilder;
 
 use crate::Entry;
 
-/// Directories never worth descending into. Everything else is left to
-/// `.gitignore` and the other ignore files.
-const SKIP: &[&str] = &[
-    ".git",
-    "node_modules",
-    "target",
-    "dist",
-    "build",
-    "vendor",
-    "__pycache__",
-    ".cache",
-    ".cargo",
-    ".rustup",
-    ".npm",
-    ".local",
-    "Library",
-    "Applications",
-];
-
+/// Skips what `.gitignore`, `.ignore` and git's exclude files list, plus
+/// `.git` itself, which no ignore file names.
 fn walker(root: &Path, hidden: bool, max_depth: Option<usize>) -> ignore::Walk {
     WalkBuilder::new(root)
         .hidden(hidden)
         .max_depth(max_depth)
-        .filter_entry(|e| {
-            e.depth() == 0
-                || !e.file_type().is_some_and(|t| t.is_dir())
-                || !e.file_name().to_str().is_some_and(|n| SKIP.contains(&n))
-        })
+        .filter_entry(|e| e.file_name() != ".git")
         .build()
 }
 
