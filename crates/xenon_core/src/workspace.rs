@@ -11,7 +11,6 @@ pub struct WorkspaceRec {
     pub name: String,
     pub root: PathBuf,
     /// Unix seconds when this workspace was last activated (MRU for ⌘⇧O).
-    /// Absent on pre-field registry JSON → treated as never opened for sort.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_opened: Option<u64>,
 }
@@ -21,8 +20,7 @@ impl WorkspaceRec {
         self.root.display().to_string()
     }
 
-    /// Register `root`, taking the **default** display name from its final path
-    /// component. Callers may rename `name` later without changing `root`.
+    /// Register `root`, naming it after its final path component.
     pub fn new(root: PathBuf) -> Self {
         let name = root
             .file_name()

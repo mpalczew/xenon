@@ -1,9 +1,5 @@
 //! Paired phone-remote devices (`remote_devices.json`, mode 0600). Only a
 //! SHA-256 of each device token is stored.
-//!
-//! Lives in `shared_dir()`, not the slot data dir: the a/b slot launcher runs
-//! two instances that copy state at flip time, and a phone paired in one slot
-//! must stay paired when the other slot takes over the remote port.
 
 use std::path::PathBuf;
 

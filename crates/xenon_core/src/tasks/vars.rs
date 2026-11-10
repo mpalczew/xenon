@@ -8,7 +8,7 @@ pub struct EditorInfo {
     pub selected_text: String,
 }
 
-/// Everything variables can read. The caller gathers it; nothing here does I/O.
+/// Everything variables can read.
 pub(crate) struct VarContext<'a> {
     pub workspace: &'a Path,
     pub editor: Option<&'a EditorInfo>,

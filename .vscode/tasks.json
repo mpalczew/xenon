@@ -1,5 +1,3 @@
-// Only the `xenon` and `install` tasks. Build, format and lint run through cargo
-// or scripts/; don't add more tasks here.
 {
   "version": "2.0.0",
   "tasks": [

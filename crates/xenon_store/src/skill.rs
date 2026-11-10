@@ -24,11 +24,7 @@ struct SkillState {
     declined_version: Option<u32>,
 }
 
-/// User home, or `XENON_SKILL_HOME` (tests). Never the slot data dir.
 pub(crate) fn skill_home() -> PathBuf {
-    if let Some(dir) = std::env::var_os("XENON_SKILL_HOME") {
-        return PathBuf::from(dir);
-    }
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))

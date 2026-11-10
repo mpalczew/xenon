@@ -393,8 +393,6 @@ impl EditorView {
             }
         }
         self.buffer.place_cursor(&iter);
-        // The insert mark follows the cursor and is never deleted, unlike a
-        // mark of ours that a reload or the Vim input method could invalidate.
         let mark = self.buffer.get_insert();
         let view = self.view.clone();
         glib::idle_add_local_once(move || {
