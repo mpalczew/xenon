@@ -165,6 +165,55 @@ fn child_env() -> Vec<String> {
     env
 }
 
+/// A terminal's scroll position in rows. VTE's scroll adjustment counts pixels
+/// or rows depending on `scroll-unit-is-pixels`, so read and move it only
+/// through here. Rows count from the oldest scrollback row VTE still keeps.
+pub(crate) struct ScrollRows {
+    adj: gtk::Adjustment,
+    /// Pixels per row, or 1 when the adjustment already counts rows.
+    unit: f64,
+}
+
+impl ScrollRows {
+    pub(crate) fn of(term: &vte::Terminal) -> Option<Self> {
+        let unit = if term.is_scroll_unit_is_pixels() {
+            (term.char_height() as f64).max(1.0)
+        } else {
+            1.0
+        };
+        Some(Self {
+            adj: term.vadjustment()?,
+            unit,
+        })
+    }
+
+    /// The row at the top of the viewport.
+    pub(crate) fn top(&self) -> f64 {
+        self.adj.value() / self.unit
+    }
+
+    /// The oldest row in scrollback.
+    pub(crate) fn first(&self) -> f64 {
+        self.adj.lower() / self.unit
+    }
+
+    /// The top row of the live screen: where the viewport sits when not scrolled back.
+    pub(crate) fn live_top(&self) -> f64 {
+        ((self.adj.upper() - self.adj.page_size()) / self.unit).max(self.first())
+    }
+
+    /// Whether the viewport shows scrollback rather than the live screen.
+    pub(crate) fn scrolled_back(&self) -> bool {
+        self.top() + 0.5 < self.live_top()
+    }
+
+    /// Put `row` at the top of the viewport, kept within scrollback and the live screen.
+    pub(crate) fn scroll_to(&self, row: f64) {
+        let row = row.clamp(self.first(), self.live_top());
+        self.adj.set_value(row * self.unit);
+    }
+}
+
 /// Bytes a key sends that VTE would send differently. Shift+Enter is a line
 /// feed (like Ctrl+J), as the old terminal sent it: Claude Code and Codex read
 /// it as "new line", while VTE's carriage return would submit.

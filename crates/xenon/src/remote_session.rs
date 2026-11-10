@@ -14,6 +14,7 @@ use xenon_remote::{
 
 use crate::app::App;
 use crate::remote_mirror::Mirror;
+use crate::term::ScrollRows;
 
 pub(crate) struct Conn {
     pub device_id: String,
@@ -279,16 +280,14 @@ impl App {
         let Some(view) = self.attached_term(conn) else {
             return;
         };
-        let Some(adj) = view.term.vadjustment() else {
+        let Some(scroll) = ScrollRows::of(&view.term) else {
             return;
         };
-        let bottom = adj.upper() - adj.page_size();
-        let value = match rows {
+        scroll.scroll_to(match rows {
             // Positive rows show older lines: the viewport moves up.
-            Some(rows) => adj.value() - f64::from(rows) * view.term.char_height() as f64,
-            None => bottom,
-        };
-        adj.set_value(value.clamp(adj.lower(), bottom.max(adj.lower())));
+            Some(rows) => scroll.top() - f64::from(rows),
+            None => scroll.live_top(),
+        });
     }
 
     /// Scrollback above the live screen as plain text, oldest first.
@@ -296,12 +295,11 @@ impl App {
         let Some(view) = self.attached_term(conn) else {
             return;
         };
-        let Some(adj) = view.term.vadjustment() else {
+        let Some(scroll) = ScrollRows::of(&view.term) else {
             return;
         };
-        let unit = view.term.char_height().max(1) as f64;
-        let live_top = ((adj.upper() - adj.page_size()) / unit).round() as i64;
-        let first = ((adj.lower() / unit).round() as i64).max(live_top - HISTORY_LIMIT);
+        let live_top = scroll.live_top().round() as i64;
+        let first = (scroll.first().round() as i64).max(live_top - HISTORY_LIMIT);
         let lines = if live_top > first {
             let (text, _) = view.term.text_range_format(
                 vte::Format::Text,

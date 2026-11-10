@@ -17,6 +17,8 @@ use gtk::prelude::*;
 use vte::prelude::*;
 use xenon_remote::{CursorShapeWire, CursorWire, FrameEncoder, LinkRun, Outbox, Rgb, VteSnapshot};
 
+use crate::term::ScrollRows;
+
 /// Shortest time between dumps; the phone sees at most ~30 frames a second.
 const GAP: Duration = Duration::from_millis(33);
 /// Same, when the phone asked for low bandwidth.
@@ -144,14 +146,8 @@ fn capture(term: &vte::Terminal, (default_fg, default_bg): (Rgb, Rgb)) -> VteSna
     let cols = term.column_count().clamp(1, i64::from(u16::MAX)) as u16;
     let rows = term.row_count().clamp(1, i64::from(u16::MAX)) as u16;
     let (col, row) = term.cursor_position();
-    // VTE's adjustment counts rows, not pixels.
-    let (top, scrolled) = match term.vadjustment() {
-        Some(adj) => (
-            adj.value().round() as i64,
-            adj.value() + 0.5 < adj.upper() - adj.page_size(),
-        ),
-        None => (0, false),
-    };
+    let (top, scrolled) =
+        ScrollRows::of(term).map_or((0, false), |s| (s.top().round() as i64, s.scrolled_back()));
     // An explicit row range: the plain dump stops at the widget's height, and
     // a tab never shown on the Mac (one the phone made) has none.
     let html = term
