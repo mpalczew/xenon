@@ -196,7 +196,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))
         .build();
-    let (git, git_rx) = crate::git::GitHub::new();
     let app = Rc::new_cyclic(|weak| App {
         gtk: gtk_app.clone(),
         win: win.clone(),
@@ -218,7 +217,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         editors: RefCell::default(),
         images: RefCell::default(),
         diffs: RefCell::default(),
-        git,
+        git: crate::git::GitHub::new(weak.clone()),
         pulse_source: RefCell::new(None),
         pulse_level: Cell::new(-1),
         started: Instant::now(),
@@ -268,7 +267,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     view.add_top_bar(&header(&app, &title));
     view.set_content(Some(&toasts));
     win.set_content(Some(&layered(&app, &view)));
-    crate::git::listen(&app, git_rx);
+    crate::git::listen(&app);
     connect_window(&app, &win);
     app.sidebar.set_hints(&app);
     app.sidebar.rebuild(&app.model.borrow());
