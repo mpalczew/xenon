@@ -2,6 +2,10 @@
 //! frontend turns the spans into its own text tags and decides, from the
 //! caret, which markup to hide. All offsets are `char` offsets, which is what
 //! GTK text buffers use.
+//!
+//! It parses with pulldown-cmark: markup is drawn dim, or hidden except in the
+//! block the caret is in. It only describes styled ranges; it never lays
+//! anything out.
 
 use std::ops::Range;
 
@@ -107,8 +111,8 @@ impl Doc {
         (pos <= self.blocks[ix].end).then_some(ix)
     }
 
-    /// Whether the markup at index `ix` is drawn (not hidden) with the caret at
-    /// `pos`. Hidden markup that belongs to no block never shows.
+    /// Whether the markup at index `ix` is drawn (not hidden) with the caret in
+    /// `caret_block`. Hidden markup that belongs to no block never shows.
     pub fn markup_shown(&self, ix: usize, caret_block: Option<usize>) -> bool {
         caret_block.is_some() && self.markup[ix].block == caret_block
     }

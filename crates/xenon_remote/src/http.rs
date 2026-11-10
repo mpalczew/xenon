@@ -43,8 +43,6 @@ pub(crate) fn content_length(headers: &HashMap<String, String>) -> usize {
         .unwrap_or(0)
 }
 
-/// Body bytes already in `first` plus the rest read from `stream`, up to
-/// `clen` (callers check `clen` against their limit first).
 pub(crate) fn extract_body(
     first: &[u8],
     body_start: usize,

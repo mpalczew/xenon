@@ -35,7 +35,6 @@ impl Model {
             .unwrap_or_default()
     }
 
-    /// Store a raw terminal title. True when the visible title changed.
     pub(crate) fn set_title(
         &mut self,
         ws: WorkspaceId,
@@ -56,7 +55,6 @@ impl Model {
         }
     }
 
-    /// One output batch. True when the terminal just became "working".
     pub(crate) fn on_output(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
         let title = self.title_of(ws, tab);
         self.activity
@@ -65,7 +63,6 @@ impl Model {
             .on_output(&title)
     }
 
-    /// Output went quiet. True when the status changed (settled, maybe flagged).
     pub(crate) fn on_quiet(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
         let title = self.title_of(ws, tab);
         let was_working = self.is_working(ws, tab);
@@ -80,7 +77,6 @@ impl Model {
         !self.is_viewed(ws, tab) && self.attention.flag(ws, tab, AttentionReason::Bell)
     }
 
-    /// The user typed in this terminal. True when a mark or pulse went away.
     pub(crate) fn on_interaction(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
         let was_working = self.activity.entry((ws, tab)).or_default().on_interaction();
         self.attention.clear_tab(ws, tab) || was_working
@@ -93,7 +89,6 @@ impl Model {
         }
     }
 
-    /// Make `pane` the focused one. True when that changed anything.
     pub(crate) fn focus_pane(&mut self, ws: WorkspaceId, pane: PaneId) -> bool {
         let Some(content) = self.space_content(ws) else {
             return false;

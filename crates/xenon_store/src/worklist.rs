@@ -17,7 +17,6 @@ pub use sections::{
     SourceEdit, Target, capture_targets, delete_section, insert_section, rename_section,
 };
 
-/// The source bytes are the revision. Worklists are intentionally small text files.
 pub struct WorklistFile {
     root: PathBuf,
     path: PathBuf,

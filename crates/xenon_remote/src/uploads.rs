@@ -40,7 +40,6 @@ pub(crate) fn serve(stream: &mut TcpStream, req: &Request, shared: &Shared) -> R
     }
 }
 
-/// File extension for an accepted image type; `None` rejects the upload.
 pub(crate) fn extension(content_type: &str) -> Option<&'static str> {
     let mime = content_type.split(';').next().unwrap_or("").trim();
     match mime.to_ascii_lowercase().as_str() {

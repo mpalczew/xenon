@@ -40,9 +40,6 @@ pulldown-cmark = { version = "0.12", default-features = false }
 nucleo = "0.5"
 ignore = "0.4"
 
-# Local builds are the only builds: optimized (opt-level 3) so the app is usable,
-# incremental, no LTO. Packed debuginfo, because unpacked writes one .o per
-# codegen unit into target/debug/deps and Cargo never removes the old ones.
 [profile.dev]
 opt-level = 3
 incremental = true

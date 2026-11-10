@@ -23,8 +23,6 @@ impl DeviceBook {
         }
     }
 
-    /// Re-read the shared file (another Xenon may have changed it). Keeps the
-    /// pairing code; a read failure keeps the current list.
     pub fn reload(&mut self) {
         match xenon_store::load_remote_devices() {
             Ok(devices) => self.devices = devices,

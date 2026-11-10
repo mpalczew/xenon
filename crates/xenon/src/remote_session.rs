@@ -47,8 +47,6 @@ impl App {
         [rgb(bg), rgb(fg), rgb(fg)]
     }
 
-    /// The Mac terminal's own default foreground and background: the colors
-    /// VTE's text dump leaves out, which the phone shows as its defaults.
     fn remote_defaults() -> (Rgb, Rgb) {
         let [bg, fg, _] = Self::remote_colors(None);
         (Rgb(fg[0], fg[1], fg[2]), Rgb(bg[0], bg[1], bg[2]))

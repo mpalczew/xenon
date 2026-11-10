@@ -118,9 +118,6 @@ fn palette_passes(name: &str) -> bool {
     matches!(name, "quit" | "save-now" | "open-workspace" | "settings")
 }
 
-/// Ctrl+O outside a terminal opens the workspace picker too. The window
-/// shortcut runs after the focused widget, so a terminal (or the Vim input
-/// method in an editor) that takes the key keeps it.
 fn install_palette_keys(app: &Rc<App>) {
     let controller = gtk::ShortcutController::new();
     controller.set_propagation_phase(gtk::PropagationPhase::Bubble);

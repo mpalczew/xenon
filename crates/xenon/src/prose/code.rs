@@ -76,7 +76,6 @@ impl Prose {
         }
     }
 
-    /// Scheme tags are anonymous, so ours is named by the look it carries.
     fn syntax_tag(&self, theirs: &gtk::TextTag) -> Option<gtk::TextTag> {
         let set: Vec<_> = LOOK
             .iter()

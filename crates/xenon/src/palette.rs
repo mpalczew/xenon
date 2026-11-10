@@ -21,11 +21,8 @@ pub(crate) struct Options {
     pub initial: String,
     pub masked: bool,
     pub free_text: bool,
-    /// Escape or closing the dialog; a close by code does not call it.
     pub on_dismiss: Option<Box<dyn Fn()>>,
     pub on_accept_alt: Option<Box<dyn Fn(usize)>>,
-    /// A button after the hint, with the text it shows, and what it does.
-    /// Its shortcut is the model's business (it calls `Palette::run_action`).
     pub action: Option<(String, Box<dyn Fn()>)>,
 }
 
@@ -361,7 +358,6 @@ impl Palette {
         self.view.scroll_to(index, gtk::ListScrollFlags::NONE, None);
     }
 
-    /// Move the selection by `delta` enabled rows. Always true (key handled).
     pub(crate) fn step(&self, delta: i32) -> bool {
         let enabled = self.enabled.borrow().clone();
         let count = enabled.len() as i32;

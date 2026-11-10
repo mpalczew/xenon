@@ -257,8 +257,6 @@ impl Model {
         true
     }
 
-    /// Drag-reorder: put `id` where `before` sits (`None`: the end of the open
-    /// list). False when nothing moved.
     pub(crate) fn move_workspace(&mut self, id: WorkspaceId, before: Option<WorkspaceId>) -> bool {
         if before == Some(id) {
             return false;
@@ -278,7 +276,6 @@ impl Model {
         true
     }
 
-    /// Move `id` `delta` places along the list; false at either end.
     pub(crate) fn shift_workspace(&mut self, id: WorkspaceId, delta: isize) -> bool {
         let list = &self.registry.workspaces;
         let Some(from) = list.iter().position(|r| r.id == id) else {

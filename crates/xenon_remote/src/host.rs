@@ -8,8 +8,6 @@ use crate::protocol::{ClientMsg, PairResponse, ServerMsg, TaskInfo, TerminalInfo
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ConnId(pub u64);
 
-/// Mac → phone queue for one connection. Bounded: a slow phone drops patches
-/// (the host then sends a full frame) instead of growing memory.
 #[derive(Clone)]
 pub struct Outbox {
     sender: SyncSender<ServerMsg>,
@@ -19,7 +17,6 @@ pub struct Outbox {
 impl Outbox {
     pub(crate) const CAPACITY: usize = 16;
 
-    /// False when the queue is full or the connection is gone.
     pub fn try_send(&self, msg: ServerMsg) -> bool {
         match self.sender.try_send(msg) {
             Ok(()) => {
@@ -49,13 +46,9 @@ impl Outbox {
 }
 
 pub trait InputSink: Send + Sync {
-    /// True when `msg` was fully handled here.
     fn send(&self, msg: &ClientMsg) -> bool;
 }
 
-/// Where a connection's fast-path input goes. The host fills it in when the
-/// phone attaches to a terminal and clears it on detach; until then input
-/// takes the normal `HostRequest::Message` path.
 #[derive(Clone, Default)]
 pub struct InputRoute(Arc<Mutex<Option<Arc<dyn InputSink>>>>);
 
@@ -78,7 +71,6 @@ pub enum PairError {
 }
 
 pub enum HostRequest {
-    /// Device token → device id (None = unknown / revoked).
     Authenticate {
         token: String,
         reply: SyncSender<Option<String>>,
@@ -99,18 +91,15 @@ pub enum HostRequest {
         workspace_id: String,
         reply: SyncSender<Result<Vec<TaskInfo>, String>>,
     },
-    /// Open a shell in that workspace. Does not change the Mac's screen.
     CreateTerminal {
         workspace_id: String,
         reply: SyncSender<Result<TerminalInfo, String>>,
     },
-    /// Close one terminal in that workspace. The Mac follows only if it was showing it.
     CloseTerminal {
         workspace_id: String,
         tab_id: u64,
         reply: SyncSender<Result<(), String>>,
     },
-    /// Authenticated WebSocket opened. Host sends `Ready` through `out`.
     Connected {
         conn: ConnId,
         device_id: String,
@@ -121,8 +110,6 @@ pub enum HostRequest {
         conn: ConnId,
         msg: ClientMsg,
     },
-    /// Input already delivered through the connection's `InputRoute`: the
-    /// host only does its own bookkeeping (activity, attention).
     InputSent {
         conn: ConnId,
     },

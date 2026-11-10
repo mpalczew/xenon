@@ -13,9 +13,6 @@ use xenon_store::worklist::{
 use super::WorklistList;
 
 impl WorklistList {
-    /// Apply the edit `change` makes to the file as it is now, redraw, and
-    /// offer Undo with `undo` as its text when that is not empty. False when
-    /// nothing changed or it failed (the error shows above the list).
     pub(super) fn mutate(
         self: &Rc<Self>,
         undo: &str,

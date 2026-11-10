@@ -14,14 +14,12 @@ pub enum Dot {
 pub struct WorkspaceInfo {
     pub id: String,
     pub name: String,
-    /// Live in this app process (terminals available without reopening).
     #[serde(default)]
     pub open: bool,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub root: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dot: Option<Dot>,
-    /// Terminal tab count (0 for closed workspaces).
     #[serde(default)]
     pub terminals: usize,
 }
@@ -38,9 +36,6 @@ pub struct TerminalInfo {
     pub dot: Option<Dot>,
 }
 
-/// One task in `GET /api/workspaces/{id}/tasks`. `command` is the line that
-/// will run (variables expanded where Xenon can, `${input:...}` left as
-/// written), so a label cannot hide it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskInfo {
@@ -48,18 +43,14 @@ pub struct TaskInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
     pub command: String,
-    /// `build` or `test`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub default: bool,
-    /// Why it cannot run in Xenon; such tasks are listed but not runnable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unsupported: Option<String>,
 }
 
-/// A value that must not reach logs: serializes as a plain string, prints
-/// as `Secret(..)`.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Secret(pub String);
@@ -100,13 +91,10 @@ pub struct PairResponse {
     pub host_name: String,
 }
 
-/// Special keys the phone key row sends. Resolved on the Mac through the
-/// terminal's keystroke path so app-cursor mode is respected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NamedKey {
     Enter,
-    /// Newline inside a prompt (LF), not submit.
     ShiftEnter,
     Esc,
     CtrlC,
@@ -136,7 +124,6 @@ pub enum ClientMsg {
         tab_id: u64,
     },
     Detach,
-    /// Output cadence for this connection; responsive unless explicitly enabled.
     #[serde(rename_all = "camelCase")]
     Bandwidth {
         low_bandwidth: bool,
@@ -145,41 +132,32 @@ pub enum ClientMsg {
     Appearance {
         appearance: Option<AppearanceWire>,
     },
-    /// Raw text; no implicit Enter.
     Text {
         data: String,
     },
     Key {
         key: NamedKey,
     },
-    /// Scrollback above the live screen (plain text, newest last).
     History,
     /// Finger or trackpad wheel, in terminal rows. Positive shows older lines.
     Wheel {
         rows: i32,
     },
     Bottom,
-    /// Left click on a live-grid cell. The Mac reports it only while the
-    /// program has mouse mode on.
     Click {
         col: u16,
         row: u16,
     },
-    /// Phone viewport in cells; the Mac sizes the PTY to it while idle locally.
     Fit {
         cols: u16,
         rows: u16,
     },
-    /// Liveness probe; answered with `pong` by the server thread itself.
     Ping,
-    /// Run a task of that workspace on the Mac, exactly as the Mac's Run Task
-    /// picker would. Questions come back as `taskInput`.
     #[serde(rename_all = "camelCase")]
     RunTask {
         workspace_id: String,
         label: String,
     },
-    /// Answer to `taskInput`; no `value` cancels the run.
     #[serde(rename_all = "camelCase")]
     TaskInput {
         token: u64,
@@ -270,7 +248,6 @@ pub enum ServerMsg {
     Theme {
         theme: ThemeWire,
     },
-    /// New interned styles, sent before the first frame that uses them.
     Styles {
         add: BTreeMap<u32, StyleWire>,
     },
@@ -289,8 +266,6 @@ pub enum ServerMsg {
     History {
         lines: Vec<String>,
     },
-    /// Status pips for every workspace, plus tabs of `workspace` (the
-    /// attached one; `None` when the phone isn't attached).
     Dots {
         workspaces: BTreeMap<String, Dot>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -300,7 +275,6 @@ pub enum ServerMsg {
     Closed {
         reason: ClosedReason,
     },
-    /// A run started from this phone needs an input answered (`taskInput`).
     #[serde(rename_all = "camelCase")]
     TaskInput {
         token: u64,
@@ -312,7 +286,6 @@ pub enum ServerMsg {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         options: Vec<TaskOptionWire>,
     },
-    /// The task's terminal exists: attach to `tab_id` like any terminal.
     #[serde(rename_all = "camelCase")]
     TaskStarted {
         workspace_id: String,

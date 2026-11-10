@@ -25,7 +25,6 @@ impl RateLimiter {
         }
     }
 
-    /// False once this IP (or everyone) failed too often in the last minute.
     pub fn allow(&mut self, ip: IpAddr, now: Instant) -> bool {
         self.prune(now);
         let ip_fails = self.per_ip.get(&ip).map_or(0, Vec::len);

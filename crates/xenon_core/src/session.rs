@@ -1,5 +1,3 @@
-//! Paths in content tabs are relative to the workspace root when possible.
-
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentLayout;
@@ -16,7 +14,6 @@ pub(crate) fn clamp_sidebar(width: f32) -> f32 {
     width.clamp(140., 480.)
 }
 
-/// Persisted per-workspace session.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SessionState {
     pub sidebar_visible: bool,

@@ -12,8 +12,6 @@ pub fn clamp_fit(cols: u16, rows: u16) -> (u16, u16) {
     )
 }
 
-/// The smallest grid among the phones on one terminal, with the first one's
-/// payload (its device name). None when no phone asked.
 pub fn smallest_fit<D>(fits: impl IntoIterator<Item = (u16, u16, D)>) -> Option<(u16, u16, D)> {
     fits.into_iter()
         .reduce(|(c1, r1, d1), (c2, r2, _)| (c1.min(c2), r1.min(r2), d1))
@@ -35,7 +33,6 @@ impl<T> Default for FitGate<T> {
 }
 
 impl<T: PartialEq> FitGate<T> {
-    /// A phone asked (or let go). True when that changed anything.
     pub fn set(&mut self, request: Option<T>) -> bool {
         if self.request == request {
             return false;
@@ -48,19 +45,16 @@ impl<T: PartialEq> FitGate<T> {
         self.request.as_ref()
     }
 
-    /// The request in effect: the Mac has been quiet for `LOCAL_QUIET`.
     pub fn active(&self, now: Instant) -> Option<&T> {
         self.request.as_ref().filter(|_| self.quiet(now))
     }
 
-    /// Local keyboard input. True when it just took the grid back from a phone.
     pub fn note_local_input(&mut self, now: Instant) -> bool {
         let was_active = self.active(now).is_some();
         self.local_input_at = Some(now);
         was_active
     }
 
-    /// How long until a waiting request applies (None = nothing waits).
     pub fn wait_left(&self, now: Instant) -> Option<Duration> {
         let at = self.local_input_at.filter(|_| self.request.is_some())?;
         let wait = LOCAL_QUIET.saturating_sub(now.saturating_duration_since(at));

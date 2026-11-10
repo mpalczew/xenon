@@ -1,10 +1,3 @@
-//! Usage: `xenon-bin [open [--pane P] PATH[:LINE[:COL]] | PATH...]`
-//!   PATH          a folder becomes a workspace, a file opens in the workspace
-//!                 that holds it. A running instance on the same data dir
-//!                 (`XENON_DATA_DIR`, one per A/B slot) receives it over `ipc.sock`.
-//!
-//! `GSK_RENDERER` wins when set; otherwise `ngl`, which idles near zero.
-
 use std::cell::RefCell;
 use std::rc::Rc;
 

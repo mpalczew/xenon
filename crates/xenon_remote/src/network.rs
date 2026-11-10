@@ -25,7 +25,6 @@ impl Reachability {
             .collect()
     }
 
-    /// Best host for the phone: override, MagicDNS, Tailscale IP, loopback.
     pub fn phone_host(&self, override_host: &str) -> String {
         if !override_host.is_empty() {
             return override_host.to_string();
@@ -44,7 +43,6 @@ impl Reachability {
     }
 }
 
-/// `http://host:port` (host may already carry a port).
 pub fn base_url(host: &str, port: u16) -> String {
     if host.contains(':') {
         format!("http://{host}")
@@ -53,7 +51,6 @@ pub fn base_url(host: &str, port: u16) -> String {
     }
 }
 
-/// QR target: the fragment never reaches the server's request line or logs.
 pub fn pairing_url(base: &str, secret: &str) -> String {
     format!("{base}/pair#{secret}")
 }

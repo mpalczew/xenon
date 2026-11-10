@@ -16,7 +16,6 @@ pub struct Style {
     pub fg: Option<Rgb>,
     pub bg: Option<Rgb>,
     pub flags: u8,
-    /// Hyperlink (OSC 8) the cell belongs to: key into `Screen::links`; 0 = none.
     pub link: u64,
 }
 
@@ -81,7 +80,6 @@ impl FrameEncoder {
         self.styles.clear();
     }
 
-    /// Messages to bring the phone up to `screen`; empty when nothing changed.
     pub fn encode(&mut self, screen: &Screen) -> Vec<ServerMsg> {
         let mut new_styles = BTreeMap::new();
         let lines: Vec<Vec<SpanWire>> = screen

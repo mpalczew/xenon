@@ -1,6 +1,3 @@
-//! VTE leaves the click to a program that grabs the mouse (Shift bypasses
-//! that) and opens the menu from the Menu key and Shift+F10 too. A press
-
 use std::path::PathBuf;
 use std::rc::Rc;
 

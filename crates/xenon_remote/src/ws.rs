@@ -97,7 +97,6 @@ fn same_origin(req: &Request) -> bool {
 enum Hello {
     Device(String),
     Unknown,
-    /// The Mac didn't answer; the token may be fine.
     HostBusy,
 }
 
@@ -183,8 +182,6 @@ impl Session {
 }
 
 impl Session {
-    /// Typing goes straight to the terminal when the host has routed this
-    /// connection; everything else (and typing before attach) goes to the host.
     fn forward(&self, msg: ClientMsg, shared: &Shared) -> Result<()> {
         let request = if self.fast_input(&msg) {
             HostRequest::InputSent { conn: self.conn }

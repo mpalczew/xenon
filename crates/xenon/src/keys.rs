@@ -1,10 +1,5 @@
-//! The key map: one table of GTK action -> accelerators, and the text shown for
-//! a shortcut. The focused terminal keeps Ctrl+C, X, B, E, O and S for the
-//! shell, so the table has no accelerator for them.
-
 use gtk::prelude::*;
 
-/// GTK action name -> accelerators. The first one is the one shown in the UI.
 const BINDINGS: &[(&str, &[&str])] = &[
     ("app.new-terminal", &["<Control>n"]),
     ("app.new-workspace", &["<Control><Alt>n"]),

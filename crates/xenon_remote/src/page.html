@@ -298,16 +298,13 @@ html.in-session { background:var(--chrome); }
 
 <script>
 "use strict";
-// <core> — pure helpers; no DOM. Exercised by a node harness.
 const Core = (() => {
   const COLOR = /^#[0-9a-fA-F]{3,8}$/;
-  /** Only these links are opened: a program can write any OSC 8 target. */
   const LINK = /^(https?:\/\/|mailto:)/i;
   const F = { BOLD: 1, ITALIC: 2, UNDERLINE: 4, DIM: 8, STRIKE: 16 };
 
   function newTerm() { return { cols: 0, rows: 0, lines: [], cursor: null, seq: 0 }; }
 
-  /** Applies a `frame` message. Returns "all" or the changed row indices. */
   function applyFrame(term, f) {
     const reset = f.full || f.cols !== term.cols || f.rows !== term.rows;
     if (reset) {
@@ -326,7 +323,6 @@ const Core = (() => {
     return reset ? "all" : changed;
   }
 
-  /** Cell under a tap. Origin is the live grid's top left. Out of range is null. */
   function cellAtPoint(x, y, originX, originY, cellW, lineH, cols, rows) {
     if (!(cellW > 0) || !(lineH > 0) || !(cols > 0) || !(rows > 0)) return null;
     const col = Math.floor((x - originX) / cellW);
@@ -341,7 +337,6 @@ const Core = (() => {
    */
   function enterDelay(hasText) { return hasText ? 150 : 0; }
 
-  /** Finger or wheel pixels → whole rows. Positive `dy` shows older lines. */
   function wheelRows(acc, dy, lineH) {
     if (!(lineH > 0)) return { rows: 0, acc: acc || 0 };
     const next = (acc || 0) + dy;
@@ -415,7 +410,6 @@ const Core = (() => {
     return g;
   }
 
-  /** `dots.workspaces` is a snapshot: ids missing from it have no dot. */
   function applyDots(items, key, dots) {
     let changed = false;
     for (const it of items) {
@@ -470,7 +464,6 @@ const Core = (() => {
 
   return { LINK, newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
 })();
-// </core>
 
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
@@ -562,7 +555,6 @@ function dropSocket() {
   if (S.token && !S.fixture) S.retryTimer = setTimeout(connect, Core.backoff(S.attempt++));
 }
 
-/** Heartbeat: any message within 5s counts as the reply; silence means a dead socket. */
 function ping() {
   if (!S.ws || S.ws.readyState !== 1 || !S.connected) return;
   S.ws.send(JSON.stringify({ t: "ping" }));

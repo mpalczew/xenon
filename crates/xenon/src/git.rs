@@ -1,5 +1,3 @@
-//! `gio` cannot watch a tree recursively, so a slow timer catches working-tree edits.
-
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -82,9 +80,6 @@ impl GitHub {
         let _ = self.tx.send(Msg::SetRoots(roots));
     }
 
-    /// Monitors on `.git` (index, HEAD, packed refs) and `.git/refs/heads`.
-    /// A linked worktree has a `.git` file instead; it gets no monitors and
-    /// relies on the timer and the focus refresh.
     fn watch_repo(&self, ws: WorkspaceId, root: &std::path::Path) -> Vec<gio::FileMonitor> {
         let git = root.join(".git");
         let heads = git.join("refs/heads");

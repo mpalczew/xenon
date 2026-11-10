@@ -59,7 +59,6 @@ impl WindowGeometry {
     }
 }
 
-/// Durable UI settings under `settings.json`. All fields default for forward-compat.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AppSettings {
     #[serde(default = "default_font_size")]

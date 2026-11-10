@@ -17,10 +17,8 @@ pub struct DeviceRow {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RemoteStatus {
     pub enabled: bool,
-    /// On, but another Xenon holds the port for now.
     pub waiting: bool,
     pub keep_awake: bool,
-    /// User override for the phone URL host (empty = automatic).
     pub hostname: String,
     pub base_url: Option<String>,
     pub reachable: bool,
@@ -29,8 +27,6 @@ pub struct RemoteStatus {
 }
 
 impl RemoteStatus {
-    /// Settings subtitle under the on/off switch. `off_hint` is the
-    /// frontend's own "how to turn it on" line.
     pub fn subtitle(&self, off_hint: &str) -> String {
         if self.waiting {
             return "On — the other Xenon has the phone remote until it quits".into();
@@ -45,7 +41,6 @@ impl RemoteStatus {
     }
 }
 
-/// Device list rows; `connected` says whether a device has a live session.
 pub fn device_rows(devices: &[RemoteDevice], connected: impl Fn(&str) -> bool) -> Vec<DeviceRow> {
     devices
         .iter()
@@ -59,7 +54,6 @@ pub fn device_rows(devices: &[RemoteDevice], connected: impl Fn(&str) -> bool) -
         .collect()
 }
 
-/// The saved port, an `XENON_REMOTE_PORT` override, else `default`.
 pub fn effective_port(saved: u16, default: u16) -> u16 {
     std::env::var("XENON_REMOTE_PORT")
         .ok()

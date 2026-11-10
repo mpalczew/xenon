@@ -7,8 +7,6 @@ pub fn pty_text_bytes(text: &str) -> Vec<u8> {
 }
 
 impl NamedKey {
-    /// The bytes this key sends. Arrow keys follow the application-cursor
-    /// mode when the frontend can tell (`app_cursor`).
     pub fn pty_bytes(self, app_cursor: bool) -> &'static [u8] {
         let arrow =
             |normal: &'static [u8], app: &'static [u8]| if app_cursor { app } else { normal };

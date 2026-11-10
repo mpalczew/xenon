@@ -60,10 +60,8 @@ pub(crate) enum Kind {
 pub(crate) struct Line {
     pub text: String,
     pub kind: Kind,
-    /// 1-based line numbers in the old and new text; 0 for none.
     pub old: u32,
     pub new: u32,
-    /// Changed words, as character ranges in `text`.
     pub words: Vec<(i32, i32)>,
 }
 
@@ -117,7 +115,6 @@ pub(crate) struct Hunk {
 
 #[derive(Default)]
 pub(crate) struct Page {
-    /// One side when unified, two when split; equal length in split.
     pub sides: Vec<Vec<Line>>,
     pub hunks: Vec<Hunk>,
 }
@@ -238,7 +235,6 @@ fn show(root: &Path, spec: &str) -> Option<Vec<u8>> {
     out.status.success().then_some(out.stdout)
 }
 
-/// The diff for one status entry. Blocking: call off the UI thread.
 pub(crate) fn load(root: &Path, file: &GitFile) -> Doc {
     let path = file.path.as_str();
     let work = std::fs::read(root.join(path));

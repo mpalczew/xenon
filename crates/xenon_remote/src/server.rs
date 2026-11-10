@@ -31,7 +31,6 @@ pub(crate) struct Shared {
     pub(crate) host: HostTx,
     pub(crate) enabled: AtomicBool,
     pub(crate) limiter: Mutex<RateLimiter>,
-    /// Where phone images land; uploads are refused until set.
     pub(crate) uploads_dir: OnceLock<PathBuf>,
     next_conn: AtomicU64,
     active: AtomicUsize,
@@ -60,8 +59,6 @@ impl Shared {
             .record_failure(ip, Instant::now());
     }
 
-    /// Device token → device id via the host. `Err` = the host is busy or
-    /// gone (not a verdict on the token: callers must not sign the phone out).
     pub(crate) fn authenticate(&self, token: &str) -> Result<Option<String>, String> {
         if token.is_empty() {
             return Ok(None);
@@ -75,7 +72,6 @@ impl Shared {
 
 #[derive(Debug)]
 pub enum StartError {
-    /// Another process (typically the other a/b Xenon slot) holds the port.
     PortBusy,
     Other(anyhow::Error),
 }
@@ -89,8 +85,6 @@ impl std::fmt::Display for StartError {
     }
 }
 
-/// Running mobile remote server. Drop stops accepting and waits until every
-/// port is released, so a restart (or the other slot) can bind it at once.
 pub struct RemoteServer {
     pub port: u16,
     pub binds: Vec<SocketAddr>,
@@ -99,9 +93,6 @@ pub struct RemoteServer {
 }
 
 impl RemoteServer {
-    /// Listen on `port` at each of `ips` (port 0 = ephemeral; use one ip then).
-    /// All-or-nothing on a busy port; other per-address failures are skipped
-    /// (e.g. an interface that just went away) as long as one address binds.
     pub fn start(ips: &[IpAddr], port: u16, host: HostTx) -> Result<Self, StartError> {
         let listeners = bind_all(ips, port)?;
         let shared = Arc::new(Shared {
@@ -127,7 +118,6 @@ impl RemoteServer {
         })
     }
 
-    /// Enable image uploads, saved under `dir`. First call wins.
     pub fn set_uploads_dir(&self, dir: PathBuf) {
         let _ = self.shared.uploads_dir.set(dir);
     }

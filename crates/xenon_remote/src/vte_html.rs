@@ -1,8 +1,11 @@
+//! VTE's HTML dump of the visible screen → a wire `Screen`.
+//!
 //! `vte_terminal_get_text_range_format(HTML)` returns `<pre>` with one `\n` per row
 //! and spans for what is not default: `<font color>`, `<b>`, `<i>`, `<u>`,
 //! `<strike>`, and `<span style="background-color:...">`. It has no markup for
 //! hyperlinks or the cursor (dim is already folded into the color), and does not mark the second column of a
-//! wide glyph, so widths come from Unicode.
+//! wide glyph, so widths come from Unicode. This is the boundary format the
+//! GTK frontend parses; it knows nothing of GTK.
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -28,7 +31,6 @@ pub struct VteSnapshot {
     pub cursor: Option<CursorWire>,
     pub links: Vec<LinkRun>,
     pub scrolled: bool,
-    /// Colors equal to these are the theme default and sent as such.
     pub default_fg: Rgb,
     pub default_bg: Rgb,
 }
@@ -113,7 +115,6 @@ impl VteSnapshot {
     }
 }
 
-/// The next character, decoding `&...;` entities. Returns it and the bytes used.
 fn next_char(s: &str) -> (char, usize) {
     if let Some(entity) = s.strip_prefix('&')
         && let Some(end) = entity.find(';').filter(|e| *e <= 8)

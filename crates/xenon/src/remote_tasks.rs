@@ -85,8 +85,6 @@ impl App {
         );
     }
 
-    /// The phone's answer (`None` cancels the run). Only the connection that
-    /// was asked, with the current token, counts.
     pub(crate) fn remote_task_answer(
         self: &Rc<Self>,
         conn: ConnId,

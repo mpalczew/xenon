@@ -28,7 +28,6 @@ impl DeviceBook {
         self.pairing = None;
     }
 
-    /// Consume the pairing code and add a device. None = wrong/expired code.
     pub(crate) fn pair(&mut self, code: &str, label: &str, now: Instant) -> Option<NewDevice> {
         if !self.pairing.as_ref().is_some_and(|c| c.matches(code, now)) {
             return None;

@@ -14,7 +14,6 @@ pub fn computer_name() -> String {
         .unwrap_or_else(|| "this computer".to_string())
 }
 
-/// This machine's MagicDNS name via the Tailscale CLI (spawns).
 pub fn magic_dns_name() -> Option<String> {
     TAILSCALE_CLIS.iter().find_map(|cli| {
         let out = Command::new(cli)

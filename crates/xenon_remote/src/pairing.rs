@@ -31,7 +31,6 @@ impl PairingCode {
         now < self.expires_at
     }
 
-    /// Accepts the digits (spaces ignored) or the QR secret.
     pub fn matches(&self, presented: &str, now: Instant) -> bool {
         if !self.is_live(now) {
             return false;

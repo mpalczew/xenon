@@ -90,9 +90,6 @@ impl Model {
         })
     }
 
-    /// Show the diff of `path` (relative to the workspace): the tab already
-    /// open for it, or a new one in the focused pane. The bool says whether
-    /// the tab is new.
     pub(crate) fn open_diff(&mut self, ws: WorkspaceId, path: &str) -> Option<(TabId, bool)> {
         let existing = self.find_tab_where(
             ws,
@@ -161,8 +158,6 @@ impl Model {
         })
     }
 
-    /// A tab dragged to `index` of pane `dest` (its final position there).
-    /// True when the tree changed.
     pub(crate) fn place_tab(
         &mut self,
         ws: WorkspaceId,
@@ -303,8 +298,6 @@ impl Model {
         out
     }
 
-    /// Name the phone whose grid a terminal has (None = the Mac's again).
-    /// True when the tab title changed.
     pub(crate) fn set_phone_device(
         &mut self,
         ws: WorkspaceId,

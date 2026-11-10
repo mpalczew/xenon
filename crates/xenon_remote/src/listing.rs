@@ -13,8 +13,6 @@ pub fn wire_dot(dot: WorkspaceDot) -> Dot {
     }
 }
 
-/// Open workspaces in sidebar order, then the most recently opened closed ones.
-/// `live` gives an open workspace's dot and terminal count.
 pub fn list_workspaces(
     registry: &Registry,
     live: impl Fn(WorkspaceId) -> (Option<WorkspaceDot>, usize),

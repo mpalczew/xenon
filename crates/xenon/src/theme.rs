@@ -34,6 +34,9 @@ pub(crate) fn dark() -> bool {
 /// Both come from the default "GNOME" palette of Ptyxis (GPL-3.0-or-later),
 /// its Light and Dark variants, with that palette's own foreground and
 /// background. See ATTRIBUTION.md, entry "Ptyxis GNOME palette".
+/// Colors that read under 3:1 on their background are moved toward black or
+/// white until they reach it: dark 0 and 1, light 10, 11, 14 and 15. Bright
+/// black (dark) and white (light) reach 4.5:1, since programs use them for text.
 pub(crate) fn terminal(dark: bool) -> (&'static str, &'static str, [&'static str; 16]) {
     const LIGHT: [&str; 16] = [
         "#1d1d20", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2aa1b3", "#767676",
