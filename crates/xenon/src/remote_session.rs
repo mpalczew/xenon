@@ -5,8 +5,8 @@ use gtk::prelude::*;
 use vte::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 use xenon_remote::{
-    AppearanceWire, ClientMsg, ClosedReason, ConnId, Dot, InputRoute, Outbox, Rgb, ServerMsg,
-    clamp_fit, parse_workspace_id, pty_text_bytes, wire_dot,
+    AppearanceWire, ClientMsg, ClosedReason, ConnId, Dot, Outbox, Rgb, ServerMsg, clamp_fit,
+    parse_workspace_id, pty_text_bytes, wire_dot,
 };
 
 use crate::app::App;
@@ -52,13 +52,7 @@ impl App {
         (Rgb(fg[0], fg[1], fg[2]), Rgb(bg[0], bg[1], bg[2]))
     }
 
-    pub(crate) fn remote_connected(
-        self: &Rc<Self>,
-        conn: ConnId,
-        device_id: String,
-        out: Outbox,
-        _input: InputRoute,
-    ) {
+    pub(crate) fn remote_connected(self: &Rc<Self>, conn: ConnId, device_id: String, out: Outbox) {
         let theme = xenon_remote::theme_wire(Self::remote_colors(None));
         {
             let mut rt = self.remote.rt.borrow_mut();

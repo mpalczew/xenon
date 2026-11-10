@@ -3,17 +3,6 @@ use std::process::Command;
 
 const TAILSCALE_CLIS: &[&str] = &["tailscale"];
 
-pub fn computer_name() -> String {
-    let mut command = Command::new("hostname");
-    command
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "this computer".to_string())
-}
-
 pub fn magic_dns_name() -> Option<String> {
     TAILSCALE_CLIS.iter().find_map(|cli| {
         let out = Command::new(cli)

@@ -1,38 +1,44 @@
-use std::net::TcpStream;
-use std::sync::Arc;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::io::Write;
+use std::net::{Shutdown, TcpStream};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
-use mio::{Events, Interest, Poll, Token, Waker};
 use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{CloseFrame, Role, WebSocketConfig};
 use tungstenite::{Message, WebSocket};
 
-use crate::host::{ConnId, HostRequest, InputRoute, Outbox};
-use crate::http;
+use crate::host::{ConnId, HostRequest, Outbox};
+use crate::http::{self, Request};
 use crate::protocol::{ClientMsg, ClosedReason, ServerMsg};
-use crate::server::{Request, Shared};
+use crate::server::Shared;
 
-const TICK: Duration = Duration::from_millis(20);
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const PING_EVERY: Duration = Duration::from_secs(20);
+const CHECK_EVERY: Duration = Duration::from_secs(1);
 const UNAUTHORIZED: u16 = 4401;
 const TRY_AGAIN: u16 = 1011;
 const MAX_MESSAGE: usize = 64 * 1024;
+
+type Socket = WebSocket<TcpStream>;
 
 pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Result<()> {
     if !same_origin(req) {
         return http::write_json_error(&mut stream, 403, "cross-origin");
     }
     let key = req
-        .headers
-        .get("sec-websocket-key")
+        .header("sec-websocket-key")
         .ok_or_else(|| anyhow!("missing websocket key"))?;
     let accept = tungstenite::handshake::derive_accept_key(key.as_bytes());
-    http::write_ws_accept(&mut stream, &accept)?;
+    write!(
+        stream,
+        "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"
+    )?;
     stream.set_nodelay(true)?;
-    stream.set_read_timeout(Some(TICK))?;
+    stream.set_read_timeout(Some(HELLO_TIMEOUT))?;
     stream.set_write_timeout(Some(Duration::from_secs(10)))?;
     let config = WebSocketConfig {
         max_message_size: Some(MAX_MESSAGE),
@@ -40,45 +46,44 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
         max_write_buffer_size: 1024 * 1024,
         ..Default::default()
     };
-    let mut socket = WebSocket::from_raw_socket(stream, Role::Server, Some(config));
-    let device_id = match await_hello(&mut socket, shared) {
+    // One socket per direction over the same TCP stream: the reader blocks in
+    // `read` while the writer sends, so they cannot share one WebSocket.
+    let mut reader = WebSocket::from_raw_socket(stream.try_clone()?, Role::Server, Some(config));
+    let writer = Mutex::new(WebSocket::from_raw_socket(
+        stream,
+        Role::Server,
+        Some(config),
+    ));
+    let device_id = match await_hello(&mut reader, shared) {
         Hello::Device(id) => id,
         Hello::Unknown => {
-            close(&mut socket, UNAUTHORIZED, "unauthorized");
+            close(&mut lock(&writer), UNAUTHORIZED, "unauthorized");
             return Ok(());
         }
         Hello::HostBusy => {
-            close(&mut socket, TRY_AGAIN, "busy");
+            close(&mut lock(&writer), TRY_AGAIN, "busy");
             return Ok(());
         }
     };
+    reader.get_ref().set_read_timeout(None)?;
     let conn = shared.next_conn();
-    let poll = Poll::new()?;
-    let mut readiness = mio::net::TcpStream::from_std(socket.get_ref().try_clone()?);
-    socket.get_ref().set_nonblocking(true)?;
-    poll.registry()
-        .register(&mut readiness, Token(0), Interest::READABLE)?;
-    let wake = Arc::new(Waker::new(poll.registry(), Token(1))?);
-    let input = InputRoute::default();
-    let (mut out, rx) = Outbox::channel();
-    out.wake_on_send(wake);
+    let (out, rx) = Outbox::channel();
     shared
         .host
         .send_blocking(HostRequest::Connected {
             conn,
             device_id,
             out,
-            input: input.clone(),
         })
         .map_err(|_| anyhow!("host gone"))?;
-    let result = Session {
-        conn,
-        rx,
-        poll,
-        readiness,
-        input,
-    }
-    .run(&mut socket, shared);
+    let reading = AtomicBool::new(true);
+    let result = thread::scope(|scope| {
+        let (writer, reading) = (&writer, &reading);
+        scope.spawn(move || write_loop(writer, &rx, reading, shared));
+        let result = read_loop(&mut reader, writer, conn, shared);
+        reading.store(false, Ordering::SeqCst);
+        result
+    });
     let _ = shared
         .host
         .send_blocking(HostRequest::Disconnected { conn });
@@ -87,11 +92,10 @@ pub(crate) fn serve(mut stream: TcpStream, req: &Request, shared: &Shared) -> Re
 
 /// Browsers always send Origin on WebSocket; it must be this server.
 fn same_origin(req: &Request) -> bool {
-    let Some(origin) = req.headers.get("origin") else {
+    let Some(origin) = req.header("origin") else {
         return true;
     };
-    let host = req.headers.get("host").map(String::as_str).unwrap_or("");
-    origin == &format!("http://{host}")
+    origin == format!("http://{}", req.header("host").unwrap_or(""))
 }
 
 enum Hello {
@@ -100,7 +104,7 @@ enum Hello {
     HostBusy,
 }
 
-fn await_hello(socket: &mut WebSocket<TcpStream>, shared: &Shared) -> Hello {
+fn await_hello(socket: &mut Socket, shared: &Shared) -> Hello {
     let deadline = Instant::now() + HELLO_TIMEOUT;
     while Instant::now() < deadline {
         match read(socket) {
@@ -112,117 +116,65 @@ fn await_hello(socket: &mut WebSocket<TcpStream>, shared: &Shared) -> Hello {
                 };
             }
             Read::Msg(_) | Read::Closed => return Hello::Unknown,
-            Read::Idle | Read::Other => {}
+            Read::Other => {}
         }
     }
     Hello::Unknown
 }
 
-struct Session {
+fn read_loop(
+    socket: &mut Socket,
+    writer: &Mutex<Socket>,
     conn: ConnId,
-    rx: Receiver<ServerMsg>,
-    poll: Poll,
-    readiness: mio::net::TcpStream,
-    input: InputRoute,
-}
-
-impl Session {
-    fn run(mut self, socket: &mut WebSocket<TcpStream>, shared: &Shared) -> Result<()> {
-        let mut events = Events::with_capacity(8);
-        let mut last_ping = Instant::now();
-        loop {
-            if !shared.running() {
-                send(
-                    socket,
-                    &ServerMsg::Closed {
-                        reason: ClosedReason::ServerStopping,
-                    },
-                )?;
-                close(socket, 1001, "server stopping");
-                return Ok(());
-            }
-            match drain(socket, &self.rx)? {
-                Drain::Open => {}
-                Drain::Revoked => {
-                    close(socket, UNAUTHORIZED, "revoked");
-                    return Ok(());
-                }
-                Drain::Ended => {
-                    close(socket, TRY_AGAIN, "session ended");
-                    return Ok(());
-                }
-            }
-            loop {
-                match read(socket) {
-                    Read::Msg(ClientMsg::Ping) => send(socket, &ServerMsg::Pong)?,
-                    Read::Msg(msg) => self.forward(msg, shared)?,
-                    Read::Closed => return Ok(()),
-                    Read::Idle => break,
-                    Read::Other => {}
-                }
-            }
-            if last_ping.elapsed() >= PING_EVERY {
-                accept_write(socket.send(Message::Ping(Vec::new())))?;
-                last_ping = Instant::now();
-            }
-            let interest = if accept_write(socket.flush())? {
-                Interest::READABLE
-            } else {
-                Interest::READABLE.add(Interest::WRITABLE)
-            };
-            self.poll
-                .registry()
-                .reregister(&mut self.readiness, Token(0), interest)?;
-            match self.poll.poll(&mut events, Some(Duration::from_secs(1))) {
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-                result => result?,
-            }
-        }
-    }
-}
-
-impl Session {
-    fn forward(&self, msg: ClientMsg, shared: &Shared) -> Result<()> {
-        let request = if self.fast_input(&msg) {
-            HostRequest::InputSent { conn: self.conn }
-        } else {
-            HostRequest::Message {
-                conn: self.conn,
-                msg,
-            }
-        };
-        shared
-            .host
-            .send_blocking(request)
-            .map_err(|_| anyhow!("host gone"))
-    }
-
-    fn fast_input(&self, msg: &ClientMsg) -> bool {
-        if !matches!(msg, ClientMsg::Text { .. } | ClientMsg::Key { .. }) {
-            return false;
-        }
-        let Some(sink) = self.input.get() else {
-            return false;
-        };
-        let started = Instant::now();
-        let handled = sink.send(msg);
-        log::debug!(
-            "xenon remote: input ws->pty {:?} handled={handled}",
-            started.elapsed()
-        );
-        handled
-    }
-}
-
-enum Drain {
-    Open,
-    Revoked,
-    Ended,
-}
-
-fn drain(socket: &mut WebSocket<TcpStream>, rx: &Receiver<ServerMsg>) -> Result<Drain> {
+    shared: &Shared,
+) -> Result<()> {
     loop {
-        match rx.try_recv() {
+        match read(socket) {
+            Read::Msg(ClientMsg::Ping) => send(&mut lock(writer), &ServerMsg::Pong)?,
+            Read::Msg(msg) => shared
+                .host
+                .send_blocking(HostRequest::Message { conn, msg })
+                .map_err(|_| anyhow!("host gone"))?,
+            Read::Other => {}
+            Read::Closed => return Ok(()),
+        }
+    }
+}
+
+/// Sends queued messages and pings until the session ends, then closes the
+/// stream, which also wakes the reader.
+fn write_loop(
+    writer: &Mutex<Socket>,
+    rx: &Receiver<ServerMsg>,
+    reading: &AtomicBool,
+    shared: &Shared,
+) {
+    if let Ok(Some((code, reason))) = pump(writer, rx, reading, shared) {
+        close(&mut lock(writer), code, reason);
+    }
+    let _ = lock(writer).get_ref().shutdown(Shutdown::Both);
+}
+
+/// Returns the close frame to send, if the stream can still take one.
+fn pump(
+    writer: &Mutex<Socket>,
+    rx: &Receiver<ServerMsg>,
+    reading: &AtomicBool,
+    shared: &Shared,
+) -> Result<Option<(u16, &'static str)>> {
+    let mut last_ping = Instant::now();
+    loop {
+        if !reading.load(Ordering::SeqCst) {
+            return Ok(Some((1000, "")));
+        }
+        if !shared.running() {
+            let stopping = ServerMsg::Closed {
+                reason: ClosedReason::ServerStopping,
+            };
+            send(&mut lock(writer), &stopping)?;
+            return Ok(Some((1001, "server stopping")));
+        }
+        match rx.recv_timeout(CHECK_EVERY) {
             Ok(msg) => {
                 let revoked = matches!(
                     msg,
@@ -230,40 +182,37 @@ fn drain(socket: &mut WebSocket<TcpStream>, rx: &Receiver<ServerMsg>) -> Result<
                         reason: ClosedReason::Revoked
                     }
                 );
-                send(socket, &msg)?;
+                send(&mut lock(writer), &msg)?;
                 if revoked {
-                    return Ok(Drain::Revoked);
+                    return Ok(Some((UNAUTHORIZED, "revoked")));
                 }
             }
-            Err(TryRecvError::Empty) => return Ok(Drain::Open),
-            Err(TryRecvError::Disconnected) => return Ok(Drain::Ended),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return Ok(Some((TRY_AGAIN, "session ended"))),
+        }
+        if last_ping.elapsed() >= PING_EVERY {
+            lock(writer).send(Message::Ping(Vec::new()))?;
+            last_ping = Instant::now();
         }
     }
 }
 
-fn send(socket: &mut WebSocket<TcpStream>, msg: &ServerMsg) -> Result<()> {
-    let json = serde_json::to_string(msg)?;
-    accept_write(socket.send(Message::Text(json)))?;
-    Ok(())
+fn lock(writer: &Mutex<Socket>) -> std::sync::MutexGuard<'_, Socket> {
+    writer.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// WouldBlock retains tungstenite's pending bytes; wait for writable readiness.
-fn accept_write(result: tungstenite::Result<()>) -> Result<bool> {
-    match result {
-        Ok(()) => Ok(true),
-        Err(tungstenite::Error::Io(e)) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(false),
-        Err(e) => Err(e.into()),
-    }
+fn send(socket: &mut Socket, msg: &ServerMsg) -> Result<()> {
+    socket.send(Message::Text(serde_json::to_string(msg)?))?;
+    Ok(())
 }
 
 enum Read {
     Msg(ClientMsg),
-    Idle,
     Other,
     Closed,
 }
 
-fn read(socket: &mut WebSocket<TcpStream>) -> Read {
+fn read(socket: &mut Socket) -> Read {
     match socket.read() {
         Ok(Message::Text(text)) => match serde_json::from_str::<ClientMsg>(&text) {
             Ok(msg) => Read::Msg(msg),
@@ -280,14 +229,13 @@ fn read(socket: &mut WebSocket<TcpStream>) -> Read {
                 std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
             ) =>
         {
-            let _ = socket.flush();
-            Read::Idle
+            Read::Other
         }
         Err(_) => Read::Closed,
     }
 }
 
-fn close(socket: &mut WebSocket<TcpStream>, code: u16, reason: &str) {
+fn close(socket: &mut Socket, code: u16, reason: &str) {
     let _ = socket.close(Some(CloseFrame {
         code: CloseCode::from(code),
         reason: reason.to_string().into(),

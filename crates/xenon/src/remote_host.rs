@@ -56,10 +56,8 @@ impl App {
                 conn,
                 device_id,
                 out,
-                input,
-            } => self.remote_connected(conn, device_id, out, input),
+            } => self.remote_connected(conn, device_id, out),
             HostRequest::Message { conn, msg } => self.remote_message(conn, msg),
-            HostRequest::InputSent { .. } => {}
             HostRequest::Disconnected { conn } => self.remote_disconnected(conn),
         }
     }

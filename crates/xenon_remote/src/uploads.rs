@@ -6,15 +6,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
-use crate::http;
-use crate::server::{self, Request, Shared};
+use crate::http::{self, Request};
+use crate::server::{self, Shared};
 
 pub(crate) const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 const KEEP: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 /// `POST /api/uploads`: raw image body in, `{"path": …}` out.
 pub(crate) fn serve(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
-    match shared.authenticate(server::bearer(&req.headers)) {
+    match shared.authenticate(server::bearer(req)) {
         Ok(Some(_)) => {}
         Ok(None) => return http::write_json_error(stream, 401, "unauthorized"),
         Err(e) => return http::write_json_error(stream, 503, &e),
@@ -22,7 +22,7 @@ pub(crate) fn serve(stream: &mut TcpStream, req: &Request, shared: &Shared) -> R
     let Some(dir) = shared.uploads_dir.get() else {
         return http::write_json_error(stream, 503, "uploads are off");
     };
-    let content_type = req.headers.get("content-type").map_or("", String::as_str);
+    let content_type = req.header("content-type").unwrap_or("");
     let Some(ext) = extension(content_type) else {
         return http::write_json_error(stream, 415, "send a PNG, JPEG, GIF, WebP, or HEIC image");
     };
@@ -30,12 +30,7 @@ pub(crate) fn serve(stream: &mut TcpStream, req: &Request, shared: &Shared) -> R
         return http::write_json_error(stream, 400, "empty image");
     }
     match save(dir, ext, &req.body) {
-        Ok(path) => http::write_http(
-            stream,
-            200,
-            "application/json",
-            serde_json::json!({ "path": path }).to_string().as_bytes(),
-        ),
+        Ok(path) => http::write_json(stream, &serde_json::json!({ "path": path })),
         Err(e) => http::write_json_error(stream, 500, &format!("couldn’t save: {e}")),
     }
 }
