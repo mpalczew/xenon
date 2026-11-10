@@ -166,7 +166,7 @@ pub fn write_draft(root: &Path, draft: &mut ItemDraft, edit: &Edit) -> anyhow::R
         Edit::Remove => draft.remove(source)?,
     };
     let Some(change) = change else { return Ok(()) };
-    let updated = change.apply(source);
+    let updated = change.edit.apply(source);
     file.write(old.as_deref(), updated.as_bytes())?;
     draft.commit(&updated, &change);
     Ok(())

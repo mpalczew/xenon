@@ -4,11 +4,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
-
 const BUNDLED: &str = include_str!("skill.md");
 const SKILL_VERSION: u32 = 9;
-const STATE_NAME: &str = ".xenon-skill.json";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SkillStatus {
@@ -16,12 +13,6 @@ pub enum SkillStatus {
     Installed { version: u32 },
     UpdateAvailable { installed: u32 },
     UserEdited,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-struct SkillState {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    declined_version: Option<u32>,
 }
 
 pub(crate) fn skill_home() -> PathBuf {
@@ -35,8 +26,7 @@ pub fn skill_status() -> SkillStatus {
 }
 
 pub fn install_skill() -> io::Result<()> {
-    write_managed(&skill_home())?;
-    save_state(&skill_home(), &SkillState::default())
+    write_managed(&skill_home())
 }
 
 pub fn remove_skill() -> io::Result<()> {
@@ -92,12 +82,4 @@ fn write_managed(home: &Path) -> io::Result<()> {
         fs::write(dir.join("SKILL.md"), BUNDLED)?;
     }
     Ok(())
-}
-
-fn save_state(home: &Path, state: &SkillState) -> io::Result<()> {
-    let path = home.join(STATE_NAME);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, serde_json::to_string_pretty(state).unwrap())
 }

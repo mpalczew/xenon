@@ -14,7 +14,7 @@ pub fn remove_item(source: &str, range: Range<usize>) -> Result<String> {
     let change = ItemDraft::existing(source, range, false)
         .remove(source)?
         .context("Worklist item is gone")?;
-    Ok(change.apply(source))
+    Ok(change.edit.apply(source))
 }
 
 pub fn move_item(source: &str, range: Range<usize>, target: &Target) -> Result<String> {

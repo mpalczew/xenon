@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{StoreError, data_dir, read_json, write_atomic};
+use crate::{StoreError, data_dir, load_or_default, write_atomic};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,22 +24,12 @@ pub enum ProseFont {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ProseSettings {
-    #[serde(default)]
     pub markers: ProseMarkers,
-    #[serde(default)]
     pub font: ProseFont,
-    #[serde(default = "default_size")]
     pub size: f32,
-    #[serde(default = "default_line_height")]
     pub line_height: f32,
-}
-
-fn default_size() -> f32 {
-    18.0
-}
-fn default_line_height() -> f32 {
-    1.55
 }
 
 impl Default for ProseSettings {
@@ -47,8 +37,8 @@ impl Default for ProseSettings {
         Self {
             markers: ProseMarkers::Dim,
             font: ProseFont::Auto,
-            size: default_size(),
-            line_height: default_line_height(),
+            size: 18.0,
+            line_height: 1.55,
         }
     }
 }
@@ -63,20 +53,13 @@ pub enum MarkdownMode {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ProseFilePrefs {
-    #[serde(default)]
     pub mode: MarkdownMode,
-    #[serde(default = "yes")]
     pub paper: bool,
     /// Leading `<!-- -->` lines shown instead of folded into the chip.
-    #[serde(default)]
     pub comments_open: bool,
-    #[serde(default = "yes")]
     pub list: bool,
-}
-
-fn yes() -> bool {
-    true
 }
 
 impl Default for ProseFilePrefs {
@@ -91,8 +74,8 @@ impl Default for ProseFilePrefs {
 }
 
 #[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
 struct ProseFiles {
-    #[serde(default)]
     files: BTreeMap<String, ProseFilePrefs>,
 }
 
@@ -101,11 +84,7 @@ fn files_path() -> std::path::PathBuf {
 }
 
 fn load() -> ProseFiles {
-    let path = files_path();
-    if !path.exists() {
-        return ProseFiles::default();
-    }
-    read_json(&path).unwrap_or_default()
+    load_or_default(&files_path()).unwrap_or_default()
 }
 
 pub fn prose_file_prefs(path: &Path) -> ProseFilePrefs {

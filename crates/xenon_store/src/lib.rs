@@ -68,27 +68,7 @@ fn settings_path() -> PathBuf {
 }
 
 pub fn load_settings() -> Result<AppSettings, StoreError> {
-    let path = settings_path();
-    if !path.exists() {
-        return Ok(AppSettings::default());
-    }
-    let contents = fs::read_to_string(&path)?;
-    let value: serde_json::Value = match serde_json::from_str(&contents) {
-        Ok(value) => value,
-        Err(_) => {
-            let backup = path.with_extension("corrupt");
-            let _ = fs::rename(&path, &backup);
-            return Ok(AppSettings::default());
-        }
-    };
-    match serde_json::from_value(value) {
-        Ok(settings) => Ok(settings),
-        Err(_) => {
-            let backup = path.with_extension("corrupt");
-            let _ = fs::rename(&path, &backup);
-            Ok(AppSettings::default())
-        }
-    }
+    load_or_default(&settings_path())
 }
 
 /// Atomically load, mutate, and save settings while preserving fields the
@@ -138,7 +118,7 @@ pub fn save_session(workspace: WorkspaceId, session: &SessionState) -> Result<()
     write_atomic(&session_path(workspace), session)
 }
 
-fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> Result<T, StoreError> {
+pub(crate) fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> Result<T, StoreError> {
     if !path.exists() {
         return Ok(T::default());
     }

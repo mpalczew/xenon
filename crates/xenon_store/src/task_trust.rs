@@ -8,7 +8,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{StoreError, data_dir, read_json, write_atomic};
+use crate::{StoreError, data_dir, load_or_default, write_atomic};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct TaskTrustRecord {
@@ -36,11 +36,7 @@ fn path() -> std::path::PathBuf {
 }
 
 fn load() -> TaskTrustFile {
-    let path = path();
-    if !path.exists() {
-        return TaskTrustFile::default();
-    }
-    read_json(&path).unwrap_or_default()
+    load_or_default(&path()).unwrap_or_default()
 }
 
 pub fn task_trust(root: &Path, hash: &str) -> TaskTrust {

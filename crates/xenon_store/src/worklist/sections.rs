@@ -113,6 +113,7 @@ pub struct Insertion {
     pub block_start: usize,
 }
 
+#[derive(Clone, Debug)]
 pub struct SourceEdit {
     pub range: Range<usize>,
     pub text: String,
@@ -134,7 +135,7 @@ pub(crate) fn newline_of(source: &str) -> &'static str {
     }
 }
 
-fn trimmed(text: &str) -> &str {
+pub(crate) fn trimmed(text: &str) -> &str {
     text.trim_end_matches(['\r', '\n'])
 }
 

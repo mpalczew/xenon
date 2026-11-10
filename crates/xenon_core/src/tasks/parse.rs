@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
-
+use serde::Deserialize;
+use serde::de::IgnoredAny;
 use serde_json_lenient::{Map, Value};
 
 use super::model::*;
@@ -45,11 +45,12 @@ pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
         .into_iter()
         .flatten()
     {
-        match parse_input(input) {
-            Some(def) => {
+        match serde_json_lenient::from_value::<RawInput>(input.clone()) {
+            Ok(raw) => {
+                let def = raw.into_def();
                 set.inputs.insert(def.id.clone(), def);
             }
-            None => set.warnings.push("skipped an input without an id".into()),
+            Err(_) => set.warnings.push("skipped an input without an id".into()),
         }
     }
     let raw_tasks = file.get("tasks").and_then(Value::as_array);
@@ -59,8 +60,11 @@ pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
                 .push(format!("task {} is not an object", i + 1));
             continue;
         };
-        let merged = merge_task(&file, task, os);
-        match parse_task(&merged) {
+        let merged = Value::Object(merge_task(&file, task, os));
+        match serde_json_lenient::from_value::<RawTask>(merged)
+            .map_err(|e| e.to_string())
+            .and_then(RawTask::into_def)
+        {
             Ok(def) if set.get(&def.label).is_some() => {
                 set.warnings
                     .push(format!("duplicate task label {:?}", def.label));
@@ -127,234 +131,154 @@ fn merge_task(file: &Map<String, Value>, task: &Map<String, Value>, os: Os) -> M
     out
 }
 
-fn parse_task(t: &Map<String, Value>) -> Result<TaskDef, String> {
-    let label = str_of(t, "label")
-        .filter(|l| !l.is_empty())
-        .ok_or("missing label")?;
-    let mut unsupported = None;
-    let type_name = str_of(t, "type").unwrap_or_else(|| "shell".into());
-    let kind = match type_name.as_str() {
-        "shell" => TaskKind::Shell,
-        "process" => TaskKind::Process,
-        other => {
-            unsupported = Some(format!(
-                "type {other:?} comes from a VS Code extension; Xenon runs shell and process tasks"
-            ));
-            TaskKind::Shell
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RawTask {
+    label: String,
+    detail: Option<String>,
+    r#type: Option<String>,
+    command: Option<Quoted>,
+    args: Vec<Quoted>,
+    options: TaskOptions,
+    presentation: Presentation,
+    group: Option<RawGroup>,
+    depends_on: Option<DependsOn>,
+    depends_order: Option<String>,
+    is_background: bool,
+    run_options: RunOptions,
+    hide: bool,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RunOptions {
+    run_on: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawGroup {
+    Kind(String),
+    Full {
+        kind: String,
+        #[serde(default, rename = "isDefault")]
+        is_default: bool,
+    },
+}
+
+/// A label, or a task identifier object (unsupported).
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Dep {
+    Label(String),
+    Identifier(IgnoredAny),
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum DependsOn {
+    Many(Vec<Dep>),
+    One(Dep),
+}
+
+impl RawTask {
+    fn into_def(self) -> Result<TaskDef, String> {
+        if self.label.is_empty() {
+            return Err("missing label".into());
         }
-    };
-    let command = t
-        .get("command")
-        .and_then(quoted)
-        .filter(|c| !c.value.is_empty());
-    let args = t
-        .get("args")
-        .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(quoted).collect())
-        .unwrap_or_default();
-    let (depends_on, dep_problem) = depends_on(t.get("dependsOn"));
-    if unsupported.is_none() {
-        unsupported = dep_problem;
-    }
-    if unsupported.is_none() && command.is_none() && depends_on.is_empty() {
-        unsupported = Some("no command".into());
-    }
-    let is_background = t
-        .get("isBackground")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let run_on = t
-        .get("runOptions")
-        .and_then(|r| r.get("runOn"))
-        .and_then(Value::as_str);
-    Ok(TaskDef {
-        label,
-        detail: str_of(t, "detail"),
-        kind,
-        command,
-        args,
-        options: options_of(t.get("options")),
-        presentation: presentation_of(t),
-        group: group_of(t),
-        depends_on,
-        depends_sequence: str_of(t, "dependsOrder").as_deref() == Some("sequence"),
-        is_background,
-        run_on_folder_open: run_on == Some("folderOpen"),
-        hide: t.get("hide").and_then(Value::as_bool).unwrap_or(false),
-        unsupported,
-    })
-}
-
-fn str_of(t: &Map<String, Value>, key: &str) -> Option<String> {
-    t.get(key).and_then(Value::as_str).map(str::to_string)
-}
-
-fn quoted(v: &Value) -> Option<Quoted> {
-    match v {
-        Value::String(s) => Some(Quoted {
-            value: s.clone(),
-            quoting: None,
-        }),
-        Value::Object(o) => {
-            let value = o.get("value").and_then(Value::as_str)?.to_string();
-            let quoting = match o.get("quoting").and_then(Value::as_str) {
-                Some("escape") => Some(Quoting::Escape),
-                Some("strong") => Some(Quoting::Strong),
-                Some("weak") => Some(Quoting::Weak),
-                _ => None,
-            };
-            Some(Quoted { value, quoting })
-        }
-        _ => None,
-    }
-}
-
-fn depends_on(v: Option<&Value>) -> (Vec<String>, Option<String>) {
-    let items: Vec<&Value> = match v {
-        None | Some(Value::Null) => return (Vec::new(), None),
-        Some(Value::Array(a)) => a.iter().collect(),
-        Some(other) => vec![other],
-    };
-    let mut labels = Vec::new();
-    let mut problem = None;
-    for item in items {
-        match item {
-            Value::String(s) => labels.push(s.clone()),
-            _ => {
-                problem = Some(
-                    "dependsOn by task identifier ({type, ...}) is not supported; use labels"
-                        .into(),
-                )
+        let mut unsupported = None;
+        let kind = match self.r#type.as_deref().unwrap_or("shell") {
+            "shell" => TaskKind::Shell,
+            "process" => TaskKind::Process,
+            other => {
+                unsupported = Some(format!(
+                    "type {other:?} comes from a VS Code extension; Xenon runs shell and process tasks"
+                ));
+                TaskKind::Shell
+            }
+        };
+        let command = self.command.filter(|c| !c.value.is_empty());
+        let deps = match self.depends_on {
+            None => Vec::new(),
+            Some(DependsOn::Many(many)) => many,
+            Some(DependsOn::One(one)) => vec![one],
+        };
+        let mut depends_on = Vec::new();
+        for dep in deps {
+            match dep {
+                Dep::Label(label) => depends_on.push(label),
+                Dep::Identifier(_) if unsupported.is_none() => {
+                    unsupported = Some(
+                        "dependsOn by task identifier ({type, ...}) is not supported; use labels"
+                            .into(),
+                    );
+                }
+                Dep::Identifier(_) => {}
             }
         }
-    }
-    (labels, problem)
-}
-
-fn options_of(v: Option<&Value>) -> TaskOptions {
-    let Some(Value::Object(o)) = v else {
-        return TaskOptions::default();
-    };
-    let env: BTreeMap<String, String> = o
-        .get("env")
-        .and_then(Value::as_object)
-        .map(|e| {
-            e.iter()
-                .map(|(k, v)| {
-                    let text = match v {
-                        Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    };
-                    (k.clone(), text)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let shell = o
-        .get("shell")
-        .and_then(Value::as_object)
-        .map(|s| ShellOptions {
-            executable: str_of(s, "executable"),
-            args: s.get("args").and_then(Value::as_array).map(|a| {
-                a.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect()
-            }),
-        });
-    TaskOptions {
-        cwd: str_of(o, "cwd"),
-        env,
-        shell,
-    }
-}
-
-fn presentation_of(t: &Map<String, Value>) -> Presentation {
-    let mut p = Presentation::default();
-    let Some(Value::Object(o)) = t.get("presentation") else {
-        return p;
-    };
-    match o.get("reveal").and_then(Value::as_str) {
-        Some("always") => p.reveal = Reveal::Always,
-        Some("silent") => p.reveal = Reveal::Silent,
-        Some("never") => p.reveal = Reveal::Never,
-        _ => {}
-    }
-    match o.get("panel").and_then(Value::as_str) {
-        Some("shared") => p.panel = Panel::Shared,
-        Some("dedicated") => p.panel = Panel::Dedicated,
-        Some("new") => p.panel = Panel::New,
-        _ => {}
-    }
-    let flag = |key: &str, slot: &mut bool| {
-        if let Some(b) = o.get(key).and_then(Value::as_bool) {
-            *slot = b;
+        if unsupported.is_none() && command.is_none() && depends_on.is_empty() {
+            unsupported = Some("no command".into());
         }
-    };
-    flag("focus", &mut p.focus);
-    flag("clear", &mut p.clear);
-    flag("close", &mut p.close);
-    flag("echo", &mut p.echo);
-    flag("showReuseMessage", &mut p.show_reuse_message);
-    p
-}
-
-fn group_of(t: &Map<String, Value>) -> Option<Group> {
-    let kind_of = |s: &str| match s {
-        "build" => Some(GroupKind::Build),
-        "test" => Some(GroupKind::Test),
-        _ => None,
-    };
-    match t.get("group") {
-        Some(Value::String(s)) => kind_of(s).map(|kind| Group {
-            kind,
-            is_default: false,
-        }),
-        Some(Value::Object(o)) => {
-            let kind = kind_of(o.get("kind")?.as_str()?)?;
-            let is_default = o.get("isDefault").and_then(Value::as_bool).unwrap_or(false);
+        let group = self.group.and_then(|g| {
+            let (kind, is_default) = match g {
+                RawGroup::Kind(kind) => (kind, false),
+                RawGroup::Full { kind, is_default } => (kind, is_default),
+            };
+            let kind = match kind.as_str() {
+                "build" => GroupKind::Build,
+                "test" => GroupKind::Test,
+                _ => return None,
+            };
             Some(Group { kind, is_default })
-        }
-        _ => None,
+        });
+        Ok(TaskDef {
+            label: self.label,
+            detail: self.detail,
+            kind,
+            command,
+            args: self.args,
+            options: self.options,
+            presentation: self.presentation,
+            group,
+            depends_on,
+            depends_sequence: self.depends_order.as_deref() == Some("sequence"),
+            is_background: self.is_background,
+            run_on_folder_open: self.run_options.run_on.as_deref() == Some("folderOpen"),
+            hide: self.hide,
+            unsupported,
+        })
     }
 }
 
-fn parse_input(v: &Value) -> Option<InputDef> {
-    let o = v.as_object()?;
-    let id = str_of(o, "id")?;
-    let description = str_of(o, "description").unwrap_or_default();
-    let default = o.get("default").and_then(Value::as_str).map(str::to_string);
-    let kind = match o.get("type").and_then(Value::as_str) {
-        Some("promptString") => InputKind::PromptString {
-            password: o.get("password").and_then(Value::as_bool).unwrap_or(false),
-        },
-        Some("pickString") => InputKind::PickString {
-            options: o
-                .get("options")
-                .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(pick_option).collect())
-                .unwrap_or_default(),
-        },
-        _ => InputKind::Command,
-    };
-    Some(InputDef {
-        id,
-        description,
-        default,
-        kind,
-    })
+#[derive(Deserialize)]
+struct RawInput {
+    id: String,
+    #[serde(default)]
+    description: String,
+    default: Option<String>,
+    r#type: Option<String>,
+    #[serde(default)]
+    password: bool,
+    #[serde(default)]
+    options: Vec<PickOption>,
 }
 
-fn pick_option(v: &Value) -> Option<PickOption> {
-    match v {
-        Value::String(s) => Some(PickOption {
-            label: s.clone(),
-            value: s.clone(),
-        }),
-        Value::Object(o) => {
-            let value = o.get("value").and_then(Value::as_str)?.to_string();
-            let label = str_of(o, "label").unwrap_or_else(|| value.clone());
-            Some(PickOption { label, value })
+impl RawInput {
+    fn into_def(self) -> InputDef {
+        let kind = match self.r#type.as_deref() {
+            Some("promptString") => InputKind::PromptString {
+                password: self.password,
+            },
+            Some("pickString") => InputKind::PickString {
+                options: self.options,
+            },
+            _ => InputKind::Command,
+        };
+        InputDef {
+            id: self.id,
+            description: self.description,
+            default: self.default,
+            kind,
         }
-        _ => None,
     }
 }

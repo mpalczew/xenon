@@ -60,81 +60,59 @@ impl WindowGeometry {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
-    #[serde(default = "default_font_size")]
     pub editor_font_size: f32,
-    #[serde(default = "default_font_size")]
     pub terminal_font_size: f32,
-    #[serde(default = "default_font_size")]
     pub ui_font_size: f32,
-    #[serde(default = "default_font_family")]
     pub editor_font_family: String,
-    #[serde(default = "default_font_family")]
     pub terminal_font_family: String,
-    #[serde(default = "default_ui_font_family")]
     pub ui_font_family: String,
-    #[serde(default = "default_true")]
     pub show_line_numbers: bool,
     /// Soft wrap for markdown and other prose. The file is not rewritten.
-    #[serde(default = "default_true")]
     pub wrap_prose: bool,
     /// Soft wrap for every other text file.
-    #[serde(default)]
     pub wrap_code: bool,
-    #[serde(default)]
     pub vim_mode: bool,
-    #[serde(default)]
     pub theme: ThemeMode,
-    #[serde(default = "default_light_theme")]
     pub light_theme: String,
-    #[serde(default = "default_dark_theme")]
     pub dark_theme: String,
-    #[serde(default)]
     pub terminal_auto_close: TerminalAutoClose,
-    #[serde(default)]
     pub workspaces_collapsed: bool,
-    #[serde(default = "default_true")]
     pub files_open: bool,
-    #[serde(default)]
     pub git_collapsed: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub files_section_height: Option<f32>,
-    #[serde(default = "default_sidebar_width")]
     pub sidebar_width: f32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub workspaces_section_height: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowGeometry>,
-    #[serde(default)]
     pub remote_enabled: bool,
     /// Hold a no-idle-sleep assertion while a phone is connected. Opt-in; the
     /// older `remote_keep_awake` key is ignored.
-    #[serde(default)]
     pub remote_keep_awake_while_connected: bool,
-    #[serde(default = "default_remote_port")]
     pub remote_port: u16,
-    #[serde(default)]
     pub remote_hostname: String,
-    #[serde(default)]
     pub prose: crate::ProseSettings,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            editor_font_size: default_font_size(),
-            terminal_font_size: default_font_size(),
-            ui_font_size: default_font_size(),
-            editor_font_family: default_font_family(),
-            terminal_font_family: default_font_family(),
-            ui_font_family: default_ui_font_family(),
+            editor_font_size: 14.0,
+            terminal_font_size: 14.0,
+            ui_font_size: 14.0,
+            editor_font_family: DEFAULT_FONT_FAMILY.into(),
+            terminal_font_family: DEFAULT_FONT_FAMILY.into(),
+            ui_font_family: DEFAULT_UI_FONT_FAMILY.into(),
             show_line_numbers: true,
             wrap_prose: true,
             wrap_code: false,
             vim_mode: false,
             theme: ThemeMode::System,
-            light_theme: default_light_theme(),
-            dark_theme: default_dark_theme(),
+            light_theme: DEFAULT_LIGHT_THEME.into(),
+            dark_theme: DEFAULT_DARK_THEME.into(),
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
@@ -145,31 +123,11 @@ impl Default for AppSettings {
             window: None,
             remote_enabled: false,
             remote_keep_awake_while_connected: false,
-            remote_port: default_remote_port(),
+            remote_port: DEFAULT_REMOTE_PORT,
             remote_hostname: String::new(),
             prose: crate::ProseSettings::default(),
         }
     }
-}
-
-fn default_sidebar_width() -> f32 {
-    240.0
-}
-
-fn default_font_size() -> f32 {
-    14.0
-}
-
-fn default_font_family() -> String {
-    DEFAULT_FONT_FAMILY.into()
-}
-
-fn default_ui_font_family() -> String {
-    DEFAULT_UI_FONT_FAMILY.into()
-}
-
-fn default_true() -> bool {
-    true
 }
 
 pub const DEFAULT_FONT_FAMILY: &str = "Lilex";
@@ -177,16 +135,4 @@ pub const DEFAULT_UI_FONT_FAMILY: &str = ".SystemUIFont";
 pub const DEFAULT_LIGHT_THEME: &str = "One Light";
 pub const DEFAULT_DARK_THEME: &str = "One Dark";
 
-fn default_light_theme() -> String {
-    DEFAULT_LIGHT_THEME.into()
-}
-
-fn default_dark_theme() -> String {
-    DEFAULT_DARK_THEME.into()
-}
-
 pub const DEFAULT_REMOTE_PORT: u16 = 17890;
-
-fn default_remote_port() -> u16 {
-    DEFAULT_REMOTE_PORT
-}

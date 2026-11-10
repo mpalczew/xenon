@@ -1,15 +1,41 @@
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all(deserialize = "lowercase"))]
 pub enum Quoting {
     Escape,
     Strong,
     Weak,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// A plain string or `{value, quoting}`.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum QuotedRepr {
+    Plain(String),
+    Full {
+        value: String,
+        #[serde(default)]
+        quoting: Option<Quoting>,
+    },
+}
+
+impl From<QuotedRepr> for Quoted {
+    fn from(repr: QuotedRepr) -> Self {
+        match repr {
+            QuotedRepr::Plain(value) => Quoted {
+                value,
+                quoting: None,
+            },
+            QuotedRepr::Full { value, quoting } => Quoted { value, quoting },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "QuotedRepr")]
 pub struct Quoted {
     pub value: String,
     /// `None`: the VS Code default (strong for shell arguments).
@@ -22,34 +48,38 @@ pub enum TaskKind {
     Process,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShellOptions {
     pub executable: Option<String>,
     pub args: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TaskOptions {
     pub cwd: Option<String>,
     pub env: BTreeMap<String, String>,
     pub shell: Option<ShellOptions>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all(deserialize = "lowercase"))]
 pub enum Reveal {
     Always,
     Silent,
     Never,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all(deserialize = "lowercase"))]
 pub enum Panel {
     Shared,
     Dedicated,
     New,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all(deserialize = "camelCase"), default)]
 pub struct Presentation {
     pub reveal: Reveal,
     pub focus: bool,
@@ -104,7 +134,34 @@ pub struct TaskDef {
     pub unsupported: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// A plain string or `{value, label}`.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PickRepr {
+    Plain(String),
+    Full {
+        value: String,
+        label: Option<String>,
+    },
+}
+
+impl From<PickRepr> for PickOption {
+    fn from(repr: PickRepr) -> Self {
+        match repr {
+            PickRepr::Plain(value) => PickOption {
+                label: value.clone(),
+                value,
+            },
+            PickRepr::Full { value, label } => PickOption {
+                label: label.unwrap_or_else(|| value.clone()),
+                value,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "PickRepr")]
 pub struct PickOption {
     pub label: String,
     pub value: String,

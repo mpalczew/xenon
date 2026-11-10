@@ -1,22 +1,14 @@
 use super::entries::entries;
-use super::{Target, WorkItem, append_item};
+use super::sections::{newline_of, trimmed};
+use super::{SourceEdit, Target, WorkItem, append_item};
 use anyhow::{Context, Result};
 use std::ops::Range;
 
 #[derive(Clone, Debug)]
 pub struct Change {
-    pub range: Range<usize>,
-    pub text: String,
+    pub edit: SourceEdit,
     /// Where the item starts after the edit; None once it is removed.
     item_start: Option<usize>,
-}
-
-impl Change {
-    pub fn apply(&self, source: &str) -> String {
-        let mut out = source.to_owned();
-        out.replace_range(self.range.clone(), &self.text);
-        out
-    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -71,19 +63,16 @@ impl ItemDraft {
         let Some(start) = self.locate(source)? else {
             return self.append(source, item).map(Some);
         };
-        let newline = if source.contains("\r\n") {
-            "\r\n"
-        } else {
-            "\n"
-        };
-        let text = item.markdown(self.checked, newline);
+        let text = item.markdown(self.checked, newline_of(source));
         let end = start + self.saved.as_ref().map_or(0, |saved| saved.raw.len());
         if source[start..end] == text {
             return Ok(None);
         }
         Ok(Some(Change {
-            range: start..end,
-            text,
+            edit: SourceEdit {
+                range: start..end,
+                text,
+            },
             item_start: Some(start),
         }))
     }
@@ -99,14 +88,15 @@ impl ItemDraft {
             .range;
         let head = trimmed(&source[..start]);
         let range = if source[range.end..].trim().is_empty() && !head.is_empty() {
-            let newline = if source.contains("\r\n") { 2 } else { 1 };
-            head.len() + newline..source.len()
+            head.len() + newline_of(source).len()..source.len()
         } else {
             range
         };
         Ok(Some(Change {
-            range,
-            text: String::new(),
+            edit: SourceEdit {
+                range,
+                text: String::new(),
+            },
             item_start: None,
         }))
     }
@@ -129,8 +119,10 @@ impl ItemDraft {
     fn append(&self, source: &str, item: &WorkItem) -> Result<Change> {
         let insertion = append_item(source, &self.target, item, self.checked)?;
         Ok(Change {
-            range: insertion.range,
-            text: insertion.text,
+            edit: SourceEdit {
+                range: insertion.range,
+                text: insertion.text,
+            },
             item_start: Some(insertion.block_start),
         })
     }
@@ -148,8 +140,4 @@ impl ItemDraft {
             .map(|entry| Some(entry.range.start))
             .context("This item changed elsewhere; reopen it to keep editing")
     }
-}
-
-fn trimmed(text: &str) -> &str {
-    text.trim_end_matches(['\r', '\n'])
 }
