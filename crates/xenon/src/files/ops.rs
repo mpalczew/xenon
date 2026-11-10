@@ -253,7 +253,7 @@ impl FilesView {
                     gio::spawn_blocking(move || xenon_finder::fsops::create(&made, is_dir)).await;
                 let Some(this) = weak.upgrade() else { return };
                 match result {
-                    Ok(Ok(())) => this.finish(&[at], Some(path)),
+                    Ok(Ok(())) => this.reveal(&path),
                     Ok(Err(why)) => this.say(&format!("Couldn\u{2019}t create {name}: {why}")),
                     Err(_) => {}
                 }
@@ -288,7 +288,7 @@ impl FilesView {
                         if let Some(app) = this.app.upgrade() {
                             app.paths_moved(&path, &new);
                         }
-                        this.finish(&[dir], Some(new));
+                        this.reveal(&new);
                     }
                     Err(why) => this.say(&format!("Couldn\u{2019}t rename: {}", why.message())),
                 }
@@ -311,14 +311,6 @@ impl FilesView {
                     why.message()
                 )),
             }
-            this.finish(
-                &path
-                    .parent()
-                    .map(Path::to_path_buf)
-                    .into_iter()
-                    .collect::<Vec<_>>(),
-                None,
-            );
         });
     }
 

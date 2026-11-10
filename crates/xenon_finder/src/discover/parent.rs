@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use super::{MAX_VISITS, expand_user_path, resolve_existing_dir, should_skip_dir};
+use super::{expand_user_path, resolve_existing_dir};
 
 const MAX_RELATIVE_DEPTH: usize = 4;
 const MAX_PARENT_RESULTS: usize = 40;
@@ -37,63 +37,19 @@ fn list_under_path(expanded: PathBuf) -> Vec<PathBuf> {
 }
 
 fn bfs_descendants(root: PathBuf, prefix: Option<String>) -> Vec<PathBuf> {
-    let prefix_l = prefix.as_ref().map(|p| p.to_lowercase());
-    let mut out = Vec::new();
-    if prefix_l.is_none() {
-        out.push(root.clone());
-    }
-    let mut queue = vec![(root, 0usize)];
-    let mut qi = 0;
-    let mut visits = 0usize;
-    while qi < queue.len() && out.len() < MAX_PARENT_RESULTS {
-        if visits >= MAX_VISITS {
-            break;
-        }
-        let (dir, depth) = queue[qi].clone();
-        qi += 1;
-        if depth >= MAX_RELATIVE_DEPTH {
-            continue;
-        }
-        visits += 1;
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        let mut children: Vec<PathBuf> = entries
-            .flatten()
-            .filter_map(|entry| {
-                let file_type = entry.file_type().ok()?;
-                if !file_type.is_dir() {
-                    return None;
-                }
-                let name = entry.file_name().to_string_lossy().into_owned();
-                if should_skip_dir(&name) {
-                    None
-                } else {
-                    Some(entry.path())
-                }
+    let prefix_l = prefix.map(|p| p.to_lowercase());
+    let found = crate::walk::subdirs(&root, MAX_RELATIVE_DEPTH)
+        .into_iter()
+        .filter(|path| {
+            prefix_l.as_deref().is_none_or(|prefix| {
+                path.file_name()
+                    .is_some_and(|n| n.to_string_lossy().to_lowercase().starts_with(prefix))
             })
-            .collect();
-        children.sort();
-        for child in children {
-            if matches_prefix(&child, prefix_l.as_deref()) {
-                if out.len() >= MAX_PARENT_RESULTS {
-                    break;
-                }
-                out.push(child.clone());
-            }
-            if depth + 1 < MAX_RELATIVE_DEPTH {
-                queue.push((child, depth + 1));
-            }
-        }
-    }
-    out
-}
-
-fn matches_prefix(path: &std::path::Path, prefix_l: Option<&str>) -> bool {
-    let Some(prefix) = prefix_l else {
-        return true;
-    };
-    path.file_name()
-        .map(|n| n.to_string_lossy().to_lowercase().starts_with(prefix))
-        .unwrap_or(false)
+        });
+    let own_root = prefix_l.is_none().then(|| root.clone());
+    own_root
+        .into_iter()
+        .chain(found)
+        .take(MAX_PARENT_RESULTS)
+        .collect()
 }

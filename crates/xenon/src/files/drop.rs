@@ -74,7 +74,6 @@ impl FilesView {
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
             let mut last = None;
-            let mut dirs = vec![dest.clone()];
             for src in paths {
                 let planned = if moving {
                     fileops::move_target(&src, &dest)
@@ -110,11 +109,8 @@ impl FilesView {
                 let Some(this) = weak.upgrade() else { return };
                 match result {
                     Ok(()) => {
-                        if moving {
-                            if let Some(app) = this.app.upgrade() {
-                                app.paths_moved(&src, &target);
-                            }
-                            dirs.extend(src.parent().map(Path::to_path_buf));
+                        if moving && let Some(app) = this.app.upgrade() {
+                            app.paths_moved(&src, &target);
                         }
                         last = Some(target);
                     }
@@ -127,23 +123,12 @@ impl FilesView {
                     }
                 }
             }
-            if let Some(this) = weak.upgrade() {
-                this.finish(&dirs, last);
+            if let Some(this) = weak.upgrade()
+                && let Some(path) = last
+            {
+                this.reveal(&path);
             }
         });
-    }
-
-    pub(super) fn finish(self: &Rc<Self>, dirs: &[PathBuf], show: Option<PathBuf>) {
-        for dir in dirs {
-            let known = self.root_dir.borrow().as_deref() == Some(dir.as_path())
-                || self.stores.borrow().contains_key(dir);
-            if known {
-                self.load(dir);
-            }
-        }
-        if let Some(path) = show {
-            self.reveal(&path);
-        }
     }
 
     pub(super) fn say(&self, text: &str) {

@@ -1,114 +1,11 @@
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::{gio, glib};
-use xenon_finder::tree::{TreeEntry, list_dir};
 
-use super::{FilesView, MAX_WATCHED, RELOAD_DELAY, draw_item, info_for, row_path, tree_row};
+use super::{FilesView, draw_item, row_path, tree_row};
 
 impl FilesView {
-    pub(super) fn load(self: &Rc<Self>, dir: &Path) {
-        let epoch = self.epoch.get();
-        let dir = dir.to_path_buf();
-        self.watch(&dir);
-        let weak = Rc::downgrade(self);
-        glib::spawn_future_local(async move {
-            let path = dir.clone();
-            let Ok(entries) = gio::spawn_blocking(move || list_dir(&path)).await else {
-                return;
-            };
-            let Some(this) = weak.upgrade() else { return };
-            if this.epoch.get() == epoch {
-                this.apply(&dir, &entries);
-            }
-        });
-    }
-
-    pub(super) fn apply(self: &Rc<Self>, dir: &Path, entries: &[TreeEntry]) {
-        let store = if self.root_dir.borrow().as_deref() == Some(dir) {
-            Some(self.root_store.clone())
-        } else {
-            self.stores.borrow().get(dir).cloned()
-        };
-        let Some(store) = store else { return };
-        let keep = self.selected_path();
-        let had_focus = crate::pane::focus_inside(&self.list);
-        let open = self.expanded_paths();
-        let items: Vec<gio::FileInfo> = entries.iter().map(info_for).collect();
-        store.splice(0, store.n_items(), &items);
-        self.restoring.set(true);
-        let mut i = 0;
-        while i < self.tree.n_items() {
-            if let Some(row) = tree_row(self.tree.item(i))
-                && row.is_expandable()
-                && !row.is_expanded()
-                && row_path(&row).is_some_and(|p| open.contains(&p))
-            {
-                row.set_expanded(true);
-            }
-            i += 1;
-        }
-        self.restoring.set(false);
-        if let Some(path) = keep {
-            self.select_path(&path, had_focus);
-        }
-        self.advance_reveal();
-    }
-
-    pub(super) fn expanded_paths(&self) -> HashSet<PathBuf> {
-        (0..self.tree.n_items())
-            .filter_map(|i| tree_row(self.tree.item(i)))
-            .filter(gtk::TreeListRow::is_expanded)
-            .filter_map(|r| row_path(&r))
-            .collect()
-    }
-
-    pub(super) fn expanded_changed(self: &Rc<Self>, path: &Path, expanded: bool, restoring: bool) {
-        if expanded {
-            if !restoring {
-                self.load(path);
-            }
-        } else {
-            self.monitors
-                .borrow_mut()
-                .retain(|p, _| !p.starts_with(path));
-        }
-    }
-
-    pub(super) fn watch(self: &Rc<Self>, dir: &Path) {
-        if self.monitors.borrow().len() >= MAX_WATCHED || self.monitors.borrow().contains_key(dir) {
-            return;
-        }
-        let file = gio::File::for_path(dir);
-        let Ok(monitor) =
-            file.monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
-        else {
-            return;
-        };
-        let (weak, path) = (Rc::downgrade(self), dir.to_path_buf());
-        monitor.connect_changed(move |_, _, _, _| {
-            let Some(this) = weak.upgrade() else { return };
-            this.dirty.borrow_mut().insert(path.clone());
-            if this.reload_armed.replace(true) {
-                return;
-            }
-            let weak = Rc::downgrade(&this);
-            glib::timeout_add_local_once(RELOAD_DELAY, move || {
-                let Some(this) = weak.upgrade() else { return };
-                this.reload_armed.set(false);
-                let dirty: Vec<PathBuf> = this.dirty.borrow_mut().drain().collect();
-                for dir in dirty {
-                    this.load(&dir);
-                }
-            });
-        });
-        self.monitors
-            .borrow_mut()
-            .insert(dir.to_path_buf(), monitor);
-    }
-
     pub(crate) fn reveal(self: &Rc<Self>, dir: &Path) {
         if !self
             .root_dir

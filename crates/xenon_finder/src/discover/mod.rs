@@ -1,10 +1,7 @@
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 const MAX_DEPTH: usize = 3;
 const MAX_RESULTS: usize = 20;
-const MAX_COLLECT: usize = 64;
-const MAX_VISITS: usize = 2_500;
 
 mod parent;
 mod paths;
@@ -147,97 +144,25 @@ fn path_depth(path: &Path) -> usize {
 }
 
 fn walk_for_name(root: &Path, needle: &str, out: &mut Vec<FoundRoot>) {
-    let mut queue: Vec<(PathBuf, usize, bool)> = vec![(root.to_path_buf(), 0, false)];
-    let mut qi = 0;
-    let mut visits = 0usize;
-    let mut seen: HashSet<PathBuf> = HashSet::new();
-
-    while qi < queue.len() {
-        if visits >= MAX_VISITS || exact_count(out) >= MAX_RESULTS {
-            break;
-        }
-        let (dir, depth, inside) = queue[qi].clone();
-        qi += 1;
-        if depth > MAX_DEPTH {
+    for path in crate::walk::subdirs(root, MAX_DEPTH + 1) {
+        let Some(quality) = path
+            .file_name()
+            .and_then(|n| MatchQuality::of_basename(&n.to_string_lossy(), needle))
+        else {
             continue;
-        }
-        visits += 1;
-        let inside = inside || (depth > 0 && dir.join(".git").exists());
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(e) => e,
-            Err(_) => continue,
         };
-        for entry in entries.flatten() {
-            let ft = match entry.file_type() {
-                Ok(t) => t,
-                Err(_) => continue,
-            };
-            if !ft.is_dir() {
-                continue;
-            }
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if should_skip_dir(&name) {
-                continue;
-            }
-            let path = entry.path();
-            if let Some(quality) = MatchQuality::of_basename(&name, needle) {
-                push_found(out, &mut seen, path.clone(), quality, inside);
-            }
-            if depth < MAX_DEPTH {
-                queue.push((path, depth + 1, inside));
-            }
-        }
+        let inside_repo = path
+            .ancestors()
+            .skip(1)
+            .take_while(|a| *a != root)
+            .any(|a| a.join(".git").exists());
+        out.push(FoundRoot {
+            git: path.join(".git").exists(),
+            path,
+            quality,
+            inside_repo,
+        });
     }
-}
-
-fn push_found(
-    out: &mut Vec<FoundRoot>,
-    seen: &mut HashSet<PathBuf>,
-    path: PathBuf,
-    quality: MatchQuality,
-    inside_repo: bool,
-) {
-    if !seen.insert(path.clone()) {
-        return;
-    }
-    let candidate = FoundRoot {
-        git: path.join(".git").exists(),
-        path,
-        quality,
-        inside_repo,
-    };
-    if out.len() < MAX_COLLECT {
-        out.push(candidate);
-        return;
-    }
-    if let Some((i, worst)) = out.iter().enumerate().max_by(|a, b| found_order(a.1, b.1))
-        && found_order(&candidate, worst).is_lt()
-    {
-        out[i] = candidate;
-    }
-}
-
-fn should_skip_dir(name: &str) -> bool {
-    matches!(
-        name,
-        "node_modules"
-            | "target"
-            | ".git"
-            | ".svn"
-            | ".hg"
-            | "dist"
-            | "build"
-            | ".next"
-            | ".cache"
-            | "vendor"
-            | "__pycache__"
-            | ".tox"
-            | ".venv"
-            | "venv"
-            | "shows"
-            | "Library"
-            | "Applications"
-    ) || name.starts_with('.')
 }
 
 pub fn ranking_needle(raw: &str) -> Option<String> {
