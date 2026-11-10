@@ -8,7 +8,7 @@ use sourceview::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::prose::{self, Prose};
 use crate::worklist_list::WorklistList;
 
@@ -339,16 +339,12 @@ impl EditorView {
             let keep = gtk::Button::with_label("Keep mine");
             let this = Rc::downgrade(self);
             keep.connect_clicked(move |_| {
-                if let Some(this) = this.upgrade() {
-                    glib::idle_add_local_once(move || this.bar.set_visible(false));
-                }
+                defer(&this, move |this| this.bar.set_visible(false));
             });
             let reload = gtk::Button::with_label("Load disk");
             let this = Rc::downgrade(self);
             reload.connect_clicked(move |_| {
-                if let Some(this) = this.upgrade() {
-                    glib::idle_add_local_once(move || this.load());
-                }
+                defer(&this, move |this| this.load());
             });
             self.bar_actions.append(&keep);
             self.bar_actions.append(&reload);

@@ -7,7 +7,7 @@ use adw::prelude::*;
 use xenon_settings::{FontProbe, UiSettings};
 use xenon_store::{AppSettings, ThemeMode, WindowState};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::model::Model;
 use crate::sidebar::Sidebar;
 use crate::theme;
@@ -242,9 +242,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     let style = adw::StyleManager::default();
     let weak = Rc::downgrade(&app);
     style.connect_dark_notify(move |_| {
-        if let Some(app) = weak.upgrade() {
-            gtk::glib::idle_add_local_once(move || app.apply_theme());
-        }
+        defer(&weak, move |app| app.apply_theme());
     });
 
     crate::actions::install(&app);

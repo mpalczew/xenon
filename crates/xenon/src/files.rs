@@ -5,7 +5,7 @@ use std::rc::{Rc, Weak};
 use adw::prelude::*;
 use gtk::{gdk, gio, glib, pango};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::model::Fold;
 use crate::sidebar_ui::{Row, Section};
 
@@ -179,11 +179,8 @@ impl FilesView {
             if added == 0 {
                 return;
             }
-            let weak = weak.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = weak.upgrade() {
-                    this.advance_reveal();
-                }
+            defer(&weak, move |this| {
+                this.advance_reveal();
             });
         });
         let keys = gtk::EventControllerKey::new();
@@ -207,9 +204,7 @@ impl FilesView {
                     this.popup_selected()
                 }
                 gdk::Key::Escape => {
-                    if let Some(app) = this.app.upgrade() {
-                        glib::idle_add_local_once(move || app.focus_terminal());
-                    }
+                    defer(&this.app, move |app| app.focus_terminal());
                     true
                 }
                 _ => false,

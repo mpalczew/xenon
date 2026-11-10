@@ -6,7 +6,7 @@ use gtk::{gdk, glib};
 use xenon_core::WorkspaceId;
 use xenon_git::status::{GitFile, GitStatus};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::git_rows::{make_row, more_row};
 use crate::model::Fold;
 use crate::pane::focus_inside;
@@ -85,11 +85,8 @@ impl GitView {
         // Deferred: rebuilding the list inside its own activate handler crashes GTK.
         self.list.connect_row_activated(move |_, row| {
             let index = row.index().max(0) as usize;
-            let weak = weak.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = weak.upgrade() {
-                    this.open_row(index);
-                }
+            defer(&weak, move |this| {
+                this.open_row(index);
             });
         });
         let keys = gtk::EventControllerKey::new();
@@ -101,9 +98,7 @@ impl GitView {
             if key == gdk::Key::Escape
                 && !state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK)
             {
-                if let Some(app) = this.app.upgrade() {
-                    glib::idle_add_local_once(move || app.focus_terminal());
-                }
+                defer(&this.app, move |app| app.focus_terminal());
                 return glib::Propagation::Stop;
             }
             glib::Propagation::Proceed

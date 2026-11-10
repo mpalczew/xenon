@@ -5,7 +5,7 @@ use gtk::{gio, glib};
 use vte::prelude::*;
 use xenon_core::SplitAxis;
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::model::Fold;
 
 type Handler = fn(&Rc<App>);
@@ -92,19 +92,17 @@ pub(crate) fn install(app: &Rc<App>) {
         let handler = *handler;
         let name = *name;
         action.connect_activate(move |_, _| {
-            if let Some(app) = weak.upgrade() {
-                glib::idle_add_local_once(move || {
-                    if app.launcher.is_open() && !palette_passes(name) {
-                        match name {
-                            "new-terminal" => app.launcher.key("down"),
-                            "open-finder" => app.launcher.key("up"),
-                            _ => {}
-                        }
-                        return;
+            defer(&weak, move |app| {
+                if app.launcher.is_open() && !palette_passes(name) {
+                    match name {
+                        "new-terminal" => app.launcher.key("down"),
+                        "open-finder" => app.launcher.key("up"),
+                        _ => {}
                     }
-                    handler(&app);
-                });
-            }
+                    return;
+                }
+                handler(&app);
+            });
         });
         app.gtk.add_action(&action);
     }

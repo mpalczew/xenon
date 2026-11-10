@@ -8,7 +8,7 @@ use xenon_store::worklist::entries::parse;
 use xenon_store::worklist::view::inline_markup;
 use xenon_store::worklist::{Target, capture_targets, read_source};
 
-use crate::app::App;
+use crate::app::{App, defer};
 
 mod write;
 
@@ -128,10 +128,8 @@ impl WorklistList {
             let weak = weak.clone();
             action.connect_activate(move |_, parameter| {
                 let (weak, parameter) = (weak.clone(), parameter.cloned());
-                glib::idle_add_local_once(move || {
-                    if let Some(this) = weak.upgrade() {
-                        run(&this, parameter);
-                    }
+                defer(&weak, move |this| {
+                    run(&this, parameter);
                 });
             });
             group.add_action(&action);
@@ -162,12 +160,9 @@ impl WorklistList {
                 .and_then(|s| s.get::<bool>())
                 .unwrap_or(false);
             action.set_state(&on.to_variant());
-            let weak = weak.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = weak.upgrade() {
-                    this.hide_done.set(on);
-                    this.redraw();
-                }
+            defer(&weak, move |this| {
+                this.hide_done.set(on);
+                this.redraw();
             });
         });
         group.add_action(&hide);
@@ -354,11 +349,8 @@ impl WorklistList {
             check.set_tooltip_text(Some("Mark as done"));
             let weak = Rc::downgrade(self);
             check.connect_toggled(move |_| {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(this) = weak.upgrade() {
-                        this.toggle(index);
-                    }
+                defer(&weak, move |this| {
+                    this.toggle(index);
                 });
             });
             row.add_prefix(&check);
@@ -394,10 +386,8 @@ impl WorklistList {
         let target = target.clone();
         row.connect_entry_activated(move |row| {
             let (weak, target, text) = (weak.clone(), target.clone(), row.text().to_string());
-            glib::idle_add_local_once(move || {
-                if let Some(this) = weak.upgrade() {
-                    this.add(&target, &text);
-                }
+            defer(&weak, move |this| {
+                this.add(&target, &text);
             });
         });
         row

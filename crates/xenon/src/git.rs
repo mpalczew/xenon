@@ -9,7 +9,7 @@ use gtk::{gio, glib};
 use xenon_core::WorkspaceId;
 use xenon_git::status::{DirtState, GitStatus};
 
-use crate::app::App;
+use crate::app::{App, defer};
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
 const MIN_GAP: Duration = Duration::from_millis(1500);
@@ -105,11 +105,8 @@ impl GitHub {
                     names.contains(&&*name)
                 };
                 if wanted {
-                    let app = app.clone();
-                    glib::idle_add_local_once(move || {
-                        if let Some(app) = app.upgrade() {
-                            app.git.meta(ws);
-                        }
+                    defer(&app, move |app| {
+                        app.git.meta(ws);
                     });
                 }
             });

@@ -3,7 +3,7 @@ use std::rc::Weak;
 use adw::prelude::*;
 use gtk::pango;
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::model::Fold;
 use crate::pane::set_class;
 
@@ -39,9 +39,7 @@ impl Section {
         button.set_hexpand(true);
         let weak = app.clone();
         button.connect_clicked(move |_| {
-            if let Some(app) = weak.upgrade() {
-                gtk::glib::idle_add_local_once(move || app.toggle_fold(fold));
-            }
+            defer(&weak, move |app| app.toggle_fold(fold));
         });
         let head = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         head.set_margin_start(6);

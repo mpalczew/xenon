@@ -200,6 +200,7 @@ fn plain_call(call: &ExprCall) -> bool {
 }
 
 const DEFERS: &[&str] = &[
+    "defer",
     "idle_add_local_once",
     "idle_add_local",
     "idle_add_once",

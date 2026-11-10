@@ -6,7 +6,7 @@ use gtk::{gdk, gio, glib};
 use xenon_core::{WorkspaceDot, WorkspaceId};
 use xenon_git::status::DirtState;
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::files::FilesView;
 use crate::git::GitHub;
 use crate::git_section::GitView;
@@ -63,11 +63,8 @@ impl Sidebar {
         let weak = app.clone();
         list.connect_row_activated(move |_, row| {
             let index = row.index().max(0) as usize;
-            let weak = weak.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(app) = weak.upgrade() {
-                    app.activate_workspace_index(index);
-                }
+            defer(&weak, move |app| {
+                app.activate_workspace_index(index);
             });
         });
         let keys = gtk::EventControllerKey::new();
@@ -197,11 +194,8 @@ impl Sidebar {
                     return false;
                 }
                 let end = slot == list.observe_children().n_items() as usize;
-                let app = app.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(app) = app.upgrade() {
-                        app.reorder_workspace(from as usize, (!end).then_some(slot));
-                    }
+                defer(&app, move |app| {
+                    app.reorder_workspace(from as usize, (!end).then_some(slot));
                 });
                 true
             }
@@ -231,11 +225,8 @@ impl Sidebar {
             }
             let app = self.app.clone();
             paned.connect_position_notify(move |_| {
-                let app = app.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(app) = app.upgrade() {
-                        app.schedule_save();
-                    }
+                defer(&app, move |app| {
+                    app.schedule_save();
                 });
             });
         }
@@ -275,11 +266,8 @@ impl Sidebar {
             let weak = self.app.clone();
             let id = rec.id;
             close.connect_clicked(move |_| {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(app) = weak.upgrade() {
-                        app.close_workspace_id(id);
-                    }
+                defer(&weak, move |app| {
+                    app.close_workspace_id(id);
                 });
             });
             line.swap_on_hover(&status, &close);

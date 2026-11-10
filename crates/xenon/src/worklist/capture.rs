@@ -10,7 +10,7 @@ use xenon_store::worklist::{
 };
 
 use super::fields::{text_of, title_view};
-use crate::app::App;
+use crate::app::{App, defer};
 
 const NEAR_LIMIT: isize = 12;
 
@@ -198,20 +198,14 @@ impl Capture {
     fn wire_buttons(self: &Rc<Self>, save: &gtk::Button, delete: &gtk::Button) {
         let close = Rc::downgrade(self);
         save.connect_clicked(move |_| {
-            let close = close.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = close.upgrade() {
-                    this.dialog.close();
-                }
+            defer(&close, move |this| {
+                this.dialog.close();
             });
         });
         let weak = Rc::downgrade(self);
         delete.connect_clicked(move |_| {
-            let weak = weak.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = weak.upgrade() {
-                    this.discard();
-                }
+            defer(&weak, move |this| {
+                this.discard();
             });
         });
     }
@@ -223,10 +217,8 @@ impl Capture {
                 let (weak, length) = (weak.clone(), length.clone());
                 move |_| {
                     let (weak, length) = (weak.clone(), length.clone());
-                    glib::idle_add_local_once(move || {
-                        if let Some(this) = weak.upgrade() {
-                            this.changed(&length);
-                        }
+                    defer(&weak, move |this| {
+                        this.changed(&length);
                     });
                 }
             }};
@@ -254,9 +246,7 @@ impl Capture {
             button.set_focusable(false);
             let weak = Rc::downgrade(self);
             button.connect_clicked(move |_| {
-                if let Some(this) = weak.upgrade() {
-                    glib::idle_add_local_once(move || this.cycle(delta));
-                }
+                defer(&weak, move |this| this.cycle(delta));
             });
         }
 
@@ -292,9 +282,7 @@ impl Capture {
 
         let weak = Rc::downgrade(self);
         self.dialog.connect_closed(move |_| {
-            if let Some(this) = weak.upgrade() {
-                glib::idle_add_local_once(move || this.closed());
-            }
+            defer(&weak, move |this| this.closed());
         });
     }
 

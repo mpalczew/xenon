@@ -8,7 +8,7 @@ use xenon_finder::fileops;
 
 use super::FilesView;
 use super::ops::target_of;
-use crate::app::App;
+use crate::app::{App, defer};
 
 fn dropped_paths(value: &glib::Value) -> Vec<PathBuf> {
     value
@@ -62,10 +62,8 @@ impl FilesView {
         }
         let moving = *self.drag.borrow() == paths;
         let weak = Rc::downgrade(self);
-        glib::idle_add_local_once(move || {
-            if let Some(this) = weak.upgrade() {
-                this.transfer(paths, dest, moving);
-            }
+        defer(&weak, move |this| {
+            this.transfer(paths, dest, moving);
         });
         true
     }

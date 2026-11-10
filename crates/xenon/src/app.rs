@@ -1,6 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::Instant;
 
 use adw::prelude::*;
@@ -17,6 +17,17 @@ use crate::palette::Palette as Launcher;
 use crate::pane::PaneView;
 use crate::sidebar::Sidebar;
 use crate::term::TermView;
+
+/// Run `f` on the next idle with the upgraded `weak`; drop silently if it is gone.
+/// The GTK event rule (xenon_eventcheck) treats `defer` as a deferral.
+pub(crate) fn defer<T: 'static>(weak: &Weak<T>, f: impl FnOnce(Rc<T>) + 'static) {
+    let weak = weak.clone();
+    glib::idle_add_local_once(move || {
+        if let Some(strong) = weak.upgrade() {
+            f(strong);
+        }
+    });
+}
 
 pub(crate) struct Slot {
     pub holder: gtk::Box,

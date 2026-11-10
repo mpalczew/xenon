@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use crate::app::defer;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
@@ -138,17 +139,13 @@ impl Palette {
     fn wire(&self, weak: std::rc::Weak<Self>) {
         let w = weak.clone();
         self.dialog.connect_closed(move |_| {
-            if let Some(this) = w.upgrade() {
-                glib::idle_add_local_once(move || this.dismiss());
-            }
+            defer(&w, move |this| this.dismiss());
         });
         let w = weak.clone();
         self.action.connect_clicked(move |_| {
-            if let Some(this) = w.upgrade() {
-                glib::idle_add_local_once(move || {
-                    this.run_action();
-                });
-            }
+            defer(&w, move |this| {
+                this.run_action();
+            });
         });
         let w = weak.clone();
         self.entry.connect_changed(move |entry| {
@@ -164,21 +161,15 @@ impl Palette {
         });
         let w = weak.clone();
         self.entry.connect_activate(move |_| {
-            let w = w.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = w.upgrade() {
-                    this.accept();
-                }
+            defer(&w, move |this| {
+                this.accept();
             });
         });
         let w = weak.clone();
         self.view.connect_activate(move |_, position| {
-            let w = w.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(this) = w.upgrade() {
-                    this.selection.set_selected(position);
-                    this.accept();
-                }
+            defer(&w, move |this| {
+                this.selection.set_selected(position);
+                this.accept();
             });
         });
 
@@ -194,19 +185,15 @@ impl Palette {
             let handled = match key {
                 gdk::Key::Escape => {
                     let w = Rc::downgrade(&this);
-                    glib::idle_add_local_once(move || {
-                        if let Some(this) = w.upgrade() {
-                            this.dismiss();
-                        }
+                    defer(&w, move |this| {
+                        this.dismiss();
                     });
                     true
                 }
                 gdk::Key::Return | gdk::Key::KP_Enter if ctrl => {
                     let w = Rc::downgrade(&this);
-                    glib::idle_add_local_once(move || {
-                        if let Some(this) = w.upgrade() {
-                            this.accept_alt();
-                        }
+                    defer(&w, move |this| {
+                        this.accept_alt();
                     });
                     true
                 }

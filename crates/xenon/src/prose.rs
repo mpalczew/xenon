@@ -11,7 +11,7 @@ use xenon_core::WorkspaceId;
 use xenon_prose::{Doc, Span};
 use xenon_settings::{ProseFont, ProseMarkers, ProseSettings};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::prose_tags::{Look, Tags};
 
 mod code;
@@ -136,9 +136,7 @@ impl Prose {
             #[strong(rename_to = this)]
             weak,
             move |_| {
-                if let Some(this) = this.upgrade() {
-                    glib::idle_add_local_once(move || this.caret_moved());
-                }
+                defer(&this, move |this| this.caret_moved());
             }
         ));
         // The column follows the width of the view. The page size changes
@@ -150,11 +148,8 @@ impl Prose {
                 #[strong(rename_to = this)]
                 weak,
                 move |_| {
-                    let this = this.clone();
-                    glib::idle_add_local_once(move || {
-                        if let Some(this) = this.upgrade() {
-                            this.fit_column();
-                        }
+                    defer(&this, move |this| {
+                        this.fit_column();
                     });
                 }
             ));
@@ -164,12 +159,10 @@ impl Prose {
                 #[strong(rename_to = this)]
                 weak,
                 move |_| {
-                    if let Some(this) = this.upgrade() {
-                        glib::idle_add_local_once(move || {
-                            this.images.schedule_move(&this);
-                            this.sync_decor();
-                        });
-                    }
+                    defer(&this, move |this| {
+                        this.images.schedule_move(&this);
+                        this.sync_decor();
+                    });
                 }
             ));
         let click = gtk::GestureClick::new();
@@ -318,10 +311,8 @@ impl Prose {
         drop(doc);
         if to < n {
             let this = Rc::downgrade(self);
-            glib::idle_add_local_once(move || {
-                if let Some(this) = this.upgrade() {
-                    this.slice(generation, to, b, next);
-                }
+            defer(&this, move |this| {
+                this.slice(generation, to, b, next);
             });
         } else {
             self.images.rebuild(self);

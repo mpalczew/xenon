@@ -6,7 +6,7 @@ use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32Str};
 use xenon_core::tasks::{self as shared, QuestionKind, TaskQuestion, TaskRow};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::palette::{Handlers, Options, PaletteRow};
 
 fn fuzzy(labels: &[String], query: &str) -> Vec<(usize, Vec<u32>)> {
@@ -228,9 +228,7 @@ impl TrustCard {
             }
             let app = app.clone();
             b.connect_clicked(move |_| {
-                if let Some(app) = app.upgrade() {
-                    gtk::glib::idle_add_local_once(move || app.answer_folder_tasks(allow));
-                }
+                defer(&app, move |app| app.answer_folder_tasks(allow));
             });
             b
         };

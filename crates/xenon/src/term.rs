@@ -7,7 +7,7 @@ use gtk::{gdk, gio, glib};
 use vte::prelude::*;
 use xenon_core::{TabId, WorkspaceId};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::find::FindBar;
 
 pub(crate) struct TermView {
@@ -207,17 +207,13 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
     {
         let weak = weak.clone();
         term.connect_contents_changed(move |_| {
-            if let Some(app) = weak.upgrade() {
-                glib::idle_add_local_once(move || app.term_output(ws, tab));
-            }
+            defer(&weak, move |app| app.term_output(ws, tab));
         });
     }
     {
         let weak = weak.clone();
         term.connect_bell(move |_| {
-            if let Some(app) = weak.upgrade() {
-                glib::idle_add_local_once(move || app.term_bell(ws, tab));
-            }
+            defer(&weak, move |app| app.term_bell(ws, tab));
         });
     }
     {
@@ -237,11 +233,8 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: Tab
             if let Some(view) = view.upgrade() {
                 view.status.set(Some(status));
             }
-            let weak = weak.clone();
-            glib::idle_add_local_once(move || {
-                if let Some(app) = weak.upgrade() {
-                    app.term_exited(ws, tab, (status >> 8) & 0xff);
-                }
+            defer(&weak, move |app| {
+                app.term_exited(ws, tab, (status >> 8) & 0xff);
             });
         });
     }

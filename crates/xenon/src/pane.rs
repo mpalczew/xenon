@@ -6,7 +6,7 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use xenon_core::{PaneId, PaneLeaf, TabId, WorkspaceDot, WorkspaceId};
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::model::Tab;
 
 pub(crate) struct PaneView {
@@ -28,9 +28,7 @@ impl PaneView {
         add.set_focusable(false);
         let weak = Rc::downgrade(app);
         add.connect_clicked(move |_| {
-            if let Some(app) = weak.upgrade() {
-                glib::idle_add_local_once(move || app.new_terminal_in(ws, pane));
-            }
+            defer(&weak, move |app| app.new_terminal_in(ws, pane));
         });
         let view = adw::TabView::new();
         view.set_shortcuts(
@@ -68,9 +66,7 @@ impl PaneView {
         let focus = gtk::EventControllerFocus::new();
         let weak = Rc::downgrade(app);
         focus.connect_enter(move |_| {
-            if let Some(app) = weak.upgrade() {
-                glib::idle_add_local_once(move || app.pane_focused(ws, pane));
-            }
+            defer(&weak, move |app| app.pane_focused(ws, pane));
         });
         this.root.add_controller(focus);
         crate::pane_drop::install(app, &body, ws, pane);
@@ -235,11 +231,8 @@ impl PaneView {
             let weak = Rc::downgrade(app);
             let (ws, pane) = (self.ws, self.pane);
             remove.connect_clicked(move |_| {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(app) = weak.upgrade() {
-                        app.remove_empty_pane(ws, pane);
-                    }
+                defer(&weak, move |app| {
+                    app.remove_empty_pane(ws, pane);
                 });
             });
             self.remove.replace(Some(remove.clone()));

@@ -4,7 +4,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use xenon_remote::{DeviceBook, DeviceRow, RemoteStatus, ago};
 
-use crate::app::App;
+use crate::app::{App, defer};
 
 fn off_hint(app: &App) -> String {
     match app.chord("app.connect-phone") {
@@ -200,9 +200,7 @@ fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
         button.set_valign(gtk::Align::Center);
         let weak = Rc::downgrade(app);
         button.connect_clicked(move |_| {
-            if let Some(app) = weak.upgrade() {
-                gtk::glib::idle_add_local_once(move || app.remote_revoke(None));
-            }
+            defer(&weak, move |app| app.remote_revoke(None));
         });
         all.add_suffix(&button);
         rows.push(all.upcast());

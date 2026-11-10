@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use crate::app::defer;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use xenon_finder::fileops;
@@ -69,9 +70,7 @@ impl FilesView {
             let action = gio::SimpleAction::new(name, None);
             let weak = Rc::downgrade(self);
             action.connect_activate(move |_, _| {
-                if let Some(this) = weak.upgrade() {
-                    glib::idle_add_local_once(move || this.run_action(name));
-                }
+                defer(&weak, move |this| this.run_action(name));
             });
             group.add_action(&action);
         }
@@ -97,10 +96,8 @@ impl FilesView {
                 .and_then(|e| target_of(&e));
             let at = gdk::Rectangle::new(x as i32, y as i32, 1, 1);
             let weak = Rc::downgrade(&this);
-            glib::idle_add_local_once(move || {
-                if let Some(this) = weak.upgrade() {
-                    this.popup(target, at);
-                }
+            defer(&weak, move |this| {
+                this.popup(target, at);
             });
         });
         self.list.add_controller(click);
@@ -177,10 +174,8 @@ impl FilesView {
 
     fn defer_action(self: &Rc<Self>, action: &'static str, target: Option<Target>) {
         let weak = Rc::downgrade(self);
-        glib::idle_add_local_once(move || {
-            if let Some(this) = weak.upgrade() {
-                this.do_action(action, target);
-            }
+        defer(&weak, move |this| {
+            this.do_action(action, target);
         });
     }
 

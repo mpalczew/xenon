@@ -6,7 +6,7 @@ use gtk::{gdk, gio, glib};
 use qrcode::{Color, QrCode};
 use xenon_remote::pairing_url;
 
-use crate::app::App;
+use crate::app::{App, defer};
 
 impl App {
     fn pairing_facts(&self) -> Option<(String, Option<String>, Instant)> {
@@ -252,9 +252,7 @@ pub(crate) fn install(app: &Rc<App>) {
     let toggle = gio::SimpleAction::new("remote-toggle", None);
     let weak = Rc::downgrade(app);
     toggle.connect_activate(move |_, _| {
-        if let Some(app) = weak.upgrade() {
-            glib::idle_add_local_once(move || app.remote_toggle());
-        }
+        defer(&weak, move |app| app.remote_toggle());
     });
     app.gtk.add_action(&toggle);
 }
