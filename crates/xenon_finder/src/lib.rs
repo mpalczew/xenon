@@ -8,7 +8,6 @@ use nucleo::{Config, Matcher, Utf32Str};
 pub mod discover;
 pub mod fileops;
 pub mod fsops;
-pub mod tree;
 mod walk;
 
 const MAX_RESULTS: usize = 200;
@@ -41,7 +40,7 @@ pub struct FileIndex {
 impl FileIndex {
     pub fn build(root: &Path) -> FileIndex {
         FileIndex {
-            entries: walk::walk_with_progress(root, |_| true),
+            entries: walk::collect(root),
         }
     }
 
@@ -120,46 +119,27 @@ impl FileIndex {
     }
 
     fn list_empty(&self, recent_rank: &HashMap<PathBuf, u32>) -> Vec<FileMatch> {
-        let mut out = Vec::with_capacity(MAX_RESULTS.min(self.entries.len()));
-        let mut used: HashMap<&str, ()> = HashMap::new();
-
-        let mut ordered: Vec<(&PathBuf, u32)> = recent_rank.iter().map(|(p, r)| (p, *r)).collect();
-        ordered.sort_by_key(|(_, r)| *r);
-        for (path, _) in ordered {
-            if out.len() >= MAX_RESULTS {
-                break;
-            }
-            let Some(entry) = self
-                .entries
-                .iter()
-                .find(|e| Path::new(&e.path) == path.as_path())
-            else {
-                continue;
-            };
-            used.insert(entry.path.as_str(), ());
-            out.push(FileMatch {
-                path: PathBuf::from(&entry.path),
-                is_dir: entry.is_dir,
+        let mut recent: Vec<&Entry> = self
+            .entries
+            .iter()
+            .filter(|e| recent_rank.contains_key(Path::new(&e.path)))
+            .collect();
+        recent.sort_by_key(|e| recent_rank[Path::new(&e.path)]);
+        let rest = self
+            .entries
+            .iter()
+            .filter(|e| !recent_rank.contains_key(Path::new(&e.path)));
+        recent
+            .into_iter()
+            .chain(rest)
+            .take(MAX_RESULTS)
+            .map(|e| FileMatch {
+                path: PathBuf::from(&e.path),
+                is_dir: e.is_dir,
                 score: 0,
                 hits: Vec::new(),
-            });
-        }
-
-        for entry in &self.entries {
-            if out.len() >= MAX_RESULTS {
-                break;
-            }
-            if used.contains_key(entry.path.as_str()) {
-                continue;
-            }
-            out.push(FileMatch {
-                path: PathBuf::from(&entry.path),
-                is_dir: entry.is_dir,
-                score: 0,
-                hits: Vec::new(),
-            });
-        }
-        out
+            })
+            .collect()
     }
 }
 

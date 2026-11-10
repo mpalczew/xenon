@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use gtk::prelude::WidgetExt;
 use xenon_settings::UiSettings;
 
 use crate::app::App;
@@ -13,7 +12,7 @@ impl App {
             change(&mut settings);
             settings.persist();
         }
-        let probe = PangoProbe(gtk::Label::new(None).pango_context());
+        let probe = PangoProbe::new();
         *self.mono.borrow_mut() = mono_face(&self.settings.borrow(), &probe);
         self.apply_theme();
     }

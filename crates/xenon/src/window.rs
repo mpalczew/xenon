@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use adw::prelude::*;
-use gtk::gio;
 use xenon_settings::{FontProbe, UiSettings};
 use xenon_store::{AppSettings, ThemeMode, WindowState};
 
@@ -16,6 +15,10 @@ use crate::theme;
 pub(crate) struct PangoProbe(pub(crate) gtk::pango::Context);
 
 impl PangoProbe {
+    pub(crate) fn new() -> Self {
+        Self(gtk::Label::new(None).pango_context())
+    }
+
     fn family(&self, name: &str) -> Option<gtk::pango::FontFamily> {
         self.0
             .list_families()
@@ -180,7 +183,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     }
     register_icons();
     let settings: AppSettings = xenon_store::load_settings().unwrap_or_default();
-    let probe = PangoProbe(gtk::Label::new(None).pango_context());
+    let probe = PangoProbe::new();
     let (ui, _) = UiSettings::resolve(&settings, &probe);
     let geometry = settings.window.filter(|g| g.is_sane());
     let (width, height) = geometry.map_or((1180, 760), |g| (g.width as i32, g.height as i32));
@@ -193,7 +196,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))
         .build();
-    let (git, git_rx) = crate::git::GitHub::new();
     let app = Rc::new_cyclic(|weak| App {
         gtk: gtk_app.clone(),
         win: win.clone(),
@@ -215,7 +217,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         editors: RefCell::default(),
         images: RefCell::default(),
         diffs: RefCell::default(),
-        git,
+        git: crate::git::GitHub::new(weak.clone()),
         pulse_source: RefCell::new(None),
         pulse_level: Cell::new(-1),
         started: Instant::now(),
@@ -265,7 +267,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     view.add_top_bar(&header(&app, &title));
     view.set_content(Some(&toasts));
     win.set_content(Some(&layered(&app, &view)));
-    crate::git::listen(&app, git_rx);
+    crate::git::listen(&app);
     connect_window(&app, &win);
     app.sidebar.set_hints(&app);
     app.sidebar.rebuild(&app.model.borrow());
@@ -317,5 +319,4 @@ fn start_workspace(app: &Rc<App>) {
         Some(id) => app.activate_workspace(id),
         None => app.paint_all(),
     }
-    let _ = gio::Application::default();
 }

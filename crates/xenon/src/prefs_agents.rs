@@ -9,7 +9,7 @@ use crate::prefs_pages::switch_row;
 
 type Added = Rc<RefCell<Vec<gtk::Widget>>>;
 
-pub(crate) fn agents(dialog: &crate::prefs::Shell) -> adw::PreferencesPage {
+pub(crate) fn agents(dialog: &adw::PreferencesDialog) -> adw::PreferencesPage {
     let page = adw::PreferencesPage::builder()
         .name("agents")
         .title("Agents")
@@ -21,7 +21,7 @@ pub(crate) fn agents(dialog: &crate::prefs::Shell) -> adw::PreferencesPage {
     page
 }
 
-fn fill(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Added) {
+fn fill(group: &adw::PreferencesGroup, dialog: &adw::PreferencesDialog, added: &Added) {
     for old in added.borrow_mut().drain(..) {
         group.remove(&old);
     }
@@ -71,13 +71,13 @@ fn fill(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Add
     *added.borrow_mut() = rows;
 }
 
-fn run(group: &adw::PreferencesGroup, dialog: &crate::prefs::Shell, added: &Added, on: bool) {
+fn run(group: &adw::PreferencesGroup, dialog: &adw::PreferencesDialog, added: &Added, on: bool) {
     let message = match if on { install_skill() } else { remove_skill() } {
         Ok(()) if on => "Xenon skill installed".to_string(),
         Ok(()) => "Xenon skill removed".to_string(),
         Err(error) if on => format!("Couldn\u{2019}t install the skill: {error}"),
         Err(error) => format!("Couldn\u{2019}t remove the skill: {error}"),
     };
-    dialog.add_toast(&message);
+    dialog.add_toast(adw::Toast::new(&message));
     fill(group, dialog, added);
 }

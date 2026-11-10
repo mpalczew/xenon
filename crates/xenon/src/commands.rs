@@ -11,8 +11,8 @@ use crate::model_tabs::SplitResult;
 impl App {
     pub(crate) fn toast(&self, text: &str) {
         match crate::prefs::open_dialog() {
-            Some(shell) if shell.window.is_active() => shell.add_toast(text),
-            _ => self.toasts.add_toast(adw::Toast::new(text)),
+            Some(dialog) => dialog.add_toast(adw::Toast::new(text)),
+            None => self.toasts.add_toast(adw::Toast::new(text)),
         }
     }
 

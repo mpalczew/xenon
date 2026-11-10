@@ -1,124 +1,66 @@
-use std::path::Path;
-use std::time::Instant;
+use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
 
 use crate::Entry;
 
-const EMIT_EVERY_ENTRIES: usize = 400;
-const EMIT_EVERY_MS: u128 = 50;
+/// Directories never worth descending into. Everything else is left to
+/// `.gitignore` and the other ignore files.
+const SKIP: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "vendor",
+    "__pycache__",
+    ".cache",
+    ".cargo",
+    ".rustup",
+    ".npm",
+    ".local",
+    "Library",
+    "Applications",
+];
 
-/// Collect files/dirs under `root`. Calls `on_partial` with a growing snapshot;
-/// return `false` from the callback to abort early (e.g. reindex cancelled).
-pub(crate) fn walk_with_progress(
-    root: &Path,
-    mut on_partial: impl FnMut(&[Entry]) -> bool,
-) -> Vec<Entry> {
-    let mut entries = Vec::new();
-    let mut since_emit = 0usize;
-    let mut last_emit = Instant::now();
-    let mut emitted_once = false;
-
-    let walker = WalkBuilder::new(root)
-        .hidden(false)
-        .filter_entry(keep_entry)
-        .build();
-
-    for entry in walker.flatten() {
-        let Some(file_type) = entry.file_type() else {
-            continue;
-        };
-        if !file_type.is_dir() && !file_type.is_file() {
-            continue;
-        }
-        let Ok(relative) = entry.path().strip_prefix(root) else {
-            continue;
-        };
-        if relative.as_os_str().is_empty() {
-            continue;
-        }
-        entries.push(Entry {
-            path: relative.to_string_lossy().into_owned(),
-            is_dir: file_type.is_dir(),
-        });
-        since_emit += 1;
-
-        let due = !emitted_once
-            || since_emit >= EMIT_EVERY_ENTRIES
-            || last_emit.elapsed().as_millis() >= EMIT_EVERY_MS;
-        if due {
-            if !on_partial(&entries) {
-                return entries;
-            }
-            since_emit = 0;
-            last_emit = Instant::now();
-            emitted_once = true;
-        }
-    }
-
-    let _ = on_partial(&entries);
-    entries
+fn walker(root: &Path, hidden: bool, max_depth: Option<usize>) -> ignore::Walk {
+    WalkBuilder::new(root)
+        .hidden(hidden)
+        .max_depth(max_depth)
+        .filter_entry(|e| {
+            e.depth() == 0
+                || !e.file_type().is_some_and(|t| t.is_dir())
+                || !e.file_name().to_str().is_some_and(|n| SKIP.contains(&n))
+        })
+        .build()
 }
 
-fn keep_entry(entry: &ignore::DirEntry) -> bool {
-    let name = entry.file_name();
-    let Some(name) = name.to_str() else {
-        return true;
-    };
-    let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-    if is_dir && should_skip_dir(name) {
-        return false;
-    }
-    true
+/// Every file and folder under `root`, as paths relative to it.
+pub(crate) fn collect(root: &Path) -> Vec<Entry> {
+    walker(root, false, None)
+        .flatten()
+        .filter_map(|entry| {
+            let file_type = entry.file_type()?;
+            let relative = entry.path().strip_prefix(root).ok()?;
+            ((file_type.is_dir() || file_type.is_file()) && !relative.as_os_str().is_empty()).then(
+                || Entry {
+                    path: relative.to_string_lossy().into_owned(),
+                    is_dir: file_type.is_dir(),
+                },
+            )
+        })
+        .collect()
 }
 
-pub(crate) fn should_skip_dir(name: &str) -> bool {
-    matches!(
-        name,
-        ".git"
-            | ".svn"
-            | ".hg"
-            | "node_modules"
-            | "bower_components"
-            | "vendor"
-            | "Pods"
-            | ".bundle"
-            | "target"
-            | "dist"
-            | "build"
-            | "out"
-            | "coverage"
-            | ".next"
-            | ".nuxt"
-            | ".turbo"
-            | ".parcel-cache"
-            | ".sass-cache"
-            | ".cache"
-            | ".cargo"
-            | ".rustup"
-            | ".npm"
-            | ".nvm"
-            | ".yarn"
-            | ".pnpm-store"
-            | ".gradle"
-            | ".android"
-            | ".local"
-            | ".bun"
-            | ".rbenv"
-            | ".pub-cache"
-            | ".konan"
-            | ".dartServer"
-            | ".dart-tool"
-            | ".cocoapods"
-            | "Library"
-            | "Applications"
-            | ".Trash"
-            | "DerivedData"
-            | "__pycache__"
-            | ".tox"
-            | ".venv"
-            | "venv"
-            | ".mypy_cache"
-            | ".pytest_cache"
-    )
+/// Visible folders up to `max_depth` below `root`, shallowest first. Capped so
+/// a huge tree cannot stall the caller.
+pub(crate) fn subdirs(root: &Path, max_depth: usize) -> Vec<PathBuf> {
+    let mut dirs: Vec<(usize, PathBuf)> = walker(root, true, Some(max_depth))
+        .flatten()
+        .filter(|e| e.depth() > 0 && e.file_type().is_some_and(|t| t.is_dir()))
+        .take(5_000)
+        .map(|e| (e.depth(), e.into_path()))
+        .collect();
+    dirs.sort();
+    dirs.into_iter().map(|(_, path)| path).collect()
 }

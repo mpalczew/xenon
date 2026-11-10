@@ -1,20 +1,15 @@
-use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
-use std::time::Duration;
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib, pango};
-use xenon_finder::tree::TreeEntry;
 
 use crate::app::App;
 use crate::model::Fold;
 use crate::sidebar_ui::{Row, Section};
 
-const MAX_WATCHED: usize = 48;
-const RELOAD_DELAY: Duration = Duration::from_millis(250);
-const FILE_ATTR: &str = "xenon::file";
+const ATTRS: &str = "standard::name,standard::display-name,standard::type,standard::is-symlink,standard::symbolic-icon";
 
 mod drop;
 mod ops;
@@ -23,26 +18,18 @@ mod watch;
 use drop::OwnerCell;
 use ops::Target;
 
-type Stores = Rc<RefCell<HashMap<PathBuf, gio::ListStore>>>;
-
 pub(crate) struct FilesView {
     pub root: gtk::Box,
     section: Section,
     list: gtk::ListView,
     tree: gtk::TreeListModel,
     selection: gtk::SingleSelection,
-    root_store: gio::ListStore,
-    stores: Stores,
+    root_list: gtk::DirectoryList,
     root_dir: RefCell<Option<PathBuf>>,
     app: Weak<App>,
     bound: Rc<RefCell<Vec<gtk::ListItem>>>,
-    monitors: RefCell<HashMap<PathBuf, gio::FileMonitor>>,
-    dirty: RefCell<HashSet<PathBuf>>,
-    reload_armed: Cell<bool>,
     open_file: Rc<RefCell<Option<PathBuf>>>,
     reveal_target: RefCell<Option<PathBuf>>,
-    restoring: Cell<bool>,
-    epoch: Cell<u64>,
     menu: gtk::PopoverMenu,
     ctx: RefCell<Option<Target>>,
     drag: RefCell<Vec<PathBuf>>,
@@ -50,23 +37,10 @@ pub(crate) struct FilesView {
 
 fn path_of(item: &glib::Object) -> Option<PathBuf> {
     item.downcast_ref::<gio::FileInfo>()?
-        .attribute_object(FILE_ATTR)?
+        .attribute_object("standard::file")?
         .downcast::<gio::File>()
         .ok()?
         .path()
-}
-
-fn info_for(entry: &TreeEntry) -> gio::FileInfo {
-    let info = gio::FileInfo::new();
-    info.set_display_name(&entry.name);
-    info.set_file_type(if entry.is_dir {
-        gio::FileType::Directory
-    } else {
-        gio::FileType::Regular
-    });
-    info.set_is_symlink(entry.is_symlink);
-    info.set_attribute_object(FILE_ATTR, &gio::File::for_path(&entry.path));
-    info
 }
 
 fn is_dir(item: &glib::Object) -> bool {
@@ -74,22 +48,19 @@ fn is_dir(item: &glib::Object) -> bool {
         .is_some_and(|i| i.file_type() == gio::FileType::Directory)
 }
 
-fn file_icon(info: &gio::FileInfo, path: &Path) -> &'static str {
-    if info.file_type() == gio::FileType::Directory {
-        return "folder-symbolic";
-    }
-    match path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or_default()
-    {
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "bmp" | "ico" => {
-            "image-x-generic-symbolic"
-        }
-        "sh" | "bash" | "zsh" | "fish" => "utilities-terminal-symbolic",
-        "zip" | "tar" | "gz" | "tgz" | "bz2" | "7z" | "rar" => "package-x-generic-symbolic",
-        _ => "text-x-generic-symbolic",
-    }
+/// A live, folders-first, case-insensitive listing of `dir`.
+fn listing(dir: Option<&gio::File>) -> (gtk::DirectoryList, gtk::SortListModel) {
+    let list = gtk::DirectoryList::new(Some(ATTRS), dir);
+    list.set_monitored(true);
+    let sorter = gtk::CustomSorter::new(|a, b| {
+        let key = |o: &glib::Object| {
+            let info = o.downcast_ref::<gio::FileInfo>()?;
+            Some((!is_dir(o), info.display_name().to_lowercase()))
+        };
+        key(a).cmp(&key(b)).into()
+    });
+    let sorted = gtk::SortListModel::new(Some(list.clone()), Some(sorter));
+    (list, sorted)
 }
 
 fn tree_row(item: Option<glib::Object>) -> Option<gtk::TreeListRow> {
@@ -102,21 +73,13 @@ fn row_path(row: &gtk::TreeListRow) -> Option<PathBuf> {
 
 impl FilesView {
     pub(crate) fn new(app: Weak<App>) -> Rc<Self> {
-        let root_store = gio::ListStore::new::<gio::FileInfo>();
-        let stores: Stores = Rc::default();
-        let tree = gtk::TreeListModel::new(root_store.clone(), false, false, {
-            let stores = stores.clone();
-            move |item| {
-                if !is_dir(item) {
-                    return None;
-                }
-                let store = stores
-                    .borrow_mut()
-                    .entry(path_of(item)?)
-                    .or_insert_with(gio::ListStore::new::<gio::FileInfo>)
-                    .clone();
-                Some(store.upcast())
+        let (root_list, root_sorted) = listing(None);
+        let tree = gtk::TreeListModel::new(root_sorted, false, false, |item| {
+            if !is_dir(item) {
+                return None;
             }
+            let (_, sorted) = listing(Some(&gio::File::for_path(path_of(item)?)));
+            Some(sorted.upcast())
         });
         let selection = gtk::SingleSelection::new(Some(tree.clone()));
         selection.set_autoselect(false);
@@ -170,18 +133,12 @@ impl FilesView {
             list,
             tree,
             selection,
-            root_store,
-            stores,
+            root_list,
             root_dir: RefCell::new(None),
             app,
             bound,
-            monitors: RefCell::default(),
-            dirty: RefCell::default(),
-            reload_armed: Cell::new(false),
             open_file,
             reveal_target: RefCell::new(None),
-            restoring: Cell::new(false),
-            epoch: Cell::new(0),
             menu: gtk::PopoverMenu::from_model(None::<&gio::MenuModel>),
             ctx: RefCell::new(None),
             drag: RefCell::default(),
@@ -217,31 +174,17 @@ impl FilesView {
             });
         });
         let weak = Rc::downgrade(self);
-        // sync: event-time read: `tree_row`, `is_dir` and `row_path` only read; the work is deferred.
-        self.tree.connect_items_changed(move |tree, pos, _, added| {
-            for i in pos..pos + added {
-                let Some(row) =
-                    tree_row(tree.item(i)).filter(|r| r.item().is_some_and(|o| is_dir(&o)))
-                else {
-                    continue;
-                };
-                let weak = weak.clone();
-                // GTK sends this while the tree is still adding or removing the
-                // folder's rows; reading the tree before it finishes crashes.
-                // sync: event-time read: `row_path` only reads the row; the work is deferred.
-                row.connect_expanded_notify(move |row| {
-                    let (Some(path), expanded) = (row_path(row), row.is_expanded()) else {
-                        return;
-                    };
-                    let restoring = weak.upgrade().is_some_and(|t| t.restoring.get());
-                    let weak = weak.clone();
-                    glib::idle_add_local_once(move || {
-                        if let Some(this) = weak.upgrade() {
-                            this.expanded_changed(&path, expanded, restoring);
-                        }
-                    });
-                });
+        // Rows arrive as folders finish loading; keep revealing until the target shows.
+        self.tree.connect_items_changed(move |_, _, _, added| {
+            if added == 0 {
+                return;
             }
+            let weak = weak.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(this) = weak.upgrade() {
+                    this.advance_reveal();
+                }
+            });
         });
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -284,10 +227,6 @@ impl FilesView {
         tree_row(self.selection.selected_item())
     }
 
-    fn selected_path(&self) -> Option<PathBuf> {
-        row_path(&self.selected_row()?)
-    }
-
     fn step_in(&self) -> bool {
         let Some(row) = self.selected_row().filter(|r| r.is_expandable()) else {
             return false;
@@ -324,16 +263,11 @@ impl FilesView {
         if *self.root_dir.borrow() == root {
             return;
         }
-        self.epoch.set(self.epoch.get() + 1);
-        self.monitors.borrow_mut().clear();
         self.reveal_target.take();
-        self.root_store.remove_all();
-        self.stores.borrow_mut().clear();
         *self.root_dir.borrow_mut() = root.clone();
         self.root.set_visible(root.is_some());
-        if let Some(root) = root {
-            self.load(&root);
-        }
+        self.root_list
+            .set_file(root.as_deref().map(gio::File::for_path).as_ref());
     }
 
     fn select_path(&self, path: &Path, focus: bool) {
@@ -381,7 +315,10 @@ fn draw_item(item: &gtk::ListItem, open: Option<&Path>) {
     let Some(line) = expander.child().and_then(|c| Row::of(&c)) else {
         return;
     };
-    line.set(Some(file_icon(&info, &path)), &info.display_name(), "");
+    line.set(Some("text-x-generic-symbolic"), &info.display_name(), "");
+    if let Some(icon) = info.symbolic_icon() {
+        line.icon.set_from_gicon(&icon);
+    }
     line.set_open(open == Some(path.as_path()));
     let attrs = pango::AttrList::new();
     if info.is_symlink() {

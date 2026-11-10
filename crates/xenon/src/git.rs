@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
@@ -19,36 +18,27 @@ const POLL: Duration = Duration::from_secs(5);
 type Roots = Vec<(WorkspaceId, PathBuf)>;
 type Batch = Vec<(WorkspaceId, Option<GitStatus>)>;
 
-enum Msg {
-    SetRoots(Roots),
-    Refresh(WorkspaceId),
-    Meta(WorkspaceId),
-}
-
 pub(crate) struct GitHub {
-    tx: mpsc::Sender<Msg>,
+    app: Weak<App>,
     pub status: RefCell<HashMap<WorkspaceId, GitStatus>>,
     roots: RefCell<Roots>,
     monitors: RefCell<HashMap<WorkspaceId, Vec<gio::FileMonitor>>>,
+    armed: RefCell<HashSet<WorkspaceId>>,
+    running: RefCell<HashSet<WorkspaceId>>,
+    last: RefCell<HashMap<WorkspaceId, Instant>>,
 }
 
 impl GitHub {
-    pub(crate) fn new() -> (Self, async_channel::Receiver<Batch>) {
-        let (tx, rx) = mpsc::channel();
-        let (out_tx, out_rx) = async_channel::unbounded();
-        std::thread::Builder::new()
-            .name("xenon-git".into())
-            .spawn(move || worker(rx, out_tx))
-            .ok();
-        (
-            Self {
-                tx,
-                status: RefCell::default(),
-                roots: RefCell::default(),
-                monitors: RefCell::default(),
-            },
-            out_rx,
-        )
+    pub(crate) fn new(app: Weak<App>) -> Self {
+        Self {
+            app,
+            status: RefCell::default(),
+            roots: RefCell::default(),
+            monitors: RefCell::default(),
+            armed: RefCell::default(),
+            running: RefCell::default(),
+            last: RefCell::default(),
+        }
     }
 
     pub(crate) fn dirt(&self, ws: WorkspaceId) -> DirtState {
@@ -67,7 +57,15 @@ impl GitHub {
             return;
         }
         let open: HashSet<WorkspaceId> = roots.iter().map(|(id, _)| *id).collect();
+        let added: Vec<WorkspaceId> = {
+            let old = self.roots.borrow();
+            open.iter()
+                .copied()
+                .filter(|id| !old.iter().any(|(o, _)| o == id))
+                .collect()
+        };
         self.status.borrow_mut().retain(|id, _| open.contains(id));
+        self.last.borrow_mut().retain(|id, _| open.contains(id));
         *self.roots.borrow_mut() = roots.clone();
         let mut monitors = self.monitors.borrow_mut();
         monitors.retain(|id, _| open.contains(id));
@@ -77,7 +75,9 @@ impl GitHub {
                 .or_insert_with(|| self.watch_repo(*id, root));
         }
         drop(monitors);
-        let _ = self.tx.send(Msg::SetRoots(roots));
+        for ws in added {
+            self.refresh(ws);
+        }
     }
 
     fn watch_repo(&self, ws: WorkspaceId, root: &std::path::Path) -> Vec<gio::FileMonitor> {
@@ -95,7 +95,7 @@ impl GitHub {
             let monitor = gio::File::for_path(dir)
                 .monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
                 .ok()?;
-            let tx = self.tx.clone();
+            let app = self.app.clone();
             monitor.connect_changed(move |_, file, _, _| {
                 let Some(name) = file.basename() else { return };
                 let name = name.to_string_lossy();
@@ -105,7 +105,12 @@ impl GitHub {
                     names.contains(&&*name)
                 };
                 if wanted {
-                    let _ = tx.send(Msg::Meta(ws));
+                    let app = app.clone();
+                    glib::idle_add_local_once(move || {
+                        if let Some(app) = app.upgrade() {
+                            app.git.meta(ws);
+                        }
+                    });
                 }
             });
             Some(monitor)
@@ -114,7 +119,65 @@ impl GitHub {
     }
 
     pub(crate) fn refresh(&self, ws: WorkspaceId) {
-        let _ = self.tx.send(Msg::Refresh(ws));
+        self.arm(ws, DEBOUNCE);
+    }
+
+    fn meta(&self, ws: WorkspaceId) {
+        if !self.running.borrow().contains(&ws) {
+            self.arm(ws, DEBOUNCE);
+        }
+    }
+
+    fn arm(&self, ws: WorkspaceId, delay: Duration) {
+        if !self.armed.borrow_mut().insert(ws) {
+            return;
+        }
+        let weak = self.app.clone();
+        glib::timeout_add_local_once(delay, move || {
+            if let Some(app) = weak.upgrade() {
+                app.git.fire(&app, ws);
+            }
+        });
+    }
+
+    fn fire(&self, app: &Rc<App>, ws: WorkspaceId) {
+        self.armed.borrow_mut().remove(&ws);
+        let Some(root) = self
+            .roots
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == ws)
+            .map(|(_, root)| root.clone())
+        else {
+            return;
+        };
+        if self.running.borrow().contains(&ws) {
+            return self.arm(ws, DEBOUNCE);
+        }
+        let wait = self
+            .last
+            .borrow()
+            .get(&ws)
+            .map_or(Duration::ZERO, |at| MIN_GAP.saturating_sub(at.elapsed()));
+        if !wait.is_zero() {
+            return self.arm(ws, wait);
+        }
+        self.last.borrow_mut().insert(ws, Instant::now());
+        self.running.borrow_mut().insert(ws);
+        let weak = Rc::downgrade(app);
+        glib::spawn_future_local(async move {
+            let status = gio::spawn_blocking(move || xenon_git::measure::measure(&root))
+                .await
+                .ok();
+            let Some(app) = weak.upgrade() else { return };
+            if let Some(status) = status {
+                app.git_measured(vec![(ws, status)]);
+            }
+            // The measure itself touches .git; let those queued monitor events drain first.
+            glib::idle_add_local_once(move || {
+                app.git.running.borrow_mut().remove(&ws);
+            });
+        });
     }
 }
 
@@ -143,9 +206,8 @@ pub(crate) fn apply(hub: &GitHub, batch: Batch) -> Vec<WorkspaceId> {
     changed
 }
 
-pub(crate) fn listen(app: &Rc<App>, rx: async_channel::Receiver<Batch>) {
-    let weak: Weak<App> = Rc::downgrade(app);
-    let timer = weak.clone();
+pub(crate) fn listen(app: &Rc<App>) {
+    let timer = Rc::downgrade(app);
     glib::timeout_add_local(POLL, move || {
         let Some(app) = timer.upgrade() else {
             return glib::ControlFlow::Break;
@@ -155,94 +217,4 @@ pub(crate) fn listen(app: &Rc<App>, rx: async_channel::Receiver<Batch>) {
         }
         glib::ControlFlow::Continue
     });
-    glib::spawn_future_local(async move {
-        while let Ok(batch) = rx.recv().await {
-            let Some(app) = weak.upgrade() else { break };
-            app.git_measured(batch);
-        }
-    });
-}
-
-struct Worker {
-    roots: Roots,
-    pending: HashSet<WorkspaceId>,
-}
-
-impl Worker {
-    fn take(&mut self, msg: Msg) {
-        match msg {
-            Msg::SetRoots(next) => {
-                let old: HashSet<WorkspaceId> = self.roots.iter().map(|(id, _)| *id).collect();
-                let added: Vec<WorkspaceId> = next
-                    .iter()
-                    .map(|(id, _)| *id)
-                    .filter(|id| !old.contains(id))
-                    .collect();
-                self.pending.extend(added);
-                self.roots = next;
-            }
-            Msg::Refresh(ws) | Msg::Meta(ws) => {
-                self.pending.insert(ws);
-            }
-        }
-    }
-}
-
-fn worker(rx: mpsc::Receiver<Msg>, out: async_channel::Sender<Batch>) {
-    let mut w = Worker {
-        roots: Vec::new(),
-        pending: HashSet::new(),
-    };
-    let mut last: HashMap<WorkspaceId, Instant> = HashMap::new();
-    let mut carry: Vec<Msg> = Vec::new();
-    loop {
-        let first = match carry.pop() {
-            Some(msg) => msg,
-            None => match rx.recv() {
-                Ok(msg) => msg,
-                Err(_) => return,
-            },
-        };
-        w.take(first);
-        for msg in carry.drain(..) {
-            w.take(msg);
-        }
-        loop {
-            match rx.recv_timeout(DEBOUNCE) {
-                Ok(msg) => w.take(msg),
-                Err(mpsc::RecvTimeoutError::Timeout) => break,
-                Err(mpsc::RecvTimeoutError::Disconnected) => return,
-            }
-        }
-        let wait = w
-            .pending
-            .iter()
-            .filter_map(|ws| last.get(ws))
-            .map(|at| MIN_GAP.saturating_sub(at.elapsed()))
-            .max()
-            .unwrap_or_default();
-        if !wait.is_zero() {
-            std::thread::sleep(wait);
-            while let Ok(msg) = rx.try_recv() {
-                w.take(msg);
-            }
-        }
-        let mut batch = Batch::new();
-        for ws in std::mem::take(&mut w.pending) {
-            let Some((_, root)) = w.roots.iter().find(|(id, _)| *id == ws) else {
-                continue;
-            };
-            last.insert(ws, Instant::now());
-            batch.push((ws, xenon_git::measure::measure(root)));
-        }
-        last.retain(|ws, _| w.roots.iter().any(|(id, _)| id == ws));
-        if !batch.is_empty() && out.send_blocking(batch).is_err() {
-            return;
-        }
-        while let Ok(msg) = rx.try_recv() {
-            if !matches!(msg, Msg::Meta(_)) {
-                carry.push(msg);
-            }
-        }
-    }
 }
