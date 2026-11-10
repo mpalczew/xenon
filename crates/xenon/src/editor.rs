@@ -37,7 +37,8 @@ pub(crate) struct EditorView {
     bar_actions: gtk::Box,
     monitor: RefCell<Option<gio::FileMonitor>>,
     sync_pending: Cell<bool>,
-    disk_epoch: Cell<u32>,
+    stale: Cell<bool>,
+    file: sourceview::File,
 }
 
 const DISK_SETTLE: std::time::Duration = std::time::Duration::from_millis(250);
@@ -76,21 +77,25 @@ fn disk_bar() -> (gtk::Box, gtk::Label, gtk::Box) {
     (bar, text, actions)
 }
 
-pub(crate) fn check(path: &Path) -> Result<(), String> {
-    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
-    if !meta.is_file() {
+fn disk_file(path: &Path) -> sourceview::File {
+    sourceview::File::builder()
+        .location(&gio::File::for_path(path))
+        .build()
+}
+
+fn limits(regular: bool, len: u64) -> Result<(), String> {
+    if !regular {
         return Err("not a regular file".into());
     }
-    if meta.len() > MAX_BYTES {
+    if len > MAX_BYTES {
         return Err("larger than 4 MB".into());
     }
     Ok(())
 }
 
-pub(crate) fn load(path: &Path) -> Result<String, String> {
-    check(path)?;
-    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    String::from_utf8(bytes).map_err(|_| "xenon cannot edit this binary file".into())
+pub(crate) fn check(path: &Path) -> Result<(), String> {
+    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    limits(meta.is_file(), meta.len())
 }
 
 impl EditorView {
@@ -131,11 +136,12 @@ impl EditorView {
             bar_actions,
             monitor: RefCell::new(None),
             sync_pending: Cell::new(false),
-            disk_epoch: Cell::new(0),
+            stale: Cell::new(false),
+            file: disk_file(path),
             view,
             buffer,
             path: path.to_path_buf(),
-            loading: Cell::new(true),
+            loading: Cell::new(false),
             vim: RefCell::new(None),
             prose,
             mode: Cell::new(mode),
@@ -196,31 +202,8 @@ impl EditorView {
         editor.root.add_controller(keys);
         editor.buffer.set_modified(false);
         editor.watch_disk();
-        editor.open_text();
+        editor.load();
         editor
-    }
-
-    fn open_text(self: &Rc<Self>) {
-        self.read_disk(|this, result| {
-            this.view.set_editable(true);
-            this.replace_text(&result.unwrap_or_else(|why| format!("{why}\n")));
-        });
-    }
-
-    fn read_disk(self: &Rc<Self>, then: impl FnOnce(&Rc<Self>, Result<String, String>) + 'static) {
-        let epoch = self.disk_epoch.get() + 1;
-        self.disk_epoch.set(epoch);
-        let (path, weak) = (self.path.clone(), Rc::downgrade(self));
-        glib::spawn_future_local(async move {
-            let Ok(result) = gio::spawn_blocking(move || load(&path)).await else {
-                return;
-            };
-            if let Some(this) = weak.upgrade()
-                && this.disk_epoch.get() == epoch
-            {
-                then(&this, result);
-            }
-        });
     }
 
     fn watch_disk(self: &Rc<Self>) {
@@ -255,62 +238,99 @@ impl EditorView {
 
     fn sync_from_disk(self: &Rc<Self>) {
         if self.loading.get() {
+            self.stale.set(true);
             return;
         }
-        if !self.path.exists() {
+        self.file.check_file_on_disk();
+        if self.file.is_deleted() {
             self.show_bar(
                 "File was deleted on disk. Your buffer is still open.",
                 false,
             );
             self.buffer.set_modified(true);
-            return;
+        } else if !self.file.is_externally_modified() {
+            self.bar.set_visible(false);
+        } else if self.buffer.is_modified() {
+            self.show_bar(
+                "File changed on disk. Keep your edits, or reload from disk?",
+                true,
+            );
+        } else {
+            self.load();
         }
-        self.read_disk(|this, result| {
-            let Ok(text) = result else { return };
-            let (a, b) = this.buffer.bounds();
-            if this.buffer.text(&a, &b, true) == text {
-                this.bar.set_visible(false);
-            } else if this.buffer.is_modified() {
-                this.show_bar(
-                    "File changed on disk. Keep your edits, or reload from disk?",
-                    true,
-                );
-            } else {
-                this.replace_text(&text);
-            }
-        });
     }
 
-    fn replace_text(self: &Rc<Self>, text: &str) {
+    async fn read(&self) -> Result<(), String> {
+        let info = gio::File::for_path(&self.path)
+            .query_info_future(
+                "standard::type,standard::size",
+                gio::FileQueryInfoFlags::NONE,
+                glib::Priority::DEFAULT,
+            )
+            .await
+            .map_err(|e| e.message().to_string())?;
+        limits(
+            info.file_type() == gio::FileType::Regular,
+            info.size() as u64,
+        )?;
+        let loader = sourceview::FileLoader::new(&self.buffer, &self.file);
+        loader
+            .load_future(glib::Priority::DEFAULT)
+            .0
+            .await
+            .map_err(|e| {
+                if e.matches(sourceview::FileLoaderError::ConversionFallback) {
+                    "xenon cannot edit this binary file".into()
+                } else {
+                    e.message().to_string()
+                }
+            })
+    }
+
+    fn load(self: &Rc<Self>) {
+        if self.loading.replace(true) {
+            self.stale.set(true);
+            return;
+        }
         let cursor = self.buffer.iter_at_offset(self.buffer.cursor_position());
         let (line, col) = (cursor.line(), cursor.line_offset());
         let scroll = self.scroller.vadjustment().value();
-        // set_text deletes every mark; the Vim input method keeps its own and
+        // The loader deletes every mark; the Vim input method keeps its own and
         // would delete them again, so it starts over on the new text.
         let vim = self.vim.borrow().is_some();
         if vim {
             self.detach_vim();
         }
-        self.loading.set(true);
-        self.buffer.begin_irreversible_action();
-        self.buffer.set_text(text);
-        self.buffer.end_irreversible_action();
-        self.buffer.set_modified(false);
-        self.loading.set(false);
-        if let Some(prose) = &self.prose {
-            prose.refit_column();
-        }
-        let at = self
-            .buffer
-            .iter_at_line_offset(line, col)
-            .unwrap_or_else(|| self.buffer.end_iter());
-        self.buffer.place_cursor(&at);
-        if vim {
-            self.attach_vim(&self.app.clone());
-        }
-        self.bar.set_visible(false);
-        let adjustment = self.scroller.vadjustment();
-        glib::idle_add_local_once(move || adjustment.set_value(scroll));
+        let this = self.clone();
+        glib::spawn_future_local(async move {
+            let result = this.read().await;
+            if let Err(why) = &result {
+                this.buffer.begin_irreversible_action();
+                this.buffer.set_text(&format!("{why}\n"));
+                this.buffer.end_irreversible_action();
+            } else {
+                this.view.set_editable(true);
+            }
+            this.buffer.set_modified(false);
+            this.loading.set(result.is_err());
+            if let Some(prose) = &this.prose {
+                prose.refit_column();
+            }
+            let at = this
+                .buffer
+                .iter_at_line_offset(line, col)
+                .unwrap_or_else(|| this.buffer.end_iter());
+            this.buffer.place_cursor(&at);
+            if vim {
+                this.attach_vim(&this.app.clone());
+            }
+            this.bar.set_visible(false);
+            let adjustment = this.scroller.vadjustment();
+            glib::idle_add_local_once(move || adjustment.set_value(scroll));
+            if result.is_ok() && this.stale.replace(false) {
+                this.sync_from_disk();
+            }
+        });
     }
 
     fn show_bar(self: &Rc<Self>, message: &str, actions: bool) {
@@ -330,13 +350,7 @@ impl EditorView {
             let this = Rc::downgrade(self);
             reload.connect_clicked(move |_| {
                 if let Some(this) = this.upgrade() {
-                    glib::idle_add_local_once(move || {
-                        this.read_disk(|this, result| {
-                            if let Ok(text) = result {
-                                this.replace_text(&text);
-                            }
-                        });
-                    });
+                    glib::idle_add_local_once(move || this.load());
                 }
             });
             self.bar_actions.append(&keep);
@@ -441,27 +455,31 @@ impl EditorView {
         true
     }
 
-    pub(crate) fn save(&self, app: &Weak<App>) {
+    pub(crate) fn save(self: &Rc<Self>, app: &Weak<App>) {
         if self.loading.get() {
             return;
         }
-        let (a, b) = self.buffer.bounds();
-        let text = self.buffer.text(&a, &b, true);
-        let result = std::fs::write(&self.path, text.as_str());
-        let name = self
-            .path
-            .file_name()
-            .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-        if let Some(app) = app.upgrade() {
-            match result {
-                Ok(()) => {
-                    self.buffer.set_modified(false);
-                    self.bar.set_visible(false);
-                    app.toast(&format!("Saved {name}"));
+        let saver = sourceview::FileSaver::new(&self.buffer, &self.file);
+        saver.set_flags(sourceview::FileSaverFlags::IGNORE_MODIFICATION_TIME);
+        let (this, app) = (self.clone(), app.clone());
+        glib::spawn_future_local(async move {
+            let result = saver.save_future(glib::Priority::DEFAULT).0.await;
+            let name = this
+                .path
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+            if let Some(app) = app.upgrade() {
+                match result {
+                    Ok(()) => {
+                        this.bar.set_visible(false);
+                        app.toast(&format!("Saved {name}"));
+                    }
+                    Err(error) => {
+                        app.toast(&format!("Couldn\u{2019}t save {name}: {}", error.message()))
+                    }
                 }
-                Err(error) => app.toast(&format!("Couldn\u{2019}t save {name}: {error}")),
             }
-        }
+        });
     }
 }
 
