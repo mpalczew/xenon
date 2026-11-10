@@ -75,7 +75,7 @@ fn font_group(
         let app = app.clone();
         choice_row("Family", "", &labels, at, move |i| {
             let Some(choice) = choices.get(i) else { return };
-            let probe = PangoProbe(gtk::Label::new(None).pango_context());
+            let probe = PangoProbe::new();
             app.change_settings(|s| s.set_font_family(surface, &choice.value, &probe));
         })
     };
@@ -136,7 +136,7 @@ pub(crate) fn appearance(app: &Rc<App>) -> adw::PreferencesPage {
 
 pub(crate) fn fonts(app: &Rc<App>) -> adw::PreferencesPage {
     let page = page("fonts", "Fonts", "font-x-generic-symbolic");
-    let probe = PangoProbe(gtk::Label::new(None).pango_context());
+    let probe = PangoProbe::new();
     let families = probe.0.list_families();
     let mono: Vec<String> = families
         .iter()
