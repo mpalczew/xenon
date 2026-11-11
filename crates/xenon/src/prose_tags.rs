@@ -117,7 +117,7 @@ impl Tags {
         let ink_at = |alpha: f32| gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), alpha);
         let muted = ink_at(0.65);
         let accent = adw::StyleManager::default().accent_color_rgba();
-        let (tint, chip) = (ink_at(0.07), ink_at(0.11));
+        let (tint, chip) = (tint(view), ink_at(0.11));
         let rule = ink_at(0.3);
         let dim = muted;
         let bold = pango::Weight::Bold.into_glib();
@@ -254,4 +254,10 @@ fn set(tag: &gtk::TextTag, props: &[(&str, &dyn ToValue)]) {
     for (name, value) in props {
         tag.set_property_from_value(name, &value.to_value());
     }
+}
+
+/// The shading behind quotes and code blocks.
+pub(crate) fn tint(view: &impl IsA<gtk::Widget>) -> gdk::RGBA {
+    let ink = view.color();
+    gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), 0.07)
 }

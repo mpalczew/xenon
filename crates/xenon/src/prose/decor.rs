@@ -38,6 +38,32 @@ impl Prose {
         let line = gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), 0.3);
         let doc = self.doc.borrow();
 
+        // GTK skips paragraph backgrounds on empty lines; fill them in so
+        // code blocks stay unbroken.
+        paint(crate::prose_tags::tint(view));
+        let width = f64::from(view.width());
+        for s in doc.spans.iter().filter(|s| {
+            matches!(
+                s.kind,
+                xenon_prose::Kind::CodeBlock | xenon_prose::Kind::Verbatim
+            )
+        }) {
+            let mut it = at(s.range.start);
+            while (it.offset() as usize) < s.range.end {
+                let (y, h) = view.line_yrange(&it);
+                if y > bottom {
+                    break;
+                }
+                if it.starts_line() && it.ends_line() && y + h >= top {
+                    cr.rectangle(0.0, f64::from(y), width, f64::from(h));
+                }
+                if !it.forward_line() {
+                    break;
+                }
+            }
+        }
+        let _ = cr.fill();
+
         paint(line);
         let x = f64::from(view.left_margin() + 6);
         for s in doc
