@@ -3,14 +3,33 @@ set -euo pipefail
 main="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 dir() { printf '%s/.worktrees/%s\n' "$main" "$1"; }
 
+# Each worktree builds into its own target: cargo can't share one between
+# checkouts (rust-lang/cargo#12516). Seed it from main's debug build so the
+# first build only redoes our own crates. Hard links cost no disk; rustc and
+# the linker replace outputs rather than write into them. What is written in
+# place is copied instead: rustc's .d files and our own build script's output.
+seed() {
+    local from="$main/target/debug" to="$1/target/debug"
+    mkdir -p "$to"
+    touch "$1/target/seeded"
+    [[ -d "$from/deps" ]] || return 0
+    cp -al "$from/deps" "$from/build" "$to/"
+    cp -a "$from/.fingerprint" "$to/"
+    cp -p --remove-destination "$from"/deps/*.d "$to/deps/"
+    local path
+    for path in "$to"/build/xenon*; do
+        rm -rf "$path"
+        cp -a "$from/build/${path##*/}" "$path"
+    done
+}
+
 case "${1:-}" in
     new)
         name="${2:?usage: scripts/worktree new NAME}"
         wt="$(dir "$name")"
         git -C "$main" fetch -q origin main
         git -C "$main" worktree add -q -b "wt/$name" "$wt" origin/main
-        mkdir -p "$main/target"
-        ln -s "$main/target" "$wt/target"
+        seed "$wt"
         echo "$wt"
         ;;
     done)
@@ -25,7 +44,7 @@ case "${1:-}" in
             echo "wt/$name is not merged into origin/main; not removed" >&2
             exit 1
         fi
-        [[ -L "$wt/target" ]] && rm "$wt/target"
+        rm -rf "$wt/target"
         git -C "$main" worktree remove "$wt"
         git -C "$main" branch -q -d "wt/$name"
         echo "removed $wt"

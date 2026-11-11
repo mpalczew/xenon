@@ -4,6 +4,16 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 days="${1:-14}"
 target="${CARGO_TARGET_DIR:-$root/target}"
 [[ "$target" == /* ]] || target="$root/$target"
+
+# A worktree's own target goes once nothing in it was built for $days days.
+main="$(cd "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"
+for old in "$main"/.worktrees/*/target; do
+    [[ -d "$old" && "$old" != "$target" ]] || continue
+    if [[ -z "$(fd -HI -t f --changed-within "${days}d" --max-results 1 -E deps -E build . "$old")" ]]; then
+        rm -rf "$old"
+        echo "prune-target: removed $old (unbuilt for ${days}d)"
+    fi
+done
 [[ -d "$target" ]] || exit 0
 
 if command -v cargo-sweep >/dev/null; then

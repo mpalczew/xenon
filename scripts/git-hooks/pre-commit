@@ -10,11 +10,14 @@ if [ -n "$bad" ]; then
     echo "pre-commit: .claude holds more than the skills link: $bad" >&2
     exit 1
 fi
-work="$root/target/precommit-tree"
-export CARGO_TARGET_DIR="$root/target/precommit"
-lock="$root/target/precommit.lock"
+# Every worktree checks in main's target, one commit at a time, so the check
+# build stays warm.
+main="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+work="$main/target/precommit-tree"
+export CARGO_TARGET_DIR="$main/target/precommit"
+lock="$main/target/precommit.lock"
 
-mkdir -p "$root/target"
+mkdir -p "$main/target"
 snapshot="$(mktemp -d "${TMPDIR:-/tmp}/xenon-precommit.XXXXXX")"
 trap 'rm -rf "$snapshot"' EXIT
 
