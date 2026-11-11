@@ -8,7 +8,10 @@ use nucleo::{Config, Matcher, Utf32Str};
 pub mod discover;
 pub mod fileops;
 pub mod fsops;
+mod ignored;
 mod walk;
+
+pub use ignored::IgnoreMatcher;
 
 const MAX_RESULTS: usize = 200;
 

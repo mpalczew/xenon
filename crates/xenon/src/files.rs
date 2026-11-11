@@ -12,10 +12,12 @@ use crate::sidebar_ui::{Row, Section};
 const ATTRS: &str = "standard::name,standard::display-name,standard::type,standard::is-symlink,standard::symbolic-icon";
 
 mod drop;
+mod ignores;
 mod ops;
 mod watch;
 
 use drop::OwnerCell;
+use ignores::Ignores;
 use ops::Target;
 
 pub(crate) struct FilesView {
@@ -26,6 +28,7 @@ pub(crate) struct FilesView {
     selection: gtk::SingleSelection,
     root_list: gtk::DirectoryList,
     root_dir: RefCell<Option<PathBuf>>,
+    ignores: Rc<Ignores>,
     app: Weak<App>,
     bound: Rc<RefCell<Vec<gtk::ListItem>>>,
     open_file: Rc<RefCell<Option<PathBuf>>>,
@@ -48,10 +51,14 @@ fn is_dir(item: &glib::Object) -> bool {
         .is_some_and(|i| i.file_type() == gio::FileType::Directory)
 }
 
-/// A live, folders-first, case-insensitive listing of `dir`.
-fn listing(dir: Option<&gio::File>) -> (gtk::DirectoryList, gtk::SortListModel) {
+/// A live, folders-first, case-insensitive listing of `dir` without ignored entries.
+fn listing(
+    dir: Option<&gio::File>,
+    ignores: &Rc<Ignores>,
+) -> (gtk::DirectoryList, gtk::FilterListModel) {
     let list = gtk::DirectoryList::new(Some(ATTRS), dir);
     list.set_monitored(true);
+    ignores.watch(&list);
     let sorter = gtk::CustomSorter::new(|a, b| {
         let key = |o: &glib::Object| {
             let info = o.downcast_ref::<gio::FileInfo>()?;
@@ -60,7 +67,8 @@ fn listing(dir: Option<&gio::File>) -> (gtk::DirectoryList, gtk::SortListModel) 
         key(a).cmp(&key(b)).into()
     });
     let sorted = gtk::SortListModel::new(Some(list.clone()), Some(sorter));
-    (list, sorted)
+    let filtered = gtk::FilterListModel::new(Some(sorted), Some(ignores.filter.clone()));
+    (list, filtered)
 }
 
 fn tree_row(item: Option<glib::Object>) -> Option<gtk::TreeListRow> {
@@ -73,19 +81,24 @@ fn row_path(row: &gtk::TreeListRow) -> Option<PathBuf> {
 
 impl FilesView {
     pub(crate) fn new(app: Weak<App>) -> Rc<Self> {
-        let (root_list, root_sorted) = listing(None);
-        let tree = gtk::TreeListModel::new(root_sorted, false, false, |item| {
-            if !is_dir(item) {
-                return None;
+        let bound: Rc<RefCell<Vec<gtk::ListItem>>> = Rc::default();
+        let open_file: Rc<RefCell<Option<PathBuf>>> = Rc::default();
+        let show_hidden = xenon_store::load_settings().is_ok_and(|s| s.show_hidden_files);
+        let ignores = Ignores::new(show_hidden, bound.clone(), open_file.clone());
+        let (root_list, root_sorted) = listing(None, &ignores);
+        let tree = gtk::TreeListModel::new(root_sorted, false, false, {
+            let ignores = ignores.clone();
+            move |item| {
+                if !is_dir(item) {
+                    return None;
+                }
+                let (_, sorted) = listing(Some(&gio::File::for_path(path_of(item)?)), &ignores);
+                Some(sorted.upcast())
             }
-            let (_, sorted) = listing(Some(&gio::File::for_path(path_of(item)?)));
-            Some(sorted.upcast())
         });
         let selection = gtk::SingleSelection::new(Some(tree.clone()));
         selection.set_autoselect(false);
         selection.set_can_unselect(true);
-        let bound: Rc<RefCell<Vec<gtk::ListItem>>> = Rc::default();
-        let open_file: Rc<RefCell<Option<PathBuf>>> = Rc::default();
         let owner = OwnerCell::default();
         let factory = gtk::SignalListItemFactory::new();
         factory.connect_setup({
@@ -101,13 +114,13 @@ impl FilesView {
             }
         });
         factory.connect_bind({
-            let (bound, open) = (bound.clone(), open_file.clone());
+            let (bound, ignores) = (bound.clone(), ignores.clone());
             move |_, item| {
                 let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
                     return;
                 };
                 bound.borrow_mut().push(item.clone());
-                draw_item(item, open.borrow().as_deref());
+                draw_item(item, ignores.open.borrow().as_deref(), &ignores);
             }
         });
         factory.connect_unbind({
@@ -135,6 +148,7 @@ impl FilesView {
             selection,
             root_list,
             root_dir: RefCell::new(None),
+            ignores,
             app,
             bound,
             open_file,
@@ -191,10 +205,17 @@ impl FilesView {
             let Some(this) = weak.upgrade() else {
                 return glib::Propagation::Proceed;
             };
-            if state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK) {
+            let ctrl_h = key == gdk::Key::h && state == gdk::ModifierType::CONTROL_MASK;
+            if !ctrl_h
+                && state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK)
+            {
                 return glib::Propagation::Proceed;
             }
             let handled = match key {
+                gdk::Key::h if ctrl_h => {
+                    defer(&weak, |this| this.toggle_hidden());
+                    true
+                }
                 gdk::Key::Right | gdk::Key::l => this.step_in(),
                 gdk::Key::Left | gdk::Key::h => this.step_out(),
                 gdk::Key::F2 => this.act_on_selected("rename"),
@@ -260,6 +281,8 @@ impl FilesView {
         }
         self.reveal_target.take();
         *self.root_dir.borrow_mut() = root.clone();
+        *self.ignores.root.borrow_mut() = root.clone();
+        self.ignores.refresh();
         self.root.set_visible(root.is_some());
         self.root_list
             .set_file(root.as_deref().map(gio::File::for_path).as_ref());
@@ -290,12 +313,30 @@ impl FilesView {
         self.focus_index(at);
     }
 
+    /// Flip "Show Hidden Files": filter, dimming, the menu check and the saved setting.
+    fn toggle_hidden(&self) {
+        self.set_hidden(!self.ignores.show_hidden.get());
+    }
+
+    pub(crate) fn set_hidden(&self, on: bool) {
+        self.ignores.set_show_hidden(on);
+        if let Some(app) = self.app.upgrade()
+            && let Some(action) = app.gtk.lookup_action("show-hidden-files")
+            && let Ok(action) = action.downcast::<gio::SimpleAction>()
+        {
+            action.set_state(&on.to_variant());
+        }
+        if let Err(error) = xenon_store::update_settings(|s| s.show_hidden_files = on) {
+            eprintln!("[xg] save settings: {error}");
+        }
+    }
+
     pub(crate) fn has_rows(&self) -> bool {
         self.tree.n_items() > 0
     }
 }
 
-fn draw_item(item: &gtk::ListItem, open: Option<&Path>) {
+fn draw_item(item: &gtk::ListItem, open: Option<&Path>, ignores: &Ignores) {
     let (Some(expander), Some(row)) = (
         item.child().and_downcast::<gtk::TreeExpander>(),
         tree_row(item.item()),
@@ -313,6 +354,11 @@ fn draw_item(item: &gtk::ListItem, open: Option<&Path>) {
     line.set(Some("text-x-generic-symbolic"), &info.display_name(), "");
     if let Some(icon) = info.symbolic_icon() {
         line.icon.set_from_gicon(&icon);
+    }
+    if ignores.hidden(info.upcast_ref()) {
+        expander.add_css_class("dim-label");
+    } else {
+        expander.remove_css_class("dim-label");
     }
     line.set_open(open == Some(path.as_path()));
     let attrs = pango::AttrList::new();

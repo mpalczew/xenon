@@ -38,6 +38,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("Focus Git", "app.focus-git"),
     ("Toggle Sidebar", "app.toggle-sidebar"),
     ("Toggle Files", "app.toggle-files"),
+    ("Show Hidden Files", "app.show-hidden-files"),
     ("Cycle Diff Layout", "app.cycle-diff-layout"),
     ("Find in Terminal", "app.find"),
     ("Find Next", "app.find-next"),

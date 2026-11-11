@@ -80,6 +80,8 @@ pub struct AppSettings {
     pub terminal_auto_close: TerminalAutoClose,
     pub workspaces_collapsed: bool,
     pub files_open: bool,
+    /// Files sidebar shows dotfiles and ignored items (dimmed).
+    pub show_hidden_files: bool,
     pub git_collapsed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files_section_height: Option<f32>,
@@ -116,6 +118,7 @@ impl Default for AppSettings {
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
+            show_hidden_files: false,
             git_collapsed: false,
             files_section_height: None,
             sidebar_width: 240.0,

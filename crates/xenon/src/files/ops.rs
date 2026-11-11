@@ -38,6 +38,11 @@ fn menu_model(on_item: bool) -> gio::Menu {
     make.append_item(&item("New File\u{2026}", "new-file", None));
     make.append_item(&item("New Folder\u{2026}", "new-folder", None));
     menu.append_section(None, &make);
+    let view = gio::Menu::new();
+    let hidden = gio::MenuItem::new(Some("Show Hidden Files"), Some("app.show-hidden-files"));
+    hidden.set_attribute_value("accel", Some(&"<Control>h".to_variant()));
+    view.append_item(&hidden);
+    menu.append_section(None, &view);
     if on_item {
         let change = gio::Menu::new();
         change.append_item(&item("Rename\u{2026}", "rename", Some("F2")));

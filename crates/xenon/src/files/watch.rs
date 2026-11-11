@@ -56,7 +56,7 @@ impl FilesView {
         }
         *self.open_file.borrow_mut() = path;
         for item in self.bound.borrow().iter() {
-            draw_item(item, self.open_file.borrow().as_deref());
+            draw_item(item, self.open_file.borrow().as_deref(), &self.ignores);
         }
     }
 }

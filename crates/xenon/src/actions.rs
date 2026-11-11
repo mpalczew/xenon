@@ -106,10 +106,26 @@ pub(crate) fn install(app: &Rc<App>) {
         });
         app.gtk.add_action(&action);
     }
+    install_hidden_files(app);
     install_term_actions(app);
     crate::remote_ui::install(app);
     install_palette_keys(app);
     crate::keys::install(&app.gtk);
+}
+
+/// A boolean action, so menus show a check. Activating it asks for the flipped state.
+fn install_hidden_files(app: &Rc<App>) {
+    let on = xenon_store::load_settings().is_ok_and(|s| s.show_hidden_files);
+    let action = gio::SimpleAction::new_stateful("show-hidden-files", None, &on.to_variant());
+    let weak = Rc::downgrade(app);
+    // sync: event-time read: only reads the requested state; the change is deferred.
+    action.connect_change_state(move |_, value| {
+        let Some(on) = value.and_then(|v| v.get::<bool>()) else {
+            return;
+        };
+        defer(&weak, move |app| app.sidebar.files.set_hidden(on));
+    });
+    app.gtk.add_action(&action);
 }
 
 fn palette_passes(name: &str) -> bool {
