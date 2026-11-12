@@ -106,6 +106,22 @@ impl FilesView {
             });
         });
         self.list.add_controller(click);
+
+        let head_click = gtk::GestureClick::new();
+        head_click.set_button(gdk::BUTTON_SECONDARY);
+        let weak = Rc::downgrade(self);
+        // sync: event-time read: maps the pointer into list coordinates now; the popup is deferred.
+        head_click.connect_pressed(move |_, _, x, y| {
+            let Some(this) = weak.upgrade() else { return };
+            let head = this.section.head();
+            let (x, y) = head
+                .compute_point(&this.list, &gtk::graphene::Point::new(x as f32, y as f32))
+                .map_or((0.0, 0.0), |p| (f64::from(p.x()), f64::from(p.y())));
+            let at = gdk::Rectangle::new(x as i32, y as i32, 1, 1);
+            let weak = Rc::downgrade(&this);
+            defer(&weak, move |this| this.popup(None, at));
+        });
+        self.section.head().add_controller(head_click);
         self.wire_drop();
     }
 

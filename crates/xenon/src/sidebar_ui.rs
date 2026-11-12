@@ -76,6 +76,10 @@ impl Section {
         }
     }
 
+    pub(crate) fn head(&self) -> &gtk::Box {
+        &self.head
+    }
+
     pub(crate) fn set_trailing(&self, widget: &impl IsA<gtk::Widget>) {
         self.head.append(widget);
     }
