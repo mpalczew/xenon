@@ -152,10 +152,7 @@ impl App {
             return;
         };
         let others = self.model.borrow().other_tabs(ws);
-        for tab in others {
-            self.model.borrow_mut().close_tab(ws, tab);
-        }
-        self.changed(ws);
+        self.close_tabs(ws, others);
     }
 
     pub(crate) fn select_tab_ui(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {

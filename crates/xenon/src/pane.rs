@@ -63,6 +63,7 @@ impl PaneView {
             remove: RefCell::default(),
         });
         this.connect(app);
+        this.install_menu(app);
         let focus = gtk::EventControllerFocus::new();
         let weak = Rc::downgrade(app);
         focus.connect_enter(move |_| {
@@ -146,6 +147,72 @@ impl PaneView {
             {
                 gtk::glib::idle_add_local_once(move || app.tab_transfer_done(ws));
             }
+        });
+    }
+
+    /// The tab bar's right-click menu. The view reports the clicked page in
+    /// `setup-menu`; the actions act on that page's neighbours in this pane.
+    fn install_menu(&self, app: &Rc<App>) {
+        let menu = gio::Menu::new();
+        let item = |label: &str, action: &str| {
+            gio::MenuItem::new(Some(label), Some(&format!("tab.{action}")))
+        };
+        let one = gio::Menu::new();
+        one.append_item(&item("Close Tab", "close"));
+        menu.append_section(None, &one);
+        let many = gio::Menu::new();
+        many.append_item(&item("Close Other Tabs", "close-others"));
+        many.append_item(&item("Close Tabs to the Left", "close-left"));
+        many.append_item(&item("Close Tabs to the Right", "close-right"));
+        menu.append_section(None, &many);
+        self.view.set_menu_model(Some(&menu));
+
+        let clicked: Rc<RefCell<Option<adw::TabPage>>> = Rc::default();
+        let group = gio::SimpleActionGroup::new();
+        let ws = self.ws;
+        for name in ["close", "close-others", "close-left", "close-right"] {
+            let action = gio::SimpleAction::new(name, None);
+            let (weak, view, clicked) = (Rc::downgrade(app), self.view.clone(), clicked.clone());
+            action.connect_activate(move |_, _| {
+                let (view, clicked) = (view.clone(), clicked.clone());
+                defer(&weak, move |app| {
+                    let Some(page) = clicked.borrow().clone() else {
+                        return;
+                    };
+                    let at = view.page_position(&page);
+                    let tabs = (0..view.n_pages())
+                        .filter(|&i| match name {
+                            "close" => i == at,
+                            "close-others" => i != at,
+                            "close-left" => i < at,
+                            _ => i > at,
+                        })
+                        .filter_map(|i| app.tab_of(ws, &view.nth_page(i).child()))
+                        .collect();
+                    app.close_tabs(ws, tabs);
+                });
+            });
+            group.add_action(&action);
+        }
+        self.view.insert_action_group("tab", Some(&group));
+        // sync: answer or ordering before return: the view pops the menu up right after this returns, so the clicked page and enabled items must be set first.
+        self.view.connect_setup_menu(move |view, page| {
+            // The view resets to no page as the menu closes; keep the
+            // clicked one so an item picked from the menu still finds it.
+            let Some(page) = page else { return };
+            clicked.replace(Some(page.clone()));
+            let (at, n) = (view.page_position(page), view.n_pages());
+            let enable = |name: &str, on: bool| {
+                if let Some(action) = group
+                    .lookup_action(name)
+                    .and_then(|a| a.downcast::<gio::SimpleAction>().ok())
+                {
+                    action.set_enabled(on);
+                }
+            };
+            enable("close-others", n > 1);
+            enable("close-left", at > 0);
+            enable("close-right", at + 1 < n);
         });
     }
 

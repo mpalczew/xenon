@@ -21,6 +21,13 @@ impl App {
         });
     }
 
+    pub(crate) fn close_tabs(self: &Rc<Self>, ws: WorkspaceId, tabs: Vec<TabId>) {
+        for tab in tabs {
+            self.model.borrow_mut().close_tab(ws, tab);
+        }
+        self.changed(ws);
+    }
+
     pub(crate) fn tab_of(&self, ws: WorkspaceId, child: &gtk::Widget) -> Option<TabId> {
         self.bodies
             .borrow()
