@@ -4,5 +4,11 @@
     <file>icons/scalable/actions/xenon-split-right-symbolic.svg</file>
     <file>icons/scalable/actions/xenon-split-down-symbolic.svg</file>
     <file>icons/scalable/actions/xenon-copy-clean-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-markdown-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-code-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-shell-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-config-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-database-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-web-symbolic.svg</file>
   </gresource>
 </gresources>

@@ -334,6 +334,41 @@ impl FilesView {
     }
 }
 
+/// One monochrome icon per file-type group, the same under every icon theme.
+fn file_icon(name: &Path) -> &'static str {
+    let file = name.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let lower = file.to_lowercase();
+    let key = match lower.rsplit_once('.') {
+        Some((_, ext)) => ext,
+        None => lower.as_str(),
+    };
+    match key {
+        "md" | "markdown" | "mdx" => "xenon-file-markdown-symbolic",
+        "ts" | "tsx" | "js" | "mjs" | "cjs" | "swift" | "rs" | "py" | "cs" | "rb" | "astro"
+        | "go" | "c" | "h" | "cpp" | "hpp" | "java" | "kt" | "lua" | "zig" => {
+            "xenon-file-code-symbolic"
+        }
+        "sh" | "bash" | "zsh" | "fish" | "makefile" | "dockerfile" | "fastfile" | "appfile"
+        | "justfile" => "xenon-file-shell-symbolic",
+        "json" | "jsonc" | "toml" | "yml" | "yaml" | "xml" | "nix" | "tf" | "plist" | "lock"
+        | "gradle" | "bazel" | "bzl" | "service" | "ini" | "conf" | "env" | "gitignore"
+        | "gitattributes" | "editorconfig" => "xenon-file-config-symbolic",
+        "sql" | "sqlite" | "db" => "xenon-file-database-symbolic",
+        "html" | "htm" | "css" | "scss" => "xenon-file-web-symbolic",
+        "csv" | "tsv" | "xlsx" | "xlsm" | "xls" | "ods" => "x-office-spreadsheet-symbolic",
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "ico" => {
+            "image-x-generic-symbolic"
+        }
+        "pdf" | "azw" | "mobi" | "epub" | "doc" | "docx" | "odt" => "x-office-document-symbolic",
+        "wav" | "mp3" | "flac" | "ogg" | "m4a" => "audio-x-generic-symbolic",
+        "mp4" | "mkv" | "webm" | "mov" => "video-x-generic-symbolic",
+        "woff" | "woff2" | "ttf" | "otf" => "font-x-generic-symbolic",
+        "zip" | "tar" | "gz" | "xz" | "zst" | "7z" => "package-x-generic-symbolic",
+        "bin" | "so" | "o" | "a" => "application-x-executable-symbolic",
+        _ => "text-x-generic-symbolic",
+    }
+}
+
 fn draw_item(item: &gtk::ListItem, open: Option<&Path>, ignores: &Ignores) {
     let (Some(expander), Some(row)) = (
         item.child().and_downcast::<gtk::TreeExpander>(),
@@ -350,17 +385,21 @@ fn draw_item(item: &gtk::ListItem, open: Option<&Path>, ignores: &Ignores) {
         return;
     };
     line.set(Some("text-x-generic-symbolic"), &info.display_name(), "");
-    // Keep only monochrome names so a theme's color icon never slips in.
-    if let Some(icon) = info.symbolic_icon().and_downcast::<gio::ThemedIcon>() {
-        let mut names: Vec<_> = icon
-            .names()
-            .into_iter()
-            .filter(|n| n.ends_with("-symbolic"))
-            .collect();
-        names.push("text-x-generic-symbolic".into());
-        let names: Vec<&str> = names.iter().map(|n| n.as_str()).collect();
-        line.icon
-            .set_from_gicon(&gio::ThemedIcon::from_names(&names));
+    if is_dir(info.upcast_ref()) {
+        // Keep only monochrome names so a theme's color icon never slips in.
+        if let Some(icon) = info.symbolic_icon().and_downcast::<gio::ThemedIcon>() {
+            let mut names: Vec<_> = icon
+                .names()
+                .into_iter()
+                .filter(|n| n.ends_with("-symbolic"))
+                .collect();
+            names.push("text-x-generic-symbolic".into());
+            let names: Vec<&str> = names.iter().map(|n| n.as_str()).collect();
+            line.icon
+                .set_from_gicon(&gio::ThemedIcon::from_names(&names));
+        }
+    } else {
+        line.icon.set_icon_name(Some(file_icon(&info.name())));
     }
     if ignores.hidden(info.upcast_ref()) {
         expander.add_css_class("dim-label");
