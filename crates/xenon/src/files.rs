@@ -33,7 +33,6 @@ pub(crate) struct FilesView {
     bound: Rc<RefCell<Vec<gtk::ListItem>>>,
     open_file: Rc<RefCell<Option<PathBuf>>>,
     reveal_target: RefCell<Option<PathBuf>>,
-    menu: gtk::PopoverMenu,
     ctx: RefCell<Option<Target>>,
     drag: RefCell<Vec<PathBuf>>,
 }
@@ -153,7 +152,6 @@ impl FilesView {
             bound,
             open_file,
             reveal_target: RefCell::new(None),
-            menu: gtk::PopoverMenu::from_model(None::<&gio::MenuModel>),
             ctx: RefCell::new(None),
             drag: RefCell::default(),
         });

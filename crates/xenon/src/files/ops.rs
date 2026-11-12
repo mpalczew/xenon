@@ -80,12 +80,6 @@ impl FilesView {
             group.add_action(&action);
         }
         self.list.insert_action_group("files", Some(&group));
-        self.menu.set_parent(&self.list);
-        self.menu.set_has_arrow(false);
-        self.menu.set_halign(gtk::Align::Start);
-        let menu = self.menu.clone();
-        // sync: answer or ordering before return: the popover must leave its parent while the parent is destroyed.
-        self.list.connect_destroy(move |_| menu.unparent());
 
         let click = gtk::GestureClick::new();
         click.set_button(gdk::BUTTON_SECONDARY);
@@ -129,11 +123,18 @@ impl FilesView {
         if let Some(target) = &target {
             self.select_path(&target.path, false);
         }
-        self.menu
-            .set_menu_model(Some(&menu_model(target.is_some())));
+        let menu = gtk::PopoverMenu::from_model(Some(&menu_model(target.is_some())));
         *self.ctx.borrow_mut() = target;
-        self.menu.set_pointing_to(Some(&at));
-        self.menu.popup();
+        menu.set_has_arrow(false);
+        menu.set_halign(gtk::Align::Start);
+        menu.set_parent(&self.list);
+        menu.set_pointing_to(Some(&at));
+        // sync: answer or ordering before return: the popover is single-use and must leave its parent once closed; the unparent is deferred.
+        menu.connect_closed(|menu| {
+            let menu = menu.clone();
+            glib::idle_add_local_once(move || menu.unparent());
+        });
+        menu.popup();
     }
 
     pub(super) fn popup_selected(self: &Rc<Self>) -> bool {
