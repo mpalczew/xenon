@@ -350,8 +350,17 @@ fn draw_item(item: &gtk::ListItem, open: Option<&Path>, ignores: &Ignores) {
         return;
     };
     line.set(Some("text-x-generic-symbolic"), &info.display_name(), "");
-    if let Some(icon) = info.symbolic_icon() {
-        line.icon.set_from_gicon(&icon);
+    // Keep only monochrome names so a theme's color icon never slips in.
+    if let Some(icon) = info.symbolic_icon().and_downcast::<gio::ThemedIcon>() {
+        let mut names: Vec<_> = icon
+            .names()
+            .into_iter()
+            .filter(|n| n.ends_with("-symbolic"))
+            .collect();
+        names.push("text-x-generic-symbolic".into());
+        let names: Vec<&str> = names.iter().map(|n| n.as_str()).collect();
+        line.icon
+            .set_from_gicon(&gio::ThemedIcon::from_names(&names));
     }
     if ignores.hidden(info.upcast_ref()) {
         expander.add_css_class("dim-label");

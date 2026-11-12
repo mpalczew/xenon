@@ -27,6 +27,7 @@ pub(crate) struct Sidebar {
     pub files: Rc<FilesView>,
     pub git: Rc<GitView>,
     workspaces: Section,
+    rows_box: gtk::Overlay,
     outer: gtk::Paned,
     inner: gtk::Paned,
     pub list: gtk::ListBox,
@@ -131,6 +132,7 @@ impl Sidebar {
             files,
             git,
             workspaces,
+            rows_box: overlay,
             list,
             add,
             app,
@@ -230,6 +232,16 @@ impl Sidebar {
                 });
             });
         }
+    }
+
+    /// Opens the workspaces section tall enough for every row; the divider stops where
+    /// files and git still keep their minimum height.
+    fn fit_workspaces(&self) {
+        let width = self.root.width();
+        let height = |w: &gtk::Widget| w.measure(gtk::Orientation::Vertical, width).1;
+        let rows = height(self.rows_box.upcast_ref());
+        let head = height(self.workspaces.head().upcast_ref());
+        self.outer.set_position(head + rows);
     }
 
     pub(crate) fn sizes(&self) -> (Option<f32>, Option<f32>) {
@@ -369,6 +381,9 @@ impl App {
         }
         self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
+        if matches!(fold, Fold::Workspaces) && !folded {
+            self.sidebar.fit_workspaces();
+        }
         if let Some(app) = self.sidebar.app.upgrade() {
             app.schedule_save();
         }
