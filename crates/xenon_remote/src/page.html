@@ -1011,8 +1011,21 @@ function resetScreen() {
   $("starting").hidden = false;
 }
 
+// Rewriting rows destroys the DOM nodes of a text selection, so while one is
+// held the frames only update the model; the screen repaints once it clears.
+function selecting() {
+  const sel = getSelection();
+  return !sel.isCollapsed && $("term").contains(sel.anchorNode);
+}
+
 function renderFrame(f) {
   const changed = Core.applyFrame(S.term, f);
+  if (selecting()) { S.stale = true; return; }
+  paint(S.stale ? "all" : changed);
+}
+
+function paint(changed) {
+  S.stale = false;
   const screen = $("screen");
   if (changed === "all") {
     let h = "";
@@ -1027,10 +1040,15 @@ function renderFrame(f) {
   syncLive();
 }
 
+document.addEventListener("selectionchange", () => {
+  if (S.stale && !selecting()) paint("all");
+});
+
 function renderCursor() {
   const el = $("cursor");
   const c = S.term.cursor;
   if (!el) return;
+  if (selecting()) { S.stale = true; return; }
   if (!c || c.r >= S.term.rows) { el.hidden = true; return; }
   const cw = S.cw * S.scale;
   el.hidden = false;
