@@ -8,9 +8,10 @@ fn xenon_icon() -> Option<gtk::gdk::Texture> {
 }
 
 type Entry = (&'static str, &'static str);
-const WITH_WORKSPACE: [Entry; 4] = [
+const WITH_WORKSPACE: [Entry; 5] = [
     ("Command Palette\u{2026}", "app.command-palette"),
     ("Go to File\u{2026}", "app.open-finder"),
+    ("Open Worklist", "app.open-worklist"),
     ("Focus Terminal", "app.focus-terminal"),
     ("Toggle Sidebar", "app.toggle-sidebar"),
 ];
@@ -63,6 +64,12 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
             false,
         ));
         buttons.append(&button(
+            "Worklist",
+            "app.open-worklist",
+            Some(&app.tip("Open Worklist", "app.open-worklist")),
+            false,
+        ));
+        buttons.append(&button(
             "Close Workspace",
             "app.close-workspace",
             Some(&app.tip("Close Workspace", "app.close-workspace")),
@@ -86,7 +93,7 @@ pub(crate) fn all_clear(app: &crate::app::App, has_workspace: bool) -> gtk::Widg
     let list = gtk::ListBox::new();
     list.add_css_class("boxed-list");
     list.set_selection_mode(gtk::SelectionMode::None);
-    let entries = if has_workspace {
+    let entries: &[Entry] = if has_workspace {
         &WITH_WORKSPACE
     } else {
         &WITHOUT_WORKSPACE
