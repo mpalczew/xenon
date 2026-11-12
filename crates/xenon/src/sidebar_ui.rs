@@ -49,7 +49,7 @@ impl Section {
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_child(Some(list));
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_vexpand(cap.is_none());
+        scroll.set_vexpand(true);
         if let Some(cap) = cap {
             scroll.set_propagate_natural_height(true);
             scroll.set_max_content_height(cap);
