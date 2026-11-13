@@ -4,11 +4,27 @@
     <file>icons/scalable/actions/xenon-split-right-symbolic.svg</file>
     <file>icons/scalable/actions/xenon-split-down-symbolic.svg</file>
     <file>icons/scalable/actions/xenon-copy-clean-symbolic.svg</file>
-    <file>icons/scalable/mimetypes/xenon-file-markdown-symbolic.svg</file>
-    <file>icons/scalable/mimetypes/xenon-file-code-symbolic.svg</file>
-    <file>icons/scalable/mimetypes/xenon-file-shell-symbolic.svg</file>
-    <file>icons/scalable/mimetypes/xenon-file-config-symbolic.svg</file>
-    <file>icons/scalable/mimetypes/xenon-file-database-symbolic.svg</file>
-    <file>icons/scalable/mimetypes/xenon-file-web-symbolic.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-css.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-csv.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-docker.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-git.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-html.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-img.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-json.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-lock.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-make.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-md.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-nix.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-pdf.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-py.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-rs.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-sh.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-sql.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-swift.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-toml.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-ts.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-txt.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-xml.svg</file>
+    <file>icons/scalable/mimetypes/xenon-file-yaml.svg</file>
   </gresource>
 </gresources>
