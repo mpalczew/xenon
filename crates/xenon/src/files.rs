@@ -366,8 +366,6 @@ fn file_icon(name: &Path) -> String {
         "lock" => "lock",
         "gitignore" | "gitattributes" => "git",
         // Not in the tile set: stock icons.
-        "cs" | "rb" | "astro" | "go" | "c" | "h" | "cpp" | "hpp" | "java" | "kt" | "lua"
-        | "zig" => return "text-x-script-symbolic".into(),
         "azw" | "mobi" | "epub" | "doc" | "docx" | "odt" => {
             return "x-office-document-symbolic".into();
         }
