@@ -194,7 +194,9 @@ impl PaneView {
             });
             group.add_action(&action);
         }
-        self.view.insert_action_group("tab", Some(&group));
+        // The menu pops up from the tab bar, a sibling of the view, so the
+        // actions go on the box holding both.
+        self.root.insert_action_group("tab", Some(&group));
         // sync: answer or ordering before return: the view pops the menu up right after this returns, so the clicked page and enabled items must be set first.
         self.view.connect_setup_menu(move |view, page| {
             // The view resets to no page as the menu closes; keep the
