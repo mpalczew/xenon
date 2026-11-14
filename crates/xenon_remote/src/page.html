@@ -1269,7 +1269,7 @@ function onDirectKey(e) {
   if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); send({ t: "key", key: "shift-enter" }); return; }
   if (e.ctrlKey && !e.metaKey && !e.altKey) {
     const k = e.key.toLowerCase();
-    if (k === "c" || k === "d" || k === "u") { e.preventDefault(); send({ t: "key", key: "ctrl-" + k }); return; }
+    if (/^[a-z]$/.test(k)) { e.preventDefault(); send({ t: "text", data: String.fromCharCode(k.charCodeAt(0) - 96) }); return; }
   }
   const named = { Enter: "enter", Escape: "esc", Backspace: "backspace", Tab: "tab", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
   if (named) { e.preventDefault(); send({ t: "key", key: named }); }
