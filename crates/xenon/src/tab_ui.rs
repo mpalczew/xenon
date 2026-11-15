@@ -38,10 +38,23 @@ impl App {
 
     pub(crate) fn tab_transfer_done(self: &Rc<Self>, ws: WorkspaceId) {
         self.transfer_queued.set(false);
-        if self.off_bar.take() {
-            self.changed(ws);
+        if self.off_bar.get() {
+            self.settle(ws);
         } else if let Some((tab, pane, index)) = self.moved_tab(ws) {
             self.tab_placed(ws, pane, tab, index);
+        }
+    }
+
+    /// Shows a layout change made off the tab bar, once no tab bar is mid-drag.
+    /// If one is, its transfer-done idle calls back here when the drag ends.
+    fn settle(self: &Rc<Self>, ws: WorkspaceId) {
+        let busy = self
+            .slots
+            .borrow()
+            .get(&ws)
+            .is_some_and(|s| s.panes.values().any(|p| p.is_transferring()));
+        if !busy && self.off_bar.take() {
+            self.changed(ws);
         }
     }
 
@@ -105,5 +118,6 @@ impl App {
             None => self.model.borrow_mut().place_tab(ws, tab, pane, None),
         };
         self.off_bar.set(true);
+        crate::app::defer(&Rc::downgrade(self), move |app| app.settle(ws));
     }
 }

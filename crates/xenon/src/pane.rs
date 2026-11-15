@@ -218,6 +218,10 @@ impl PaneView {
         });
     }
 
+    pub(crate) fn is_transferring(&self) -> bool {
+        self.view.is_transferring_page()
+    }
+
     pub(crate) fn order(&self) -> Vec<gtk::Widget> {
         (0..self.view.n_pages())
             .map(|at| self.view.nth_page(at).child())
