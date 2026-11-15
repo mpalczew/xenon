@@ -13,7 +13,7 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 
 ## Commands
 
-- `~/bin/xenon` - start Xenon. Never bypass it or use `pkill`/`killall`: killing an
+- `~/.local/bin/xenon` - start Xenon. Never bypass it or use `pkill`/`killall`: killing an
   instance kills every agent in it.
 - `scripts/worktree new NAME` - create a worktree.
 - `scripts/health` - full check. The pre-commit hook (`scripts/install-hooks`) is the
