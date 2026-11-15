@@ -216,8 +216,27 @@ impl Sidebar {
         self.workspaces.show_fold(folds.workspaces);
         self.files.show_fold(folds.files);
         self.git.show_fold(folds.git);
-        self.inner.set_resize_start_child(!folds.files);
-        self.inner.set_resize_end_child(folds.files);
+        self.fill();
+    }
+
+    /// Gives spare height to the open sections. With one section open or none, the
+    /// dividers have nothing to split, so they let go of their positions and that
+    /// section takes all the space.
+    pub(crate) fn fill(&self) {
+        let open = [
+            self.workspaces.is_open(),
+            self.files.section.is_open(),
+            self.git.section.is_open(),
+        ];
+        let [workspaces, files, git] = open;
+        self.inner.set_resize_start_child(files);
+        self.inner.set_resize_end_child(!files);
+        let alone = workspaces && !files && !git;
+        self.outer.set_resize_start_child(alone);
+        self.outer.set_resize_end_child(!alone);
+        if open.iter().filter(|&&o| o).count() <= 1 {
+            self.reset_sizes();
+        }
     }
 
     pub(crate) fn restore_sizes(&self, workspaces: Option<f32>, files: Option<f32>) {
@@ -232,6 +251,7 @@ impl Sidebar {
                 });
             });
         }
+        self.fill();
     }
 
     /// Opens the workspaces section tall enough for every row; the divider stops where
@@ -381,7 +401,7 @@ impl App {
         }
         self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
-        if matches!(fold, Fold::Workspaces) && !folded {
+        if matches!(fold, Fold::Workspaces) && !folded && self.sidebar.outer.resizes_end_child() {
             self.sidebar.fit_workspaces();
         }
         if let Some(app) = self.sidebar.app.upgrade() {

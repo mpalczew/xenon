@@ -93,6 +93,15 @@ impl Section {
         }));
     }
 
+    /// Whether the section shows its body: unfolded, foldable and on screen.
+    pub(crate) fn is_open(&self) -> bool {
+        self.root.is_visible() && self.body.is_visible() && self.body.reveals_child()
+    }
+
+    pub(crate) fn is_foldable(&self) -> bool {
+        self.body.is_visible()
+    }
+
     pub(crate) fn set_foldable(&self, foldable: bool) {
         self.arrow.set_visible(foldable);
         self.body.set_visible(foldable);

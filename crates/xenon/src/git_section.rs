@@ -16,7 +16,7 @@ const MAX_ROWS: usize = 400;
 
 pub(crate) struct GitView {
     pub root: gtk::Box,
-    section: Section,
+    pub section: Section,
     clean: gtk::Box,
     branch: gtk::Label,
     count: gtk::Label,
@@ -140,7 +140,10 @@ impl GitView {
         self.ws.set(ws);
         *self.status.borrow_mut() = status.cloned();
         *self.shown.borrow_mut() = shown;
-        self.root.set_visible(status.is_some());
+        if self.root.is_visible() != status.is_some() {
+            self.root.set_visible(status.is_some());
+            defer(&self.app, |app| app.sidebar.fill());
+        }
         let Some(status) = status else {
             self.clear();
             return;
@@ -164,7 +167,10 @@ impl GitView {
         self.count.set_visible(!status.files.is_empty());
         let is_clean = status.files.is_empty();
         self.clean.set_visible(is_clean);
-        self.section.set_foldable(!is_clean);
+        if self.section.is_foldable() == is_clean {
+            self.section.set_foldable(!is_clean);
+            defer(&self.app, |app| app.sidebar.fill());
+        }
         if is_clean {
             return;
         }

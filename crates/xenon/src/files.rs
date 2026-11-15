@@ -22,7 +22,7 @@ use ops::Target;
 
 pub(crate) struct FilesView {
     pub root: gtk::Box,
-    section: Section,
+    pub section: Section,
     list: gtk::ListView,
     tree: gtk::TreeListModel,
     selection: gtk::SingleSelection,
