@@ -54,6 +54,7 @@ pub enum IpcRequest {
     Open { paths: Vec<PathBuf> },
     OpenFile(OpenFileSpec),
     Activate,
+    Pair,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -61,17 +62,19 @@ pub(crate) struct IpcResponse {
     pub ok: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
 }
 
 pub enum Handoff {
-    Sent,
+    Sent(Option<String>),
     Rejected(String),
     NoServer,
 }
 
 pub fn try_handoff_request(req: &IpcRequest) -> Handoff {
     match send_request(req) {
-        Ok(_) => Handoff::Sent,
+        Ok(resp) => Handoff::Sent(resp.output),
         Err(error) if error.kind() == std::io::ErrorKind::Other => {
             Handoff::Rejected(error.to_string())
         }
@@ -121,7 +124,7 @@ pub fn bind_server() -> std::io::Result<UnixListener> {
 
 pub fn serve_forever(
     listener: UnixListener,
-    tx: impl Fn(IpcRequest) -> Result<(), String> + Send + 'static,
+    tx: impl Fn(IpcRequest) -> Result<Option<String>, String> + Send + 'static,
 ) {
     std::thread::Builder::new()
         .name("xenon-ipc".into())
@@ -141,7 +144,7 @@ pub fn serve_forever(
 
 fn handle_client(
     stream: UnixStream,
-    tx: &impl Fn(IpcRequest) -> Result<(), String>,
+    tx: &impl Fn(IpcRequest) -> Result<Option<String>, String>,
 ) -> std::io::Result<()> {
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
     stream.set_write_timeout(Some(IO_TIMEOUT))?;
@@ -156,17 +159,22 @@ fn handle_client(
                 IpcResponse {
                     ok: false,
                     error: Some(format!("bad request: {e}")),
+                    output: None,
                 },
             )?;
             return Ok(());
         }
     };
-    let error = tx(req).err();
+    let (output, error) = match tx(req) {
+        Ok(output) => (output, None),
+        Err(error) => (None, Some(error)),
+    };
     write_response(
         &stream,
         IpcResponse {
             ok: error.is_none(),
             error,
+            output,
         },
     )
 }

@@ -9,14 +9,14 @@ use xenon_store::{IpcRequest, OpenFileSpec, OpenPane};
 use crate::app::App;
 
 pub(crate) fn serve(app: &Rc<App>, listener: std::os::unix::net::UnixListener) {
-    type Reply = std::sync::mpsc::Sender<Result<(), String>>;
+    type Reply = std::sync::mpsc::Sender<Result<Option<String>, String>>;
     let (tx, rx) = async_channel::unbounded::<(IpcRequest, Reply)>();
     xenon_store::serve_forever(listener, move |req| {
         let (reply, answer) = std::sync::mpsc::channel();
         let _ = tx.send_blocking((req, reply));
         answer
             .recv_timeout(std::time::Duration::from_millis(1_500))
-            .unwrap_or(Ok(()))
+            .unwrap_or(Ok(None))
     });
     let weak = Rc::downgrade(app);
     glib::spawn_future_local(async move {
@@ -28,8 +28,12 @@ pub(crate) fn serve(app: &Rc<App>, listener: std::os::unix::net::UnixListener) {
 }
 
 impl App {
-    pub(crate) fn handle_request(self: &Rc<Self>, req: IpcRequest) -> Result<(), String> {
+    pub(crate) fn handle_request(
+        self: &Rc<Self>,
+        req: IpcRequest,
+    ) -> Result<Option<String>, String> {
         let result = match req {
+            IpcRequest::Pair => return self.pair_text().map(Some),
             IpcRequest::Open { paths } => {
                 for path in paths {
                     let _ = self.open_path(OpenFileSpec {
@@ -41,10 +45,10 @@ impl App {
                         workspace: None,
                     });
                 }
-                Ok(())
+                Ok(None)
             }
-            IpcRequest::OpenFile(spec) => self.open_path(spec),
-            IpcRequest::Activate => Ok(()),
+            IpcRequest::OpenFile(spec) => self.open_path(spec).map(|()| None),
+            IpcRequest::Activate => Ok(None),
         };
         self.win.present();
         result

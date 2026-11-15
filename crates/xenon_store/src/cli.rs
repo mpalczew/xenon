@@ -7,6 +7,7 @@ pub enum CliCommand {
     Paths(Vec<PathBuf>),
     Open(OpenFileSpec),
     Activate,
+    Pair,
 }
 
 impl CliCommand {
@@ -18,6 +19,7 @@ impl CliCommand {
             },
             Self::Open(spec) => IpcRequest::OpenFile(spec.clone()),
             Self::Activate => IpcRequest::Activate,
+            Self::Pair => IpcRequest::Pair,
         }
     }
 }
@@ -26,6 +28,9 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> CliCommand {
     let args: Vec<String> = args.into_iter().collect();
     if args.first().is_some_and(|a| a == "open") {
         return parse_open(&args[1..]);
+    }
+    if args.first().is_some_and(|a| a == "pair") {
+        return CliCommand::Pair;
     }
     if args.iter().any(|a| a == "-h" || a == "--help") {
         return CliCommand::Activate;

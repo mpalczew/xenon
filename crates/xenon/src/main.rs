@@ -89,9 +89,18 @@ fn main() -> glib::ExitCode {
     let command = xenon_store::parse_cli(rest);
     let request = command.to_request();
     match xenon_store::try_handoff_request(&request) {
-        xenon_store::Handoff::Sent => return glib::ExitCode::SUCCESS,
+        xenon_store::Handoff::Sent(output) => {
+            if let Some(output) = output {
+                println!("{output}");
+            }
+            return glib::ExitCode::SUCCESS;
+        }
         xenon_store::Handoff::Rejected(error) => {
             eprintln!("xenon: {error}");
+            return glib::ExitCode::FAILURE;
+        }
+        xenon_store::Handoff::NoServer if command == xenon_store::CliCommand::Pair => {
+            eprintln!("xenon: no running Xenon");
             return glib::ExitCode::FAILURE;
         }
         xenon_store::Handoff::NoServer => {}

@@ -24,6 +24,27 @@ impl App {
         ))
     }
 
+    /// `xenon pair`: turn the remote on, then describe a live pairing code as terminal text.
+    pub(crate) fn pair_text(self: &Rc<Self>) -> Result<String, String> {
+        if !self.remote.running() && !self.remote.waiting() {
+            self.remote_start();
+            crate::remote::persist_enabled(self.remote.running() || self.remote.waiting());
+        }
+        let (digits, url, _) = self.pairing_facts().ok_or(
+            "another Xenon has the phone remote; quit it, or retry in a moment if this one is starting",
+        )?;
+        let url = url.ok_or("your phone can't reach this computer: Tailscale isn't running")?;
+        let qr = QrCode::new(url.as_bytes())
+            .map_err(|e| format!("cannot make a QR code: {e}"))?
+            .render::<qrcode::render::unicode::Dense1x2>()
+            .dark_color(qrcode::render::unicode::Dense1x2::Light)
+            .light_color(qrcode::render::unicode::Dense1x2::Dark)
+            .build();
+        Ok(format!(
+            "Pairing code: {digits}\nExpires in 10 minutes.\n{url}\n\n{qr}"
+        ))
+    }
+
     pub(crate) fn connect_phone(self: &Rc<Self>) {
         if !self.remote.running() && !self.remote.waiting() {
             self.remote_start();
@@ -45,9 +66,6 @@ impl App {
             let Some(app) = weak.upgrade() else { return };
             glib::idle_add_local_once(move || {
                 *app.remote.connect_dialog.borrow_mut() = None;
-                if let Some(rt) = app.remote.rt.borrow_mut().as_mut() {
-                    rt.devices.forget_pairing();
-                }
                 app.remote_publish();
             });
         });

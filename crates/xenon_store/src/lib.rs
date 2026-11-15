@@ -22,7 +22,7 @@ mod skill;
 mod task_trust;
 mod terminal;
 pub mod worklist;
-pub use cli::parse_cli;
+pub use cli::{CliCommand, parse_cli};
 pub use ipc::{
     Handoff, IpcRequest, OpenFileSpec, OpenPane, bind_server, serve_forever, try_handoff_request,
 };
