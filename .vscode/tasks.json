@@ -4,7 +4,7 @@
     {
       "label": "xenon",
       "type": "shell",
-      "command": "~/bin/xenon",
+      "command": "~/.local/bin/xenon",
       "detail": "launch Xenon via the slot launcher",
       "presentation": {
         "close": true
@@ -14,7 +14,7 @@
       "label": "install",
       "type": "shell",
       "command": "scripts/release/install",
-      "detail": "build the GTK app and install it with the slot launcher into ~/.local and ~/bin"
+      "detail": "build the GTK app and install it with the slot launcher into ~/.local"
     }
   ]
 }
