@@ -79,7 +79,7 @@ impl App {
         let sidebar = self.split.position();
         let result = xenon_store::update_settings(|s| {
             if w > 0 && h > 0 && !self.win.is_maximized() {
-                s.window = Some(WindowGeometry::new(0.0, 0.0, w as f32, h as f32, state));
+                s.window = Some(WindowGeometry::new(w as f32, h as f32, state));
             } else if let Some(g) = s.window.as_mut() {
                 g.state = state;
             }

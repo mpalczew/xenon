@@ -139,7 +139,7 @@ html.in-session { background:var(--chrome); }
 .k.sm { font-size:13px; }
 .k.num { background:var(--num-bg); border-color:var(--num-line); color:var(--accent); }
 .k.enter { flex:none; width:52px; height:auto; background:var(--accent); color:var(--on-accent); border-color:var(--enter-line); font-size:20px; }
-.k:active:not(:disabled), .k.hot { outline:2px solid var(--accent); outline-offset:1px; }
+.k:active:not(:disabled) { outline:2px solid var(--accent); outline-offset:1px; }
 
 .input { flex:none; display:flex; gap:8px; align-items:center; padding:6px 10px max(10px, var(--sab)); background:var(--chrome); margin:0; }
 .field { flex:1; min-width:0; height:40px; border-radius:20px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; padding:0 5px 0 14px; gap:6px; }
@@ -290,7 +290,7 @@ html.in-session { background:var(--chrome); }
     <input id="ti-field" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-labelledby="ti-title">
     <div class="opts" id="ti-opts" role="listbox" aria-labelledby="ti-title" hidden></div>
     <p class="sec-note" id="ti-note" hidden>Hidden here. Sent to your computer over your tailnet and handed to the task. Never stored on this phone.</p>
-    <div class="row2"><button type="button" class="btn sec" id="ti-cancel">Cancel</button><button type="submit" class="btn pri" id="ti-ok">OK</button></div>
+    <div class="row2"><button type="button" class="btn sec" id="ti-cancel">Cancel</button><button type="submit" class="btn pri">OK</button></div>
   </form>
 </div>
 <div id="toast" role="status" hidden></div>

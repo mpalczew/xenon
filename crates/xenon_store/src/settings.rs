@@ -17,13 +17,10 @@ pub enum WindowState {
     #[default]
     Windowed,
     Maximized,
-    Fullscreen,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WindowGeometry {
-    pub x: f32,
-    pub y: f32,
     pub width: f32,
     pub height: f32,
     #[serde(default)]
@@ -35,10 +32,8 @@ impl WindowGeometry {
     pub(crate) const MIN_HEIGHT: f32 = 300.0;
     pub(crate) const MAX_EXTENT: f32 = 20_000.0;
 
-    pub fn new(x: f32, y: f32, width: f32, height: f32, state: WindowState) -> Self {
+    pub fn new(width: f32, height: f32, state: WindowState) -> Self {
         Self {
-            x,
-            y,
             width,
             height,
             state,
@@ -48,14 +43,10 @@ impl WindowGeometry {
     pub fn is_sane(&self) -> bool {
         self.width.is_finite()
             && self.height.is_finite()
-            && self.x.is_finite()
-            && self.y.is_finite()
             && self.width >= Self::MIN_WIDTH
             && self.height >= Self::MIN_HEIGHT
             && self.width <= Self::MAX_EXTENT
             && self.height <= Self::MAX_EXTENT
-            && self.x.abs() <= Self::MAX_EXTENT
-            && self.y.abs() <= Self::MAX_EXTENT
     }
 }
 
