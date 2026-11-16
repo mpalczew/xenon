@@ -31,6 +31,6 @@ jobs:
         run: |
           claude -p --model sonnet --permission-mode dontAsk \
             --allowedTools 'Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)' \
-            "Read docs/review.md and AGENTS.md, then review \`git diff $BEFORE $GITHUB_SHA\`. Review only; do not edit files. Reply with only the findings in the format docs/review.md asks for, or \"No findings\"." \
+            -- "Read docs/review.md and AGENTS.md, then review \`git diff $BEFORE $GITHUB_SHA\`. Review only; do not edit files. Reply with only the findings in the format docs/review.md asks for, or \"No findings\"." \
             > review.md
           gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" -F body=@review.md
