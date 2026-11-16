@@ -55,8 +55,6 @@ impl Prose {
                     break;
                 }
                 if it.starts_line() && it.ends_line() && y + h >= top {
-                    // Match GTK's band: from the tag's left margin to the
-                    // right margin.
                     let left = it
                         .tags()
                         .iter()
