@@ -2,9 +2,9 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_settings::{
-    FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, PROSE_SIZES,
-    ProseMarkers, Surface, TerminalAutoClose, ThemeMode, UiSettings, format_size,
-    mono_font_choices, nearest_index,
+    FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, ProseMarkers,
+    Surface, TerminalAutoClose, ThemeMode, UiSettings, format_size, mono_font_choices,
+    nearest_index,
 };
 
 use crate::app::App;
@@ -244,13 +244,17 @@ fn markdown(app: &Rc<App>, s: &UiSettings) -> adw::PreferencesGroup {
         PROSE_FONTS.iter().position(|f| *f == p.font).unwrap_or(0),
         prose(app, |p, i| p.font = PROSE_FONTS[i]),
     ));
-    group.add(&choice_row(
-        "Writing size",
-        "",
-        &numbers(&PROSE_SIZES),
-        nearest_index(&PROSE_SIZES, p.size),
-        prose(app, |p, i| p.size = PROSE_SIZES[i]),
-    ));
+    let size = adw::SpinRow::with_range(f64::from(MIN_FONT_SIZE), f64::from(MAX_FONT_SIZE), 1.0);
+    size.set_title("Writing size");
+    size.set_value(f64::from(p.size));
+    let size_app = app.clone();
+    size.connect_value_notify(move |row| {
+        let (app, size) = (size_app.clone(), row.value() as f32);
+        gtk::glib::idle_add_local_once(move || {
+            app.change_settings(|s| s.update_prose(|p| p.size = size))
+        });
+    });
+    group.add(&size);
     group.add(&choice_row(
         "Line height",
         "",

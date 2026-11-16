@@ -1,16 +1,33 @@
 use std::path::Path;
 
 use crate::values::sanitize_prose;
-use crate::{DEFAULT_FONT_SIZE, ProseSettings, UiSettings};
+use crate::{DEFAULT_FONT_SIZE, ProseSettings, Surface, UiSettings};
 
 impl UiSettings {
-    pub fn nudge_terminal_font_size(&mut self, delta: f32) {
-        self.terminal.nudge(delta);
+    /// Zoom one surface by `delta` points; a delta of zero resets it to its default.
+    pub fn zoom(&mut self, surface: Surface, delta: f32) {
+        let current = match surface {
+            Surface::Ui => self.ui.size,
+            Surface::Editor => self.editor.size,
+            Surface::Terminal => self.terminal.size,
+        };
+        let size = if delta == 0.0 {
+            DEFAULT_FONT_SIZE
+        } else {
+            current + delta
+        };
+        self.set_font_size(surface, size);
     }
 
-    pub fn reset_font_sizes(&mut self) {
-        self.editor.size = DEFAULT_FONT_SIZE;
-        self.terminal.size = DEFAULT_FONT_SIZE;
+    /// Same as `zoom`, for the markdown writing view.
+    pub fn zoom_prose(&mut self, delta: f32) {
+        self.update_prose(|p| {
+            p.size = if delta == 0.0 {
+                ProseSettings::default().size
+            } else {
+                p.size + delta
+            }
+        });
     }
 
     pub fn editor_wraps(&self, path: &Path) -> bool {

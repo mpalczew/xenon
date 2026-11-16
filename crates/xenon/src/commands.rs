@@ -7,6 +7,7 @@ use xenon_core::{PaneId, ParkOutcome, SplitAxis, TabId, WorkspaceId};
 use crate::app::App;
 use crate::model::Fold;
 use crate::model_tabs::SplitResult;
+use xenon_settings::Surface;
 
 impl App {
     pub(crate) fn toast(&self, text: &str) {
@@ -215,17 +216,21 @@ impl App {
     }
 
     pub(crate) fn zoom(self: &Rc<Self>, delta: f32) {
-        {
-            let mut settings = self.settings.borrow_mut();
-            if delta == 0.0 {
-                settings.reset_font_sizes();
-            } else {
-                settings.nudge_terminal_font_size(delta);
+        let focus = gtk::prelude::GtkWindowExt::focus(&self.win);
+        let has_class = |name: &str| focus.as_ref().is_some_and(|w| w.has_css_class(name));
+        if has_class("xprose") {
+            self.change_settings(|s| s.zoom_prose(delta));
+        } else if has_class("xeditor") {
+            self.change_settings(|s| s.zoom(Surface::Editor, delta));
+        } else {
+            {
+                let mut settings = self.settings.borrow_mut();
+                settings.zoom(Surface::Terminal, delta);
+                settings.persist();
             }
-            settings.persist();
-        }
-        for view in self.terms.borrow().values() {
-            self.restyle_term(view);
+            for view in self.terms.borrow().values() {
+                self.restyle_term(view);
+            }
         }
     }
 

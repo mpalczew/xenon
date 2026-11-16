@@ -28,10 +28,6 @@ impl FaceFont {
             family: DEFAULT_UI_FONT_FAMILY.into(),
         }
     }
-
-    pub(crate) fn nudge(&mut self, delta: f32) {
-        self.size = clamp_size(self.size + delta);
-    }
 }
 
 pub(crate) fn clamp_size(size: f32) -> f32 {
@@ -155,7 +151,7 @@ impl UiSettings {
 }
 
 pub(crate) fn sanitize_prose(mut value: ProseSettings) -> ProseSettings {
-    value.size = value.size.clamp(12.0, 36.0);
+    value.size = value.size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
     value.line_height = value.line_height.clamp(1.2, 2.2);
     value
 }

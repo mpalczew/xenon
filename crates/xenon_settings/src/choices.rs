@@ -1,6 +1,5 @@
 use crate::ProseFont;
 
-pub const PROSE_SIZES: [f32; 5] = [16.0, 17.0, 18.0, 20.0, 22.0];
 pub const PROSE_LINE_HEIGHTS: [f32; 4] = [1.4, 1.55, 1.7, 1.9];
 pub const PROSE_FONTS: [ProseFont; 4] = [
     ProseFont::Auto,
