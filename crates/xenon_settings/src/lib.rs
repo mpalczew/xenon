@@ -20,7 +20,7 @@ pub use xenon_store::{
 };
 
 pub const MIN_FONT_SIZE: f32 = 8.0;
-pub const MAX_FONT_SIZE: f32 = 32.0;
+pub const MAX_FONT_SIZE: f32 = 36.0;
 pub(crate) const DEFAULT_FONT_SIZE: f32 = 14.0;
 pub(crate) const DEFAULT_SHOW_LINE_NUMBERS: bool = true;
 pub(crate) const DEFAULT_VIM_MODE: bool = false;

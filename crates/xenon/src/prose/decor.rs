@@ -58,6 +58,7 @@ impl Prose {
                     let left = it
                         .tags()
                         .iter()
+                        .rev()
                         .find(|t| t.is_left_margin_set())
                         .map_or(view.left_margin(), |t| t.left_margin());
                     let left = f64::from(left);

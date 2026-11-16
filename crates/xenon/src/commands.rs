@@ -216,11 +216,17 @@ impl App {
     }
 
     pub(crate) fn zoom(self: &Rc<Self>, step: Option<f32>) {
-        let focus = gtk::prelude::GtkWindowExt::focus(&self.win);
-        let has_class = |name: &str| focus.as_ref().is_some_and(|w| w.has_css_class(name));
-        if has_class("xprose") {
+        let editor = self.current_editor();
+        let diff = {
+            let model = self.model.borrow();
+            let ws = model.active();
+            ws.and_then(|w| model.spaces.get(&w))
+                .and_then(|s| s.content.active_tab())
+                .is_some_and(|t| matches!(t.kind, crate::model::TabKind::Diff { .. }))
+        };
+        if editor.as_ref().is_some_and(|e| e.view.has_css_class("xprose")) {
             self.change_settings(|s| s.zoom_prose(step));
-        } else if has_class("xeditor") {
+        } else if editor.is_some() || diff {
             self.change_settings(|s| s.zoom(Surface::Editor, step));
         } else {
             {
