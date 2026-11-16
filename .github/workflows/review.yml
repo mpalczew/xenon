@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 concurrency:
   group: review
@@ -23,18 +22,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: >-
-            --model sonnet
-            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh api:*)"
-          prompt: |
-            Read docs/review.md and AGENTS.md, then review `git diff ${{ github.event.before }} ${{ github.sha }}`.
-            Review only; do not edit files.
-            Post your findings as one commit comment on ${{ github.sha }} with
-            `gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body=...`.
-            If there are no findings, post "No findings".
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Review with Claude Sonnet
         env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          claude -p --model sonnet --permission-mode dontAsk \
+            --allowedTools 'Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)' \
+            "Read docs/review.md and AGENTS.md, then review \`git diff $BEFORE $GITHUB_SHA\`. Review only; do not edit files. Reply with only the findings in the format docs/review.md asks for, or \"No findings\"." \
+            > review.md
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" -F body=@review.md
