@@ -41,7 +41,7 @@ impl Prose {
         // GTK skips paragraph backgrounds on empty lines; fill them in so
         // code blocks stay unbroken.
         paint(crate::prose_tags::tint(view));
-        let width = f64::from(view.width());
+        let right = f64::from(view.width() - view.right_margin());
         for s in doc.spans.iter().filter(|s| {
             matches!(
                 s.kind,
@@ -55,7 +55,15 @@ impl Prose {
                     break;
                 }
                 if it.starts_line() && it.ends_line() && y + h >= top {
-                    cr.rectangle(0.0, f64::from(y), width, f64::from(h));
+                    // Match GTK's band: from the tag's left margin to the
+                    // right margin.
+                    let left = it
+                        .tags()
+                        .iter()
+                        .find(|t| t.is_left_margin_set())
+                        .map_or(view.left_margin(), |t| t.left_margin());
+                    let left = f64::from(left);
+                    cr.rectangle(left, f64::from(y), right - left, f64::from(h));
                 }
                 if !it.forward_line() {
                     break;
