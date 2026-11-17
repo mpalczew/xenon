@@ -11,7 +11,7 @@ use crate::term::TermView;
 // PCRE2_MULTILINE: VTE requires it for match regexes.
 const PCRE2_MULTILINE: u32 = 0x0000_0400;
 const URL_RE: &str = r#"https?://[^\s<>"'`)]+"#;
-const PATH_RE: &str = r"(?:(?:\.{0,2}/)?[\w.\-+@~]+(?:/[\w.\-+@~]+)+|[\w\-+@][\w.\-+@]*\.[A-Za-z][A-Za-z0-9]{0,7})(?::\d+){0,2}";
+const PATH_RE: &str = r"(?:(?:\.{0,2}/)?[\w.\-+@~]+(?:/[\w.\-+@~]+)+|[\w\-+@][\w.\-+@]*\.[A-Za-z][A-Za-z0-9]{0,7})(?<!\.)(?::\d+){0,2}";
 
 pub(crate) enum Link {
     Url(String),
