@@ -3,10 +3,6 @@ name: Review
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - ".xenon/**"
-      - "docs/**"
-      - "**.md"
 
 permissions:
   contents: write
@@ -29,6 +25,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BEFORE: ${{ github.event.before }}
         run: |
+          if ! git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qvE '^(\.xenon/|docs/)|\.md$'; then
+            echo "Docs-only push; no review." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           claude -p --model sonnet --permission-mode dontAsk \
             --allowedTools 'Read,Grep,Glob,WebSearch,WebFetch,Bash(git diff:*),Bash(git log:*),Bash(git show:*)' \
             -- "Read docs/review.md and AGENTS.md, then review \`git diff $BEFORE $GITHUB_SHA\`. Review only; do not edit files. Reply with only the findings in the format docs/review.md asks for, or \"No findings\"." \
