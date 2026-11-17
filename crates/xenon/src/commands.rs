@@ -224,7 +224,10 @@ impl App {
                 .and_then(|s| s.content.active_tab())
                 .is_some_and(|t| matches!(t.kind, crate::model::TabKind::Diff { .. }))
         };
-        if editor.as_ref().is_some_and(|e| e.view.has_css_class("xprose")) {
+        if editor
+            .as_ref()
+            .is_some_and(|e| e.view.has_css_class("xprose"))
+        {
             self.change_settings(|s| s.zoom_prose(step));
         } else if editor.is_some() || diff {
             self.change_settings(|s| s.zoom(Surface::Editor, step));

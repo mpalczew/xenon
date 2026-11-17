@@ -158,7 +158,6 @@ impl Walk<'_> {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn start(&mut self, tag: Tag, r: Range<usize>) {
         if !matches!(tag, Tag::Item | Tag::List(_)) {
             self.touch(&r);

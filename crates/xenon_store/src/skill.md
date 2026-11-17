@@ -12,7 +12,7 @@ Use `xenon open` to show the user a file, and edit `.xenon/worklist.md` to track
 
 ## Open a file
 
-To show the user a file use `xenon open`. 
+To show the user a file use `xenon open`.
 
 ```
 xenon open path/to/file.rs:42
@@ -20,7 +20,7 @@ xenon open path/to/file.rs:42-80
 xenon open --workspace other-project notes.md
 ```
 
-- `--workspace <name|path>` opens it in another open workspace. 
+- `--workspace <name|path>` opens it in another open workspace.
 - Locations are 1-based: `:line`, `:line:col`, or `:start-end`.
 
 ## Worklist

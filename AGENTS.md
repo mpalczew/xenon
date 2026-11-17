@@ -11,8 +11,8 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 
 ## Commands
 
-- `~/.local/bin/xenon` - start Xenon. Never bypass it or use `pkill`/`killall`: killing an
-  instance kills every agent in it.
+- `~/.local/bin/xenon` - start Xenon. Never bypass it or use `pkill`/`killall`: killing
+  an instance kills every agent in it.
 - `scripts/health` - full check.
 - `scripts/release/install` - at the end, after you commit and push.
 

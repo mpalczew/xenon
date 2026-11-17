@@ -58,7 +58,6 @@ fn parse_open(args: &[String]) -> CliCommand {
                 }
                 break;
             }
-            "--pane" => i += 1,
             "--workspace" => {
                 i += 1;
                 if let Some(value) = args.get(i) {
