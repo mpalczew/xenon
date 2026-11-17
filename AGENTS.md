@@ -8,19 +8,13 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 - `crates/xenon/` - the app.
 - Other `crates/` - shared crates with no GTK: rules, state and parsing.
 - `PRODUCT.md` - what Xenon is and does. Read it before UX work.
-- `crates/xenon/src/keys.rs` - every app shortcut.
-- `docs/designs/*` - selected design docs
 
 ## Commands
 
 - `~/.local/bin/xenon` - start Xenon. Never bypass it or use `pkill`/`killall`: killing an
   instance kills every agent in it.
-- `scripts/worktree new NAME` - create a worktree.
-- `scripts/health` - full check. The pre-commit hook (`scripts/install-hooks`) is the
-  commit check.
-- `scripts/release/install` - once at the end, after committing and pushing this
-  session's paths. It waits for the CI review and stops on findings: fix them, push,
-  rerun. List leftover dirty paths and whose they are.
+- `scripts/health` - full check.
+- `scripts/release/install` - at the end, after you commit and push.
 
 ## Rules
 

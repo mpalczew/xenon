@@ -81,3 +81,8 @@ case ":$PATH:" in
 esac
 
 "$root/scripts/prune-target"
+
+dirty=$(git -C "$root" status --short)
+if [[ -n "$dirty" ]]; then
+    printf 'Uncommitted paths; tell the user whose they are:\n%s\n' "$dirty"
+fi
