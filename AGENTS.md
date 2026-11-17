@@ -18,8 +18,9 @@ Linux agent shell in Rust on GTK 4, libadwaita and VTE. GPL-3.0-or-later; public
 - `scripts/worktree new NAME` - create a worktree.
 - `scripts/health` - full check. The pre-commit hook (`scripts/install-hooks`) is the
   commit check.
-- `scripts/release/install` - once at the end, then commit and push this session's
-  paths. List leftover dirty paths and whose they are.
+- `scripts/release/install` - once at the end, after committing and pushing this
+  session's paths. It waits for the CI review and stops on findings: fix them, push,
+  rerun. List leftover dirty paths and whose they are.
 
 ## Rules
 

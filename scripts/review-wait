@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Usage: scripts/review-wait [REV]  (default HEAD; REV must be pushed to main)
+# Exit: 0 no findings, 1 review run failed, 2 no review run, 3 findings.
 set -euo pipefail
 sha=$(git rev-parse "${1:-HEAD}")
 repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 run=""
-for _ in $(seq 60); do
+for _ in $(seq 12); do
   run=$(gh run list --workflow review.yml --commit "$sha" -L 1 --json databaseId -q '.[0].databaseId')
   [ -n "$run" ] && break
   sleep 5
 done
-[ -n "$run" ] || { echo "No review run for $sha (docs-only push, or not pushed)." >&2; exit 2; }
+[ -n "$run" ] || { echo "No review run for $sha (docs-only push)." >&2; exit 2; }
+echo "Waiting for review of ${sha:0:7}..." >&2
 gh run watch "$run" --exit-status >/dev/null || { echo "Review run failed: $(gh run view "$run" --json url -q .url)" >&2; exit 1; }
 body=$(gh api "repos/$repo/commits/$sha/comments" -q '.[].body')
-echo "${body:-No findings}"
+[ -z "$body" ] && { echo "No findings"; exit 0; }
+echo "$body"
+exit 3
