@@ -25,7 +25,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BEFORE: ${{ github.event.before }}
         run: |
-          if ! git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qvE '^(\.xenon/|docs/)|\.md$'; then
+          files=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          if ! printf '%s\n' "$files" | grep -qvE '^(\.xenon/|docs/)|\.md$'; then
             echo "Docs-only push; no review." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
