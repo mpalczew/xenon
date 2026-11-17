@@ -4,7 +4,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::glib;
 use xenon_core::{FileRoute, SplitAxis, WorkspaceId};
-use xenon_store::{IpcRequest, OpenFileSpec, OpenPane};
+use xenon_store::{IpcRequest, OpenFileSpec};
 
 use crate::app::App;
 
@@ -41,7 +41,6 @@ impl App {
                         line: None,
                         column: None,
                         end_line: None,
-                        pane: Default::default(),
                         workspace: None,
                     });
                 }
@@ -87,7 +86,7 @@ impl App {
         }
         let active = self.model.borrow().active();
         if let Some(ws) = active {
-            self.aim_pane(ws, spec.pane);
+            self.aim_pane(ws);
             self.open_file_at(
                 ws,
                 Path::new(&path),
@@ -98,20 +97,16 @@ impl App {
         Ok(())
     }
 
-    fn aim_pane(&self, ws: WorkspaceId, pane: OpenPane) {
+    fn aim_pane(&self, ws: WorkspaceId) {
         let mut model = self.model.borrow_mut();
         let leaves = model
             .spaces
             .get(&ws)
             .map_or(0, |s| s.content.leaf_ids().len());
-        match pane {
-            OpenPane::Focused => {}
-            OpenPane::Sibling if leaves > 1 => {
-                model.step_pane(ws, 1);
-            }
-            OpenPane::Sibling | OpenPane::SplitRight => {
-                model.split(ws, SplitAxis::Horizontal);
-            }
+        if leaves > 1 {
+            model.step_pane(ws, 1);
+        } else {
+            model.split(ws, SplitAxis::Horizontal);
         }
     }
 }

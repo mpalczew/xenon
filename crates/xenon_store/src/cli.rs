@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::ipc::{IpcRequest, OpenFileSpec, OpenPane};
+use crate::ipc::{IpcRequest, OpenFileSpec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CliCommand {
@@ -44,7 +44,6 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> CliCommand {
 }
 
 fn parse_open(args: &[String]) -> CliCommand {
-    let mut pane = OpenPane::Sibling;
     let mut raw: Option<String> = None;
     let mut workspace = std::env::var("XENON_WORKSPACE")
         .ok()
@@ -59,12 +58,7 @@ fn parse_open(args: &[String]) -> CliCommand {
                 }
                 break;
             }
-            "--pane" => {
-                i += 1;
-                if let Some(value) = args.get(i) {
-                    pane = OpenPane::parse(value).unwrap_or(OpenPane::Sibling);
-                }
-            }
+            "--pane" => i += 1,
             "--workspace" => {
                 i += 1;
                 if let Some(value) = args.get(i) {
@@ -73,9 +67,6 @@ fn parse_open(args: &[String]) -> CliCommand {
             }
             flag if flag.starts_with("--workspace=") => {
                 workspace = Some(workspace_arg(&flag[12..]));
-            }
-            flag if flag.starts_with("--pane=") => {
-                pane = OpenPane::parse(&flag[7..]).unwrap_or(OpenPane::Sibling);
             }
             flag if flag.starts_with('-') => {}
             other if raw.is_none() => raw = Some(other.to_string()),
@@ -93,7 +84,6 @@ fn parse_open(args: &[String]) -> CliCommand {
         line,
         column,
         end_line,
-        pane,
         workspace,
     })
 }

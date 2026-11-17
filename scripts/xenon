@@ -22,7 +22,7 @@ SHARED_DIR="$HOME/.xenon-shared"
 
 usage() {
     cat >&2 <<'EOF'
-usage: xenon [status | pair | open [--pane sibling|focused|split-right] [--workspace name|path|id] path[:line[:col]|:start-end] | path...]
+usage: xenon [status | pair | open [--workspace name|path|id] path[:line[:col]|:start-end] | path...]
 
 xenon pair prints a phone pairing code and QR for the running Xenon.
 

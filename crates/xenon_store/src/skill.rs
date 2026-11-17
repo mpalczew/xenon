@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 const BUNDLED: &str = include_str!("skill.md");
-const SKILL_VERSION: u32 = 9;
+const SKILL_VERSION: u32 = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SkillStatus {

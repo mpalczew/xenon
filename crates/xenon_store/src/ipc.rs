@@ -13,26 +13,6 @@ pub(crate) fn socket_path() -> PathBuf {
     data_dir().join("ipc.sock")
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum OpenPane {
-    #[default]
-    Sibling,
-    Focused,
-    SplitRight,
-}
-
-impl OpenPane {
-    pub(crate) fn parse(raw: &str) -> Option<Self> {
-        match raw {
-            "sibling" => Some(Self::Sibling),
-            "focused" => Some(Self::Focused),
-            "split-right" => Some(Self::SplitRight),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenFileSpec {
     pub path: PathBuf,
@@ -42,8 +22,6 @@ pub struct OpenFileSpec {
     pub column: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_line: Option<u32>,
-    #[serde(default)]
-    pub pane: OpenPane,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
 }
