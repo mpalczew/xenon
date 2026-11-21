@@ -87,17 +87,19 @@ git clone https://github.com/mpalczew/xenon.git && cd xenon
 ./scripts/release/install
 ```
 
-Installs the GTK app as `~/.local/share/xenon/xenon-bin`, the terminal service as
-`xenon-term` beside it, the launcher as `~/.local/bin/xenon` (and `~/bin/xenon` when
-that directory exists), the `xenon-term.socket` and `xenon-term.service` systemd user
-units, and a `.desktop` entry with an icon. `XENON_APP_DIR` and `XENON_BIN_DIR`
-override. Update with `git pull && ./scripts/release/install`. Quit is `ctrl-q`.
+Installs the GTK app as `~/.local/share/xenon/xenon-bin`, `xenon-term` (terminal holders
+and the phone server) beside it, the launcher as `~/.local/bin/xenon` (and `~/bin/xenon`
+when that directory exists), the `xenon-term.slice`, `xenon-phone.socket` and
+`xenon-phone.service` systemd user units, and a `.desktop` entry with an icon.
+`XENON_APP_DIR` and `XENON_BIN_DIR` override. Update with `git pull &&
+./scripts/release/install`. Quit is `ctrl-q`.
 
-Terminals live in the service, so closing the window keeps every shell and agent
-running; "Quit and End Terminals" in the command palette ends them. Install never
-restarts the service: `systemctl --user stop xenon-term.service` upgrades it and ends
-terminals. State lives in `~/.xenon`. `xenon <dir>` and `xenon open path[:line[:col]]`
-go to the running window. `xenon status` shows the window and the service.
+Each terminal runs in its own holder process, so closing the window keeps every shell
+and agent running; "Quit and End Terminals" in the header-bar menu, or `xenon quit
+--end`, ends them. Install never touches a running terminal: it only restarts the phone
+server, and new terminals start on the new build, while older ones are marked. State
+lives in `~/.xenon`. `xenon <dir>` and `xenon open path[:line[:col]]` go to the running
+window. `xenon status` shows the window, the phone server and the terminal count.
 
 ### Dev loop
 

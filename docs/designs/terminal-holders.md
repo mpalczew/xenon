@@ -169,6 +169,11 @@ Today's `phone/` module moves to its own crate, `xenon_phone`, built on the publ
   the size.
 - **Tasks:** follow `Status.exit` by `TermId`.
 - **The window's phone settings:** over `phone.sock`.
+- **Restarts:** `xenon-phone.service` has `Restart=on-failure` with `RestartSec=2s`, so
+  a crash brings it back by itself. Install runs `systemctl --user try-restart
+  xenon-phone.service`, or starts it when it is not running. The phone page in
+  Preferences has a "Restart Phone Server" button that runs `systemctl --user restart
+  xenon-phone.service` and says that phones reconnect by themselves.
 
 ### Crate changes
 
@@ -233,3 +238,25 @@ reshaped.
 
 Move the holder out of `Terms` into `xenon-term hold`, started with `systemd-run`, with
 the window reading the runtime directory. Then the phone process, then the header bar.
+
+## As built
+
+Differences from the sketch above, all additive:
+
+- **`xenon-term` lives in the `xenon_phone` crate.** The phone server uses only
+  `xenon_term`'s public API, and the one binary has to carry `hold`, `phone`, `end-all`
+  and `version`; a binary in `xenon_term` could not depend on `xenon_phone`.
+- **`PhoneLink` lives in `xenon_phone`,** over `phone.sock` (one JSON object per line).
+  The window writes `services.json` and then calls `Status`, which makes the server
+  re-read it; the file watch covers hand edits. A `Watch` call keeps a connection open
+  for `Changed` pushes, and `Dark` tells the server the window's theme.
+- **`watch(id, label)` takes the phone's label, not a size,** because the size arrives
+  later from the phone (`Mirror::fit`).
+- **`Welcome` carries `cwd`** (added, with a default), so listings need no second call.
+- **Attach, resize and typing that happen before the holder is connected** wait and are
+  applied when it is, so a new tab does not lose its first keys.
+- **Private runs:** `XENON_RUNTIME_DIR` replaces `$XDG_RUNTIME_DIR/xenon`, and
+  `XENON_TERM_SLICE` names another slice. Both, and `XENON_DATA_DIR`, are passed on to
+  holders through `systemd-run --setenv`.
+- **First close:** the toast appears and the window closes about two seconds later, so
+  the toast can be read. It is shown once (`close_hint_shown` in `settings.json`).

@@ -1,8 +1,8 @@
 # Phone remote
 
 A web page served by Xenon lets you read and drive your terminals from a phone. Code:
-`crates/xenon_remote` (HTTP, WebSocket, pairing, frames) and
-`crates/xenon_term/src/phone` (the server, running inside the terminal service).
+`crates/xenon_remote` (HTTP, WebSocket, pairing, frames) and `crates/xenon_phone` (the
+server, its own process, `xenon-phone.service`).
 
 ## Decisions
 
