@@ -2,7 +2,10 @@
 
 A long-lived service, `xenon-term`, runs and holds every terminal. The GTK window and
 the phone page are clients of it. Restarting or upgrading the window leaves every shell
-and agent running. Sketches A, B and C are in `/tmp/xenon-arch/`.
+and agent running. Sketches A, B and C were in `/tmp/xenon-arch/`. This design is built:
+`crates/xenon_term`, with the window's side in `crates/xenon/src/{term,term_events}.rs`.
+The spike settled the main risk: VTE 0.84 emits `commit` with no PTY for everything
+bound for the child (vte.cc:4776-4802), and replay through VTE is exact.
 
 ## Problem
 
@@ -41,7 +44,7 @@ for tab in model.terminal_tabs(ws) {          // TabState::Terminal now stores `
         None => svc.create(ws, Spawn::shell(&root))?,   // service restarted: a fresh shell, as today
     };
     views.insert(id, TermView::new(app, ws, tab.id, id));
-    svc.attach(id, Claim::Desk(view.size()));  // a replay arrives first as Event::Output
+    svc.attach(id, view.size());               // on first map; a replay arrives first as Event::Output
 }
 // The adoption rule: any live terminal in `ws` that no tab references gets a new
 // unselected tab. This one rule covers phone-made terminals and terminals left behind
@@ -54,6 +57,8 @@ while let Ok(ev) = svc.events().recv().await {
         Event::Status { id, status } => app.term_status(id, status),   // dots, title, exit
         Event::Size { id, size } => app.view(id).follow(size),         // pin VTE if smaller
         Event::Created { id, workspace } => app.adopt(workspace, id),  // e.g. from the phone
+        Event::Closed { id } => app.term_closed(id),                   // e.g. closed from the phone
+        Event::Phone => app.remote_publish(),                          // phone server state changed
         Event::Lost => app.service_lost(),
     }
 }
@@ -106,7 +111,9 @@ struct Term {
     watchers: Vec<Watcher>,                   // phones: own scroll, rate, dirty flag
 }
 pub struct TermStatus { pub working: bool, pub attention: Option<AttentionReason>,
-                        pub title: String, pub exit: Option<Exit> }
+                        pub title: String,            // already cleaned, ready for a tab label
+                        pub exit: Option<Exit>,
+                        pub phone: Option<String> }   // the phone whose size is in force
 ```
 
 These are the main access paths through it:
@@ -122,6 +129,10 @@ These are the main access paths through it:
 - **Query replies.** If `desk` is set, the emulator's replies are dropped, because VTE
   answers through `commit`. If it isn't, the service writes them to the PTY. One
   answerer at a time.
+- **Status.** `seen(id)` clears attention. The service does not know what is on screen,
+  so it flags attention whenever a terminal rings the bell or settles, and the window
+  calls `seen` at once for a terminal it is showing. Output counts as a wakeup at most
+  every 16 ms, the rate a VTE redraw would.
 - **Size.** `claims.effective()` is the desk size, unless a phone has claimed a size and
   the desk has had no input for 30 seconds (`FitGate`, as today); the smallest phone
   wins. It is derived at read time, so no one writes the size directly. The window
@@ -132,22 +143,25 @@ These are the main access paths through it:
 ```rust
 pub struct TermId(u128);          // random, never reused: a stale id only misses
 pub struct Size { cols: u16, rows: u16 }   // >= 1, checked in Size::new
-pub struct Spawn { pub cwd: PathBuf, pub argv: Vec<String>, pub env: Vec<String> } // env is added to base_env
+pub struct Spawn { pub cwd: PathBuf, pub argv: Vec<String>, pub env: Vec<String> } // env is added to base_env;
+                                          // the service adds XENON_WORKSPACE, TERM and COLORTERM
 pub enum Exit { Code(i32), Signal(i32) }
-pub enum Claim { Desk(Size), Phone { size: Size, label: String } }
+pub(crate) enum Claim { Desk(Size), Phone { size: Size, label: String } } // the window is always the desk,
+                                                                          // so `Client` takes a plain `Size`
 pub struct TermInfo { pub id: TermId, pub workspace: WorkspaceId, pub pid: i32, pub status: TermStatus }
-pub enum Event { Output{..}, Status{..}, Size{..}, Created{..}, Lost }
+pub enum Event { Output{..}, Status{..}, Size{..}, Created{..}, Closed{..}, Phone, Lost }
 
 impl Client {
     pub fn connect(env: Vec<String>) -> Result<Self, ConnectError>; // checks protocol version
     pub fn events(&self) -> async_channel::Receiver<Event>;
     pub fn list(&self) -> Result<Vec<TermInfo>, Gone>;
     pub fn create(&self, ws: WorkspaceId, spawn: Spawn) -> Result<TermId, SpawnError>;
-    pub fn attach(&self, id: TermId, claim: Claim);
+    pub fn attach(&self, id: TermId, size: Size);
     pub fn input(&self, id: TermId, bytes: &[u8]);
-    pub fn claim(&self, id: TermId, claim: Claim);
+    pub fn claim(&self, id: TermId, size: Size);
     pub fn seen(&self, id: TermId);
     pub fn close(&self, id: TermId);          // idempotent; SIGHUP to the session
+    pub fn set_dark(&self, dark: bool);       // the phone page follows the window's theme
     pub fn phone(&self) -> PhoneLink;         // pairing code, status rows, settings, for prefs_phone
 }
 ```
@@ -215,18 +229,30 @@ and the window's `Model` and layout code stay where they are.
 - Closing the window keeps agents running; "Quit and end terminals" ends them.
 - The service starts only through a systemd `--user` socket.
 - Service upgrades are manual for now and end terminals; in-place re-exec comes later.
+- State lives in `~/.xenon` only. The a/b slots and their `~/.xenon-a`/`-b` directories
+  are gone; a new window never hands off to an old slot instance's `ipc.sock`.
+- The window sends `Size` claims only while it is unpinned, and attaches a terminal on
+  its first map, so a replay never lands in a VTE that has not been laid out yet.
 
-## Open questions and risks
+## Limits
 
-- Risk 1 (all three sketches share it): does VTE 0.84 with no PTY emit `commit` for
-  everything bound for the child (keys, paste, mouse and focus reports, query replies)?
-  The spike answers it first. Fallback: a local PTY pair per terminal in the window,
-  proxied to the service.
-- Does viewing a terminal on the phone clear its attention dot? Until decided, keep
-  today's behavior.
+- **Mouse: SGR (1006) only.** VTE sends legacy X10 and normal mouse reports through
+  `feed_child_binary`, which drops them when there is no PTY. Programs that never turn
+  on SGR mouse get no mouse from the window. We do not work around it.
+- **Replay is not exact for** the scroll region (DECSTBM), tab stops and character sets:
+  `alacritty_terminal` does not expose them. Origin mode is replayed. A program that set
+  a scroll region sets it again on its next redraw.
+- **Focus.** The replay turns focus reporting (1004) on, and VTE answers with a focus
+  report. The window drops that one report, so reattaching injects no focus event.
+- **A service crash or upgrade ends every terminal**, as a window crash did before.
+- **Phone tabs are numbered** by a counter that starts again when the service does.
+- **Phone-run tasks always open a new terminal** (no shared or dedicated panel reuse, no
+  folder-open tasks); the desktop keeps both.
+- **Window colors for a phone with no window ever open** come from the built-in palette;
+  the window sends only whether its theme is dark.
+- The base environment is the service's own until a window connects.
 
-## Next implementation step
+## Open questions
 
-A spike: a VTE with no PTY, fed from an alacritty_terminal-backed service over a socket,
-running Claude Code and then reattached after a window restart. It proves `commit`
-coverage and replay fidelity before anything else is built.
+- Does viewing a terminal on the phone clear its attention dot? Until decided, it does
+  not (today's behavior).

@@ -7,10 +7,13 @@
   blocks is fixed (also inside list items) but not yet checked on screen; Enter inside a
   code block sometimes ends the block (cause unknown; suspected only inside a list
   item). `crates/xenon_prose`
-- Phone remote: server rewritten (HTTP parsing, socket threads, keep-awake through GTK),
-  not yet tried on a phone; the cursor always shows (accepted, VTE limit).
+- Phone remote: server rewritten, now inside the terminal service (works with no window
+  open; cursor and mouse mode are exact); not yet tried on a phone.
   `docs/designs/mobile-remote-v2.md`
 - Keyboard: healthy. Zoom now follows the active tab (terminal, code editor, markdown);
   not yet tried by hand. `crates/xenon/src/keys.rs`
+- Terminal service: terminals live in `xenon-term` (systemd user socket), so closing or
+  restarting the window keeps agents running; built, not yet used daily; the phone
+  server moved into it. `docs/designs/terminal-service.md`
 - Review CI: Claude Sonnet reviews every code push to main and comments on the commit
   only when it finds something. `docs/review.md`
