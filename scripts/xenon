@@ -37,13 +37,6 @@ window leaves every shell and agent running; the next `xenon` shows them again.
 EOF
 }
 
-# The phone server's socket starts it on the window's first call.
-ensure_phone() {
-    systemctl --user cat xenon-phone.socket >/dev/null 2>&1 || return 0
-    systemctl --user is-active --quiet xenon-phone.socket ||
-        systemctl --user start xenon-phone.socket
-}
-
 ui_pid() {
     local pid
     pid="$(tr -d '[:space:]' <"$DATA_DIR/xenon.pid" 2>/dev/null || true)"
@@ -95,7 +88,6 @@ main() {
         echo "Xenon app binary not found: $APP" >&2
         exit 1
     fi
-    ensure_phone
     case "${1:-}" in
         "") launch ;;
         open | pair | quit) exec "$APP" "$@" ;;

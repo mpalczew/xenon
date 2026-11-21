@@ -1936,7 +1936,6 @@ name = "xenon_term"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
- "anyhow",
  "async-channel",
  "inotify",
  "libc",
@@ -1944,7 +1943,6 @@ dependencies = [
  "sd-notify",
  "serde",
  "serde_json",
- "unicode-width",
  "xenon_core",
  "xenon_remote",
  "xenon_store",

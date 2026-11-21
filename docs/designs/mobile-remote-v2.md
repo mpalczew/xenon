@@ -9,7 +9,7 @@ server, its own process, `xenon-phone.service`).
 - **Tailnet only.** The server listens on the Tailscale address and loopback, never the
   local network. It speaks plain HTTP, so on shared Wi-Fi anyone could read the device
   token. Don't add a LAN fallback; task password prompts rely on this too.
-- **The service serves phones, not the window.** Phones work with no window open. A
+- **The phone server serves phones, not the window.** Phones work with no window open. A
   terminal made from the phone shows up in the window as an unselected tab. Scrolling is
   per phone and never moves the computer.
 - **Terminals only.** No editors, diffs or file views on the phone.
@@ -27,6 +27,6 @@ server, its own process, `xenon-phone.service`).
 
 ## Limits
 
-- Taps are clicks only while the program has mouse mode on; the service reads that mode
-  from its emulator, so the cursor and the mouse mode are exact.
+- Taps are clicks only while the program has mouse mode on; the phone server reads that
+  mode from its own emulator copy, so the cursor and the mouse mode are exact.
 - No TLS, so no push notifications or offline mode.

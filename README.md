@@ -164,7 +164,9 @@ run agents this way—not vanity stars.
 | `xenon_git`      | Git status model                              |
 | `xenon_finder`   | Ignore-respecting walk + fuzzy match          |
 | `xenon_prose`    | Markdown prose mode                           |
-| `xenon_remote`   | Phone remote server                           |
+| `xenon_term`     | Terminal holders and the client API           |
+| `xenon_phone`    | Phone server process                          |
+| `xenon_remote`   | Phone remote HTTP, WebSocket and pairing      |
 
 Product: [`PRODUCT.md`](PRODUCT.md).
 

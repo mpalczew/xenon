@@ -3,10 +3,9 @@
 Each terminal runs in its own small process, a holder, started from whatever
 `xenon-term` binary is installed at that moment. Installing a new build changes only
 terminals opened afterwards. Running holders keep their old code until their terminal
-closes, the way sshd sessions keep running across an sshd upgrade. This replaces the
-single service in `terminal-service.md`. The holder reuses that design's emulator,
-replay, size claims and status code unchanged. Sketches D, E and F are in
-`/tmp/xenon-arch/`.
+closes, the way sshd sessions keep running across an sshd upgrade. This replaced an
+earlier single terminal service, whose emulator, replay, size claims and status code the
+holder kept.
 
 ## Problem
 
@@ -102,7 +101,7 @@ One frame type: `u32 length | kind u8 | body`, where `kind` is control (JSON) or
 unknown messages are skipped, and new fields are `#[serde(default)]`.
 
 ```rust
-enum ToHolder   { Hello{major,minor} /*FROZEN*/, Close /*FROZEN*/, View{answers}, Unview,
+enum ToHolder   { Hello{major,minor} /*FROZEN*/, Close /*FROZEN*/, View{answers},
                   Claim{size, label: Option<String>}, Seen }      // + data frames: input
 enum FromHolder { Welcome{major,minor,build,workspace,pid} /*FROZEN*/, Status(TermStatus),
                   Size(Size), Screen /* reset, then replay as data */ } // + data frames: output
@@ -212,9 +211,6 @@ reshaped.
   journal.
 - **Phone task chains:** we accept that a phone-started chain of dependent tasks stops
   if the phone server restarts, in exchange for upgrading the phone server freely.
-- **Cutover:** the terminals in today's single service are invisible to the new window.
-  Install disables the old socket without stopping it, so those terminals keep running
-  until you end them with `systemctl --user stop xenon-term.service`.
 
 ## Alternatives considered
 
@@ -260,6 +256,3 @@ Differences from the sketch above, all additive:
   holders through `systemd-run --setenv`.
 - **First close:** the toast appears and the window closes about two seconds later, so
   the toast can be read. It is shown once (`close_hint_shown` in `settings.json`).
-- **Cutover leaves the old unit files.** Install disables `xenon-term.socket` and prints
-  how to stop and remove the old units; it never stops, starts or deletes them, because
-  their terminals may be live.

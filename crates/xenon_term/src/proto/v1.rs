@@ -16,7 +16,6 @@ pub(crate) enum ToHolder {
         #[serde(default)]
         answers: bool,
     },
-    Unview,
     /// This connection's wish for the terminal's size. No label is the window; a label
     /// is a phone, named for its tab.
     Claim {

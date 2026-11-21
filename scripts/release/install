@@ -65,19 +65,6 @@ else
     echo "started xenon-phone.service"
 fi
 
-# Cutover from the single terminal service. Never stop it, and never start it: its
-# terminals may be live. Disable only (no --now, no stop), so it is not started again at
-# login. Its unit files stay until you remove them.
-if [[ -e "$unit_dir/xenon-term.socket" || -e "$unit_dir/xenon-term.service" ]]; then
-    systemctl --user disable xenon-term.socket 2>/dev/null || true
-    echo "disabled the old xenon-term.socket (left running)"
-    if systemctl --user is-active --quiet xenon-term.service; then
-        echo "note: the old single terminal service still holds terminals. This Xenon cannot see them."
-        echo "To end them: systemctl --user stop xenon-term.service xenon-term.socket"
-    fi
-    echo "Once nothing needs it: systemctl --user stop xenon-term.socket; rm $unit_dir/xenon-term.{socket,service}"
-fi
-
 rm -f "$data_home/applications/dev.xenon.Gtk.desktop" "$bin_dir/xenon-gtk"
 rm -f "$data_home/applications/xenon.desktop" "$data_home"/icons/hicolor/*/apps/xenon.png
 

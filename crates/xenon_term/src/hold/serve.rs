@@ -61,7 +61,6 @@ fn pump(holder: &Holder, conn: u64, input: &mut UnixStream) -> io::Result<()> {
 fn body(holder: &Holder, conn: u64, msg: ToHolder) {
     match msg {
         ToHolder::View { answers } => holder.view(conn, answers),
-        ToHolder::Unview => holder.unview(conn),
         ToHolder::Claim { size, label } => holder.claim(conn, claim(size, label)),
         ToHolder::Seen => holder.seen(),
     }

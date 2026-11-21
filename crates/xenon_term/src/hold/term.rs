@@ -116,12 +116,6 @@ impl Holder {
         peer.dropped = false;
     }
 
-    pub(crate) fn unview(&self, conn: u64) {
-        if let Some(peer) = self.lock().peer(conn) {
-            peer.viewing = false;
-        }
-    }
-
     pub(crate) fn claim(&self, conn: u64, claim: Claim) {
         let mut st = self.lock();
         let from_desk = matches!(claim, Claim::Desk(_));

@@ -24,10 +24,6 @@ impl DeviceBook {
         self.pairing.as_ref().expect("just issued")
     }
 
-    pub fn forget_pairing(&mut self) {
-        self.pairing = None;
-    }
-
     pub(crate) fn pair(&mut self, code: &str, label: &str, now: Instant) -> Option<NewDevice> {
         if !self.pairing.as_ref().is_some_and(|c| c.matches(code, now)) {
             return None;
