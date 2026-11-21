@@ -100,7 +100,13 @@ pub(crate) fn adopt(shared: &Arc<Shared>, id: TermId) -> io::Result<()> {
         out: Mutex::new(stream),
         status: Mutex::new(first.unwrap_or_default()),
     });
-    shared.insert(Arc::clone(&link), |early| replay_early(early, &link));
+    // Hold the link's own write lock across the handover, so calls that find the link
+    // wait behind the early ones, and no other terminal waits on this holder's socket.
+    let mut out = link.out.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(early) = shared.insert(Arc::clone(&link)) {
+        replay_early(early, &mut out, speaks);
+    }
+    drop(out);
     shared.emit(Event::Ready {
         id,
         info: link.info(),
@@ -147,17 +153,17 @@ fn first_status(input: &mut UnixStream) -> Option<TermStatus> {
 }
 
 /// Apply what the window did before the holder was there to hear it.
-fn replay_early(early: Early, link: &HolderLink) {
-    if !link.speaks {
+fn replay_early(early: Early, out: &mut UnixStream, speaks: bool) {
+    if !speaks {
         return;
     }
     if let Some(size) = early.size {
-        link.tell(&ToHolder::Claim { size, label: None });
+        let _ = proto::write_control(out, &ToHolder::Claim { size, label: None });
     }
     if early.attach {
-        link.tell(&ToHolder::View { answers: true });
+        let _ = proto::write_control(out, &ToHolder::View { answers: true });
     }
     if !early.input.is_empty() {
-        link.send_data(&early.input);
+        let _ = proto::write_data(out, &early.input);
     }
 }

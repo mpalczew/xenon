@@ -90,16 +90,14 @@ impl Shared {
         locked(&self.holders).get(&id).cloned()
     }
 
-    /// Add a connected holder after replaying what the window did to it before. Under the same
+    /// Add a connected holder and take what the window did to it before. Under the same
     /// lock that `early` callers hold while they look for the link, so nothing is lost
     /// between "no link yet" and "remember it".
-    pub(crate) fn insert(&self, link: Arc<HolderLink>, replay: impl FnOnce(Early)) {
+    pub(crate) fn insert(&self, link: Arc<HolderLink>) -> Option<Early> {
         let mut early = locked(&self.early);
-        if let Some(taken) = early.remove(&link.id) {
-            // Before the link is visible, so later calls cannot overtake it.
-            replay(taken);
-        }
+        let taken = early.remove(&link.id);
         locked(&self.holders).insert(link.id, link);
+        taken
     }
 
     /// Send to the holder when it is connected, else remember it for when it is.
