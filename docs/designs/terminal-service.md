@@ -1,5 +1,8 @@
 # Terminal service
 
+> Superseded by `terminal-holders.md`: one holder process per terminal instead of one
+> service.
+
 A long-lived service, `xenon-term`, runs and holds every terminal. The GTK window and
 the phone page are clients of it. Restarting or upgrading the window leaves every shell
 and agent running. Sketches A, B and C were in `/tmp/xenon-arch/`. This design is built:
