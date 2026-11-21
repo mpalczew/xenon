@@ -1,6 +1,3 @@
-//! A phone's frame thread: at most one frame per gap, built from the phone's mirror and
-//! encoded outside any lock.
-
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 use std::thread;

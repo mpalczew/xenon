@@ -1,7 +1,3 @@
-//! Tasks run from the phone: ask for inputs, then launch each task as a new terminal and
-//! follow `dependsOn` as terminals exit. The window never sees a task run; it adopts
-//! the terminals like any other phone-made terminal.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -35,7 +31,6 @@ struct Pending {
 struct Run {
     id: u64,
     plan: Plan,
-    /// Launched labels and whether each is a background task.
     launched: BTreeMap<String, bool>,
 }
 
@@ -112,7 +107,6 @@ impl Phone {
         }
     }
 
-    /// The phone left: a question it was asked is dropped.
     pub(super) fn task_gone(&self, conn: ConnId) {
         locked(&self.tasks).pending.remove(&conn);
     }
@@ -211,8 +205,6 @@ fn apply_actions(phone: &Phone, st: &mut TaskState, run_id: u64, actions: Vec<Ac
     finish_if_done(st, run_id);
 }
 
-/// Start one task in a new terminal. True for a background task, which counts as
-/// satisfied as soon as it runs.
 fn launch_one(phone: &Phone, st: &mut TaskState, run_id: u64, label: &str) -> Result<bool, String> {
     let run = run_of(st, run_id).ok_or("run is gone")?;
     let plan = &run.plan;
@@ -274,7 +266,6 @@ fn finish_if_done(st: &mut TaskState, run_id: u64) {
     }
 }
 
-/// A task's terminal exited (`exit` is `Some`) or was closed (`None`).
 pub(super) fn exited(phone: &Phone, id: TermId, exit: Option<Exit>) {
     let mut close = None;
     {

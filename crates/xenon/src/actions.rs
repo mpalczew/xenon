@@ -79,13 +79,10 @@ const SIMPLE: &[(&str, Handler)] = &[
 ];
 
 impl App {
-    /// The first close says the terminals keep running; it is not shown again.
     pub(crate) fn close_hint_pending(&self) -> bool {
         !xenon_store::load_settings().is_ok_and(|s| s.close_hint_shown)
     }
 
-    /// Close the window. Terminals keep running in their holders. The first time, a toast
-    /// says so and the window closes a moment later, so the toast can be read.
     pub(crate) fn quit(self: &Rc<Self>) {
         if !self.close_hint_pending() {
             self.leave();
@@ -111,7 +108,6 @@ impl App {
         self.gtk.quit();
     }
 
-    /// Ask first, saying how many terminals are running across all builds.
     pub(crate) fn quit_end_terminals(self: &Rc<Self>) {
         let count = self.holders.list().len();
         if count == 0 {
@@ -138,8 +134,6 @@ impl App {
         dialog.present(Some(&self.win));
     }
 
-    /// End every terminal of every build (`systemctl --user stop xenon-term.slice`), then
-    /// quit. Also what `xenon quit --end` does.
     pub(crate) fn end_terminals_now(self: &Rc<Self>) {
         if let Err(error) = xenon_term::end_all() {
             eprintln!("[xg] end terminals: {error}");
@@ -176,7 +170,6 @@ pub(crate) fn install(app: &Rc<App>) {
     crate::keys::install(&app.gtk);
 }
 
-/// A boolean action, so menus show a check. Activating it asks for the flipped state.
 fn install_hidden_files(app: &Rc<App>) {
     let on = xenon_store::load_settings().is_ok_and(|s| s.show_hidden_files);
     let action = gio::SimpleAction::new_stateful("show-hidden-files", None, &on.to_variant());

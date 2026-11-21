@@ -69,7 +69,6 @@ impl App {
         }
     }
 
-    /// The service reported the shell gone (or already gone when this window attached).
     pub(crate) fn term_exited(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, code: i32) {
         if self.tab_sync.get() {
             return;

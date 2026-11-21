@@ -1,5 +1,3 @@
-//! One client connection to the holder.
-
 use std::io;
 use std::os::unix::net::UnixStream;
 use std::sync::Arc;
@@ -12,8 +10,6 @@ use crate::{Claim, Size};
 
 pub(crate) fn serve(holder: &Arc<Holder>, conn: u64, stream: UnixStream) -> io::Result<()> {
     let mut input = stream.try_clone()?;
-    // The first frame must be the client's hello. Its major does not matter here: this
-    // holder speaks its own, and the client decides whether it can read that.
     match proto::read_frame(&mut input)? {
         Frame::Control(bytes) => {
             if !matches!(
@@ -51,7 +47,6 @@ fn pump(holder: &Holder, conn: u64, input: &mut UnixStream) -> io::Result<()> {
                     }
                 }
                 Control::Body(msg) => body(holder, conn, msg),
-                // Hello again, a welcome, or something newer than this build: skipped.
                 Control::Frozen(_) | Control::Unknown => {}
             },
         }

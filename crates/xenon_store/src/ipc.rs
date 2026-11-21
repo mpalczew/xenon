@@ -61,7 +61,6 @@ pub fn try_handoff_request(req: &IpcRequest) -> Handoff {
     }
 }
 
-/// Connect and send one request; Ok only when the peer replies `ok: true`.
 pub(crate) fn send_request(req: &IpcRequest) -> std::io::Result<IpcResponse> {
     let path = socket_path();
     let mut stream = UnixStream::connect(&path)?;
@@ -166,7 +165,6 @@ fn write_response(mut stream: &UnixStream, resp: IpcResponse) -> std::io::Result
     stream.flush()
 }
 
-/// Expand CLI args into absolute paths (cwd-relative). Skips flags.
 pub(crate) fn parse_cli_paths(args: impl IntoIterator<Item = String>) -> Vec<PathBuf> {
     let mut out = Vec::new();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

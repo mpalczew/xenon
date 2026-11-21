@@ -18,8 +18,6 @@ use crate::pane::PaneView;
 use crate::sidebar::Sidebar;
 use crate::term::TermView;
 
-/// Run `f` on the next idle with the upgraded `weak`; drop silently if it is gone.
-/// The GTK event rule (xenon_eventcheck) treats `defer` as a deferral.
 pub(crate) fn defer<T: 'static>(weak: &Weak<T>, f: impl FnOnce(Rc<T>) + 'static) {
     let weak = weak.clone();
     glib::idle_add_local_once(move || {
@@ -68,7 +66,6 @@ pub(crate) struct App {
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
     pub holders: xenon_term::Terminals,
-    /// Tabs whose terminal runs a protocol this window cannot read, and its id.
     pub foreign: RefCell<HashMap<(WorkspaceId, TabId), TermId>>,
     pub builds: crate::builds_ui::Builds,
     pub tasks: crate::tasks::Tasks,

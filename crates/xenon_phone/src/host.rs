@@ -1,7 +1,3 @@
-//! Answers to the HTTP side: workspaces, terminals, tasks, pairing and sessions.
-//! Workspace names and roots come from the registry file the window writes; the service
-//! only reads it.
-
 use std::path::PathBuf;
 
 use xenon_core::tasks as shared;
@@ -81,7 +77,6 @@ impl Phone {
         xenon_remote::list_workspaces(&registry, |id| self.workspace_summary(id))
     }
 
-    /// The workspace's root, open or recently closed.
     fn root_of(registry: &Registry, ws: WorkspaceId) -> Result<PathBuf, String> {
         registry
             .workspace(ws)
@@ -126,8 +121,6 @@ impl Phone {
         Ok(terms.iter().map(|(_, t)| self.terminal_info(t)).collect())
     }
 
-    /// Makes the shell; the window adopts it as an unselected tab. Returns once the
-    /// holder runs, so the phone can attach to it at once.
     fn new_terminal(&self, workspace_id: &str) -> Result<TerminalInfo, String> {
         let (ws, root) = Self::workspace_root(workspace_id)?;
         let id = self.terms.open(ws, Spawn::shell(&root));
@@ -138,7 +131,6 @@ impl Phone {
         Ok(self.terminal_info(&info))
     }
 
-    /// The terminal a phone knows as `serial` in this workspace.
     pub(super) fn find(&self, ws: WorkspaceId, serial: u64) -> Option<TermInfo> {
         self.terms
             .list()

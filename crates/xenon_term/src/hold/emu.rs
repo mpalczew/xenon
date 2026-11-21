@@ -1,7 +1,3 @@
-//! The service's own screen: an `alacritty_terminal` emulator.
-//!
-//! `emu_replay` writes it back out as VT; `emu_view` reads it for the phone.
-
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use alacritty_terminal::Term;
@@ -34,15 +30,12 @@ impl Dimensions for Dim {
     }
 }
 
-/// What one batch of program output asked of us.
 #[derive(Default)]
 pub(crate) struct Advance {
-    /// Replies to queries. The caller drops them when a window answers instead.
     pub replies: Vec<u8>,
     pub bell: bool,
 }
 
-/// One terminal's screen state.
 pub(crate) struct Emu {
     pub(crate) term: Term<Listener>,
     parser: Processor,
@@ -100,7 +93,6 @@ impl Emu {
                     };
                     out.replies.extend_from_slice(format(size).as_bytes());
                 }
-                // Clipboard store and load (OSC 52) are not supported.
                 _ => {}
             }
         }
@@ -109,7 +101,6 @@ impl Emu {
 }
 
 fn default_color(index: usize) -> Rgb {
-    // Only used when no window is attached to answer and nothing set the colour.
     match index {
         257 => Rgb { r: 0, g: 0, b: 0 },
         _ => Rgb {

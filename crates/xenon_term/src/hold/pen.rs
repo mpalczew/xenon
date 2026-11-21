@@ -1,11 +1,8 @@
-//! SGR and OSC 8 state while writing cells.
-
 use std::fmt::Write as _;
 
 use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::vte::ansi::{Color, NamedColor};
 
-/// What has been written so far: the SGR state and the open link.
 pub struct Pen {
     fg: Option<Color>,
     bg: Option<Color>,
@@ -69,7 +66,6 @@ impl Pen {
         self.link = link;
     }
 
-    /// Set the pen to a cell's attributes (no text).
     pub fn apply(&mut self, out: &mut String, cell: &Cell) {
         let flags = cell.flags
             & (Flags::ALL_UNDERLINES
@@ -85,7 +81,6 @@ impl Pen {
         if (fg, bg, ul, flags) == (self.fg, self.bg, self.ul, self.flags) {
             return;
         }
-        // One full SGR per change keeps the output simple and correct.
         let mut sgr = String::from("0");
         for (flag, code) in ATTRS {
             if flags.contains(flag) {
@@ -144,7 +139,6 @@ fn color(sgr: &mut String, color: Option<Color>, base: usize, extended: u8) {
     };
 }
 
-/// Drop control characters so they can't end an escape sequence early.
 pub fn clean(text: &str) -> String {
     text.chars().filter(|c| !c.is_control()).collect()
 }

@@ -1,6 +1,3 @@
-//! The screen as the phone sees it: a `Screen` of cells at the phone's own scroll
-//! position, read from the emulator.
-
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -20,7 +17,6 @@ pub(crate) fn history_size(emu: &Emu) -> usize {
     emu.term.grid().history_size()
 }
 
-/// Up to `limit` scrollback lines, oldest first, as plain text.
 pub(crate) fn history_lines(emu: &Emu, limit: usize) -> Vec<String> {
     let grid = emu.term.grid();
     let count = history_size(emu).min(limit) as i32;
@@ -40,7 +36,6 @@ pub(crate) fn history_lines(emu: &Emu, limit: usize) -> Vec<String> {
         .collect()
 }
 
-/// What the phone should show `offset` rows above the live screen.
 pub(crate) fn screen(emu: &Emu, offset: usize, look: &Look) -> Screen {
     let (cols, rows) = (usize::from(emu.size.cols()), usize::from(emu.size.rows()));
     let offset = offset.min(history_size(emu));
@@ -84,7 +79,6 @@ fn cursor(emu: &Emu, offset: usize) -> Option<CursorWire> {
     })
 }
 
-/// `None` is the theme's default color.
 fn resolve(emu: &Emu, color: Color, look: &Look) -> Option<Rgb> {
     match color {
         Color::Spec(rgb) => Some(Rgb(rgb.r, rgb.g, rgb.b)),

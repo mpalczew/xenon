@@ -246,7 +246,6 @@ fn device_row(app: &Rc<App>, device: &DeviceRow) -> gtk::Widget {
     row.upcast()
 }
 
-/// `systemctl --user restart xenon-phone.service`, off the main thread.
 fn restart_server(button: &gtk::Button) {
     button.set_sensitive(false);
     let (tx, rx) = async_channel::bounded::<bool>(1);

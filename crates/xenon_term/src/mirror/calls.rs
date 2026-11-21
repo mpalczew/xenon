@@ -1,5 +1,3 @@
-//! What a phone does to its mirror: type, size, scroll and read the screen.
-
 use std::sync::atomic::Ordering;
 
 use alacritty_terminal::term::TermMode;
@@ -11,7 +9,6 @@ use crate::proto::v1::ToHolder;
 use crate::{Size, mirror_view, proto};
 
 impl Mirror {
-    /// Keys, pastes and mouse reports for the program.
     pub fn input(&self, bytes: &[u8]) {
         let _ = proto::write_data(&mut *locked(&self.out), bytes);
     }
@@ -38,13 +35,11 @@ impl Mirror {
         self.inner.poke();
     }
 
-    /// The screen at this phone's own scroll position.
     pub fn screen(&self, look: &Look) -> Screen {
         let offset = self.inner.scroll.load(Ordering::Relaxed);
         mirror_view::screen(&locked(&self.inner.emu), offset, look)
     }
 
-    /// Up to `limit` scrollback lines, oldest first, as plain text.
     pub fn history(&self, limit: usize) -> Vec<String> {
         mirror_view::history_lines(&locked(&self.inner.emu), limit)
     }

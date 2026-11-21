@@ -1,5 +1,3 @@
-//! Quit and End Terminals: every terminal of every build.
-
 use std::io;
 use std::process::Command;
 

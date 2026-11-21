@@ -1,13 +1,3 @@
-//! The runtime directory is the registry of terminals:
-//!
-//! ```text
-//! <runtime>/term/<TermId>.sock   a ready holder (renamed into place once its child runs)
-//! <runtime>/term/<TermId>.spec   spawn request, mode 0600; the holder reads and deletes it
-//! <runtime>/phone.sock           the phone server's control socket
-//! ```
-//!
-//! `<runtime>` is `$XENON_RUNTIME_DIR` (private runs), else `$XDG_RUNTIME_DIR/xenon`.
-
 use std::io;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -23,7 +13,6 @@ pub(crate) fn runtime_dir() -> PathBuf {
     base.join("xenon")
 }
 
-/// Where the phone server listens for the window's calls.
 pub fn phone_socket_path() -> PathBuf {
     runtime_dir().join("phone.sock")
 }
@@ -40,7 +29,6 @@ pub(crate) fn spec_path(id: TermId) -> PathBuf {
     term_dir().join(format!("{id}.spec"))
 }
 
-/// Every terminal with a socket in the directory.
 pub(crate) fn ids() -> Vec<TermId> {
     let Ok(entries) = std::fs::read_dir(term_dir()) else {
         return Vec::new();

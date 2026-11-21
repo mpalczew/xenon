@@ -1,5 +1,3 @@
-//! Starting and stopping the HTTP server, and keeping it right as the network changes.
-
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -9,7 +7,6 @@ use xenon_remote::{DeviceBook, HostRequest, Reachability, RemoteServer, StartErr
 use super::{Phone, Runtime, locked};
 
 const PORT_RETRY: Duration = Duration::from_secs(5);
-/// How many retry ticks make one network re-probe (30 seconds).
 const REPROBE_TICKS: u32 = 6;
 
 pub(super) fn spawn_threads(phone: &Arc<Phone>, rx: async_channel::Receiver<HostRequest>) {
@@ -95,7 +92,6 @@ impl Phone {
         self.changed();
     }
 
-    /// Tailscale's MagicDNS name takes a subprocess to find: do it off the caller's thread.
     fn look_up_dns_name(&self) {
         let weak = self.self_ref();
         let spawned = thread::Builder::new()
@@ -120,15 +116,12 @@ impl Phone {
             guard.rt.take()
         };
         if let Some(runtime) = runtime {
-            // Dropping joins the accept threads; phones are told the server is stopping.
             drop(runtime);
             log::info!("phone remote off");
         }
         self.changed();
     }
 
-    /// Make the server match `services.json`, which only the window writes. Called when
-    /// the file changes and before each of the window's calls; cheap and idempotent.
     pub(crate) fn apply_settings(&self) {
         let on = xenon_store::load_service_settings()
             .unwrap_or_default()
@@ -144,7 +137,6 @@ impl Phone {
         }
     }
 
-    /// Re-apply the settings when `services.json` is replaced.
     pub(crate) fn watch_settings(&self) {
         let path = xenon_store::service_settings_path();
         let Some(dir) = path.parent() else { return };

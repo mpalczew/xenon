@@ -1,7 +1,3 @@
-//! Starting a holder: the spec file, then `systemd-run`. The holder is a transient unit
-//! of its own, so it lives in no process's cgroup: stopping the window or the phone
-//! server never takes a terminal with it.
-
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
@@ -13,9 +9,7 @@ use xenon_core::{TermId, WorkspaceId};
 
 use crate::dir;
 
-/// A spec this old belongs to an `open` that died before its holder started.
 const STALE_SPEC: Duration = Duration::from_secs(60);
-/// Variables a private run sets and its holders must see too.
 const PASS_ON: [&str; 2] = ["XENON_RUNTIME_DIR", "XENON_DATA_DIR"];
 
 /// The spawn request, passed in a file because argv lands in `systemctl status` and
@@ -29,13 +23,10 @@ pub(crate) struct Spec {
     pub cwd: String,
     #[serde(default)]
     pub argv: Vec<String>,
-    /// The whole environment, `KEY=VALUE`: the base, then the spawn's own.
     #[serde(default)]
     pub env: Vec<String>,
 }
 
-/// The one function that names the binary a new holder starts from. `open` and the
-/// "older build" check both call it.
 pub(crate) fn installed_binary() -> PathBuf {
     let dir = std::env::var_os("XENON_APP_DIR").map_or_else(
         || {
@@ -50,7 +41,6 @@ pub(crate) fn installed_binary() -> PathBuf {
     dir.join("xenon-term")
 }
 
-/// The slice every holder runs in; `XENON_TERM_SLICE` names a private one for checks.
 pub(crate) fn slice() -> String {
     std::env::var("XENON_TERM_SLICE").unwrap_or_else(|_| "xenon-term.slice".into())
 }
@@ -59,8 +49,6 @@ pub(crate) fn unit_name(id: TermId) -> String {
     format!("xenon-term-{id}.service")
 }
 
-/// Write the spec, start the holder and return once it says it is ready. On failure the
-/// spec is removed.
 pub(crate) fn launch(id: TermId, spec: &Spec) -> io::Result<()> {
     sweep_specs();
     write_spec(id, spec)?;
@@ -144,8 +132,6 @@ fn sweep_specs() {
     }
 }
 
-/// The holder's side: read the spec and delete it. A holder without a spec has nothing
-/// to run and exits at once.
 pub(crate) fn take_spec(id: TermId) -> io::Result<Spec> {
     let path = dir::spec_path(id);
     let bytes = std::fs::read(&path)?;

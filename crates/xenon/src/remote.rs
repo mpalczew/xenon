@@ -1,7 +1,3 @@
-//! The phone remote as the window sees it: a view over the phone server that runs
-//! as its own process (`xenon_phone::PhoneLink`). The window is the only writer of
-//! `services.json`, where the phone server's settings live.
-
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -49,8 +45,6 @@ impl App {
         });
     }
 
-    /// Turn the phone server on or off: the choice is written to `services.json`, which
-    /// the phone server reads.
     pub(crate) fn remote_toggle(self: &Rc<Self>) {
         let want = !(self.remote.running() || self.remote.waiting());
         if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = want) {

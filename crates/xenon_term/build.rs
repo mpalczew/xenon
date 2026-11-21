@@ -1,5 +1,3 @@
-//! `XENON_BUILD`: the commit hash, so a holder can say which build it runs on.
-
 use std::process::Command;
 
 fn run(args: &[&str]) -> Option<String> {

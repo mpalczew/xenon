@@ -1,6 +1,3 @@
-//! One client's connection to the holder: the queue to its writer thread and how much
-//! output is stuck in it.
-
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,8 +8,6 @@ use serde::Serialize;
 
 use crate::proto;
 
-/// A viewer that falls more than this far behind is dropped and repainted when it
-/// catches up.
 pub(crate) const SLOW_LIMIT: usize = 4 << 20;
 
 enum Out {
@@ -28,7 +23,6 @@ pub(crate) struct Link {
 }
 
 impl Link {
-    /// A link and the writer thread that drains it into `out`.
     pub(crate) fn start(conn: u64, mut out: impl Write + Send + 'static) -> Self {
         let (tx, rx) = channel::<Out>();
         let queued = Arc::new(AtomicUsize::new(0));
@@ -37,7 +31,6 @@ impl Link {
         Self { conn, tx, queued }
     }
 
-    /// False when the connection is gone.
     pub(crate) fn send(&self, msg: &impl Serialize) -> bool {
         self.tx.send(Out::Control(proto::encode(msg))).is_ok()
     }
@@ -47,7 +40,6 @@ impl Link {
         self.tx.send(Out::Data(bytes)).is_ok()
     }
 
-    /// Output bytes accepted but not yet written to the socket.
     pub(crate) fn queued(&self) -> usize {
         self.queued.load(Ordering::Relaxed)
     }

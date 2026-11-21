@@ -22,12 +22,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use xenon_core::WorkspaceId;
 
-/// The major this build speaks, and its minor (informational: which additions exist).
 pub(crate) const MAJOR: u16 = 1;
 pub(crate) const MINOR: u16 = 0;
 const MAX_FRAME: usize = 64 << 20;
 const HANDSHAKE: Duration = Duration::from_secs(2);
-/// A client that cannot write for this long is not worth blocking the window for.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 const CONTROL: u8 = 0;
@@ -46,7 +44,6 @@ pub(crate) enum Frozen {
         minor: u16,
         build: String,
         workspace: WorkspaceId,
-        /// The child's pid.
         pid: i32,
         #[serde(default)]
         cwd: String,
@@ -60,8 +57,6 @@ pub(crate) enum Frame {
     Data(Vec<u8>),
 }
 
-/// What a control frame decoded to: a frozen message, a body of the connection's major,
-/// or something this build does not know (skip it).
 pub(crate) enum Control<T> {
     Frozen(Frozen),
     Body(T),
@@ -91,7 +86,6 @@ pub(crate) fn write_control(out: &mut impl Write, msg: &impl Serialize) -> io::R
     send(out, CONTROL, &encode(msg))
 }
 
-/// A control body already encoded by `encode`.
 pub(crate) fn write_raw_control(out: &mut impl Write, body: &[u8]) -> io::Result<()> {
     send(out, CONTROL, body)
 }
@@ -104,7 +98,6 @@ pub(crate) fn write_data(out: &mut impl Write, bytes: &[u8]) -> io::Result<()> {
     send(out, DATA, bytes)
 }
 
-/// The next control or data frame. Frames of other kinds are skipped.
 pub(crate) fn read_frame(input: &mut impl Read) -> io::Result<Frame> {
     loop {
         let mut len = [0; 4];
@@ -127,7 +120,6 @@ pub(crate) fn read_frame(input: &mut impl Read) -> io::Result<Frame> {
     }
 }
 
-/// What a client learns by connecting to a holder.
 pub(crate) struct Connected {
     pub stream: UnixStream,
     pub major: u16,
@@ -135,12 +127,9 @@ pub(crate) struct Connected {
     pub workspace: WorkspaceId,
     pub child_pid: i32,
     pub cwd: String,
-    /// The holder process, from `SO_PEERCRED`.
     pub holder_pid: i32,
 }
 
-/// Connect, say hello and read the welcome. The read timeout stays on: the caller lifts it.
-/// `ConnectionRefused` means a crashed holder.
 pub(crate) fn connect(path: &std::path::Path) -> io::Result<Connected> {
     let mut stream = UnixStream::connect(path)?;
     stream.set_read_timeout(Some(HANDSHAKE))?;

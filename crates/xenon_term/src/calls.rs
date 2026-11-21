@@ -1,5 +1,3 @@
-//! Fire-and-forget calls from the window: no answer comes back.
-
 use xenon_core::TermId;
 
 use crate::proto::v1::ToHolder;
@@ -35,7 +33,6 @@ impl Terminals {
         );
     }
 
-    /// The view's own size changed.
     pub fn claim(&self, id: TermId, size: Size) {
         self.shared.to_link_or_early(
             id,
@@ -44,7 +41,6 @@ impl Terminals {
         );
     }
 
-    /// The tab is on screen: clears its attention.
     pub fn seen(&self, id: TermId) {
         if let Some(link) = self.shared.link(id) {
             link.tell(&ToHolder::Seen);

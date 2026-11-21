@@ -1,5 +1,2 @@
-# Every terminal holder runs in this slice, one transient unit each. Stopping the slice
-# ends every terminal of every build: each holder gets a hangup, then SIGKILL after 5 s.
-# That is what Quit and End Terminals and `xenon quit --end` do.
 [Unit]
 Description=Xenon terminals

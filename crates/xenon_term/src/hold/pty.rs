@@ -1,6 +1,3 @@
-//! A child on a pseudo-terminal: spawn, resize, write, and a handle that becomes
-//! readable when the child exits.
-
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
@@ -12,10 +9,8 @@ use std::process::{Child, Command, Stdio};
 use crate::{Exit, Size};
 
 pub(crate) struct Pty {
-    /// Non-blocking.
     pub master: File,
     pub child: Child,
-    /// Readable once the child has exited.
     pub pidfd: OwnedFd,
 }
 
@@ -36,7 +31,6 @@ fn check(rc: libc::c_int) -> io::Result<libc::c_int> {
     }
 }
 
-/// Run `argv` (the user's shell when empty) in `cwd` with exactly `env`.
 pub(crate) fn spawn(
     cwd: &Path,
     argv: &[String],
@@ -108,13 +102,10 @@ pub(crate) fn set_size(master: &File, size: Size) {
     unsafe { libc::ioctl(master.as_raw_fd(), libc::TIOCSWINSZ, &ws) };
 }
 
-/// Hang up the child's session.
 pub(crate) fn hangup(pid: i32) {
     unsafe { libc::kill(-pid, libc::SIGHUP) };
 }
 
-/// Wait for `fd` to be ready for `events`, up to `timeout_ms` (-1 forever).
-/// Returns the `revents` of each descriptor.
 pub(crate) fn poll(fds: &mut [libc::pollfd], timeout_ms: i32) -> io::Result<()> {
     loop {
         let rc = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout_ms) };
@@ -136,8 +127,6 @@ pub(crate) fn pollfd(file: &impl AsRawFd, events: i16) -> libc::pollfd {
     }
 }
 
-/// The master is non-blocking: wait for room when the child isn't reading, but give up
-/// after a few seconds so a child that never reads cannot stall the writer.
 pub(crate) fn write_all(master: &File, mut bytes: &[u8]) -> io::Result<()> {
     let mut out = master;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);

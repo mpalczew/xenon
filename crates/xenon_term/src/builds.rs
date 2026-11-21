@@ -1,6 +1,5 @@
-//! "Older build": derived, not stored. A holder is older when its executable is not the
-//! one `open` would start now. Install replaces the binary by rename, so an older
-//! holder's `/proc/<pid>/exe` is a different inode.
+//! Install replaces the binary by rename, so an older holder's `/proc/<pid>/exe` is a
+//! different inode from the installed one.
 
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -17,7 +16,6 @@ fn ident(path: impl AsRef<Path>) -> Option<Ident> {
     std::fs::metadata(path).ok().map(|m| (m.dev(), m.ino()))
 }
 
-/// True when the holder process runs a binary other than the installed one.
 pub(crate) fn older(holder_pid: i32) -> bool {
     match (
         ident(format!("/proc/{holder_pid}/exe")),
@@ -28,7 +26,6 @@ pub(crate) fn older(holder_pid: i32) -> bool {
     }
 }
 
-/// Tell the caller when the installed binary is replaced.
 pub(crate) fn watch(shared: &std::sync::Arc<Shared>) {
     let binary = installed_binary();
     let Some(folder) = binary.parent() else {
@@ -51,8 +48,6 @@ pub(crate) fn watch(shared: &std::sync::Arc<Shared>) {
 
 static LABEL: Mutex<Option<(Ident, String)>> = Mutex::new(None);
 
-/// The label of the installed build, which new terminals use. Cached until the binary
-/// is replaced.
 pub fn installed_build() -> String {
     let now = ident(installed_binary());
     let mut cache = LABEL.lock().unwrap_or_else(|e| e.into_inner());

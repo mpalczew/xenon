@@ -1,6 +1,3 @@
-//! The holders' side of the window: what their events change here, and how tabs find,
-//! create, adopt and end their terminals.
-
 use std::path::Path;
 use std::rc::Rc;
 
@@ -13,7 +10,6 @@ use crate::app::App;
 use crate::model::Tab;
 
 impl App {
-    /// Drain the holders' events on the main loop.
     pub(crate) fn listen_holders(self: &Rc<Self>) {
         let rx = self.holders.events();
         let weak = Rc::downgrade(self);
@@ -86,7 +82,6 @@ impl App {
         }
     }
 
-    /// The tab on screen was looked at: its attention clears here and in the service.
     pub(crate) fn dismiss_viewed(&self) -> bool {
         let seen = self.model.borrow_mut().dismiss_viewed();
         if let Some(id) = seen {
@@ -95,8 +90,6 @@ impl App {
         seen.is_some()
     }
 
-    /// The adoption rule: any live terminal of `ws` that no tab references gets a new,
-    /// unselected tab. It covers terminals the phone made and ones a crashed window left.
     pub(crate) fn adopt_orphans(self: &Rc<Self>, ws: WorkspaceId) {
         let orphans: Vec<TermId> = self
             .holders
@@ -119,8 +112,6 @@ impl App {
         }
     }
 
-    /// The body of a terminal tab: its view, over the tab's service terminal, which is
-    /// made fresh when the tab has none (a restarted service, or a new tab).
     pub(crate) fn terminal_body(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -135,8 +126,6 @@ impl App {
                     .tasks
                     .take_spawn(ws, tab.id)
                     .unwrap_or_else(|| Spawn::shell(cwd));
-                // The id is ours at once; the holder starts off the main thread and
-                // `Event::Ready` follows. Attach and typing wait for it.
                 self.holders.open(ws, spawn)
             }
         };
@@ -160,7 +149,6 @@ impl App {
         Some(root)
     }
 
-    /// The tab is gone: hang up its terminal.
     pub(crate) fn end_term(&self, key: (WorkspaceId, TabId)) {
         let id = match self.terms.borrow_mut().remove(&key) {
             Some(view) => Some(view.id),

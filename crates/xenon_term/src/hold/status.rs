@@ -1,13 +1,9 @@
-//! Working, attention, title and exit for one terminal, derived from output, bell,
-//! input and exit. The window and the phone paint dots from the result.
-
 use std::time::{Duration, Instant};
 
 use xenon_core::{AttentionReason, IDLE_AFTER, TerminalActivity, clean_terminal_title};
 
 use crate::{Exit, TermStatus};
 
-/// Output counts as one wakeup at most this often, the rate a screen redraw would.
 const WAKEUP_GAP: Duration = Duration::from_millis(16);
 
 pub(crate) struct Status {
@@ -47,7 +43,6 @@ impl Status {
         }
     }
 
-    /// One batch of output. True when the status changed.
     pub(crate) fn on_output(&mut self, now: Instant) -> bool {
         self.last_output = Some(now);
         self.quiet_armed = true;
@@ -61,14 +56,12 @@ impl Status {
         self.activity.on_output(&self.title)
     }
 
-    /// When `tick` next has work for the quiet timer.
     pub(crate) fn quiet_deadline(&self) -> Option<Instant> {
         self.last_output
             .filter(|_| self.quiet_armed)
             .map(|at| at + IDLE_AFTER)
     }
 
-    /// Output has been quiet for `IDLE_AFTER`. True when the status changed.
     pub(crate) fn on_quiet(&mut self, now: Instant) -> bool {
         if self.quiet_deadline().is_none_or(|at| now < at) {
             return false;
@@ -84,13 +77,11 @@ impl Status {
         self.set_attention(Some(AttentionReason::Bell))
     }
 
-    /// Someone typed here: their echo is not agent output, and they are looking.
     pub(crate) fn on_input(&mut self) -> bool {
         let was_working = self.activity.on_interaction();
         self.set_attention(None) || was_working
     }
 
-    /// The tab is on screen.
     pub(crate) fn seen(&mut self) -> bool {
         self.set_attention(None)
     }
@@ -109,7 +100,6 @@ impl Status {
         true
     }
 
-    /// The raw title from the program. True when the cleaned title changed.
     pub(crate) fn set_title(&mut self, raw: Option<&str>) -> bool {
         let raw = raw.unwrap_or("");
         let mut clean = clean_terminal_title(raw, &self.spawn_dir);

@@ -97,7 +97,6 @@ fn parse_open(args: &[String]) -> CliCommand {
     })
 }
 
-/// A workspace given as a relative path becomes absolute; a name or id stays as typed.
 fn workspace_arg(value: &str) -> String {
     if value.contains('/') || value.starts_with('.') {
         abs_path(value.to_string()).to_string_lossy().into_owned()

@@ -297,8 +297,6 @@ fn new_tabs_detail(mode: TerminalAutoClose) -> String {
     format!("New terminal tabs: {}", mode.label().to_lowercase())
 }
 
-/// Scrollback is a service setting (`services.json`): holders read it when they start,
-/// so it applies to terminals opened from now on.
 fn scrollback_row() -> adw::SpinRow {
     let row = adw::SpinRow::with_range(1_000.0, 100_000.0, 1_000.0);
     row.set_title("Scrollback lines");

@@ -1,5 +1,3 @@
-//! The phone's colors: the shared terminal palette resolved to RGB.
-
 use xenon_core::terminal_palette;
 use xenon_remote::Rgb;
 
@@ -12,7 +10,6 @@ fn parse(hex: &str) -> Rgb {
     Rgb(byte(1), byte(3), byte(5))
 }
 
-/// Foreground, background and the 16 ANSI colors for light or dark.
 pub struct Look {
     pub fg: Rgb,
     pub bg: Rgb,
@@ -29,7 +26,6 @@ impl Look {
         }
     }
 
-    /// Color `index` of the 256-color table (16 ANSI, a 6x6x6 cube, 24 grays).
     pub fn indexed(&self, index: u8) -> Rgb {
         match index {
             0..=15 => self.ansi[usize::from(index)],
@@ -45,14 +41,12 @@ impl Look {
         }
     }
 
-    /// Background, foreground, cursor.
     pub fn theme(&self) -> [[u8; 3]; 3] {
         let bytes = |c: Rgb| [c.0, c.1, c.2];
         [bytes(self.bg), bytes(self.fg), bytes(self.fg)]
     }
 }
 
-/// Two thirds `fg`, one third `bg`: how dim text looks.
 pub fn dim(fg: Rgb, bg: Rgb) -> Rgb {
     let mix = |a: u8, b: u8| ((u16::from(a) * 2 + u16::from(b)) / 3) as u8;
     Rgb(mix(fg.0, bg.0), mix(fg.1, bg.1), mix(fg.2, bg.2))

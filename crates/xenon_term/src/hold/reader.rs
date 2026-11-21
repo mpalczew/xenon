@@ -1,6 +1,3 @@
-//! The terminal's own thread: reads the master, feeds the emulator and the viewers, and
-//! runs the timers (quiet, a phone's wait for the desk, a slow viewer, a close).
-
 use std::fs::File;
 use std::io::{self, Read};
 use std::time::{Duration, Instant};
@@ -8,11 +5,8 @@ use std::time::{Duration, Instant};
 use super::pty::{self, Pty};
 use super::term::{HANGUP_GRACE, Holder};
 
-/// A viewer that fell behind is checked this often for catching up.
 const SLOW_RECHECK: Duration = Duration::from_millis(250);
 
-/// Returns once the child has exited and its status is out. The caller decides whether
-/// the holder then ends (it was closed) or stays to show the exit.
 pub(crate) fn run(holder: &Holder, pty: Pty) -> io::Result<()> {
     let Pty {
         master,
@@ -29,7 +23,6 @@ pub(crate) fn run(holder: &Holder, pty: Pty) -> io::Result<()> {
         pty::poll(&mut fds, wait)?;
         let (readable, exited) = (fds[0].revents != 0, fds[1].revents != 0);
         if readable || exited {
-            // After an exit, what the child wrote is still in the kernel's buffer.
             let eof = drain(&master, &mut buf, holder);
             if eof || exited {
                 break;
@@ -44,7 +37,6 @@ pub(crate) fn run(holder: &Holder, pty: Pty) -> io::Result<()> {
     Ok(())
 }
 
-/// Read until nothing is left. True at end of file (every slave end is closed).
 fn drain(master: &File, buf: &mut [u8], holder: &Holder) -> bool {
     let mut file = master;
     loop {
@@ -71,7 +63,6 @@ fn output(holder: &Holder, bytes: &[u8]) {
         if changed {
             st.broadcast_status();
         }
-        // One answerer: a viewer that answers, when there is one.
         if st.has_answerer() {
             Vec::new()
         } else {
@@ -83,7 +74,6 @@ fn output(holder: &Holder, bytes: &[u8]) {
     }
 }
 
-/// Milliseconds until a timer is due, or -1 when none is.
 fn next_wait(holder: &Holder, now: Instant) -> i32 {
     let st = holder.lock();
     let mut due: Vec<Instant> = Vec::new();

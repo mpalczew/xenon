@@ -2,8 +2,6 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Install only reviewed code: HEAD must be pushed and its CI review clean.
-# --force skips this, e.g. for a review finding judged wrong.
 if [[ "${1:-}" != --force ]]; then
     git -C "$root" fetch -q origin main
     if ! git -C "$root" merge-base --is-ancestor HEAD origin/main; then
@@ -43,14 +41,10 @@ if [[ -d "$HOME/bin" ]]; then
     echo "installed $HOME/bin/xenon"
 fi
 
-# Terminals run in holders, one transient systemd unit each, started from the installed
-# binary: installing never touches a running terminal. Only the phone server, which holds
-# none, is restarted so phones get the new build.
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$unit_dir"
 install -m 644 "$root/scripts/release/xenon-term.slice" "$unit_dir/xenon-term.slice"
 install -m 644 "$root/scripts/release/xenon-phone.socket" "$unit_dir/xenon-phone.socket"
-# The unit names the binary's real path, which XENON_APP_DIR may move.
 sed "s|^ExecStart=.*|ExecStart=$app_dir/xenon-term phone|" "$root/scripts/release/xenon-phone.service" \
     >"$unit_dir/xenon-phone.service"
 echo "installed $unit_dir/xenon-term.slice, xenon-phone.socket, xenon-phone.service"

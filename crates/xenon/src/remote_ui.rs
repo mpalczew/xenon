@@ -15,7 +15,6 @@ impl App {
         Some((pairing.digits, pairing.url, expires_at))
     }
 
-    /// `xenon pair`: turn the remote on, then describe a live pairing code as terminal text.
     pub(crate) fn pair_text(self: &Rc<Self>) -> Result<String, String> {
         if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = true) {
             return Err(format!("could not turn the phone remote on: {error}"));

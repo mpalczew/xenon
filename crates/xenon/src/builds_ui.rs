@@ -1,7 +1,3 @@
-//! Terminals on an older build: the header-bar button and its popover, the per-tab mark,
-//! and the page a terminal shows when its holder speaks a protocol this window cannot.
-//! Everything is worked out from `Terminals::list()` when read; nothing is stored.
-
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -45,7 +41,6 @@ impl Builds {
 }
 
 impl App {
-    /// Terminals whose holder runs a binary other than the installed one.
     fn older_terms(&self) -> Vec<TermInfo> {
         self.holders
             .list()
@@ -54,7 +49,6 @@ impl App {
             .collect()
     }
 
-    /// The tooltip line for a tab, for each terminal that is on an older build.
     pub(crate) fn build_notes(&self) -> HashMap<TermId, String> {
         let older = self.older_terms();
         if older.is_empty() {
@@ -73,8 +67,6 @@ impl App {
             .collect()
     }
 
-    /// The install replaced the binary, or a terminal came or went: repaint the button,
-    /// the popover and the tab marks.
     pub(crate) fn refresh_builds(self: &Rc<Self>) {
         let older = self.older_terms();
         let builds = &self.builds;
@@ -124,7 +116,6 @@ impl App {
         self.paint_all();
     }
 
-    /// Switch to a workspace and select one of its tabs.
     fn show_tab(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         if self.model.borrow().active() != Some(ws) {
             self.activate_workspace(ws);
@@ -132,7 +123,6 @@ impl App {
         self.select_tab_ui(ws, tab);
     }
 
-    /// What a terminal tab shows when the holder's protocol is newer than this window.
     pub(crate) fn foreign_body(
         self: &Rc<Self>,
         ws: WorkspaceId,
@@ -164,7 +154,6 @@ impl App {
         Some(page.upcast())
     }
 
-    /// Start a fresh window a moment from now, and quit this one. Terminals keep running.
     fn restart_window(self: &Rc<Self>) {
         let launcher = std::env::var_os("HOME")
             .map(std::path::PathBuf::from)

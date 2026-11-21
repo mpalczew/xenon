@@ -41,7 +41,6 @@ impl DropEdge {
         }
     }
 
-    /// True when the dropped tab should land in the *first* child of the split.
     pub(crate) fn tab_in_first(self) -> bool {
         matches!(self, Self::Left | Self::Top)
     }
@@ -54,7 +53,6 @@ pub enum TabState {
         id: TabId,
         #[serde(default = "default_cwd")]
         cwd: PathBuf,
-        /// The terminal service's id for this tab's shell, when it has one.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         term: Option<TermId>,
     },
@@ -82,7 +80,6 @@ pub struct LeafPane {
     pub tabs: Vec<TabState>,
     #[serde(default)]
     pub active: usize,
-    /// Keep this leaf visible when it has no tabs.
     #[serde(default)]
     pub parked: bool,
 }

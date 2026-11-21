@@ -1,9 +1,3 @@
-//! Terminals, each held by its own process (no GTK).
-//!
-//! `xenon-term hold <id>` runs one terminal. The window and the phone server find
-//! holders in the runtime directory and talk to each. See
-//! `docs/designs/terminal-holders.md`.
-
 mod builds;
 mod calls;
 mod dir;
@@ -32,7 +26,6 @@ pub use xenon_core::{TermId, WorkspaceId};
 
 use xenon_core::AttentionReason;
 
-/// This build's label: the git short hash it was built from.
 pub const BUILD: &str = env!("XENON_BUILD");
 
 /// Columns and rows, both at least 1.
@@ -105,8 +98,6 @@ impl Spawn {
     }
 }
 
-/// Who wants the terminal at what size. The window is always the desk; phones claim
-/// through their mirrors.
 #[derive(Clone, Debug)]
 pub(crate) enum Claim {
     Desk(Size),
@@ -119,17 +110,14 @@ pub(crate) enum Claim {
 pub struct TermStatus {
     pub working: bool,
     pub attention: Option<AttentionReason>,
-    /// The cleaned title, ready for a tab label.
     pub title: String,
     pub exit: Option<Exit>,
-    /// The phone that currently sets this terminal's size, by short name.
     pub phone: Option<String>,
 }
 
 /// Which build a terminal runs on. Worked out when read, never stored.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Build {
-    /// The holder's own build label.
     pub label: String,
     /// The installed `xenon-term` is not the binary this holder is running.
     pub older: bool,
@@ -142,9 +130,7 @@ pub struct Build {
 pub struct TermInfo {
     pub id: TermId,
     pub workspace: WorkspaceId,
-    /// The terminal's child process.
     pub pid: i32,
-    /// Where the terminal started.
     pub cwd: String,
     pub status: TermStatus,
     pub build: Build,

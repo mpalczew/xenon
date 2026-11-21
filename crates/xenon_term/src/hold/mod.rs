@@ -1,8 +1,3 @@
-//! The holder: one terminal in one process, started as `xenon-term hold <id>` through
-//! `systemd-run`. It reads its spec, runs the child on a PTY, binds its socket and says
-//! READY. It stays alive after the child exits, so the tab can show the exit code and
-//! the final screen, and ends after `Close`, a unit stop (SIGHUP) or the grace timer.
-
 mod claims;
 mod emu;
 mod emu_replay;
@@ -33,12 +28,10 @@ use term::Holder;
 use crate::start::{Spec, take_spec};
 use crate::{Size, dir};
 
-/// Size of a terminal nobody has claimed yet.
 pub(crate) const FIRST_SIZE: Size = Size { cols: 80, rows: 24 };
 
 static SOCKET: OnceLock<CString> = OnceLock::new();
 
-/// Run one terminal until it ends. Never returns.
 pub fn run_holder(id: TermId) -> ! {
     if let Err(error) = run(id) {
         eprintln!("xenon-term hold {id}: {error}");
@@ -47,7 +40,6 @@ pub fn run_holder(id: TermId) -> ! {
     exit_now()
 }
 
-/// Remove the socket and end the process.
 pub(crate) fn exit_now() -> ! {
     if let Some(path) = SOCKET.get() {
         // SAFETY: `unlink` on a valid C string; also what the signal handler does.
@@ -77,7 +69,6 @@ fn run(id: TermId) -> io::Result<()> {
             if let Err(error) = reader::run(&reader, pty) {
                 log::warn!("terminal reader: {error}");
             }
-            // Closed while the child ran: now that it is gone, so is the holder.
             if reader.lock().closed {
                 exit_now();
             }
@@ -97,9 +88,6 @@ fn run(id: TermId) -> io::Result<()> {
     Ok(())
 }
 
-/// Spawn the child. A child that cannot start (missing cwd, bad program) does not fail
-/// the holder: it runs a stand-in that prints the error and exits 127, so the failure
-/// looks like a terminal that ended.
 fn start_terminal(spec: &Spec, scrollback: usize) -> io::Result<(Holder, pty::Pty)> {
     let mut vars: HashMap<String, String> = HashMap::new();
     let workspace = spec.workspace.unwrap_or_default();
@@ -143,8 +131,6 @@ fn start_terminal(spec: &Spec, scrollback: usize) -> io::Result<(Holder, pty::Pt
     Ok((holder, live))
 }
 
-/// Bind `<id>.sock.tmp` and rename it into place: a socket that exists is a holder that
-/// is ready. The signal handler is armed first, so no exit leaves a stale socket.
 fn bind(id: TermId) -> io::Result<UnixListener> {
     let path = dir::sock_path(id);
     let temp = path.with_extension("sock.tmp");

@@ -1,7 +1,3 @@
-//! One phone's WebSocket session: what it is attached to, its own scroll and look, and
-//! the messages it sends. A phone never moves the computer: scroll, size and look are
-//! per phone, kept in its `Mirror`.
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
@@ -17,10 +13,8 @@ use super::{Phone, frames, locked};
 const HISTORY_LIMIT: usize = 1000;
 const WHEEL_LIMIT: i32 = 40;
 
-/// What a phone sees of its terminal, shared with the thread that draws frames.
 pub(crate) struct View {
     pub low_bandwidth: AtomicBool,
-    /// 0 follows the computer's theme, 1 dark, 2 light.
     pub look: AtomicU8,
     pub full: AtomicBool,
 }
@@ -92,7 +86,6 @@ impl Phone {
         self.changed();
     }
 
-    /// The conn's mirror.
     fn attached(&self, conn: ConnId) -> Option<Arc<Mirror>> {
         let guard = locked(&self.conns);
         let a = guard.get(&conn)?.attach.as_ref()?;
@@ -118,7 +111,6 @@ impl Phone {
         }
     }
 
-    /// Messages that act on the attached terminal.
     fn terminal_message(&self, conn: ConnId, msg: ClientMsg) {
         let Some(mirror) = self.attached(conn) else {
             return;
@@ -133,7 +125,6 @@ impl Phone {
             ClientMsg::Wheel { rows } => mirror.scroll(rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT)),
             ClientMsg::Bottom => mirror.bottom(),
             ClientMsg::Click { col, row } => click(&mirror, col, row),
-            // The holder keeps a phone's size within reason.
             ClientMsg::Fit { cols, rows } => {
                 if let Some(size) = Size::new(cols, rows) {
                     mirror.fit(size);
@@ -197,8 +188,6 @@ impl Phone {
         self.changed();
     }
 
-    /// Stop watching; the mirror's connection closing gives back the size this phone
-    /// claimed.
     pub(super) fn detach(&self, conn: ConnId) {
         let attach = locked(&self.conns)
             .get_mut(&conn)
@@ -238,7 +227,6 @@ impl Phone {
         }
     }
 
-    /// The phone's name on a terminal's tab while its size is in force.
     fn device_label(&self, conn: ConnId) -> String {
         let device = locked(&self.conns)
             .get(&conn)
@@ -257,8 +245,6 @@ impl Phone {
     }
 }
 
-/// A tap on the live grid, reported to a program that asked for the mouse: SGR when it
-/// asked for that, the classic encoding otherwise.
 fn click(mirror: &Mirror, col: u16, row: u16) {
     let modes = mirror.modes();
     let size = modes.size;

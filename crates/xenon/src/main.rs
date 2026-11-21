@@ -100,7 +100,6 @@ fn main() -> glib::ExitCode {
             eprintln!("xenon: no running Xenon");
             return glib::ExitCode::FAILURE;
         }
-        // No window to ask: ending the terminals does not need one.
         xenon_store::Handoff::NoServer
             if command == (xenon_store::CliCommand::Quit { end: true }) =>
         {

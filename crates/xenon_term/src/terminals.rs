@@ -1,7 +1,3 @@
-//! `Terminals`: the window's and the phone server's view of every terminal. There is no
-//! connect step that can fail: the runtime directory is the list, and one connection to
-//! each holder found there is the only state.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
@@ -14,10 +10,8 @@ use crate::proto::Frozen;
 use crate::start::{self, Spec};
 use crate::{Size, Spawn, TermInfo, TermStatus, builds, dir};
 
-/// A holder that has not gone away this long after `Close` is stopped through systemd.
 const CLOSE_PATIENCE: Duration = Duration::from_secs(8);
 
-/// Variables systemd sets for one unit's own process, which a shell must not inherit.
 const UNIT_VARS: [&str; 11] = [
     "LISTEN_PID",
     "LISTEN_FDS",
@@ -32,7 +26,6 @@ const UNIT_VARS: [&str; 11] = [
     "MEMORY_PRESSURE_WRITE",
 ];
 
-/// What holders tell the window.
 #[derive(Debug)]
 pub enum Event {
     /// A holder is connected (window- or phone-made, or found at start): adopt it.
@@ -54,7 +47,6 @@ pub enum Event {
         id: TermId,
         size: Size,
     },
-    /// The holder is gone, for any reason.
     Closed {
         id: TermId,
     },
@@ -63,11 +55,9 @@ pub enum Event {
         id: TermId,
         error: String,
     },
-    /// An install replaced the binary: marks need repainting.
     Builds,
 }
 
-/// Attach, size and typing that arrived while `open` was still starting the holder.
 #[derive(Default)]
 pub(crate) struct Early {
     pub size: Option<Size>,
@@ -76,11 +66,9 @@ pub(crate) struct Early {
 }
 
 pub(crate) struct Shared {
-    /// What every terminal opened here starts from, as `KEY=VALUE`.
     base_env: Vec<String>,
     holders: Mutex<HashMap<TermId, Arc<HolderLink>>>,
     connecting: Mutex<HashSet<TermId>>,
-    /// What the window did to a terminal before its holder was connected.
     pub(crate) early: Mutex<HashMap<TermId, Early>>,
     tx: async_channel::Sender<Event>,
     rx: async_channel::Receiver<Event>,
@@ -99,9 +87,6 @@ impl Shared {
         locked(&self.holders).get(&id).cloned()
     }
 
-    /// Add a connected holder and take what the window did to it before. Under the same
-    /// lock that `early` callers hold while they look for the link, so nothing is lost
-    /// between "no link yet" and "remember it".
     pub(crate) fn insert(&self, link: Arc<HolderLink>) -> Option<Early> {
         let mut early = locked(&self.early);
         let taken = early.remove(&link.id);
@@ -109,7 +94,6 @@ impl Shared {
         taken
     }
 
-    /// Send to the holder when it is connected, else remember it for when it is.
     pub(crate) fn to_link_or_early(
         &self,
         id: TermId,
@@ -126,7 +110,6 @@ impl Shared {
         }
     }
 
-    /// The connection ended: the terminal is gone.
     pub(crate) fn remove(&self, link: &Arc<HolderLink>) {
         let mut holders = locked(&self.holders);
         if holders.get(&link.id).is_some_and(|l| Arc::ptr_eq(l, link)) {
@@ -136,7 +119,6 @@ impl Shared {
         }
     }
 
-    /// Connect to every socket in the directory that we do not know yet.
     fn scan(self: &Arc<Self>) {
         let fresh: Vec<TermId> = dir::ids()
             .into_iter()
@@ -153,7 +135,6 @@ impl Shared {
         });
     }
 
-    /// Connect once, however many callers race (the directory watch and `open`).
     pub(crate) fn adopt(self: &Arc<Self>, id: TermId) -> std::io::Result<()> {
         if self.link(id).is_some() || !locked(&self.connecting).insert(id) {
             return Ok(());
@@ -207,7 +188,6 @@ impl Terminals {
         self.shared.rx.clone()
     }
 
-    /// Every terminal: no IO but a few stats.
     pub fn list(&self) -> Vec<TermInfo> {
         let links: Vec<_> = locked(&self.shared.holders).values().cloned().collect();
         let mut list: Vec<TermInfo> = links.iter().map(|l| l.info()).collect();
@@ -215,7 +195,6 @@ impl Terminals {
         list
     }
 
-    /// One terminal, once its holder is connected.
     pub fn info(&self, id: TermId) -> Option<TermInfo> {
         self.shared.link(id).map(|link| link.info())
     }
@@ -276,7 +255,6 @@ impl Terminals {
     }
 }
 
-/// A hung holder: ask systemd to stop its unit.
 fn stop_unit(id: TermId) {
     let _ = std::process::Command::new("systemctl")
         .args(["--user", "stop", &start::unit_name(id)])

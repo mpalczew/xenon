@@ -19,9 +19,7 @@ pub(crate) struct TermView {
     pub cwd: std::path::PathBuf,
     pub pid: Cell<Option<i32>>,
     attached: Cell<bool>,
-    /// Held at a phone's size: the grid is not ours to report.
     pinned: Cell<bool>,
-    /// The grid size last told to the service.
     claimed: Cell<Option<(i64, i64)>>,
     /// A replay turned focus reporting on; VTE answers with a focus report to drop.
     skip_focus: Cell<bool>,
@@ -105,8 +103,6 @@ impl TermView {
         Size::new(cols, rows)
     }
 
-    /// The first time the view is on screen: become the terminal's window. The service
-    /// answers with the replay, then live output.
     pub(crate) fn attach(&self, holders: &Terminals) {
         if self.attached.replace(true) {
             return;
@@ -118,7 +114,6 @@ impl TermView {
         }
     }
 
-    /// The grid changed size on its own: tell the service, unless a phone holds it.
     pub(crate) fn report_size(&self, holders: &Terminals) {
         if !self.attached.get() || self.pinned.get() {
             return;
@@ -133,8 +128,6 @@ impl TermView {
         }
     }
 
-    /// The service set the size in force: follow it, holding the view to a phone's size
-    /// when that differs from the room we have.
     pub(crate) fn follow(&self, size: Size) {
         let (cols, rows) = (i64::from(size.cols()), i64::from(size.rows()));
         self.term.set_size(cols, rows);
@@ -151,7 +144,6 @@ impl TermView {
         self.term.set_valign(align);
     }
 
-    /// Replayed or live bytes from the service.
     pub(crate) fn feed(&self, bytes: &[u8]) {
         if bytes.windows(8).any(|w| w == b"\x1b[?1004h") {
             self.skip_focus.set(true);
@@ -165,9 +157,6 @@ impl TermView {
     }
 }
 
-/// The environment every terminal the window opens starts from: its own, minus the
-/// renderer it picked for itself. The holder sets `TERM`, `COLORTERM` and
-/// `XENON_WORKSPACE`.
 pub(crate) fn child_env() -> Vec<String> {
     let defaulted_renderer = std::env::var_os("XENON_GTK_GSK_DEFAULTED").is_some();
     std::env::vars()

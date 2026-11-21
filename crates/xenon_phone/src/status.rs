@@ -1,5 +1,3 @@
-//! What the window shows about the phone server: status rows, the pairing code, revoking.
-
 use std::time::Instant;
 
 use xenon_remote::{ClosedReason, ConnId, DeviceBook, RemoteStatus, ServerMsg, device_rows};
@@ -41,7 +39,6 @@ impl Phone {
         status
     }
 
-    /// The live pairing code, once the server runs.
     pub(crate) fn pairing(&self) -> Result<Pairing, String> {
         let hostname = xenon_remote::normalize_hostname(
             &xenon_store::load_service_settings()
@@ -65,7 +62,6 @@ impl Phone {
         })
     }
 
-    /// Sign out one device, or all of them, and drop their live connections.
     pub(crate) fn revoke(&self, device: Option<&str>) {
         {
             let mut guard = locked(&self.server);

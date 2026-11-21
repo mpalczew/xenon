@@ -1,7 +1,3 @@
-//! A phone's copy of one terminal: its own connection to the holder, its own emulator
-//! fed from the holder's replay and output, its own scroll and its own size claim. The
-//! holder's claim merge decides the size; a phone never moves the computer.
-
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
@@ -20,12 +16,10 @@ pub struct Gone;
 
 mod calls;
 
-/// What a phone needs to know about the program's modes.
 #[derive(Clone, Copy, Debug)]
 pub struct Modes {
     pub size: Size,
     pub app_cursor: bool,
-    /// The program asked for mouse reports.
     pub mouse: bool,
     pub sgr_mouse: bool,
 }
@@ -100,7 +94,6 @@ fn read(inner: &Inner, input: &mut std::os::unix::net::UnixStream) {
     while let Ok(frame) = proto::read_frame(input) {
         match frame {
             Frame::Data(bytes) => {
-                // Replies to queries are the holder's business; a phone never answers.
                 let _ = locked(&inner.emu).advance(&bytes);
             }
             Frame::Control(bytes) => match proto::decode::<FromHolder>(&bytes) {
@@ -131,12 +124,10 @@ impl Mirror {
         let _ = proto::write_control(&mut *locked(&self.out), msg);
     }
 
-    /// The terminal ended, or its holder went away.
     pub fn is_gone(&self) -> bool {
         self.inner.closed.load(Ordering::SeqCst)
     }
 
-    /// Ask for the next frame to be built now.
     pub fn wake(&self) {
         self.inner.poke();
     }

@@ -60,9 +60,7 @@ pub struct AppSettings {
     pub terminal_font_family: String,
     pub ui_font_family: String,
     pub show_line_numbers: bool,
-    /// Soft wrap for markdown and other prose. The file is not rewritten.
     pub wrap_prose: bool,
-    /// Soft wrap for every other text file.
     pub wrap_code: bool,
     pub vim_mode: bool,
     pub theme: ThemeMode,
@@ -71,9 +69,7 @@ pub struct AppSettings {
     pub terminal_auto_close: TerminalAutoClose,
     pub workspaces_collapsed: bool,
     pub files_open: bool,
-    /// The toast that says closing the window leaves terminals running was shown.
     pub close_hint_shown: bool,
-    /// Files sidebar shows dotfiles and ignored items (dimmed).
     pub show_hidden_files: bool,
     pub git_collapsed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -1,6 +1,3 @@
-//! The phone server as the window sees it: pairing code, status rows and the dark flag,
-//! over `phone.sock`. The socket is systemd's, so the first call starts the server.
-
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -66,7 +63,6 @@ impl PhoneLink {
         status_of(&PhoneCall::Status)
     }
 
-    /// Sign out one device, or all of them.
     pub fn revoke(device: Option<&str>) -> Result<RemoteStatus, String> {
         status_of(&PhoneCall::Revoke {
             device: device.map(str::to_owned),
@@ -113,9 +109,7 @@ fn follow(tx: &async_channel::Sender<()>) -> Result<(), String> {
         },
     )?;
     send(&mut stream, &PhoneCall::Watch)?;
-    // Pushes can be far apart: only the calls above have a deadline.
     stream.set_read_timeout(None).map_err(|e| e.to_string())?;
-    // Connected (again): the window refreshes what it shows.
     tx.send_blocking(()).map_err(|e| e.to_string())?;
     for line in BufReader::new(stream).lines() {
         if let Ok(PhoneReply::Changed) = serde_json::from_str(&line.map_err(|e| e.to_string())?) {

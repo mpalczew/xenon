@@ -31,7 +31,6 @@ pub struct RemoteStatus {
 }
 
 impl RemoteStatus {
-    /// Whether the computer should stay awake for a connected phone.
     pub fn hold_awake(&self) -> bool {
         self.enabled && self.keep_awake && self.connected > 0
     }

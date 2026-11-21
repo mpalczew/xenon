@@ -29,7 +29,6 @@ impl Model {
                 .is_some_and(|t| t.id == tab)
     }
 
-    /// Store what the service said. The tab takes its title, phone name and exit from it.
     pub(crate) fn apply_status(
         &mut self,
         ws: WorkspaceId,
@@ -57,8 +56,6 @@ impl Model {
         applied
     }
 
-    /// The tab on screen was looked at: drop its attention here and return the terminal
-    /// the service should clear it for.
     pub(crate) fn dismiss_viewed(&mut self) -> Option<TermId> {
         let ws = self.active()?;
         let tab = self.spaces.get(&ws)?.content.active_tab()?;
@@ -127,7 +124,6 @@ impl Model {
     }
 }
 
-/// What changed when a status landed, so the window repaints only what it must.
 #[derive(Default)]
 pub(crate) struct Applied {
     pub relabel: bool,

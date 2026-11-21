@@ -1,8 +1,3 @@
-//! The phone server, its own process (`xenon-term phone`, run as `xenon-phone.service`):
-//! HTTP and WebSocket from `xenon_remote`, answered from the public `Terminals` API.
-//! Phones work with no window open, and see every build's terminals. It watches a
-//! terminal through a `Mirror` per phone, so a phone's scroll and size are its own.
-
 mod api;
 mod control;
 mod dots;
@@ -40,11 +35,9 @@ pub(crate) struct Runtime {
 #[derive(Default)]
 pub(crate) struct Server {
     pub rt: Option<Runtime>,
-    /// The port is busy (the old service has it): retrying.
     pub waiting: bool,
 }
 
-/// Phone tab numbers: a counter in this process, keyed by terminal.
 #[derive(Default)]
 pub(crate) struct Serials {
     by_id: HashMap<TermId, u64>,
@@ -57,7 +50,6 @@ pub(crate) struct Phone {
     pub conns: Mutex<HashMap<ConnId, Conn>>,
     pub tasks: Mutex<tasks::TaskState>,
     pub serials: Mutex<Serials>,
-    /// The window's theme is dark: phones follow it by default.
     pub dark: AtomicBool,
     me: Weak<Phone>,
     tx: async_channel::Sender<HostRequest>,
@@ -68,9 +60,7 @@ pub(crate) fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Run the phone server until the process is killed.
 pub fn run() -> io::Result<()> {
-    // First, while this is the only thread: taking systemd's socket clears its variables.
     let listener = control::listener()?;
     let env = std::env::vars().map(|(k, v)| format!("{k}={v}")).collect();
     let terms = Terminals::start(env);
@@ -92,7 +82,6 @@ impl Phone {
             tx,
             changes: Mutex::new((0, Vec::new())),
         });
-        // Existing terminals are numbered oldest first.
         for info in terms.list() {
             phone.serial(info.id);
         }
@@ -103,7 +92,6 @@ impl Phone {
         phone
     }
 
-    /// The phone's number for a terminal, given out on first sight.
     pub(crate) fn serial(&self, id: TermId) -> u64 {
         let mut serials = locked(&self.serials);
         if let Some(n) = serials.by_id.get(&id) {
@@ -148,7 +136,6 @@ impl Phone {
                 tasks::exited(self, id, None);
                 self.terminal_closed(id);
             }
-            // systemd refused to start the terminal: a task sees it as a failed exit.
             Event::Failed { id, .. } => tasks::exited(self, id, Some(Exit::Code(127))),
             _ => {}
         }
@@ -166,14 +153,12 @@ impl Phone {
         locked(&self.changes).1.retain(|(i, _)| *i != id);
     }
 
-    /// Something a window shows about the phone server changed.
     pub(crate) fn changed(&self) {
         for (_, listener) in locked(&self.changes).1.iter() {
             listener();
         }
     }
 
-    /// A phone attached to this terminal is told it is gone.
     fn terminal_closed(&self, id: TermId) {
         let conns: Vec<ConnId> = locked(&self.conns)
             .iter()

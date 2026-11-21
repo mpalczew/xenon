@@ -171,7 +171,6 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     bar
 }
 
-/// Close Window, Quit and End Terminals, Preferences: the header bar's menu.
 fn main_menu() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
     let leave = gtk::gio::Menu::new();

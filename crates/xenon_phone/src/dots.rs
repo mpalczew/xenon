@@ -1,5 +1,3 @@
-//! Attention and working dots, pushed to every phone when they change.
-
 use std::collections::{BTreeMap, HashMap};
 
 use xenon_core::{AttentionReason, WorkspaceId, workspace_dot, workspace_dot_from_tabs};
@@ -10,7 +8,6 @@ use super::{Phone, locked};
 type Tab = (WorkspaceId, u64, bool, Option<AttentionReason>);
 
 impl Phone {
-    /// Every terminal: workspace, phone tab number, working, attention.
     fn tabs(&self) -> Vec<Tab> {
         self.terms
             .list()
@@ -22,7 +19,6 @@ impl Phone {
             .collect()
     }
 
-    /// The dot of a workspace and how many terminals it has.
     pub(crate) fn workspace_summary(
         &self,
         ws: WorkspaceId,

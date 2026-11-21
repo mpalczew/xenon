@@ -1,7 +1,3 @@
-//! `phone.sock`: the window's calls. systemd's `xenon-phone.socket` owns it and hands it
-//! over, so the first call starts the server; run by hand, the server binds the path
-//! itself.
-
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::fd::FromRawFd;
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -23,7 +19,6 @@ pub(crate) fn serve(phone: &Arc<Phone>, listener: &UnixListener) -> io::Result<(
     Ok(())
 }
 
-/// The socket systemd handed over, or, run by hand, one bound here.
 pub(crate) fn listener() -> io::Result<UnixListener> {
     match sd_notify::listen_fds()?.next() {
         // SAFETY: systemd passed this listening socket, and nothing else in this process
@@ -81,8 +76,6 @@ fn converse(phone: &Arc<Phone>, stream: UnixStream) -> io::Result<()> {
     result
 }
 
-/// Push `Changed` down this connection each time something about the phone server does.
-/// A thread does the writing, so a slow window never holds up the server.
 fn watch(phone: &Arc<Phone>, out: &Mutex<UnixStream>) -> u64 {
     let (tx, rx) = mpsc::channel::<()>();
     let tx = Mutex::new(tx);
@@ -103,9 +96,7 @@ fn watch(phone: &Arc<Phone>, out: &Mutex<UnixStream>) -> u64 {
 }
 
 impl Phone {
-    /// Answer one call from the window.
     fn call(&self, call: PhoneCall) -> PhoneReply {
-        // The window writes `services.json` before it calls: take its change now.
         self.apply_settings();
         match call {
             PhoneCall::Status | PhoneCall::Watch => PhoneReply::Status {

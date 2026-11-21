@@ -1,7 +1,5 @@
-//! `replay()`: plain VT sequences that rebuild the screen in a blank terminal of the
-//! same size. Exact for text, SGR, OSC 8 links, soft wraps, the alternate screen, the
-//! cursor, modes, palette and title. Not replayed: the scroll region (DECSTBM), tab
-//! stops and character sets, which `alacritty_terminal` does not expose.
+//! Not replayed: the scroll region (DECSTBM), tab stops and character sets, which
+//! `alacritty_terminal` does not expose.
 
 use std::fmt::Write as _;
 
@@ -23,10 +21,8 @@ struct AltSnapshot {
 impl Emu {
     pub(crate) fn replay(&mut self) -> Vec<u8> {
         let mut out = String::new();
-        out.push_str("\x1bc"); // RIS
+        out.push_str("\x1bc");
         self.write_palette(&mut out);
-        // Origin mode moves the cursor home, so it goes before any positioning. Without
-        // the scroll region (see the module note), rows are the same either way.
         if self.mode().contains(TermMode::ORIGIN) {
             out.push_str("\x1b[?6h");
         }
@@ -65,11 +61,11 @@ impl Emu {
 
     fn write_both_screens(&mut self, out: &mut String) {
         let snap = self.snapshot_alt();
-        self.term.swap_alt(); // now on the main screen
+        self.term.swap_alt();
         self.write_screen(out, true);
         // Park the main cursor where it was: `?1049h` saves it and `?1049l` restores it.
         self.write_cursor(out);
-        self.term.swap_alt(); // back on the alternate screen, which is now blank
+        self.term.swap_alt();
         out.push_str("\x1b[?1049h");
         self.restore(snap);
         self.write_screen(out, false);
@@ -100,7 +96,6 @@ impl Emu {
         }
     }
 
-    /// Rows of the active grid. With `history`, the scrollback comes first.
     fn write_screen(&self, out: &mut String, history: bool) {
         let grid = self.term.grid();
         let cols = usize::from(self.size.cols());

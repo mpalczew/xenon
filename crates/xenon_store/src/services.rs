@@ -1,7 +1,3 @@
-//! Settings of the background processes: the phone server and the terminal holders.
-//! The window is the only writer; services read. Holders of older builds read this file
-//! too, so a field is only ever added, with a default, and unknown fields are ignored.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -15,11 +11,9 @@ pub const DEFAULT_SCROLLBACK_LINES: usize = 10_000;
 #[serde(default)]
 pub struct ServiceSettings {
     pub remote_enabled: bool,
-    /// Hold a no-idle-sleep assertion while a phone is connected.
     pub remote_keep_awake_while_connected: bool,
     pub remote_port: u16,
     pub remote_hostname: String,
-    /// Scrollback of a terminal's screen copy, read when a holder starts.
     pub terminal_scrollback_lines: usize,
 }
 
@@ -43,7 +37,6 @@ pub fn load_service_settings() -> Result<ServiceSettings, StoreError> {
     load_or_default(&service_settings_path())
 }
 
-/// Load, change and save. Only the window calls this.
 pub fn update_service_settings(
     update: impl FnOnce(&mut ServiceSettings),
 ) -> Result<ServiceSettings, StoreError> {

@@ -20,7 +20,6 @@ pub(crate) struct PaneView {
     remove: RefCell<Option<gtk::Button>>,
 }
 
-/// What a tab's tooltip says besides its title: where it is, and an older build.
 pub(crate) struct TabNotes<'a> {
     pub path: Option<String>,
     pub older: Option<&'a str>,
@@ -199,8 +198,6 @@ impl PaneView {
         });
     }
 
-    /// The tab bar's right-click menu. The view reports the clicked page in
-    /// `setup-menu`; the actions act on that page's neighbours in this pane.
     fn install_menu(&self, app: &Rc<App>) {
         let menu = gio::Menu::new();
         let item = |label: &str, action: &str| {
@@ -427,7 +424,6 @@ impl PaneView {
             Some(path) => format!("{tip}\n{path}"),
             None => tip,
         };
-        // A subtle, always-on mark for a terminal on an older build.
         page.set_icon(
             older
                 .map(|_| gio::ThemedIcon::new("software-update-available-symbolic"))

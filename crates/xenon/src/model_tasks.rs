@@ -23,7 +23,6 @@ impl Model {
         Some(id)
     }
 
-    /// A terminal the service holds that no tab shows: a new tab for it, not selected.
     pub(crate) fn adopt_terminal(&mut self, ws: WorkspaceId, term: TermId) -> Option<TabId> {
         let previous = self.space_content(ws)?.focused_leaf().map(|l| l.active);
         let id = self.push_tab(ws, |id| {

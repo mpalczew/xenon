@@ -1,6 +1,3 @@
-# The phone server: HTTP and WebSocket for the phone page, and phone.sock for the window.
-# It holds no terminals, so install may restart it freely. A crash brings it back after
-# two seconds, and phones reconnect by themselves.
 [Unit]
 Description=Xenon phone server
 Requires=xenon-phone.socket

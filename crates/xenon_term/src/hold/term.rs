@@ -1,7 +1,3 @@
-//! The terminal this process holds: its screen, claims, status and the connections
-//! that watch it. Status changes are sent to every connection from inside the lock;
-//! sends only queue, so they never block.
-
 use std::fs::File;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -16,19 +12,13 @@ use super::status::Status;
 use crate::Claim;
 use crate::proto::v1::FromHolder;
 
-/// A terminal that was closed gets this long to hang up before it is killed.
 pub(crate) const HANGUP_GRACE: Duration = Duration::from_secs(5);
 
-/// One connected client. Every connection gets status; viewers also get output.
 pub(crate) struct Peer {
     pub link: Link,
     pub viewing: bool,
-    /// Answers terminal queries: the window's VTE does, so the emulator's replies are
-    /// dropped while some viewer answers.
     pub answers: bool,
-    /// The window (as opposed to a phone): its input takes the size back.
     pub desk: bool,
-    /// Fell too far behind: no output is sent until it catches up, then it is repainted.
     pub dropped: bool,
 }
 
@@ -38,13 +28,11 @@ pub(crate) struct State {
     pub status: Status,
     pub peers: Vec<Peer>,
     pub closed_at: Option<Instant>,
-    /// Close was asked for: the holder ends once the child is gone.
     pub closed: bool,
 }
 
 pub(crate) struct Holder {
     pub workspace: WorkspaceId,
-    /// The child's pid.
     pub pid: i32,
     pub cwd: String,
     pub master: File,
@@ -89,7 +77,6 @@ impl Holder {
         let _ = pty::write_all(&self.master, bytes);
     }
 
-    /// A new connection: it gets the current status at once.
     pub(crate) fn join(&self, link: Link) {
         let mut st = self.lock();
         link.send(&FromHolder::Status(st.status.snapshot()));
@@ -102,7 +89,6 @@ impl Holder {
         });
     }
 
-    /// Size, then screen, then live output, under one lock: no byte is lost or sent twice.
     pub(crate) fn view(&self, conn: u64, answers: bool) {
         let mut st = self.lock();
         let size = st.emu.size;
@@ -127,7 +113,6 @@ impl Holder {
         st.sync_label(Instant::now());
     }
 
-    /// A connection went away: its claims lapse.
     pub(crate) fn leave(&self, conn: u64) {
         let mut st = self.lock();
         st.peers.retain(|p| p.link.conn != conn);
@@ -137,7 +122,6 @@ impl Holder {
         st.sync_label(now);
     }
 
-    /// Bytes for the child. The window's input also takes the size back from a phone.
     pub(crate) fn input(&self, conn: u64, bytes: &[u8]) {
         self.write(bytes);
         let now = Instant::now();
@@ -161,18 +145,15 @@ impl Holder {
         }
     }
 
-    /// Hang up the child's session. True when the child is already gone, so the holder
-    /// can end at once.
     pub(crate) fn close(&self) -> bool {
         let mut st = self.lock();
-        // An exited child is reaped, and its pid may belong to someone else by now.
-        let gone = st.status.snapshot().exit.is_some();
-        if !gone {
+        let exited = st.status.snapshot().exit.is_some();
+        if !exited {
             st.closed_at.get_or_insert_with(Instant::now);
             st.closed = true;
             pty::hangup(self.pid);
         }
-        gone
+        exited
     }
 }
 
@@ -191,7 +172,6 @@ impl State {
         self.peers.retain(|p| p.link.send(&msg));
     }
 
-    /// The phone whose size is in force changed: tell everyone if so.
     pub(crate) fn sync_label(&mut self, now: Instant) {
         let label = self.claims.active_label(now);
         if self.status.set_phone(label) {
@@ -199,9 +179,6 @@ impl State {
         }
     }
 
-    /// Resize emulator and PTY to what the claims merge to. Viewers are told first and
-    /// repainted, because their own reflow may differ; except the window whose own
-    /// claim caused the change (`from_desk` is its connection).
     pub(crate) fn apply_size(&mut self, master: &File, now: Instant, from_desk: Option<u64>) {
         let size = self.claims.effective(now, self.emu.size);
         if size == self.emu.size {
@@ -218,7 +195,6 @@ impl State {
         }
     }
 
-    /// Send program output to every viewer, or drop and repaint one that is too slow.
     pub(crate) fn forward(&mut self, bytes: &[u8]) {
         let mut replay = None;
         let emu = &mut self.emu;

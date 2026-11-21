@@ -18,7 +18,6 @@ pub(crate) enum TabKind {
 pub(crate) struct Tab {
     pub id: TabId,
     pub kind: TabKind,
-    /// The terminal service's shell for this tab (terminal tabs only).
     pub term: Option<TermId>,
     pub title: String,
     pub exited: Option<i32>,
@@ -94,7 +93,6 @@ pub(crate) struct Space {
 pub(crate) struct Model {
     pub registry: Registry,
     pub spaces: HashMap<WorkspaceId, Space>,
-    /// What the service last said about each terminal tab.
     pub status: HashMap<(WorkspaceId, TabId), TermStatus>,
     pub window_active: bool,
     pub folds: Folds,

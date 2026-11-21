@@ -1,5 +1,3 @@
-//! Global managed Agent Skill. Lives under `$HOME`, not data_dir.
-
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
