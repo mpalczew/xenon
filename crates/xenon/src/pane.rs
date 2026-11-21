@@ -52,7 +52,7 @@ impl PaneView {
         root.add_css_class("xpane");
         root.append(&bar);
         root.append(&body);
-        Self::drag_lone_tab(&bar, &view);
+        Self::drag_lone_tab(&bar);
         let this = Rc::new(Self {
             root,
             view,
@@ -93,28 +93,35 @@ impl PaneView {
     /// libadwaita starts a tab drag only from a bar with more than one tab, so
     /// a pane's only tab could not be moved. This source covers that case with
     /// the same `TabPage` payload that the pane body's drop target takes.
-    fn drag_lone_tab(bar: &adw::TabBar, view: &adw::TabView) {
+    fn drag_lone_tab(bar: &adw::TabBar) {
         let source = gtk::DragSource::new();
         source.set_actions(gdk::DragAction::MOVE);
         source.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let (bar_for_pick, view_for_prepare) = (bar.clone(), view.clone());
-        source.connect_prepare(move |_, x, y| {
+        source.connect_prepare(|source, x, y| {
             // sync: answer or ordering before return: prepare must hand back the drag payload at once
-            let on_button = bar_for_pick
+            let bar = source.widget()?.downcast::<adw::TabBar>().ok()?;
+            // sync: answer or ordering before return: prepare must hand back the drag payload at once
+            let view = bar.view().filter(|v| v.n_pages() == 1)?;
+            let on_button = bar
                 .pick(x, y, gtk::PickFlags::DEFAULT)
                 // sync: answer or ordering before return: prepare must hand back the drag payload at once
                 .is_some_and(|w| w.ancestor(gtk::Button::static_type()).is_some());
-            if on_button || view_for_prepare.n_pages() != 1 {
+            if on_button {
                 return None;
             }
             // sync: answer or ordering before return: prepare must hand back the drag payload at once
-            let page = view_for_prepare.nth_page(0);
+            let page = view.nth_page(0);
             Some(gdk::ContentProvider::for_value(&page.to_value()))
         });
-        let view = view.clone();
-        source.connect_drag_begin(move |_, drag| {
-            // sync: answer or ordering before return: the icon window is new and belongs to this drag
-            let ghost = gtk::Label::new(Some(&view.nth_page(0).title()));
+        source.connect_drag_begin(|source, drag| {
+            let title = source
+                .widget()
+                .and_then(|w| w.downcast::<adw::TabBar>().ok())
+                // sync: answer or ordering before return: the icon window is new and belongs to this drag
+                .and_then(|bar| bar.view())
+                // sync: answer or ordering before return: the icon window is new and belongs to this drag
+                .map(|view| view.nth_page(0).title());
+            let ghost = gtk::Label::new(title.as_deref());
             // sync: answer or ordering before return: the icon window is new and belongs to this drag
             ghost.add_css_class("xdrag-ghost");
             if let Some(icon) = gtk::DragIcon::for_drag(drag).downcast_ref::<gtk::DragIcon>() {
