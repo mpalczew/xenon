@@ -260,3 +260,6 @@ Differences from the sketch above, all additive:
   holders through `systemd-run --setenv`.
 - **First close:** the toast appears and the window closes about two seconds later, so
   the toast can be read. It is shown once (`close_hint_shown` in `settings.json`).
+- **Cutover leaves the old unit files.** Install disables `xenon-term.socket` and prints
+  how to stop and remove the old units; it never stops, starts or deletes them, because
+  their terminals may be live.
