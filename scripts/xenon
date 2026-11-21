@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP="${XENON_APP_DIR:-$HOME/.local/share/xenon}/xenon-bin"
-ACTIVE_FILE="$HOME/.xenon-active-slot"
+APP_DIR="${XENON_APP_DIR:-$HOME/.local/share/xenon}"
+APP="$APP_DIR/xenon-bin"
+DATA_DIR="$HOME/.xenon"
+
+# An older Xenon (a/b slots) exports these into its terminals. This Xenon keeps its
+# state in ~/.xenon and must never hand off to, or share files with, that instance.
+unset XENON_SLOT XENON_DATA_DIR XENON_SHARED_DIR
 
 # Task terminals run this as `bash -c`, the session leader; its exit HUPs the
 # app it backgrounded. An ignored HUP survives fork/exec, so set it up front.
 trap '' HUP
 # Closing a Xenon terminal SIGTERMs its shell's process group, and a background
 # job of a non-interactive shell stays in that group. Start the app in its own
-# session so quitting the Xenon that ran this task leaves the new one alive.
+# session so closing a terminal that ran this leaves the window alive.
 # `setsid` execs in place (the job is no group leader), so $! stays the app pid.
 DETACH=()
 if command -v setsid >/dev/null 2>&1; then
     DETACH=(setsid)
-elif command -v perl >/dev/null 2>&1; then
-    # shellcheck disable=SC2016 # perl code, expanded by perl
-    DETACH=(perl -MPOSIX -e 'POSIX::setsid(); exec { $ARGV[0] } @ARGV or die "exec: $!\n"' --)
 fi
-SHARED_DIR="$HOME/.xenon-shared"
 
 usage() {
     cat >&2 <<'EOF'
@@ -29,314 +30,48 @@ xenon pair prints a phone pairing code and QR for the running Xenon.
 xenon open, run in a Xenon terminal, opens the file in that terminal's workspace
 (XENON_WORKSPACE). --workspace picks another open workspace by name or root path.
 
-With no args:
-  - 0 running: launch the last active slot (default a)
-  - 1 running: copy its state to the other slot and launch the other slot
-  - 2+ running: focus the last-launched slot (no new process)
+With no args: focus the running window, or start one.
+With path args (dirs and/or files): open them in the running window, or start one.
 
-With path args (dirs and/or files) — does NOT flip slots:
-  - 0 running: launch last active slot and open paths
-  - 1 running: hand off to that instance (single-instance IPC)
-  - 2+ running: hand off to the last active slot's instance
-
-  xenon <dir>   open / focus workspace
-  xenon <file>  open file (switch workspace if the file belongs to one)
+Terminals live in the xenon-term service (a systemd user socket), so closing the
+window leaves every shell and agent running; the next `xenon` shows them again.
 EOF
 }
 
-slot_dir() {
-    case "$1" in
-        a)
-            printf '%s/.xenon-a\n' "$HOME"
-            ;;
-        b)
-            printf '%s/.xenon-b\n' "$HOME"
-            ;;
-        *) return 1 ;;
-    esac
+unit_installed() {
+    systemctl --user cat xenon-term.socket >/dev/null 2>&1
 }
 
-other_slot() {
-    case "$1" in
-        a) printf 'b\n' ;;
-        b) printf 'a\n' ;;
-        *) return 1 ;;
-    esac
+ensure_socket() {
+    if ! unit_installed; then
+        echo "xenon: the terminal service is not installed; run scripts/release/install" >&2
+        exit 1
+    fi
+    systemctl --user is-active --quiet xenon-term.socket ||
+        systemctl --user enable --now xenon-term.socket
 }
 
-pid_is_live_app() {
-    local pid="$1"
+ui_pid() {
+    local pid
+    pid="$(tr -d '[:space:]' <"$DATA_DIR/xenon.pid" 2>/dev/null || true)"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
     kill -0 "$pid" 2>/dev/null || return 1
-    local comm
-    comm="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
-    comm="${comm##*/}"
-    [[ "$comm" == "xenon" || "$comm" == "xenon-bin" ]]
+    printf '%s\n' "$pid"
 }
 
-pid_slot() {
-    local pid="$1" env slot data
-    env="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null)" || return 1
-    slot="$(sed -n -e 's/^XENON_SLOT=//p' <<<"$env" | head -n1)"
-    slot="$(printf '%s' "$slot" | tr '[:upper:]' '[:lower:]')"
-    case "$slot" in
-        a | b) printf '%s\n' "$slot"; return 0 ;;
-    esac
-    data="$(sed -n -e 's/^XENON_DATA_DIR=//p' <<<"$env" | head -n1)"
-    data="${data%/}"
-    case "$data" in
-        *.xenon-a) printf 'a\n' ;;
-        *.xenon-b) printf 'b\n' ;;
-        *) return 1 ;;
-    esac
-}
-
-# Live-instance files: never transfer (rsync cannot copy Unix sockets).
-RUNTIME_EXCLUDES=(
-    --exclude='xenon.pid'
-    --exclude='ipc.sock'
-    --exclude='xenon.log'
-    --exclude='xenon-gtk.log'
-)
-
-strip_runtime_files() {
-    local dir="$1"
-    [[ -n "$dir" && -d "$dir" ]] || return 0
-    rm -f "$dir/xenon.pid" "$dir/ipc.sock" "$dir/xenon.log"
-}
-
-copy_state_dir() {
-    local src="$1"
-    local dst="$2"
-    rm -rf "$dst"
-    mkdir -p "$dst"
-    rsync -a "${RUNTIME_EXCLUDES[@]}" "$src/" "$dst/"
-    strip_runtime_files "$dst"
-}
-
-running_instances() {
-    local slot pid seen="" pf claimed
-    for slot in a b; do
-        pf="$(slot_dir "$slot")/xenon.pid"
-        [[ -f "$pf" ]] || continue
-        pid="$(tr -d '[:space:]' <"$pf" 2>/dev/null || true)"
-        if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
-            rm -f "$pf"
-            continue
-        fi
-        if ! pid_is_live_app "$pid"; then
-            rm -f "$pf"
-            continue
-        fi
-        if claimed="$(pid_slot "$pid" 2>/dev/null)" && [[ "$claimed" == "$slot" ]]; then
-            printf '%s %s\n' "$slot" "$pid"
-            seen+=" $pid "
-        else
-            rm -f "$pf"
-        fi
-    done
-
-    local pids
-    pids="$(
-        pgrep -x xenon 2>/dev/null || true
-        pgrep -x xenon-bin 2>/dev/null || true
-    )"
-    [[ -n "$pids" ]] || return 0
-    while IFS= read -r pid; do
-        [[ -z "$pid" ]] && continue
-        [[ "$seen" == *" $pid "* ]] && continue
-        pid_is_live_app "$pid" || continue
-        if slot="$(pid_slot "$pid" 2>/dev/null)"; then
-            printf '%s %s\n' "$slot" "$pid"
-            printf '%s\n' "$pid" >"$(slot_dir "$slot")/xenon.pid"
-            seen+=" $pid "
-        else
-            printf '? %s\n' "$pid"
-            seen+=" $pid "
-        fi
-    done <<<"$pids"
+active() {
+    if systemctl --user is-active --quiet "$1" 2>/dev/null; then echo active; else echo inactive; fi
 }
 
 status() {
-    local lines line slot pid any=false
-    lines="$(running_instances)"
-    if [[ -z "$lines" ]]; then
-        echo "no Xenon instances running"
-        return
-    fi
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        any=true
-        slot="${line%% *}"
-        pid="${line##* }"
-        echo "pid $pid slot $slot"
-    done <<<"$lines"
-    "$any"
-}
-
-last_slot() {
-    local slot
-    if [[ -f "$ACTIVE_FILE" ]]; then
-        slot="$(tr -d '[:space:]' <"$ACTIVE_FILE")"
-        case "$slot" in
-            a|b) printf '%s\n' "$slot"; return ;;
-        esac
-    fi
-    printf 'a\n'
-}
-
-copy_state() {
-    local from="$1"
-    local to="$2"
-    local src dst
-    src="$(slot_dir "$from")"
-    dst="$(slot_dir "$to")"
-    if [[ ! -d "$src" ]]; then
-        echo "cannot copy: source state missing: $src" >&2
-        exit 1
-    fi
-    copy_state_dir "$src" "$dst"
-}
-
-slot_data_dir() {
-    local slot="$1"
-    case "$slot" in
-        a) printf '%s/.xenon-a\n' "$HOME" ;;
-        b) printf '%s/.xenon-b\n' "$HOME" ;;
-        *) return 1 ;;
-    esac
-}
-
-launch_slot() {
-    local slot="$1"
-    shift
-    local dir upper log pid
-    dir="$(slot_data_dir "$slot")"
-    upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
-    mkdir -p "$dir"
-    log="$dir/xenon.log"
-    printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
-    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        ${DETACH[@]+"${DETACH[@]}"} "$APP" "$@" </dev/null >>"$log" 2>&1 &
-    pid=$!
-    disown "$pid" 2>/dev/null || true
-    if [[ $# -gt 0 ]]; then
-        echo "Xenon slot $slot ← $* (pid $pid)"
+    local pid
+    if pid="$(ui_pid)"; then
+        echo "window: pid $pid"
     else
-        echo "launched Xenon slot $slot using $dir (pid $pid)"
+        echo "window: not running"
     fi
-}
-
-second_slot() {
-    local lines prefer line slot
-    lines="$(running_instances)"
-    prefer="$(last_slot)"
-    if printf '%s\n' "$lines" | sed '/^$/d' | awk '{print $1}' | grep -qx "$prefer"; then
-        printf '%s\n' "$prefer"
-        return
-    fi
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        slot="${line%% *}"
-        case "$slot" in
-            a | b)
-                printf '%s\n' "$slot"
-                return
-                ;;
-        esac
-    done <<<"$lines"
-    return 1
-}
-
-pid_for_slot() {
-    local want="$1" line slot pid
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        slot="${line%% *}"
-        pid="${line##* }"
-        if [[ "$slot" == "$want" && "$pid" =~ ^[0-9]+$ ]]; then
-            printf '%s\n' "$pid"
-            return 0
-        fi
-    done <<<"$(running_instances)"
-    return 1
-}
-
-raise_pid() {
-    local pid="$1"
-    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-    kill -0 "$pid" 2>/dev/null || return 1
-    # No portable raise-by-pid (Wayland); the IPC Activate handoff is the path.
-    return 1
-}
-
-activate_slot() {
-    local slot="$1"
-    local dir upper log handoff live i
-    case "$slot" in
-        a | b) ;;
-        *)
-            echo "cannot activate unknown slot: $slot" >&2
-            return 1
-            ;;
-    esac
-    live="$(pid_for_slot "$slot" || true)"
-    dir="$(slot_data_dir "$slot")"
-    upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
-    mkdir -p "$dir"
-    log="$dir/xenon.log"
-    printf '%s\n' "$slot" >"$HOME/.xenon-active-slot"
-    XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR" \
-        ${DETACH[@]+"${DETACH[@]}"} "$APP" </dev/null >>"$log" 2>&1 &
-    handoff=$!
-    i=0
-    while kill -0 "$handoff" 2>/dev/null && ((i < 25)); do
-        sleep 0.1
-        i=$((i + 1))
-    done
-    if kill -0 "$handoff" 2>/dev/null; then
-        kill "$handoff" 2>/dev/null || true
-        wait "$handoff" 2>/dev/null || true
-        if [[ -n "$live" ]] && raise_pid "$live"; then
-            echo "focused Xenon slot $slot (pid $live)"
-            return 0
-        fi
-        echo "could not focus Xenon slot $slot" >&2
-        return 1
-    fi
-    wait "$handoff" 2>/dev/null || true
-    if [[ -n "$live" ]]; then
-        raise_pid "$live" 2>/dev/null || true
-    fi
-    echo "focused Xenon slot $slot"
-}
-
-target_slot_for_paths() {
-    local lines count line running
-    lines="$(running_instances)"
-    count="$(printf '%s\n' "$lines" | sed '/^$/d' | wc -l | tr -d ' ')"
-    case "$count" in
-        0)
-            last_slot
-            ;;
-        1)
-            line="$(printf '%s\n' "$lines" | sed '/^$/d' | head -n1)"
-            running="${line%% *}"
-            case "$running" in
-                a | b) printf '%s\n' "$running" ;;
-                *) last_slot ;;
-            esac
-            ;;
-        *)
-            local prefer
-            prefer="$(last_slot)"
-            if printf '%s\n' "$lines" | sed '/^$/d' | awk '{print $1}' | grep -qx "$prefer"; then
-                printf '%s\n' "$prefer"
-            else
-                line="$(printf '%s\n' "$lines" | sed '/^$/d' | head -n1)"
-                printf '%s\n' "${line%% *}"
-            fi
-            ;;
-    esac
+    echo "xenon-term.socket: $(active xenon-term.socket)"
+    echo "xenon-term.service: $(active xenon-term.service)"
 }
 
 resolve_path_args() {
@@ -350,92 +85,33 @@ resolve_path_args() {
     done
 }
 
-open_paths() {
-    local slot abs_args=()
-    local line
-    while IFS= read -r line; do
-        [[ -n "$line" ]] && abs_args+=("$line")
-    done < <(resolve_path_args "$@")
-    slot="$(target_slot_for_paths)"
-    case "$slot" in
-        a | b) ;;
-        *)
-            echo "cannot resolve slot for path open" >&2
-            status >&2
-            exit 1
-            ;;
-    esac
-    launch_slot "$slot" "${abs_args[@]}"
+# Start the app; it hands off to a running window by itself and then exits.
+launch() {
+    mkdir -p "$DATA_DIR"
+    ${DETACH[@]+"${DETACH[@]}"} "$APP" "$@" </dev/null >>"$DATA_DIR/xenon.log" 2>&1 &
+    disown "$!" 2>/dev/null || true
 }
 
 main() {
     ulimit -c unlimited 2>/dev/null || true
-    if [[ ! -x "$APP" ]]; then
-        echo "Xenon app binary not found: $APP" >&2
-        exit 1
-    fi
     case "${1:-}" in
         status) status; exit 0 ;;
         -h | --help | help) usage; exit 0 ;;
     esac
+    if [[ ! -x "$APP" ]]; then
+        echo "Xenon app binary not found: $APP" >&2
+        exit 1
+    fi
+    ensure_socket
     case "${1:-}" in
-        "") ;;
-        open | pair)
-            if [[ -z "${XENON_DATA_DIR:-}" ]]; then
-                slot="$(target_slot_for_paths)"
-                case "$slot" in
-                    a | b) ;;
-                    *)
-                        echo "cannot resolve slot for xenon open" >&2
-                        status >&2
-                        exit 1
-                        ;;
-                esac
-                dir="$(slot_data_dir "$slot")"
-                upper="$(printf '%s' "$slot" | tr '[:lower:]' '[:upper:]')"
-                export XENON_DATA_DIR="$dir" XENON_SLOT="$upper" XENON_SHARED_DIR="$SHARED_DIR"
-            fi
-            exec "$APP" "$@"
-            ;;
+        "") launch ;;
+        open | pair) exec "$APP" "$@" ;;
         *)
-            open_paths "$@"
-            exit 0
-            ;;
-    esac
-
-    local lines count running slot line
-    lines="$(running_instances)"
-    count="$(printf '%s\n' "$lines" | sed '/^$/d' | wc -l | tr -d ' ')"
-
-    case "$count" in
-        0)
-            slot="$(last_slot)"
-            launch_slot "$slot"
-            ;;
-        1)
-            line="$(printf '%s\n' "$lines" | sed '/^$/d' | head -n1)"
-            running="${line%% *}"
-            case "$running" in
-                a | b)
-                    slot="$(other_slot "$running")"
-                    copy_state "$running" "$slot"
-                    launch_slot "$slot"
-                    ;;
-                *)
-                    echo "one instance is running, but its slot is unknown:" >&2
-                    status >&2
-                    exit 1
-                    ;;
-            esac
-            ;;
-        *)
-            if slot="$(second_slot)"; then
-                activate_slot "$slot"
-            else
-                echo "two or more Xenon instances are running, but no a/b slot is known:" >&2
-                status >&2
-                exit 1
-            fi
+            local args=() line
+            while IFS= read -r line; do
+                [[ -n "$line" ]] && args+=("$line")
+            done < <(resolve_path_args "$@")
+            launch "${args[@]}"
             ;;
     esac
 }

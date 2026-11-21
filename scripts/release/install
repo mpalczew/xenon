@@ -19,7 +19,7 @@ if [[ "${1:-}" != --force ]]; then
     esac
 fi
 
-(cd "$root" && cargo build -p xenon)
+(cd "$root" && cargo build -p xenon -p xenon_term)
 target="${CARGO_TARGET_DIR:-target}"
 [[ "$target" == /* ]] || target="$root/$target"
 
@@ -29,15 +29,35 @@ bin_dir="${XENON_BIN_DIR:-$HOME/.local/bin}"
 mkdir -p "$app_dir" "$bin_dir" "$data_home/applications"
 
 # Replace via rename so a running instance keeps its old inode.
-install -m 755 "$target/debug/xenon" "$app_dir/xenon-bin.new"
-mv -f "$app_dir/xenon-bin.new" "$app_dir/xenon-bin"
-echo "installed $app_dir/xenon-bin"
+for pair in xenon-bin:xenon xenon-term:xenon-term; do
+    dest="${pair%%:*}"
+    install -m 755 "$target/debug/${pair#*:}" "$app_dir/$dest.new"
+    mv -f "$app_dir/$dest.new" "$app_dir/$dest"
+    echo "installed $app_dir/$dest"
+done
 
 install -m 755 "$root/scripts/xenon" "$bin_dir/xenon"
 echo "installed $bin_dir/xenon"
 if [[ -d "$HOME/bin" ]]; then
     install -m 755 "$root/scripts/xenon" "$HOME/bin/xenon"
     echo "installed $HOME/bin/xenon"
+fi
+
+# The terminal service: a systemd user socket starts it on the first connect. Never
+# restart the service here: that would end every running terminal.
+unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+mkdir -p "$unit_dir"
+for unit in xenon-term.socket xenon-term.service; do
+    install -m 644 "$root/scripts/release/$unit" "$unit_dir/$unit"
+    echo "installed $unit_dir/$unit"
+done
+systemctl --user daemon-reload
+systemctl --user enable --now xenon-term.socket
+echo "enabled xenon-term.socket"
+if systemctl --user is-active --quiet xenon-term.service; then
+    echo "note: the running xenon-term service keeps its old code. To upgrade it:"
+    echo "  systemctl --user stop xenon-term.service   (this ends every terminal)"
+    echo "the socket starts the new one on the next connect."
 fi
 
 rm -f "$data_home/applications/dev.xenon.Gtk.desktop" "$bin_dir/xenon-gtk"
