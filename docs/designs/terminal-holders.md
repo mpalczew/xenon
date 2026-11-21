@@ -24,12 +24,11 @@ which terminals are on an older build. Grounding brought up these constraints:
 ## Usage (caller's view)
 
 ```rust
-use xenon_term::{Terminals, Role, Spawn, Event};
+use xenon_term::{Terminals, Spawn, Event};
 
 // Window startup. There is no connect step that can fail: the runtime directory is the
 // list of terminals.
-let terms = Terminals::start(Role::Desk);
-terms.set_base_env(child_env());           // phone-made terminals get the desktop env
+let terms = Terminals::start(child_env());  // what every terminal opened here starts from
 
 while let Ok(ev) = terms.events().recv().await {
     match ev {
@@ -54,8 +53,8 @@ xenon_term::end_all()?;                         // Quit and End Terminals: every
 ```
 
 ```rust
-// xenon_phone (its own process): the same API, Role::Phone.
-let terms = Terminals::start(Role::Phone);
+// xenon_phone (its own process): the same API, from its own environment.
+let terms = Terminals::start(own_env);
 let mut mirror = terms.watch(id, Claim::phone(size, "Pixel"))?; // its own emulator copy and scroll
 mirror.scroll(-5);                                              // never moves the computer
 ```
@@ -75,7 +74,6 @@ mirror.scroll(-5);                                              // never moves t
 ```
 $XDG_RUNTIME_DIR/xenon/term/<TermId>.sock   a ready holder (renamed into place once its child runs)
 $XDG_RUNTIME_DIR/xenon/term/<TermId>.spec   spawn request, mode 0600; the holder reads and deletes it
-$XDG_RUNTIME_DIR/xenon/base-env             the window's env for phone-made terminals; the window is its only writer
 $XDG_RUNTIME_DIR/xenon/phone.sock           phone server control: pairing, status, settings
 ```
 

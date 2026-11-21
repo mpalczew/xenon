@@ -17,12 +17,20 @@ use crate::{Size, Spawn, TermInfo, TermStatus, builds, dir};
 /// A holder that has not gone away this long after `Close` is stopped through systemd.
 const CLOSE_PATIENCE: Duration = Duration::from_secs(8);
 
-/// Who is asking. The window is the desk; the phone server watches through mirrors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Role {
-    Desk,
-    Phone,
-}
+/// Variables systemd sets for one unit's own process, which a shell must not inherit.
+const UNIT_VARS: [&str; 11] = [
+    "LISTEN_PID",
+    "LISTEN_FDS",
+    "LISTEN_FDNAMES",
+    "NOTIFY_SOCKET",
+    "INVOCATION_ID",
+    "JOURNAL_STREAM",
+    "MANAGERPID",
+    "MANAGERPIDFDID",
+    "SYSTEMD_EXEC_PID",
+    "MEMORY_PRESSURE_WATCH",
+    "MEMORY_PRESSURE_WRITE",
+];
 
 /// What holders tell the window.
 #[derive(Debug)]
@@ -68,7 +76,8 @@ pub(crate) struct Early {
 }
 
 pub(crate) struct Shared {
-    pub role: Role,
+    /// What every terminal opened here starts from, as `KEY=VALUE`.
+    base_env: Vec<String>,
     holders: Mutex<HashMap<TermId, Arc<HolderLink>>>,
     connecting: Mutex<HashSet<TermId>>,
     /// What the window did to a terminal before its holder was connected.
@@ -162,11 +171,19 @@ pub struct Terminals {
 
 impl Terminals {
     /// Find every holder in the runtime directory, connect to each, and keep watching
-    /// the directory and the installed binary.
-    pub fn start(role: Role) -> Self {
+    /// the directory and the installed binary. Terminals opened here start from
+    /// `base_env` (`KEY=VALUE`), less what systemd set for this process alone.
+    pub fn start(base_env: Vec<String>) -> Self {
         let (tx, rx) = async_channel::unbounded();
+        let base_env = base_env
+            .into_iter()
+            .filter(|pair| {
+                let key = pair.split_once('=').map_or(pair.as_str(), |(k, _)| k);
+                !UNIT_VARS.contains(&key)
+            })
+            .collect();
         let shared = Arc::new(Shared {
-            role,
+            base_env,
             holders: Mutex::default(),
             connecting: Mutex::default(),
             early: Mutex::default(),
@@ -198,13 +215,18 @@ impl Terminals {
         list
     }
 
+    /// One terminal, once its holder is connected.
+    pub fn info(&self, id: TermId) -> Option<TermInfo> {
+        self.shared.link(id).map(|link| link.info())
+    }
+
     /// Start a terminal. The id is chosen here, before the holder exists, so the tab and
     /// the session file can record it at once; `Event::Ready` follows when it runs.
     pub fn open(&self, workspace: WorkspaceId, spawn: Spawn) -> TermId {
         let id = TermId::new();
         let shared = Arc::clone(&self.shared);
         thread::spawn(move || {
-            let mut env = start::base_env();
+            let mut env = shared.base_env.clone();
             env.extend(spawn.env);
             let spec = Spec {
                 v: 1,
@@ -236,15 +258,6 @@ impl Terminals {
             thread::sleep(Duration::from_millis(15));
         }
         true
-    }
-
-    /// The window's environment, for terminals the phone makes. Only the desk writes it.
-    pub fn set_base_env(&self, env: Vec<String>) {
-        if self.shared.role == Role::Desk
-            && let Err(error) = start::write_base_env(&env)
-        {
-            log::warn!("write base env: {error}");
-        }
     }
 
     /// Close one terminal: the holder hangs up its session, then exits. Idempotent.

@@ -36,7 +36,7 @@ pub(crate) struct Spec {
 
 /// The one function that names the binary a new holder starts from. `open` and the
 /// "older build" check both call it.
-pub fn installed_binary() -> PathBuf {
+pub(crate) fn installed_binary() -> PathBuf {
     let dir = std::env::var_os("XENON_APP_DIR").map_or_else(
         || {
             let data = std::env::var_os("XDG_DATA_HOME").map_or_else(
@@ -151,33 +151,4 @@ pub(crate) fn take_spec(id: TermId) -> io::Result<Spec> {
     let bytes = std::fs::read(&path)?;
     let _ = std::fs::remove_file(&path);
     Ok(serde_json::from_slice(&bytes)?)
-}
-
-/// The window's environment for terminals the phone makes.
-pub(crate) fn write_base_env(env: &[String]) -> io::Result<()> {
-    std::fs::create_dir_all(dir::runtime_dir())?;
-    let path = dir::base_env_path();
-    let temp = path.with_extension("tmp");
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&temp)?;
-    file.write_all(&serde_json::to_vec(env)?)?;
-    std::fs::rename(temp, path)
-}
-
-/// The window's environment, else this process's own (the user manager's, for the phone
-/// server), without what systemd set for this process alone.
-pub(crate) fn base_env() -> Vec<String> {
-    let saved = std::fs::read(dir::base_env_path())
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
-    saved.unwrap_or_else(|| {
-        std::env::vars()
-            .filter(|(k, _)| !k.starts_with("LISTEN_") && k != "NOTIFY_SOCKET")
-            .map(|(k, v)| format!("{k}={v}"))
-            .collect()
-    })
 }

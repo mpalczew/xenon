@@ -113,7 +113,7 @@ impl App {
 
     /// Ask first, saying how many terminals are running across all builds.
     pub(crate) fn quit_end_terminals(self: &Rc<Self>) {
-        let count = self.svc.list().len();
+        let count = self.holders.list().len();
         if count == 0 {
             self.end_terminals_now();
             return;

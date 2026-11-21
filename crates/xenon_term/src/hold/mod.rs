@@ -27,13 +27,14 @@ use std::thread;
 use xenon_core::TermId;
 
 pub(crate) use emu::Emu;
+
 use term::Holder;
 
 use crate::start::{Spec, take_spec};
 use crate::{Size, dir};
 
 /// Size of a terminal nobody has claimed yet.
-const FIRST_SIZE: Size = Size { cols: 80, rows: 24 };
+pub(crate) const FIRST_SIZE: Size = Size { cols: 80, rows: 24 };
 
 static SOCKET: OnceLock<CString> = OnceLock::new();
 

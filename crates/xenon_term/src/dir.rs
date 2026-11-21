@@ -3,7 +3,6 @@
 //! ```text
 //! <runtime>/term/<TermId>.sock   a ready holder (renamed into place once its child runs)
 //! <runtime>/term/<TermId>.spec   spawn request, mode 0600; the holder reads and deletes it
-//! <runtime>/base-env             the window's environment for phone-made terminals
 //! <runtime>/phone.sock           the phone server's control socket
 //! ```
 //!
@@ -16,7 +15,7 @@ use std::thread;
 use inotify::{Inotify, WatchMask};
 use xenon_core::TermId;
 
-pub fn runtime_dir() -> PathBuf {
+pub(crate) fn runtime_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("XENON_RUNTIME_DIR") {
         return PathBuf::from(dir);
     }
@@ -39,10 +38,6 @@ pub(crate) fn sock_path(id: TermId) -> PathBuf {
 
 pub(crate) fn spec_path(id: TermId) -> PathBuf {
     term_dir().join(format!("{id}.spec"))
-}
-
-pub(crate) fn base_env_path() -> PathBuf {
-    runtime_dir().join("base-env")
 }
 
 /// Every terminal with a socket in the directory.

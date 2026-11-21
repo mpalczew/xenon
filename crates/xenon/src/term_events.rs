@@ -13,27 +13,19 @@ use crate::app::App;
 use crate::model::Tab;
 
 impl App {
-    /// Remember what the holders hold: ids, workspaces and process ids.
-    pub(crate) fn learn_terms(&self) {
-        let list = self.svc.list();
-        let mut known = self.known.borrow_mut();
-        known.clear();
-        known.extend(list.iter().map(|t| (t.id, (t.workspace, t.pid))));
-    }
-
     /// Drain the holders' events on the main loop.
-    pub(crate) fn listen_service(self: &Rc<Self>) {
-        let rx = self.svc.events();
+    pub(crate) fn listen_holders(self: &Rc<Self>) {
+        let rx = self.holders.events();
         let weak = Rc::downgrade(self);
         glib::spawn_future_local(async move {
             while let Ok(event) = rx.recv().await {
                 let Some(app) = weak.upgrade() else { break };
-                app.service_event(event);
+                app.holder_event(event);
             }
         });
     }
 
-    fn service_event(self: &Rc<Self>, event: Event) {
+    fn holder_event(self: &Rc<Self>, event: Event) {
         match event {
             Event::Output { id, bytes } => {
                 if let Some(view) = self.view_of(id) {
@@ -47,15 +39,13 @@ impl App {
                 }
             }
             Event::Ready { id, info } => {
-                self.known
-                    .borrow_mut()
-                    .insert(id, (info.workspace, info.pid));
-                self.refresh_pids();
+                if let Some(view) = self.view_of(id) {
+                    view.pid.set(Some(info.pid).filter(|p| *p > 0));
+                }
                 self.adopt_orphans(info.workspace);
                 self.refresh_builds();
             }
             Event::Closed { id } => {
-                self.known.borrow_mut().remove(&id);
                 let tab = self.model.borrow().tab_of_term(id);
                 if let Some((ws, tab)) = tab {
                     self.close_tab_ui(ws, tab);
@@ -63,7 +53,6 @@ impl App {
                 self.refresh_builds();
             }
             Event::Failed { id, error } => {
-                self.known.borrow_mut().remove(&id);
                 self.toast(&format!(
                     "Couldn\u{2019}t start a terminal \u{2014} {error}"
                 ));
@@ -73,14 +62,6 @@ impl App {
                 }
             }
             Event::Builds => self.refresh_builds(),
-        }
-    }
-
-    fn refresh_pids(&self) {
-        let known = self.known.borrow();
-        for view in self.terms.borrow().values() {
-            let pid = known.get(&view.id).map(|(_, pid)| *pid);
-            view.pid.set(pid.filter(|p| *p > 0));
         }
     }
 
@@ -109,7 +90,7 @@ impl App {
     pub(crate) fn dismiss_viewed(&self) -> bool {
         let seen = self.model.borrow_mut().dismiss_viewed();
         if let Some(id) = seen {
-            self.svc.seen(id);
+            self.holders.seen(id);
         }
         seen.is_some()
     }
@@ -118,11 +99,11 @@ impl App {
     /// unselected tab. It covers terminals the phone made and ones a crashed window left.
     pub(crate) fn adopt_orphans(self: &Rc<Self>, ws: WorkspaceId) {
         let orphans: Vec<TermId> = self
-            .known
-            .borrow()
-            .iter()
-            .filter(|(_, (w, _))| *w == ws)
-            .map(|(id, _)| *id)
+            .holders
+            .list()
+            .into_iter()
+            .filter(|t| t.workspace == ws)
+            .map(|t| t.id)
             .collect();
         let mut changed = false;
         for id in orphans {
@@ -146,9 +127,9 @@ impl App {
         tab: &Tab,
         cwd: &Path,
     ) -> Option<gtk::Widget> {
-        let live = tab.term.filter(|id| self.known.borrow().contains_key(id));
-        let id = match live {
-            Some(id) => id,
+        let live = tab.term.and_then(|id| self.holders.info(id));
+        let id = match &live {
+            Some(info) => info.id,
             None => {
                 let spawn = self
                     .tasks
@@ -156,27 +137,23 @@ impl App {
                     .unwrap_or_else(|| Spawn::shell(cwd));
                 // The id is ours at once; the holder starts off the main thread and
                 // `Event::Ready` follows. Attach and typing wait for it.
-                self.svc.open(ws, spawn)
+                self.holders.open(ws, spawn)
             }
         };
-        if let Some(body) = self.foreign_body(ws, tab, id) {
+        if let Some(body) = live
+            .as_ref()
+            .and_then(|info| self.foreign_body(ws, tab, info))
+        {
             return Some(body);
         }
         if live.is_none() {
-            self.known.borrow_mut().insert(id, (ws, 0));
             if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab.id) {
                 t.term = Some(id);
             }
             self.save_session(ws);
         }
         let view = crate::term::TermView::new(self, ws, tab.id, id, cwd);
-        view.pid.set(
-            self.known
-                .borrow()
-                .get(&id)
-                .map(|(_, pid)| *pid)
-                .filter(|p| *p > 0),
-        );
+        view.pid.set(live.map(|info| info.pid).filter(|p| *p > 0));
         self.restyle_term(&view);
         let root = view.root.clone().upcast();
         self.terms.borrow_mut().insert((ws, tab.id), view);
@@ -190,8 +167,7 @@ impl App {
             None => self.foreign.borrow_mut().remove(&key),
         };
         if let Some(id) = id {
-            self.known.borrow_mut().remove(&id);
-            self.svc.close(id);
+            self.holders.close(id);
         }
     }
 }

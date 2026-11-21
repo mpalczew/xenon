@@ -1,6 +1,6 @@
 //! `phone.sock`: the window's calls. systemd's `xenon-phone.socket` owns it and hands it
-//! over as descriptor 3, so the first call starts the server; run by hand, the server
-//! binds the path itself.
+//! over, so the first call starts the server; run by hand, the server binds the path
+//! itself.
 
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::fd::FromRawFd;
@@ -12,11 +12,7 @@ use std::thread;
 use crate::api::{PhoneCall, PhoneReply};
 use crate::{Phone, locked};
 
-pub(crate) fn serve(phone: &Arc<Phone>) -> io::Result<()> {
-    let listener = match activated() {
-        Some(listener) => listener,
-        None => bind()?,
-    };
+pub(crate) fn serve(phone: &Arc<Phone>, listener: &UnixListener) -> io::Result<()> {
     for stream in listener.incoming() {
         let stream = stream?;
         let phone = Arc::clone(phone);
@@ -27,15 +23,14 @@ pub(crate) fn serve(phone: &Arc<Phone>) -> io::Result<()> {
     Ok(())
 }
 
-/// The socket systemd handed us, if it did (`LISTEN_PID` names this process).
-fn activated() -> Option<UnixListener> {
-    let var = |name: &str| std::env::var(name).ok()?.parse::<u32>().ok();
-    if var("LISTEN_PID")? != std::process::id() || var("LISTEN_FDS")? < 1 {
-        return None;
+/// The socket systemd handed over, or, run by hand, one bound here.
+pub(crate) fn listener() -> io::Result<UnixListener> {
+    match sd_notify::listen_fds()?.next() {
+        // SAFETY: systemd passed this listening socket, and nothing else in this process
+        // has taken it.
+        Some(fd) => Ok(unsafe { UnixListener::from_raw_fd(fd) }),
+        None => bind(),
     }
-    // SAFETY: systemd passes the listening socket as descriptor 3 (SD_LISTEN_FDS_START)
-    // and nothing else in this process has taken it.
-    Some(unsafe { UnixListener::from_raw_fd(3) })
 }
 
 fn bind() -> io::Result<UnixListener> {

@@ -63,11 +63,19 @@ pub fn device_rows(devices: &[RemoteDevice], connected: impl Fn(&str) -> bool) -
         .collect()
 }
 
-pub fn effective_port(saved: u16, default: u16) -> u16 {
+/// The phone remote's port: `XENON_REMOTE_PORT`, else `services.json`.
+pub fn effective_port() -> u16 {
+    let saved = xenon_store::load_service_settings()
+        .unwrap_or_default()
+        .remote_port;
     std::env::var("XENON_REMOTE_PORT")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(if saved == 0 { default } else { saved })
+        .unwrap_or(if saved == 0 {
+            xenon_store::DEFAULT_REMOTE_PORT
+        } else {
+            saved
+        })
 }
 
 pub fn theme_wire([bg, fg, cursor]: [[u8; 3]; 3]) -> ThemeWire {

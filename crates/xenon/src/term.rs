@@ -85,7 +85,7 @@ impl TermView {
         font.set_family(family);
         font.set_absolute_size(f64::from(size_px) * f64::from(gtk::pango::SCALE));
         self.term.set_font_desc(Some(&font));
-        let (fg, bg, ansi) = crate::theme::terminal(dark);
+        let (fg, bg, ansi) = xenon_core::terminal_palette(dark);
         let ansi: Vec<gdk::RGBA> = ansi.iter().map(|c| parse(c)).collect();
         let refs: Vec<&gdk::RGBA> = ansi.iter().collect();
         self.term
@@ -107,19 +107,19 @@ impl TermView {
 
     /// The first time the view is on screen: become the terminal's window. The service
     /// answers with the replay, then live output.
-    pub(crate) fn attach(&self, svc: &Terminals) {
+    pub(crate) fn attach(&self, holders: &Terminals) {
         if self.attached.replace(true) {
             return;
         }
         if let Some(size) = self.grid() {
             self.claimed
                 .set(Some((i64::from(size.cols()), i64::from(size.rows()))));
-            svc.attach(self.id, size);
+            holders.attach(self.id, size);
         }
     }
 
     /// The grid changed size on its own: tell the service, unless a phone holds it.
-    pub(crate) fn report_size(&self, svc: &Terminals) {
+    pub(crate) fn report_size(&self, holders: &Terminals) {
         if !self.attached.get() || self.pinned.get() {
             return;
         }
@@ -129,7 +129,7 @@ impl TermView {
         }
         if let Some(size) = self.grid() {
             self.claimed.set(Some(now));
-            svc.claim(self.id, size);
+            holders.claim(self.id, size);
         }
     }
 
@@ -165,24 +165,16 @@ impl TermView {
     }
 }
 
-/// The environment every terminal the service starts gets: this window's, minus what
-/// shells should not inherit.
+/// The environment every terminal the window opens starts from: its own, minus the
+/// renderer it picked for itself. The holder sets `TERM`, `COLORTERM` and
+/// `XENON_WORKSPACE`.
 pub(crate) fn child_env() -> Vec<String> {
-    const DROP: [&str; 4] = [
-        "TERM",
-        "COLORTERM",
-        "XENON_GTK_GSK_DEFAULTED",
-        "XENON_WORKSPACE",
-    ];
     let defaulted_renderer = std::env::var_os("XENON_GTK_GSK_DEFAULTED").is_some();
-    let mut env: Vec<String> = std::env::vars()
-        .filter(|(k, _)| !DROP.contains(&k.as_str()))
+    std::env::vars()
+        .filter(|(k, _)| k != "XENON_GTK_GSK_DEFAULTED")
         .filter(|(k, _)| !(defaulted_renderer && k == "GSK_RENDERER"))
         .map(|(k, v)| format!("{k}={v}"))
-        .collect();
-    env.push("TERM=xterm-256color".into());
-    env.push("COLORTERM=truecolor".into());
-    env
+        .collect()
 }
 
 /// Bytes a key sends that VTE would send differently. Shift+Enter is a line
@@ -203,7 +195,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>) {
             let view = view.clone();
             defer(&weak, move |app| {
                 if let Some(view) = view.upgrade() {
-                    view.report_size(&app.svc);
+                    view.report_size(&app.holders);
                 }
             });
         });
@@ -214,7 +206,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>) {
             let view = view.clone();
             defer(&weak, move |app| {
                 if let Some(view) = view.upgrade() {
-                    view.attach(&app.svc);
+                    view.attach(&app.holders);
                 }
             });
         });
@@ -227,7 +219,7 @@ fn connect_signals(app: &Rc<App>, view: &Rc<TermView>) {
                 return;
             };
             if !view.is_replay_focus_report(text) {
-                app.svc.input(view.id, text.as_bytes());
+                app.holders.input(view.id, text.as_bytes());
             }
         });
     }

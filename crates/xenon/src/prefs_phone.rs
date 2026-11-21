@@ -57,7 +57,7 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
         .title("Port")
         .subtitle("Stays the same across restarts, so paired phones keep working")
         .build();
-    port.add_suffix(&dim(&crate::remote::effective_port().to_string()));
+    port.add_suffix(&dim(&xenon_remote::effective_port().to_string()));
     let pair = adw::ActionRow::builder()
         .title("Pair a phone")
         .subtitle("Shows a QR code to scan")

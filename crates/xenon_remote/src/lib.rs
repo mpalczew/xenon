@@ -1,7 +1,6 @@
 mod auth;
 mod device_flow;
 mod devices;
-mod fit;
 mod frame;
 mod host;
 mod http;
@@ -19,7 +18,6 @@ mod uploads;
 mod ws;
 
 pub use devices::DeviceBook;
-pub use fit::{FitGate, clamp_fit, smallest_fit};
 pub use frame::{Cell, FrameEncoder, Rgb, Screen, Style, WIDE_SPACER};
 pub use host::{ConnId, HostRequest, Outbox, PairError};
 pub use keys::pty_text_bytes;

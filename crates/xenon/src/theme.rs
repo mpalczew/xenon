@@ -27,5 +27,3 @@ pub(crate) fn scheme(dark: bool) -> Option<sourceview::StyleScheme> {
 pub(crate) fn dark() -> bool {
     adw::StyleManager::default().is_dark()
 }
-
-pub(crate) use xenon_core::terminal_palette as terminal;

@@ -46,13 +46,6 @@ pub(super) fn spawn_threads(phone: &Arc<Phone>, rx: async_channel::Receiver<Host
     }
 }
 
-pub(crate) fn effective_port() -> u16 {
-    let saved = xenon_store::load_service_settings()
-        .unwrap_or_default()
-        .remote_port;
-    xenon_remote::effective_port(saved, xenon_store::DEFAULT_REMOTE_PORT)
-}
-
 fn host_name() -> String {
     std::fs::read_to_string("/proc/sys/kernel/hostname")
         .map(|s| s.trim().to_string())
@@ -65,7 +58,11 @@ impl Phone {
             return;
         }
         let reach = Reachability::probe_local();
-        let started = RemoteServer::start(&reach.bind_ips(), effective_port(), self.tx.clone());
+        let started = RemoteServer::start(
+            &reach.bind_ips(),
+            xenon_remote::effective_port(),
+            self.tx.clone(),
+        );
         let server = match started {
             Ok(server) => server,
             Err(StartError::PortBusy) => {

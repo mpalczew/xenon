@@ -134,12 +134,7 @@ impl Phone {
         if !self.terms.wait_ready(id, std::time::Duration::from_secs(5)) {
             return Err("could not open a terminal".into());
         }
-        let info = self
-            .terms
-            .list()
-            .into_iter()
-            .find(|t| t.id == id)
-            .ok_or("could not open a terminal")?;
+        let info = self.terms.info(id).ok_or("could not open a terminal")?;
         Ok(self.terminal_info(&info))
     }
 

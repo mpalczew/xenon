@@ -47,7 +47,7 @@ impl Builds {
 impl App {
     /// Terminals whose holder runs a binary other than the installed one.
     fn older_terms(&self) -> Vec<TermInfo> {
-        self.svc
+        self.holders
             .list()
             .into_iter()
             .filter(|t| t.build.older)
@@ -60,7 +60,7 @@ impl App {
         if older.is_empty() {
             return HashMap::new();
         }
-        let installed = self.svc.installed_build();
+        let installed = xenon_term::installed_build();
         older
             .into_iter()
             .map(|t| {
@@ -137,12 +137,12 @@ impl App {
         self: &Rc<Self>,
         ws: WorkspaceId,
         tab: &Tab,
-        id: TermId,
+        listed: &TermInfo,
     ) -> Option<gtk::Widget> {
-        let listed = self.svc.list().into_iter().find(|t| t.id == id)?;
         if listed.build.speaks {
             return None;
         }
+        let id = listed.id;
         if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab.id) {
             t.term = Some(id);
         }

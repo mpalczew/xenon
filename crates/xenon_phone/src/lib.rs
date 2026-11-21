@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
 use xenon_core::TermId;
 use xenon_remote::{ConnId, DeviceBook, HostRequest, Reachability, RemoteServer};
-use xenon_term::{Event, Exit, Role, Terminals};
+use xenon_term::{Event, Exit, Terminals};
 
 pub use api::Pairing;
 pub use link::PhoneLink;
@@ -70,9 +70,12 @@ pub(crate) fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 
 /// Run the phone server until the process is killed.
 pub fn run() -> io::Result<()> {
-    let terms = Terminals::start(Role::Phone);
+    // First, while this is the only thread: taking systemd's socket clears its variables.
+    let listener = control::listener()?;
+    let env = std::env::vars().map(|(k, v)| format!("{k}={v}")).collect();
+    let terms = Terminals::start(env);
     let phone = Phone::start(&terms);
-    control::serve(&phone)
+    control::serve(&phone, &listener)
 }
 
 impl Phone {

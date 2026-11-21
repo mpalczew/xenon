@@ -43,8 +43,6 @@ impl Phone {
 
     /// The live pairing code, once the server runs.
     pub(crate) fn pairing(&self) -> Result<Pairing, String> {
-        // The window turns the phone remote on in `services.json` before it asks.
-        self.apply_settings();
         let hostname = xenon_remote::normalize_hostname(
             &xenon_store::load_service_settings()
                 .unwrap_or_default()

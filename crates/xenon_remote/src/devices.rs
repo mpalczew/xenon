@@ -13,10 +13,6 @@ impl DeviceBook {
             log::warn!("remote devices unreadable: {e}");
             RemoteDevices::default()
         });
-        Self::from_devices(devices)
-    }
-
-    pub fn from_devices(devices: RemoteDevices) -> Self {
         Self {
             devices,
             pairing: None,

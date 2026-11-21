@@ -53,7 +53,7 @@ static LABEL: Mutex<Option<(Ident, String)>> = Mutex::new(None);
 
 /// The label of the installed build, which new terminals use. Cached until the binary
 /// is replaced.
-pub(crate) fn installed_label() -> String {
+pub fn installed_build() -> String {
     let now = ident(installed_binary());
     let mut cache = LABEL.lock().unwrap_or_else(|e| e.into_inner());
     if let (Some(now), Some((seen, label))) = (now, cache.as_ref())

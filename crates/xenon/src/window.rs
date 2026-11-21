@@ -219,8 +219,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))
         .build();
-    let svc = xenon_term::Terminals::start(xenon_term::Role::Desk);
-    svc.set_base_env(crate::term::child_env());
+    let holders = xenon_term::Terminals::start(crate::term::child_env());
     let app = Rc::new_cyclic(|weak| App {
         gtk: gtk_app.clone(),
         win: win.clone(),
@@ -252,8 +251,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         save_pending: Cell::new(false),
         save_button: save_button(),
         remote: crate::remote::Remote::new(),
-        svc,
-        known: RefCell::default(),
+        holders,
         foreign: RefCell::default(),
         builds: crate::builds_ui::Builds::new(),
         tasks: crate::tasks::Tasks::default(),
@@ -298,8 +296,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     connect_window(&app, &win);
     app.sidebar.set_hints(&app);
     app.sidebar.rebuild(&app.model.borrow());
-    app.learn_terms();
-    app.listen_service();
+    app.listen_holders();
     app.refresh_builds();
     start_workspace(&app);
     app.remote_boot();

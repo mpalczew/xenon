@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use xenon_core::TermId;
 
-use crate::hold::Emu;
+use crate::hold::{Emu, FIRST_SIZE};
 use crate::proto::v1::{FromHolder, ToHolder};
 use crate::proto::{self, Control, Frame};
 use crate::{Size, Terminals, dir};
@@ -70,9 +70,8 @@ impl Terminals {
         let scrollback = xenon_store::load_service_settings()
             .unwrap_or_default()
             .terminal_scrollback_lines;
-        let first = Size::new(80, 24).ok_or(Gone)?;
         let inner = Arc::new(Inner {
-            emu: Mutex::new(Emu::new(first, scrollback)),
+            emu: Mutex::new(Emu::new(FIRST_SIZE, scrollback)),
             scroll: AtomicUsize::new(0),
             flags: Mutex::default(),
             wake: Condvar::new(),

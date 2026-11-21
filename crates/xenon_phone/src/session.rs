@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use xenon_core::{TermId, WorkspaceId};
 use xenon_remote::{
-    AppearanceWire, ClientMsg, ClosedReason, ConnId, Outbox, ServerMsg, clamp_fit,
-    device_short_name, parse_workspace_id, pty_text_bytes,
+    AppearanceWire, ClientMsg, ClosedReason, ConnId, Outbox, ServerMsg, device_short_name,
+    parse_workspace_id, pty_text_bytes,
 };
 use xenon_term::{Look, Mirror, Size};
 
@@ -133,8 +133,8 @@ impl Phone {
             ClientMsg::Wheel { rows } => mirror.scroll(rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT)),
             ClientMsg::Bottom => mirror.bottom(),
             ClientMsg::Click { col, row } => click(&mirror, col, row),
+            // The holder keeps a phone's size within reason.
             ClientMsg::Fit { cols, rows } => {
-                let (cols, rows) = clamp_fit(cols, rows);
                 if let Some(size) = Size::new(cols, rows) {
                     mirror.fit(size);
                     self.changed();

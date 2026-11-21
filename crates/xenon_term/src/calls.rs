@@ -3,7 +3,7 @@
 use xenon_core::TermId;
 
 use crate::proto::v1::ToHolder;
-use crate::{Size, Terminals, builds};
+use crate::{Size, Terminals};
 
 impl Terminals {
     /// Become this terminal's window at `size`. A replay arrives first as
@@ -49,10 +49,5 @@ impl Terminals {
         if let Some(link) = self.shared.link(id) {
             link.tell(&ToHolder::Seen);
         }
-    }
-
-    /// The label of the build new terminals start on.
-    pub fn installed_build(&self) -> String {
-        builds::installed_label()
     }
 }

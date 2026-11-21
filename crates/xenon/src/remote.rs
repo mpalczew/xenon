@@ -36,13 +36,6 @@ impl Remote {
     }
 }
 
-pub(crate) fn effective_port() -> u16 {
-    let saved = xenon_store::load_service_settings()
-        .unwrap_or_default()
-        .remote_port;
-    xenon_remote::effective_port(saved, xenon_store::DEFAULT_REMOTE_PORT)
-}
-
 impl App {
     pub(crate) fn remote_boot(self: &Rc<Self>) {
         self.remote_publish();
@@ -58,16 +51,12 @@ impl App {
 
     /// Turn the phone server on or off: the choice is written to `services.json`, which
     /// the phone server reads.
-    pub(crate) fn remote_set(self: &Rc<Self>, on: bool) {
-        if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = on) {
+    pub(crate) fn remote_toggle(self: &Rc<Self>) {
+        let want = !(self.remote.running() || self.remote.waiting());
+        if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = want) {
             self.toast(&format!("Phone remote didn\u{2019}t change: {error}"));
         }
         self.remote_publish();
-    }
-
-    pub(crate) fn remote_toggle(self: &Rc<Self>) {
-        let want = !(self.remote.running() || self.remote.waiting());
-        self.remote_set(want);
         let text = match (self.remote.running(), self.remote.waiting()) {
             (true, _) => "Phone remote on",
             (false, true) => {

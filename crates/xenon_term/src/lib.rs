@@ -21,13 +21,13 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-pub use dir::{phone_socket_path, runtime_dir, watch_dir};
+pub use builds::installed_build;
+pub use dir::{phone_socket_path, watch_dir};
 pub use end::end_all;
 pub use hold::run_holder;
 pub use look::Look;
 pub use mirror::{Gone, Mirror, Modes};
-pub use start::installed_binary;
-pub use terminals::{Event, Role, Terminals};
+pub use terminals::{Event, Terminals};
 pub use xenon_core::{TermId, WorkspaceId};
 
 use xenon_core::AttentionReason;
@@ -88,7 +88,7 @@ impl Exit {
 }
 
 /// What to run. Empty `argv` runs the user's shell. `env` (as `KEY=VALUE`) is added to
-/// the base environment the window left for new terminals.
+/// the base environment `Terminals::start` was given.
 #[derive(Clone, Debug, Default)]
 pub struct Spawn {
     pub cwd: PathBuf,
