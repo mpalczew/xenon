@@ -23,13 +23,8 @@ pub struct RemoteDevices {
 }
 
 const FILE: &str = "remote_devices.json";
-/// State the phone server keeps: `XENON_SHARED_DIR`, else the data dir.
-pub(crate) fn shared_dir() -> PathBuf {
-    std::env::var_os("XENON_SHARED_DIR").map_or_else(data_dir, PathBuf::from)
-}
-
 fn devices_path() -> PathBuf {
-    shared_dir().join(FILE)
+    data_dir().join(FILE)
 }
 
 pub fn load_remote_devices() -> Result<RemoteDevices, StoreError> {
