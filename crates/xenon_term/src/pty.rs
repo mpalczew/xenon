@@ -136,10 +136,15 @@ pub(crate) fn pollfd(file: &impl AsRawFd, events: i16) -> libc::pollfd {
     }
 }
 
-/// The master is non-blocking: wait for room when the child isn't reading.
+/// The master is non-blocking: wait for room when the child isn't reading, but give up
+/// after a few seconds so a child that never reads cannot stall the writer.
 pub(crate) fn write_all(master: &File, mut bytes: &[u8]) -> io::Result<()> {
     let mut out = master;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
     while !bytes.is_empty() {
+        if std::time::Instant::now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
         match out.write(bytes) {
             Ok(n) => bytes = &bytes[n..],
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {

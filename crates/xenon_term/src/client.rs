@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::os::unix::net::UnixStream;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -52,6 +52,7 @@ pub struct Client {
     out: Mutex<UnixStream>,
     next: AtomicU64,
     pending: Pending,
+    lost: Arc<AtomicBool>,
     events: async_channel::Receiver<Event>,
 }
 
@@ -70,17 +71,23 @@ impl Client {
         let pending: Pending = Arc::default();
         let (events_tx, events) = async_channel::unbounded();
         let table = Arc::clone(&pending);
+        let lost = Arc::new(AtomicBool::new(false));
+        let gone = Arc::clone(&lost);
         thread::spawn(move || {
             while let Ok(msg) = wire::read_message(&mut input) {
                 route(&table, &events_tx, msg);
             }
             let _ = events_tx.send_blocking(Event::Lost);
-            table.lock().unwrap_or_else(|e| e.into_inner()).clear();
+            // Under the table's lock, so a call either sees `lost` or is cleared here.
+            let mut table = table.lock().unwrap_or_else(|e| e.into_inner());
+            gone.store(true, Ordering::SeqCst);
+            table.clear();
         });
         let client = Self {
             out: Mutex::new(stream),
             next: AtomicU64::new(1),
             pending,
+            lost,
             events,
         };
         client.ok(Request::Hello {
@@ -137,10 +144,13 @@ impl Client {
     pub(crate) fn call(&self, req: Request) -> Result<Message> {
         let seq = self.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel();
-        self.pending
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .insert(seq, tx);
+        {
+            let mut table = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+            if self.lost.load(Ordering::SeqCst) {
+                bail!("terminal service gone");
+            }
+            table.insert(seq, tx);
+        }
         self.send(seq, &req);
         rx.recv().map_err(|_| anyhow!("terminal service gone"))
     }

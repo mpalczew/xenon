@@ -47,10 +47,12 @@ fi
 # restart the service here: that would end every running terminal.
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$unit_dir"
-for unit in xenon-term.socket xenon-term.service; do
-    install -m 644 "$root/scripts/release/$unit" "$unit_dir/$unit"
-    echo "installed $unit_dir/$unit"
-done
+install -m 644 "$root/scripts/release/xenon-term.socket" "$unit_dir/xenon-term.socket"
+echo "installed $unit_dir/xenon-term.socket"
+# The unit names the binary's real path, which XENON_APP_DIR may move.
+sed "s|^ExecStart=.*|ExecStart=$app_dir/xenon-term|" "$root/scripts/release/xenon-term.service" \
+    >"$unit_dir/xenon-term.service"
+echo "installed $unit_dir/xenon-term.service"
 systemctl --user daemon-reload
 systemctl --user enable --now xenon-term.socket
 echo "enabled xenon-term.socket"

@@ -140,8 +140,11 @@ impl Terms {
         let Some(term) = locked(&self.terms).remove(&id) else {
             return;
         };
-        term.mark_closed();
-        pty::hangup(term.pid);
+        // An exited child is reaped, and its pid may belong to someone else by now.
+        if term.info().status.exit.is_none() {
+            term.mark_closed();
+            pty::hangup(term.pid);
+        }
         self.hub.emit(&[Note::Closed { id }]);
     }
 
