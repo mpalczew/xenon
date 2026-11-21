@@ -11,7 +11,7 @@ use xenon_core::{TermId, WorkspaceId};
 
 use crate::proto::v1::{FromHolder, ToHolder};
 use crate::proto::{self, Connected, Control, Frame};
-use crate::terminals::Shared;
+use crate::terminals::{Early, Shared};
 use crate::{Build, Event, TermInfo, TermStatus, builds, dir};
 
 pub(crate) struct HolderLink {
@@ -100,12 +100,12 @@ pub(crate) fn adopt(shared: &Arc<Shared>, id: TermId) -> io::Result<()> {
         out: Mutex::new(stream),
         status: Mutex::new(first.unwrap_or_default()),
     });
-    shared.insert(Arc::clone(&link));
+    let early = shared.insert(Arc::clone(&link));
     shared.emit(Event::Ready {
         id,
         info: link.info(),
     });
-    replay_early(shared, &link);
+    replay_early(early, &link);
     let reader = Arc::clone(shared);
     thread::Builder::new()
         .name("xenon-holder-link".into())
@@ -148,12 +148,7 @@ fn first_status(input: &mut UnixStream) -> Option<TermStatus> {
 }
 
 /// Apply what the window did before the holder was there to hear it.
-fn replay_early(shared: &Shared, link: &HolderLink) {
-    let early = shared
-        .early
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .remove(&link.id);
+fn replay_early(early: Option<Early>, link: &HolderLink) {
     let Some(early) = early.filter(|_| link.speaks) else {
         return;
     };

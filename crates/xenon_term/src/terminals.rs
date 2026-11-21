@@ -90,8 +90,31 @@ impl Shared {
         locked(&self.holders).get(&id).cloned()
     }
 
-    pub(crate) fn insert(&self, link: Arc<HolderLink>) {
+    /// Add a connected holder and take what the window did to it before. Under the same
+    /// lock that `early` callers hold while they look for the link, so nothing is lost
+    /// between "no link yet" and "remember it".
+    pub(crate) fn insert(&self, link: Arc<HolderLink>) -> Option<Early> {
+        let mut early = locked(&self.early);
+        let taken = early.remove(&link.id);
         locked(&self.holders).insert(link.id, link);
+        taken
+    }
+
+    /// Send to the holder when it is connected, else remember it for when it is.
+    pub(crate) fn to_link_or_early(
+        &self,
+        id: TermId,
+        send: impl FnOnce(&HolderLink),
+        remember: impl FnOnce(&mut Early),
+    ) {
+        let mut early = locked(&self.early);
+        match self.link(id) {
+            Some(link) => {
+                drop(early);
+                send(&link);
+            }
+            None => remember(early.entry(id).or_default()),
+        }
     }
 
     /// The connection ended: the terminal is gone.
@@ -192,6 +215,7 @@ impl Terminals {
             };
             let result = start::launch(id, &spec).and_then(|()| shared.adopt(id));
             if let Err(error) = result {
+                locked(&shared.early).remove(&id);
                 shared.emit(Event::Failed {
                     id,
                     error: error.to_string(),
