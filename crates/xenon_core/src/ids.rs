@@ -20,6 +20,14 @@ macro_rules! id_type {
             }
         }
 
+        impl std::str::FromStr for $name {
+            type Err = uuid::Error;
+
+            fn from_str(text: &str) -> Result<Self, Self::Err> {
+                text.parse().map(Self)
+            }
+        }
+
         impl Default for $name {
             fn default() -> Self {
                 Self::new()

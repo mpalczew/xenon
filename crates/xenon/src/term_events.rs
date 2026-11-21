@@ -1,5 +1,5 @@
-//! The terminal service's side of the window: what its events change here, and how
-//! tabs find, create, adopt and end their service terminals.
+//! The holders' side of the window: what their events change here, and how tabs find,
+//! create, adopt and end their terminals.
 
 use std::path::Path;
 use std::rc::Rc;
@@ -13,19 +13,15 @@ use crate::app::App;
 use crate::model::Tab;
 
 impl App {
-    /// Remember what the service holds: ids, workspaces and process ids.
+    /// Remember what the holders hold: ids, workspaces and process ids.
     pub(crate) fn learn_terms(&self) {
-        match self.svc.list() {
-            Ok(list) => {
-                let mut known = self.known.borrow_mut();
-                known.clear();
-                known.extend(list.iter().map(|t| (t.id, (t.workspace, t.pid))));
-            }
-            Err(error) => eprintln!("[xg] terminal list: {error:#}"),
-        }
+        let list = self.svc.list();
+        let mut known = self.known.borrow_mut();
+        known.clear();
+        known.extend(list.iter().map(|t| (t.id, (t.workspace, t.pid))));
     }
 
-    /// Drain the service's events on the main loop.
+    /// Drain the holders' events on the main loop.
     pub(crate) fn listen_service(self: &Rc<Self>) {
         let rx = self.svc.events();
         let weak = Rc::downgrade(self);
@@ -50,11 +46,13 @@ impl App {
                     view.follow(size);
                 }
             }
-            Event::Created { id, workspace } => {
-                self.learn_terms();
-                self.known.borrow_mut().entry(id).or_insert((workspace, 0));
+            Event::Ready { id, info } => {
+                self.known
+                    .borrow_mut()
+                    .insert(id, (info.workspace, info.pid));
                 self.refresh_pids();
-                self.adopt_orphans(workspace);
+                self.adopt_orphans(info.workspace);
+                self.refresh_builds();
             }
             Event::Closed { id } => {
                 self.known.borrow_mut().remove(&id);
@@ -62,9 +60,19 @@ impl App {
                 if let Some((ws, tab)) = tab {
                     self.close_tab_ui(ws, tab);
                 }
+                self.refresh_builds();
             }
-            Event::Phone => self.remote_publish(),
-            Event::Lost => self.toast("Lost the terminal service. Quit and start Xenon again."),
+            Event::Failed { id, error } => {
+                self.known.borrow_mut().remove(&id);
+                self.toast(&format!(
+                    "Couldn\u{2019}t start a terminal \u{2014} {error}"
+                ));
+                let tab = self.model.borrow().tab_of_term(id);
+                if let Some((ws, tab)) = tab {
+                    self.close_tab_ui(ws, tab);
+                }
+            }
+            Event::Builds => self.refresh_builds(),
         }
     }
 
@@ -146,17 +154,14 @@ impl App {
                     .tasks
                     .take_spawn(ws, tab.id)
                     .unwrap_or_else(|| Spawn::shell(cwd));
-                match self.svc.create(ws, spawn) {
-                    Ok(id) => id,
-                    Err(error) => {
-                        self.toast(&format!(
-                            "Couldn\u{2019}t start a terminal \u{2014} {error}"
-                        ));
-                        return None;
-                    }
-                }
+                // The id is ours at once; the holder starts off the main thread and
+                // `Event::Ready` follows. Attach and typing wait for it.
+                self.svc.open(ws, spawn)
             }
         };
+        if let Some(body) = self.foreign_body(ws, tab, id) {
+            return Some(body);
+        }
         if live.is_none() {
             self.known.borrow_mut().insert(id, (ws, 0));
             if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab.id) {
@@ -180,9 +185,13 @@ impl App {
 
     /// The tab is gone: hang up its terminal.
     pub(crate) fn end_term(&self, key: (WorkspaceId, TabId)) {
-        if let Some(view) = self.terms.borrow_mut().remove(&key) {
-            self.known.borrow_mut().remove(&view.id);
-            self.svc.close(view.id);
+        let id = match self.terms.borrow_mut().remove(&key) {
+            Some(view) => Some(view.id),
+            None => self.foreign.borrow_mut().remove(&key),
+        };
+        if let Some(id) = id {
+            self.known.borrow_mut().remove(&id);
+            self.svc.close(id);
         }
     }
 }

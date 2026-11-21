@@ -66,6 +66,14 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
     connect.add_css_class("suggested-action");
     connect.set_valign(gtk::Align::Center);
     pair.add_suffix(&connect);
+    let restart = adw::ActionRow::builder()
+        .title("Phone server")
+        .subtitle("Phones reconnect by themselves after a restart")
+        .build();
+    let restart_button = gtk::Button::with_label("Restart Phone Server");
+    restart_button.set_valign(gtk::Align::Center);
+    restart_button.connect_clicked(restart_server);
+    restart.add_suffix(&restart_button);
     for row in [
         on.upcast_ref::<gtk::Widget>(),
         network.upcast_ref(),
@@ -73,6 +81,7 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
         hostname.upcast_ref(),
         port.upcast_ref(),
         pair.upcast_ref(),
+        restart.upcast_ref(),
     ] {
         group.add(row);
     }
@@ -116,9 +125,9 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
                 return;
             }
             gtk::glib::idle_add_local_once(move || {
-                if let Err(error) =
-                    xenon_store::update_settings(|s| s.remote_keep_awake_while_connected = want)
-                {
+                if let Err(error) = xenon_store::update_service_settings(|s| {
+                    s.remote_keep_awake_while_connected = want
+                }) {
                     eprintln!("[xg] save keep-awake: {error}");
                 }
                 app.remote_publish();
@@ -133,7 +142,7 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
             gtk::glib::idle_add_local_once(move || {
                 let host = xenon_remote::normalize_hostname(&text);
                 if let Err(error) =
-                    xenon_store::update_settings(|s| s.remote_hostname = host.clone())
+                    xenon_store::update_service_settings(|s| s.remote_hostname = host.clone())
                 {
                     eprintln!("[xg] save hostname: {error}");
                 }
@@ -235,4 +244,23 @@ fn device_row(app: &Rc<App>, device: &DeviceRow) -> gtk::Widget {
     });
     row.add_suffix(&button);
     row.upcast()
+}
+
+/// `systemctl --user restart xenon-phone.service`, off the main thread.
+fn restart_server(button: &gtk::Button) {
+    button.set_sensitive(false);
+    let (tx, rx) = async_channel::bounded::<bool>(1);
+    std::thread::spawn(move || {
+        let ok = std::process::Command::new("systemctl")
+            .args(["--user", "restart", "xenon-phone.service"])
+            .status()
+            .is_ok_and(|status| status.success());
+        let _ = tx.send_blocking(ok);
+    });
+    let button = button.clone();
+    gtk::glib::spawn_future_local(async move {
+        let ok = rx.recv().await.unwrap_or(false);
+        button.set_sensitive(true);
+        button.set_label(if ok { "Restarted" } else { "Restart failed" });
+    });
 }

@@ -6,7 +6,7 @@ use adw::prelude::*;
 use gtk::{gdk, glib};
 use vte::prelude::*;
 use xenon_core::{TabId, TermId, WorkspaceId};
-use xenon_term::{Client, Size};
+use xenon_term::{Size, Terminals};
 
 use crate::app::{App, defer};
 use crate::find::FindBar;
@@ -42,7 +42,11 @@ impl TermView {
         let term = vte::Terminal::new();
         term.set_hexpand(true);
         term.set_vexpand(true);
-        term.set_scrollback_lines(10_000);
+        term.set_scrollback_lines(
+            xenon_store::load_service_settings()
+                .unwrap_or_default()
+                .terminal_scrollback_lines as i64,
+        );
         term.set_allow_hyperlink(true);
         term.set_audible_bell(false);
         term.set_scroll_on_output(false);
@@ -103,7 +107,7 @@ impl TermView {
 
     /// The first time the view is on screen: become the terminal's window. The service
     /// answers with the replay, then live output.
-    pub(crate) fn attach(&self, svc: &Client) {
+    pub(crate) fn attach(&self, svc: &Terminals) {
         if self.attached.replace(true) {
             return;
         }
@@ -115,7 +119,7 @@ impl TermView {
     }
 
     /// The grid changed size on its own: tell the service, unless a phone holds it.
-    pub(crate) fn report_size(&self, svc: &Client) {
+    pub(crate) fn report_size(&self, svc: &Terminals) {
         if !self.attached.get() || self.pinned.get() {
             return;
         }

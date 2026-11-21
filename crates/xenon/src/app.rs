@@ -67,9 +67,12 @@ pub(crate) struct App {
     pub save_pending: Cell<bool>,
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
-    pub svc: Rc<xenon_term::Client>,
+    pub svc: xenon_term::Terminals,
     /// Every terminal the service holds: its workspace and process id.
     pub known: RefCell<HashMap<TermId, (WorkspaceId, i32)>>,
+    /// Tabs whose terminal runs a protocol this window cannot read, and its id.
+    pub foreign: RefCell<HashMap<(WorkspaceId, TabId), TermId>>,
+    pub builds: crate::builds_ui::Builds,
     pub tasks: crate::tasks::Tasks,
     pub trust_card: crate::tasks_ui::TrustCard,
     pub worklist: crate::worklist::Worklist,
@@ -282,6 +285,7 @@ impl App {
     pub(crate) fn paint_all(self: &Rc<Self>) {
         let model = self.model.borrow();
         self.sidebar.paint(&model, &self.git);
+        let notes = self.build_notes();
         if let Some(ws) = model.active() {
             if let Some(space) = model.spaces.get(&ws) {
                 let slots = self.slots.borrow();
@@ -294,7 +298,9 @@ impl App {
                             let dot = model.tab_dot(ws, tab.id);
                             let path = self.tab_full_path(&model, ws, tab);
                             let dot = if index == leaf.active { None } else { dot };
-                            pane.paint(tab, index, dot, path);
+                            let older = tab.term.and_then(|id| notes.get(&id));
+                            let older = older.map(String::as_str);
+                            pane.paint(tab, index, dot, crate::pane::TabNotes { path, older });
                         }
                     });
                 }

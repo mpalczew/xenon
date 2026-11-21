@@ -8,6 +8,10 @@ pub enum CliCommand {
     Open(OpenFileSpec),
     Activate,
     Pair,
+    /// `xenon quit [--end]`: close the window; with `--end`, end every terminal too.
+    Quit {
+        end: bool,
+    },
 }
 
 impl CliCommand {
@@ -20,6 +24,7 @@ impl CliCommand {
             Self::Open(spec) => IpcRequest::OpenFile(spec.clone()),
             Self::Activate => IpcRequest::Activate,
             Self::Pair => IpcRequest::Pair,
+            Self::Quit { end } => IpcRequest::Quit { end: *end },
         }
     }
 }
@@ -31,6 +36,11 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> CliCommand {
     }
     if args.first().is_some_and(|a| a == "pair") {
         return CliCommand::Pair;
+    }
+    if args.first().is_some_and(|a| a == "quit") {
+        return CliCommand::Quit {
+            end: args[1..].iter().any(|a| a == "--end"),
+        };
     }
     if args.iter().any(|a| a == "-h" || a == "--help") {
         return CliCommand::Activate;

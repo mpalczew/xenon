@@ -6,6 +6,7 @@ use gtk::{gio, glib};
 
 mod actions;
 mod app;
+mod builds_ui;
 mod clipboard;
 mod command_palette;
 mod commands;
@@ -98,6 +99,23 @@ fn main() -> glib::ExitCode {
         xenon_store::Handoff::NoServer if command == xenon_store::CliCommand::Pair => {
             eprintln!("xenon: no running Xenon");
             return glib::ExitCode::FAILURE;
+        }
+        // No window to ask: ending the terminals does not need one.
+        xenon_store::Handoff::NoServer
+            if command == (xenon_store::CliCommand::Quit { end: true }) =>
+        {
+            return match xenon_term::end_all() {
+                Ok(()) => glib::ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("xenon: {error}");
+                    glib::ExitCode::FAILURE
+                }
+            };
+        }
+        xenon_store::Handoff::NoServer
+            if matches!(command, xenon_store::CliCommand::Quit { .. }) =>
+        {
+            return glib::ExitCode::SUCCESS;
         }
         xenon_store::Handoff::NoServer => {}
     }

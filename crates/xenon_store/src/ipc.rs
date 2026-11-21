@@ -33,6 +33,7 @@ pub enum IpcRequest {
     OpenFile(OpenFileSpec),
     Activate,
     Pair,
+    Quit { end: bool },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

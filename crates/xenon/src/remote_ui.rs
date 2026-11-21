@@ -9,14 +9,18 @@ use crate::app::{App, defer};
 
 impl App {
     fn pairing_facts(&self) -> Option<(String, Option<String>, Instant)> {
-        let pairing = self.svc.phone().pairing().ok()?;
+        xenon_store::update_service_settings(|s| s.remote_enabled = true).ok()?;
+        let pairing = xenon_phone::PhoneLink::pairing().ok()?;
         let expires_at = Instant::now() + Duration::from_secs(pairing.expires_in_secs);
         Some((pairing.digits, pairing.url, expires_at))
     }
 
     /// `xenon pair`: turn the remote on, then describe a live pairing code as terminal text.
     pub(crate) fn pair_text(self: &Rc<Self>) -> Result<String, String> {
-        let pairing = self.svc.phone().pairing()?;
+        if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = true) {
+            return Err(format!("could not turn the phone remote on: {error}"));
+        }
+        let pairing = xenon_phone::PhoneLink::pairing()?;
         self.remote_publish();
         let url = pairing
             .url

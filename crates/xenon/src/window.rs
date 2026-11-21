@@ -71,7 +71,7 @@ impl App {
         for view in self.terms.borrow().values() {
             self.restyle_term(view);
         }
-        self.svc.set_dark(theme::dark());
+        xenon_phone::PhoneLink::set_dark(theme::dark());
     }
 
     pub(crate) fn chord(&self, action: &str) -> Option<String> {
@@ -158,6 +158,8 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         ),
         ("emblem-system-symbolic", "app.settings", "Settings"),
     ];
+    bar.pack_end(&main_menu());
+    bar.pack_end(&app.builds.button);
     let mut right = right.into_iter().rev();
     if let Some((icon, action, label)) = right.next() {
         bar.pack_end(&button(icon, action, app.tip(label, action)));
@@ -167,6 +169,27 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         bar.pack_end(&button(icon, action, app.tip(label, action)));
     }
     bar
+}
+
+/// Close Window, Quit and End Terminals, Preferences: the header bar's menu.
+fn main_menu() -> gtk::MenuButton {
+    let menu = gtk::gio::Menu::new();
+    let leave = gtk::gio::Menu::new();
+    leave.append(Some("Close Window"), Some("app.quit"));
+    leave.append(
+        Some("Quit and End Terminals\u{2026}"),
+        Some("app.quit-end-terminals"),
+    );
+    menu.append_section(None, &leave);
+    let prefs = gtk::gio::Menu::new();
+    prefs.append(Some("Preferences"), Some("app.settings"));
+    menu.append_section(None, &prefs);
+    let button = gtk::MenuButton::new();
+    button.set_icon_name("open-menu-symbolic");
+    button.set_menu_model(Some(&menu));
+    button.set_tooltip_text(Some("Main Menu"));
+    button.set_focusable(false);
+    button
 }
 
 fn save_button() -> gtk::Button {
@@ -196,13 +219,8 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))
         .build();
-    let svc = match xenon_term::Client::connect(crate::term::child_env()) {
-        Ok(svc) => Rc::new(svc),
-        Err(error) => {
-            eprintln!("xenon: {error:#}");
-            std::process::exit(1);
-        }
-    };
+    let svc = xenon_term::Terminals::start(xenon_term::Role::Desk);
+    svc.set_base_env(crate::term::child_env());
     let app = Rc::new_cyclic(|weak| App {
         gtk: gtk_app.clone(),
         win: win.clone(),
@@ -236,6 +254,8 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         remote: crate::remote::Remote::new(),
         svc,
         known: RefCell::default(),
+        foreign: RefCell::default(),
+        builds: crate::builds_ui::Builds::new(),
         tasks: crate::tasks::Tasks::default(),
         trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),
         worklist: Default::default(),
@@ -280,6 +300,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     app.sidebar.rebuild(&app.model.borrow());
     app.learn_terms();
     app.listen_service();
+    app.refresh_builds();
     start_workspace(&app);
     app.remote_boot();
     app
@@ -297,6 +318,10 @@ fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
     // sync: answer or ordering before return: the session must be saved before the window goes.
     win.connect_close_request(move |_| {
         if let Some(app) = weak.upgrade() {
+            if app.close_hint_pending() {
+                app.quit();
+                return gtk::glib::Propagation::Stop;
+            }
             app.save_all();
             app.save_window();
         }

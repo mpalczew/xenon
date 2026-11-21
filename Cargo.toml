@@ -26,6 +26,7 @@ xenon_remote = { path = "crates/xenon_remote" }
 xenon_settings = { path = "crates/xenon_settings" }
 xenon_prose = { path = "crates/xenon_prose" }
 xenon_term = { path = "crates/xenon_term" }
+xenon_phone = { path = "crates/xenon_phone" }
 
 anyhow = "1"
 thiserror = "2"

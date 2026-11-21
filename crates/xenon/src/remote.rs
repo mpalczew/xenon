@@ -1,5 +1,6 @@
 //! The phone remote as the window sees it: a view over the phone server that runs
-//! inside the terminal service (`xenon_term::PhoneLink`).
+//! as its own process (`xenon_phone::PhoneLink`). The window is the only writer of
+//! `services.json`, where the phone server's settings live.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -36,20 +37,30 @@ impl Remote {
 }
 
 pub(crate) fn effective_port() -> u16 {
-    let saved = xenon_store::load_settings().unwrap_or_default().remote_port;
+    let saved = xenon_store::load_service_settings()
+        .unwrap_or_default()
+        .remote_port;
     xenon_remote::effective_port(saved, xenon_store::DEFAULT_REMOTE_PORT)
 }
 
 impl App {
     pub(crate) fn remote_boot(self: &Rc<Self>) {
         self.remote_publish();
+        let changes = xenon_phone::PhoneLink::watch();
+        let weak = Rc::downgrade(self);
+        gtk::glib::spawn_future_local(async move {
+            while changes.recv().await.is_ok() {
+                let Some(app) = weak.upgrade() else { break };
+                app.remote_publish();
+            }
+        });
     }
 
-    /// Ask the service to turn the phone server on or off, and remember the choice.
+    /// Turn the phone server on or off: the choice is written to `services.json`, which
+    /// the phone server reads.
     pub(crate) fn remote_set(self: &Rc<Self>, on: bool) {
-        match self.svc.phone().set_enabled(on) {
-            Ok(status) => *self.remote.status.borrow_mut() = status,
-            Err(error) => self.toast(&format!("Phone remote didn\u{2019}t change: {error}")),
+        if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = on) {
+            self.toast(&format!("Phone remote didn\u{2019}t change: {error}"));
         }
         self.remote_publish();
     }
@@ -72,7 +83,7 @@ impl App {
     }
 
     pub(crate) fn remote_publish(self: &Rc<Self>) {
-        match self.svc.phone().status() {
+        match xenon_phone::PhoneLink::status() {
             Ok(status) => *self.remote.status.borrow_mut() = status,
             Err(error) => eprintln!("[xg] phone status: {error}"),
         }
@@ -86,7 +97,7 @@ impl App {
     }
 
     pub(crate) fn remote_revoke(self: &Rc<Self>, id: Option<&str>) {
-        match self.svc.phone().revoke(id) {
+        match xenon_phone::PhoneLink::revoke(id) {
             Ok(status) => *self.remote.status.borrow_mut() = status,
             Err(error) => self.toast(&format!("Couldn\u{2019}t update paired devices: {error}")),
         }

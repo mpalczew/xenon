@@ -1,0 +1,200 @@
+//! The phone server, its own process (`xenon-term phone`, run as `xenon-phone.service`):
+//! HTTP and WebSocket from `xenon_remote`, answered from the public `Terminals` API.
+//! Phones work with no window open, and see every build's terminals. It watches a
+//! terminal through a `Mirror` per phone, so a phone's scroll and size are its own.
+
+mod api;
+mod control;
+mod dots;
+mod frames;
+mod host;
+mod link;
+mod server;
+mod session;
+mod status;
+mod tasks;
+
+use std::collections::HashMap;
+use std::io;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
+
+use xenon_core::TermId;
+use xenon_remote::{ConnId, DeviceBook, HostRequest, Reachability, RemoteServer};
+use xenon_term::{Event, Exit, Role, Terminals};
+
+pub use api::Pairing;
+pub use link::PhoneLink;
+pub(crate) use session::Conn;
+
+type Listener = Box<dyn Fn() + Send + Sync>;
+
+pub(crate) struct Runtime {
+    pub _server: RemoteServer,
+    pub port: u16,
+    pub reach: Reachability,
+    pub host_name: String,
+    pub devices: DeviceBook,
+}
+
+#[derive(Default)]
+pub(crate) struct Server {
+    pub rt: Option<Runtime>,
+    /// The port is busy (the old service has it): retrying.
+    pub waiting: bool,
+}
+
+/// Phone tab numbers: a counter in this process, keyed by terminal.
+#[derive(Default)]
+pub(crate) struct Serials {
+    by_id: HashMap<TermId, u64>,
+    next: u64,
+}
+
+pub(crate) struct Phone {
+    pub terms: Terminals,
+    pub server: Mutex<Server>,
+    pub conns: Mutex<HashMap<ConnId, Conn>>,
+    pub tasks: Mutex<tasks::TaskState>,
+    pub serials: Mutex<Serials>,
+    /// The window's theme is dark: phones follow it by default.
+    pub dark: AtomicBool,
+    me: Weak<Phone>,
+    tx: async_channel::Sender<HostRequest>,
+    changes: Mutex<(u64, Vec<(u64, Listener)>)>,
+}
+
+pub(crate) fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Run the phone server until the process is killed.
+pub fn run() -> io::Result<()> {
+    let terms = Terminals::start(Role::Phone);
+    let phone = Phone::start(&terms);
+    control::serve(&phone)
+}
+
+impl Phone {
+    fn start(terms: &Terminals) -> Arc<Self> {
+        let (tx, rx) = async_channel::unbounded();
+        let phone = Arc::new_cyclic(|me| Self {
+            me: me.clone(),
+            terms: terms.clone(),
+            server: Mutex::new(Server::default()),
+            conns: Mutex::new(HashMap::new()),
+            tasks: Mutex::new(tasks::TaskState::default()),
+            serials: Mutex::default(),
+            dark: AtomicBool::new(true),
+            tx,
+            changes: Mutex::new((0, Vec::new())),
+        });
+        // Existing terminals are numbered oldest first.
+        for info in terms.list() {
+            phone.serial(info.id);
+        }
+        server::spawn_threads(&phone, rx);
+        phone.watch_events();
+        phone.watch_settings();
+        phone.apply_settings();
+        phone
+    }
+
+    /// The phone's number for a terminal, given out on first sight.
+    pub(crate) fn serial(&self, id: TermId) -> u64 {
+        let mut serials = locked(&self.serials);
+        if let Some(n) = serials.by_id.get(&id) {
+            return *n;
+        }
+        serials.next += 1;
+        let n = serials.next;
+        serials.by_id.insert(id, n);
+        n
+    }
+
+    fn watch_events(&self) {
+        let rx = self.terms.events();
+        let weak = self.me.clone();
+        let spawned = std::thread::Builder::new()
+            .name("xenon-phone-events".into())
+            .spawn(move || {
+                while let Ok(event) = rx.recv_blocking() {
+                    let Some(phone) = weak.upgrade() else { break };
+                    phone.on_event(event);
+                }
+            });
+        if let Err(error) = spawned {
+            log::error!("phone events thread: {error}");
+        }
+    }
+
+    fn on_event(&self, event: Event) {
+        match event {
+            Event::Ready { id, .. } => {
+                self.serial(id);
+                self.push_dots();
+            }
+            Event::Status { id, status } => {
+                self.push_dots();
+                if status.exit.is_some() {
+                    tasks::exited(self, id, status.exit);
+                }
+            }
+            Event::Closed { id } => {
+                self.push_dots();
+                tasks::exited(self, id, None);
+                self.terminal_closed(id);
+            }
+            // systemd refused to start the terminal: a task sees it as a failed exit.
+            Event::Failed { id, .. } => tasks::exited(self, id, Some(Exit::Code(127))),
+            _ => {}
+        }
+    }
+
+    pub(crate) fn on_change(&self, f: Listener) -> u64 {
+        let mut guard = locked(&self.changes);
+        guard.0 += 1;
+        let id = guard.0;
+        guard.1.push((id, f));
+        id
+    }
+
+    pub(crate) fn off_change(&self, id: u64) {
+        locked(&self.changes).1.retain(|(i, _)| *i != id);
+    }
+
+    /// Something a window shows about the phone server changed.
+    pub(crate) fn changed(&self) {
+        for (_, listener) in locked(&self.changes).1.iter() {
+            listener();
+        }
+    }
+
+    /// A phone attached to this terminal is told it is gone.
+    fn terminal_closed(&self, id: TermId) {
+        let conns: Vec<ConnId> = locked(&self.conns)
+            .iter()
+            .filter(|(_, c)| c.attach.as_ref().is_some_and(|a| a.term == id))
+            .map(|(conn, _)| *conn)
+            .collect();
+        for conn in conns {
+            self.detach(conn);
+            self.send_to(
+                conn,
+                xenon_remote::ServerMsg::Closed {
+                    reason: xenon_remote::ClosedReason::TabClosed,
+                },
+            );
+        }
+    }
+
+    pub(crate) fn self_ref(&self) -> Weak<Phone> {
+        self.me.clone()
+    }
+
+    pub(crate) fn send_to(&self, conn: ConnId, msg: xenon_remote::ServerMsg) {
+        if let Some(c) = locked(&self.conns).get(&conn) {
+            c.out.try_send(msg);
+        }
+    }
+}

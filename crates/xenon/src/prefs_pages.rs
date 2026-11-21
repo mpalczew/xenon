@@ -289,9 +289,31 @@ pub(crate) fn terminal(app: &Rc<App>) -> adw::PreferencesGroup {
     });
     let group = adw::PreferencesGroup::builder().title("Terminal").build();
     group.add(&row);
+    group.add(&scrollback_row());
     group
 }
 
 fn new_tabs_detail(mode: TerminalAutoClose) -> String {
     format!("New terminal tabs: {}", mode.label().to_lowercase())
+}
+
+/// Scrollback is a service setting (`services.json`): holders read it when they start,
+/// so it applies to terminals opened from now on.
+fn scrollback_row() -> adw::SpinRow {
+    let row = adw::SpinRow::with_range(1_000.0, 100_000.0, 1_000.0);
+    row.set_title("Scrollback lines");
+    row.set_subtitle("Applies to terminals you open from now on");
+    let current = xenon_store::load_service_settings().unwrap_or_default();
+    row.set_value(current.terminal_scrollback_lines as f64);
+    row.connect_value_notify(|row| {
+        let lines = row.value() as usize;
+        gtk::glib::idle_add_local_once(move || {
+            if let Err(error) = xenon_store::update_service_settings(|s| {
+                s.terminal_scrollback_lines = lines;
+            }) {
+                eprintln!("[xg] save scrollback: {error}");
+            }
+        });
+    });
+    row
 }

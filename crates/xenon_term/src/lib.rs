@@ -1,45 +1,60 @@
-//! The terminal service and its client (no GTK).
+//! Terminals, each held by its own process (no GTK).
 //!
-//! `xenon-term` runs and holds every terminal; the window and the phone page are its
-//! clients. See `docs/designs/terminal-service.md`.
+//! `xenon-term hold <id>` runs one terminal. The window and the phone server find
+//! holders in the runtime directory and talk to each. See
+//! `docs/designs/terminal-holders.md`.
 
+mod builds;
 mod calls;
-mod claims;
-mod client;
-mod codec;
-mod conn;
-mod dec;
-mod emu;
-mod emu_replay;
-mod emu_view;
-mod hub;
-mod pen;
-mod phone;
-mod phone_api;
-mod phone_link;
-mod pty;
-mod reader;
-mod service;
-mod status;
-mod term;
-mod terms;
-mod wire;
+mod dir;
+mod end;
+mod hold;
+mod holder_link;
+mod look;
+mod mirror;
+mod mirror_view;
+mod proto;
+mod start;
+mod terminals;
 
 use std::path::{Path, PathBuf};
 
-pub use client::{Client, Event};
-pub use phone_api::Pairing;
-pub use phone_link::PhoneLink;
-pub use service::run_service;
+use serde::{Deserialize, Serialize};
+
+pub use dir::{phone_socket_path, runtime_dir, watch_dir};
+pub use end::end_all;
+pub use hold::run_holder;
+pub use look::Look;
+pub use mirror::{Gone, Mirror, Modes};
+pub use start::installed_binary;
+pub use terminals::{Event, Role, Terminals};
 pub use xenon_core::{TermId, WorkspaceId};
 
 use xenon_core::AttentionReason;
 
+/// This build's label: the git short hash it was built from.
+pub const BUILD: &str = env!("XENON_BUILD");
+
 /// Columns and rows, both at least 1.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "RawSize")]
 pub struct Size {
     cols: u16,
     rows: u16,
+}
+
+#[derive(Deserialize)]
+struct RawSize {
+    cols: u16,
+    rows: u16,
+}
+
+impl TryFrom<RawSize> for Size {
+    type Error = &'static str;
+
+    fn try_from(raw: RawSize) -> Result<Self, Self::Error> {
+        Self::new(raw.cols, raw.rows).ok_or("size must be at least 1x1")
+    }
 }
 
 impl Size {
@@ -56,7 +71,7 @@ impl Size {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Exit {
     Code(i32),
     Signal(i32),
@@ -73,7 +88,7 @@ impl Exit {
 }
 
 /// What to run. Empty `argv` runs the user's shell. `env` (as `KEY=VALUE`) is added to
-/// the base environment the window sent on connect.
+/// the base environment the window left for new terminals.
 #[derive(Clone, Debug, Default)]
 pub struct Spawn {
     pub cwd: PathBuf,
@@ -91,15 +106,16 @@ impl Spawn {
 }
 
 /// Who wants the terminal at what size. The window is always the desk; phones claim
-/// inside the service.
+/// through their mirrors.
 #[derive(Clone, Debug)]
 pub(crate) enum Claim {
     Desk(Size),
     Phone { size: Size, label: String },
 }
 
-/// What dots, titles and exit marks are painted from. Derived in the service.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// What dots, titles and exit marks are painted from. Derived in the holder.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TermStatus {
     pub working: bool,
     pub attention: Option<AttentionReason>,
@@ -110,19 +126,26 @@ pub struct TermStatus {
     pub phone: Option<String>,
 }
 
+/// Which build a terminal runs on. Worked out when read, never stored.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Build {
+    /// The holder's own build label.
+    pub label: String,
+    /// The installed `xenon-term` is not the binary this holder is running.
+    pub older: bool,
+    /// This build can read the holder's protocol. When false the terminal can be listed
+    /// and closed, nothing else.
+    pub speaks: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct TermInfo {
     pub id: TermId,
     pub workspace: WorkspaceId,
+    /// The terminal's child process.
     pub pid: i32,
+    /// Where the terminal started.
+    pub cwd: String,
     pub status: TermStatus,
-}
-
-/// Where the service listens: `XENON_TERM_SOCKET`, else `$XDG_RUNTIME_DIR/xenon-term.sock`.
-pub(crate) fn socket_path() -> PathBuf {
-    if let Some(path) = std::env::var_os("XENON_TERM_SOCKET") {
-        return PathBuf::from(path);
-    }
-    let dir = std::env::var_os("XDG_RUNTIME_DIR").map_or_else(std::env::temp_dir, PathBuf::from);
-    dir.join("xenon-term.sock")
+    pub build: Build,
 }

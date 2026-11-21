@@ -17,6 +17,7 @@ mod ipc;
 mod open_spec;
 mod prose;
 mod remote_devices;
+mod services;
 mod settings;
 mod skill;
 mod task_trust;
@@ -29,8 +30,12 @@ pub use prose::{
     set_prose_file_prefs,
 };
 pub use remote_devices::{RemoteDevice, RemoteDevices, load_remote_devices, save_remote_devices};
+pub use services::{
+    DEFAULT_REMOTE_PORT, DEFAULT_SCROLLBACK_LINES, ServiceSettings, load_service_settings,
+    service_settings_path, update_service_settings,
+};
 pub use settings::{
-    AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME, DEFAULT_REMOTE_PORT,
+    AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME,
     DEFAULT_UI_FONT_FAMILY, ThemeMode, WindowGeometry, WindowState,
 };
 pub use skill::{SkillStatus, install_skill, remove_skill, skill_status};

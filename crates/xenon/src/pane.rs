@@ -20,6 +20,12 @@ pub(crate) struct PaneView {
     remove: RefCell<Option<gtk::Button>>,
 }
 
+/// What a tab's tooltip says besides its title: where it is, and an older build.
+pub(crate) struct TabNotes<'a> {
+    pub path: Option<String>,
+    pub older: Option<&'a str>,
+}
+
 impl PaneView {
     pub(crate) fn new(app: &Rc<App>, ws: WorkspaceId, pane: PaneId) -> Rc<Self> {
         let add = gtk::Button::from_icon_name("list-add-symbolic");
@@ -387,8 +393,9 @@ impl PaneView {
         tab: &Tab,
         index: usize,
         dot: Option<WorkspaceDot>,
-        path: Option<String>,
+        notes: TabNotes<'_>,
     ) {
+        let TabNotes { path, older } = notes;
         let pages = self.pages.borrow();
         let Some(page) = pages.get(&tab.id) else {
             return;
@@ -418,6 +425,16 @@ impl PaneView {
         };
         let tip = match path {
             Some(path) => format!("{tip}\n{path}"),
+            None => tip,
+        };
+        // A subtle, always-on mark for a terminal on an older build.
+        page.set_icon(
+            older
+                .map(|_| gio::ThemedIcon::new("software-update-available-symbolic"))
+                .as_ref(),
+        );
+        let tip = match older {
+            Some(note) => format!("{tip}\n{note}"),
             None => tip,
         };
         page.set_tooltip(&tip);

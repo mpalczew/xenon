@@ -71,6 +71,8 @@ pub struct AppSettings {
     pub terminal_auto_close: TerminalAutoClose,
     pub workspaces_collapsed: bool,
     pub files_open: bool,
+    /// The toast that says closing the window leaves terminals running was shown.
+    pub close_hint_shown: bool,
     /// Files sidebar shows dotfiles and ignored items (dimmed).
     pub show_hidden_files: bool,
     pub git_collapsed: bool,
@@ -81,12 +83,6 @@ pub struct AppSettings {
     pub workspaces_section_height: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowGeometry>,
-    pub remote_enabled: bool,
-    /// Hold a no-idle-sleep assertion while a phone is connected. Opt-in; the
-    /// older `remote_keep_awake` key is ignored.
-    pub remote_keep_awake_while_connected: bool,
-    pub remote_port: u16,
-    pub remote_hostname: String,
     pub prose: crate::ProseSettings,
 }
 
@@ -109,16 +105,13 @@ impl Default for AppSettings {
             terminal_auto_close: TerminalAutoClose::default(),
             workspaces_collapsed: false,
             files_open: true,
+            close_hint_shown: false,
             show_hidden_files: false,
             git_collapsed: false,
             files_section_height: None,
             sidebar_width: 240.0,
             workspaces_section_height: None,
             window: None,
-            remote_enabled: false,
-            remote_keep_awake_while_connected: false,
-            remote_port: DEFAULT_REMOTE_PORT,
-            remote_hostname: String::new(),
             prose: crate::ProseSettings::default(),
         }
     }
@@ -128,5 +121,3 @@ pub const DEFAULT_FONT_FAMILY: &str = "Lilex";
 pub const DEFAULT_UI_FONT_FAMILY: &str = ".SystemUIFont";
 pub const DEFAULT_LIGHT_THEME: &str = "One Light";
 pub const DEFAULT_DARK_THEME: &str = "One Dark";
-
-pub const DEFAULT_REMOTE_PORT: u16 = 17890;

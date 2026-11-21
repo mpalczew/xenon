@@ -1,45 +1,59 @@
-//! Fire-and-forget calls: no answer comes back.
+//! Fire-and-forget calls from the window: no answer comes back.
 
 use xenon_core::TermId;
 
-use crate::wire::Request;
-use crate::{Client, Size};
+use crate::proto::v1::ToHolder;
+use crate::terminals::Early;
+use crate::{Size, Terminals, builds};
 
-impl Client {
+impl Terminals {
     /// Become this terminal's window at `size`. A replay arrives first as
     /// `Event::Output`, then live output. Attaching again replays again.
     pub fn attach(&self, id: TermId, size: Size) {
-        self.send(0, &Request::Attach { id, size });
+        if let Some(link) = self.shared.link(id) {
+            link.tell(&ToHolder::Claim { size, label: None });
+            link.tell(&ToHolder::View { answers: true });
+        } else {
+            self.early(id, |e| {
+                e.size = Some(size);
+                e.attach = true;
+            });
+        }
     }
 
     /// Bytes for the child: keys, pastes, mouse reports and the view's replies to queries.
     pub fn input(&self, id: TermId, bytes: &[u8]) {
-        self.send(
-            0,
-            &Request::Input {
-                id,
-                bytes: bytes.to_vec(),
-            },
-        );
+        match self.shared.link(id) {
+            Some(link) if link.speaks => link.send_data(bytes),
+            Some(_) => {}
+            None => self.early(id, |e| e.input.extend_from_slice(bytes)),
+        }
     }
 
     /// The view's own size changed.
     pub fn claim(&self, id: TermId, size: Size) {
-        self.send(0, &Request::Claim { id, size });
+        if let Some(link) = self.shared.link(id) {
+            link.tell(&ToHolder::Claim { size, label: None });
+        } else {
+            self.early(id, |e| e.size = Some(size));
+        }
     }
 
     /// The tab is on screen: clears its attention.
     pub fn seen(&self, id: TermId) {
-        self.send(0, &Request::Seen { id });
+        if let Some(link) = self.shared.link(id) {
+            link.tell(&ToHolder::Seen);
+        }
     }
 
-    /// Hang up the child. Idempotent.
-    pub fn close(&self, id: TermId) {
-        self.send(0, &Request::Close { id });
+    /// Remember what happens to a terminal that is still starting.
+    fn early(&self, id: TermId, change: impl FnOnce(&mut Early)) {
+        let mut early = self.shared.early.lock().unwrap_or_else(|e| e.into_inner());
+        change(early.entry(id).or_default());
     }
 
-    /// Whether the window's theme is dark; the phone follows it unless set otherwise.
-    pub fn set_dark(&self, dark: bool) {
-        self.send(0, &Request::Dark { dark });
+    /// The label of the build new terminals start on.
+    pub fn installed_build(&self) -> String {
+        builds::installed_label()
     }
 }

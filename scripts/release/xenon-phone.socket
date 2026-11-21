@@ -1,0 +1,11 @@
+# Owned by the user's systemd manager, so the window's first call starts the phone server.
+[Unit]
+Description=Xenon phone server socket
+
+[Socket]
+ListenStream=%t/xenon/phone.sock
+SocketMode=0600
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

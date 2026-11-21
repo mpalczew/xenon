@@ -34,6 +34,14 @@ impl App {
     ) -> Result<Option<String>, String> {
         let result = match req {
             IpcRequest::Pair => return self.pair_text().map(Some),
+            IpcRequest::Quit { end } => {
+                if end {
+                    self.end_terminals_now();
+                } else {
+                    self.leave();
+                }
+                return Ok(None);
+            }
             IpcRequest::Open { paths } => {
                 for path in paths {
                     let _ = self.open_path(OpenFileSpec {

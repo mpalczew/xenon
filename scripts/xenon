@@ -23,9 +23,12 @@ fi
 
 usage() {
     cat >&2 <<'EOF'
-usage: xenon [status | pair | open [--workspace name|path|id] path[:line[:col]|:start-end] | path...]
+usage: xenon [status | pair | quit [--end] | open [--workspace name|path|id] path[:line[:col]|:start-end] | path...]
 
 xenon pair prints a phone pairing code and QR for the running Xenon.
+
+xenon quit closes the running window; terminals keep running. xenon quit --end also ends
+every terminal, of every build.
 
 xenon open, run in a Xenon terminal, opens the file in that terminal's workspace
 (XENON_WORKSPACE). --workspace picks another open workspace by name or root path.
@@ -33,22 +36,16 @@ xenon open, run in a Xenon terminal, opens the file in that terminal's workspace
 With no args: focus the running window, or start one.
 With path args (dirs and/or files): open them in the running window, or start one.
 
-Terminals live in the xenon-term service (a systemd user socket), so closing the
+Each terminal runs in its own holder process (a systemd user unit), so closing the
 window leaves every shell and agent running; the next `xenon` shows them again.
 EOF
 }
 
-unit_installed() {
-    systemctl --user cat xenon-term.socket >/dev/null 2>&1
-}
-
-ensure_socket() {
-    if ! unit_installed; then
-        echo "xenon: the terminal service is not installed; run scripts/release/install" >&2
-        exit 1
-    fi
-    systemctl --user is-active --quiet xenon-term.socket ||
-        systemctl --user enable --now xenon-term.socket
+# The phone server's socket starts it on the window's first call.
+ensure_phone() {
+    systemctl --user cat xenon-phone.socket >/dev/null 2>&1 || return 0
+    systemctl --user is-active --quiet xenon-phone.socket ||
+        systemctl --user start xenon-phone.socket
 }
 
 ui_pid() {
@@ -70,8 +67,8 @@ status() {
     else
         echo "window: not running"
     fi
-    echo "xenon-term.socket: $(active xenon-term.socket)"
-    echo "xenon-term.service: $(active xenon-term.service)"
+    echo "xenon-phone.service: $(active xenon-phone.service)"
+    echo "terminals: $(systemctl --user list-units --plain --no-legend 'xenon-term-*.service' 2>/dev/null | wc -l)"
 }
 
 resolve_path_args() {
@@ -102,10 +99,10 @@ main() {
         echo "Xenon app binary not found: $APP" >&2
         exit 1
     fi
-    ensure_socket
+    ensure_phone
     case "${1:-}" in
         "") launch ;;
-        open | pair) exec "$APP" "$@" ;;
+        open | pair | quit) exec "$APP" "$@" ;;
         *)
             local args=() line
             while IFS= read -r line; do
