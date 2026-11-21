@@ -100,12 +100,11 @@ pub(crate) fn adopt(shared: &Arc<Shared>, id: TermId) -> io::Result<()> {
         out: Mutex::new(stream),
         status: Mutex::new(first.unwrap_or_default()),
     });
-    let early = shared.insert(Arc::clone(&link));
+    shared.insert(Arc::clone(&link), |early| replay_early(early, &link));
     shared.emit(Event::Ready {
         id,
         info: link.info(),
     });
-    replay_early(early, &link);
     let reader = Arc::clone(shared);
     thread::Builder::new()
         .name("xenon-holder-link".into())
@@ -148,10 +147,10 @@ fn first_status(input: &mut UnixStream) -> Option<TermStatus> {
 }
 
 /// Apply what the window did before the holder was there to hear it.
-fn replay_early(early: Option<Early>, link: &HolderLink) {
-    let Some(early) = early.filter(|_| link.speaks) else {
+fn replay_early(early: Early, link: &HolderLink) {
+    if !link.speaks {
         return;
-    };
+    }
     if let Some(size) = early.size {
         link.tell(&ToHolder::Claim { size, label: None });
     }
