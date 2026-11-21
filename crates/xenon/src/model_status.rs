@@ -1,7 +1,7 @@
 use xenon_core::{
-    AttentionReason, PaneId, TabId, WorkspaceDot, WorkspaceId, clean_terminal_title, workspace_dot,
-    workspace_dot_from_tabs,
+    PaneId, TabId, TermId, WorkspaceDot, WorkspaceId, workspace_dot, workspace_dot_from_tabs,
 };
+use xenon_term::TermStatus;
 
 use crate::model::{Model, Tab, TabKind};
 
@@ -29,64 +29,58 @@ impl Model {
                 .is_some_and(|t| t.id == tab)
     }
 
-    pub(crate) fn title_of(&self, ws: WorkspaceId, tab: TabId) -> String {
-        self.tab(ws, tab)
-            .map(|t| t.title.clone())
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn set_title(
+    /// Store what the service said. The tab takes its title, phone name and exit from it.
+    pub(crate) fn apply_status(
         &mut self,
         ws: WorkspaceId,
         tab: TabId,
-        raw: &str,
-        spawn_dir: &str,
-    ) -> bool {
-        let mut clean = clean_terminal_title(raw, spawn_dir);
-        if clean == "terminal" && !raw.is_empty() {
-            clean = shell_name();
-        }
-        match self.tab_mut(ws, tab) {
-            Some(t) if t.title != clean => {
-                t.title = clean;
-                true
-            }
-            _ => false,
-        }
-    }
-
-    pub(crate) fn on_output(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
-        let title = self.title_of(ws, tab);
-        self.activity
-            .entry((ws, tab))
-            .or_default()
-            .on_output(&title)
-    }
-
-    pub(crate) fn on_quiet(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
-        let title = self.title_of(ws, tab);
-        let was_working = self.is_working(ws, tab);
-        let finished = self.activity.entry((ws, tab)).or_default().on_quiet(&title);
-        let flagged = finished
-            && !self.is_viewed(ws, tab)
-            && self.attention.flag(ws, tab, AttentionReason::IdleSettled);
-        was_working || flagged
-    }
-
-    pub(crate) fn on_bell(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
-        !self.is_viewed(ws, tab) && self.attention.flag(ws, tab, AttentionReason::Bell)
-    }
-
-    pub(crate) fn on_interaction(&mut self, ws: WorkspaceId, tab: TabId) -> bool {
-        let was_working = self.activity.entry((ws, tab)).or_default().on_interaction();
-        self.attention.clear_tab(ws, tab) || was_working
-    }
-
-    pub(crate) fn on_exit(&mut self, ws: WorkspaceId, tab: TabId, code: i32) {
-        self.activity.entry((ws, tab)).or_default().on_exit();
+        status: TermStatus,
+    ) -> Applied {
+        let mut applied = Applied::default();
         if let Some(t) = self.tab_mut(ws, tab) {
-            t.exited = Some(code);
+            if t.title != status.title {
+                t.title = status.title.clone();
+                applied.relabel = true;
+            }
+            if t.phone_device != status.phone {
+                t.phone_device = status.phone.clone();
+                applied.relabel = true;
+            }
+            let code = status.exit.map(|e| e.code());
+            if t.exited != code {
+                t.exited = code;
+                applied.exited = code;
+            }
         }
+        applied.dots = self.tab_dot_of(Some(&status)) != self.tab_dot(ws, tab);
+        self.status.insert((ws, tab), status);
+        applied
+    }
+
+    /// The tab on screen was looked at: drop its attention here and return the terminal
+    /// the service should clear it for.
+    pub(crate) fn dismiss_viewed(&mut self) -> Option<TermId> {
+        let ws = self.active()?;
+        let tab = self.spaces.get(&ws)?.content.active_tab()?;
+        let (id, term) = (tab.id, tab.term);
+        let status = self.status.get_mut(&(ws, id))?;
+        let flagged = status.attention.take().is_some();
+        (flagged && self.is_viewed(ws, id))
+            .then_some(term)
+            .flatten()
+    }
+
+    pub(crate) fn tab_of_term(&self, id: TermId) -> Option<(WorkspaceId, TabId)> {
+        self.spaces.iter().find_map(|(ws, space)| {
+            let mut found = None;
+            if let Some(root) = space.content.root.as_ref() {
+                root.for_each_leaf(&mut |leaf| {
+                    let hit = leaf.tabs.iter().find(|t| t.term == Some(id));
+                    found = found.or(hit.map(|t| t.id));
+                });
+            }
+            found.map(|tab| (*ws, tab))
+        })
     }
 
     pub(crate) fn focus_pane(&mut self, ws: WorkspaceId, pane: PaneId) -> bool {
@@ -100,29 +94,13 @@ impl Model {
         changed
     }
 
-    pub(crate) fn dismiss_viewed(&mut self) -> bool {
-        let Some(ws) = self.active() else {
-            return false;
-        };
-        let Some(tab) = self
-            .spaces
-            .get(&ws)
-            .and_then(|s| s.content.active_tab())
-            .map(|t| t.id)
-        else {
-            return false;
-        };
-        self.is_viewed(ws, tab) && self.attention.clear_tab(ws, tab)
-    }
-
-    pub(crate) fn is_working(&self, ws: WorkspaceId, tab: TabId) -> bool {
-        self.activity
-            .get(&(ws, tab))
-            .is_some_and(|a| a.is_working())
-    }
-
     pub(crate) fn tab_dot(&self, ws: WorkspaceId, tab: TabId) -> Option<WorkspaceDot> {
-        workspace_dot(self.is_working(ws, tab), self.attention.reason(ws, tab))
+        self.tab_dot_of(self.status.get(&(ws, tab)))
+    }
+
+    fn tab_dot_of(&self, status: Option<&TermStatus>) -> Option<WorkspaceDot> {
+        let s = status?;
+        workspace_dot(s.working, s.attention)
     }
 
     pub(crate) fn workspace_dot(&self, ws: WorkspaceId) -> Option<WorkspaceDot> {
@@ -134,9 +112,10 @@ impl Model {
                 .iter()
                 .filter(|t: &&Tab| matches!(t.kind, TabKind::Terminal))
             {
+                let status = self.status.get(&(ws, tab.id));
                 tabs.push((
-                    self.is_working(ws, tab.id),
-                    self.attention.reason(ws, tab.id),
+                    status.is_some_and(|s| s.working),
+                    status.and_then(|s| s.attention),
                 ));
             }
         });
@@ -144,14 +123,14 @@ impl Model {
     }
 
     pub(crate) fn any_working(&self) -> bool {
-        self.activity.values().any(|a| a.is_working())
+        self.status.values().any(|s| s.working)
     }
 }
 
-fn shell_name() -> String {
-    std::env::var("SHELL")
-        .ok()
-        .and_then(|s| s.rsplit('/').next().map(str::to_string))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "shell".into())
+/// What changed when a status landed, so the window repaints only what it must.
+#[derive(Default)]
+pub(crate) struct Applied {
+    pub relabel: bool,
+    pub dots: bool,
+    pub exited: Option<i32>,
 }

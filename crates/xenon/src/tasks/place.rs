@@ -5,7 +5,9 @@ use gtk::glib;
 use xenon_core::tasks as shared;
 use xenon_core::{Panel, ResolvedTask, Reveal, TabId, WorkspaceId};
 
-use super::{Placement, Spawn};
+use xenon_term::Spawn;
+
+use super::Placement;
 use crate::app::App;
 
 impl App {
@@ -39,8 +41,7 @@ impl App {
         let tab = match reusable {
             Some(tab) => {
                 self.bodies.borrow_mut().remove(&(ws, tab));
-                self.terms.borrow_mut().remove(&(ws, tab));
-                self.remote_tab_gone(ws, tab);
+                self.end_term((ws, tab));
                 let mut model = self.model.borrow_mut();
                 model.recycle_terminal(ws, tab, &task.label);
                 if select {
@@ -88,11 +89,15 @@ impl App {
             return;
         };
         let code = self
-            .terms
+            .model
             .borrow()
+            .status
             .get(&(ws, tab))
-            .and_then(|view| view.status.get())
-            .and_then(|status| (status & 0x7f == 0).then_some((status >> 8) & 0xff));
+            .and_then(|status| status.exit)
+            .and_then(|exit| match exit {
+                xenon_term::Exit::Code(code) => Some(code),
+                xenon_term::Exit::Signal(_) => None,
+            });
         let Some((pres, background)) = self.with_run(run_id, |run| {
             let launched = run.launched.get_mut(&label);
             let background = launched.as_ref().is_some_and(|l| l.background);

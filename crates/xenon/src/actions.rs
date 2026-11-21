@@ -75,12 +75,24 @@ const SIMPLE: &[(&str, Handler)] = &[
     ("save-now", |a| a.save_all()),
     ("settings", |a| a.toggle_settings()),
     ("quit", |a| a.quit()),
+    ("quit-end-terminals", |a| a.quit_end_terminals()),
 ];
 
 impl App {
+    /// Quit the window. Terminals keep running in the service.
     pub(crate) fn quit(self: &Rc<Self>) {
         self.save_all();
         self.save_window();
+        self.gtk.quit();
+    }
+
+    /// Hang up every terminal this window knows, then quit.
+    pub(crate) fn quit_end_terminals(self: &Rc<Self>) {
+        self.save_all();
+        self.save_window();
+        for id in self.known.borrow().keys() {
+            self.svc.close(*id);
+        }
         self.gtk.quit();
     }
 }
@@ -129,7 +141,10 @@ fn install_hidden_files(app: &Rc<App>) {
 }
 
 fn palette_passes(name: &str) -> bool {
-    matches!(name, "quit" | "save-now" | "open-workspace" | "settings")
+    matches!(
+        name,
+        "quit" | "quit-end-terminals" | "save-now" | "open-workspace" | "settings"
+    )
 }
 
 fn install_palette_keys(app: &Rc<App>) {
@@ -169,21 +184,4 @@ fn install_term_actions(app: &Rc<App>) {
     string_action(app, "open-path-default", |app, path| {
         app.open_file(std::path::Path::new(path));
     });
-    let local = gio::SimpleAction::new("term-interaction", None);
-    let weak = Rc::downgrade(app);
-    local.connect_activate(move |_, _| {
-        let Some(app) = weak.upgrade() else { return };
-        let key = {
-            let model = app.model.borrow();
-            let ws = model.active();
-            let tab = ws
-                .and_then(|w| model.spaces.get(&w))
-                .and_then(|s| s.content.active_tab());
-            ws.zip(tab.map(|t| t.id))
-        };
-        if let Some((ws, tab)) = key {
-            glib::idle_add_local_once(move || app.term_interaction(ws, tab));
-        }
-    });
-    app.gtk.add_action(&local);
 }

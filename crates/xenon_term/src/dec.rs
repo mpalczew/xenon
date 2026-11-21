@@ -2,8 +2,10 @@
 
 use std::io;
 
+use xenon_core::{AttentionReason, TermId, WorkspaceId};
+
 use crate::codec::bad;
-use crate::{Exit, Size, TermId};
+use crate::{Exit, Size, TermStatus};
 
 pub(crate) struct Dec<'a>(pub(crate) &'a [u8]);
 
@@ -37,7 +39,10 @@ impl Dec<'_> {
         Ok(u64::from_le_bytes(self.array()?))
     }
     pub(crate) fn id(&mut self) -> io::Result<TermId> {
-        Ok(TermId(u128::from_le_bytes(self.array()?)))
+        Ok(TermId::from_u128(u128::from_le_bytes(self.array()?)))
+    }
+    pub(crate) fn ws(&mut self) -> io::Result<WorkspaceId> {
+        Ok(WorkspaceId::from_u128(u128::from_le_bytes(self.array()?)))
     }
     pub(crate) fn bytes(&mut self) -> io::Result<Vec<u8>> {
         let n = self.u32()? as usize;
@@ -58,6 +63,27 @@ impl Dec<'_> {
             0 => None,
             1 => Some(Exit::Code(self.i32()?)),
             _ => Some(Exit::Signal(self.i32()?)),
+        })
+    }
+    pub(crate) fn status(&mut self) -> io::Result<TermStatus> {
+        let working = self.u8()? != 0;
+        let attention = match self.u8()? {
+            1 => Some(AttentionReason::Bell),
+            2 => Some(AttentionReason::IdleSettled),
+            _ => None,
+        };
+        let title = self.str()?;
+        let exit = self.exit()?;
+        let phone = match self.u8()? {
+            0 => None,
+            _ => Some(self.str()?),
+        };
+        Ok(TermStatus {
+            working,
+            attention,
+            title,
+            exit,
+            phone,
         })
     }
 }

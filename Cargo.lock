@@ -1824,7 +1824,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "tungstenite",
- "unicode-width",
  "uuid",
  "xenon_core",
  "xenon_store",
@@ -1860,7 +1859,13 @@ dependencies = [
  "anyhow",
  "async-channel",
  "libc",
- "uuid",
+ "log",
+ "serde",
+ "serde_json",
+ "unicode-width",
+ "xenon_core",
+ "xenon_remote",
+ "xenon_store",
 ]
 
 [[package]]

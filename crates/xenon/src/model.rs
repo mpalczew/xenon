@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use xenon_core::{
-    AttentionMap, ContentLayout, PaneContent, PaneLeaf, PaneNode, PaneTab, PaneTree, Registry,
-    SessionState, TabId, TabState, TerminalActivity, WorkspaceId, WorkspaceRec, terminal_tab_label,
+    ContentLayout, PaneContent, PaneLeaf, PaneNode, PaneTab, PaneTree, Registry, SessionState,
+    TabId, TabState, TermId, WorkspaceId, WorkspaceRec, terminal_tab_label,
 };
+use xenon_term::TermStatus;
 
 #[derive(Clone)]
 pub(crate) enum TabKind {
@@ -17,6 +18,8 @@ pub(crate) enum TabKind {
 pub(crate) struct Tab {
     pub id: TabId,
     pub kind: TabKind,
+    /// The terminal service's shell for this tab (terminal tabs only).
+    pub term: Option<TermId>,
     pub title: String,
     pub exited: Option<i32>,
     pub modified: bool,
@@ -34,6 +37,7 @@ impl Tab {
         Self {
             id,
             kind: TabKind::Terminal,
+            term: None,
             title: "terminal".into(),
             exited: None,
             modified: false,
@@ -70,7 +74,7 @@ impl Tab {
             TabKind::Terminal => Some(TabState::Terminal {
                 id: self.id,
                 cwd: ".".into(),
-                remote_session: None,
+                term: self.term,
             }),
             TabKind::Diff { path } => Some(TabState::Diff {
                 id: self.id,
@@ -90,8 +94,8 @@ pub(crate) struct Space {
 pub(crate) struct Model {
     pub registry: Registry,
     pub spaces: HashMap<WorkspaceId, Space>,
-    pub attention: AttentionMap,
-    pub activity: HashMap<(WorkspaceId, TabId), TerminalActivity>,
+    /// What the service last said about each terminal tab.
+    pub status: HashMap<(WorkspaceId, TabId), TermStatus>,
     pub window_active: bool,
     pub folds: Folds,
 }
@@ -170,8 +174,7 @@ impl Model {
         Self {
             registry,
             spaces,
-            attention: AttentionMap::default(),
-            activity: HashMap::new(),
+            status: HashMap::new(),
             window_active: true,
             folds: Folds::load(),
         }
@@ -298,8 +301,7 @@ impl Model {
         self.registry.closed_workspaces.insert(0, rec);
         self.registry.closed_workspaces.truncate(50);
         self.spaces.remove(&id);
-        self.attention.clear_workspace(id);
-        self.activity.retain(|(ws, _), _| *ws != id);
+        self.status.retain(|(ws, _), _| *ws != id);
         let next = self
             .registry
             .workspaces
@@ -327,10 +329,15 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                 .tabs
                 .iter()
                 .map(|state| match state {
-                    TabState::Terminal { id, .. } => Tab::terminal(*id),
+                    TabState::Terminal { id, term, .. } => {
+                        let mut tab = Tab::terminal(*id);
+                        tab.term = *term;
+                        tab
+                    }
                     TabState::Diff { id, path } => Tab {
                         id: *id,
                         kind: TabKind::Diff { path: path.clone() },
+                        term: None,
                         title: String::new(),
                         exited: None,
                         modified: false,
@@ -339,6 +346,7 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                     TabState::Editor { id, .. } => Tab {
                         id: *id,
                         kind: TabKind::Kept(state.clone()),
+                        term: None,
                         title: String::new(),
                         exited: None,
                         modified: false,

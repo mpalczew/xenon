@@ -23,22 +23,9 @@ pub struct RemoteDevices {
 }
 
 const FILE: &str = "remote_devices.json";
-const SLOT_DIRS: &[&str] = &[".xenon-a", ".xenon-b"];
-
-/// State every instance of this user shares: `XENON_SHARED_DIR`, else the
-/// `.xenon-shared` sibling of an a/b slot dir, else the data dir.
+/// State the phone server keeps: `XENON_SHARED_DIR`, else the data dir.
 pub(crate) fn shared_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("XENON_SHARED_DIR") {
-        return PathBuf::from(dir);
-    }
-    let data = data_dir();
-    let is_slot = data
-        .file_name()
-        .is_some_and(|name| SLOT_DIRS.iter().any(|slot| name == *slot));
-    match (is_slot, data.parent()) {
-        (true, Some(parent)) => parent.join(".xenon-shared"),
-        _ => data,
-    }
+    std::env::var_os("XENON_SHARED_DIR").map_or_else(data_dir, PathBuf::from)
 }
 
 fn devices_path() -> PathBuf {

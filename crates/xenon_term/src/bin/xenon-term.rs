@@ -1,9 +1,6 @@
-//! Dev-only entry for the spike: runs the terminal service.
-//! Usage: `xenon-term [SOCKET]`.
+//! The terminal service. systemd's user manager starts it through `xenon-term.socket`;
+//! with `XENON_TERM_SOCKET` set it binds that path itself.
 
 fn main() -> std::io::Result<()> {
-    let path = std::env::args_os()
-        .nth(1)
-        .map_or_else(xenon_term::default_socket, std::path::PathBuf::from);
-    xenon_term::run_service(&path)
+    xenon_term::run_service()
 }

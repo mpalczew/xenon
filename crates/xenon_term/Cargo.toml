@@ -10,7 +10,13 @@ alacritty_terminal = "0.26"
 libc = "0.2"
 anyhow.workspace = true
 async-channel.workspace = true
-uuid.workspace = true
+log = "0.4"
+serde.workspace = true
+serde_json.workspace = true
+unicode-width = "0.2"
+xenon_core.workspace = true
+xenon_remote.workspace = true
+xenon_store.workspace = true
 
 [lints]
 workspace = true

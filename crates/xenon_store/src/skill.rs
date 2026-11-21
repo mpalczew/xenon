@@ -1,4 +1,4 @@
-//! Global managed Agent Skill. Not per-slot: lives under `$HOME`, not data_dir.
+//! Global managed Agent Skill. Lives under `$HOME`, not data_dir.
 
 use std::fs;
 use std::io;

@@ -55,6 +55,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("Save All", "app.save-now"),
     ("Settings", "app.settings"),
     ("Quit", "app.quit"),
+    ("Quit and End Terminals", "app.quit-end-terminals"),
 ];
 
 fn filter(query: &str) -> Vec<(&'static str, &'static str)> {

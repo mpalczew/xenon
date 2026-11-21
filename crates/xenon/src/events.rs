@@ -1,9 +1,9 @@
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use gtk::glib;
 use vte::prelude::*;
-use xenon_core::{IDLE_AFTER, PaneId, TabId, WorkspaceId};
+use xenon_core::{PaneId, TabId, WorkspaceId};
 
 use crate::app::App;
 
@@ -12,71 +12,6 @@ const PULSE_PERIOD_S: f64 = 1.4;
 const PULSE_LEVELS: i32 = 5;
 
 impl App {
-    pub(crate) fn term_output(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        let became_working = self.model.borrow_mut().on_output(ws, tab);
-        let view = self.terms.borrow().get(&(ws, tab)).cloned();
-        if let Some(view) = view {
-            view.last_output.set(Instant::now());
-            if !view.quiet_armed.replace(true) {
-                self.arm_quiet(ws, tab, IDLE_AFTER);
-            }
-        }
-        if became_working {
-            self.paint_all();
-        }
-    }
-
-    fn arm_quiet(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, delay: Duration) {
-        let weak = Rc::downgrade(self);
-        glib::timeout_add_local_once(delay, move || {
-            if let Some(app) = weak.upgrade() {
-                app.quiet_check(ws, tab);
-            }
-        });
-    }
-
-    fn quiet_check(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
-            return;
-        };
-        let elapsed = view.last_output.get().elapsed();
-        if elapsed < IDLE_AFTER {
-            self.arm_quiet(ws, tab, IDLE_AFTER - elapsed);
-            return;
-        }
-        view.quiet_armed.set(false);
-        if self.model.borrow_mut().on_quiet(ws, tab) {
-            self.paint_all();
-        }
-    }
-
-    pub(crate) fn term_bell(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        if self.model.borrow_mut().on_bell(ws, tab) {
-            self.paint_all();
-        }
-    }
-
-    pub(crate) fn term_interaction(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        self.remote_local_input(ws, tab);
-        if self.model.borrow_mut().on_interaction(ws, tab) {
-            self.paint_all();
-        }
-    }
-
-    pub(crate) fn term_title(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, raw: &str) {
-        let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
-            return;
-        };
-        if !self
-            .model
-            .borrow_mut()
-            .set_title(ws, tab, raw, &view.spawn_dir)
-        {
-            return;
-        }
-        self.relabel(ws, tab);
-    }
-
     pub(crate) fn relabel(&self, ws: WorkspaceId, tab: TabId) {
         let located = {
             let model = self.model.borrow();
@@ -127,23 +62,18 @@ impl App {
         if self.tab_sync.get() || self.launcher.restoring.get() {
             return;
         }
-        let changed = {
-            let mut model = self.model.borrow_mut();
-            let changed = model.focus_pane(ws, pane);
-            let dismissed = model.dismiss_viewed();
-            changed || dismissed
-        };
-        if changed {
+        let changed = self.model.borrow_mut().focus_pane(ws, pane);
+        let dismissed = self.dismiss_viewed();
+        if changed || dismissed {
             self.sync(ws);
         }
     }
 
+    /// The service reported the shell gone (or already gone when this window attached).
     pub(crate) fn term_exited(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, code: i32) {
         if self.tab_sync.get() {
             return;
         }
-        self.model.borrow_mut().on_exit(ws, tab, code);
-        self.remote_tab_gone(ws, tab);
         let view = self.terms.borrow().get(&(ws, tab)).cloned();
         if let Some(view) = view {
             view.term.feed(

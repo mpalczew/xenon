@@ -34,7 +34,7 @@ impl Style {
     }
 }
 
-pub(crate) const WIDE_SPACER: char = '\0';
+pub const WIDE_SPACER: char = '\0';
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cell {

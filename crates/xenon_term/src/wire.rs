@@ -1,28 +1,30 @@
 //! The socket protocol. Private: only `client` and `service` use it.
 //!
-//! A frame is `u32 length` then the body; the body is a tag byte and fields. The spike
-//! uses a hand-written codec to stay dependency-free; a real build can swap it.
+//! A frame is `u32 length` then the body; the body is a tag byte and fields. Phone
+//! calls ride inside as JSON text, because they are rare and shaped by `xenon_remote`.
 
 use std::io::{self, Read, Write};
 
+use xenon_core::{TermId, WorkspaceId};
+
 use crate::codec::{Enc, bad};
 use crate::dec::Dec;
-use crate::{Exit, Size, TermId};
+use crate::{Size, TermStatus};
 
-pub const VERSION: u32 = 1;
+pub(crate) const VERSION: u32 = 2;
 const MAX_FRAME: usize = 64 << 20;
 
-pub enum Request {
+pub(crate) enum Request {
     Hello {
         version: u32,
         env: Vec<String>,
     },
     List,
     Create {
+        workspace: WorkspaceId,
         cwd: String,
         argv: Vec<String>,
         env: Vec<String>,
-        size: Size,
     },
     Attach {
         id: TermId,
@@ -32,35 +34,58 @@ pub enum Request {
         id: TermId,
         bytes: Vec<u8>,
     },
-    Resize {
+    Claim {
         id: TermId,
         size: Size,
+    },
+    Seen {
+        id: TermId,
     },
     Close {
         id: TermId,
     },
+    Dark {
+        dark: bool,
+    },
+    Phone {
+        json: String,
+    },
 }
 
-pub struct Listed {
+pub(crate) struct Listed {
     pub id: TermId,
+    pub workspace: WorkspaceId,
     pub pid: i32,
-    pub exit: Option<Exit>,
+    pub status: TermStatus,
 }
 
-pub enum Message {
+pub(crate) enum Message {
     /// Answer to the request with this sequence number.
     Ok(u64),
     Err(u64, String),
     Created(u64, TermId),
     Listed(u64, Vec<Listed>),
+    Reply(u64, String),
     Output {
         id: TermId,
         bytes: Vec<u8>,
     },
-    Exited {
+    Status {
         id: TermId,
-        exit: Exit,
+        status: TermStatus,
     },
+    Size {
+        id: TermId,
+        size: Size,
+    },
+    Born {
+        id: TermId,
+        workspace: WorkspaceId,
+    },
+    Closed {
+        id: TermId,
+    },
+    PhoneChanged,
 }
 
 fn send(out: &mut impl Write, body: Vec<u8>) -> io::Result<()> {
@@ -82,7 +107,7 @@ fn recv(input: &mut impl Read) -> io::Result<Vec<u8>> {
     Ok(body)
 }
 
-pub fn write_request(out: &mut impl Write, seq: u64, req: &Request) -> io::Result<()> {
+pub(crate) fn write_request(out: &mut impl Write, seq: u64, req: &Request) -> io::Result<()> {
     let mut e = Enc::default();
     e.u64(seq);
     match req {
@@ -93,16 +118,16 @@ pub fn write_request(out: &mut impl Write, seq: u64, req: &Request) -> io::Resul
         }
         Request::List => e.u8(1),
         Request::Create {
+            workspace,
             cwd,
             argv,
             env,
-            size,
         } => {
             e.u8(2);
+            e.ws(*workspace);
             e.str(cwd);
             e.strs(argv);
             e.strs(env);
-            e.size(*size);
         }
         Request::Attach { id, size } => {
             e.u8(3);
@@ -114,20 +139,32 @@ pub fn write_request(out: &mut impl Write, seq: u64, req: &Request) -> io::Resul
             e.id(*id);
             e.bytes(bytes);
         }
-        Request::Resize { id, size } => {
+        Request::Claim { id, size } => {
             e.u8(5);
             e.id(*id);
             e.size(*size);
         }
-        Request::Close { id } => {
+        Request::Seen { id } => {
             e.u8(6);
             e.id(*id);
+        }
+        Request::Close { id } => {
+            e.u8(7);
+            e.id(*id);
+        }
+        Request::Dark { dark } => {
+            e.u8(8);
+            e.u8(u8::from(*dark));
+        }
+        Request::Phone { json } => {
+            e.u8(9);
+            e.str(json);
         }
     }
     send(out, e.0)
 }
 
-pub fn read_request(input: &mut impl Read) -> io::Result<(u64, Request)> {
+pub(crate) fn read_request(input: &mut impl Read) -> io::Result<(u64, Request)> {
     let body = recv(input)?;
     let mut d = Dec(&body);
     let seq = d.u64()?;
@@ -138,10 +175,10 @@ pub fn read_request(input: &mut impl Read) -> io::Result<(u64, Request)> {
         },
         1 => Request::List,
         2 => Request::Create {
+            workspace: d.ws()?,
             cwd: d.str()?,
             argv: d.strs()?,
             env: d.strs()?,
-            size: d.size()?,
         },
         3 => Request::Attach {
             id: d.id()?,
@@ -151,17 +188,20 @@ pub fn read_request(input: &mut impl Read) -> io::Result<(u64, Request)> {
             id: d.id()?,
             bytes: d.bytes()?,
         },
-        5 => Request::Resize {
+        5 => Request::Claim {
             id: d.id()?,
             size: d.size()?,
         },
-        6 => Request::Close { id: d.id()? },
+        6 => Request::Seen { id: d.id()? },
+        7 => Request::Close { id: d.id()? },
+        8 => Request::Dark { dark: d.u8()? != 0 },
+        9 => Request::Phone { json: d.str()? },
         _ => return Err(bad("unknown request")),
     };
     Ok((seq, req))
 }
 
-pub fn write_message(out: &mut impl Write, msg: &Message) -> io::Result<()> {
+pub(crate) fn write_message(out: &mut impl Write, msg: &Message) -> io::Result<()> {
     let mut e = Enc::default();
     match msg {
         Message::Ok(seq) => {
@@ -184,25 +224,46 @@ pub fn write_message(out: &mut impl Write, msg: &Message) -> io::Result<()> {
             e.u32(items.len() as u32);
             for item in items {
                 e.id(item.id);
+                e.ws(item.workspace);
                 e.i32(item.pid);
-                e.exit(item.exit);
+                e.status(&item.status);
             }
         }
-        Message::Output { id, bytes } => {
+        Message::Reply(seq, json) => {
             e.u8(4);
+            e.u64(*seq);
+            e.str(json);
+        }
+        Message::Output { id, bytes } => {
+            e.u8(5);
             e.id(*id);
             e.bytes(bytes);
         }
-        Message::Exited { id, exit } => {
-            e.u8(5);
+        Message::Status { id, status } => {
+            e.u8(6);
             e.id(*id);
-            e.exit(Some(*exit));
+            e.status(status);
         }
+        Message::Size { id, size } => {
+            e.u8(7);
+            e.id(*id);
+            e.size(*size);
+        }
+        Message::Born { id, workspace } => {
+            e.u8(8);
+            e.id(*id);
+            e.ws(*workspace);
+        }
+        Message::Closed { id } => {
+            e.u8(9);
+            e.id(*id);
+        }
+        Message::PhoneChanged => e.u8(10),
     }
     send(out, e.0)
 }
 
-pub fn read_message(input: &mut impl Read) -> io::Result<Message> {
+pub(crate) fn read_message(input: &mut impl Read) -> io::Result<Message> {
     let body = recv(input)?;
     let mut d = Dec(&body);
     Ok(match d.u8()? {
@@ -216,21 +277,33 @@ pub fn read_message(input: &mut impl Read) -> io::Result<Message> {
                 .map(|_| {
                     Ok(Listed {
                         id: d.id()?,
+                        workspace: d.ws()?,
                         pid: d.i32()?,
-                        exit: d.exit()?,
+                        status: d.status()?,
                     })
                 })
                 .collect::<io::Result<_>>()?;
             Message::Listed(seq, items)
         }
-        4 => Message::Output {
+        4 => Message::Reply(d.u64()?, d.str()?),
+        5 => Message::Output {
             id: d.id()?,
             bytes: d.bytes()?,
         },
-        5 => Message::Exited {
+        6 => Message::Status {
             id: d.id()?,
-            exit: d.exit()?.ok_or_else(|| bad("exit missing"))?,
+            status: d.status()?,
         },
+        7 => Message::Size {
+            id: d.id()?,
+            size: d.size()?,
+        },
+        8 => Message::Born {
+            id: d.id()?,
+            workspace: d.ws()?,
+        },
+        9 => Message::Closed { id: d.id()? },
+        10 => Message::PhoneChanged,
         _ => return Err(bad("unknown message")),
     })
 }

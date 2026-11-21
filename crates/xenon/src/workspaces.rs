@@ -9,10 +9,11 @@ impl App {
         if !self.model.borrow_mut().activate(id) {
             return;
         }
+        self.adopt_orphans(id);
         self.sync(id);
         self.check_folder_open_tasks(id);
         self.stack.set_visible_child_name(&id.to_string());
-        self.model.borrow_mut().dismiss_viewed();
+        self.dismiss_viewed();
         self.paint_all();
         self.save_registry();
         self.focus_terminal();
@@ -106,7 +107,7 @@ impl App {
             .copied()
             .collect();
         for key in keys {
-            self.terms.borrow_mut().remove(&key);
+            self.end_term(key);
         }
         self.bodies.borrow_mut().retain(|(w, _), _| *w != id);
         if let Some(slot) = self.slots.borrow_mut().remove(&id) {

@@ -16,12 +16,11 @@ mod rate_limit;
 mod server;
 mod status;
 mod uploads;
-mod vte_html;
 mod ws;
 
 pub use devices::DeviceBook;
 pub use fit::{FitGate, clamp_fit, smallest_fit};
-pub use frame::{Cell, FrameEncoder, Rgb, Screen, Style};
+pub use frame::{Cell, FrameEncoder, Rgb, Screen, Style, WIDE_SPACER};
 pub use host::{ConnId, HostRequest, Outbox, PairError};
 pub use keys::pty_text_bytes;
 pub use labels::device_short_name;
@@ -39,4 +38,3 @@ pub use status::{
     DeviceRow, KEEP_AWAKE_DETAIL, KEEP_AWAKE_LABEL, RemoteStatus, ago, device_rows, effective_port,
     theme_wire,
 };
-pub use vte_html::{LinkRun, VteSnapshot};

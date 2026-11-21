@@ -71,7 +71,7 @@ impl App {
         for view in self.terms.borrow().values() {
             self.restyle_term(view);
         }
-        self.remote_theme_changed();
+        self.svc.set_dark(theme::dark());
     }
 
     pub(crate) fn chord(&self, action: &str) -> Option<String> {
@@ -196,6 +196,13 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         .default_height(height)
         .maximized(geometry.is_some_and(|g| g.state == WindowState::Maximized))
         .build();
+    let svc = match xenon_term::Client::connect(crate::term::child_env()) {
+        Ok(svc) => Rc::new(svc),
+        Err(error) => {
+            eprintln!("xenon: {error:#}");
+            std::process::exit(1);
+        }
+    };
     let app = Rc::new_cyclic(|weak| App {
         gtk: gtk_app.clone(),
         win: win.clone(),
@@ -227,6 +234,8 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         save_pending: Cell::new(false),
         save_button: save_button(),
         remote: crate::remote::Remote::new(),
+        svc,
+        known: RefCell::default(),
         tasks: crate::tasks::Tasks::default(),
         trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),
         worklist: Default::default(),
@@ -269,6 +278,8 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     connect_window(&app, &win);
     app.sidebar.set_hints(&app);
     app.sidebar.rebuild(&app.model.borrow());
+    app.learn_terms();
+    app.listen_service();
     start_workspace(&app);
     app.remote_boot();
     app
@@ -300,7 +311,7 @@ fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
             if active {
                 app.git_refresh_active();
             }
-            app.model.borrow_mut().dismiss_viewed();
+            app.dismiss_viewed();
             app.paint_all();
         });
     });

@@ -1,5 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use xenon_store::RemoteDevice;
 
 use crate::frame::Rgb;
@@ -8,7 +9,7 @@ use crate::protocol::ThemeWire;
 pub const KEEP_AWAKE_LABEL: &str = "Keep this computer awake while a phone is connected";
 pub const KEEP_AWAKE_DETAIL: &str = "Ignores your sleep setting until the phone disconnects";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceRow {
     pub id: String,
     pub label: String,
@@ -17,7 +18,7 @@ pub struct DeviceRow {
     pub created_at: u64,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteStatus {
     pub enabled: bool,
     pub waiting: bool,

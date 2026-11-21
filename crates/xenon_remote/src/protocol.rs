@@ -202,10 +202,10 @@ fn is_false(v: &bool) -> bool {
 }
 
 pub mod style_flags {
-    pub(crate) const BOLD: u8 = 1;
-    pub(crate) const ITALIC: u8 = 2;
-    pub(crate) const UNDERLINE: u8 = 4;
-    pub(crate) const STRIKE: u8 = 16;
+    pub const BOLD: u8 = 1;
+    pub const ITALIC: u8 = 2;
+    pub const UNDERLINE: u8 = 4;
+    pub const STRIKE: u8 = 16;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

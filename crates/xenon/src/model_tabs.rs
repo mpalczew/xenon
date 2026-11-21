@@ -83,6 +83,7 @@ impl Model {
                 cursor: Default::default(),
                 scroll_top: 0,
             }),
+            term: None,
             title: String::new(),
             exited: None,
             modified: false,
@@ -103,6 +104,7 @@ impl Model {
         let id = self.push_tab(ws, |id| Tab {
             id,
             kind: TabKind::Diff { path },
+            term: None,
             title: String::new(),
             exited: None,
             modified: false,
@@ -223,8 +225,7 @@ impl Model {
 
     pub(crate) fn close_tab(&mut self, ws: WorkspaceId, tab: TabId) -> Option<CloseOutcome> {
         let outcome = self.space_content(ws)?.close_tab(tab);
-        self.activity.remove(&(ws, tab));
-        self.attention.clear_tab(ws, tab);
+        self.status.remove(&(ws, tab));
         outcome
     }
 
@@ -286,35 +287,6 @@ impl Model {
         self.space_content(ws)
             .and_then(|c| c.root.as_mut())
             .is_some_and(|root| root.set_boundary_for_split(key, pos))
-    }
-
-    pub(crate) fn terminal_ids(&self, ws: WorkspaceId) -> Vec<(TabId, usize)> {
-        let mut out = Vec::new();
-        if let Some(root) = self.spaces.get(&ws).and_then(|s| s.content.root.as_ref()) {
-            root.for_each_leaf(&mut |leaf| {
-                for (index, tab) in leaf.tabs.iter().enumerate() {
-                    if matches!(tab.kind, TabKind::Terminal) {
-                        out.push((tab.id, index));
-                    }
-                }
-            });
-        }
-        out
-    }
-
-    pub(crate) fn set_phone_device(
-        &mut self,
-        ws: WorkspaceId,
-        tab: TabId,
-        device: Option<String>,
-    ) -> bool {
-        match self.tab_mut(ws, tab) {
-            Some(t) if t.phone_device != device => {
-                t.phone_device = device;
-                true
-            }
-            _ => false,
-        }
     }
 
     pub(crate) fn tab(&self, ws: WorkspaceId, tab: TabId) -> Option<&Tab> {

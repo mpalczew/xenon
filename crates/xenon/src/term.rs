@@ -1,11 +1,12 @@
 use std::cell::Cell;
+use std::path::Path;
 use std::rc::{Rc, Weak};
-use std::time::Instant;
 
 use adw::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, glib};
 use vte::prelude::*;
-use xenon_core::{TabId, WorkspaceId};
+use xenon_core::{TabId, TermId, WorkspaceId};
+use xenon_term::{Client, Size};
 
 use crate::app::{App, defer};
 use crate::find::FindBar;
@@ -14,13 +15,16 @@ pub(crate) struct TermView {
     pub root: gtk::Box,
     pub term: vte::Terminal,
     pub find: FindBar,
-    pub spawn_dir: String,
+    pub id: TermId,
     pub cwd: std::path::PathBuf,
-    workspace: WorkspaceId,
     pub pid: Cell<Option<i32>>,
-    pub status: Cell<Option<i32>>,
-    pub last_output: Cell<Instant>,
-    pub quiet_armed: Cell<bool>,
+    attached: Cell<bool>,
+    /// Held at a phone's size: the grid is not ours to report.
+    pinned: Cell<bool>,
+    /// The grid size last told to the service.
+    claimed: Cell<Option<(i64, i64)>>,
+    /// A replay turned focus reporting on; VTE answers with a focus report to drop.
+    skip_focus: Cell<bool>,
 }
 
 fn parse(color: &str) -> gdk::RGBA {
@@ -32,7 +36,8 @@ impl TermView {
         app: &Rc<App>,
         ws: WorkspaceId,
         tab: TabId,
-        cwd: &std::path::Path,
+        id: TermId,
+        cwd: &Path,
     ) -> Rc<Self> {
         let term = vte::Terminal::new();
         term.set_hexpand(true);
@@ -53,24 +58,21 @@ impl TermView {
         scroller.set_vexpand(true);
         scroller.set_child(Some(&term));
         root.append(&scroller);
-        let spawn_dir = cwd
-            .file_name()
-            .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
         let view = Rc::new(Self {
             root,
             term,
             find,
-            spawn_dir,
+            id,
             cwd: cwd.to_path_buf(),
-            workspace: ws,
             pid: Cell::new(None),
-            status: Cell::new(None),
-            last_output: Cell::new(Instant::now()),
-            quiet_armed: Cell::new(false),
+            attached: Cell::new(false),
+            pinned: Cell::new(false),
+            claimed: Cell::new(None),
+            skip_focus: Cell::new(false),
         });
         crate::links::install(app, &view, ws, tab);
         crate::term_menu::install(&view);
-        connect_signals(app, &view, ws, tab);
+        connect_signals(app, &view);
         view
     }
 
@@ -86,11 +88,6 @@ impl TermView {
             .set_colors(Some(&parse(fg)), Some(&parse(bg)), &refs);
     }
 
-    pub(crate) fn spawn(self: &Rc<Self>, cwd: &std::path::Path) {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
-        self.spawn_command(cwd, &[shell], &[]);
-    }
-
     pub(crate) fn live_cwd(&self) -> std::path::PathBuf {
         self.pid
             .get()
@@ -98,40 +95,75 @@ impl TermView {
             .unwrap_or_else(|| self.cwd.clone())
     }
 
-    pub(crate) fn spawn_command(
-        self: &Rc<Self>,
-        cwd: &std::path::Path,
-        argv: &[String],
-        extra_env: &[String],
-    ) {
-        let shell_name = argv.first().cloned().unwrap_or_default();
-        let mut env: Vec<String> = child_env();
-        env.extend(extra_env.iter().cloned());
-        env.push(format!("XENON_WORKSPACE={}", self.workspace));
-        let env_refs: Vec<&str> = env.iter().map(String::as_str).collect();
-        let argv_refs: Vec<&str> = argv.iter().map(String::as_str).collect();
-        let this = self.clone();
-        self.term.spawn_async(
-            vte::PtyFlags::DEFAULT,
-            Some(&cwd.to_string_lossy()),
-            &argv_refs,
-            &env_refs,
-            glib::SpawnFlags::SEARCH_PATH,
-            || {},
-            -1,
-            None::<&gio::Cancellable>,
-            move |result| match result {
-                Ok(pid) => this.pid.set(Some(pid.0)),
-                Err(error) => {
-                    this.term
-                        .feed(format!("could not start {shell_name}: {error}\r\n").as_bytes());
-                }
-            },
-        );
+    fn grid(&self) -> Option<Size> {
+        let cols = u16::try_from(self.term.column_count()).ok()?;
+        let rows = u16::try_from(self.term.row_count()).ok()?;
+        Size::new(cols, rows)
+    }
+
+    /// The first time the view is on screen: become the terminal's window. The service
+    /// answers with the replay, then live output.
+    pub(crate) fn attach(&self, svc: &Client) {
+        if self.attached.replace(true) {
+            return;
+        }
+        if let Some(size) = self.grid() {
+            self.claimed
+                .set(Some((i64::from(size.cols()), i64::from(size.rows()))));
+            svc.attach(self.id, size);
+        }
+    }
+
+    /// The grid changed size on its own: tell the service, unless a phone holds it.
+    pub(crate) fn report_size(&self, svc: &Client) {
+        if !self.attached.get() || self.pinned.get() {
+            return;
+        }
+        let now = (self.term.column_count(), self.term.row_count());
+        if self.claimed.get() == Some(now) {
+            return;
+        }
+        if let Some(size) = self.grid() {
+            self.claimed.set(Some(now));
+            svc.claim(self.id, size);
+        }
+    }
+
+    /// The service set the size in force: follow it, holding the view to a phone's size
+    /// when that differs from the room we have.
+    pub(crate) fn follow(&self, size: Size) {
+        let (cols, rows) = (i64::from(size.cols()), i64::from(size.rows()));
+        self.term.set_size(cols, rows);
+        let held = self.claimed.get().is_none_or(|own| own != (cols, rows));
+        self.pinned.set(held);
+        self.term.set_hexpand(!held);
+        self.term.set_vexpand(!held);
+        let align = if held {
+            gtk::Align::Start
+        } else {
+            gtk::Align::Fill
+        };
+        self.term.set_halign(align);
+        self.term.set_valign(align);
+    }
+
+    /// Replayed or live bytes from the service.
+    pub(crate) fn feed(&self, bytes: &[u8]) {
+        if bytes.windows(8).any(|w| w == b"\x1b[?1004h") {
+            self.skip_focus.set(true);
+        }
+        self.term.feed(bytes);
+    }
+
+    /// Whether this commit is the focus report VTE sends in answer to a replay.
+    fn is_replay_focus_report(&self, text: &str) -> bool {
+        matches!(text, "\x1b[I" | "\x1b[O") && self.skip_focus.replace(false)
     }
 }
 
-fn child_env() -> Vec<String> {
+/// The environment every terminal the service starts gets: this window's, minus what
+/// shells should not inherit.
+pub(crate) fn child_env() -> Vec<String> {
     const DROP: [&str; 4] = [
         "TERM",
         "COLORTERM",
@@ -149,49 +181,6 @@ fn child_env() -> Vec<String> {
     env
 }
 
-/// A terminal's scroll position in rows. VTE's scroll adjustment counts pixels
-/// or rows depending on `scroll-unit-is-pixels`, so read and move it only
-/// through here. Rows count from the oldest scrollback row VTE still keeps.
-pub(crate) struct ScrollRows {
-    adj: gtk::Adjustment,
-    unit: f64,
-}
-
-impl ScrollRows {
-    pub(crate) fn of(term: &vte::Terminal) -> Option<Self> {
-        let unit = if term.is_scroll_unit_is_pixels() {
-            (term.char_height() as f64).max(1.0)
-        } else {
-            1.0
-        };
-        Some(Self {
-            adj: term.vadjustment()?,
-            unit,
-        })
-    }
-
-    pub(crate) fn top(&self) -> f64 {
-        self.adj.value() / self.unit
-    }
-
-    pub(crate) fn first(&self) -> f64 {
-        self.adj.lower() / self.unit
-    }
-
-    pub(crate) fn live_top(&self) -> f64 {
-        ((self.adj.upper() - self.adj.page_size()) / self.unit).max(self.first())
-    }
-
-    pub(crate) fn scrolled_back(&self) -> bool {
-        self.top() + 0.5 < self.live_top()
-    }
-
-    pub(crate) fn scroll_to(&self, row: f64) {
-        let row = row.clamp(self.first(), self.live_top());
-        self.adj.set_value(row * self.unit);
-    }
-}
-
 /// Bytes a key sends that VTE would send differently. Shift+Enter is a line
 /// feed (like Ctrl+J), as the old terminal sent it: Claude Code and Codex read
 /// it as "new line", while VTE's carriage return would submit.
@@ -201,53 +190,49 @@ pub(crate) fn key_bytes(key: gdk::Key, state: gdk::ModifierType) -> Option<&'sta
         .then_some(b"\n")
 }
 
-fn connect_signals(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: TabId) {
+fn connect_signals(app: &Rc<App>, view: &Rc<TermView>) {
     let weak: Weak<App> = Rc::downgrade(app);
     let term = &view.term;
     {
-        let weak = weak.clone();
+        let (weak, view) = (weak.clone(), Rc::downgrade(view));
         term.connect_contents_changed(move |_| {
-            defer(&weak, move |app| app.term_output(ws, tab));
-        });
-    }
-    {
-        let weak = weak.clone();
-        term.connect_bell(move |_| {
-            defer(&weak, move |app| app.term_bell(ws, tab));
-        });
-    }
-    {
-        let weak = weak.clone();
-        term.connect_termprop_changed(Some("xterm.title"), move |t, name| {
-            let (title, _) = t.termprop_string(name);
-            if let Some(app) = weak.upgrade() {
-                let title = title.map(|t| t.to_string()).unwrap_or_default();
-                glib::idle_add_local_once(move || app.term_title(ws, tab, &title));
-            }
-        });
-    }
-    {
-        let weak = weak.clone();
-        let view = Rc::downgrade(view);
-        term.connect_child_exited(move |_, status| {
-            if let Some(view) = view.upgrade() {
-                view.status.set(Some(status));
-            }
+            let view = view.clone();
             defer(&weak, move |app| {
-                app.term_exited(ws, tab, (status >> 8) & 0xff);
+                if let Some(view) = view.upgrade() {
+                    view.report_size(&app.svc);
+                }
             });
+        });
+    }
+    {
+        let (weak, view) = (weak.clone(), Rc::downgrade(view));
+        term.connect_map(move |_| {
+            let view = view.clone();
+            defer(&weak, move |app| {
+                if let Some(view) = view.upgrade() {
+                    view.attach(&app.svc);
+                }
+            });
+        });
+    }
+    {
+        let (weak, view) = (weak.clone(), Rc::downgrade(view));
+        // sync: answer or ordering before return: keystrokes, pastes and VTE's replies must reach the service in the order they were typed.
+        term.connect_commit(move |_, text, _| {
+            let (Some(app), Some(view)) = (weak.upgrade(), view.upgrade()) else {
+                return;
+            };
+            if !view.is_replay_focus_report(text) {
+                app.svc.input(view.id, text.as_bytes());
+            }
         });
     }
     let keys = gtk::EventControllerKey::new();
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     {
-        let weak = weak.clone();
         let term = view.term.downgrade();
-        // sync: answer or ordering before return: keystrokes must reach the shell in order and the key must be consumed now; the interaction note runs first.
+        // sync: answer or ordering before return: keystrokes must reach the shell in order and the key must be consumed now.
         keys.connect_key_pressed(move |_, key, _, state| {
-            if let Some(app) = weak.upgrade() {
-                app.term_interaction(ws, tab);
-            }
             if let Some(bytes) = key_bytes(key, state)
                 && let Some(term) = term.upgrade()
             {

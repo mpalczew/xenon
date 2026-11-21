@@ -158,7 +158,7 @@ impl App {
 
     pub(crate) fn select_tab_ui(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
         self.model.borrow_mut().select_tab(ws, tab);
-        self.model.borrow_mut().dismiss_viewed();
+        self.dismiss_viewed();
         self.sync(ws);
         self.focus_terminal();
     }
@@ -168,7 +168,7 @@ impl App {
             return;
         };
         self.model.borrow_mut().step_tab(ws, delta);
-        self.model.borrow_mut().dismiss_viewed();
+        self.dismiss_viewed();
         self.sync(ws);
         self.focus_terminal();
     }
@@ -178,7 +178,7 @@ impl App {
             return;
         };
         self.model.borrow_mut().step_pane(ws, 1);
-        self.model.borrow_mut().dismiss_viewed();
+        self.dismiss_viewed();
         self.sync(ws);
         self.focus_terminal();
     }

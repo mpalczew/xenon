@@ -1,39 +1,26 @@
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use qrcode::{Color, QrCode};
-use xenon_remote::pairing_url;
 
 use crate::app::{App, defer};
 
 impl App {
     fn pairing_facts(&self) -> Option<(String, Option<String>, Instant)> {
-        let mut guard = self.remote.rt.borrow_mut();
-        let rt = guard.as_mut()?;
-        let code = rt.devices.pairing_code(Instant::now()).clone();
-        let settings = xenon_store::load_settings().unwrap_or_default();
-        let override_host = xenon_remote::normalize_hostname(&settings.remote_hostname);
-        let base = xenon_remote::base_url(&rt.reach.phone_host(&override_host), rt.port);
-        let reachable = rt.reach.reachable() || !override_host.is_empty();
-        Some((
-            code.display_digits(),
-            reachable.then(|| pairing_url(&base, &code.secret)),
-            code.expires_at,
-        ))
+        let pairing = self.svc.phone().pairing().ok()?;
+        let expires_at = Instant::now() + Duration::from_secs(pairing.expires_in_secs);
+        Some((pairing.digits, pairing.url, expires_at))
     }
 
     /// `xenon pair`: turn the remote on, then describe a live pairing code as terminal text.
     pub(crate) fn pair_text(self: &Rc<Self>) -> Result<String, String> {
-        if !self.remote.running() && !self.remote.waiting() {
-            self.remote_start();
-            crate::remote::persist_enabled(self.remote.running() || self.remote.waiting());
-        }
-        let (digits, url, _) = self.pairing_facts().ok_or(
-            "another Xenon has the phone remote; quit it, or retry in a moment if this one is starting",
-        )?;
-        let url = url.ok_or("your phone can't reach this computer: Tailscale isn't running")?;
+        let pairing = self.svc.phone().pairing()?;
+        self.remote_publish();
+        let url = pairing
+            .url
+            .ok_or("your phone can't reach this computer: Tailscale isn't running")?;
         let qr = QrCode::new(url.as_bytes())
             .map_err(|e| format!("cannot make a QR code: {e}"))?
             .render::<qrcode::render::unicode::Dense1x2>()
@@ -41,21 +28,16 @@ impl App {
             .light_color(qrcode::render::unicode::Dense1x2::Dark)
             .build();
         Ok(format!(
-            "Pairing code: {digits}\nExpires in 10 minutes.\n{url}\n\n{qr}"
+            "Pairing code: {}\nExpires in 10 minutes.\n{url}\n\n{qr}",
+            pairing.digits
         ))
     }
 
     pub(crate) fn connect_phone(self: &Rc<Self>) {
-        if !self.remote.running() && !self.remote.waiting() {
-            self.remote_start();
-            crate::remote::persist_enabled(self.remote.running() || self.remote.waiting());
-        }
+        self.remote_publish();
         let open = self.remote.connect_dialog.borrow().clone();
         if let Some(dialog) = open {
             dialog.close();
-            return;
-        }
-        if !self.remote.running() && !self.remote.waiting() {
             return;
         }
         let dialog = adw::Dialog::new();
@@ -91,15 +73,9 @@ impl App {
         }
         let buttons = self.connect_buttons(&dialog, facts.as_ref().and_then(|f| f.1.clone()));
         let Some((digits, url, expires_at)) = facts else {
-            let warn = gtk::Label::new(Some(&match self.chord("app.connect-phone") {
-                Some(chord) => format!(
-                    "The other Xenon has the phone remote. Press {chord} there, or quit it to use the phone remote here."
-                ),
-                None => {
-                    "The other Xenon has the phone remote. Quit it to use the phone remote here."
-                        .to_string()
-                }
-            }));
+            let warn = gtk::Label::new(Some(
+                "The phone remote isn\u{2019}t running: its port may be in use by another program, such as an older Xenon.",
+            ));
             warn.set_wrap(true);
             warn.add_css_class("warning");
             content.append(&warn);

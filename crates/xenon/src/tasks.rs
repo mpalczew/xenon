@@ -13,16 +13,10 @@ use xenon_core::tasks::{
     resolve_for_run, terminal_command,
 };
 use xenon_core::{Action, EditorInfo, Orchestrator, TabId, TabState, TaskSet, WorkspaceId};
-use xenon_remote::ConnId;
+use xenon_term::Spawn;
 
 use crate::app::App;
 use crate::model::TabKind;
-
-pub(crate) struct Spawn {
-    pub cwd: PathBuf,
-    pub argv: Vec<String>,
-    pub env: Vec<String>,
-}
 
 pub(crate) struct Placement {
     force_new: bool,
@@ -33,7 +27,6 @@ pub(crate) struct Placement {
 pub(crate) struct Start {
     pub new_tab: bool,
     pub quiet: bool,
-    pub origin: Option<ConnId>,
 }
 
 pub(crate) struct RunPlan {
@@ -44,8 +37,6 @@ pub(crate) struct RunPlan {
     root: String,
     new_tab: bool,
     quiet: bool,
-    origin: Option<ConnId>,
-    announced: bool,
     vars: RunVars,
 }
 
@@ -82,8 +73,6 @@ pub(crate) struct Tasks {
     dedicated: RefCell<HashMap<(WorkspaceId, String), TabId>>,
     folder_checked: RefCell<HashSet<WorkspaceId>>,
     trust: RefCell<Option<TrustPrompt>>,
-    pub(crate) phone_ask: RefCell<Option<(u64, ConnId)>>,
-    pub(crate) next_token: Cell<u64>,
 }
 
 impl Tasks {
@@ -151,11 +140,7 @@ impl App {
         self: &Rc<Self>,
         ws: WorkspaceId,
         label: String,
-        Start {
-            new_tab,
-            quiet,
-            origin,
-        }: Start,
+        Start { new_tab, quiet }: Start,
     ) -> Result<(), String> {
         let loaded = self.load_workspace_tasks(ws)?;
         let shared::RunSetup { orch, ids, secrets } = shared::plan_run(&loaded.set, &label)?;
@@ -167,8 +152,6 @@ impl App {
             root: label,
             new_tab,
             quiet,
-            origin,
-            announced: false,
             vars: RunVars {
                 editor: self.editor_info(ws),
                 config: settings_config(),
@@ -222,18 +205,7 @@ impl App {
                     self.launch_plan(pending.plan);
                 }
             }
-            Some(Some(question)) => {
-                let origin = self
-                    .tasks
-                    .pending
-                    .borrow()
-                    .as_ref()
-                    .and_then(|p| p.plan.origin);
-                match origin {
-                    Some(conn) => self.remote_ask_input(conn, &question),
-                    None => self.show_input_prompt(question),
-                }
-            }
+            Some(Some(question)) => self.show_input_prompt(question),
             Some(None) => {}
         }
     }
@@ -330,16 +302,6 @@ impl App {
             .owners
             .borrow_mut()
             .insert((ws, tab), (run_id, label.to_string()));
-        let announce = self
-            .with_run(run_id, |run| {
-                let origin = run.plan.origin.filter(|_| !run.plan.announced);
-                run.plan.announced |= origin.is_some();
-                origin.map(|conn| (conn, run.plan.root.clone()))
-            })
-            .flatten();
-        if let Some((conn, root)) = announce {
-            self.remote_task_started(conn, ws, &root, tab);
-        }
         self.with_run(run_id, |run| {
             run.launched.insert(
                 label.to_string(),

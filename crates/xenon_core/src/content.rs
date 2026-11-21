@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::ids::TermId;
 use crate::session::Point;
 use crate::split::flatten_split;
 
@@ -53,8 +54,9 @@ pub enum TabState {
         id: TabId,
         #[serde(default = "default_cwd")]
         cwd: PathBuf,
+        /// The terminal service's id for this tab's shell, when it has one.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        remote_session: Option<String>,
+        term: Option<TermId>,
     },
     Editor {
         id: TabId,

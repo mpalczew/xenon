@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use adw::prelude::*;
-use xenon_remote::{DeviceBook, DeviceRow, RemoteStatus, ago};
+use xenon_remote::{DeviceRow, RemoteStatus, ago};
 
 use crate::app::{App, defer};
 
@@ -235,36 +235,4 @@ fn device_row(app: &Rc<App>, device: &DeviceRow) -> gtk::Widget {
     });
     row.add_suffix(&button);
     row.upcast()
-}
-
-impl App {
-    pub(crate) fn remote_revoke(self: &Rc<Self>, id: Option<&str>) {
-        let mut book = self
-            .remote
-            .rt
-            .borrow_mut()
-            .as_mut()
-            .map(|rt| {
-                std::mem::replace(
-                    &mut rt.devices,
-                    DeviceBook::from_devices(Default::default()),
-                )
-            })
-            .unwrap_or_else(DeviceBook::load);
-        book.reload();
-        match id {
-            Some(id) => {
-                book.revoke(id);
-            }
-            None => book.revoke_all(),
-        }
-        if let Err(error) = book.save() {
-            self.toast(&format!("Couldn’t update paired devices: {error}"));
-        }
-        if let Some(rt) = self.remote.rt.borrow_mut().as_mut() {
-            rt.devices = book;
-        }
-        self.remote_drop_devices(id);
-        self.remote_publish();
-    }
 }

@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use adw::prelude::*;
 use gtk::glib;
-use xenon_core::{PaneId, TabId, TabState, WorkspaceId};
+use xenon_core::{PaneId, TabId, TabState, TermId, WorkspaceId};
 use xenon_settings::UiSettings;
 
 use crate::diff_view::DiffView;
@@ -67,6 +67,9 @@ pub(crate) struct App {
     pub save_pending: Cell<bool>,
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
+    pub svc: Rc<xenon_term::Client>,
+    /// Every terminal the service holds: its workspace and process id.
+    pub known: RefCell<HashMap<TermId, (WorkspaceId, i32)>>,
     pub tasks: crate::tasks::Tasks,
     pub trust_card: crate::tasks_ui::TrustCard,
     pub worklist: crate::worklist::Worklist,
@@ -183,11 +186,10 @@ impl App {
             .collect();
         for key in stale {
             self.bodies.borrow_mut().remove(&key);
-            self.terms.borrow_mut().remove(&key);
+            self.end_term(key);
             self.task_tab_gone(key.0, key.1);
             self.editors.borrow_mut().remove(&key);
             self.images.borrow_mut().remove(&key);
-            self.remote_tab_gone(key.0, key.1);
             self.diffs.borrow_mut().remove(&key);
         }
         for tab in wanted {
@@ -196,17 +198,14 @@ impl App {
                 continue;
             }
             let body: gtk::Widget = match &tab.kind {
-                TabKind::Terminal => {
-                    let view = TermView::new(self, ws, tab.id, &cwd);
-                    self.restyle_term(&view);
-                    match self.tasks.take_spawn(ws, tab.id) {
-                        Some(task) => view.spawn_command(&task.cwd, &task.argv, &task.env),
-                        None => view.spawn(&cwd),
-                    }
-                    let root = view.root.clone().upcast();
-                    self.terms.borrow_mut().insert(key, view);
-                    root
-                }
+                TabKind::Terminal => match self.terminal_body(ws, &tab, &cwd) {
+                    Some(root) => root,
+                    None => crate::empty::placeholder(&TabState::Terminal {
+                        id: tab.id,
+                        cwd: cwd.clone(),
+                        term: None,
+                    }),
+                },
                 TabKind::Kept(TabState::Editor { path, .. }) if crate::image::is_image(path) => {
                     let (root, monitor) = crate::image::view(path);
                     if let Some(monitor) = monitor {
@@ -336,7 +335,6 @@ impl App {
         drop(model);
         self.refresh_save_button();
         self.sync_git_roots();
-        self.remote_dots();
         self.pulse_level.set(-1);
         self.ensure_pulse();
     }

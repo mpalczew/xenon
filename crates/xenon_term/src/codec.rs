@@ -2,7 +2,9 @@
 
 use std::io;
 
-use crate::{Exit, Size, TermId};
+use xenon_core::{AttentionReason, TermId, WorkspaceId};
+
+use crate::{Exit, Size, TermStatus};
 
 #[derive(Default)]
 pub(crate) struct Enc(pub(crate) Vec<u8>);
@@ -24,7 +26,10 @@ impl Enc {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
     pub(crate) fn id(&mut self, v: TermId) {
-        self.0.extend_from_slice(&v.0.to_le_bytes());
+        self.0.extend_from_slice(&v.as_u128().to_le_bytes());
+    }
+    pub(crate) fn ws(&mut self, v: WorkspaceId) {
+        self.0.extend_from_slice(&v.as_u128().to_le_bytes());
     }
     pub(crate) fn bytes(&mut self, v: &[u8]) {
         self.u32(v.len() as u32);
@@ -40,8 +45,8 @@ impl Enc {
         }
     }
     pub(crate) fn size(&mut self, v: Size) {
-        self.u16(v.cols);
-        self.u16(v.rows);
+        self.u16(v.cols());
+        self.u16(v.rows());
     }
     pub(crate) fn exit(&mut self, v: Option<Exit>) {
         match v {
@@ -54,6 +59,23 @@ impl Enc {
                 self.u8(2);
                 self.i32(s);
             }
+        }
+    }
+    pub(crate) fn status(&mut self, v: &TermStatus) {
+        self.u8(u8::from(v.working));
+        self.u8(match v.attention {
+            None => 0,
+            Some(AttentionReason::Bell) => 1,
+            Some(AttentionReason::IdleSettled) => 2,
+        });
+        self.str(&v.title);
+        self.exit(v.exit);
+        match &v.phone {
+            Some(label) => {
+                self.u8(1);
+                self.str(label);
+            }
+            None => self.u8(0),
         }
     }
 }
