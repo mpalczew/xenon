@@ -51,13 +51,6 @@ impl<T> PaneContent<T> {
         }
         Some(tab)
     }
-
-    pub fn put_back(&mut self, pane: PaneId, tab: T) {
-        if let Some(leaf) = self.root.as_mut().and_then(|r| r.find_leaf_mut(pane)) {
-            leaf.tabs.push(tab);
-            leaf.active = 0;
-        }
-    }
 }
 
 impl<T: PaneTab> PaneContent<T> {

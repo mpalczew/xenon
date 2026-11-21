@@ -199,6 +199,14 @@ impl Model {
         let Some((src, index)) = content.find_tab(tab) else {
             return false;
         };
+        let alone = content
+            .root
+            .as_ref()
+            .and_then(|r| r.find_leaf(src))
+            .is_some_and(|l| l.tabs.len() == 1);
+        if alone && src == target {
+            return false;
+        }
         let Some(moved) = content.take_tab_at(src, index) else {
             return false;
         };
@@ -207,11 +215,7 @@ impl Model {
             .as_ref()
             .and_then(|r| r.find_leaf(src))
             .is_some_and(|l| l.tabs.is_empty());
-        if emptied && src == target {
-            let next = content.next_tab_id();
-            let fresh = TabId(next.0.max(moved.id.0 + 1));
-            content.put_back(src, Tab::terminal(fresh));
-        } else if emptied {
+        if emptied {
             content.unsplit_empty(src);
         }
         content.finish_edge_drop(target, edge, moved).is_some()

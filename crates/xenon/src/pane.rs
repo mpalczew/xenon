@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::{gio, glib};
+use gtk::{gdk, gio, glib};
 use xenon_core::{PaneId, PaneLeaf, TabId, WorkspaceDot, WorkspaceId};
 
 use crate::app::{App, defer};
@@ -52,6 +52,7 @@ impl PaneView {
         root.add_css_class("xpane");
         root.append(&bar);
         root.append(&body);
+        Self::drag_lone_tab(&bar, &view);
         let this = Rc::new(Self {
             root,
             view,
@@ -87,6 +88,41 @@ impl PaneView {
         body.add_controller(click);
         crate::pane_drop::install(app, &body, ws, pane);
         this
+    }
+
+    /// libadwaita starts a tab drag only from a bar with more than one tab, so
+    /// a pane's only tab could not be moved. This source covers that case with
+    /// the same `TabPage` payload that the pane body's drop target takes.
+    fn drag_lone_tab(bar: &adw::TabBar, view: &adw::TabView) {
+        let source = gtk::DragSource::new();
+        source.set_actions(gdk::DragAction::MOVE);
+        source.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let (bar_for_pick, view_for_prepare) = (bar.clone(), view.clone());
+        source.connect_prepare(move |_, x, y| {
+            // sync: answer or ordering before return: prepare must hand back the drag payload at once
+            let on_button = bar_for_pick
+                .pick(x, y, gtk::PickFlags::DEFAULT)
+                // sync: answer or ordering before return: prepare must hand back the drag payload at once
+                .is_some_and(|w| w.ancestor(gtk::Button::static_type()).is_some());
+            if on_button || view_for_prepare.n_pages() != 1 {
+                return None;
+            }
+            // sync: answer or ordering before return: prepare must hand back the drag payload at once
+            let page = view_for_prepare.nth_page(0);
+            Some(gdk::ContentProvider::for_value(&page.to_value()))
+        });
+        let view = view.clone();
+        source.connect_drag_begin(move |_, drag| {
+            // sync: answer or ordering before return: the icon window is new and belongs to this drag
+            let ghost = gtk::Label::new(Some(&view.nth_page(0).title()));
+            // sync: answer or ordering before return: the icon window is new and belongs to this drag
+            ghost.add_css_class("xdrag-ghost");
+            if let Some(icon) = gtk::DragIcon::for_drag(drag).downcast_ref::<gtk::DragIcon>() {
+                // sync: answer or ordering before return: the icon window is new and belongs to this drag
+                icon.set_child(Some(&ghost));
+            }
+        });
+        bar.add_controller(source);
     }
 
     fn connect(&self, app: &Rc<App>) {
