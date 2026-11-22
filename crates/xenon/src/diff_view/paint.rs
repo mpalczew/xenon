@@ -70,7 +70,9 @@ impl DiffView {
         } else {
             "\u{2192} unified"
         });
-        set_text(&self.banner, doc.banner.as_deref());
+        self.banner
+            .set_title(doc.banner.as_deref().unwrap_or_default());
+        self.banner.set_revealed(doc.banner.is_some());
         set_text(&self.note, doc.note.as_deref());
     }
 

@@ -27,7 +27,7 @@ pub(crate) struct DiffView {
     plus: gtk::Label,
     minus: gtk::Label,
     modes: adw::ToggleGroup,
-    banner: gtk::Label,
+    banner: adw::Banner,
     note: gtk::Label,
     app: Weak<App>,
     ws: WorkspaceId,
@@ -101,11 +101,7 @@ impl DiffView {
         head.append(&counts);
         head.append(&pill);
 
-        let banner = gtk::Label::new(None);
-        banner.add_css_class("xdiff-banner");
-        banner.set_wrap(true);
-        banner.set_xalign(0.0);
-        banner.set_visible(false);
+        let banner = adw::Banner::new("");
         let note = gtk::Label::new(None);
         note.add_css_class("xdiff-note");
         note.set_wrap(true);

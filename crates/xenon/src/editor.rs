@@ -32,9 +32,7 @@ pub(crate) struct EditorView {
     stack: Option<gtk::Stack>,
     app: Weak<App>,
     scroller: gtk::ScrolledWindow,
-    bar: gtk::Box,
-    bar_text: gtk::Label,
-    bar_actions: gtk::Box,
+    bar: adw::Banner,
     monitor: RefCell<Option<gio::FileMonitor>>,
     sync_pending: Cell<bool>,
     stale: Cell<bool>,
@@ -61,20 +59,6 @@ fn browser_root(path: &Path) -> gtk::Box {
     button.add_css_class("flat");
     root.append(&button);
     root
-}
-
-fn disk_bar() -> (gtk::Box, gtk::Label, gtk::Box) {
-    let text = gtk::Label::new(None);
-    text.set_hexpand(true);
-    text.set_xalign(0.0);
-    text.set_wrap(true);
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    bar.add_css_class("toolbar");
-    bar.append(&text);
-    bar.append(&actions);
-    bar.set_visible(false);
-    (bar, text, actions)
 }
 
 fn disk_file(path: &Path) -> sourceview::File {
@@ -123,7 +107,7 @@ impl EditorView {
         let mode = prose
             .as_ref()
             .map_or(MarkdownMode::Source, |_| prose_file_prefs(path).mode);
-        let (bar, bar_text, bar_actions) = disk_bar();
+        let bar = adw::Banner::new("");
         let root = browser_root(path);
         root.append(&bar);
         let switch = prose.as_ref().map(|_| switch::add_row(path, &root));
@@ -132,8 +116,6 @@ impl EditorView {
             root: root.upcast(),
             scroller,
             bar,
-            bar_text,
-            bar_actions,
             monitor: RefCell::new(None),
             sync_pending: Cell::new(false),
             stale: Cell::new(false),
@@ -153,6 +135,10 @@ impl EditorView {
         });
         editor.attach_list();
         editor.connect_switch();
+        let this = Rc::downgrade(&editor);
+        editor
+            .bar
+            .connect_button_clicked(move |_| defer(&this, move |this| this.load()));
         editor.sync_switch();
         editor.restyle(app);
         let weak: Weak<App> = Rc::downgrade(app);
@@ -246,10 +232,10 @@ impl EditorView {
             );
             self.buffer.set_modified(true);
         } else if !self.file.is_externally_modified() {
-            self.bar.set_visible(false);
+            self.bar.set_revealed(false);
         } else if self.buffer.is_modified() {
             self.show_bar(
-                "File changed on disk. Keep your edits, or reload from disk?",
+                "File changed on disk. Your edits are kept unless you load it.",
                 true,
             );
         } else {
@@ -321,7 +307,7 @@ impl EditorView {
             if vim {
                 this.attach_vim(&this.app.clone());
             }
-            this.bar.set_visible(false);
+            this.bar.set_revealed(false);
             let adjustment = this.scroller.vadjustment();
             glib::idle_add_local_once(move || adjustment.set_value(scroll));
             if result.is_ok() && this.stale.replace(false) {
@@ -330,26 +316,10 @@ impl EditorView {
         });
     }
 
-    fn show_bar(self: &Rc<Self>, message: &str, actions: bool) {
-        self.bar_text.set_text(message);
-        while let Some(child) = self.bar_actions.first_child() {
-            self.bar_actions.remove(&child);
-        }
-        if actions {
-            let keep = gtk::Button::with_label("Keep mine");
-            let this = Rc::downgrade(self);
-            keep.connect_clicked(move |_| {
-                defer(&this, move |this| this.bar.set_visible(false));
-            });
-            let reload = gtk::Button::with_label("Load disk");
-            let this = Rc::downgrade(self);
-            reload.connect_clicked(move |_| {
-                defer(&this, move |this| this.load());
-            });
-            self.bar_actions.append(&keep);
-            self.bar_actions.append(&reload);
-        }
-        self.bar.set_visible(true);
+    fn show_bar(&self, message: &str, can_load: bool) {
+        self.bar.set_title(message);
+        self.bar.set_button_label(can_load.then_some("Load disk"));
+        self.bar.set_revealed(true);
     }
 
     fn attach_vim(self: &Rc<Self>, weak: &Weak<App>) {
@@ -462,7 +432,7 @@ impl EditorView {
             if let Some(app) = app.upgrade() {
                 match result {
                     Ok(()) => {
-                        this.bar.set_visible(false);
+                        this.bar.set_revealed(false);
                         app.toast(&format!("Saved {name}"));
                     }
                     Err(error) => {
