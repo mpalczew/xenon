@@ -10,17 +10,7 @@ use crate::{Claim, Size};
 
 pub(crate) fn serve(holder: &Arc<Holder>, conn: u64, stream: UnixStream) -> io::Result<()> {
     let mut input = stream.try_clone()?;
-    match proto::read_frame(&mut input)? {
-        Frame::Control(bytes) => {
-            if !matches!(
-                proto::decode::<ToHolder>(&bytes),
-                Control::Frozen(Frozen::Hello { .. })
-            ) {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "expected hello"));
-            }
-        }
-        Frame::Data(_) => return Err(io::Error::new(io::ErrorKind::InvalidData, "expected hello")),
-    }
+    let peer = greet(&mut input)?;
     let link = Link::start(conn, stream);
     link.send(&Frozen::Welcome {
         major: proto::MAJOR,
@@ -30,15 +20,40 @@ pub(crate) fn serve(holder: &Arc<Holder>, conn: u64, stream: UnixStream) -> io::
         pid: holder.pid,
         cwd: holder.cwd.clone(),
     });
-    holder.join(link);
-    let result = pump(holder, conn, &mut input);
-    holder.leave(conn);
+    if matches!(peer, Peer::Speaks) {
+        holder.join(link);
+    }
+    let result = pump(holder, conn, &mut input, peer);
+    if matches!(peer, Peer::Speaks) {
+        holder.leave(conn);
+    }
     result
 }
 
-fn pump(holder: &Holder, conn: u64, input: &mut UnixStream) -> io::Result<()> {
+/// `FrozenOnly`: a client on another major. It gets `Welcome` and may send `Close`, and
+/// is never joined to the output.
+#[derive(Clone, Copy)]
+enum Peer {
+    Speaks,
+    FrozenOnly,
+}
+
+fn greet(input: &mut UnixStream) -> io::Result<Peer> {
+    let bad = || io::Error::new(io::ErrorKind::InvalidData, "expected hello");
+    let Frame::Control(bytes) = proto::read_frame(input)? else {
+        return Err(bad());
+    };
+    match proto::decode::<ToHolder>(&bytes) {
+        Control::Frozen(Frozen::Hello { major, .. }) if major == proto::MAJOR => Ok(Peer::Speaks),
+        Control::Frozen(Frozen::Hello { .. }) => Ok(Peer::FrozenOnly),
+        _ => Err(bad()),
+    }
+}
+
+fn pump(holder: &Holder, conn: u64, input: &mut UnixStream, peer: Peer) -> io::Result<()> {
     loop {
         match proto::read_frame(input)? {
+            Frame::Data(_) if matches!(peer, Peer::FrozenOnly) => {}
             Frame::Data(bytes) => holder.input(conn, &bytes),
             Frame::Control(bytes) => match proto::decode::<ToHolder>(&bytes) {
                 Control::Frozen(Frozen::Close) => {
@@ -46,6 +61,7 @@ fn pump(holder: &Holder, conn: u64, input: &mut UnixStream) -> io::Result<()> {
                         super::exit_now();
                     }
                 }
+                Control::Body(_) if matches!(peer, Peer::FrozenOnly) => {}
                 Control::Body(msg) => body(holder, conn, msg),
                 Control::Frozen(_) | Control::Unknown => {}
             },

@@ -53,7 +53,7 @@ impl Terminals {
     /// Watch a terminal on a connection of its own. `label` names the phone on the
     /// terminal's tab while its size is in force. The size comes later, from `fit`.
     pub fn watch(&self, id: TermId, label: &str) -> Result<Mirror, Gone> {
-        self.shared.link(id).filter(|l| l.speaks).ok_or(Gone)?;
+        self.shared.links.get(id).filter(|l| l.speaks).ok_or(Gone)?;
         let connected = proto::connect(&dir::sock_path(id)).map_err(|_| Gone)?;
         if connected.major != proto::MAJOR {
             return Err(Gone);

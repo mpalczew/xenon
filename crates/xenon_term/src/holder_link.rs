@@ -3,12 +3,11 @@ use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use serde::Serialize;
 use xenon_core::{TermId, WorkspaceId};
 
-use crate::proto::v1::{FromHolder, ToHolder};
+use crate::proto::v1::FromHolder;
 use crate::proto::{self, Connected, Control, Frame};
-use crate::terminals::{Early, Shared};
+use crate::terminals::Shared;
 use crate::{Build, Event, TermInfo, TermStatus, builds, dir};
 
 pub(crate) struct HolderLink {
@@ -19,27 +18,10 @@ pub(crate) struct HolderLink {
     pub build: String,
     pub cwd: String,
     pub speaks: bool,
-    out: Mutex<UnixStream>,
     status: Mutex<TermStatus>,
 }
 
 impl HolderLink {
-    pub(crate) fn send(&self, msg: &impl Serialize) {
-        let mut out = self.out.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = proto::write_control(&mut *out, msg);
-    }
-
-    pub(crate) fn send_data(&self, bytes: &[u8]) {
-        let mut out = self.out.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = proto::write_data(&mut *out, bytes);
-    }
-
-    pub(crate) fn tell(&self, msg: &ToHolder) {
-        if self.speaks {
-            self.send(msg);
-        }
-    }
-
     pub(crate) fn info(&self) -> TermInfo {
         TermInfo {
             id: self.id,
@@ -88,14 +70,9 @@ pub(crate) fn adopt(shared: &Arc<Shared>, id: TermId) -> io::Result<()> {
         build,
         cwd,
         speaks,
-        out: Mutex::new(stream),
         status: Mutex::new(first.unwrap_or_default()),
     });
-    let mut out = link.out.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(early) = shared.insert(Arc::clone(&link)) {
-        replay_early(early, &mut out, speaks);
-    }
-    drop(out);
+    shared.links.publish(Arc::clone(&link), stream);
     shared.emit(Event::Ready {
         id,
         info: link.info(),
@@ -137,20 +114,5 @@ fn first_status(input: &mut UnixStream) -> Option<TermStatus> {
     match proto::decode::<FromHolder>(&bytes) {
         Control::Body(FromHolder::Status(status)) => Some(status),
         _ => None,
-    }
-}
-
-fn replay_early(early: Early, out: &mut UnixStream, speaks: bool) {
-    if !speaks {
-        return;
-    }
-    if let Some(size) = early.size {
-        let _ = proto::write_control(out, &ToHolder::Claim { size, label: None });
-    }
-    if early.attach {
-        let _ = proto::write_control(out, &ToHolder::View { answers: true });
-    }
-    if !early.input.is_empty() {
-        let _ = proto::write_data(out, &early.input);
     }
 }
