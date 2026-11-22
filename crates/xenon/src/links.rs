@@ -39,11 +39,27 @@ fn split_line(text: &str) -> (&str, Option<u32>) {
     (raw, numbers.last().copied())
 }
 
+/// A file hyperlink often carries only the path while its visible text ends in
+/// `:line`, so the line comes from the text.
+fn with_shown_line(uri: String, shown: Option<&str>) -> String {
+    let bare = uri.starts_with("file://") && !uri.contains('#') && split_line(&uri).1.is_none();
+    match shown.and_then(|s| split_line(s).1) {
+        Some(line) if bare => format!("{uri}:{line}"),
+        _ => uri,
+    }
+}
+
 pub(crate) fn classify(text: &str, cwd: &Path) -> Link {
-    if text.starts_with("file://")
-        && let Some(path) = gio::File::for_uri(text).path()
-    {
-        return Link::Path(path, None);
+    if text.starts_with("file://") {
+        let (uri, line) = split_line(text);
+        let (uri, fragment) = uri.split_once('#').unwrap_or((uri, ""));
+        let line = line.or_else(|| {
+            let from = fragment.strip_prefix('L')?;
+            from.split('-').next()?.parse().ok()
+        });
+        if let Some(path) = gio::File::for_uri(uri).path() {
+            return Link::Path(path, line);
+        }
     }
     if text.contains("://") {
         return Link::Url(text.to_string());
@@ -115,10 +131,11 @@ pub(crate) fn install(app: &Rc<App>, view: &Rc<TermView>, ws: WorkspaceId, tab: 
             return;
         };
         let (px, py) = (f64::from(p.x()), f64::from(p.y()));
-        let text = term
-            .check_hyperlink_at(px, py)
-            .map(|s| s.to_string())
-            .or_else(|| term.check_match_at(px, py).0.map(|s| s.to_string()));
+        let shown = term.check_match_at(px, py).0.map(|s| s.to_string());
+        let text = match term.check_hyperlink_at(px, py).map(|s| s.to_string()) {
+            Some(uri) => Some(with_shown_line(uri, shown.as_deref())),
+            None => shown,
+        };
         if let (Some(text), Some(app)) = (text, weak_app.upgrade()) {
             gesture.set_state(gtk::EventSequenceState::Claimed);
             glib::idle_add_local_once(move || app.open_link(ws, tab, &text));
