@@ -19,6 +19,24 @@ impl Model {
             .is_some_and(|t| t.modified)
     }
 
+    pub(crate) fn dirty_editor(&self, ws: WorkspaceId) -> Option<String> {
+        let root = self.spaces.get(&ws)?.content.root.as_ref()?;
+        let mut found = None;
+        root.for_each_leaf(&mut |leaf| {
+            for tab in leaf.tabs.iter().filter(|t| t.modified) {
+                if let (None, TabKind::Kept(xenon_core::TabState::Editor { path, .. })) =
+                    (&found, &tab.kind)
+                {
+                    found = Some(path.file_name().map_or_else(
+                        || "a file".into(),
+                        |name| name.to_string_lossy().into_owned(),
+                    ));
+                }
+            }
+        });
+        found
+    }
+
     pub(crate) fn is_viewed(&self, ws: WorkspaceId, tab: TabId) -> bool {
         self.window_active
             && self.active() == Some(ws)

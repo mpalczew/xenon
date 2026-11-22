@@ -320,6 +320,22 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
             });
             reply(stream, closed.map(|()| serde_json::json!({})))
         }
+        ("DELETE", ["api", "workspaces", id]) => {
+            let closed = decode(id).and_then(|workspace_id| {
+                ask(host, |reply| HostRequest::CloseWorkspace {
+                    workspace_id,
+                    reply,
+                })
+                .flatten()
+            });
+            match closed {
+                Ok(()) => http::write_json(stream, &serde_json::json!({})),
+                Err(e) if e == HOST_GONE || e == HOST_SLOW => {
+                    http::write_json_error(stream, 503, &e)
+                }
+                Err(e) => http::write_json_error(stream, 409, &e),
+            }
+        }
         _ => http::write_json_error(stream, 404, NOT_FOUND),
     }
 }

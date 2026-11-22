@@ -56,6 +56,10 @@ pub enum HostRequest {
         workspace_id: String,
         reply: SyncSender<Result<TerminalInfo, String>>,
     },
+    CloseWorkspace {
+        workspace_id: String,
+        reply: SyncSender<Result<(), String>>,
+    },
     CloseTerminal {
         workspace_id: String,
         tab_id: u64,

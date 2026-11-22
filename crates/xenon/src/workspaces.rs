@@ -106,9 +106,11 @@ impl App {
             .filter(|(w, _)| *w == id)
             .copied()
             .collect();
-        for key in keys {
-            self.end_term(key);
-        }
+        let ended: Vec<_> = keys
+            .into_iter()
+            .filter_map(|key| self.end_term(key))
+            .collect();
+        self.end_workspace_holders(id, &ended);
         if let Some(slot) = self.slots.borrow_mut().remove(&id) {
             self.stack.remove(&slot.holder);
         }

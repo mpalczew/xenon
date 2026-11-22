@@ -44,6 +44,12 @@ impl Phone {
             } => {
                 let _ = reply.send(self.new_terminal(&workspace_id));
             }
+            HostRequest::CloseWorkspace {
+                workspace_id,
+                reply,
+            } => {
+                let _ = reply.send(Self::close_workspace(&workspace_id));
+            }
             HostRequest::CloseTerminal {
                 workspace_id,
                 tab_id,
@@ -74,7 +80,11 @@ impl Phone {
 
     fn workspaces(&self) -> Vec<WorkspaceInfo> {
         let registry = xenon_store::load_registry().unwrap_or_default();
-        crate::remote::list_workspaces(&registry, |id| self.workspace_summary(id))
+        crate::remote::list_workspaces(
+            &registry,
+            |id| self.workspace_summary(id),
+            xenon_store::window_listening(),
+        )
     }
 
     fn root_of(registry: &Registry, ws: WorkspaceId) -> Result<PathBuf, String> {
@@ -143,6 +153,19 @@ impl Phone {
         let found = self.find(ws, tab_id).ok_or("not found")?;
         self.terms.close(found.id);
         Ok(())
+    }
+
+    fn close_workspace(workspace_id: &str) -> Result<(), String> {
+        let workspace = parse_workspace_id(workspace_id)?;
+        match xenon_store::try_handoff_request(&xenon_store::IpcRequest::CloseWorkspace {
+            workspace,
+        }) {
+            xenon_store::Handoff::Sent(_) => Ok(()),
+            xenon_store::Handoff::Rejected(error) => Err(error),
+            xenon_store::Handoff::NoServer => {
+                Err("Open Xenon on the computer to close this workspace".into())
+            }
+        }
     }
 
     fn list_tasks(&self, workspace_id: &str) -> Result<Vec<TaskInfo>, String> {

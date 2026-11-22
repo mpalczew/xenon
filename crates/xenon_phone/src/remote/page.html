@@ -63,6 +63,7 @@ html.in-session { background:var(--chrome); }
 .termrow .ws { flex:1; border-bottom:0; min-width:0; }
 .close-tab { flex:none; padding:0 14px; color:var(--err); font-size:15px; font-weight:600; }
 #direct { position:absolute; left:0; top:0; width:1px; height:1px; opacity:0; border:0; padding:0; resize:none; font-size:16px; pointer-events:none; }
+.newterm.danger { color:var(--err); }
 .newterm { width:100%; text-align:left; min-height:52px; padding:14px 16px; color:var(--accent); font-size:16px; font-weight:600; border-bottom:1px solid var(--hair); }
 .hdr .crumb { color:var(--muted); font-weight:500; }
 .conn { flex:none; width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px var(--ok-halo); }
@@ -759,8 +760,28 @@ function renderTerminals() {
     '<button type="button" class="close-tab" data-close="' + i + '" aria-label="Close terminal">Close</button></div>'
   ).join("");
   const empty = S.terminals.length ? "" : '<div class="note">No terminal tabs in this workspace.</div>';
+  const closeWs = S.wsSel && S.wsSel.open ? '<button type="button" class="newterm danger" id="close-ws">Close workspace</button>' : "";
   $("terms").innerHTML = '<button type="button" class="newterm" id="new-term">New terminal</button>' +
-    '<button type="button" class="newterm" id="open-tasks">Tasks</button>' + empty + rows;
+    '<button type="button" class="newterm" id="open-tasks">Tasks</button>' + closeWs + empty + rows;
+}
+
+async function closeWorkspace() {
+  const w = S.wsSel;
+  if (!w || S.closing) return;
+  if (!w.closable) return toast("Open Xenon on the computer to close this workspace");
+  const n = S.terminals.length;
+  if (!confirm("Close " + w.name + "?" + (n ? " Its " + plural(n, "terminal") + " will end." : ""))) return;
+  S.closing = true;
+  try {
+    await api("/api/workspaces/" + encodeURIComponent(w.id), { method: "DELETE" });
+    S.wsSel = null;
+    S.terminals = [];
+    showWorkspaces();
+  } catch (e) {
+    if (e.message !== "unauthorized") toast(e.message);
+  } finally {
+    S.closing = false;
+  }
 }
 
 async function closeTerminal(tab) {
@@ -1453,6 +1474,7 @@ function wireEvents() {
   $("terms").addEventListener("click", (e) => {
     if (e.target.closest("#new-term")) return createTerminal();
     if (e.target.closest("#open-tasks")) return openTasks();
+    if (e.target.closest("#close-ws")) return closeWorkspace();
     const closer = e.target.closest("[data-close]");
     if (closer) return closeTerminal(S.terminals[+closer.dataset.close]);
     const row = e.target.closest("[data-tab]");

@@ -16,7 +16,7 @@ pub(crate) fn serve(app: &Rc<App>, listener: std::os::unix::net::UnixListener) {
         let _ = tx.send_blocking((req, reply));
         answer
             .recv_timeout(std::time::Duration::from_millis(1_500))
-            .unwrap_or(Ok(None))
+            .unwrap_or_else(|_| Err("Xenon didn't answer".into()))
     });
     let weak = Rc::downgrade(app);
     glib::spawn_future_local(async move {
@@ -56,9 +56,30 @@ impl App {
             }
             IpcRequest::OpenFile(spec) => self.open_path(spec).map(|()| None),
             IpcRequest::Activate => Ok(None),
+            IpcRequest::CloseWorkspace { workspace } => return self.close_from_phone(workspace),
         };
         self.win.present();
         result
+    }
+
+    fn close_from_phone(self: &Rc<Self>, ws: WorkspaceId) -> Result<Option<String>, String> {
+        let (open, dirty) = {
+            let model = self.model.borrow();
+            (
+                model.registry.workspace(ws).is_some(),
+                model.dirty_editor(ws),
+            )
+        };
+        if let Some(file) = dirty {
+            return Err(format!("unsaved changes in {file}"));
+        }
+        if open {
+            self.close_workspace_id(ws);
+        } else {
+            self.end_workspace_holders(ws, &[]);
+        }
+        self.save_registry();
+        Ok(None)
     }
 
     fn open_path(self: &Rc<Self>, spec: OpenFileSpec) -> Result<(), String> {

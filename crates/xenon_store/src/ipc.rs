@@ -34,6 +34,7 @@ pub enum IpcRequest {
     Activate,
     Pair,
     Quit { end: bool },
+    CloseWorkspace { workspace: xenon_core::WorkspaceId },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -49,6 +50,10 @@ pub enum Handoff {
     Sent(Option<String>),
     Rejected(String),
     NoServer,
+}
+
+pub fn window_listening() -> bool {
+    UnixStream::connect(socket_path()).is_ok()
 }
 
 pub fn try_handoff_request(req: &IpcRequest) -> Handoff {

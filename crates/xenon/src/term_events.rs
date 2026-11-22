@@ -155,11 +155,18 @@ impl App {
         self.terms.borrow().get(&id).cloned()
     }
 
-    pub(crate) fn end_term(&self, key: (WorkspaceId, TabId)) {
-        let Some(id) = self.bodies.borrow_mut().remove(&key).and_then(|b| b.term) else {
-            return;
-        };
+    pub(crate) fn end_term(&self, key: (WorkspaceId, TabId)) -> Option<TermId> {
+        let id = self.bodies.borrow_mut().remove(&key).and_then(|b| b.term)?;
         self.terms.borrow_mut().remove(&id);
         self.holders.close(id);
+        Some(id)
+    }
+
+    pub(crate) fn end_workspace_holders(&self, ws: WorkspaceId, ended: &[TermId]) {
+        for info in self.holders.list() {
+            if info.workspace == ws && !ended.contains(&info.id) {
+                self.holders.close(info.id);
+            }
+        }
     }
 }
