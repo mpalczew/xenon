@@ -88,8 +88,7 @@ fn watch(phone: &Arc<Phone>, out: &Mutex<UnixStream>) -> u64 {
                 let status = PhoneReply::Status {
                     status: phone.status(),
                 };
-                if reply(&stream, &status).is_err() || reply(&stream, &PhoneReply::Changed).is_err()
-                {
+                if reply(&stream, &status).is_err() {
                     break;
                 }
             }

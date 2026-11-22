@@ -14,9 +14,6 @@ phone page. Constraints:
 - Builds differ until each process restarts. Install restarts the phone server, and the
   window restarts when the user chooses. So the phone server is normally the same build
   as the window or newer.
-- `RemoteStatus` has no `#[serde(default)]`, so windows running today fail to read a
-  status without `waiting`.
-- An old window's watch loop acts only on `Changed` lines and ignores the others.
 
 ## Usage (caller's view)
 
@@ -139,14 +136,9 @@ impl Links {
 
 ### Item 2: push the status on the watch stream
 
-On every change, the phone server writes `Status { status }` and then `Changed` to each
-watcher:
-
-- A new window uses `Status` and ignores `Changed`.
-- An old window ignores `Status` and re-requests on `Changed`, as it does today.
-
-Nothing is negotiated. `Changed` is deleted once no old window can be running. On the
-window, `remote_boot` loses its re-request loop.
+On every change, the phone server writes `Status { status }` to each watcher. On the
+window, `remote_boot` loses its re-request loop. The compatibility `Changed` line was
+deleted once no old window ran.
 
 ### Item 3: drop `waiting`
 
@@ -154,8 +146,7 @@ window, `remote_boot` loses its re-request loop.
   texts. A start error, port busy included, is reported in a new `RemoteStatus.problem:
   Option<String>`.
 - `RemoteStatus` gets `#[serde(default)]`.
-- The wire keeps `"waiting": false` through one private field, deleted together with
-  `Changed`.
+- The compatibility `"waiting": false` field was deleted with `Changed`.
 
 ### Item 1: fold `xenon_remote` into `xenon_phone`
 
@@ -200,8 +191,6 @@ Two sketches were made: A sent requests down the watch stream, and B added a new
   close.
 - We accept one writer thread per terminal, in each of the window and the phone server.
   In exchange, ordering holds by construction and the GTK thread never blocks.
-- We accept a duplicate `Changed` line and a `"waiting": false` field until old windows
-  are gone. In exchange, a window you haven't restarted keeps working.
 - We accept `Mirror::read` exposing alacritty's `Term`. In exchange, nothing has to copy
   the grid.
 - We accept that the page learns there's no window only after the confirm, in exchange

@@ -19,8 +19,7 @@ pub(crate) enum PhoneCall {
     Dark {
         dark: bool,
     },
-    /// Keep this connection and push `Status`, then `Changed`, now and on every change.
-    /// A current window uses `Status`; an older one re-asks on `Changed`.
+    /// Keep this connection and push `Status` now and on every change.
     Watch,
 }
 
@@ -29,7 +28,6 @@ pub(crate) enum PhoneCall {
 pub(crate) enum PhoneReply {
     Status { status: RemoteStatus },
     Pairing { pairing: Result<Pairing, String> },
-    Changed,
     Done,
     Error { error: String },
 }

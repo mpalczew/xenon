@@ -22,8 +22,6 @@ pub struct DeviceRow {
 #[serde(default)]
 pub struct RemoteStatus {
     pub enabled: bool,
-    #[serde(rename = "waiting")]
-    pub(crate) old_windows_waiting: bool,
     pub problem: Option<String>,
     pub keep_awake: bool,
     pub hostname: String,

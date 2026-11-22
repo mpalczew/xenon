@@ -20,7 +20,6 @@ pub(crate) enum Call {
 }
 
 impl Call {
-    /// The only place calls are encoded. A holder on another major gets only `Close`.
     fn frames(self, speaks: bool) -> Vec<Frame> {
         let control = |msg: &ToHolder| Frame::Control(proto::encode(msg));
         match self {
@@ -37,8 +36,6 @@ impl Call {
     }
 }
 
-/// Folded: the last size wins; attach and close are flags; input keeps its order.
-/// Replayed as Claim, View, input, then Close.
 #[derive(Default)]
 struct Early {
     size: Option<Size>,
@@ -79,8 +76,10 @@ impl Early {
 }
 
 enum Slot {
-    /// No connection yet. Calls fold into `early`. `connecting`: one thread is adopting it.
-    Waiting { early: Early, connecting: bool },
+    Waiting {
+        early: Early,
+        connecting: bool,
+    },
     Live {
         link: Arc<HolderLink>,
         out: Sender<Call>,
@@ -95,7 +94,6 @@ impl Links {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Only `open` (before it returns the id) and `scan` add entries. True if it was new.
     pub(crate) fn expect(&self, id: TermId) -> bool {
         let mut map = self.map();
         if map.contains_key(&id) {
@@ -111,7 +109,6 @@ impl Links {
         true
     }
 
-    /// Live: push onto the queue, which never blocks. Waiting: fold. Unknown id: drop.
     pub(crate) fn send(&self, id: TermId, call: Call) -> bool {
         match self.map().get_mut(&id) {
             Some(Slot::Live { out, .. }) => {
@@ -136,7 +133,6 @@ impl Links {
         }
     }
 
-    /// Forgets a waiting entry: its early calls are dropped.
     pub(crate) fn connect_failed(&self, id: TermId) {
         let mut map = self.map();
         if matches!(map.get(&id), Some(Slot::Waiting { .. })) {
@@ -144,8 +140,6 @@ impl Links {
         }
     }
 
-    /// Creates the queue, fills it with the early calls, then makes it reachable
-    /// through the map. Any later call lands behind the replay.
     pub(crate) fn publish(&self, link: Arc<HolderLink>, stream: UnixStream) {
         let (out, queue) = mpsc::channel();
         let mut map = self.map();

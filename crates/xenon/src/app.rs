@@ -34,8 +34,6 @@ pub(crate) struct Slot {
     pub busy: Rc<Cell<bool>>,
 }
 
-/// A tab's page. `term` is set for a terminal tab, with or without a view in `terms`:
-/// a terminal on a build this window cannot read has only a notice here.
 pub(crate) struct Body {
     pub widget: gtk::Widget,
     pub term: Option<TermId>,

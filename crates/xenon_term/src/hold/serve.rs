@@ -30,8 +30,6 @@ pub(crate) fn serve(holder: &Arc<Holder>, conn: u64, stream: UnixStream) -> io::
     result
 }
 
-/// `FrozenOnly`: a client on another major. It gets `Welcome` and may send `Close`, and
-/// is never joined to the output.
 #[derive(Clone, Copy)]
 enum Peer {
     Speaks,
