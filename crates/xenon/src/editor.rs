@@ -15,6 +15,7 @@ use crate::worklist_list::WorklistList;
 
 mod list;
 mod switch;
+mod vim;
 
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -24,7 +25,13 @@ pub(crate) struct EditorView {
     pub buffer: sourceview::Buffer,
     pub path: PathBuf,
     loading: Cell<bool>,
-    vim: RefCell<Option<(sourceview::VimIMContext, gtk::EventControllerKey)>>,
+    vim: RefCell<
+        Option<(
+            sourceview::VimIMContext,
+            gtk::EventControllerKey,
+            gtk::Label,
+        )>,
+    >,
     pub(crate) prose: Option<Rc<Prose>>,
     mode: Cell<MarkdownMode>,
     switch: Option<adw::ToggleGroup>,
@@ -334,31 +341,6 @@ impl EditorView {
         self.bar
             .set_button_label(Some(if can_load { "Load disk" } else { "Dismiss" }));
         self.bar.set_revealed(true);
-    }
-
-    fn attach_vim(self: &Rc<Self>, weak: &Weak<App>) {
-        let vim = sourceview::VimIMContext::new();
-        vim.set_client_widget(Some(&self.view));
-        let keys = gtk::EventControllerKey::new();
-        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
-        keys.set_im_context(Some(&vim));
-        self.view.add_controller(keys.clone());
-        let (this, weak) = (Rc::downgrade(self), weak.clone());
-        vim.connect_write(move |_, _, _| {
-            if let Some(this) = this.upgrade() {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || this.save(&weak));
-            }
-        });
-        *self.vim.borrow_mut() = Some((vim, keys));
-    }
-
-    fn detach_vim(&self) {
-        let taken = self.vim.borrow_mut().take();
-        if let Some((vim, keys)) = taken {
-            self.view.remove_controller(&keys);
-            vim.set_client_widget(None::<&gtk::Widget>);
-        }
     }
 
     pub(crate) fn goto_line(&self, line: u32, column: u32) {

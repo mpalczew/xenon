@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib, pango};
@@ -20,7 +20,7 @@ mod input;
 mod style;
 pub(crate) use style::css;
 
-const DEBOUNCE: Duration = Duration::from_millis(120);
+const THROTTLE: Duration = Duration::from_millis(120);
 const SLICE: usize = 1500;
 
 pub(crate) fn is_markdown(path: &Path) -> bool {
@@ -43,7 +43,6 @@ pub(crate) struct Prose {
     doc: RefCell<Doc>,
     edits: Cell<u64>,
     applies: Cell<u64>,
-    due: Cell<Option<Instant>>,
     timer: Cell<bool>,
     revealed: Cell<Option<usize>>,
     margin: Cell<i32>,
@@ -82,7 +81,6 @@ impl Prose {
             doc: RefCell::default(),
             edits: Cell::new(0),
             applies: Cell::new(0),
-            due: Cell::new(None),
             timer: Cell::new(false),
             revealed: Cell::new(None),
             margin: Cell::new(-1),
@@ -187,33 +185,21 @@ impl Prose {
         }
         self.edits.set(self.edits.get() + 1);
         self.doc.borrow_mut().shift(at, removed, inserted);
-        self.arm(DEBOUNCE);
+        self.arm(THROTTLE);
     }
 
+    /// Throttle: the first edit starts a timer, later edits ride on it, and it parses
+    /// once when it fires, so a long run of edits parses once per `wait`, ending on the
+    /// final text.
     fn arm(self: &Rc<Self>, wait: Duration) {
-        self.due.set(Some(Instant::now() + wait));
         if self.timer.replace(true) {
             return;
         }
-        self.tick(wait);
-    }
-
-    fn tick(self: &Rc<Self>, wait: Duration) {
         let this = Rc::downgrade(self);
         glib::timeout_add_local_once(wait, move || {
             let Some(this) = this.upgrade() else { return };
-            let left = this
-                .due
-                .get()
-                .map(|d| d.saturating_duration_since(Instant::now()));
-            match left {
-                Some(left) if !left.is_zero() => this.tick(left),
-                _ => {
-                    this.timer.set(false);
-                    this.due.set(None);
-                    this.parse();
-                }
-            }
+            this.timer.set(false);
+            this.parse();
         });
     }
 
