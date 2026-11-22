@@ -169,7 +169,10 @@ impl EditorView {
             };
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             let alt = state.contains(gdk::ModifierType::ALT_MASK);
-            if ctrl && matches!(key, gdk::Key::s | gdk::Key::S) {
+            if ctrl
+                && !state.contains(gdk::ModifierType::SHIFT_MASK)
+                && matches!(key, gdk::Key::s | gdk::Key::S)
+            {
                 let weak = weak.clone();
                 glib::idle_add_local_once(move || this.save(&weak));
                 return glib::Propagation::Stop;
@@ -241,8 +244,11 @@ impl EditorView {
         } else if !self.file.is_externally_modified() {
             self.bar.set_revealed(false);
         } else if self.buffer.is_modified() {
+            let save_as = Cmd::SaveAs
+                .chord()
+                .map_or_else(String::new, |c| format!(" ({c})"));
             self.show_bar(
-                "File changed on disk. Your edits are kept unless you load it.",
+                &format!("File changed on disk. Load it, or save yours with Save As{save_as}."),
                 true,
             );
         } else {
@@ -422,6 +428,31 @@ impl EditorView {
         }
         self.sync_switch();
         true
+    }
+
+    pub(crate) fn save_as(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
+        let Some(app) = self.app.upgrade() else {
+            return;
+        };
+        if self.loading.get() {
+            return;
+        }
+        let dialog = gtk::FileDialog::new();
+        dialog.set_title("Save As");
+        dialog.set_initial_file(Some(&gio::File::for_path(&self.path)));
+        let this = self.clone();
+        glib::spawn_future_local(async move {
+            let Ok(target) = dialog.save_future(Some(&app.win)).await else {
+                return;
+            };
+            let Some(path) = target.path() else { return };
+            let saver = sourceview::FileSaver::with_target(&this.buffer, &this.file, &target);
+            saver.set_flags(sourceview::FileSaverFlags::IGNORE_MODIFICATION_TIME);
+            match saver.save_future(glib::Priority::DEFAULT).0.await {
+                Ok(()) => app.editor_saved_as(ws, tab, &path),
+                Err(error) => app.toast(&format!("Couldn\u{2019}t save: {}", error.message())),
+            }
+        });
     }
 
     pub(crate) fn save(self: &Rc<Self>, app: &Weak<App>) {

@@ -297,6 +297,10 @@ commands! {
         label: "Save", icon: "document-save-symbolic",
         ..Spec::run(|a| a.save_active_editor(a))
     },
+    SaveAs = "save-as" => Spec {
+        label: "Save As\u{2026}", keys: &["<Control><Shift>s"],
+        ..Spec::run(|a| a.save_active_editor_as())
+    },
     SaveAll = "save-now" => Spec {
         label: "Save All", launcher: InLauncher::Runs,
         ..Spec::run(|a| a.save_all())

@@ -1,11 +1,13 @@
+use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
 
 use gtk::glib;
 use vte::prelude::*;
-use xenon_core::{PaneId, TabId, WorkspaceId};
+use xenon_core::{PaneId, TabId, TabState, WorkspaceId};
 
 use crate::app::App;
+use crate::model::TabKind;
 
 const PULSE_TICK: Duration = Duration::from_millis(100);
 const PULSE_PERIOD_S: f64 = 1.4;
@@ -49,6 +51,32 @@ impl App {
         if let Some(editor) = key.and_then(|k| self.editors.borrow().get(&k).cloned()) {
             editor.save(&Rc::downgrade(app));
         }
+    }
+
+    pub(crate) fn save_active_editor_as(&self) {
+        let key = self.model.borrow().active_editor_key();
+        if let Some((ws, tab)) = key
+            && let Some(editor) = self.editors.borrow().get(&(ws, tab)).cloned()
+        {
+            editor.save_as(ws, tab);
+        }
+    }
+
+    /// The editor saved under a new name: its tab now points there. The body is rebuilt
+    /// from the new file, like a renamed one.
+    pub(crate) fn editor_saved_as(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, path: &Path) {
+        if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab)
+            && let TabKind::Kept(TabState::Editor { path: old, .. }) = &mut t.kind
+        {
+            *old = path.to_path_buf();
+            t.modified = false;
+        }
+        let key = (ws, tab);
+        self.bodies.borrow_mut().remove(&key);
+        self.editors.borrow_mut().remove(&key);
+        self.touch_recent(ws, path);
+        self.changed(ws);
+        self.refresh_save_button();
     }
 
     pub(crate) fn editor_modified(&self, ws: WorkspaceId, tab: TabId, modified: bool) {
