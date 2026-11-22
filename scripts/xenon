@@ -12,9 +12,14 @@ trap '' HUP
 # job of a non-interactive shell stays in that group. Start the app in its own
 # session so closing a terminal that ran this leaves the window alive.
 # `setsid` execs in place (the job is no group leader), so $! stays the app pid.
+# Each terminal is a systemd unit, and stopping a unit kills everything in it, so
+# the window also gets its own scope, as a desktop launch does.
 DETACH=()
+if command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    DETACH=(systemd-run --user --scope --collect --quiet --unit="app-dev.xenon.Xenon-$$")
+fi
 if command -v setsid >/dev/null 2>&1; then
-    DETACH=(setsid)
+    DETACH+=(setsid)
 fi
 
 usage() {
