@@ -1,6 +1,6 @@
 # Holder cleanup and closing a workspace from the phone
 
-Status: signed off. Follows [terminal-holders.md](terminal-holders.md).
+Status: built. Follows [terminal-holders.md](terminal-holders.md).
 
 ## Problem
 
@@ -23,9 +23,8 @@ phone page. Constraints:
 Phone page, on an open workspace:
 
 ```js
-if (!w.closable) return toast("Open Xenon on the computer to close this workspace");
 if (!confirm(`Close ${w.name}? ${ending(w.terminals)}`)) return;   // "Its 3 terminals will end."
-await api(`/api/workspaces/${id}`, { method: "DELETE" });
+await api(`/api/workspaces/${id}`, { method: "DELETE" });          // 409: show its message
 loadWorkspaces();                                                   // already saved by the window
 ```
 
@@ -68,9 +67,9 @@ The phone server asks the window on the socket the window already serves for the
   This changes desktop behaviour too.
 - The window answers only after the close has saved the registry. So when the page
   reloads the list, `workspaces.json` already shows the workspace as closed.
-- Phone server: `WorkspaceInfo.closable: bool` (serde default) is `open` and `ipc.sock`
-  accepts a connection. `DELETE /api/workspaces/{id}` sends the request through
-  `xenon_store::try_handoff_request`:
+- Phone page: Close on each open workspace, in the workspace list and the terminals
+  list. Phone server: `DELETE /api/workspaces/{id}` sends the request through
+  `xenon_store::try_handoff_request`, on its own thread so the host thread never waits:
 
   | Result          | HTTP | Page shows                                                |
   | --------------- | ---- | --------------------------------------------------------- |
@@ -78,8 +77,7 @@ The phone server asks the window on the socket the window already serves for the
   | `NoServer`      | 409  | "Open Xenon on the computer to close this workspace"      |
   | `Rejected(msg)` | 409  | `msg` (unsaved changes, or an old window's "bad request") |
 
-- The IPC bridge's 1.5 s timeout now answers `Err("Xenon didn't answer")` instead of
-  `Ok(None)`, so a busy window doesn't read as a success.
+- A dirty tab of any kind blocks the phone close. The refusal names its file or title.
 
 Restarts: the phone server restarts on install, and the window when the user chooses. No
 holder restarts. Until the window restarts, a close from the phone gets the old window's
@@ -206,7 +204,8 @@ Two sketches were made: A sent requests down the watch stream, and B added a new
   are gone. In exchange, a window you haven't restarted keeps working.
 - We accept `Mirror::read` exposing alacritty's `Term`. In exchange, nothing has to copy
   the grid.
-- We accept one connect to `ipc.sock` per workspace listing, to compute `closable`.
+- We accept that the page learns there's no window only after the confirm, in exchange
+  for no presence probe on every listing.
 
 ## Alternatives considered
 
