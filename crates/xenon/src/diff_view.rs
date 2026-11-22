@@ -19,7 +19,6 @@ pub(crate) struct DiffView {
     pub root: gtk::Box,
     body: gtk::Box,
     bin: adw::BreakpointBin,
-    narrow: Cell<bool>,
     vadj: gtk::Adjustment,
     path_label: gtk::Label,
     sub_label: gtk::Label,
@@ -129,7 +128,6 @@ impl DiffView {
             root,
             body,
             bin,
-            narrow: Cell::new(false),
             vadj: gtk::Adjustment::default(),
             path_label,
             sub_label,
@@ -195,28 +193,20 @@ impl DiffView {
             860.0,
             adw::LengthUnit::Px,
         ));
-        for narrow in [true, false] {
-            let weak = Rc::downgrade(self);
-            let flip = move |_: &adw::Breakpoint| {
-                if let Some(this) = weak.upgrade() {
-                    this.narrow.set(narrow);
+        let weak = Rc::downgrade(self);
+        let flip = move |_: &adw::Breakpoint| {
+            let weak = weak.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(this) = weak.upgrade()
+                    && this.mode.get() == LayoutMode::Auto
+                    && this.doc.borrow().is_some()
+                {
+                    this.rebuild();
                 }
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || {
-                    if let Some(this) = weak.upgrade()
-                        && this.mode.get() == LayoutMode::Auto
-                        && this.doc.borrow().is_some()
-                    {
-                        this.rebuild();
-                    }
-                });
-            };
-            if narrow {
-                breakpoint.connect_apply(flip);
-            } else {
-                breakpoint.connect_unapply(flip);
-            }
-        }
+            });
+        };
+        breakpoint.connect_apply(flip.clone());
+        breakpoint.connect_unapply(flip);
         self.bin.add_breakpoint(breakpoint);
         let keys = gtk::EventControllerKey::new();
         let weak = Rc::downgrade(self);
@@ -291,7 +281,9 @@ impl DiffView {
     }
 
     fn resolve(&self) -> Layout {
-        self.mode.get().resolve(self.narrow.get())
+        self.mode
+            .get()
+            .resolve(self.bin.current_breakpoint().is_some())
     }
 
     pub(crate) fn reload(self: &Rc<Self>, file: Option<GitFile>) {
