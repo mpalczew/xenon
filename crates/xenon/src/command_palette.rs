@@ -10,9 +10,6 @@ use crate::picker::hits;
 
 fn filter(query: &str) -> Vec<Cmd> {
     let all: Vec<Cmd> = Cmd::palette().collect();
-    if query.is_empty() {
-        return all;
-    }
     crate::picker::rank(&all, query, |cmd| cmd.label().to_string())
         .into_iter()
         .map(|i| all[i])

@@ -102,9 +102,6 @@ fn compare(a: &Candidate, b: &Candidate, needle: Option<&str>) -> Ordering {
 }
 
 fn filter_known(known: &[Candidate], query: &str) -> Vec<Candidate> {
-    if query.is_empty() {
-        return known.to_vec();
-    }
     rank(known, query, Candidate::haystack)
         .into_iter()
         .map(|i| known[i].clone())

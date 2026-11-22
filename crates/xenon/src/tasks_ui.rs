@@ -9,9 +9,6 @@ use crate::commands::Cmd;
 use crate::palette::{Handlers, Options, PaletteRow};
 
 fn fuzzy(labels: &[String], query: &str) -> Vec<(usize, Vec<u32>)> {
-    if query.is_empty() {
-        return (0..labels.len()).map(|i| (i, Vec::new())).collect();
-    }
     crate::picker::rank(labels, query, String::clone)
         .into_iter()
         .map(|i| (i, crate::picker::hits(&labels[i], query)))
