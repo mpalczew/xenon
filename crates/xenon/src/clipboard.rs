@@ -127,3 +127,12 @@ async fn clipboard_image(clipboard: &gdk::Clipboard) -> Option<String> {
     std::fs::write(&path, &bytes).ok()?;
     Some(xenon_core::shell_path(path))
 }
+
+impl App {
+    pub(crate) fn current_term(&self) -> Option<Rc<crate::term::TermView>> {
+        let model = self.model.borrow();
+        let ws = model.active()?;
+        let tab = model.spaces.get(&ws)?.content.active_tab()?.id;
+        self.term_view(ws, tab)
+    }
+}

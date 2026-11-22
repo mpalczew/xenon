@@ -170,3 +170,21 @@ impl App {
         glib::ControlFlow::Break
     }
 }
+
+impl App {
+    pub(crate) fn open_editor(self: &Rc<Self>, ws: WorkspaceId, path: &std::path::Path) {
+        if crate::image::is_image(path) {
+        } else if let Err(why) = crate::editor::check(path) {
+            self.toast(&format!("Opening {} outside Xenon: {why}", path.display()));
+            self.launch(&gio::File::for_path(path).uri());
+            return;
+        }
+        if self.model.borrow().active() != Some(ws) {
+            self.activate_workspace(ws);
+        }
+        if self.model.borrow_mut().open_editor(ws, path).is_some() {
+            self.touch_recent(ws, path);
+            self.changed(ws);
+        }
+    }
+}

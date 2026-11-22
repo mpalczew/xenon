@@ -407,3 +407,36 @@ impl App {
         self.set_fold(fold, !folded);
     }
 }
+
+impl App {
+    pub(crate) fn reveal_dir(self: &Rc<Self>, _ws: WorkspaceId, dir: &std::path::Path) {
+        self.sidebar.root.set_visible(true);
+        self.sidebar.files.reveal(dir);
+    }
+
+    pub(crate) fn toggle_sidebar(&self) {
+        let shown = self.sidebar.root.is_visible();
+        self.sidebar.root.set_visible(!shown);
+    }
+
+    pub(crate) fn focus_sidebar(&self) {
+        self.sidebar.root.set_visible(true);
+        if self.sidebar.files.has_rows() {
+            self.sidebar.files.focus();
+            return;
+        }
+        let active = self.model.borrow().active();
+        let index = active.and_then(|id| {
+            self.model
+                .borrow()
+                .registry
+                .workspaces
+                .iter()
+                .position(|r| r.id == id)
+        });
+        self.set_fold(Fold::Workspaces, false);
+        if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
+            row.grab_focus();
+        }
+    }
+}

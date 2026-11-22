@@ -349,3 +349,12 @@ pub(crate) fn space_label(model: &crate::model::Model, ws: WorkspaceId) -> Strin
         .and_then(|leaf| leaf.active_tab().map(|t| t.label(leaf.active)))
         .unwrap_or_default()
 }
+
+impl App {
+    pub(crate) fn toast(&self, text: &str) {
+        match crate::prefs::open_dialog() {
+            Some(dialog) => dialog.add_toast(adw::Toast::new(text)),
+            None => self.toasts.add_toast(adw::Toast::new(text)),
+        }
+    }
+}

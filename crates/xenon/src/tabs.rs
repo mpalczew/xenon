@@ -1,22 +1,13 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::{gio, glib};
+use gtk::glib;
 use xenon_core::{PaneId, ParkOutcome, SplitAxis, TabId, WorkspaceId};
 
 use crate::app::App;
-use crate::model::Fold;
 use crate::model_tabs::SplitResult;
-use xenon_settings::Surface;
 
 impl App {
-    pub(crate) fn toast(&self, text: &str) {
-        match crate::prefs::open_dialog() {
-            Some(dialog) => dialog.add_toast(adw::Toast::new(text)),
-            None => self.toasts.add_toast(adw::Toast::new(text)),
-        }
-    }
-
     pub(crate) fn focus_terminal(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         glib::idle_add_local_once(move || {
@@ -56,27 +47,6 @@ impl App {
                 diff.focus();
             }
         });
-    }
-
-    pub(crate) fn open_editor(self: &Rc<Self>, ws: WorkspaceId, path: &std::path::Path) {
-        if crate::image::is_image(path) {
-        } else if let Err(why) = crate::editor::check(path) {
-            self.toast(&format!("Opening {} outside Xenon: {why}", path.display()));
-            self.launch(&gio::File::for_path(path).uri());
-            return;
-        }
-        if self.model.borrow().active() != Some(ws) {
-            self.activate_workspace(ws);
-        }
-        if self.model.borrow_mut().open_editor(ws, path).is_some() {
-            self.touch_recent(ws, path);
-            self.changed(ws);
-        }
-    }
-
-    pub(crate) fn reveal_dir(self: &Rc<Self>, _ws: WorkspaceId, dir: &std::path::Path) {
-        self.sidebar.root.set_visible(true);
-        self.sidebar.files.reveal(dir);
     }
 
     pub(crate) fn changed(self: &Rc<Self>, ws: WorkspaceId) {
@@ -188,66 +158,5 @@ impl App {
         if self.model.borrow_mut().set_divider(ws, key, cumulative) {
             self.schedule_save();
         }
-    }
-
-    pub(crate) fn toggle_sidebar(&self) {
-        let shown = self.sidebar.root.is_visible();
-        self.sidebar.root.set_visible(!shown);
-    }
-
-    pub(crate) fn focus_sidebar(&self) {
-        self.sidebar.root.set_visible(true);
-        if self.sidebar.files.has_rows() {
-            self.sidebar.files.focus();
-            return;
-        }
-        let active = self.model.borrow().active();
-        let index = active.and_then(|id| {
-            self.model
-                .borrow()
-                .registry
-                .workspaces
-                .iter()
-                .position(|r| r.id == id)
-        });
-        self.set_fold(Fold::Workspaces, false);
-        if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
-            row.grab_focus();
-        }
-    }
-
-    pub(crate) fn zoom(self: &Rc<Self>, step: Option<f32>) {
-        let editor = self.current_editor();
-        let diff = {
-            let model = self.model.borrow();
-            let ws = model.active();
-            ws.and_then(|w| model.spaces.get(&w))
-                .and_then(|s| s.content.active_tab())
-                .is_some_and(|t| matches!(t.kind, crate::model::TabKind::Diff { .. }))
-        };
-        if editor
-            .as_ref()
-            .is_some_and(|e| e.view.has_css_class("xprose"))
-        {
-            self.change_settings(|s| s.zoom_prose(step));
-        } else if editor.is_some() || diff {
-            self.change_settings(|s| s.zoom(Surface::Editor, step));
-        } else {
-            {
-                let mut settings = self.settings.borrow_mut();
-                settings.zoom(Surface::Terminal, step);
-                settings.persist();
-            }
-            for view in self.terms.borrow().values() {
-                self.restyle_term(view);
-            }
-        }
-    }
-
-    pub(crate) fn current_term(&self) -> Option<Rc<crate::term::TermView>> {
-        let model = self.model.borrow();
-        let ws = model.active()?;
-        let tab = model.spaces.get(&ws)?.content.active_tab()?.id;
-        self.term_view(ws, tab)
     }
 }
