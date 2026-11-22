@@ -8,7 +8,6 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use vte::prelude::*;
 use xenon_core::SplitAxis;
-use xenon_store::AppSettings;
 
 use crate::app::{App, defer};
 use crate::model::Fold;
@@ -24,7 +23,7 @@ pub(crate) enum InLauncher {
 enum Run {
     Plain(fn(&Rc<App>)),
     Toggle {
-        initial: fn(&AppSettings) -> bool,
+        initial: fn(&App) -> bool,
         set: fn(&Rc<App>, bool),
     },
     Path(fn(&Rc<App>, &Path)),
@@ -57,7 +56,7 @@ impl Spec {
         Self::new(Run::Plain(f))
     }
 
-    fn toggle(initial: fn(&AppSettings) -> bool, set: fn(&Rc<App>, bool)) -> Self {
+    fn toggle(initial: fn(&App) -> bool, set: fn(&Rc<App>, bool)) -> Self {
         Self::new(Run::Toggle { initial, set })
     }
 
@@ -226,7 +225,7 @@ commands! {
     },
     ShowHiddenFiles = "show-hidden-files" => Spec {
         label: "Show Hidden Files",
-        ..Spec::toggle(|s| s.show_hidden_files, |a, on| a.sidebar.files.set_hidden(on))
+        ..Spec::toggle(|a| a.sidebar.files.shows_hidden(), |a, on| a.sidebar.files.set_hidden(on))
     },
     CycleDiffLayout = "cycle-diff-layout" => Spec {
         label: "Cycle Diff Layout", keys: &["<Control><Alt><Shift>d"],
@@ -422,7 +421,6 @@ pub(crate) fn install_accels(app: &gtk::Application) {
 
 /// Registers every action, once.
 pub(crate) fn install(app: &Rc<App>) {
-    let settings = xenon_store::load_settings().unwrap_or_default();
     for cmd in Cmd::ALL {
         let spec = cmd.spec();
         let weak = Rc::downgrade(app);
@@ -448,14 +446,12 @@ pub(crate) fn install(app: &Rc<App>) {
                 action
             }
             Run::Toggle { initial, set } => {
-                let action = gio::SimpleAction::new_stateful(
-                    cmd.name(),
-                    None,
-                    &initial(&settings).to_variant(),
-                );
+                let action =
+                    gio::SimpleAction::new_stateful(cmd.name(), None, &initial(app).to_variant());
                 // sync: event-time read: only reads the requested state; the change is deferred.
-                action.connect_change_state(move |_, value| {
+                action.connect_change_state(move |action, value| {
                     if let Some(on) = value.and_then(|v| v.get::<bool>()) {
+                        action.set_state(&on.to_variant());
                         defer(&weak, move |app| set(&app, on));
                     }
                 });

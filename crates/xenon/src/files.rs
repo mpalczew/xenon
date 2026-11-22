@@ -212,7 +212,9 @@ impl FilesView {
             }
             let handled = match key {
                 gdk::Key::h if ctrl_h => {
-                    defer(&weak, |this| this.toggle_hidden());
+                    if let Some(app) = this.app.upgrade() {
+                        app.gtk.activate_action(Cmd::ShowHiddenFiles.name(), None);
+                    }
                     true
                 }
                 gdk::Key::Right | gdk::Key::l => this.step_in(),
@@ -312,19 +314,13 @@ impl FilesView {
         self.focus_index(at);
     }
 
-    /// Flip "Show Hidden Files": filter, dimming, the menu check and the saved setting.
-    fn toggle_hidden(&self) {
-        self.set_hidden(!self.ignores.show_hidden.get());
+    pub(crate) fn shows_hidden(&self) -> bool {
+        self.ignores.show_hidden.get()
     }
 
+    /// "Show Hidden Files": filter, dimming and the saved setting.
     pub(crate) fn set_hidden(&self, on: bool) {
         self.ignores.set_show_hidden(on);
-        if let Some(app) = self.app.upgrade()
-            && let Some(action) = app.gtk.lookup_action(Cmd::ShowHiddenFiles.name())
-            && let Ok(action) = action.downcast::<gio::SimpleAction>()
-        {
-            action.set_state(&on.to_variant());
-        }
         if let Err(error) = xenon_store::update_settings(|s| s.show_hidden_files = on) {
             eprintln!("[xg] save settings: {error}");
         }
