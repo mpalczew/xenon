@@ -219,9 +219,9 @@ impl Sidebar {
         self.fill();
     }
 
-    /// Gives spare height to the open sections. With one section open or none, the
-    /// dividers have nothing to split, so they let go of their positions and that
-    /// section takes all the space.
+    /// Gives spare height to the open sections: Files and Git share what Workspaces
+    /// leaves. With one section open or none, the dividers have nothing to split, so
+    /// they let go of their positions and that section takes all the space.
     pub(crate) fn fill(&self) {
         let open = [
             self.workspaces.is_open(),
@@ -230,7 +230,7 @@ impl Sidebar {
         ];
         let [workspaces, files, git] = open;
         self.inner.set_resize_start_child(files);
-        self.inner.set_resize_end_child(!files);
+        self.inner.set_resize_end_child(git || !files);
         let alone = workspaces && !files && !git;
         self.outer.set_resize_start_child(alone);
         self.outer.set_resize_end_child(!alone);
@@ -254,8 +254,9 @@ impl Sidebar {
         self.fill();
     }
 
-    /// Opens the workspaces section tall enough for every row; the divider stops where
-    /// files and git still keep their minimum height.
+    /// Sizes the workspaces section for every row. Without a position the divider would
+    /// give it only its minimum, so it is set after any fold change; the divider stops
+    /// where files and git still keep their minimum height, and a drag replaces it.
     fn fit_workspaces(&self) {
         let width = self.root.width();
         let height = |w: &gtk::Widget| w.measure(gtk::Orientation::Vertical, width).1;
@@ -399,7 +400,7 @@ impl App {
         }
         self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
-        if matches!(fold, Fold::Workspaces) && !folded && self.sidebar.outer.resizes_end_child() {
+        if !self.model.borrow().folds.workspaces && self.sidebar.outer.resizes_end_child() {
             self.sidebar.fit_workspaces();
         }
         if let Some(app) = self.sidebar.app.upgrade() {
