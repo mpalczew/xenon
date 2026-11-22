@@ -4,8 +4,6 @@ use std::process::Command;
 use similar::{ChangeTag, DiffOp, InlineChange, TextDiff};
 use xenon_git::status::GitFile;
 
-const AUTO_SPLIT_MIN_PX: f32 = 860.;
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum LayoutMode {
     #[default]
@@ -37,12 +35,12 @@ impl LayoutMode {
         }
     }
 
-    pub(crate) fn resolve(self, width_px: f32) -> Layout {
+    pub(crate) fn resolve(self, narrow: bool) -> Layout {
         match self {
             Self::Split => Layout::Split,
             Self::Unified => Layout::Unified,
-            Self::Auto if width_px >= AUTO_SPLIT_MIN_PX => Layout::Split,
-            Self::Auto => Layout::Unified,
+            Self::Auto if narrow => Layout::Unified,
+            Self::Auto => Layout::Split,
         }
     }
 }

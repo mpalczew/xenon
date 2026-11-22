@@ -19,6 +19,8 @@ mod paint;
 pub(crate) struct DiffView {
     pub root: gtk::Box,
     body: gtk::Box,
+    bin: adw::BreakpointBin,
+    narrow: Cell<bool>,
     vadj: gtk::Adjustment,
     path_label: gtk::Label,
     sub_label: gtk::Label,
@@ -34,7 +36,6 @@ pub(crate) struct DiffView {
     pub path: String,
     file: RefCell<GitFile>,
     mode: Cell<LayoutMode>,
-    layout: Cell<Layout>,
     doc: RefCell<Option<Arc<Doc>>>,
     hunks: RefCell<Vec<(i32, u32)>>,
     current: Cell<usize>,
@@ -122,11 +123,17 @@ impl DiffView {
         root.append(&head);
         root.append(&banner);
         root.append(&note);
-        root.append(&body);
+        let bin = adw::BreakpointBin::new();
+        bin.set_size_request(300, 200);
+        bin.set_vexpand(true);
+        bin.set_child(Some(&body));
+        root.append(&bin);
 
         let this = Rc::new(Self {
             root,
             body,
+            bin,
+            narrow: Cell::new(false),
             vadj: gtk::Adjustment::default(),
             path_label,
             sub_label,
@@ -142,7 +149,6 @@ impl DiffView {
             path: file.path.clone(),
             file: RefCell::new(file),
             mode: Cell::new(LayoutMode::Auto),
-            layout: Cell::new(Layout::Unified),
             doc: RefCell::new(None),
             hunks: RefCell::default(),
             current: Cell::new(0),
@@ -188,17 +194,31 @@ impl DiffView {
                 }
             });
         });
-        let weak = Rc::downgrade(self);
-        self.body.add_tick_callback(move |_, _| {
-            if let Some(this) = weak.upgrade()
-                && this.mode.get() == LayoutMode::Auto
-                && this.doc.borrow().is_some()
-                && this.resolve() != this.layout.get()
-            {
-                this.rebuild();
+        let breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
+            adw::BreakpointConditionLengthType::MaxWidth,
+            860.0,
+            adw::LengthUnit::Px,
+        ));
+        for narrow in [true, false] {
+            let weak = Rc::downgrade(self);
+            let flip = move |_: &adw::Breakpoint| {
+                let weak = weak.clone();
+                glib::idle_add_local_once(move || {
+                    if let Some(this) = weak.upgrade() {
+                        this.narrow.set(narrow);
+                        if this.mode.get() == LayoutMode::Auto && this.doc.borrow().is_some() {
+                            this.rebuild();
+                        }
+                    }
+                });
+            };
+            if narrow {
+                breakpoint.connect_apply(flip);
+            } else {
+                breakpoint.connect_unapply(flip);
             }
-            glib::ControlFlow::Continue
-        });
+        }
+        self.bin.add_breakpoint(breakpoint);
         let keys = gtk::EventControllerKey::new();
         let weak = Rc::downgrade(self);
         keys.connect_key_pressed(move |_, key, _, state| {
@@ -272,7 +292,7 @@ impl DiffView {
     }
 
     fn resolve(&self) -> Layout {
-        self.mode.get().resolve(self.body.width() as f32)
+        self.mode.get().resolve(self.narrow.get())
     }
 
     pub(crate) fn reload(self: &Rc<Self>, file: Option<GitFile>) {
@@ -303,7 +323,6 @@ impl DiffView {
         let keep = self.vadj.value();
         let refocus = self.has_focus();
         let layout = self.resolve();
-        self.layout.set(layout);
         let page = doc.build(layout);
         self.fill(&page);
         *self.hunks.borrow_mut() = page.hunks.iter().map(|h| (h.line, h.target)).collect();

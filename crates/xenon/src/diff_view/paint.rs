@@ -64,17 +64,13 @@ impl DiffView {
         self.sub_label.set_text(&doc.subtitle);
         self.plus.set_text(&format!("+{}", doc.added));
         self.minus.set_text(&format!("-{}", doc.removed));
-        let auto = self.mode.get() == LayoutMode::Auto && self.body.width() > 0;
-        self.auto_label.set_visible(auto);
-        self.auto_label.set_text(&format!(
-            "\u{2192} {} \u{b7} {}px",
-            if layout == Layout::Split {
-                "split"
-            } else {
-                "unified"
-            },
-            self.body.width()
-        ));
+        self.auto_label
+            .set_visible(self.mode.get() == LayoutMode::Auto);
+        self.auto_label.set_text(if layout == Layout::Split {
+            "\u{2192} split"
+        } else {
+            "\u{2192} unified"
+        });
         set_text(&self.banner, doc.banner.as_deref());
         set_text(&self.note, doc.note.as_deref());
     }
