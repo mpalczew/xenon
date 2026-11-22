@@ -39,6 +39,7 @@ impl App {
                 if let Some(view) = self.view_of(id) {
                     view.pid.set(Some(info.pid).filter(|p| *p > 0));
                 }
+                self.reopen_for_terminal(info.workspace);
                 self.adopt_orphans(info.workspace);
                 self.refresh_builds();
             }
@@ -89,6 +90,22 @@ impl App {
             self.holders.seen(id);
         }
         seen.is_some()
+    }
+
+    fn reopen_for_terminal(self: &Rc<Self>, ws: WorkspaceId) {
+        let root = self
+            .model
+            .borrow()
+            .registry
+            .closed_workspaces
+            .iter()
+            .find(|r| r.id == ws)
+            .map(|r| r.root.clone());
+        if let Some(root) = root {
+            self.model.borrow_mut().open_dir(&root);
+            self.sidebar.rebuild(&self.model.borrow());
+            self.save_registry();
+        }
     }
 
     pub(crate) fn adopt_orphans(self: &Rc<Self>, ws: WorkspaceId) {
