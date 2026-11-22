@@ -112,7 +112,7 @@ impl App {
             .collect();
         for info in self.holders.list() {
             if info.workspace == id && !ended.contains(&info.id) {
-                self.holders.close(info.id);
+                self.end_holder(info.id);
             }
         }
         if let Some(slot) = self.slots.borrow_mut().remove(&id) {

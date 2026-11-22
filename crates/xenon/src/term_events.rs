@@ -39,11 +39,14 @@ impl App {
                 if let Some(view) = self.view_of(id) {
                     view.pid.set(Some(info.pid).filter(|p| *p > 0));
                 }
-                self.reopen_for_terminal(info.workspace);
+                if !self.ended.borrow().contains(&id) {
+                    self.reopen_for_terminal(info.workspace);
+                }
                 self.adopt_orphans(info.workspace);
                 self.refresh_builds();
             }
             Event::Closed { id } => {
+                self.ended.borrow_mut().remove(&id);
                 let tab = self.model.borrow().tab_of_term(id);
                 if let Some((ws, tab)) = tab {
                     self.close_tab_ui(ws, tab);
@@ -51,6 +54,7 @@ impl App {
                 self.refresh_builds();
             }
             Event::Failed { id, error } => {
+                self.ended.borrow_mut().remove(&id);
                 self.toast(&format!(
                     "Couldn\u{2019}t start a terminal \u{2014} {error}"
                 ));
@@ -175,7 +179,12 @@ impl App {
     pub(crate) fn end_term(&self, key: (WorkspaceId, TabId)) -> Option<TermId> {
         let id = self.bodies.borrow_mut().remove(&key).and_then(|b| b.term)?;
         self.terms.borrow_mut().remove(&id);
-        self.holders.close(id);
+        self.end_holder(id);
         Some(id)
+    }
+
+    pub(crate) fn end_holder(&self, id: TermId) {
+        self.ended.borrow_mut().insert(id);
+        self.holders.close(id);
     }
 }

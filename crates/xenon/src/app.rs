@@ -68,6 +68,7 @@ pub(crate) struct App {
     pub transfer_queued: Cell<bool>,
     pub off_bar: Cell<bool>,
     pub save_pending: Cell<bool>,
+    pub ended: RefCell<std::collections::HashSet<TermId>>,
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
     pub holders: xenon_term::Terminals,

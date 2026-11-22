@@ -248,6 +248,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         transfer_queued: Cell::new(false),
         off_bar: Cell::new(false),
         save_pending: Cell::new(false),
+        ended: RefCell::default(),
         save_button: save_button(),
         remote: crate::remote::Remote::new(),
         holders,
