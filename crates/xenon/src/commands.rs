@@ -354,11 +354,15 @@ impl Cmd {
         self.spec().icon
     }
 
-    /// The first accelerator GTK holds for the action, as a label. Empty before `install`.
+    /// The first accelerator GTK holds for the action, as a label. `None` before `install_accels`.
     pub(crate) fn chord(self) -> Option<String> {
         let app = gio::Application::default().and_downcast::<gtk::Application>()?;
         let accels = app.accels_for_action(self.action());
-        accels.first().map(|accel| label(accel))
+        let accel = accels.first()?;
+        Some(match gtk::accelerator_parse(accel) {
+            Some((key, mods)) => gtk::accelerator_get_label(key, mods).to_string(),
+            None => accel.to_string(),
+        })
     }
 
     /// "Label · Chord".
@@ -390,14 +394,6 @@ impl Cmd {
 
     pub(crate) fn palette() -> impl Iterator<Item = Cmd> {
         Cmd::ALL.iter().copied().filter(|cmd| cmd.spec().palette)
-    }
-}
-
-/// An accelerator string as a label, such as "Ctrl+Return".
-pub(crate) fn label(accel: &str) -> String {
-    match gtk::accelerator_parse(accel) {
-        Some((key, mods)) => gtk::accelerator_get_label(key, mods).to_string(),
-        None => accel.to_string(),
     }
 }
 

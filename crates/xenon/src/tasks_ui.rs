@@ -57,10 +57,8 @@ impl App {
             &self.win,
             Handlers {
                 placeholder: error.unwrap_or_else(|| shared::PICKER_PLACEHOLDER.to_string()),
-                hint: format!(
-                    "return runs  \u{b7}  {} runs in a new tab  \u{b7}  esc closes",
-                    crate::commands::label("<Control>Return")
-                ),
+                hint: "return runs  \u{b7}  ctrl+return runs in a new tab  \u{b7}  esc closes"
+                    .into(),
                 options: Options {
                     on_accept_alt: Some(Box::new(move |row| accept_alt(row, true))),
                     ..Options::default()

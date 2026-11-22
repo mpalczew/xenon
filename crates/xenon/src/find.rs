@@ -49,18 +49,17 @@ impl FindBar {
             b.add_css_class("flat");
             b.set_focusable(false);
         }
-        let key = |accel| crate::commands::label(accel);
         prev.set_tooltip_text(Some(&format!(
             "Previous match \u{b7} {} / {}",
-            key("<Shift>Return"),
+            "Shift+Return",
             Cmd::FindPrev.chord().unwrap_or_default(),
         )));
         next.set_tooltip_text(Some(&format!(
             "Next match \u{b7} {} / {}",
-            key("Return"),
+            "Return",
             Cmd::FindNext.chord().unwrap_or_default(),
         )));
-        close.set_tooltip_text(Some(&format!("Close \u{b7} {}", key("Escape"))));
+        close.set_tooltip_text(Some("Close \u{b7} Esc"));
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         row.add_css_class("xfind");
         row.append(&entry);
