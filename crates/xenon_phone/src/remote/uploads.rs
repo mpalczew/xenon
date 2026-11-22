@@ -6,8 +6,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
-use crate::http::{self, Request};
-use crate::server::{self, Shared};
+use crate::remote::http::{self, Request};
+use crate::remote::server::{self, Shared};
 
 pub(crate) const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 const KEEP: Duration = Duration::from_secs(7 * 24 * 60 * 60);

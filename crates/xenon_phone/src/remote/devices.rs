@@ -1,6 +1,6 @@
 use xenon_store::{RemoteDevice, RemoteDevices};
 
-use crate::pairing::PairingCode;
+use crate::remote::pairing::PairingCode;
 
 pub struct DeviceBook {
     pub(crate) devices: RemoteDevices,

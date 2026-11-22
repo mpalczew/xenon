@@ -1830,7 +1830,6 @@ dependencies = [
  "xenon_git",
  "xenon_phone",
  "xenon_prose",
- "xenon_remote",
  "xenon_settings",
  "xenon_store",
  "xenon_term",
@@ -1872,13 +1871,21 @@ version = "0.1.0"
 name = "xenon_phone"
 version = "0.1.0"
 dependencies = [
+ "alacritty_terminal",
+ "anyhow",
  "async-channel",
+ "http",
+ "httparse",
+ "libc",
  "log",
+ "percent-encoding",
  "sd-notify",
  "serde",
  "serde_json",
+ "sha2",
+ "tungstenite",
+ "uuid",
  "xenon_core",
- "xenon_remote",
  "xenon_store",
  "xenon_term",
 ]
@@ -1888,26 +1895,6 @@ name = "xenon_prose"
 version = "0.1.0"
 dependencies = [
  "pulldown-cmark",
-]
-
-[[package]]
-name = "xenon_remote"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-channel",
- "http",
- "httparse",
- "libc",
- "log",
- "percent-encoding",
- "serde",
- "serde_json",
- "sha2",
- "tungstenite",
- "uuid",
- "xenon_core",
- "xenon_store",
 ]
 
 [[package]]
@@ -1945,7 +1932,6 @@ dependencies = [
  "serde",
  "serde_json",
  "xenon_core",
- "xenon_remote",
  "xenon_store",
 ]
 

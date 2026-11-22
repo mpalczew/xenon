@@ -165,8 +165,7 @@ run agents this way—not vanity stars.
 | `xenon_finder`   | Ignore-respecting walk + fuzzy match          |
 | `xenon_prose`    | Markdown prose mode                           |
 | `xenon_term`     | Terminal holders and the client API           |
-| `xenon_phone`    | Phone server process                          |
-| `xenon_remote`   | Phone remote HTTP, WebSocket and pairing      |
+| `xenon_phone`    | Phone server: remote HTTP, WebSocket, pairing |
 
 Product: [`PRODUCT.md`](PRODUCT.md).
 

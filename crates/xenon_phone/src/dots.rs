@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
+use crate::remote::{Dot, ServerMsg, wire_dot};
 use xenon_core::{AttentionReason, WorkspaceId, workspace_dot, workspace_dot_from_tabs};
-use xenon_remote::{Dot, ServerMsg, wire_dot};
 
 use super::{Phone, locked};
 

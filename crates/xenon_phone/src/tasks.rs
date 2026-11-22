@@ -2,11 +2,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::remote::{ConnId, Secret, ServerMsg, TaskInputKind, TaskOptionWire};
 use xenon_core::tasks::{
     self as shared, QuestionKind, RunVars, TaskQuestion, resolve_for_run, terminal_command,
 };
 use xenon_core::{Action, Orchestrator, TaskSet, TermId, WorkspaceId};
-use xenon_remote::{ConnId, Secret, ServerMsg, TaskInputKind, TaskOptionWire};
 
 use super::{Phone, locked};
 use xenon_term::{Exit, Spawn};

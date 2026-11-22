@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use xenon_remote::{DeviceBook, HostRequest, Reachability, RemoteServer, StartError};
+use crate::remote::{DeviceBook, HostRequest, Reachability, RemoteServer, StartError};
 
 use super::{Phone, Runtime, locked};
 
@@ -54,7 +54,7 @@ impl Phone {
         let reach = Reachability::probe_local();
         let started = RemoteServer::start(
             &reach.bind_ips(),
-            xenon_remote::effective_port(),
+            crate::remote::effective_port(),
             self.tx.clone(),
         );
         let server = match started {
@@ -63,7 +63,7 @@ impl Phone {
                 log::error!("phone remote failed to start: {error:#}");
                 let text = match error {
                     StartError::PortBusy => {
-                        format!("port {} is busy", xenon_remote::effective_port())
+                        format!("port {} is busy", crate::remote::effective_port())
                     }
                     other => format!("{other:#}"),
                 };
@@ -94,7 +94,7 @@ impl Phone {
         let spawned = thread::Builder::new()
             .name("xenon-phone-dns".into())
             .spawn(move || {
-                let dns = xenon_remote::magic_dns_name();
+                let dns = crate::remote::magic_dns_name();
                 let Some(phone) = weak.upgrade() else { return };
                 if let Some(rt) = locked(&phone.server).rt.as_mut() {
                     rt.reach.magic_dns = dns;

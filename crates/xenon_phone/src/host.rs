@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use xenon_core::tasks as shared;
-use xenon_core::{Registry, WorkspaceId};
-use xenon_remote::{
+use crate::remote::{
     HostRequest, PairError, PairResponse, TaskInfo, TerminalInfo, WorkspaceInfo,
     parse_workspace_id, tilde, wire_dot,
 };
+use xenon_core::tasks as shared;
+use xenon_core::{Registry, WorkspaceId};
 
 use super::{Phone, locked};
 use xenon_term::{Spawn, TermInfo};
@@ -74,7 +74,7 @@ impl Phone {
 
     fn workspaces(&self) -> Vec<WorkspaceInfo> {
         let registry = xenon_store::load_registry().unwrap_or_default();
-        xenon_remote::list_workspaces(&registry, |id| self.workspace_summary(id))
+        crate::remote::list_workspaces(&registry, |id| self.workspace_summary(id))
     }
 
     fn root_of(registry: &Registry, ws: WorkspaceId) -> Result<PathBuf, String> {

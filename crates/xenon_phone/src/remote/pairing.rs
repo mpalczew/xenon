@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use uuid::Uuid;
 
-use crate::auth::ct_eq;
+use crate::remote::auth::ct_eq;
 
 pub(crate) const PAIRING_TTL: Duration = Duration::from_secs(10 * 60);
 

@@ -1,4 +1,4 @@
-use crate::protocol::NamedKey;
+use crate::remote::protocol::NamedKey;
 
 /// Bytes to write to the PTY for typed or injected text. Enter is CR, so LF
 /// and CRLF become CR, as a real Enter press would send.

@@ -2,7 +2,9 @@ use std::sync::mpsc::{Receiver, SyncSender};
 
 use async_channel::Sender;
 
-use crate::protocol::{ClientMsg, PairResponse, ServerMsg, TaskInfo, TerminalInfo, WorkspaceInfo};
+use crate::remote::protocol::{
+    ClientMsg, PairResponse, ServerMsg, TaskInfo, TerminalInfo, WorkspaceInfo,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ConnId(pub u64);

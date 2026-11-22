@@ -1,6 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr};
 
-use crate::names::interface_ipv4s;
+use crate::remote::names::interface_ipv4s;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reachability {

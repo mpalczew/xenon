@@ -12,7 +12,6 @@ xenon_store.workspace = true
 xenon_settings.workspace = true
 xenon_prose.workspace = true
 xenon_finder.workspace = true
-xenon_remote.workspace = true
 xenon_term.workspace = true
 xenon_phone.workspace = true
 xenon_git.workspace = true

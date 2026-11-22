@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use xenon_remote::{ClosedReason, ConnId, DeviceBook, RemoteStatus, ServerMsg, device_rows};
+use crate::remote::{ClosedReason, ConnId, DeviceBook, RemoteStatus, ServerMsg, device_rows};
 
 use super::{Phone, locked};
 use crate::api::Pairing;
@@ -8,21 +8,23 @@ use crate::api::Pairing;
 impl Phone {
     pub(crate) fn status(&self) -> RemoteStatus {
         let settings = xenon_store::load_service_settings().unwrap_or_default();
-        let hostname = xenon_remote::normalize_hostname(&settings.remote_hostname);
+        let hostname = crate::remote::normalize_hostname(&settings.remote_hostname);
         let phones: Vec<String> = locked(&self.conns)
             .values()
             .map(|c| c.device_id.clone())
             .collect();
         let server = locked(&self.server);
-        let mut status = RemoteStatus::default();
-        status.enabled = server.rt.is_some();
-        status.problem = server.problem.clone();
-        status.keep_awake = settings.remote_keep_awake_while_connected;
-        status.hostname = hostname.clone();
+        let mut status = RemoteStatus {
+            enabled: server.rt.is_some(),
+            problem: server.problem.clone(),
+            keep_awake: settings.remote_keep_awake_while_connected,
+            hostname: hostname.clone(),
+            ..Default::default()
+        };
         let devices = match server.rt.as_ref() {
             Some(rt) => {
                 let host = rt.reach.phone_host(&hostname);
-                status.base_url = Some(xenon_remote::base_url(&host, rt.port));
+                status.base_url = Some(crate::remote::base_url(&host, rt.port));
                 status.reachable = rt.reach.reachable();
                 status.connected = phones.len();
                 rt.devices.devices().to_vec()
@@ -38,7 +40,7 @@ impl Phone {
     }
 
     pub(crate) fn pairing(&self) -> Result<Pairing, String> {
-        let hostname = xenon_remote::normalize_hostname(
+        let hostname = crate::remote::normalize_hostname(
             &xenon_store::load_service_settings()
                 .unwrap_or_default()
                 .remote_hostname,
@@ -49,11 +51,11 @@ impl Phone {
             problem.unwrap_or_else(|| "the phone remote is not running".to_string())
         })?;
         let code = rt.devices.pairing_code(Instant::now()).clone();
-        let base = xenon_remote::base_url(&rt.reach.phone_host(&hostname), rt.port);
+        let base = crate::remote::base_url(&rt.reach.phone_host(&hostname), rt.port);
         let reachable = rt.reach.reachable() || !hostname.is_empty();
         Ok(Pairing {
             digits: code.display_digits(),
-            url: reachable.then(|| xenon_remote::pairing_url(&base, &code.secret)),
+            url: reachable.then(|| crate::remote::pairing_url(&base, &code.secret)),
             expires_in_secs: code
                 .expires_at
                 .saturating_duration_since(Instant::now())

@@ -9,18 +9,18 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow};
 use percent_encoding::percent_decode_str;
 
-use crate::host::{ConnId, HostRequest, HostTx, PairError};
-use crate::http::{self, Request};
-use crate::protocol::{PairRequest, PairResponse};
-use crate::rate_limit::RateLimiter;
-use crate::uploads;
-use crate::ws;
+use crate::remote::host::{ConnId, HostRequest, HostTx, PairError};
+use crate::remote::http::{self, Request};
+use crate::remote::protocol::{PairRequest, PairResponse};
+use crate::remote::rate_limit::RateLimiter;
+use crate::remote::uploads;
+use crate::remote::ws;
 
 const PAGE: &str = include_str!("page.html");
-const MANIFEST: &str = include_str!("../assets/manifest.webmanifest");
-const ICON_180: &[u8] = include_bytes!("../assets/icon-180.png");
-const ICON_192: &[u8] = include_bytes!("../assets/icon-192.png");
-const ICON_512: &[u8] = include_bytes!("../assets/icon-512.png");
+const MANIFEST: &str = include_str!("../../assets/manifest.webmanifest");
+const ICON_180: &[u8] = include_bytes!("../../assets/icon-180.png");
+const ICON_192: &[u8] = include_bytes!("../../assets/icon-192.png");
+const ICON_512: &[u8] = include_bytes!("../../assets/icon-512.png");
 const UPLOAD_PATH: &str = "/api/uploads";
 const HOST_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_CONNECTIONS: usize = 32;

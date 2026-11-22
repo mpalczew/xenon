@@ -1,29 +1,26 @@
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+use alacritty_terminal::Term;
+use alacritty_terminal::event::EventListener;
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::TermMode;
 use alacritty_terminal::term::cell::{Cell as GridCell, Flags};
 use alacritty_terminal::vte::ansi::{Color, CursorShape};
-use xenon_remote::{
+
+use crate::look::{Look, dim};
+use crate::remote::{
     Cell, CursorShapeWire, CursorWire, Rgb, Screen, Style, WIDE_SPACER, style_flags,
 };
 
-use crate::hold::Emu;
-use crate::look::{Look, dim};
-
-pub(crate) fn history_size(emu: &Emu) -> usize {
-    emu.term.grid().history_size()
-}
-
-pub(crate) fn history_lines(emu: &Emu, limit: usize) -> Vec<String> {
-    let grid = emu.term.grid();
-    let count = history_size(emu).min(limit) as i32;
+pub(crate) fn history_lines<L: EventListener>(term: &Term<L>, limit: usize) -> Vec<String> {
+    let grid = term.grid();
+    let count = grid.history_size().min(limit) as i32;
     (-count..0)
         .map(|line| {
             let row = &grid[Line(line)];
-            let text: String = (0..usize::from(emu.size.cols()))
+            let text: String = (0..term.columns())
                 .map(|c| &row[Column(c)])
                 .filter(|c| {
                     !c.flags
@@ -36,42 +33,42 @@ pub(crate) fn history_lines(emu: &Emu, limit: usize) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn screen(emu: &Emu, offset: usize, look: &Look) -> Screen {
-    let (cols, rows) = (usize::from(emu.size.cols()), usize::from(emu.size.rows()));
-    let offset = offset.min(history_size(emu));
-    let grid = emu.term.grid();
+pub(crate) fn screen<L: EventListener>(term: &Term<L>, offset: usize, look: &Look) -> Screen {
+    let (cols, rows) = (term.columns(), term.screen_lines());
+    let offset = offset.min(term.grid().history_size());
+    let grid = term.grid();
     let mut links = HashMap::new();
     let mut out = Vec::with_capacity(rows);
     for r in 0..rows {
         let row = &grid[Line(r as i32 - offset as i32)];
         out.push(
             (0..cols)
-                .map(|c| cell(emu, &row[Column(c)], look, &mut links))
+                .map(|c| cell(term, &row[Column(c)], look, &mut links))
                 .collect(),
         );
     }
     Screen {
-        cols: emu.size.cols(),
+        cols: cols as u16,
         rows: out,
-        cursor: cursor(emu, offset),
+        cursor: cursor(term, offset),
         scrolled: offset > 0,
         links,
     }
 }
 
-fn cursor(emu: &Emu, offset: usize) -> Option<CursorWire> {
-    if offset > 0 || !emu.mode().contains(TermMode::SHOW_CURSOR) {
+fn cursor<L: EventListener>(term: &Term<L>, offset: usize) -> Option<CursorWire> {
+    if offset > 0 || !term.mode().contains(TermMode::SHOW_CURSOR) {
         return None;
     }
-    let point = emu.term.grid().cursor.point;
+    let point = term.grid().cursor.point;
     let (r, c) = (point.line.0, point.column.0);
-    if r < 0 || r >= i32::from(emu.size.rows()) {
+    if r < 0 || r >= term.screen_lines() as i32 {
         return None;
     }
     Some(CursorWire {
         r: r as u16,
-        c: c.min(usize::from(emu.size.cols()) - 1) as u16,
-        s: match emu.term.cursor_style().shape {
+        c: c.min(term.columns() - 1) as u16,
+        s: match term.cursor_style().shape {
             CursorShape::Beam => CursorShapeWire::Bar,
             CursorShape::Underline => CursorShapeWire::Underline,
             _ => CursorShapeWire::Block,
@@ -79,33 +76,38 @@ fn cursor(emu: &Emu, offset: usize) -> Option<CursorWire> {
     })
 }
 
-fn resolve(emu: &Emu, color: Color, look: &Look) -> Option<Rgb> {
+fn resolve<L: EventListener>(term: &Term<L>, color: Color, look: &Look) -> Option<Rgb> {
     match color {
         Color::Spec(rgb) => Some(Rgb(rgb.r, rgb.g, rgb.b)),
-        Color::Indexed(n) => Some(palette(emu, usize::from(n), look)),
+        Color::Indexed(n) => Some(palette(term, usize::from(n), look)),
         Color::Named(named) => match named as usize {
-            n @ 0..=15 => Some(palette(emu, n, look)),
-            n @ 259..=266 => Some(dim(palette(emu, n - 259, look), look.bg)),
+            n @ 0..=15 => Some(palette(term, n, look)),
+            n @ 259..=266 => Some(dim(palette(term, n - 259, look), look.bg)),
             _ => None,
         },
     }
 }
 
-fn palette(emu: &Emu, index: usize, look: &Look) -> Rgb {
-    match emu.term.colors()[index] {
+fn palette<L: EventListener>(term: &Term<L>, index: usize, look: &Look) -> Rgb {
+    match term.colors()[index] {
         Some(rgb) => Rgb(rgb.r, rgb.g, rgb.b),
         None => look.indexed(index as u8),
     }
 }
 
-fn cell(emu: &Emu, c: &GridCell, look: &Look, links: &mut HashMap<u64, String>) -> Cell {
+fn cell<L: EventListener>(
+    term: &Term<L>,
+    c: &GridCell,
+    look: &Look,
+    links: &mut HashMap<u64, String>,
+) -> Cell {
     if c.flags.contains(Flags::WIDE_CHAR_SPACER) {
         return Cell {
             ch: WIDE_SPACER,
             style: Style::default(),
         };
     }
-    let (mut fg, mut bg) = (resolve(emu, c.fg, look), resolve(emu, c.bg, look));
+    let (mut fg, mut bg) = (resolve(term, c.fg, look), resolve(term, c.bg, look));
     if c.flags.contains(Flags::INVERSE) {
         let (f, b) = (fg.unwrap_or(look.fg), bg.unwrap_or(look.bg));
         (fg, bg) = (Some(b), Some(f));

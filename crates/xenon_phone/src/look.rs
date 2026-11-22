@@ -1,5 +1,5 @@
+use crate::remote::Rgb;
 use xenon_core::terminal_palette;
-use xenon_remote::Rgb;
 
 fn parse(hex: &str) -> Rgb {
     let byte = |i: usize| {

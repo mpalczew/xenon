@@ -4,6 +4,9 @@ mod dots;
 mod frames;
 mod host;
 mod link;
+mod look;
+mod remote;
+mod screen;
 mod server;
 mod session;
 mod status;
@@ -14,12 +17,16 @@ use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
+use crate::remote::{ConnId, DeviceBook, HostRequest, Reachability, RemoteServer};
 use xenon_core::TermId;
-use xenon_remote::{ConnId, DeviceBook, HostRequest, Reachability, RemoteServer};
 use xenon_term::{Event, Exit, Terminals};
 
 pub use api::Pairing;
 pub use link::PhoneLink;
+pub use remote::{
+    DeviceRow, KEEP_AWAKE_DETAIL, KEEP_AWAKE_LABEL, RemoteStatus, ago, effective_port,
+    normalize_hostname,
+};
 pub(crate) use session::Conn;
 
 type Listener = Box<dyn Fn() + Send + Sync>;
@@ -169,8 +176,8 @@ impl Phone {
             self.detach(conn);
             self.send_to(
                 conn,
-                xenon_remote::ServerMsg::Closed {
-                    reason: xenon_remote::ClosedReason::TabClosed,
+                crate::remote::ServerMsg::Closed {
+                    reason: crate::remote::ClosedReason::TabClosed,
                 },
             );
         }
@@ -180,7 +187,7 @@ impl Phone {
         self.me.clone()
     }
 
-    pub(crate) fn send_to(&self, conn: ConnId, msg: xenon_remote::ServerMsg) {
+    pub(crate) fn send_to(&self, conn: ConnId, msg: crate::remote::ServerMsg) {
         if let Some(c) = locked(&self.conns).get(&conn) {
             c.out.try_send(msg);
         }

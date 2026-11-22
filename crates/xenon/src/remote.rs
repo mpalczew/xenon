@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::prelude::GtkApplicationExt;
-use xenon_remote::RemoteStatus;
+use xenon_phone::RemoteStatus;
 
 use crate::app::App;
 

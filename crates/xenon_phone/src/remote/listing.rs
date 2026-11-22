@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xenon_core::{Registry, WorkspaceDot, WorkspaceId};
 
-use crate::protocol::{Dot, WorkspaceInfo};
+use crate::remote::protocol::{Dot, WorkspaceInfo};
 
 const RECENT_LIMIT: usize = 20;
 

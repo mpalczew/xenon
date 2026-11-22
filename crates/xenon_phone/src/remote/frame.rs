@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::protocol::{CursorWire, LineWire, ServerMsg, SpanWire, StyleWire, style_flags};
+use crate::remote::protocol::{CursorWire, LineWire, ServerMsg, SpanWire, StyleWire, style_flags};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Rgb(pub u8, pub u8, pub u8);

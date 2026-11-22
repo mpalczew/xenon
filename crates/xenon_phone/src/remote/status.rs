@@ -3,8 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use xenon_store::RemoteDevice;
 
-use crate::frame::Rgb;
-use crate::protocol::ThemeWire;
+use crate::remote::frame::Rgb;
+use crate::remote::protocol::ThemeWire;
 
 pub const KEEP_AWAKE_LABEL: &str = "Keep this computer awake while a phone is connected";
 pub const KEEP_AWAKE_DETAIL: &str = "Ignores your sleep setting until the phone disconnects";
@@ -23,7 +23,7 @@ pub struct DeviceRow {
 pub struct RemoteStatus {
     pub enabled: bool,
     #[serde(rename = "waiting")]
-    old_windows_waiting: bool,
+    pub(crate) old_windows_waiting: bool,
     pub problem: Option<String>,
     pub keep_awake: bool,
     pub hostname: String,

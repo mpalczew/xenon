@@ -8,7 +8,7 @@ use alacritty_terminal::vte::ansi::{Processor, Rgb};
 
 use crate::Size;
 
-pub(crate) struct Listener(Sender<Event>);
+pub struct Listener(Sender<Event>);
 
 impl EventListener for Listener {
     fn send_event(&self, event: Event) {

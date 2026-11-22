@@ -3,8 +3,10 @@ use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use xenon_remote::{FrameEncoder, Outbox, ServerMsg};
-use xenon_term::{Look, Mirror};
+use crate::remote::{FrameEncoder, Outbox, ServerMsg};
+use xenon_term::Mirror;
+
+use crate::look::Look;
 
 use super::Phone;
 use super::session::View;
@@ -41,14 +43,15 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
         let Some(phone) = phone.upgrade() else { return };
         let dark = phone.dark(view.look.load(Ordering::Relaxed));
         if shown_dark.replace(dark).is_some_and(|d| d != dark) {
-            let theme = xenon_remote::theme_wire(Look::of(dark).theme());
+            let theme = crate::remote::theme_wire(Look::of(dark).theme());
             out.try_send(ServerMsg::Theme { theme });
             view.full.store(true, Ordering::Relaxed);
         }
         if view.full.swap(false, Ordering::Relaxed) {
             encoder.force_full();
         }
-        let screen = mirror.screen(&Look::of(dark));
+        let look = Look::of(dark);
+        let screen = mirror.read(|term, offset| crate::screen::screen(term, offset, &look));
         let delivered = encoder.encode(&screen).into_iter().all(|m| out.try_send(m));
         if !delivered {
             encoder.force_full();

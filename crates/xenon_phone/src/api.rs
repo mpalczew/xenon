@@ -2,8 +2,8 @@
 //! line, one reply line per call. Tolerant serde: unknown fields are ignored, so the
 //! window and the phone server may differ in build until the window restarts.
 
+use crate::remote::RemoteStatus;
 use serde::{Deserialize, Serialize};
-use xenon_remote::RemoteStatus;
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]

@@ -1,12 +1,13 @@
 use std::sync::atomic::Ordering;
 
+use alacritty_terminal::Term;
+use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::term::TermMode;
-use xenon_remote::Screen;
 
 use super::{Mirror, Modes, locked};
-use crate::look::Look;
+use crate::hold::Listener;
 use crate::proto::v1::ToHolder;
-use crate::{Size, mirror_view, proto};
+use crate::{Size, proto};
 
 impl Mirror {
     pub fn input(&self, bytes: &[u8]) {
@@ -23,7 +24,7 @@ impl Mirror {
 
     /// Move the view `rows` up (negative: down) in the scrollback.
     pub fn scroll(&self, rows: i32) {
-        let max = mirror_view::history_size(&locked(&self.inner.emu)) as i64;
+        let max = locked(&self.inner.emu).term.grid().history_size() as i64;
         let now = self.inner.scroll.load(Ordering::Relaxed) as i64;
         let next = (now + i64::from(rows)).clamp(0, max) as usize;
         self.inner.scroll.store(next, Ordering::Relaxed);
@@ -35,13 +36,10 @@ impl Mirror {
         self.inner.poke();
     }
 
-    pub fn screen(&self, look: &Look) -> Screen {
+    /// Read the mirrored terminal and how many rows the view is scrolled up.
+    pub fn read<R>(&self, f: impl FnOnce(&Term<Listener>, usize) -> R) -> R {
         let offset = self.inner.scroll.load(Ordering::Relaxed);
-        mirror_view::screen(&locked(&self.inner.emu), offset, look)
-    }
-
-    pub fn history(&self, limit: usize) -> Vec<String> {
-        mirror_view::history_lines(&locked(&self.inner.emu), limit)
+        f(&locked(&self.inner.emu).term, offset)
     }
 
     pub fn modes(&self) -> Modes {

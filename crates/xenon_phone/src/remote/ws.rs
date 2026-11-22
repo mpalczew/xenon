@@ -11,10 +11,10 @@ use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{CloseFrame, Role, WebSocketConfig};
 use tungstenite::{Message, WebSocket};
 
-use crate::host::{ConnId, HostRequest, Outbox};
-use crate::http::{self, Request};
-use crate::protocol::{ClientMsg, ClosedReason, ServerMsg};
-use crate::server::Shared;
+use crate::remote::host::{ConnId, HostRequest, Outbox};
+use crate::remote::http::{self, Request};
+use crate::remote::protocol::{ClientMsg, ClosedReason, ServerMsg};
+use crate::remote::server::Shared;
 
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const PING_EVERY: Duration = Duration::from_secs(20);

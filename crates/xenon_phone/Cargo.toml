@@ -6,13 +6,21 @@ license.workspace = true
 publish = false
 
 [dependencies]
+alacritty_terminal = "0.26"
+anyhow.workspace = true
+http = "1"
+httparse = "1"
+libc = "0.2"
+percent-encoding = "2"
+sha2 = "0.10"
+tungstenite.workspace = true
+uuid.workspace = true
 async-channel.workspace = true
 log = "0.4"
 sd-notify = "0.4"
 serde.workspace = true
 serde_json.workspace = true
 xenon_core.workspace = true
-xenon_remote.workspace = true
 xenon_store.workspace = true
 xenon_term.workspace = true
 

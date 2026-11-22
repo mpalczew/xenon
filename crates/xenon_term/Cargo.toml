@@ -15,7 +15,6 @@ log = "0.4"
 serde.workspace = true
 serde_json.workspace = true
 xenon_core.workspace = true
-xenon_remote.workspace = true
 xenon_store.workspace = true
 
 [lints]

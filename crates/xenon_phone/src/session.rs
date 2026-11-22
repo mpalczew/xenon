@@ -1,12 +1,14 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
-use xenon_core::{TermId, WorkspaceId};
-use xenon_remote::{
+use crate::remote::{
     AppearanceWire, ClientMsg, ClosedReason, ConnId, Outbox, ServerMsg, device_short_name,
     parse_workspace_id, pty_text_bytes,
 };
-use xenon_term::{Look, Mirror, Size};
+use xenon_core::{TermId, WorkspaceId};
+use xenon_term::{Mirror, Size};
+
+use crate::look::Look;
 
 use super::{Phone, frames, locked};
 
@@ -58,7 +60,7 @@ impl Phone {
             .as_ref()
             .map(|rt| rt.host_name.clone())
             .unwrap_or_default();
-        let theme = xenon_remote::theme_wire(Look::of(self.dark(0)).theme());
+        let theme = crate::remote::theme_wire(Look::of(self.dark(0)).theme());
         out.try_send(ServerMsg::Ready {
             theme,
             device_id: device_id.clone(),
@@ -119,7 +121,8 @@ impl Phone {
             ClientMsg::Text { data } => mirror.input(&pty_text_bytes(&data)),
             ClientMsg::Key { key } => mirror.input(key.pty_bytes(mirror.modes().app_cursor)),
             ClientMsg::History => {
-                let lines = mirror.history(HISTORY_LIMIT);
+                let lines =
+                    mirror.read(|term, _| crate::screen::history_lines(term, HISTORY_LIMIT));
                 self.send_to(conn, ServerMsg::History { lines });
             }
             ClientMsg::Wheel { rows } => mirror.scroll(rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT)),
@@ -218,7 +221,7 @@ impl Phone {
                 .map(|a| (Arc::clone(&a.view), Arc::clone(&a.mirror)))
         };
         let code = look_code(appearance);
-        let theme = xenon_remote::theme_wire(Look::of(self.dark(code)).theme());
+        let theme = crate::remote::theme_wire(Look::of(self.dark(code)).theme());
         self.send_to(conn, ServerMsg::Theme { theme });
         if let Some((view, mirror)) = attach {
             view.look.store(code, Ordering::Relaxed);

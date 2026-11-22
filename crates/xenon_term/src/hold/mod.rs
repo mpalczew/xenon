@@ -22,6 +22,7 @@ use std::thread;
 use xenon_core::TermId;
 
 pub(crate) use emu::Emu;
+pub use emu::Listener;
 
 use term::Holder;
 

@@ -2,12 +2,12 @@ use std::time::Instant;
 
 use xenon_store::RemoteDevice;
 
-use crate::auth::{ct_eq, hash_token, new_device_token};
-use crate::devices::DeviceBook;
-use crate::host::PairError;
-use crate::labels::{clean_label, unix_now};
-use crate::pairing::PairingCode;
-use crate::protocol::PairResponse;
+use crate::remote::auth::{ct_eq, hash_token, new_device_token};
+use crate::remote::devices::DeviceBook;
+use crate::remote::host::PairError;
+use crate::remote::labels::{clean_label, unix_now};
+use crate::remote::pairing::PairingCode;
+use crate::remote::protocol::PairResponse;
 
 const TOUCH_PERSIST_SECS: u64 = 60 * 60;
 

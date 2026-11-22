@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use adw::prelude::*;
-use xenon_remote::{DeviceRow, RemoteStatus, ago};
+use xenon_phone::{DeviceRow, RemoteStatus, ago};
 
 use crate::app::{App, defer};
 
@@ -37,8 +37,8 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
         |_| {},
     );
     let keep = crate::prefs_pages::switch_row(
-        xenon_remote::KEEP_AWAKE_LABEL,
-        xenon_remote::KEEP_AWAKE_DETAIL,
+        xenon_phone::KEEP_AWAKE_LABEL,
+        xenon_phone::KEEP_AWAKE_DETAIL,
         status.keep_awake,
         |_| {},
     );
@@ -57,7 +57,7 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
         .title("Port")
         .subtitle("Stays the same across restarts, so paired phones keep working")
         .build();
-    port.add_suffix(&dim(&xenon_remote::effective_port().to_string()));
+    port.add_suffix(&dim(&xenon_phone::effective_port().to_string()));
     let pair = adw::ActionRow::builder()
         .title("Pair a phone")
         .subtitle("Shows a QR code to scan")
@@ -140,7 +140,7 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
             let text = row.text();
             let weak = weak.clone();
             gtk::glib::idle_add_local_once(move || {
-                let host = xenon_remote::normalize_hostname(&text);
+                let host = xenon_phone::normalize_hostname(&text);
                 if let Err(error) =
                     xenon_store::update_service_settings(|s| s.remote_hostname = host.clone())
                 {
