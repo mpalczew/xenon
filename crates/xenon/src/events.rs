@@ -46,17 +46,16 @@ impl App {
         self.save_button.set_visible(dirty);
     }
 
-    pub(crate) fn save_active_editor(&self, app: &Rc<Self>) {
-        let key = self.model.borrow().active_editor_key();
-        if let Some(editor) = key.and_then(|k| self.editors.borrow().get(&k).cloned()) {
-            editor.save(&Rc::downgrade(app));
+    pub(crate) fn save_active_editor(&self) {
+        if let Some(editor) = self.current_editor() {
+            editor.save();
         }
     }
 
     pub(crate) fn save_active_editor_as(&self) {
         let key = self.model.borrow().active_editor_key();
         if let Some((ws, tab)) = key
-            && let Some(editor) = self.editors.borrow().get(&(ws, tab)).cloned()
+            && let Some(editor) = self.current_editor()
         {
             editor.save_as(ws, tab);
         }

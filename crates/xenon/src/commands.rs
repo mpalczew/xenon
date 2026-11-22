@@ -295,7 +295,7 @@ commands! {
     },
     Save = "save" => Spec {
         label: "Save", icon: "document-save-symbolic",
-        ..Spec::run(|a| a.save_active_editor(a))
+        ..Spec::run(|a| a.save_active_editor())
     },
     SaveAs = "save-as" => Spec {
         label: "Save As\u{2026}", keys: &["<Control><Shift>s"],

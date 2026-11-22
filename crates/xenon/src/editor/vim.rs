@@ -1,25 +1,23 @@
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use gtk::glib;
 use gtk::prelude::*;
 use sourceview::prelude::*;
 
 use super::EditorView;
-use crate::app::App;
 
 impl EditorView {
-    pub(super) fn attach_vim(self: &Rc<Self>, weak: &Weak<App>) {
+    pub(super) fn attach_vim(self: &Rc<Self>) {
         let vim = sourceview::VimIMContext::new();
         vim.set_client_widget(Some(&self.view));
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         keys.set_im_context(Some(&vim));
         self.view.add_controller(keys.clone());
-        let (this, weak) = (Rc::downgrade(self), weak.clone());
+        let this = Rc::downgrade(self);
         vim.connect_write(move |_, _, _| {
             if let Some(this) = this.upgrade() {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || this.save(&weak));
+                glib::idle_add_local_once(move || this.save());
             }
         });
         let status = self.vim_status(&vim);

@@ -42,15 +42,8 @@ impl App {
     }
 
     pub(crate) fn current_editor(&self) -> Option<Rc<crate::editor::EditorView>> {
-        let key = {
-            let model = self.model.borrow();
-            let ws = model.active();
-            let tab = ws
-                .and_then(|w| model.spaces.get(&w))
-                .and_then(|s| s.content.active_tab());
-            ws.zip(tab.map(|t| t.id))
-        };
-        self.editors.borrow().get(&key?).cloned()
+        let key = self.model.borrow().active_editor_key()?;
+        self.editors.borrow().get(&key).cloned()
     }
 
     pub(crate) fn open_in_browser(self: &Rc<Self>) {

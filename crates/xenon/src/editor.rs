@@ -180,8 +180,7 @@ impl EditorView {
                 && !state.contains(gdk::ModifierType::SHIFT_MASK)
                 && matches!(key, gdk::Key::s | gdk::Key::S)
             {
-                let weak = weak.clone();
-                glib::idle_add_local_once(move || this.save(&weak));
+                glib::idle_add_local_once(move || this.save());
                 return glib::Propagation::Stop;
             }
             let handled = match key {
@@ -325,7 +324,7 @@ impl EditorView {
                 .unwrap_or_else(|| this.buffer.end_iter());
             this.buffer.place_cursor(&at);
             if vim {
-                this.attach_vim(&this.app.clone());
+                this.attach_vim();
             }
             this.bar.set_revealed(false);
             let adjustment = this.scroller.vadjustment();
@@ -388,7 +387,7 @@ impl EditorView {
         let vim_mode = settings.vim_mode;
         drop(settings);
         if vim_mode && self.vim.borrow().is_none() {
-            self.attach_vim(&self.app.clone());
+            self.attach_vim();
         } else if !vim_mode {
             self.detach_vim();
         }
@@ -437,13 +436,13 @@ impl EditorView {
         });
     }
 
-    pub(crate) fn save(self: &Rc<Self>, app: &Weak<App>) {
+    pub(crate) fn save(self: &Rc<Self>) {
         if self.loading.get() {
             return;
         }
         let saver = sourceview::FileSaver::new(&self.buffer, &self.file);
         saver.set_flags(sourceview::FileSaverFlags::IGNORE_MODIFICATION_TIME);
-        let (this, app) = (self.clone(), app.clone());
+        let (this, app) = (self.clone(), self.app.clone());
         glib::spawn_future_local(async move {
             let result = saver.save_future(glib::Priority::DEFAULT).0.await;
             let name = this
