@@ -187,7 +187,6 @@ pub(crate) struct TrustCard {
     pub root: gtk::Box,
     title: gtk::Label,
     list: gtk::Box,
-    hint: gtk::Label,
 }
 
 impl TrustCard {
@@ -223,7 +222,11 @@ impl TrustCard {
         buttons.set_halign(gtk::Align::End);
         buttons.append(&button(shared::TRUST_DENY, false));
         buttons.append(&button(shared::TRUST_ALLOW, true));
-        let hint = gtk::Label::new(None);
+        let hint = gtk::Label::new(Some(&format!(
+            "{} allow  \u{b7}  {} don\u{2019}t allow  \u{b7}  asks again if tasks.json changes",
+            Cmd::AllowFolderTasks.chord().unwrap_or_default(),
+            Cmd::DenyFolderTasks.chord().unwrap_or_default(),
+        )));
         hint.set_xalign(0.0);
         hint.set_wrap(true);
         hint.add_css_class("caption");
@@ -249,21 +252,11 @@ impl TrustCard {
         root.set_focusable(false);
         root.append(&inner);
         root.set_visible(false);
-        Self {
-            root,
-            title,
-            list,
-            hint,
-        }
+        Self { root, title, list }
     }
 
     pub(crate) fn show(&self, title: &str, lines: &[(String, String, &str)]) {
         self.title.set_text(title);
-        self.hint.set_text(&format!(
-            "{} allow  \u{b7}  {} don\u{2019}t allow  \u{b7}  asks again if tasks.json changes",
-            Cmd::AllowFolderTasks.chord().unwrap_or_default(),
-            Cmd::DenyFolderTasks.chord().unwrap_or_default(),
-        ));
         while let Some(old) = self.list.first_child() {
             self.list.remove(&old);
         }

@@ -7,6 +7,7 @@ use xenon_core::WorkspaceId;
 use xenon_git::status::{GitFile, GitStatus};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::git_rows::{make_row, more_row};
 use crate::model::Fold;
 use crate::pane::focus_inside;
@@ -58,6 +59,7 @@ impl GitView {
         list.set_activate_on_single_click(true);
         list.add_css_class("navigation-sidebar");
         let section = Section::new("GIT", Fold::Git, &list, Some(230), &app);
+        section.fold.set_tooltip_text(Some(&Cmd::FocusGit.tip()));
         section.set_trailing(&trailing);
         section.sep.set_visible(false);
         let root = section.root.clone();
@@ -219,10 +221,6 @@ impl GitView {
                 row.grab_focus();
             }
         }
-    }
-
-    pub(crate) fn set_hint(&self, text: &str) {
-        self.section.fold.set_tooltip_text(Some(text));
     }
 
     pub(crate) fn has_focus(&self) -> bool {

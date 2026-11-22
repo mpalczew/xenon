@@ -18,7 +18,7 @@ use crate::model::Fold;
 pub(crate) enum InLauncher {
     Blocked,
     Runs,
-    Key(&'static str),
+    Step(i32),
 }
 
 enum Run {
@@ -92,7 +92,7 @@ macro_rules! commands {
 commands! {
     NewTerminal = "new-terminal" => Spec {
         label: "New Terminal", icon: "utilities-terminal-symbolic", keys: &["<Control>n"],
-        launcher: InLauncher::Key("down"),
+        launcher: InLauncher::Step(1),
         ..Spec::run(|a| a.new_terminal())
     },
     NewWorkspace = "new-workspace" => Spec {
@@ -101,12 +101,12 @@ commands! {
     },
     OpenWorkspace = "open-workspace" => Spec {
         label: "Open Workspace\u{2026}", short: Some("Open Workspace"),
-        keys: &["<Control><Shift>o"], launcher: InLauncher::Runs,
+        keys: &["<Control>o", "<Control><Shift>o"], launcher: InLauncher::Runs,
         ..Spec::run(|a| a.open_workspace_picker())
     },
     OpenFinder = "open-finder" => Spec {
         label: "Go to File\u{2026}", short: Some("Open File"), icon: "system-search-symbolic",
-        keys: &["<Control>p"], launcher: InLauncher::Key("up"),
+        keys: &["<Control>p"], launcher: InLauncher::Step(-1),
         ..Spec::run(|a| a.open_finder())
     },
     CommandPalette = "command-palette" => Spec {
@@ -412,7 +412,15 @@ fn show_shortcuts(app: &Rc<App>) {
     dialog.present(Some(&app.win));
 }
 
-/// Registers every action and accelerator, once.
+/// Registers every accelerator. GTK keeps them by action name, so this runs before any
+/// widget asks for a chord.
+pub(crate) fn install_accels(app: &gtk::Application) {
+    for cmd in Cmd::ALL {
+        app.set_accels_for_action(cmd.action(), cmd.spec().keys);
+    }
+}
+
+/// Registers every action, once.
 pub(crate) fn install(app: &Rc<App>) {
     let settings = xenon_store::load_settings().unwrap_or_default();
     for cmd in Cmd::ALL {
@@ -427,7 +435,10 @@ pub(crate) fn install(app: &Rc<App>) {
                         if app.launcher.is_open() {
                             match launcher {
                                 InLauncher::Blocked => return,
-                                InLauncher::Key(key) => return app.launcher.key(key),
+                                InLauncher::Step(n) => {
+                                    app.launcher.step(n);
+                                    return;
+                                }
                                 InLauncher::Runs => {}
                             }
                         }
@@ -462,25 +473,5 @@ pub(crate) fn install(app: &Rc<App>) {
             }
         };
         app.gtk.add_action(&action);
-        app.gtk.set_accels_for_action(cmd.action(), spec.keys);
     }
-    install_open_key(app);
-}
-
-/// Ctrl+O opens a workspace, but only after the focused widget declined it: terminals and
-/// vim use Ctrl+O themselves, so it can't be an application accelerator.
-fn install_open_key(app: &Rc<App>) {
-    let controller = gtk::ShortcutController::new();
-    controller.set_propagation_phase(gtk::PropagationPhase::Bubble);
-    let weak = Rc::downgrade(app);
-    let action = gtk::CallbackAction::new(move |_, _| {
-        if let Some(app) = weak.upgrade() {
-            app.open_workspace_picker();
-        }
-        glib::Propagation::Stop
-    });
-    if let Some(trigger) = gtk::ShortcutTrigger::parse_string("<Control>o") {
-        controller.add_shortcut(gtk::Shortcut::new(Some(trigger), Some(action)));
-    }
-    app.win.add_controller(controller);
 }

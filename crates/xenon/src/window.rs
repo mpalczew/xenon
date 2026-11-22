@@ -158,6 +158,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         gtk_settings.set_gtk_icon_theme_name(Some("Adwaita"));
     }
     register_icons();
+    crate::commands::install_accels(gtk_app.upcast_ref());
     let settings: AppSettings = xenon_store::load_settings().unwrap_or_default();
     let probe = PangoProbe::new();
     let (ui, _) = UiSettings::resolve(&settings, &probe);
@@ -224,7 +225,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     });
 
     crate::commands::install(&app);
-    app.save_button.set_tooltip_text(Some(&Cmd::Save.tip()));
     app.stack
         .add_named(&crate::empty::all_clear(false), Some("none"));
     app.split.set_start_child(Some(&app.sidebar.root));
@@ -246,7 +246,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     win.set_content(Some(&layered(&app, &view)));
     crate::git::listen(&app);
     connect_window(&app, &win);
-    app.sidebar.set_hints();
     app.sidebar.rebuild(&app.model.borrow());
     app.listen_holders();
     app.refresh_builds();

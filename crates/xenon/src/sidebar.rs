@@ -32,7 +32,6 @@ pub(crate) struct Sidebar {
     outer: gtk::Paned,
     inner: gtk::Paned,
     pub list: gtk::ListBox,
-    add: gtk::MenuButton,
     app: Weak<App>,
     rows: RefCell<Vec<WsRow>>,
     dragging: Rc<Cell<Option<usize>>>,
@@ -57,6 +56,7 @@ impl Sidebar {
         add.set_menu_model(Some(&menu));
         add.add_css_class("flat");
         add.set_focusable(false);
+        add.set_tooltip_text(Some(&Cmd::OpenWorkspace.tip()));
 
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Browse);
@@ -135,7 +135,6 @@ impl Sidebar {
             workspaces,
             rows_box: overlay,
             list,
-            add,
             app,
             rows: RefCell::default(),
             dragging,
@@ -204,11 +203,6 @@ impl Sidebar {
             }
         });
         list.add_controller(target);
-    }
-
-    pub(crate) fn set_hints(&self) {
-        self.add.set_tooltip_text(Some(&Cmd::OpenWorkspace.tip()));
-        self.git.set_hint(&Cmd::FocusGit.tip());
     }
 
     pub(crate) fn apply_folds(&self, model: &Model) {

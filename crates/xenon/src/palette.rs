@@ -215,24 +215,6 @@ impl Palette {
         self.entry.add_controller(keys);
     }
 
-    pub(crate) fn key(&self, name: &str) {
-        match name {
-            "escape" => self.dismiss(),
-            "enter" => self.accept(),
-            "ctrl-enter" => self.accept_alt(),
-            "tab" => {
-                self.complete();
-            }
-            "down" | "ctrl-n" => {
-                self.step(1);
-            }
-            "up" | "ctrl-p" => {
-                self.step(-1);
-            }
-            _ => {}
-        }
-    }
-
     pub(crate) fn epoch(&self) -> u64 {
         self.epoch.get()
     }
