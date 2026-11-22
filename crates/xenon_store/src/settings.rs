@@ -113,7 +113,7 @@ impl Default for AppSettings {
     }
 }
 
-pub const DEFAULT_FONT_FAMILY: &str = "Lilex";
+pub const DEFAULT_FONT_FAMILY: &str = "Monospace";
 pub const DEFAULT_UI_FONT_FAMILY: &str = ".SystemUIFont";
 pub const DEFAULT_LIGHT_THEME: &str = "One Light";
 pub const DEFAULT_DARK_THEME: &str = "One Dark";

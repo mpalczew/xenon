@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_settings::{
-    FontProbe, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, ProseMarkers,
-    Surface, TerminalAutoClose, ThemeMode, UiSettings, format_size, nearest_index,
+    MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, ProseMarkers, Surface,
+    TerminalAutoClose, ThemeMode, UiSettings, format_size, nearest_index,
 };
 
 use crate::app::App;
@@ -64,19 +64,8 @@ fn family_button(app: &Rc<App>, surface: Surface, current: &str) -> gtk::FontDia
     button.set_level(gtk::FontLevel::Family);
     button.set_valign(gtk::Align::Center);
     let mut desc = gtk::pango::FontDescription::new();
+    desc.set_family(current);
     desc.set_size(12 * gtk::pango::SCALE);
-    if FontProbe::is_monospace(&PangoProbe::new(), current) {
-        desc.set_family(current);
-    } else {
-        desc.set_family("Monospace");
-        let drawn = button
-            .pango_context()
-            .load_font(&desc)
-            .map(|f| f.describe());
-        if let Some(family) = drawn.as_ref().and_then(|d| d.family()) {
-            desc.set_family(&family);
-        }
-    }
     button.set_font_desc(&desc);
     let app = app.clone();
     button.connect_font_desc_notify(move |button| {
