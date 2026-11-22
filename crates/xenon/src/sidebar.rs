@@ -213,9 +213,6 @@ impl Sidebar {
         self.fill();
     }
 
-    /// Gives spare height to the open sections: Files and Git share what Workspaces
-    /// leaves. With one section open or none, the dividers have nothing to split, so
-    /// they let go of their positions and that section takes all the space.
     pub(crate) fn fill(&self) {
         let open = [
             self.workspaces.is_open(),
@@ -248,9 +245,6 @@ impl Sidebar {
         self.fill();
     }
 
-    /// Sizes the workspaces section for every row. Without a position the divider would
-    /// give it only its minimum, so it is set after any fold change; the divider stops
-    /// where files and git still keep their minimum height, and a drag replaces it.
     fn fit_workspaces(&self) {
         let width = self.root.width();
         let height = |w: &gtk::Widget| w.measure(gtk::Orientation::Vertical, width).1;

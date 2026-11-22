@@ -80,7 +80,6 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     }
     bar.pack_end(&main_menu());
     bar.pack_end(&app.builds.button);
-    // The save button sits between Settings and the rest, shown only while the editor is dirty.
     bar.pack_end(&button(Cmd::Settings));
     bar.pack_end(&app.save_button);
     for cmd in [

@@ -51,7 +51,6 @@ fn is_dir(item: &glib::Object) -> bool {
         .is_some_and(|i| i.file_type() == gio::FileType::Directory)
 }
 
-/// A live, folders-first, case-insensitive listing of `dir` without ignored entries.
 fn listing(
     dir: Option<&gio::File>,
     ignores: &Rc<Ignores>,
@@ -187,7 +186,6 @@ impl FilesView {
             });
         });
         let weak = Rc::downgrade(self);
-        // Rows arrive as folders finish loading; keep revealing until the target shows.
         self.tree.connect_items_changed(move |_, _, _, added| {
             if added == 0 {
                 return;
@@ -318,7 +316,6 @@ impl FilesView {
         self.ignores.show_hidden.get()
     }
 
-    /// "Show Hidden Files": filter, dimming and the saved setting.
     pub(crate) fn set_hidden(&self, on: bool) {
         self.ignores.set_show_hidden(on);
         if let Err(error) = xenon_store::update_settings(|s| s.show_hidden_files = on) {
@@ -331,7 +328,6 @@ impl FilesView {
     }
 }
 
-/// One monochrome icon per file-type group, the same under every icon theme.
 fn file_icon(name: &Path) -> String {
     let file = name.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let lower = file.to_lowercase();
@@ -358,7 +354,6 @@ fn file_icon(name: &Path) -> String {
         "csv" | "tsv" | "xlsx" | "xlsm" | "xls" | "ods" => "csv",
         "xml" | "plist" => "xml",
         "gitignore" | "gitattributes" => "git",
-        // Not in the tile set: stock icons.
         "azw" | "mobi" | "epub" | "doc" | "docx" | "odt" => {
             return "x-office-document-symbolic".into();
         }
@@ -389,7 +384,6 @@ fn draw_item(item: &gtk::ListItem, open: Option<&Path>, ignores: &Ignores) {
     };
     line.set(Some("text-x-generic-symbolic"), &info.display_name(), "");
     if is_dir(info.upcast_ref()) {
-        // Keep only monochrome names so a theme's color icon never slips in.
         if let Some(icon) = info.symbolic_icon().and_downcast::<gio::ThemedIcon>() {
             let mut names: Vec<_> = icon
                 .names()

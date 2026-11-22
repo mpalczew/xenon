@@ -24,9 +24,6 @@ impl EditorView {
         *self.vim.borrow_mut() = Some((vim, keys, status));
     }
 
-    /// A line under the editor showing the Vim command bar and pending keys. While the
-    /// bar holds a `/` or `?` search, matches are highlighted as it is typed; on Enter
-    /// the context's own search takes over.
     fn vim_status(&self, vim: &sourceview::VimIMContext) -> gtk::Label {
         let label = gtk::Label::new(None);
         label.set_xalign(0.0);

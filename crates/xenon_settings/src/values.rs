@@ -83,7 +83,6 @@ impl Default for UiSettings {
 }
 
 impl UiSettings {
-    /// Build live values from a loaded snapshot.
     pub fn resolve(settings: &AppSettings) -> Self {
         let face = |size: f32, family: String| FaceFont {
             size: clamp_size(size),
@@ -139,7 +138,6 @@ impl UiSettings {
         settings
     }
 
-    /// Persist to disk. Logs on failure; never panics.
     pub fn persist(&self) {
         if let Err(error) = xenon_store::update_settings(|settings| self.write_into(settings)) {
             log::error!("save settings failed: {error}");

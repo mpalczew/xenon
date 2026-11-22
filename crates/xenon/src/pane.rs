@@ -77,8 +77,6 @@ impl PaneView {
             defer(&weak, move |app| app.pane_focused(ws, pane));
         });
         this.root.add_controller(focus);
-        // A click in a pane makes it the focused pane even when the clicked
-        // view takes no keyboard focus itself (the worklist's task list).
         let click = gtk::GestureClick::new();
         click.set_propagation_phase(gtk::PropagationPhase::Capture);
         let (weak, inner) = (Rc::downgrade(app), body.clone());

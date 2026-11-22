@@ -188,9 +188,6 @@ impl Prose {
         self.arm(THROTTLE);
     }
 
-    /// Throttle: the first edit starts a timer, later edits ride on it, and it parses
-    /// once when it fires, so a long run of edits parses once per `wait`, ending on the
-    /// final text.
     fn arm(self: &Rc<Self>, wait: Duration) {
         if self.timer.replace(true) {
             return;

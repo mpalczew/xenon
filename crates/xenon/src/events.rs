@@ -61,8 +61,6 @@ impl App {
         }
     }
 
-    /// The editor saved under a new name: its tab now points there. The body is rebuilt
-    /// from the new file, like a renamed one.
     pub(crate) fn editor_saved_as(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, path: &Path) {
         if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab)
             && let TabKind::Kept(TabState::Editor { path: old, .. }) = &mut t.kind

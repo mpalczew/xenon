@@ -1,6 +1,3 @@
-//! The one command table. Every window command is a block in `commands!`: its action name,
-//! label, icon, keys, palette presence and handler. Callers write `Cmd::X`, never `"app.x"`.
-
 use std::path::Path;
 use std::rc::Rc;
 
@@ -12,7 +9,6 @@ use xenon_core::SplitAxis;
 use crate::app::{App, defer};
 use crate::model::Fold;
 
-/// What a command's key does while the palette or a picker is open.
 #[derive(Clone, Copy)]
 pub(crate) enum InLauncher {
     Blocked,
@@ -344,7 +340,6 @@ impl Cmd {
         self.spec().label
     }
 
-    /// The short label, else the label.
     pub(crate) fn short(self) -> &'static str {
         let spec = self.spec();
         spec.short.unwrap_or(spec.label)
@@ -354,7 +349,6 @@ impl Cmd {
         self.spec().icon
     }
 
-    /// The first accelerator GTK holds for the action, as a label. `None` before `install_accels`.
     pub(crate) fn chord(self) -> Option<String> {
         let app = gio::Application::default().and_downcast::<gtk::Application>()?;
         let accels = app.accels_for_action(self.action());
@@ -365,7 +359,6 @@ impl Cmd {
         })
     }
 
-    /// "Label · Chord".
     pub(crate) fn tip(self) -> String {
         match self.chord() {
             Some(chord) => format!("{} \u{b7} {chord}", self.label()),
@@ -373,7 +366,6 @@ impl Cmd {
         }
     }
 
-    /// Sets the action name and the tooltip.
     pub(crate) fn bind(self, widget: &(impl IsA<gtk::Actionable> + IsA<gtk::Widget>)) {
         widget.set_action_name(Some(self.action()));
         widget.set_tooltip_text(Some(&self.tip()));
@@ -415,7 +407,6 @@ pub(crate) fn install_accels(app: &gtk::Application) {
     }
 }
 
-/// Registers every action, once.
 pub(crate) fn install(app: &Rc<App>) {
     for cmd in Cmd::ALL {
         let spec = cmd.spec();

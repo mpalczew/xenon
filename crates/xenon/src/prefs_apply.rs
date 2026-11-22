@@ -6,7 +6,6 @@ use xenon_settings::{Surface, UiSettings};
 use crate::app::App;
 
 impl App {
-    /// The terminal family with Pango's own fallback to a monospace face.
     pub(crate) fn mono(&self) -> String {
         format!("{},monospace", self.settings.borrow().terminal.family)
     }
