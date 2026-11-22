@@ -45,9 +45,10 @@ impl EditorView {
         search.settings().set_case_sensitive(true);
         let (label_in, search) = (label.clone(), search);
         let refresh = Rc::new(move |vim: &sourceview::VimIMContext| {
-            let bar = vim.command_bar_text();
+            let read = |name| vim.property::<Option<String>>(name).unwrap_or_default();
+            let bar = read("command-bar-text");
             let text = if bar.is_empty() {
-                vim.command_text()
+                read("command-text")
             } else {
                 bar.clone()
             };
