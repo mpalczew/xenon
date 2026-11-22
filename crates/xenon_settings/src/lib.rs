@@ -8,9 +8,7 @@ mod values;
 pub use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
 
 pub use agents::{skill_homes, skill_refresh_label, skill_subtitle};
-pub use choices::{
-    FontChoice, PROSE_FONTS, PROSE_LINE_HEIGHTS, format_size, mono_font_choices, nearest_index,
-};
+pub use choices::{PROSE_FONTS, PROSE_LINE_HEIGHTS, format_size, nearest_index};
 pub use families::FontProbe;
 pub use setters::Surface;
 

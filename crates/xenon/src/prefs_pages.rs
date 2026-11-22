@@ -2,9 +2,8 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_settings::{
-    FontChoice, MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, ProseMarkers,
-    Surface, TerminalAutoClose, ThemeMode, UiSettings, format_size, mono_font_choices,
-    nearest_index,
+    MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, ProseMarkers, Surface,
+    TerminalAutoClose, ThemeMode, UiSettings, format_size, nearest_index,
 };
 
 use crate::app::App;
@@ -55,36 +54,46 @@ pub(crate) fn switch_row(
     row
 }
 
+fn family_button(app: &Rc<App>, surface: Surface, current: &str) -> gtk::FontDialogButton {
+    let dialog = gtk::FontDialog::new();
+    dialog.set_filter(Some(&gtk::CustomFilter::new(|item| {
+        item.downcast_ref::<gtk::pango::FontFamily>()
+            .is_some_and(|family| family.is_monospace())
+    })));
+    let button = gtk::FontDialogButton::new(Some(dialog));
+    button.set_level(gtk::FontLevel::Family);
+    button.set_valign(gtk::Align::Center);
+    let mut desc = gtk::pango::FontDescription::new();
+    desc.set_family(current);
+    desc.set_size(12 * gtk::pango::SCALE);
+    button.set_font_desc(&desc);
+    let app = app.clone();
+    button.connect_font_desc_notify(move |button| {
+        let (app, button) = (app.clone(), button.clone());
+        gtk::glib::idle_add_local_once(move || {
+            let Some(name) = button.font_desc().and_then(|d| d.family()) else {
+                return;
+            };
+            app.change_settings(|s| s.set_font_family(surface, &name, &PangoProbe::new()));
+        });
+    });
+    button
+}
+
 fn font_group(
     app: &Rc<App>,
     (title, detail): (&str, &str),
     surface: Surface,
-    choices: Vec<FontChoice>,
     current: (&str, f32),
 ) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::builder()
         .title(title)
         .description(detail)
         .build();
-    let labels: Vec<String> = choices.iter().map(|c| c.label.clone()).collect();
-    let at = choices
-        .iter()
-        .position(|c| c.value == current.0)
-        .unwrap_or(0);
-    let family = {
-        let app = app.clone();
-        choice_row("Family", "", &labels, at, move |i| {
-            let Some(choice) = choices.get(i) else { return };
-            let probe = PangoProbe::new();
-            app.change_settings(|s| s.set_font_family(surface, &choice.value, &probe));
-        })
-    };
-    family.set_enable_search(true);
-    family.set_expression(Some(&gtk::PropertyExpression::new(
-        gtk::StringObject::static_type(),
-        None::<gtk::Expression>,
-        "string",
-    )));
+    let family = adw::ActionRow::builder().title("Family").build();
+    let button = family_button(app, surface, current.0);
+    family.add_suffix(&button);
+    family.set_activatable_widget(Some(&button));
     group.add(&family);
     let size = adw::SpinRow::with_range(f64::from(MIN_FONT_SIZE), f64::from(MAX_FONT_SIZE), 1.0);
     size.set_title("Size");
@@ -136,26 +145,17 @@ pub(crate) fn appearance(app: &Rc<App>) -> adw::PreferencesPage {
 
 pub(crate) fn fonts(app: &Rc<App>) -> adw::PreferencesPage {
     let page = page("fonts", "Fonts", "font-x-generic-symbolic");
-    let probe = PangoProbe::new();
-    let families = probe.0.list_families();
-    let mono: Vec<String> = families
-        .iter()
-        .filter(|f| f.is_monospace())
-        .map(|f| f.name().to_string())
-        .collect();
     let ui = app.settings.borrow().clone();
     page.add(&font_group(
         app,
         ("Editor", "Monospaced faces only"),
         Surface::Editor,
-        mono_font_choices(mono.clone(), &ui.editor.family),
         (&ui.editor.family, ui.editor.size),
     ));
     page.add(&font_group(
         app,
         ("Terminal", "Monospaced faces only"),
         Surface::Terminal,
-        mono_font_choices(mono, &ui.terminal.family),
         (&ui.terminal.family, ui.terminal.size),
     ));
     page
