@@ -33,7 +33,7 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
     let on = crate::prefs_pages::switch_row(
         "Phone remote",
         &status.subtitle(&off_hint(app)),
-        status.enabled || status.waiting,
+        status.on(),
         |_| {},
     );
     let keep = crate::prefs_pages::switch_row(
@@ -110,7 +110,7 @@ fn wire(app: &Rc<App>, live: &Rc<Live>, connect: &gtk::Button) {
         on.connect_active_notify(move |row| {
             let Some(app) = weak.upgrade() else { return };
             let want = row.is_active();
-            let now = app.remote.running() || app.remote.waiting();
+            let now = app.remote.on();
             if !live.setting.get() && want != now {
                 gtk::glib::idle_add_local_once(move || app.remote_toggle());
             }
@@ -181,7 +181,7 @@ fn dim(text: &str) -> gtk::Label {
 
 fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
     live.setting.set(true);
-    live.on.set_active(status.enabled || status.waiting);
+    live.on.set_active(status.on());
     live.on.set_subtitle(&status.subtitle(&off_hint(app)));
     live.keep.set_active(status.keep_awake);
     live.setting.set(false);

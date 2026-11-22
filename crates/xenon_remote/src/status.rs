@@ -19,9 +19,12 @@ pub struct DeviceRow {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RemoteStatus {
     pub enabled: bool,
-    pub waiting: bool,
+    #[serde(rename = "waiting")]
+    old_windows_waiting: bool,
+    pub problem: Option<String>,
     pub keep_awake: bool,
     pub hostname: String,
     pub base_url: Option<String>,
@@ -35,9 +38,13 @@ impl RemoteStatus {
         self.enabled && self.keep_awake && self.connected > 0
     }
 
+    pub fn on(&self) -> bool {
+        self.enabled || self.problem.is_some()
+    }
+
     pub fn subtitle(&self, off_hint: &str) -> String {
-        if self.waiting {
-            return "On — the other Xenon has the phone remote until it quits".into();
+        if let Some(problem) = &self.problem {
+            return format!("On, but it didn’t start: {problem}");
         }
         match (&self.base_url, self.reachable) {
             (Some(url), true) => format!("On — reachable at {}", url.trim_start_matches("http://")),

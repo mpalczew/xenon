@@ -35,7 +35,7 @@ pub(crate) struct Runtime {
 #[derive(Default)]
 pub(crate) struct Server {
     pub rt: Option<Runtime>,
-    pub waiting: bool,
+    pub problem: Option<String>,
 }
 
 #[derive(Default)]

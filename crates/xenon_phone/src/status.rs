@@ -14,13 +14,11 @@ impl Phone {
             .map(|c| c.device_id.clone())
             .collect();
         let server = locked(&self.server);
-        let mut status = RemoteStatus {
-            enabled: server.rt.is_some(),
-            waiting: server.waiting,
-            keep_awake: settings.remote_keep_awake_while_connected,
-            hostname: hostname.clone(),
-            ..Default::default()
-        };
+        let mut status = RemoteStatus::default();
+        status.enabled = server.rt.is_some();
+        status.problem = server.problem.clone();
+        status.keep_awake = settings.remote_keep_awake_while_connected;
+        status.hostname = hostname.clone();
         let devices = match server.rt.as_ref() {
             Some(rt) => {
                 let host = rt.reach.phone_host(&hostname);
@@ -46,9 +44,10 @@ impl Phone {
                 .remote_hostname,
         );
         let mut guard = locked(&self.server);
-        let rt = guard.rt.as_mut().ok_or(
-            "the phone remote is not running: its port may still be held by an older Xenon; retry in a moment",
-        )?;
+        let problem = guard.problem.clone();
+        let rt = guard.rt.as_mut().ok_or_else(|| {
+            problem.unwrap_or_else(|| "the phone remote is not running".to_string())
+        })?;
         let code = rt.devices.pairing_code(Instant::now()).clone();
         let base = xenon_remote::base_url(&rt.reach.phone_host(&hostname), rt.port);
         let reachable = rt.reach.reachable() || !hostname.is_empty();

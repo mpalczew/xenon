@@ -6,7 +6,7 @@ use xenon_remote::{DeviceBook, HostRequest, Reachability, RemoteServer, StartErr
 
 use super::{Phone, Runtime, locked};
 
-const PORT_RETRY: Duration = Duration::from_secs(5);
+const UPKEEP: Duration = Duration::from_secs(5);
 const REPROBE_TICKS: u32 = 6;
 
 pub(super) fn spawn_threads(phone: &Arc<Phone>, rx: async_channel::Receiver<HostRequest>) {
@@ -25,11 +25,8 @@ pub(super) fn spawn_threads(phone: &Arc<Phone>, rx: async_channel::Receiver<Host
         .spawn(move || {
             let mut ticks = 0;
             loop {
-                thread::sleep(PORT_RETRY);
+                thread::sleep(UPKEEP);
                 let Some(phone) = weak.upgrade() else { break };
-                if locked(&phone.server).waiting {
-                    phone.start_server();
-                }
                 ticks += 1;
                 if ticks % REPROBE_TICKS == 0 {
                     phone.reprobe();
@@ -62,16 +59,16 @@ impl Phone {
         );
         let server = match started {
             Ok(server) => server,
-            Err(StartError::PortBusy) => {
-                let first = !std::mem::replace(&mut locked(&self.server).waiting, true);
-                if first {
-                    log::info!("phone remote: port busy, waiting for the other Xenon");
-                    self.changed();
-                }
-                return;
-            }
             Err(error) => {
                 log::error!("phone remote failed to start: {error:#}");
+                let text = match error {
+                    StartError::PortBusy => {
+                        format!("port {} is busy", xenon_remote::effective_port())
+                    }
+                    other => format!("{other:#}"),
+                };
+                locked(&self.server).problem = Some(text);
+                self.changed();
                 return;
             }
         };
@@ -79,7 +76,7 @@ impl Phone {
         log::info!("phone remote on: {:?}", server.binds);
         {
             let mut guard = locked(&self.server);
-            guard.waiting = false;
+            guard.problem = None;
             guard.rt = Some(Runtime {
                 port: server.port,
                 _server: server,
@@ -112,7 +109,7 @@ impl Phone {
     pub(crate) fn stop_server(&self) {
         let runtime = {
             let mut guard = locked(&self.server);
-            guard.waiting = false;
+            guard.problem = None;
             guard.rt.take()
         };
         if let Some(runtime) = runtime {
@@ -128,7 +125,7 @@ impl Phone {
             .remote_enabled;
         let running = {
             let guard = locked(&self.server);
-            guard.rt.is_some() || guard.waiting
+            guard.rt.is_some() || guard.problem.is_some()
         };
         match (on, running) {
             (true, false) => self.start_server(),

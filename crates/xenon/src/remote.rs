@@ -23,12 +23,8 @@ impl Remote {
         }
     }
 
-    pub(crate) fn running(&self) -> bool {
-        self.status.borrow().enabled
-    }
-
-    pub(crate) fn waiting(&self) -> bool {
-        self.status.borrow().waiting
+    pub(crate) fn on(&self) -> bool {
+        self.status.borrow().on()
     }
 }
 
@@ -46,19 +42,18 @@ impl App {
     }
 
     pub(crate) fn remote_toggle(self: &Rc<Self>) {
-        let want = !(self.remote.running() || self.remote.waiting());
+        let want = !self.remote.on();
         if let Err(error) = xenon_store::update_service_settings(|s| s.remote_enabled = want) {
             self.toast(&format!("Phone remote didn\u{2019}t change: {error}"));
         }
         self.remote_publish();
-        let text = match (self.remote.running(), self.remote.waiting()) {
-            (true, _) => "Phone remote on",
-            (false, true) => {
-                "Phone remote on \u{2014} its port is busy until the other program quits"
-            }
-            (false, false) => "Phone remote off",
+        let status = self.remote_status();
+        let text = match (status.enabled, &status.problem) {
+            (true, _) => "Phone remote on".to_string(),
+            (false, Some(problem)) => format!("Phone remote didn\u{2019}t start: {problem}"),
+            (false, None) => "Phone remote off".to_string(),
         };
-        self.toast(text);
+        self.toast(&text);
     }
 
     pub(crate) fn remote_status(&self) -> RemoteStatus {

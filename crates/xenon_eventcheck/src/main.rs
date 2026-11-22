@@ -158,7 +158,7 @@ const READS: &[&str] = &[
     "active_name",
     "selected_page",
     "running",
-    "waiting",
+    "on",
     "termprop_string",
     "remote_status",
     "str",
