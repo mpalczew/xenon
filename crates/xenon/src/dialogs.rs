@@ -10,14 +10,6 @@ use crate::links::{Opening, decide, opening_for};
 use std::sync::Arc;
 use xenon_finder::FileIndex;
 
-fn expand_home(text: &str) -> PathBuf {
-    match (text.strip_prefix("~/"), std::env::var_os("HOME")) {
-        (Some(rest), Some(home)) => PathBuf::from(home).join(rest),
-        (None, Some(home)) if text == "~" => PathBuf::from(home),
-        _ => PathBuf::from(text),
-    }
-}
-
 impl App {
     pub(crate) fn open_workspace_dialog(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::new();
@@ -53,7 +45,9 @@ impl App {
             let Some(app) = weak.upgrade() else { return };
             let field = field.clone();
             glib::idle_add_local_once(move || {
-                let path = expand_home(field.text().trim());
+                let text = field.text();
+                let path = xenon_finder::discover::expand_user_path(&text)
+                    .unwrap_or_else(|| PathBuf::from(text.trim()));
                 if path.as_os_str().is_empty() {
                     return;
                 }

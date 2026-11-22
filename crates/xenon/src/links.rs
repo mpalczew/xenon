@@ -49,13 +49,7 @@ pub(crate) fn classify(text: &str, cwd: &Path) -> Link {
         return Link::Url(text.to_string());
     }
     let (raw, line) = split_line(text);
-    let path = if let Some(rest) = raw.strip_prefix("~/") {
-        std::env::var_os("HOME").map_or_else(|| PathBuf::from(raw), |h| PathBuf::from(h).join(rest))
-    } else if raw.starts_with('/') {
-        PathBuf::from(raw)
-    } else {
-        cwd.join(raw)
-    };
+    let path = xenon_finder::discover::expand_user_path(raw).unwrap_or_else(|| cwd.join(raw));
     Link::Path(path, line)
 }
 
