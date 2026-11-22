@@ -25,7 +25,7 @@ pub(crate) struct DiffView {
     auto_label: gtk::Label,
     plus: gtk::Label,
     minus: gtk::Label,
-    modes: Vec<(LayoutMode, gtk::ToggleButton)>,
+    modes: adw::ToggleGroup,
     banner: gtk::Label,
     note: gtk::Label,
     app: Weak<App>,
@@ -41,21 +41,17 @@ pub(crate) struct DiffView {
     line_h: Cell<f64>,
     views: RefCell<Vec<sourceview::View>>,
     epoch: Cell<u64>,
-    busy: Cell<bool>,
 }
 
-fn mode_buttons() -> (gtk::Box, Vec<(LayoutMode, gtk::ToggleButton)>, gtk::Box) {
-    let modes_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    modes_box.add_css_class("linked");
-    let mut modes: Vec<(LayoutMode, gtk::ToggleButton)> = Vec::new();
-    for mode in [LayoutMode::Auto, LayoutMode::Split, LayoutMode::Unified] {
-        let button = gtk::ToggleButton::with_label(mode.label());
-        button.set_focusable(false);
-        if let Some((_, first)) = modes.first() {
-            button.set_group(Some(first));
-        }
-        modes_box.append(&button);
-        modes.push((mode, button));
+const MODES: [LayoutMode; 3] = [LayoutMode::Auto, LayoutMode::Split, LayoutMode::Unified];
+
+fn mode_buttons() -> (adw::ToggleGroup, gtk::Box) {
+    let group = adw::ToggleGroup::new();
+    for mode in MODES {
+        let toggle = adw::Toggle::new();
+        toggle.set_name(Some(mode.label()));
+        toggle.set_label(Some(mode.label()));
+        group.add(toggle);
     }
     let lock = gtk::Image::from_icon_name("changes-prevent-symbolic");
     let ro = gtk::Label::new(Some("Read-only"));
@@ -65,7 +61,7 @@ fn mode_buttons() -> (gtk::Box, Vec<(LayoutMode, gtk::ToggleButton)>, gtk::Box) 
     pill.add_css_class("dim-label");
     pill.append(&lock);
     pill.append(&ro);
-    (modes_box, modes, pill)
+    (group, pill)
 }
 
 impl DiffView {
@@ -91,14 +87,14 @@ impl DiffView {
         let minus = gtk::Label::new(None);
         minus.add_css_class("error");
 
-        let (modes_box, modes, pill) = mode_buttons();
+        let (modes, pill) = mode_buttons();
         let head = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         head.add_css_class("xdiff-head");
         path_label.set_hexpand(true);
         head.append(&path_label);
         head.append(&sub_label);
         head.append(&auto_label);
-        head.append(&modes_box);
+        head.append(&modes);
         let counts = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         counts.append(&plus);
         counts.append(&minus);
@@ -153,7 +149,6 @@ impl DiffView {
             line_h: Cell::new(18.0),
             views: RefCell::default(),
             epoch: Cell::new(0),
-            busy: Cell::new(false),
         });
         this.set_path_label();
         this.sync_mode_buttons();
@@ -179,17 +174,20 @@ impl DiffView {
     }
 
     fn wire(self: &Rc<Self>) {
-        for (mode, button) in &self.modes {
-            let (weak, mode) = (Rc::downgrade(self), *mode);
-            button.connect_toggled(move |b| {
+        let weak = Rc::downgrade(self);
+        self.modes.connect_active_name_notify(move |group| {
+            let (weak, name) = (weak.clone(), group.active_name());
+            glib::idle_add_local_once(move || {
                 if let Some(this) = weak.upgrade()
-                    && b.is_active()
-                    && !this.busy.get()
+                    && let Some(mode) = MODES
+                        .into_iter()
+                        .find(|m| Some(m.label()) == name.as_deref())
+                    && mode != this.mode.get()
                 {
-                    glib::idle_add_local_once(move || this.set_mode(mode));
+                    this.set_mode(mode);
                 }
             });
-        }
+        });
         let weak = Rc::downgrade(self);
         self.body.add_tick_callback(move |_, _| {
             if let Some(this) = weak.upgrade()
@@ -270,11 +268,7 @@ impl DiffView {
     }
 
     fn sync_mode_buttons(&self) {
-        self.busy.set(true);
-        for (mode, button) in &self.modes {
-            button.set_active(*mode == self.mode.get());
-        }
-        self.busy.set(false);
+        self.modes.set_active_name(Some(self.mode.get().label()));
     }
 
     fn resolve(&self) -> Layout {
