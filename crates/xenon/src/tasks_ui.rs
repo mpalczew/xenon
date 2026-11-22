@@ -2,8 +2,6 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
-use nucleo::pattern::{CaseMatching, Normalization, Pattern};
-use nucleo::{Config, Matcher, Utf32Str};
 use xenon_core::tasks::{self as shared, QuestionKind, TaskQuestion, TaskRow};
 
 use crate::app::{App, defer};
@@ -13,22 +11,9 @@ fn fuzzy(labels: &[String], query: &str) -> Vec<(usize, Vec<u32>)> {
     if query.is_empty() {
         return (0..labels.len()).map(|i| (i, Vec::new())).collect();
     }
-    let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
-    let mut matcher = Matcher::new(Config::DEFAULT);
-    let mut buf = Vec::new();
-    let mut scored: Vec<(u32, usize)> = labels
-        .iter()
-        .enumerate()
-        .filter_map(|(i, label)| {
-            pattern
-                .score(Utf32Str::new(label, &mut buf), &mut matcher)
-                .map(|score| (score, i))
-        })
-        .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    scored
+    crate::picker::rank(labels, query, String::clone)
         .into_iter()
-        .map(|(_, i)| (i, crate::picker::hits(&labels[i], query)))
+        .map(|i| (i, crate::picker::hits(&labels[i], query)))
         .collect()
 }
 

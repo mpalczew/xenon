@@ -105,21 +105,28 @@ fn filter_known(known: &[Candidate], query: &str) -> Vec<Candidate> {
     if query.is_empty() {
         return known.to_vec();
     }
+    rank(known, query, Candidate::haystack)
+        .into_iter()
+        .map(|i| known[i].clone())
+        .collect()
+}
+
+pub(crate) fn rank<T>(items: &[T], query: &str, text: impl Fn(&T) -> String) -> Vec<usize> {
     let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
     let mut matcher = Matcher::new(Config::DEFAULT);
     let mut buf = Vec::new();
-    let mut scored: Vec<(u32, usize)> = known
+    let mut scored: Vec<(u32, usize)> = items
         .iter()
         .enumerate()
-        .filter_map(|(i, c)| {
-            let text = c.haystack();
+        .filter_map(|(i, item)| {
+            let text = text(item);
             pattern
                 .score(Utf32Str::new(&text, &mut buf), &mut matcher)
                 .map(|s| (s, i))
         })
         .collect();
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    scored.into_iter().map(|(_, i)| known[i].clone()).collect()
+    scored.into_iter().map(|(_, i)| i).collect()
 }
 
 pub(crate) fn hits(text: &str, query: &str) -> Vec<u32> {

@@ -2,8 +2,6 @@ use std::rc::Rc;
 
 use gtk::glib;
 use gtk::prelude::*;
-use nucleo::pattern::{CaseMatching, Normalization, Pattern};
-use nucleo::{Config, Matcher, Utf32Str};
 
 use crate::app::App;
 use crate::palette::{Handlers, Options, PaletteRow};
@@ -62,20 +60,10 @@ fn filter(query: &str) -> Vec<(&'static str, &'static str)> {
     if query.is_empty() {
         return COMMANDS.to_vec();
     }
-    let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
-    let mut matcher = Matcher::new(Config::DEFAULT);
-    let mut buf = Vec::new();
-    let mut scored: Vec<(u32, usize)> = COMMANDS
-        .iter()
-        .enumerate()
-        .filter_map(|(i, (title, _))| {
-            pattern
-                .score(Utf32Str::new(title, &mut buf), &mut matcher)
-                .map(|s| (s, i))
-        })
-        .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    scored.into_iter().map(|(_, i)| COMMANDS[i]).collect()
+    crate::picker::rank(COMMANDS, query, |(title, _)| (*title).to_string())
+        .into_iter()
+        .map(|i| COMMANDS[i])
+        .collect()
 }
 
 impl App {
