@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use adw::prelude::*;
 use anyhow::anyhow;
 use gtk::glib;
 use xenon_store::worklist::entries::parse;
@@ -11,6 +10,14 @@ use xenon_store::worklist::{
 };
 
 use super::WorklistList;
+use crate::dialogs::{Prompt, ask_name};
+
+fn check_section(text: &str) -> Result<String, String> {
+    match text.trim() {
+        "" => Err("Enter a name.".into()),
+        name => Ok(name.to_string()),
+    }
+}
 
 impl WorklistList {
     pub(super) fn mutate(
@@ -106,7 +113,13 @@ impl WorklistList {
     pub(super) fn rename(self: &Rc<Self>, index: usize) {
         let target = self.section_target(index);
         let current = target.label().to_owned();
-        self.ask_name("Rename Section", &current, "Rename", move |this, name| {
+        let prompt = Prompt {
+            title: "Rename Section",
+            detail: None,
+            ok: "Rename",
+            initial: current.clone(),
+        };
+        self.ask_section(prompt, move |this, name| {
             this.mutate("", |source| {
                 rename_section(source, &target, &name).map(|edit| Some(edit.apply(source)))
             });
@@ -114,41 +127,29 @@ impl WorklistList {
     }
 
     pub(super) fn new_section(self: &Rc<Self>) {
-        self.ask_name("New Section", "", "Add", |this, name| {
+        let prompt = Prompt {
+            title: "New Section",
+            detail: None,
+            ok: "Add",
+            initial: String::new(),
+        };
+        self.ask_section(prompt, |this, name| {
             this.mutate("", |source| {
                 insert_section(source, None, &name).map(|edit| Some(edit.apply(source)))
             });
         });
     }
 
-    fn ask_name(
+    fn ask_section(
         self: &Rc<Self>,
-        heading: &str,
-        initial: &str,
-        confirm: &str,
-        done: impl Fn(&Rc<Self>, String) + 'static,
+        prompt: Prompt,
+        done: impl FnOnce(&Rc<Self>, String) + 'static,
     ) {
-        let dialog = adw::AlertDialog::new(Some(heading), None);
-        let entry = gtk::Entry::new();
-        entry.set_text(initial);
-        entry.set_placeholder_text(Some("Section name"));
-        entry.set_activates_default(true);
-        dialog.set_extra_child(Some(&entry));
-        dialog.add_responses(&[("cancel", "Cancel"), ("ok", confirm)]);
-        dialog.set_response_appearance("ok", adw::ResponseAppearance::Suggested);
-        dialog.set_default_response(Some("ok"));
-        dialog.set_close_response("cancel");
-        let weak = Rc::downgrade(self);
-        let parent = self.root.clone();
+        let (weak, parent) = (Rc::downgrade(self), self.root.clone());
         glib::spawn_future_local(async move {
-            let focus = entry.clone();
-            glib::idle_add_local_once(move || {
-                focus.grab_focus();
-            });
-            if dialog.choose_future(Some(&parent)).await == "ok"
-                && let Some(this) = weak.upgrade()
-            {
-                done(&this, entry.text().to_string());
+            let name = ask_name(&parent, prompt, check_section).await;
+            if let (Some(name), Some(this)) = (name, weak.upgrade()) {
+                done(&this, name);
             }
         });
     }

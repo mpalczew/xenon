@@ -10,6 +10,83 @@ use crate::links::{Opening, decide, opening_for};
 use std::sync::Arc;
 use xenon_finder::FileIndex;
 
+pub(crate) struct Prompt {
+    pub title: &'static str,
+    pub detail: Option<&'static str>,
+    pub ok: &'static str,
+    pub initial: String,
+}
+
+pub(crate) async fn ask_name(
+    parent: &impl IsA<gtk::Widget>,
+    prompt: Prompt,
+    validate: impl Fn(&str) -> Result<String, String> + 'static,
+) -> Option<String> {
+    let dialog = adw::AlertDialog::new(Some(prompt.title), prompt.detail);
+    dialog.add_responses(&[("cancel", "Cancel"), ("ok", prompt.ok)]);
+    dialog.set_response_appearance("ok", adw::ResponseAppearance::Suggested);
+    dialog.set_response_enabled("ok", validate(&prompt.initial).is_ok());
+    dialog.set_default_response(Some("ok"));
+    dialog.set_close_response("cancel");
+    let entry = gtk::Entry::new();
+    entry.set_text(&prompt.initial);
+    entry.set_activates_default(true);
+    let note = gtk::Label::new(None);
+    note.add_css_class("error");
+    note.set_xalign(0.0);
+    note.set_wrap(true);
+    note.set_visible(false);
+    let column = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    column.append(&entry);
+    column.append(&note);
+    dialog.set_extra_child(Some(&column));
+    dialog.set_focus(Some(&entry));
+
+    let validate = Rc::new(validate);
+    let initial = prompt.initial.clone();
+    let (weak_dialog, weak_note, check) = (dialog.downgrade(), note.downgrade(), validate.clone());
+    entry.connect_changed(move |entry| {
+        let (Some(dialog), Some(note)) = (weak_dialog.upgrade(), weak_note.upgrade()) else {
+            return;
+        };
+        let text = entry.text();
+        let quiet = text.trim().is_empty() || text == initial;
+        let check = check.clone();
+        glib::idle_add_local_once(move || {
+            let result = check(&text);
+            note.set_visible(!quiet && result.is_err());
+            note.set_text(result.as_ref().err().map_or("", String::as_str));
+            dialog.set_response_enabled("ok", result.is_ok());
+        });
+    });
+    let (field, stem) = (
+        entry.clone(),
+        xenon_finder::fileops::stem_chars(&prompt.initial),
+    );
+    let name_like = !prompt.initial.contains('/');
+    glib::idle_add_local_once(move || {
+        field.grab_focus();
+        if name_like && stem > 0 {
+            field.select_region(0, stem as i32);
+        } else {
+            field.set_position(-1);
+        }
+    });
+    if dialog.choose_future(Some(parent)).await != "ok" {
+        return None;
+    }
+    validate(&entry.text()).ok()
+}
+
+fn check_folder(text: &str) -> Result<String, String> {
+    let path = xenon_finder::discover::expand_user_path(text)
+        .ok_or("Start with ~/ or / to name a folder.")?;
+    if path.exists() && !path.is_dir() {
+        return Err("That path is a file, not a folder.".into());
+    }
+    Ok(path.to_string_lossy().into_owned())
+}
+
 impl App {
     pub(crate) fn open_workspace_dialog(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::new();
@@ -25,42 +102,25 @@ impl App {
     }
 
     pub(crate) fn new_workspace_dialog(self: &Rc<Self>) {
-        let dialog =
-            adw::AlertDialog::new(Some("New workspace"), Some("Folder to create or open."));
-        let entry = gtk::Entry::new();
-        entry.set_text("~/src/");
-        entry.set_position(-1);
-        entry.set_activates_default(true);
-        dialog.set_extra_child(Some(&entry));
-        dialog.add_responses(&[("cancel", "Cancel"), ("create", "Create")]);
-        dialog.set_response_appearance("create", adw::ResponseAppearance::Suggested);
-        dialog.set_default_response(Some("create"));
-        dialog.set_close_response("cancel");
         let weak = Rc::downgrade(self);
-        let field = entry.clone();
-        dialog.connect_response(None, move |_, response| {
-            if response != "create" {
+        let win = self.win.clone();
+        glib::spawn_future_local(async move {
+            let prompt = Prompt {
+                title: "New workspace",
+                detail: Some("Folder to create or open."),
+                ok: "Create",
+                initial: "~/src/".into(),
+            };
+            let Some(text) = ask_name(&win, prompt, check_folder).await else {
                 return;
-            }
+            };
             let Some(app) = weak.upgrade() else { return };
-            let field = field.clone();
-            glib::idle_add_local_once(move || {
-                let text = field.text();
-                let path = xenon_finder::discover::expand_user_path(&text)
-                    .unwrap_or_else(|| PathBuf::from(text.trim()));
-                if path.as_os_str().is_empty() {
-                    return;
-                }
-                match std::fs::create_dir_all(&path) {
-                    Ok(()) => app.open_workspace(&path),
-                    Err(error) => {
-                        app.toast(&format!("Couldn\u{2019}t create that folder: {error}"));
-                    }
-                }
-            });
+            let path = PathBuf::from(text);
+            match std::fs::create_dir_all(&path) {
+                Ok(()) => app.open_workspace(&path),
+                Err(error) => app.toast(&format!("Couldn\u{2019}t create that folder: {error}")),
+            }
         });
-        dialog.present(Some(&self.win));
-        entry.grab_focus();
     }
 
     pub(crate) fn open_link(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, text: &str) {

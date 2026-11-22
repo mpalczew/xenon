@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::app::defer;
+use crate::dialogs::{Prompt, ask_name};
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use xenon_finder::fileops;
@@ -256,13 +257,12 @@ impl FilesView {
         let heading = if is_dir { "New Folder" } else { "New File" };
         let at = dir.clone();
         let prompt = Prompt {
-            heading: heading.into(),
-            ok: "Create".into(),
-            dir,
+            title: heading,
+            detail: None,
+            ok: "Create",
             initial: String::new(),
-            current: None,
         };
-        self.ask_name(prompt, move |this, name| {
+        self.ask_file_name(prompt, dir, None, move |this, name| {
             let path = at.join(&name);
             let (made, weak) = (path.clone(), Rc::downgrade(this));
             glib::spawn_future_local(async move {
@@ -286,31 +286,35 @@ impl FilesView {
             return;
         };
         let prompt = Prompt {
-            heading: "Rename".into(),
-            ok: "Rename".into(),
-            dir: dir.clone(),
+            title: "Rename",
+            detail: None,
+            ok: "Rename",
             initial: name.clone(),
-            current: Some(name),
         };
-        self.ask_name(prompt, move |this, new_name| {
-            let weak = Rc::downgrade(this);
-            glib::spawn_future_local(async move {
-                let result = gio::File::for_path(&path)
-                    .set_display_name_future(&new_name, glib::Priority::DEFAULT)
-                    .await;
-                let Some(this) = weak.upgrade() else { return };
-                match result {
-                    Ok(renamed) => {
-                        let new = renamed.path().unwrap_or_else(|| dir.join(&new_name));
-                        if let Some(app) = this.app.upgrade() {
-                            app.paths_moved(&path, &new);
+        self.ask_file_name(
+            prompt,
+            dir.clone(),
+            Some(name.clone()),
+            move |this, new_name| {
+                let weak = Rc::downgrade(this);
+                glib::spawn_future_local(async move {
+                    let result = gio::File::for_path(&path)
+                        .set_display_name_future(&new_name, glib::Priority::DEFAULT)
+                        .await;
+                    let Some(this) = weak.upgrade() else { return };
+                    match result {
+                        Ok(renamed) => {
+                            let new = renamed.path().unwrap_or_else(|| dir.join(&new_name));
+                            if let Some(app) = this.app.upgrade() {
+                                app.paths_moved(&path, &new);
+                            }
+                            this.reveal(&new);
                         }
-                        this.reveal(&new);
+                        Err(why) => this.say(&format!("Couldn\u{2019}t rename: {}", why.message())),
                     }
-                    Err(why) => this.say(&format!("Couldn\u{2019}t rename: {}", why.message())),
-                }
-            });
-        });
+                });
+            },
+        );
     }
 
     fn trash(self: &Rc<Self>, path: PathBuf) {
@@ -331,84 +335,20 @@ impl FilesView {
         });
     }
 
-    fn ask_name(self: &Rc<Self>, prompt: Prompt, then: impl FnOnce(&Rc<Self>, String) + 'static) {
-        let Prompt {
-            heading,
-            ok,
-            dir,
-            initial,
-            current,
-        } = prompt;
-        let dialog = adw::AlertDialog::new(Some(&heading), None);
-        dialog.add_responses(&[("cancel", "Cancel"), ("ok", &ok)]);
-        dialog.set_response_appearance("ok", adw::ResponseAppearance::Suggested);
-        dialog.set_response_enabled("ok", false);
-        dialog.set_default_response(Some("ok"));
-        dialog.set_close_response("cancel");
-        let entry = gtk::Entry::new();
-        entry.set_text(&initial);
-        entry.set_activates_default(true);
-        let note = gtk::Label::new(None);
-        note.add_css_class("error");
-        note.set_xalign(0.0);
-        note.set_wrap(true);
-        note.set_visible(false);
-        let column = gtk::Box::new(gtk::Orientation::Vertical, 6);
-        column.append(&entry);
-        column.append(&note);
-        dialog.set_extra_child(Some(&column));
-        dialog.set_focus(Some(&entry));
-
-        let check = {
-            let (dir, current) = (dir.clone(), current.clone());
-            move |text: &str| fileops::check_name(&dir, text, current.as_deref())
-        };
-        let (weak_dialog, weak_note) = (dialog.downgrade(), note.downgrade());
-        let check_live = check.clone();
-        entry.connect_changed(move |entry| {
-            let (Some(dialog), Some(note)) = (weak_dialog.upgrade(), weak_note.upgrade()) else {
-                return;
-            };
-            let text = entry.text();
-            let quiet = text.trim().is_empty() || current.as_deref() == Some(text.trim());
-            let check_live = check_live.clone();
-            glib::idle_add_local_once(move || {
-                let result = check_live(&text);
-                note.set_visible(!quiet && result.is_err());
-                note.set_text(result.as_ref().err().map_or("", String::as_str));
-                dialog.set_response_enabled("ok", result.is_ok());
-            });
-        });
-        let (weak, weak_entry) = (Rc::downgrade(self), entry.downgrade());
-        let then = std::cell::Cell::new(Some(then));
-        dialog.connect_response(None, move |_, id| {
-            let (Some(this), Some(entry), "ok", Some(then)) =
-                (weak.upgrade(), weak_entry.upgrade(), id, then.take())
-            else {
-                return;
-            };
-            let check = check.clone();
-            glib::idle_add_local_once(move || {
-                if let Ok(name) = check(&entry.text()) {
-                    then(&this, name);
-                }
-            });
-        });
-        dialog.present(self.list.root().as_ref());
-        let stem = fileops::stem_chars(&initial) as i32;
-        glib::idle_add_local_once(move || {
-            entry.grab_focus();
-            if stem > 0 {
-                entry.select_region(0, stem);
+    fn ask_file_name(
+        self: &Rc<Self>,
+        prompt: Prompt,
+        dir: PathBuf,
+        current: Option<String>,
+        then: impl FnOnce(&Rc<Self>, String) + 'static,
+    ) {
+        let (weak, list) = (Rc::downgrade(self), self.list.clone());
+        let check = move |text: &str| fileops::check_name(&dir, text, current.as_deref());
+        glib::spawn_future_local(async move {
+            let name = ask_name(&list, prompt, check).await;
+            if let (Some(name), Some(this)) = (name, weak.upgrade()) {
+                then(&this, name);
             }
         });
     }
-}
-
-struct Prompt {
-    heading: String,
-    ok: String,
-    dir: PathBuf,
-    initial: String,
-    current: Option<String>,
 }
