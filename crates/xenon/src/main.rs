@@ -6,6 +6,7 @@ use gtk::{gio, glib};
 
 mod actions;
 mod app;
+mod app_ops;
 mod builds_ui;
 mod clipboard;
 mod command_palette;
@@ -25,7 +26,6 @@ mod git_rows;
 mod git_section;
 mod image;
 mod ipc;
-mod keys;
 mod layout;
 mod links;
 mod model;

@@ -8,6 +8,7 @@ use xenon_settings::{FontProbe, UiSettings};
 use xenon_store::{AppSettings, ThemeMode, WindowState};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::model::Model;
 use crate::sidebar::Sidebar;
 use crate::theme;
@@ -73,17 +74,6 @@ impl App {
         }
         xenon_phone::PhoneLink::set_dark(theme::dark());
     }
-
-    pub(crate) fn chord(&self, action: &str) -> Option<String> {
-        crate::keys::action_label(action)
-    }
-
-    pub(crate) fn tip(&self, text: &str, action: &str) -> String {
-        match self.chord(action) {
-            Some(chord) => format!("{text} \u{b7} {chord}"),
-            None => text.to_string(),
-        }
-    }
 }
 
 fn register_icons() {
@@ -100,73 +90,39 @@ fn register_icons() {
 fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     let bar = adw::HeaderBar::new();
     bar.set_title_widget(Some(title));
-    let button = |icon: &str, action: &str, tip: String| {
-        let b = gtk::Button::from_icon_name(icon);
-        b.set_action_name(Some(action));
-        b.set_tooltip_text(Some(&tip));
+    let button = |cmd: Cmd| {
+        let b = gtk::Button::from_icon_name(cmd.icon());
+        cmd.bind(&b);
         b.set_focusable(false);
         b
     };
-    let left = [
-        (
-            "sidebar-show-symbolic",
-            "app.toggle-sidebar",
-            "Toggle Sidebar",
-        ),
-        ("go-up-symbolic", "app.prev-workspace", "Previous Workspace"),
-        ("go-down-symbolic", "app.next-workspace", "Next Workspace"),
-        (
-            "xenon-split-right-symbolic",
-            "app.split-right",
-            "Split Right",
-        ),
-        ("xenon-split-down-symbolic", "app.split-down", "Split Down"),
-        (
-            "sidebar-show-right-symbolic",
-            "app.park-pane",
-            "Reserve Pane to the Right",
-        ),
-        ("edit-cut-symbolic", "app.cut", "Cut"),
-        ("edit-copy-symbolic", "app.copy", "Copy"),
-        ("xenon-copy-clean-symbolic", "app.copy-clean", "Copy Clean"),
-        ("edit-paste-symbolic", "app.paste", "Paste"),
-    ];
-    for (icon, action, label) in left {
-        bar.pack_start(&button(icon, action, app.tip(label, action)));
+    for cmd in [
+        Cmd::ToggleSidebar,
+        Cmd::PrevWorkspace,
+        Cmd::NextWorkspace,
+        Cmd::SplitRight,
+        Cmd::SplitDown,
+        Cmd::ParkPane,
+        Cmd::Cut,
+        Cmd::Copy,
+        Cmd::CopyClean,
+        Cmd::Paste,
+    ] {
+        bar.pack_start(&button(cmd));
     }
-    let right = [
-        (
-            "utilities-terminal-symbolic",
-            "app.new-terminal",
-            "New Terminal",
-        ),
-        (
-            "system-search-symbolic",
-            "app.open-finder",
-            "Go to File\u{2026}",
-        ),
-        (
-            "document-edit-symbolic",
-            "app.capture-worklist",
-            "Add to Worklist",
-        ),
-        ("view-list-symbolic", "app.open-worklist", "Open Worklist"),
-        (
-            "media-playback-start-symbolic",
-            "app.run-task",
-            "Run Task\u{2026}",
-        ),
-        ("emblem-system-symbolic", "app.settings", "Settings"),
-    ];
     bar.pack_end(&main_menu());
     bar.pack_end(&app.builds.button);
-    let mut right = right.into_iter().rev();
-    if let Some((icon, action, label)) = right.next() {
-        bar.pack_end(&button(icon, action, app.tip(label, action)));
-    }
+    // The save button sits between Settings and the rest, shown only while the editor is dirty.
+    bar.pack_end(&button(Cmd::Settings));
     bar.pack_end(&app.save_button);
-    for (icon, action, label) in right {
-        bar.pack_end(&button(icon, action, app.tip(label, action)));
+    for cmd in [
+        Cmd::RunTask,
+        Cmd::OpenWorklist,
+        Cmd::CaptureWorklist,
+        Cmd::OpenFinder,
+        Cmd::NewTerminal,
+    ] {
+        bar.pack_end(&button(cmd));
     }
     bar
 }
@@ -174,15 +130,13 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
 fn main_menu() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
     let leave = gtk::gio::Menu::new();
-    leave.append(Some("Close Window"), Some("app.quit"));
-    leave.append(
-        Some("Quit and End Terminals\u{2026}"),
-        Some("app.quit-end-terminals"),
-    );
+    leave.append_item(&Cmd::Quit.menu_item());
+    leave.append_item(&Cmd::QuitEndTerminals.menu_item());
     menu.append_section(None, &leave);
-    let prefs = gtk::gio::Menu::new();
-    prefs.append(Some("Preferences"), Some("app.settings"));
-    menu.append_section(None, &prefs);
+    let more = gtk::gio::Menu::new();
+    more.append_item(&Cmd::Settings.menu_item());
+    more.append_item(&Cmd::ShowShortcuts.menu_item());
+    menu.append_section(None, &more);
     let button = gtk::MenuButton::new();
     button.set_icon_name("open-menu-symbolic");
     button.set_menu_model(Some(&menu));
@@ -193,7 +147,7 @@ fn main_menu() -> gtk::MenuButton {
 
 fn save_button() -> gtk::Button {
     let b = gtk::Button::from_icon_name("document-save-symbolic");
-    b.set_action_name(Some("app.save"));
+    b.set_action_name(Some(Cmd::Save.action()));
     b.set_focusable(false);
     b.set_visible(false);
     b
@@ -263,17 +217,16 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
     app.apply_theme();
-    app.save_button
-        .set_tooltip_text(Some(&app.tip("Save", "app.save")));
     let style = adw::StyleManager::default();
     let weak = Rc::downgrade(&app);
     style.connect_dark_notify(move |_| {
         defer(&weak, move |app| app.apply_theme());
     });
 
-    crate::actions::install(&app);
+    crate::commands::install(&app);
+    app.save_button.set_tooltip_text(Some(&Cmd::Save.tip()));
     app.stack
-        .add_named(&crate::empty::all_clear(&app, false), Some("none"));
+        .add_named(&crate::empty::all_clear(false), Some("none"));
     app.split.set_start_child(Some(&app.sidebar.root));
     app.split.set_end_child(Some(&app.stack));
     app.split.set_shrink_start_child(false);
@@ -293,7 +246,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     win.set_content(Some(&layered(&app, &view)));
     crate::git::listen(&app);
     connect_window(&app, &win);
-    app.sidebar.set_hints(&app);
+    app.sidebar.set_hints();
     app.sidebar.rebuild(&app.model.borrow());
     app.listen_holders();
     app.refresh_builds();

@@ -6,6 +6,7 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib, pango};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::model::Fold;
 use crate::sidebar_ui::{Row, Section};
 
@@ -319,7 +320,7 @@ impl FilesView {
     pub(crate) fn set_hidden(&self, on: bool) {
         self.ignores.set_show_hidden(on);
         if let Some(app) = self.app.upgrade()
-            && let Some(action) = app.gtk.lookup_action("show-hidden-files")
+            && let Some(action) = app.gtk.lookup_action(Cmd::ShowHiddenFiles.name())
             && let Ok(action) = action.downcast::<gio::SimpleAction>()
         {
             action.set_state(&on.to_variant());

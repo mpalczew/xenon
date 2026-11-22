@@ -2,10 +2,11 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use adw::prelude::*;
-use gtk::{gio, glib};
+use gtk::glib;
 use qrcode::QrCode;
 
-use crate::app::{App, defer};
+use crate::app::App;
+use crate::commands::Cmd;
 
 impl App {
     fn pairing_facts(&self) -> Option<(String, Option<String>, Instant)> {
@@ -141,9 +142,9 @@ impl App {
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.set_halign(gtk::Align::Center);
 
-        let settings = gtk::Button::with_label(&match self.chord("app.settings") {
-            Some(chord) => format!("Settings\u{2026}  {chord}"),
-            None => "Settings\u{2026}".to_string(),
+        let settings = gtk::Button::with_label(&match Cmd::Settings.chord() {
+            Some(chord) => format!("Settings  {chord}"),
+            None => "Settings".to_string(),
         });
         let weak = dialog.downgrade();
         let gtk_app = self.gtk.clone();
@@ -153,7 +154,7 @@ impl App {
                 if let Some(dialog) = dialog {
                     dialog.close();
                 }
-                gtk_app.activate_action("settings", None);
+                gtk_app.activate_action(Cmd::Settings.name(), None);
             });
         });
         let done = gtk::Button::with_label("Done  esc");
@@ -224,21 +225,4 @@ fn qr_image(text: &str) -> gtk::Svg {
         })
         .unwrap_or_default();
     gtk::Svg::from_bytes(&glib::Bytes::from_owned(svg.into_bytes()))
-}
-
-pub(crate) fn install(app: &Rc<App>) {
-    let connect = gio::SimpleAction::new("connect-phone", None);
-    let weak = Rc::downgrade(app);
-    connect.connect_activate(move |_, _| {
-        if let Some(app) = weak.upgrade() {
-            app.connect_phone();
-        }
-    });
-    app.gtk.add_action(&connect);
-    let toggle = gio::SimpleAction::new("remote-toggle", None);
-    let weak = Rc::downgrade(app);
-    toggle.connect_activate(move |_, _| {
-        defer(&weak, move |app| app.remote_toggle());
-    });
-    app.gtk.add_action(&toggle);
 }

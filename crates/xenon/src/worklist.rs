@@ -10,6 +10,7 @@ use xenon_store::worklist::{
 };
 
 use crate::app::App;
+use crate::commands::Cmd;
 
 mod capture;
 mod fields;
@@ -101,7 +102,7 @@ impl App {
         let toast = adw::Toast::new(&format!("{title} \u{2014} {error}"));
         toast.set_use_markup(false);
         toast.set_button_label(Some("Show worklist"));
-        toast.set_action_name(Some("app.open-worklist"));
+        toast.set_action_name(Some(Cmd::OpenWorklist.action()));
         self.toasts.add_toast(toast);
     }
 
@@ -142,7 +143,7 @@ impl App {
         let toast = adw::Toast::new(&text);
         toast.set_use_markup(false);
         toast.set_button_label(Some("Undo"));
-        toast.set_action_name(Some("app.undo-capture"));
+        toast.set_action_name(Some(Cmd::UndoCapture.action()));
         let serial = self.worklist.toast_serial.get() + 1;
         self.worklist.toast_serial.set(serial);
         *self.worklist.undo.borrow_mut() = Some((ws, draft));

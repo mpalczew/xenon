@@ -135,10 +135,11 @@ scripts/health              # full gate: fmt + clippy + shape
 | Workspace next / previous   | Ctrl+Alt+↓ / Ctrl+Alt+↑            |
 | Tab next / previous / close | Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+W |
 | Save                        | Ctrl+S                             |
+| Save As                     | Ctrl+Shift+S                       |
 | Connect phone (QR)          | Ctrl+Shift+M                       |
 
 The full list is in the command palette (Ctrl+Shift+P) and
-[`keys.rs`](crates/xenon/src/keys.rs).
+[`commands.rs`](crates/xenon/src/commands.rs); Ctrl+? lists every shortcut.
 
 ---
 

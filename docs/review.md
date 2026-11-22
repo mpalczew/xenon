@@ -8,7 +8,7 @@ Flag:
   cycles.
 - GTK event rules (see crates/xenon_eventcheck).
 - Code we didn't need: anything the platform, GTK, libadwaita or VTE already provides.
-- Shortcuts defined outside crates/xenon/src/keys.rs.
+- Shortcuts defined outside crates/xenon/src/commands.rs.
 - Comments that narrate code; tests (we don't write them).
 - Settings or saved-file format changes that break existing user data.
 

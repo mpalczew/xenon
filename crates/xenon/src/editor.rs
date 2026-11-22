@@ -9,6 +9,7 @@ use xenon_core::{TabId, WorkspaceId};
 use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::prose::{self, Prose};
 use crate::worklist_list::WorklistList;
 
@@ -51,7 +52,7 @@ fn browser_root(path: &Path) -> gtk::Box {
         return root;
     }
     let button = gtk::Button::with_label("Open in Browser");
-    button.set_action_name(Some("app.open-path-default"));
+    Cmd::OpenPathDefault.bind(&button);
     button.set_action_target_value(Some(&path.to_string_lossy().to_variant()));
     button.set_tooltip_text(Some("Open in the default browser"));
     button.set_focusable(false);

@@ -2,6 +2,8 @@ use adw::prelude::*;
 use gtk::glib;
 use vte::prelude::*;
 
+use crate::commands::Cmd;
+
 // PCRE2 flags VTE accepts: it requires MULTILINE; CASELESS is optional.
 const PCRE2_MULTILINE: u32 = 0x0000_0400;
 const PCRE2_CASELESS: u32 = 0x0000_0008;
@@ -47,16 +49,16 @@ impl FindBar {
             b.add_css_class("flat");
             b.set_focusable(false);
         }
-        let key = |accel| crate::keys::label(accel);
+        let key = |accel| crate::commands::label(accel);
         prev.set_tooltip_text(Some(&format!(
             "Previous match \u{b7} {} / {}",
             key("<Shift>Return"),
-            crate::keys::action_label("app.find-prev").unwrap_or_default(),
+            Cmd::FindPrev.chord().unwrap_or_default(),
         )));
         next.set_tooltip_text(Some(&format!(
             "Next match \u{b7} {} / {}",
             key("Return"),
-            crate::keys::action_label("app.find-next").unwrap_or_default(),
+            Cmd::FindNext.chord().unwrap_or_default(),
         )));
         close.set_tooltip_text(Some(&format!("Close \u{b7} {}", key("Escape"))));
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);

@@ -240,7 +240,9 @@ impl App {
                     action: Some((
                         format!(
                             "Browse\u{2026} {}",
-                            crate::keys::action_label("app.open-workspace").unwrap_or_default()
+                            crate::commands::Cmd::OpenWorkspace
+                                .chord()
+                                .unwrap_or_default()
                         ),
                         Box::new(move || {
                             if let Some(app) = wb.upgrade() {

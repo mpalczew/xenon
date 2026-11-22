@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::app::defer;
+use crate::commands::Cmd;
 use crate::dialogs::{Prompt, ask_name};
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
@@ -40,7 +41,7 @@ fn menu_model(on_item: bool) -> gio::Menu {
     make.append_item(&item("New Folder\u{2026}", "new-folder", None));
     menu.append_section(None, &make);
     let view = gio::Menu::new();
-    let hidden = gio::MenuItem::new(Some("Show Hidden Files"), Some("app.show-hidden-files"));
+    let hidden = Cmd::ShowHiddenFiles.menu_item();
     hidden.set_attribute_value("accel", Some(&"<Control>h".to_variant()));
     view.append_item(&hidden);
     menu.append_section(None, &view);

@@ -5,6 +5,7 @@ use adw::prelude::*;
 use xenon_core::tasks::{self as shared, QuestionKind, TaskQuestion, TaskRow};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::palette::{Handlers, Options, PaletteRow};
 
 fn fuzzy(labels: &[String], query: &str) -> Vec<(usize, Vec<u32>)> {
@@ -61,7 +62,7 @@ impl App {
                 placeholder: error.unwrap_or_else(|| shared::PICKER_PLACEHOLDER.to_string()),
                 hint: format!(
                     "return runs  \u{b7}  {} runs in a new tab  \u{b7}  esc closes",
-                    crate::keys::label("<Control>Return")
+                    crate::commands::label("<Control>Return")
                 ),
                 options: Options {
                     on_accept_alt: Some(Box::new(move |row| accept_alt(row, true))),
@@ -186,6 +187,7 @@ pub(crate) struct TrustCard {
     pub root: gtk::Box,
     title: gtk::Label,
     list: gtk::Box,
+    hint: gtk::Label,
 }
 
 impl TrustCard {
@@ -221,11 +223,7 @@ impl TrustCard {
         buttons.set_halign(gtk::Align::End);
         buttons.append(&button(shared::TRUST_DENY, false));
         buttons.append(&button(shared::TRUST_ALLOW, true));
-        let hint = gtk::Label::new(Some(&format!(
-            "{} allow  \u{b7}  {} don\u{2019}t allow  \u{b7}  asks again if tasks.json changes",
-            crate::keys::action_label("app.allow-folder-tasks").unwrap_or_default(),
-            crate::keys::action_label("app.deny-folder-tasks").unwrap_or_default(),
-        )));
+        let hint = gtk::Label::new(None);
         hint.set_xalign(0.0);
         hint.set_wrap(true);
         hint.add_css_class("caption");
@@ -251,11 +249,21 @@ impl TrustCard {
         root.set_focusable(false);
         root.append(&inner);
         root.set_visible(false);
-        Self { root, title, list }
+        Self {
+            root,
+            title,
+            list,
+            hint,
+        }
     }
 
     pub(crate) fn show(&self, title: &str, lines: &[(String, String, &str)]) {
         self.title.set_text(title);
+        self.hint.set_text(&format!(
+            "{} allow  \u{b7}  {} don\u{2019}t allow  \u{b7}  asks again if tasks.json changes",
+            Cmd::AllowFolderTasks.chord().unwrap_or_default(),
+            Cmd::DenyFolderTasks.chord().unwrap_or_default(),
+        ));
         while let Some(old) = self.list.first_child() {
             self.list.remove(&old);
         }

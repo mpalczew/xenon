@@ -139,7 +139,7 @@ impl App {
                     };
                     layout::build(&ctx, root)
                 }
-                None => crate::empty::all_clear(self, true),
+                None => crate::empty::all_clear(true),
             };
             widget.set_vexpand(true);
             slot.holder.append(&widget);

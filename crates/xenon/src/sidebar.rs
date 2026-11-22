@@ -7,6 +7,7 @@ use xenon_core::{WorkspaceDot, WorkspaceId};
 use xenon_git::status::DirtState;
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::files::FilesView;
 use crate::git::GitHub;
 use crate::git_section::GitView;
@@ -49,8 +50,8 @@ pub(crate) fn short_path(path: &str) -> String {
 impl Sidebar {
     pub(crate) fn new(app: Weak<App>) -> Self {
         let menu = gio::Menu::new();
-        menu.append(Some("New workspace\u{2026}"), Some("app.new-workspace"));
-        menu.append(Some("Open workspace\u{2026}"), Some("app.open-workspace"));
+        menu.append_item(&Cmd::NewWorkspace.menu_item());
+        menu.append_item(&Cmd::OpenWorkspace.menu_item());
         let add = gtk::MenuButton::new();
         add.set_icon_name("list-add-symbolic");
         add.set_menu_model(Some(&menu));
@@ -205,10 +206,9 @@ impl Sidebar {
         list.add_controller(target);
     }
 
-    pub(crate) fn set_hints(&self, app: &App) {
-        self.add
-            .set_tooltip_text(Some(&app.tip("Open Workspace", "app.open-workspace")));
-        self.git.set_hint(&app.tip("Git", "app.focus-git"));
+    pub(crate) fn set_hints(&self) {
+        self.add.set_tooltip_text(Some(&Cmd::OpenWorkspace.tip()));
+        self.git.set_hint(&Cmd::FocusGit.tip());
     }
 
     pub(crate) fn apply_folds(&self, model: &Model) {
@@ -292,9 +292,7 @@ impl Sidebar {
             let close = gtk::Button::from_icon_name("window-close-symbolic");
             close.set_has_frame(false);
             close.set_focusable(false);
-            if let Some(app) = self.app.upgrade() {
-                close.set_tooltip_text(Some(&app.tip("Close", "app.close-workspace")));
-            }
+            close.set_tooltip_text(Some(&Cmd::CloseWorkspace.tip()));
             let weak = self.app.clone();
             let id = rec.id;
             close.connect_clicked(move |_| {

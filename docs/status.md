@@ -11,7 +11,7 @@
   window open. Closing a workspace from the phone works (asks the window over
   `ipc.sock`). `docs/designs/mobile-remote-v2.md`
 - Keyboard: healthy. Zoom now follows the active tab (terminal, code editor, markdown);
-  not yet tried by hand. `crates/xenon/src/keys.rs`
+  not yet tried by hand. `crates/xenon/src/commands.rs`
 - Terminal holders: healthy and in daily use; each terminal is its own `xenon-term hold`
   process and systemd unit, so window restarts and installs keep agents running, and
   older builds are marked in the header bar and on tabs.

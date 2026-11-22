@@ -1,253 +1,482 @@
+//! The one command table. Every window command is a block in `commands!`: its action name,
+//! label, icon, keys, palette presence and handler. Callers write `Cmd::X`, never `"app.x"`.
+
+use std::path::Path;
 use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gio, glib};
-use xenon_core::{PaneId, ParkOutcome, SplitAxis, TabId, WorkspaceId};
+use vte::prelude::*;
+use xenon_core::SplitAxis;
+use xenon_store::AppSettings;
 
-use crate::app::App;
+use crate::app::{App, defer};
 use crate::model::Fold;
-use crate::model_tabs::SplitResult;
-use xenon_settings::Surface;
 
-impl App {
-    pub(crate) fn toast(&self, text: &str) {
-        match crate::prefs::open_dialog() {
-            Some(dialog) => dialog.add_toast(adw::Toast::new(text)),
-            None => self.toasts.add_toast(adw::Toast::new(text)),
+/// What a command's key does while the palette or a picker is open.
+#[derive(Clone, Copy)]
+pub(crate) enum InLauncher {
+    Blocked,
+    Runs,
+    Key(&'static str),
+}
+
+enum Run {
+    Plain(fn(&Rc<App>)),
+    Toggle {
+        initial: fn(&AppSettings) -> bool,
+        set: fn(&Rc<App>, bool),
+    },
+    Path(fn(&Rc<App>, &Path)),
+}
+
+pub(crate) struct Spec {
+    label: &'static str,
+    short: Option<&'static str>,
+    icon: &'static str,
+    keys: &'static [&'static str],
+    palette: bool,
+    launcher: InLauncher,
+    run: Run,
+}
+
+impl Spec {
+    fn new(run: Run) -> Self {
+        Self {
+            label: "",
+            short: None,
+            icon: "",
+            keys: &[],
+            palette: true,
+            launcher: InLauncher::Blocked,
+            run,
         }
     }
 
-    pub(crate) fn focus_terminal(self: &Rc<Self>) {
-        let weak = Rc::downgrade(self);
-        glib::idle_add_local_once(move || {
-            let Some(app) = weak.upgrade() else { return };
-            let (ws, pane, tab) = {
-                let model = app.model.borrow();
-                let ws = model.active();
-                let content = ws.and_then(|w| model.spaces.get(&w)).map(|s| &s.content);
-                (
-                    ws,
-                    content.and_then(|c| c.focused),
-                    content.and_then(|c| c.active_tab()).map(|t| t.id),
-                )
-            };
-            let Some(ws) = ws else { return };
-            let Some(tab) = tab else {
-                let view = pane.and_then(|p| app.slots.borrow().get(&ws)?.panes.get(&p).cloned());
-                if let Some(view) = view {
-                    view.focus_empty();
-                }
-                return;
-            };
-            let key = (ws, tab);
-            if let Some(view) = app.term_view(ws, tab) {
-                view.term.grab_focus();
-            } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {
-                editor.focus();
-            } else if let Some(body) = app
-                .bodies
-                .borrow()
-                .get(&key)
-                .map(|b| b.widget.clone())
-                .filter(|_| app.images.borrow().contains_key(&key))
-            {
-                body.grab_focus();
-            } else if let Some(diff) = app.diffs.borrow().get(&key).cloned() {
-                diff.focus();
+    fn run(f: fn(&Rc<App>)) -> Self {
+        Self::new(Run::Plain(f))
+    }
+
+    fn toggle(initial: fn(&AppSettings) -> bool, set: fn(&Rc<App>, bool)) -> Self {
+        Self::new(Run::Toggle { initial, set })
+    }
+
+    fn path(f: fn(&Rc<App>, &Path)) -> Self {
+        Self::new(Run::Path(f))
+    }
+}
+
+macro_rules! commands {
+    ($($variant:ident = $name:literal => $spec:expr,)*) => {
+        #[derive(Clone, Copy)]
+        pub(crate) enum Cmd { $($variant),* }
+
+        impl Cmd {
+            pub(crate) const ALL: &[Cmd] = &[$(Cmd::$variant),*];
+
+            pub(crate) fn name(self) -> &'static str {
+                match self { $(Cmd::$variant => $name),* }
             }
-        });
-    }
 
-    pub(crate) fn open_editor(self: &Rc<Self>, ws: WorkspaceId, path: &std::path::Path) {
-        if crate::image::is_image(path) {
-        } else if let Err(why) = crate::editor::check(path) {
-            self.toast(&format!("Opening {} outside Xenon: {why}", path.display()));
-            self.launch(&gio::File::for_path(path).uri());
-            return;
-        }
-        if self.model.borrow().active() != Some(ws) {
-            self.activate_workspace(ws);
-        }
-        if self.model.borrow_mut().open_editor(ws, path).is_some() {
-            self.touch_recent(ws, path);
-            self.changed(ws);
-        }
-    }
-
-    pub(crate) fn reveal_dir(self: &Rc<Self>, _ws: WorkspaceId, dir: &std::path::Path) {
-        self.sidebar.root.set_visible(true);
-        self.sidebar.files.reveal(dir);
-    }
-
-    pub(crate) fn changed(self: &Rc<Self>, ws: WorkspaceId) {
-        self.sync(ws);
-        self.save_session(ws);
-        self.focus_terminal();
-    }
-
-    pub(crate) fn new_terminal(self: &Rc<Self>) {
-        let Some(ws) = self.model.borrow().active() else {
-            return;
-        };
-        self.model.borrow_mut().new_terminal(ws);
-        self.changed(ws);
-    }
-
-    pub(crate) fn new_terminal_in(self: &Rc<Self>, ws: WorkspaceId, pane: PaneId) {
-        if let Some(space) = self.model.borrow_mut().spaces.get_mut(&ws) {
-            space.content.focused = Some(pane);
-        }
-        self.model.borrow_mut().new_terminal(ws);
-        self.changed(ws);
-    }
-
-    pub(crate) fn split(self: &Rc<Self>, axis: SplitAxis) {
-        let Some(ws) = self.model.borrow().active() else {
-            return;
-        };
-        let result = self.model.borrow_mut().split(ws, axis);
-        match result {
-            SplitResult::Done => self.changed(ws),
-            SplitResult::NoRoom => self.toast("That\u{2019}s as deep as splits go"),
-            SplitResult::Nothing => {}
-        }
-    }
-
-    pub(crate) fn park_pane(self: &Rc<Self>) {
-        let Some(ws) = self.model.borrow().active() else {
-            return;
-        };
-        let outcome = self.model.borrow_mut().park_pane(ws);
-        match outcome {
-            ParkOutcome::NoRoom => self.toast("That\u{2019}s as deep as splits go"),
-            ParkOutcome::Unchanged => {}
-            _ => self.changed(ws),
-        }
-    }
-
-    pub(crate) fn remove_empty_pane(self: &Rc<Self>, ws: WorkspaceId, pane: PaneId) {
-        if self.model.borrow_mut().remove_empty_pane(ws, pane) {
-            self.changed(ws);
-        }
-    }
-
-    pub(crate) fn close_tab_ui(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        self.model.borrow_mut().close_tab(ws, tab);
-        self.changed(ws);
-    }
-
-    pub(crate) fn close_active_tab(self: &Rc<Self>) {
-        let model = self.model.borrow();
-        let ws = model.active();
-        let tab = ws
-            .and_then(|w| model.spaces.get(&w))
-            .and_then(|s| s.content.active_tab())
-            .map(|t| t.id);
-        drop(model);
-        if let (Some(ws), Some(tab)) = (ws, tab) {
-            self.close_tab_ui(ws, tab);
-        }
-    }
-
-    pub(crate) fn close_other_tabs(self: &Rc<Self>) {
-        let Some(ws) = self.model.borrow().active() else {
-            return;
-        };
-        let others = self.model.borrow().other_tabs(ws);
-        self.close_tabs(ws, others);
-    }
-
-    pub(crate) fn select_tab_ui(self: &Rc<Self>, ws: WorkspaceId, tab: TabId) {
-        self.model.borrow_mut().select_tab(ws, tab);
-        self.dismiss_viewed();
-        self.sync(ws);
-        self.focus_terminal();
-    }
-
-    pub(crate) fn step_tab(self: &Rc<Self>, delta: isize) {
-        let Some(ws) = self.model.borrow().active() else {
-            return;
-        };
-        self.model.borrow_mut().step_tab(ws, delta);
-        self.dismiss_viewed();
-        self.sync(ws);
-        self.focus_terminal();
-    }
-
-    pub(crate) fn next_pane(self: &Rc<Self>) {
-        let Some(ws) = self.model.borrow().active() else {
-            return;
-        };
-        self.model.borrow_mut().step_pane(ws, 1);
-        self.dismiss_viewed();
-        self.sync(ws);
-        self.focus_terminal();
-    }
-
-    pub(crate) fn divider_moved(self: &Rc<Self>, ws: WorkspaceId, key: PaneId, cumulative: f32) {
-        if self.model.borrow_mut().set_divider(ws, key, cumulative) {
-            self.schedule_save();
-        }
-    }
-
-    pub(crate) fn toggle_sidebar(&self) {
-        let shown = self.sidebar.root.is_visible();
-        self.sidebar.root.set_visible(!shown);
-    }
-
-    pub(crate) fn focus_sidebar(&self) {
-        self.sidebar.root.set_visible(true);
-        if self.sidebar.files.has_rows() {
-            self.sidebar.files.focus();
-            return;
-        }
-        let active = self.model.borrow().active();
-        let index = active.and_then(|id| {
-            self.model
-                .borrow()
-                .registry
-                .workspaces
-                .iter()
-                .position(|r| r.id == id)
-        });
-        self.set_fold(Fold::Workspaces, false);
-        if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
-            row.grab_focus();
-        }
-    }
-
-    pub(crate) fn zoom(self: &Rc<Self>, step: Option<f32>) {
-        let editor = self.current_editor();
-        let diff = {
-            let model = self.model.borrow();
-            let ws = model.active();
-            ws.and_then(|w| model.spaces.get(&w))
-                .and_then(|s| s.content.active_tab())
-                .is_some_and(|t| matches!(t.kind, crate::model::TabKind::Diff { .. }))
-        };
-        if editor
-            .as_ref()
-            .is_some_and(|e| e.view.has_css_class("xprose"))
-        {
-            self.change_settings(|s| s.zoom_prose(step));
-        } else if editor.is_some() || diff {
-            self.change_settings(|s| s.zoom(Surface::Editor, step));
-        } else {
-            {
-                let mut settings = self.settings.borrow_mut();
-                settings.zoom(Surface::Terminal, step);
-                settings.persist();
+            pub(crate) fn action(self) -> &'static str {
+                match self { $(Cmd::$variant => concat!("app.", $name)),* }
             }
-            for view in self.terms.borrow().values() {
-                self.restyle_term(view);
+
+            fn spec(self) -> Spec {
+                match self { $(Cmd::$variant => $spec),* }
             }
         }
+    };
+}
+
+commands! {
+    NewTerminal = "new-terminal" => Spec {
+        label: "New Terminal", icon: "utilities-terminal-symbolic", keys: &["<Control>n"],
+        launcher: InLauncher::Key("down"),
+        ..Spec::run(|a| a.new_terminal())
+    },
+    NewWorkspace = "new-workspace" => Spec {
+        label: "New Workspace\u{2026}", keys: &["<Control><Alt>n"],
+        ..Spec::run(|a| a.new_workspace_dialog())
+    },
+    OpenWorkspace = "open-workspace" => Spec {
+        label: "Open Workspace\u{2026}", short: Some("Open Workspace"),
+        keys: &["<Control><Shift>o"], launcher: InLauncher::Runs,
+        ..Spec::run(|a| a.open_workspace_picker())
+    },
+    OpenFinder = "open-finder" => Spec {
+        label: "Go to File\u{2026}", short: Some("Open File"), icon: "system-search-symbolic",
+        keys: &["<Control>p"], launcher: InLauncher::Key("up"),
+        ..Spec::run(|a| a.open_finder())
+    },
+    CommandPalette = "command-palette" => Spec {
+        label: "Command Palette\u{2026}", keys: &["<Control><Shift>p"], palette: false,
+        ..Spec::run(|a| a.open_command_palette())
+    },
+    RunTask = "run-task" => Spec {
+        label: "Run Task\u{2026}", icon: "media-playback-start-symbolic",
+        keys: &["<Control><Shift>r"],
+        ..Spec::run(|a| a.open_task_picker())
+    },
+    RunBuildTask = "run-build-task" => Spec {
+        label: "Run Build Task", keys: &["<Control><Shift>b"],
+        ..Spec::run(|a| a.run_build_task())
+    },
+    CaptureWorklist = "capture-worklist" => Spec {
+        label: "Add to Worklist", icon: "document-edit-symbolic", keys: &["<Control><Shift>k"],
+        ..Spec::run(|a| a.capture_worklist())
+    },
+    OpenWorklist = "open-worklist" => Spec {
+        label: "Open Worklist", short: Some("Worklist"), icon: "view-list-symbolic",
+        keys: &["<Control><Alt>k"],
+        ..Spec::run(|a| a.open_worklist())
+    },
+    UndoCapture = "undo-capture" => Spec {
+        label: "Undo Worklist Capture", keys: &["<Control><Alt>z"],
+        ..Spec::run(|a| a.undo_capture())
+    },
+    AllowFolderTasks = "allow-folder-tasks" => Spec {
+        label: "Allow Folder Tasks", keys: &["<Control><Alt>Return"], palette: false,
+        ..Spec::run(|a| a.answer_folder_tasks(true))
+    },
+    DenyFolderTasks = "deny-folder-tasks" => Spec {
+        label: "Don\u{2019}t Allow Folder Tasks", keys: &["<Control><Alt>BackSpace"],
+        palette: false,
+        ..Spec::run(|a| a.answer_folder_tasks(false))
+    },
+    OpenInBrowser = "open-in-browser" => Spec {
+        label: "Open in Browser", keys: &["<Control><Alt>o"],
+        ..Spec::run(|a| a.open_in_browser())
+    },
+    CloseTab = "close-tab" => Spec {
+        label: "Close Tab", keys: &["<Control>w"],
+        ..Spec::run(|a| a.close_active_tab())
+    },
+    CloseOtherTabs = "close-other-tabs" => Spec {
+        label: "Close Other Tabs", keys: &["<Control><Alt><Shift>w"],
+        ..Spec::run(|a| a.close_other_tabs())
+    },
+    NextTab = "next-tab" => Spec {
+        label: "Next Tab",
+        keys: &["<Control>Tab", "<Control>braceright", "<Control><Shift>bracketright"],
+        ..Spec::run(|a| a.step_tab(1))
+    },
+    PrevTab = "prev-tab" => Spec {
+        label: "Previous Tab",
+        keys: &["<Control><Shift>Tab", "<Control>braceleft", "<Control><Shift>bracketleft"],
+        ..Spec::run(|a| a.step_tab(-1))
+    },
+    NextPane = "next-pane" => Spec {
+        label: "Next Pane", keys: &["<Control>grave"],
+        ..Spec::run(|a| a.next_pane())
+    },
+    NextWorkspace = "next-workspace" => Spec {
+        label: "Next Workspace", icon: "go-down-symbolic", keys: &["<Control><Alt>Down"],
+        ..Spec::run(|a| a.step_workspace(1))
+    },
+    PrevWorkspace = "prev-workspace" => Spec {
+        label: "Previous Workspace", icon: "go-up-symbolic", keys: &["<Control><Alt>Up"],
+        ..Spec::run(|a| a.step_workspace(-1))
+    },
+    MoveWorkspaceUp = "move-workspace-up" => Spec {
+        label: "Move Workspace Up", keys: &["<Control><Alt><Shift>Page_Up"],
+        ..Spec::run(|a| a.shift_workspace(-1))
+    },
+    MoveWorkspaceDown = "move-workspace-down" => Spec {
+        label: "Move Workspace Down", keys: &["<Control><Alt><Shift>Page_Down"],
+        ..Spec::run(|a| a.shift_workspace(1))
+    },
+    CloseWorkspace = "close-workspace" => Spec {
+        label: "Close Workspace", keys: &["<Control><Alt>w"],
+        ..Spec::run(|a| a.close_workspace())
+    },
+    SplitRight = "split-right" => Spec {
+        label: "Split Right", icon: "xenon-split-right-symbolic", keys: &["<Control>backslash"],
+        ..Spec::run(|a| a.split(SplitAxis::Horizontal))
+    },
+    SplitDown = "split-down" => Spec {
+        label: "Split Down", icon: "xenon-split-down-symbolic",
+        keys: &["<Control>bar", "<Control><Shift>backslash"],
+        ..Spec::run(|a| a.split(SplitAxis::Vertical))
+    },
+    ParkPane = "park-pane" => Spec {
+        label: "Reserve Pane to the Right", icon: "sidebar-show-right-symbolic",
+        keys: &["<Control><Alt>backslash"],
+        ..Spec::run(|a| a.park_pane())
+    },
+    FocusTerminal = "focus-terminal" => Spec {
+        label: "Focus Terminal", keys: &["<Control>1"],
+        ..Spec::run(|a| a.focus_terminal())
+    },
+    FocusSidebar = "focus-sidebar" => Spec {
+        label: "Focus Sidebar", keys: &["<Control>3"],
+        ..Spec::run(|a| a.focus_sidebar())
+    },
+    FocusGit = "focus-git" => Spec {
+        label: "Focus Git", keys: &["<Control><Alt>g"],
+        ..Spec::run(|a| a.focus_git())
+    },
+    ToggleSidebar = "toggle-sidebar" => Spec {
+        label: "Toggle Sidebar", icon: "sidebar-show-symbolic", keys: &["<Control><Alt>b"],
+        ..Spec::run(|a| a.toggle_sidebar())
+    },
+    ToggleFiles = "toggle-files" => Spec {
+        label: "Toggle Files",
+        ..Spec::run(|a| a.toggle_fold(Fold::Files))
+    },
+    ShowHiddenFiles = "show-hidden-files" => Spec {
+        label: "Show Hidden Files",
+        ..Spec::toggle(|s| s.show_hidden_files, |a, on| a.sidebar.files.set_hidden(on))
+    },
+    CycleDiffLayout = "cycle-diff-layout" => Spec {
+        label: "Cycle Diff Layout", keys: &["<Control><Alt><Shift>d"],
+        ..Spec::run(|a| a.cycle_diff_layout())
+    },
+    Find = "find" => Spec {
+        label: "Find in Terminal", keys: &["<Control><Shift>f"],
+        ..Spec::run(|a| {
+            if let Some(view) = a.current_term() {
+                view.find.open();
+            }
+        })
+    },
+    FindNext = "find-next" => Spec {
+        label: "Find Next", keys: &["F3"],
+        ..Spec::run(|a| {
+            if let Some(view) = a.current_term() {
+                view.term.search_find_next();
+            }
+        })
+    },
+    FindPrev = "find-prev" => Spec {
+        label: "Find Previous", keys: &["<Shift>F3"],
+        ..Spec::run(|a| {
+            if let Some(view) = a.current_term() {
+                view.term.search_find_previous();
+            }
+        })
+    },
+    Cut = "cut" => Spec {
+        label: "Cut", icon: "edit-cut-symbolic",
+        ..Spec::run(|a| a.cut())
+    },
+    Copy = "copy" => Spec {
+        label: "Copy", icon: "edit-copy-symbolic", keys: &["<Control><Shift>c"],
+        ..Spec::run(|a| {
+            if let Some(view) = a.current_term() {
+                view.term.copy_clipboard_format(vte::Format::Text);
+            }
+        })
+    },
+    CopyClean = "copy-clean" => Spec {
+        label: "Copy Clean", icon: "xenon-copy-clean-symbolic", keys: &["<Control><Shift>y"],
+        ..Spec::run(|a| a.copy_clean())
+    },
+    CopyCode = "copy-code" => Spec {
+        label: "Copy Code",
+        ..Spec::run(|a| a.copy_code())
+    },
+    Paste = "paste" => Spec {
+        label: "Paste", icon: "edit-paste-symbolic",
+        keys: &["<Control>v", "<Control><Shift>v"],
+        ..Spec::run(|a| a.paste())
+    },
+    ZoomIn = "zoom-in" => Spec {
+        label: "Zoom In", keys: &["<Control>equal", "<Control>plus"],
+        ..Spec::run(|a| a.zoom(Some(1.0)))
+    },
+    ZoomOut = "zoom-out" => Spec {
+        label: "Zoom Out", keys: &["<Control>minus"],
+        ..Spec::run(|a| a.zoom(Some(-1.0)))
+    },
+    ZoomReset = "zoom-reset" => Spec {
+        label: "Reset Zoom", keys: &["<Control>0"],
+        ..Spec::run(|a| a.zoom(None))
+    },
+    Save = "save" => Spec {
+        label: "Save", icon: "document-save-symbolic",
+        ..Spec::run(|a| a.save_active_editor(a))
+    },
+    SaveAll = "save-now" => Spec {
+        label: "Save All", launcher: InLauncher::Runs,
+        ..Spec::run(|a| a.save_all())
+    },
+    Settings = "settings" => Spec {
+        label: "Settings", icon: "emblem-system-symbolic", keys: &["<Control>comma"],
+        launcher: InLauncher::Runs,
+        ..Spec::run(|a| a.toggle_settings())
+    },
+    ConnectPhone = "connect-phone" => Spec {
+        label: "Connect Phone", keys: &["<Control><Shift>m"], palette: false,
+        ..Spec::run(|a| a.connect_phone())
+    },
+    ShowShortcuts = "show-shortcuts" => Spec {
+        label: "Keyboard Shortcuts", keys: &["<Control>question", "<Control><Shift>slash"],
+        ..Spec::run(show_shortcuts)
+    },
+    Quit = "quit" => Spec {
+        label: "Close Window", keys: &["<Control>q"], launcher: InLauncher::Runs,
+        ..Spec::run(|a| a.quit())
+    },
+    QuitEndTerminals = "quit-end-terminals" => Spec {
+        label: "Quit and End Terminals\u{2026}", launcher: InLauncher::Runs,
+        ..Spec::run(|a| a.quit_end_terminals())
+    },
+    OpenPathEditor = "open-path-editor" => Spec {
+        label: "Open in Editor", palette: false,
+        ..Spec::path(|a, path| {
+            if let Some(ws) = a.model.borrow().active() {
+                a.open_editor(ws, path);
+            }
+        })
+    },
+    OpenPathDefault = "open-path-default" => Spec {
+        label: "Open in Default App", palette: false,
+        ..Spec::path(|a, path| a.open_file(path))
+    },
+}
+
+impl Cmd {
+    pub(crate) fn label(self) -> &'static str {
+        self.spec().label
     }
 
-    pub(crate) fn current_term(&self) -> Option<Rc<crate::term::TermView>> {
-        let model = self.model.borrow();
-        let ws = model.active()?;
-        let tab = model.spaces.get(&ws)?.content.active_tab()?.id;
-        self.term_view(ws, tab)
+    /// The short label, else the label.
+    pub(crate) fn short(self) -> &'static str {
+        let spec = self.spec();
+        spec.short.unwrap_or(spec.label)
     }
+
+    pub(crate) fn icon(self) -> &'static str {
+        self.spec().icon
+    }
+
+    /// The first accelerator GTK holds for the action, as a label. Empty before `install`.
+    pub(crate) fn chord(self) -> Option<String> {
+        let app = gio::Application::default().and_downcast::<gtk::Application>()?;
+        let accels = app.accels_for_action(self.action());
+        accels.first().map(|accel| label(accel))
+    }
+
+    /// "Label · Chord".
+    pub(crate) fn tip(self) -> String {
+        match self.chord() {
+            Some(chord) => format!("{} \u{b7} {chord}", self.label()),
+            None => self.label().to_string(),
+        }
+    }
+
+    /// Sets the action name and the tooltip.
+    pub(crate) fn bind(self, widget: &(impl IsA<gtk::Actionable> + IsA<gtk::Widget>)) {
+        widget.set_action_name(Some(self.action()));
+        widget.set_tooltip_text(Some(&self.tip()));
+    }
+
+    pub(crate) fn menu_item(self) -> gio::MenuItem {
+        gio::MenuItem::new(Some(self.label()), Some(self.action()))
+    }
+
+    pub(crate) fn menu_item_for(self, path: &Path) -> gio::MenuItem {
+        let item = gio::MenuItem::new(Some(self.label()), None);
+        item.set_action_and_target_value(
+            Some(self.action()),
+            Some(&path.to_string_lossy().to_variant()),
+        );
+        item
+    }
+
+    pub(crate) fn palette() -> impl Iterator<Item = Cmd> {
+        Cmd::ALL.iter().copied().filter(|cmd| cmd.spec().palette)
+    }
+}
+
+/// An accelerator string as a label, such as "Ctrl+Return".
+pub(crate) fn label(accel: &str) -> String {
+    match gtk::accelerator_parse(accel) {
+        Some((key, mods)) => gtk::accelerator_get_label(key, mods).to_string(),
+        None => accel.to_string(),
+    }
+}
+
+fn show_shortcuts(app: &Rc<App>) {
+    let section = adw::ShortcutsSection::new(None);
+    for cmd in Cmd::ALL.iter().filter(|cmd| !cmd.spec().keys.is_empty()) {
+        section.add(adw::ShortcutsItem::from_action(cmd.label(), cmd.action()));
+    }
+    let dialog = adw::ShortcutsDialog::new();
+    dialog.add(section);
+    dialog.present(Some(&app.win));
+}
+
+/// Registers every action and accelerator, once.
+pub(crate) fn install(app: &Rc<App>) {
+    let settings = xenon_store::load_settings().unwrap_or_default();
+    for cmd in Cmd::ALL {
+        let spec = cmd.spec();
+        let weak = Rc::downgrade(app);
+        let action = match spec.run {
+            Run::Plain(run) => {
+                let action = gio::SimpleAction::new(cmd.name(), None);
+                let launcher = spec.launcher;
+                action.connect_activate(move |_, _| {
+                    defer(&weak, move |app| {
+                        if app.launcher.is_open() {
+                            match launcher {
+                                InLauncher::Blocked => return,
+                                InLauncher::Key(key) => return app.launcher.key(key),
+                                InLauncher::Runs => {}
+                            }
+                        }
+                        run(&app);
+                    });
+                });
+                action
+            }
+            Run::Toggle { initial, set } => {
+                let action = gio::SimpleAction::new_stateful(
+                    cmd.name(),
+                    None,
+                    &initial(&settings).to_variant(),
+                );
+                // sync: event-time read: only reads the requested state; the change is deferred.
+                action.connect_change_state(move |_, value| {
+                    if let Some(on) = value.and_then(|v| v.get::<bool>()) {
+                        defer(&weak, move |app| set(&app, on));
+                    }
+                });
+                action
+            }
+            Run::Path(run) => {
+                let action = gio::SimpleAction::new(cmd.name(), Some(glib::VariantTy::STRING));
+                action.connect_activate(move |_, param| {
+                    if let Some(text) = param.and_then(|p| p.str()) {
+                        let text = text.to_owned();
+                        defer(&weak, move |app| run(&app, Path::new(&text)));
+                    }
+                });
+                action
+            }
+        };
+        app.gtk.add_action(&action);
+        app.gtk.set_accels_for_action(cmd.action(), spec.keys);
+    }
+    install_open_key(app);
+}
+
+/// Ctrl+O opens a workspace, but only after the focused widget declined it: terminals and
+/// vim use Ctrl+O themselves, so it can't be an application accelerator.
+fn install_open_key(app: &Rc<App>) {
+    let controller = gtk::ShortcutController::new();
+    controller.set_propagation_phase(gtk::PropagationPhase::Bubble);
+    let weak = Rc::downgrade(app);
+    let action = gtk::CallbackAction::new(move |_, _| {
+        if let Some(app) = weak.upgrade() {
+            app.open_workspace_picker();
+        }
+        glib::Propagation::Stop
+    });
+    if let Some(trigger) = gtk::ShortcutTrigger::parse_string("<Control>o") {
+        controller.add_shortcut(gtk::Shortcut::new(Some(trigger), Some(action)));
+    }
+    app.win.add_controller(controller);
 }

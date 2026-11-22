@@ -7,6 +7,7 @@ use gtk::{gdk, gio, glib};
 use xenon_core::{PaneId, PaneLeaf, TabId, WorkspaceDot, WorkspaceId};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 use crate::model::Tab;
 
 pub(crate) struct PaneView {
@@ -29,7 +30,7 @@ impl PaneView {
     pub(crate) fn new(app: &Rc<App>, ws: WorkspaceId, pane: PaneId) -> Rc<Self> {
         let add = gtk::Button::from_icon_name("list-add-symbolic");
         add.add_css_class("flat");
-        add.set_tooltip_text(Some(&app.tip("New Terminal", "app.new-terminal")));
+        add.set_tooltip_text(Some(&Cmd::NewTerminal.tip()));
         add.set_focusable(false);
         let weak = Rc::downgrade(app);
         add.connect_clicked(move |_| {
@@ -337,7 +338,7 @@ impl PaneView {
 
     fn show_empty(&self, app: &Rc<App>) {
         if self.stack.child_by_name("empty").is_none() {
-            let card = crate::empty::all_clear(app, true);
+            let card = crate::empty::all_clear(true);
             let overlay = gtk::Overlay::new();
             overlay.set_child(Some(&card));
             let click = gtk::GestureClick::new();

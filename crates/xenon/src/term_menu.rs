@@ -5,6 +5,7 @@ use gtk::prelude::*;
 use gtk::{gdk, gio};
 use vte::prelude::*;
 
+use crate::commands::Cmd;
 use crate::links::{Link, classify};
 use crate::term::TermView;
 
@@ -32,27 +33,20 @@ fn path_at(view: &TermView, x: f64, y: f64) -> Option<PathBuf> {
     }
 }
 
-fn item(label: &str, action: &str, target: Option<&PathBuf>) -> gio::MenuItem {
-    let item = gio::MenuItem::new(Some(label), None);
-    let target = target.map(|path| path.to_string_lossy().to_variant());
-    item.set_action_and_target_value(Some(action), target.as_ref());
-    item
-}
-
 fn model(path: Option<PathBuf>) -> gio::Menu {
     let menu = gio::Menu::new();
     if let Some(path) = &path {
-        menu.append_item(&item("Open in Editor", "app.open-path-editor", Some(path)));
-        menu.append_item(&item(
-            "Open in Default App",
-            "app.open-path-default",
-            Some(path),
-        ));
+        menu.append_item(&Cmd::OpenPathEditor.menu_item_for(path));
+        menu.append_item(&Cmd::OpenPathDefault.menu_item_for(path));
     }
-    menu.append_item(&item("Cut", "app.copy", None));
-    menu.append_item(&item("Copy", "app.copy", None));
-    menu.append_item(&item("Copy Clean", "app.copy-clean", None));
-    menu.append_item(&item("Copy Code", "app.copy-code", None));
-    menu.append_item(&item("Paste", "app.paste", None));
+    for cmd in [
+        Cmd::Cut,
+        Cmd::Copy,
+        Cmd::CopyClean,
+        Cmd::CopyCode,
+        Cmd::Paste,
+    ] {
+        menu.append_item(&cmd.menu_item());
+    }
     menu
 }

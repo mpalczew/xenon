@@ -5,9 +5,10 @@ use adw::prelude::*;
 use xenon_phone::{DeviceRow, RemoteStatus, ago};
 
 use crate::app::{App, defer};
+use crate::commands::Cmd;
 
-fn off_hint(app: &App) -> String {
-    match app.chord("app.connect-phone") {
+fn off_hint() -> String {
+    match Cmd::ConnectPhone.chord() {
         Some(chord) => format!("Off \u{2014} {chord} connects a phone"),
         None => "Off".to_string(),
     }
@@ -32,7 +33,7 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
     let status = app.remote_status();
     let on = crate::prefs_pages::switch_row(
         "Phone remote",
-        &status.subtitle(&off_hint(app)),
+        &status.subtitle(&off_hint()),
         status.on(),
         |_| {},
     );
@@ -182,7 +183,7 @@ fn dim(text: &str) -> gtk::Label {
 fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
     live.setting.set(true);
     live.on.set_active(status.on());
-    live.on.set_subtitle(&status.subtitle(&off_hint(app)));
+    live.on.set_subtitle(&status.subtitle(&off_hint()));
     live.keep.set_active(status.keep_awake);
     live.setting.set(false);
     for old in live.device_rows.borrow_mut().drain(..) {
