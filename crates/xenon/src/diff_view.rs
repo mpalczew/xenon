@@ -13,7 +13,6 @@ use crate::app::App;
 use crate::diff_text::{self, Doc, Layout, LayoutMode, Page};
 use crate::pane::focus_inside;
 
-mod numbers;
 mod paint;
 
 pub(crate) struct DiffView {

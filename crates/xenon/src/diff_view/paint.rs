@@ -1,6 +1,5 @@
 use super::*;
 use crate::diff_text::{Kind, Line};
-use numbers::Numbers;
 
 type Column = fn(&Line) -> u32;
 
@@ -92,7 +91,6 @@ impl DiffView {
             ("w-add", rgba(green, Some(0.35))),
             ("w-del", rgba(red, Some(0.35))),
         ];
-        let muted = rgba("#808080", None);
         let scheme = crate::theme::scheme(crate::theme::dark());
         let lang = sourceview::LanguageManager::default()
             .guess_language(Some(std::path::Path::new(&self.path)), None::<&str>);
@@ -133,7 +131,17 @@ impl DiffView {
                 let (w, _) = view
                     .create_pango_layout(Some(&"0".repeat(digits.max(3))))
                     .pixel_size();
-                let column = Numbers::new(lines.iter().map(number).collect(), w + 12, muted);
+                let numbers: Vec<u32> = lines.iter().map(number).collect();
+                let column = sourceview::GutterRendererText::new();
+                column.set_xalign(1.0);
+                column.set_xpad(6);
+                column.set_width_request(w + 12);
+                column.add_css_class("dim-label");
+                // sync: the renderer draws the text as soon as the handler returns
+                column.connect_query_data(move |column, _, line| {
+                    let n = numbers.get(line as usize).copied().unwrap_or(0);
+                    column.set_text(&if n == 0 { String::new() } else { n.to_string() });
+                });
                 gutter.insert(&column, n as i32);
             }
             mark_lines(&buf, lines, &words);
