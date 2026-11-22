@@ -185,7 +185,6 @@ fn paint(live: &Rc<Live>, app: &Rc<App>, status: &RemoteStatus) {
     live.on.set_subtitle(&status.subtitle(&off_hint(app)));
     live.keep.set_active(status.keep_awake);
     live.setting.set(false);
-    let _ = &live.hostname;
     for old in live.device_rows.borrow_mut().drain(..) {
         live.devices.remove(&old);
     }
