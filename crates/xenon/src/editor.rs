@@ -59,7 +59,7 @@ fn browser_root(path: &Path) -> gtk::Box {
         return root;
     }
     let button = gtk::Button::with_label("Open in Browser");
-    Cmd::OpenPathDefault.bind(&button);
+    button.set_action_name(Some(Cmd::OpenPathDefault.action()));
     button.set_action_target_value(Some(&path.to_string_lossy().to_variant()));
     button.set_tooltip_text(Some("Open in the default browser"));
     button.set_focusable(false);

@@ -87,15 +87,16 @@ fn register_icons() {
     }
 }
 
+fn button(cmd: Cmd) -> gtk::Button {
+    let b = gtk::Button::from_icon_name(cmd.icon());
+    cmd.bind(&b);
+    b.set_focusable(false);
+    b
+}
+
 fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     let bar = adw::HeaderBar::new();
     bar.set_title_widget(Some(title));
-    let button = |cmd: Cmd| {
-        let b = gtk::Button::from_icon_name(cmd.icon());
-        cmd.bind(&b);
-        b.set_focusable(false);
-        b
-    };
     for cmd in [
         Cmd::ToggleSidebar,
         Cmd::PrevWorkspace,
@@ -146,9 +147,7 @@ fn main_menu() -> gtk::MenuButton {
 }
 
 fn save_button() -> gtk::Button {
-    let b = gtk::Button::from_icon_name("document-save-symbolic");
-    b.set_action_name(Some(Cmd::Save.action()));
-    b.set_focusable(false);
+    let b = button(Cmd::Save);
     b.set_visible(false);
     b
 }

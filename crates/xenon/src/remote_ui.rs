@@ -142,20 +142,15 @@ impl App {
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.set_halign(gtk::Align::Center);
 
-        let settings = gtk::Button::with_label(&match Cmd::Settings.chord() {
-            Some(chord) => format!("Settings  {chord}"),
-            None => "Settings".to_string(),
-        });
+        let settings = gtk::Button::with_label("Settings");
+        Cmd::Settings.bind(&settings);
         let weak = dialog.downgrade();
-        let gtk_app = self.gtk.clone();
         settings.connect_clicked(move |_| {
-            let (dialog, gtk_app) = (weak.upgrade(), gtk_app.clone());
-            glib::idle_add_local_once(move || {
-                if let Some(dialog) = dialog {
+            if let Some(dialog) = weak.upgrade() {
+                glib::idle_add_local_once(move || {
                     dialog.close();
-                }
-                gtk_app.activate_action(Cmd::Settings.name(), None);
-            });
+                });
+            }
         });
         let done = gtk::Button::with_label("Done  esc");
         done.add_css_class("suggested-action");

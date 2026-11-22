@@ -23,8 +23,8 @@ const WITHOUT_WORKSPACE: [Cmd; 4] = [
     Cmd::ToggleSidebar,
 ];
 
-fn button(label: &str, cmd: Cmd, primary: bool) -> gtk::Button {
-    let b = gtk::Button::with_label(label);
+fn button(cmd: Cmd, primary: bool) -> gtk::Button {
+    let b = gtk::Button::with_label(cmd.short());
     cmd.bind(&b);
     b.add_css_class("pill");
     if primary {
@@ -57,15 +57,10 @@ pub(crate) fn all_clear(has_workspace: bool) -> gtk::Widget {
             (Cmd::OpenWorklist, false),
             (Cmd::CloseWorkspace, false),
         ] {
-            buttons.append(&button(cmd.short(), cmd, primary));
+            buttons.append(&button(cmd, primary));
         }
     } else {
-        let cmd = Cmd::OpenWorkspace;
-        let label = match cmd.chord() {
-            Some(chord) => format!("{}  {chord}", cmd.short()),
-            None => cmd.short().to_string(),
-        };
-        buttons.append(&button(&label, cmd, true));
+        buttons.append(&button(Cmd::OpenWorkspace, true));
     }
     card.append(&buttons);
     let heading = gtk::Label::new(Some("Useful shortcuts"));
