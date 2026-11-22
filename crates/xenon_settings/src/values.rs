@@ -2,8 +2,8 @@ use xenon_store::{DEFAULT_FONT_FAMILY, DEFAULT_UI_FONT_FAMILY};
 
 use crate::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_SIZE, DEFAULT_LIGHT_THEME,
-    DEFAULT_SHOW_LINE_NUMBERS, DEFAULT_VIM_MODE, FontProbe, MAX_FONT_SIZE, MIN_FONT_SIZE,
-    ProseSettings, TerminalAutoClose, ThemeMode, ensure_mono_family, ensure_ui_family,
+    DEFAULT_SHOW_LINE_NUMBERS, DEFAULT_VIM_MODE, MAX_FONT_SIZE, MIN_FONT_SIZE, ProseSettings,
+    TerminalAutoClose, ThemeMode,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -83,24 +83,22 @@ impl Default for UiSettings {
 }
 
 impl UiSettings {
-    /// Build live values from a loaded snapshot. Editor/terminal families must
-    /// resolve as monospaced; UI may be any face. The flag is true when a stored
-    /// family was healed, so the caller should persist.
-    pub fn resolve(settings: &AppSettings, probe: &dyn FontProbe) -> (Self, bool) {
-        let editor = ensure_mono_family(&settings.editor_font_family, probe);
-        let terminal = ensure_mono_family(&settings.terminal_font_family, probe);
-        let ui = ensure_ui_family(&settings.ui_font_family, probe);
-        let healed = editor != settings.editor_font_family
-            || terminal != settings.terminal_font_family
-            || ui != settings.ui_font_family;
+    /// Build live values from a loaded snapshot.
+    pub fn resolve(settings: &AppSettings) -> Self {
         let face = |size: f32, family: String| FaceFont {
             size: clamp_size(size),
             family,
         };
-        let live = Self {
-            editor: face(settings.editor_font_size, editor),
-            terminal: face(settings.terminal_font_size, terminal),
-            ui: face(settings.ui_font_size, ui),
+        Self {
+            editor: face(
+                settings.editor_font_size,
+                settings.editor_font_family.clone(),
+            ),
+            terminal: face(
+                settings.terminal_font_size,
+                settings.terminal_font_family.clone(),
+            ),
+            ui: face(settings.ui_font_size, settings.ui_font_family.clone()),
             show_line_numbers: settings.show_line_numbers,
             wrap_prose: settings.wrap_prose,
             wrap_code: settings.wrap_code,
@@ -112,8 +110,7 @@ impl UiSettings {
                 light: settings.light_theme.clone(),
                 dark: settings.dark_theme.clone(),
             },
-        };
-        (live, healed)
+        }
     }
 
     pub(crate) fn write_into(&self, settings: &mut AppSettings) {

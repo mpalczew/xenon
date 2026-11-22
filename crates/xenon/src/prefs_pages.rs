@@ -2,12 +2,35 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_settings::{
-    MAX_FONT_SIZE, MIN_FONT_SIZE, PROSE_FONTS, PROSE_LINE_HEIGHTS, ProseMarkers, Surface,
-    TerminalAutoClose, ThemeMode, UiSettings, format_size, nearest_index,
+    MAX_FONT_SIZE, MIN_FONT_SIZE, ProseFont, ProseMarkers, Surface, TerminalAutoClose, ThemeMode,
+    UiSettings,
 };
 
 use crate::app::App;
-use crate::window::PangoProbe;
+
+const PROSE_LINE_HEIGHTS: [f32; 4] = [1.4, 1.55, 1.7, 1.9];
+const PROSE_FONTS: [ProseFont; 4] = [
+    ProseFont::Auto,
+    ProseFont::Serif,
+    ProseFont::Sans,
+    ProseFont::Mono,
+];
+
+fn nearest_index(values: &[f32], current: f32) -> usize {
+    values
+        .iter()
+        .enumerate()
+        .min_by(|a, b| (a.1 - current).abs().total_cmp(&(b.1 - current).abs()))
+        .map_or(0, |(i, _)| i)
+}
+
+fn format_size(size: f32) -> String {
+    if (size - size.round()).abs() < 0.01 {
+        format!("{}", size.round() as i32)
+    } else {
+        format!("{size:.1}")
+    }
+}
 
 fn page(name: &str, title: &str, icon: &str) -> adw::PreferencesPage {
     adw::PreferencesPage::builder()
@@ -74,7 +97,7 @@ fn family_button(app: &Rc<App>, surface: Surface, current: &str) -> gtk::FontDia
             let Some(name) = button.font_desc().and_then(|d| d.family()) else {
                 return;
             };
-            app.change_settings(|s| s.set_font_family(surface, &name, &PangoProbe::new()));
+            app.change_settings(|s| s.set_font_family(surface, &name));
         });
     });
     button

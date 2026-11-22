@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use adw::prelude::*;
-use xenon_settings::{FontProbe, UiSettings};
+use xenon_settings::UiSettings;
 use xenon_store::{AppSettings, ThemeMode, WindowState};
 
 use crate::app::{App, defer};
@@ -12,39 +12,6 @@ use crate::commands::Cmd;
 use crate::model::Model;
 use crate::sidebar::Sidebar;
 use crate::theme;
-
-pub(crate) struct PangoProbe(pub(crate) gtk::pango::Context);
-
-impl PangoProbe {
-    pub(crate) fn new() -> Self {
-        Self(gtk::Label::new(None).pango_context())
-    }
-
-    fn family(&self, name: &str) -> Option<gtk::pango::FontFamily> {
-        self.0
-            .list_families()
-            .into_iter()
-            .find(|f| f.name().eq_ignore_ascii_case(name))
-    }
-}
-
-impl FontProbe for PangoProbe {
-    fn is_monospace(&self, family: &str) -> bool {
-        self.family(family).is_some_and(|f| f.is_monospace())
-    }
-
-    fn resolves(&self, family: &str) -> bool {
-        self.family(family).is_some()
-    }
-}
-
-pub(crate) fn mono_face(ui: &UiSettings, probe: &PangoProbe) -> String {
-    if probe.is_monospace(&ui.terminal.family) {
-        ui.terminal.family.clone()
-    } else {
-        "Monospace".into()
-    }
-}
 
 impl App {
     pub(crate) fn apply_theme(&self) {
@@ -59,7 +26,7 @@ impl App {
             theme::CSS,
             ui.editor.family,
             ui.editor.size,
-            crate::prose::css(&ui.prose, &self.mono.borrow())
+            crate::prose::css(&ui.prose, &ui.terminal.family)
         );
         self.css.load_from_string(&sheet);
         for editor in self.editors.borrow().values() {
@@ -159,8 +126,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     register_icons();
     crate::commands::install_accels(gtk_app.upcast_ref());
     let settings: AppSettings = xenon_store::load_settings().unwrap_or_default();
-    let probe = PangoProbe::new();
-    let (ui, _) = UiSettings::resolve(&settings, &probe);
+    let ui = UiSettings::resolve(&settings);
     let geometry = settings.window.filter(|g| g.is_sane());
     let (width, height) = geometry.map_or((1180, 760), |g| (g.width as i32, g.height as i32));
     let title = adw::WindowTitle::new("Xenon", "");
@@ -177,7 +143,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         gtk: gtk_app.clone(),
         win: win.clone(),
         model: RefCell::new(Model::load()),
-        mono: RefCell::new(mono_face(&ui, &probe)),
         settings: RefCell::new(ui),
         css: gtk::CssProvider::new(),
         sidebar: Sidebar::new(weak.clone()),

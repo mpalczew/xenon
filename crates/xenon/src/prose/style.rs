@@ -65,11 +65,7 @@ impl Prose {
         let family = match p.font {
             ProseFont::Auto | ProseFont::Serif => "Serif".to_string(),
             ProseFont::Sans => "Sans".to_string(),
-            ProseFont::Mono => self
-                .app
-                .upgrade()
-                .map(|a| a.mono.borrow().clone())
-                .unwrap_or_default(),
+            ProseFont::Mono => self.app.upgrade().map(|a| a.mono()).unwrap_or_default(),
         };
         font.set_family(&family);
         font.set_absolute_size(f64::from(p.size) * f64::from(pango::SCALE));
@@ -90,7 +86,7 @@ impl Prose {
             margin,
             gap: extra,
             hang: self.text_width(p, "- "),
-            mono: app.mono.borrow().clone(),
+            mono: app.mono(),
         }
     }
 

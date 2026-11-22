@@ -4,17 +4,19 @@ use adw::prelude::*;
 use xenon_settings::{Surface, UiSettings};
 
 use crate::app::App;
-use crate::window::{PangoProbe, mono_face};
 
 impl App {
+    /// The terminal family with Pango's own fallback to a monospace face.
+    pub(crate) fn mono(&self) -> String {
+        format!("{},monospace", self.settings.borrow().terminal.family)
+    }
+
     pub(crate) fn change_settings(self: &Rc<Self>, change: impl FnOnce(&mut UiSettings)) {
         {
             let mut settings = self.settings.borrow_mut();
             change(&mut settings);
             settings.persist();
         }
-        let probe = PangoProbe::new();
-        *self.mono.borrow_mut() = mono_face(&self.settings.borrow(), &probe);
         self.apply_theme();
     }
 }

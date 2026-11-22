@@ -44,7 +44,6 @@ pub(crate) struct App {
     pub win: adw::ApplicationWindow,
     pub model: RefCell<Model>,
     pub settings: RefCell<UiSettings>,
-    pub mono: RefCell<String>,
     pub css: gtk::CssProvider,
     pub sidebar: Sidebar,
     pub split: gtk::Paned,
@@ -255,7 +254,7 @@ impl App {
     pub(crate) fn restyle_term(&self, view: &TermView) {
         let (family, size) = {
             let s = self.settings.borrow();
-            (self.mono.borrow().clone(), s.terminal.size)
+            (self.mono(), s.terminal.size)
         };
         view.restyle(&family, size, crate::theme::dark());
     }
