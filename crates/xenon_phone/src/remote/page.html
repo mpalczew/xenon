@@ -733,10 +733,13 @@ function tagFor(dot) {
 
 function wsRow(w) {
   const meta = w.open ? tagFor(w.dot) + plural(w.terminals || 0, "terminal") : "Closed";
-  return '<button type="button" class="ws' + (w.open ? "" : " closed") + '" data-id="' + esc(w.id) + '">' +
+  const row = '<button type="button" class="ws' + (w.open ? "" : " closed") + '" data-id="' + esc(w.id) + '">' +
     '<div class="rail ' + (w.open && w.dot ? w.dot : "") + '"></div>' +
     '<div class="body"><div class="name">' + esc(w.name) + '</div><div class="path">' + esc(w.root || "") + "</div></div>" +
     '<div class="meta">' + meta + '</div><div class="chev" aria-hidden="true">›</div></button>';
+  if (!w.open) return row;
+  return '<div class="termrow">' + row + '<button type="button" class="close-tab" data-close-ws="' + esc(w.id) +
+    '" aria-label="Close workspace">Close</button></div>';
 }
 
 function renderWorkspaces() {
@@ -765,18 +768,20 @@ function renderTerminals() {
     '<button type="button" class="newterm" id="open-tasks">Tasks</button>' + closeWs + empty + rows;
 }
 
-async function closeWorkspace() {
-  const w = S.wsSel;
+async function closeWorkspace(w) {
   if (!w || S.closing) return;
-  if (!w.closable) return toast("Open Xenon on the computer to close this workspace");
-  const n = S.terminals.length;
+  const n = w.terminals || 0;
   if (!confirm("Close " + w.name + "?" + (n ? " Its " + plural(n, "terminal") + " will end." : ""))) return;
   S.closing = true;
   try {
     await api("/api/workspaces/" + encodeURIComponent(w.id), { method: "DELETE" });
-    S.wsSel = null;
-    S.terminals = [];
-    showWorkspaces();
+    if (S.wsSel && S.wsSel.id === w.id) {
+      S.wsSel = null;
+      S.terminals = [];
+      showWorkspaces();
+    } else if (S.view === "list") {
+      showWorkspaces();
+    }
   } catch (e) {
     if (e.message !== "unauthorized") toast(e.message);
   } finally {
@@ -1467,6 +1472,8 @@ function wireEvents() {
   for (const b of document.querySelectorAll("[data-back]")) b.onclick = goBack;
   $("list").addEventListener("click", (e) => {
     if (e.target.closest("#recent-btn")) { S.recentOpen = !S.recentOpen; return renderWorkspaces(); }
+    const closer = e.target.closest("[data-close-ws]");
+    if (closer) return closeWorkspace(S.workspaces.find((x) => x.id === closer.dataset.closeWs));
     const row = e.target.closest("[data-id]");
     const w = row && S.workspaces.find((x) => x.id === row.dataset.id);
     if (w) openWorkspace(w);
@@ -1474,7 +1481,7 @@ function wireEvents() {
   $("terms").addEventListener("click", (e) => {
     if (e.target.closest("#new-term")) return createTerminal();
     if (e.target.closest("#open-tasks")) return openTasks();
-    if (e.target.closest("#close-ws")) return closeWorkspace();
+    if (e.target.closest("#close-ws")) return closeWorkspace(S.wsSel);
     const closer = e.target.closest("[data-close]");
     if (closer) return closeTerminal(S.terminals[+closer.dataset.close]);
     const row = e.target.closest("[data-tab]");

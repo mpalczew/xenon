@@ -16,7 +16,6 @@ pub fn wire_dot(dot: WorkspaceDot) -> Dot {
 pub fn list_workspaces(
     registry: &Registry,
     live: impl Fn(WorkspaceId) -> (Option<WorkspaceDot>, usize),
-    window_listening: bool,
 ) -> Vec<WorkspaceInfo> {
     let open = registry.workspaces.iter().map(|w| {
         let (dot, terminals) = live(w.id);
@@ -27,7 +26,6 @@ pub fn list_workspaces(
             root: tilde(&w.root),
             dot: dot.map(wire_dot),
             terminals,
-            closable: window_listening,
         }
     });
     let mut closed: Vec<_> = registry.closed_workspaces.iter().collect();
@@ -42,7 +40,6 @@ pub fn list_workspaces(
             root: tilde(&w.root),
             dot: None,
             terminals: 0,
-            closable: false,
         });
     open.chain(recent).collect()
 }

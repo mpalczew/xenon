@@ -48,7 +48,9 @@ impl Phone {
                 workspace_id,
                 reply,
             } => {
-                let _ = reply.send(Self::close_workspace(&workspace_id));
+                std::thread::spawn(move || {
+                    let _ = reply.send(Self::close_workspace(&workspace_id));
+                });
             }
             HostRequest::CloseTerminal {
                 workspace_id,
@@ -80,11 +82,7 @@ impl Phone {
 
     fn workspaces(&self) -> Vec<WorkspaceInfo> {
         let registry = xenon_store::load_registry().unwrap_or_default();
-        crate::remote::list_workspaces(
-            &registry,
-            |id| self.workspace_summary(id),
-            xenon_store::window_listening(),
-        )
+        crate::remote::list_workspaces(&registry, |id| self.workspace_summary(id))
     }
 
     fn root_of(registry: &Registry, ws: WorkspaceId) -> Result<PathBuf, String> {

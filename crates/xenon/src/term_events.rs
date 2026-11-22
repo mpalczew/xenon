@@ -161,12 +161,4 @@ impl App {
         self.holders.close(id);
         Some(id)
     }
-
-    pub(crate) fn end_workspace_holders(&self, ws: WorkspaceId, ended: &[TermId]) {
-        for info in self.holders.list() {
-            if info.workspace == ws && !ended.contains(&info.id) {
-                self.holders.close(info.id);
-            }
-        }
-    }
 }

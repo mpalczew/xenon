@@ -110,7 +110,11 @@ impl App {
             .into_iter()
             .filter_map(|key| self.end_term(key))
             .collect();
-        self.end_workspace_holders(id, &ended);
+        for info in self.holders.list() {
+            if info.workspace == id && !ended.contains(&info.id) {
+                self.holders.close(info.id);
+            }
+        }
         if let Some(slot) = self.slots.borrow_mut().remove(&id) {
             self.stack.remove(&slot.holder);
         }

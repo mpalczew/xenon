@@ -22,8 +22,6 @@ pub struct WorkspaceInfo {
     pub dot: Option<Dot>,
     #[serde(default)]
     pub terminals: usize,
-    #[serde(default)]
-    pub closable: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

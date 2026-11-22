@@ -52,10 +52,6 @@ pub enum Handoff {
     NoServer,
 }
 
-pub fn window_listening() -> bool {
-    UnixStream::connect(socket_path()).is_ok()
-}
-
 pub fn try_handoff_request(req: &IpcRequest) -> Handoff {
     match send_request(req) {
         Ok(resp) => Handoff::Sent(resp.output),
