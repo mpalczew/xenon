@@ -2,8 +2,8 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use adw::prelude::*;
-use gtk::{gdk, gio, glib};
-use qrcode::{Color, QrCode};
+use gtk::{gio, glib};
+use qrcode::QrCode;
 
 use crate::app::{App, defer};
 
@@ -89,7 +89,7 @@ impl App {
         let status = self.remote_status();
         match &url {
             Some(url) => {
-                let qr = gtk::Picture::for_paintable(&qr_texture(url));
+                let qr = gtk::Picture::for_paintable(&qr_image(url));
                 qr.set_size_request(220, 220);
                 qr.set_halign(gtk::Align::Center);
                 qr.set_can_shrink(false);
@@ -215,37 +215,15 @@ fn expiry_label(expires_at: Instant) -> gtk::Label {
     label
 }
 
-fn qr_texture(text: &str) -> gdk::MemoryTexture {
-    const SCALE: usize = 6;
-    const QUIET: usize = 2;
-    let code = QrCode::new(text.as_bytes()).ok();
-    let (width, colors) = code
-        .as_ref()
-        .map_or((0, Vec::new()), |c| (c.width(), c.to_colors()));
-    let side = (width + 2 * QUIET) * SCALE;
-    let mut pixels = vec![255u8; side * side * 4];
-    for y in 0..width {
-        for x in 0..width {
-            if colors[y * width + x] != Color::Dark {
-                continue;
-            }
-            for dy in 0..SCALE {
-                for dx in 0..SCALE {
-                    let px = (x + QUIET) * SCALE + dx;
-                    let py = (y + QUIET) * SCALE + dy;
-                    let at = (py * side + px) * 4;
-                    pixels[at..at + 3].copy_from_slice(&[0, 0, 0]);
-                }
-            }
-        }
-    }
-    gdk::MemoryTexture::new(
-        side as i32,
-        side as i32,
-        gdk::MemoryFormat::R8g8b8a8,
-        &glib::Bytes::from_owned(pixels),
-        side * 4,
-    )
+fn qr_image(text: &str) -> gtk::Svg {
+    let svg = QrCode::new(text.as_bytes())
+        .map(|code| {
+            code.render::<qrcode::render::svg::Color>()
+                .min_dimensions(220, 220)
+                .build()
+        })
+        .unwrap_or_default();
+    gtk::Svg::from_bytes(&glib::Bytes::from_owned(svg.into_bytes()))
 }
 
 pub(crate) fn install(app: &Rc<App>) {
