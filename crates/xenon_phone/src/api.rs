@@ -19,7 +19,8 @@ pub(crate) enum PhoneCall {
     Dark {
         dark: bool,
     },
-    /// Keep this connection and push `Changed` whenever the status changes.
+    /// Keep this connection and push `Status`, then `Changed`, now and on every change.
+    /// A current window uses `Status`; an older one re-asks on `Changed`.
     Watch,
 }
 

@@ -86,9 +86,10 @@ impl PhoneLink {
         });
     }
 
-    /// A message each time the phone server's status changes (a phone connects, a
-    /// device is paired). Reconnects by itself, so it survives a server restart.
-    pub fn watch() -> async_channel::Receiver<()> {
+    /// The status each time the phone server's changes (a phone connects, a device is
+    /// paired), and once on connecting. Reconnects by itself, so it survives a server
+    /// restart.
+    pub fn watch() -> async_channel::Receiver<RemoteStatus> {
         let (tx, rx) = async_channel::unbounded();
         thread::spawn(move || {
             while !tx.is_closed() {
@@ -100,7 +101,7 @@ impl PhoneLink {
     }
 }
 
-fn follow(tx: &async_channel::Sender<()>) -> Result<(), String> {
+fn follow(tx: &async_channel::Sender<RemoteStatus>) -> Result<(), String> {
     let mut stream = connect()?;
     send(
         &mut stream,
@@ -110,10 +111,11 @@ fn follow(tx: &async_channel::Sender<()>) -> Result<(), String> {
     )?;
     send(&mut stream, &PhoneCall::Watch)?;
     stream.set_read_timeout(None).map_err(|e| e.to_string())?;
-    tx.send_blocking(()).map_err(|e| e.to_string())?;
     for line in BufReader::new(stream).lines() {
-        if let Ok(PhoneReply::Changed) = serde_json::from_str(&line.map_err(|e| e.to_string())?) {
-            tx.send_blocking(()).map_err(|e| e.to_string())?;
+        if let Ok(PhoneReply::Status { status }) =
+            serde_json::from_str(&line.map_err(|e| e.to_string())?)
+        {
+            tx.send_blocking(status).map_err(|e| e.to_string())?;
         }
     }
     Ok(())

@@ -30,13 +30,13 @@ impl Remote {
 
 impl App {
     pub(crate) fn remote_boot(self: &Rc<Self>) {
-        self.remote_publish();
         let changes = xenon_phone::PhoneLink::watch();
         let weak = Rc::downgrade(self);
         gtk::glib::spawn_future_local(async move {
-            while changes.recv().await.is_ok() {
+            while let Ok(status) = changes.recv().await {
                 let Some(app) = weak.upgrade() else { break };
-                app.remote_publish();
+                *app.remote.status.borrow_mut() = status;
+                app.remote_show();
             }
         });
     }
@@ -65,6 +65,10 @@ impl App {
             Ok(status) => *self.remote.status.borrow_mut() = status,
             Err(error) => eprintln!("[xg] phone status: {error}"),
         }
+        self.remote_show();
+    }
+
+    fn remote_show(self: &Rc<Self>) {
         let hold = self.remote.status.borrow().hold_awake();
         self.remote_keep_awake(hold);
         self.refresh_connect_dialog();

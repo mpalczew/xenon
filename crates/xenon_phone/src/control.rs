@@ -78,18 +78,25 @@ fn converse(phone: &Arc<Phone>, stream: UnixStream) -> io::Result<()> {
 
 fn watch(phone: &Arc<Phone>, out: &Mutex<UnixStream>) -> u64 {
     let (tx, rx) = mpsc::channel::<()>();
-    let tx = Mutex::new(tx);
     let writer = out.lock().ok().and_then(|s| s.try_clone().ok());
+    let weak = Arc::downgrade(phone);
     if let Some(stream) = writer {
         thread::spawn(move || {
             let stream = Mutex::new(stream);
             while rx.recv().is_ok() {
-                if reply(&stream, &PhoneReply::Changed).is_err() {
+                let Some(phone) = weak.upgrade() else { break };
+                let status = PhoneReply::Status {
+                    status: phone.status(),
+                };
+                if reply(&stream, &status).is_err() || reply(&stream, &PhoneReply::Changed).is_err()
+                {
                     break;
                 }
             }
         });
     }
+    let _ = tx.send(());
+    let tx = Mutex::new(tx);
     phone.on_change(Box::new(move || {
         let _ = locked(&tx).send(());
     }))
