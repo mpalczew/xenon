@@ -47,6 +47,7 @@ const MODES: [LayoutMode; 3] = [LayoutMode::Auto, LayoutMode::Split, LayoutMode:
 
 fn mode_buttons() -> (adw::ToggleGroup, gtk::Box) {
     let group = adw::ToggleGroup::new();
+    group.set_can_focus(false);
     for mode in MODES {
         let toggle = adw::Toggle::new();
         toggle.set_name(Some(mode.label()));
@@ -197,13 +198,16 @@ impl DiffView {
         for narrow in [true, false] {
             let weak = Rc::downgrade(self);
             let flip = move |_: &adw::Breakpoint| {
+                if let Some(this) = weak.upgrade() {
+                    this.narrow.set(narrow);
+                }
                 let weak = weak.clone();
                 glib::idle_add_local_once(move || {
-                    if let Some(this) = weak.upgrade() {
-                        this.narrow.set(narrow);
-                        if this.mode.get() == LayoutMode::Auto && this.doc.borrow().is_some() {
-                            this.rebuild();
-                        }
+                    if let Some(this) = weak.upgrade()
+                        && this.mode.get() == LayoutMode::Auto
+                        && this.doc.borrow().is_some()
+                    {
+                        this.rebuild();
                     }
                 });
             };

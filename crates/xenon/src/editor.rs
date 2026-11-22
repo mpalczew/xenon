@@ -136,9 +136,15 @@ impl EditorView {
         editor.attach_list();
         editor.connect_switch();
         let this = Rc::downgrade(&editor);
-        editor
-            .bar
-            .connect_button_clicked(move |_| defer(&this, move |this| this.load()));
+        editor.bar.connect_button_clicked(move |_| {
+            defer(&this, move |this| {
+                if this.file.is_deleted() {
+                    this.bar.set_revealed(false);
+                } else {
+                    this.load();
+                }
+            });
+        });
         editor.sync_switch();
         editor.restyle(app);
         let weak: Weak<App> = Rc::downgrade(app);
@@ -318,7 +324,8 @@ impl EditorView {
 
     fn show_bar(&self, message: &str, can_load: bool) {
         self.bar.set_title(message);
-        self.bar.set_button_label(can_load.then_some("Load disk"));
+        self.bar
+            .set_button_label(Some(if can_load { "Load disk" } else { "Dismiss" }));
         self.bar.set_revealed(true);
     }
 
