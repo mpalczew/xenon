@@ -70,7 +70,7 @@ impl App {
     }
 
     pub(crate) fn open_link(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, text: &str) {
-        let Some(view) = self.terms.borrow().get(&(ws, tab)).cloned() else {
+        let Some(view) = self.term_view(ws, tab) else {
             return;
         };
         let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {

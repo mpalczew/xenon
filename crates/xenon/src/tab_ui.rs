@@ -32,7 +32,7 @@ impl App {
         self.bodies
             .borrow()
             .iter()
-            .find(|((w, _), body)| *w == ws && *body == child)
+            .find(|((w, _), body)| *w == ws && body.widget == *child)
             .map(|((_, t), _)| *t)
     }
 

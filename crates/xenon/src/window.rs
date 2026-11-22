@@ -251,7 +251,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         save_button: save_button(),
         remote: crate::remote::Remote::new(),
         holders,
-        foreign: RefCell::default(),
         builds: crate::builds_ui::Builds::new(),
         tasks: crate::tasks::Tasks::default(),
         trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),

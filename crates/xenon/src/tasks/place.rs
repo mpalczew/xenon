@@ -40,7 +40,6 @@ impl App {
         let before = gtk::prelude::GtkWindowExt::focus(&self.win);
         let tab = match reusable {
             Some(tab) => {
-                self.bodies.borrow_mut().remove(&(ws, tab));
                 self.end_term((ws, tab));
                 let mut model = self.model.borrow_mut();
                 model.recycle_terminal(ws, tab, &task.label);

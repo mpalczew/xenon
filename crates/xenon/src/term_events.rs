@@ -8,6 +8,7 @@ use xenon_term::{Event, Spawn, TermStatus};
 
 use crate::app::App;
 use crate::model::Tab;
+use crate::term::TermView;
 
 impl App {
     pub(crate) fn listen_holders(self: &Rc<Self>) {
@@ -61,8 +62,8 @@ impl App {
         }
     }
 
-    fn view_of(&self, id: TermId) -> Option<Rc<crate::term::TermView>> {
-        self.terms.borrow().values().find(|v| v.id == id).cloned()
+    fn view_of(&self, id: TermId) -> Option<Rc<TermView>> {
+        self.terms.borrow().get(&id).cloned()
     }
 
     fn term_status(self: &Rc<Self>, id: TermId, status: TermStatus) {
@@ -117,7 +118,7 @@ impl App {
         ws: WorkspaceId,
         tab: &Tab,
         cwd: &Path,
-    ) -> Option<gtk::Widget> {
+    ) -> (gtk::Widget, TermId) {
         let live = tab.term.and_then(|id| self.holders.info(id));
         let id = match &live {
             Some(info) => info.id,
@@ -129,11 +130,11 @@ impl App {
                 self.holders.open(ws, spawn)
             }
         };
-        if let Some(body) = live
-            .as_ref()
-            .and_then(|info| self.foreign_body(ws, tab, info))
-        {
-            return Some(body);
+        if let Some(info) = live.as_ref().filter(|info| !info.build.speaks) {
+            if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab.id) {
+                t.term = Some(id);
+            }
+            return (self.unreadable_notice(info), id);
         }
         if live.is_none() {
             if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab.id) {
@@ -141,21 +142,24 @@ impl App {
             }
             self.save_session(ws);
         }
-        let view = crate::term::TermView::new(self, ws, tab.id, id, cwd);
+        let view = TermView::new(self, ws, tab.id, id, cwd);
         view.pid.set(live.map(|info| info.pid).filter(|p| *p > 0));
         self.restyle_term(&view);
         let root = view.root.clone().upcast();
-        self.terms.borrow_mut().insert((ws, tab.id), view);
-        Some(root)
+        self.terms.borrow_mut().insert(id, view);
+        (root, id)
+    }
+
+    pub(crate) fn term_view(&self, ws: WorkspaceId, tab: TabId) -> Option<Rc<TermView>> {
+        let id = self.bodies.borrow().get(&(ws, tab))?.term?;
+        self.terms.borrow().get(&id).cloned()
     }
 
     pub(crate) fn end_term(&self, key: (WorkspaceId, TabId)) {
-        let id = match self.terms.borrow_mut().remove(&key) {
-            Some(view) => Some(view.id),
-            None => self.foreign.borrow_mut().remove(&key),
+        let Some(id) = self.bodies.borrow_mut().remove(&key).and_then(|b| b.term) else {
+            return;
         };
-        if let Some(id) = id {
-            self.holders.close(id);
-        }
+        self.terms.borrow_mut().remove(&id);
+        self.holders.close(id);
     }
 }

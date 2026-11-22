@@ -34,6 +34,13 @@ pub(crate) struct Slot {
     pub busy: Rc<Cell<bool>>,
 }
 
+/// A tab's page. `term` is set for a terminal tab, with or without a view in `terms`:
+/// a terminal on a build this window cannot read has only a notice here.
+pub(crate) struct Body {
+    pub widget: gtk::Widget,
+    pub term: Option<TermId>,
+}
+
 pub(crate) struct App {
     pub gtk: adw::Application,
     pub win: adw::ApplicationWindow,
@@ -47,8 +54,8 @@ pub(crate) struct App {
     pub toasts: adw::ToastOverlay,
     pub title: adw::WindowTitle,
     pub slots: RefCell<HashMap<WorkspaceId, Slot>>,
-    pub terms: RefCell<HashMap<(WorkspaceId, TabId), Rc<TermView>>>,
-    pub bodies: RefCell<HashMap<(WorkspaceId, TabId), gtk::Widget>>,
+    pub terms: RefCell<HashMap<TermId, Rc<TermView>>>,
+    pub bodies: RefCell<HashMap<(WorkspaceId, TabId), Body>>,
     pub launcher: Rc<Launcher>,
     pub recents: RefCell<HashMap<WorkspaceId, Vec<std::path::PathBuf>>>,
     pub file_indexes: RefCell<HashMap<WorkspaceId, std::sync::Arc<xenon_finder::FileIndex>>>,
@@ -66,7 +73,6 @@ pub(crate) struct App {
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
     pub holders: xenon_term::Terminals,
-    pub foreign: RefCell<HashMap<(WorkspaceId, TabId), TermId>>,
     pub builds: crate::builds_ui::Builds,
     pub tasks: crate::tasks::Tasks,
     pub trust_card: crate::tasks_ui::TrustCard,
@@ -183,7 +189,6 @@ impl App {
             .copied()
             .collect();
         for key in stale {
-            self.bodies.borrow_mut().remove(&key);
             self.end_term(key);
             self.task_tab_gone(key.0, key.1);
             self.editors.borrow_mut().remove(&key);
@@ -195,15 +200,13 @@ impl App {
             if self.bodies.borrow().contains_key(&key) {
                 continue;
             }
-            let body: gtk::Widget = match &tab.kind {
-                TabKind::Terminal => match self.terminal_body(ws, &tab, &cwd) {
-                    Some(root) => root,
-                    None => crate::empty::placeholder(&TabState::Terminal {
-                        id: tab.id,
-                        cwd: cwd.clone(),
-                        term: None,
-                    }),
-                },
+            let mut term = None;
+            let widget: gtk::Widget = match &tab.kind {
+                TabKind::Terminal => {
+                    let (root, id) = self.terminal_body(ws, &tab, &cwd);
+                    term = Some(id);
+                    root
+                }
                 TabKind::Kept(TabState::Editor { path, .. }) if crate::image::is_image(path) => {
                     let (root, monitor) = crate::image::view(path);
                     if let Some(monitor) = monitor {
@@ -237,7 +240,7 @@ impl App {
                 }
                 TabKind::Kept(state) => crate::empty::placeholder(state),
             };
-            self.bodies.borrow_mut().insert(key, body);
+            self.bodies.borrow_mut().insert(key, Body { widget, term });
         }
     }
 
@@ -246,7 +249,7 @@ impl App {
             .borrow()
             .iter()
             .filter(|((w, _), _)| *w == ws)
-            .map(|((_, t), b)| (*t, b.clone()))
+            .map(|((_, t), b)| (*t, b.widget.clone()))
             .collect()
     }
 
@@ -269,9 +272,7 @@ impl App {
             TabKind::Kept(TabState::Editor { path, .. }) => Some(path.display().to_string()),
             TabKind::Diff { path } => Some(rec.root.join(path).display().to_string()),
             TabKind::Terminal => self
-                .terms
-                .borrow()
-                .get(&(ws, tab.id))
+                .term_view(ws, tab.id)
                 .map(|v| v.live_cwd().display().to_string()),
             _ => None,
         }

@@ -100,7 +100,7 @@ impl App {
             next = Some(prev);
         }
         let keys: Vec<_> = self
-            .terms
+            .bodies
             .borrow()
             .keys()
             .filter(|(w, _)| *w == id)
@@ -109,7 +109,6 @@ impl App {
         for key in keys {
             self.end_term(key);
         }
-        self.bodies.borrow_mut().retain(|(w, _), _| *w != id);
         if let Some(slot) = self.slots.borrow_mut().remove(&id) {
             self.stack.remove(&slot.holder);
         }

@@ -40,7 +40,7 @@ impl App {
                 return;
             };
             let key = (ws, tab);
-            if let Some(view) = app.terms.borrow().get(&key).cloned() {
+            if let Some(view) = app.term_view(ws, tab) {
                 view.term.grab_focus();
             } else if let Some(editor) = app.editors.borrow().get(&key).cloned() {
                 editor.focus();
@@ -48,6 +48,7 @@ impl App {
                 .bodies
                 .borrow()
                 .get(&key)
+                .map(|b| b.widget.clone())
                 .filter(|_| app.images.borrow().contains_key(&key))
             {
                 body.grab_focus();
@@ -247,6 +248,6 @@ impl App {
         let model = self.model.borrow();
         let ws = model.active()?;
         let tab = model.spaces.get(&ws)?.content.active_tab()?.id;
-        self.terms.borrow().get(&(ws, tab)).cloned()
+        self.term_view(ws, tab)
     }
 }

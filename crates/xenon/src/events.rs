@@ -73,7 +73,7 @@ impl App {
         if self.tab_sync.get() {
             return;
         }
-        let view = self.terms.borrow().get(&(ws, tab)).cloned();
+        let view = self.term_view(ws, tab);
         if let Some(view) = view {
             view.term.feed(
                 format!("\r\n\x1b[2m[process exited with code {code}]\x1b[0m\r\n").as_bytes(),

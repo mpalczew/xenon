@@ -6,7 +6,6 @@ use xenon_core::{TabId, TermId, WorkspaceId};
 use xenon_term::TermInfo;
 
 use crate::app::{App, defer};
-use crate::model::Tab;
 
 pub(crate) struct Builds {
     pub button: gtk::MenuButton,
@@ -123,20 +122,7 @@ impl App {
         self.select_tab_ui(ws, tab);
     }
 
-    pub(crate) fn foreign_body(
-        self: &Rc<Self>,
-        ws: WorkspaceId,
-        tab: &Tab,
-        listed: &TermInfo,
-    ) -> Option<gtk::Widget> {
-        if listed.build.speaks {
-            return None;
-        }
-        let id = listed.id;
-        if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab.id) {
-            t.term = Some(id);
-        }
-        self.foreign.borrow_mut().insert((ws, tab.id), id);
+    pub(crate) fn unreadable_notice(self: &Rc<Self>, listed: &TermInfo) -> gtk::Widget {
         let page = adw::StatusPage::new();
         page.set_icon_name(Some("software-update-available-symbolic"));
         page.set_title("This terminal needs a newer Xenon window");
@@ -151,7 +137,7 @@ impl App {
         let weak = Rc::downgrade(self);
         button.connect_clicked(move |_| defer(&weak, |app| app.restart_window()));
         page.set_child(Some(&button));
-        Some(page.upcast())
+        page.upcast()
     }
 
     fn restart_window(self: &Rc<Self>) {
