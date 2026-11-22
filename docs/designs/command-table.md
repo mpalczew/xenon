@@ -1,6 +1,6 @@
 # One command table for the window
 
-Status: signed off.
+Status: built.
 
 ## Problem
 
@@ -43,7 +43,8 @@ for cmd in Cmd::palette() { /* title cmd.label(), badge cmd.chord() */ }
 // find.rs and other hints
 Cmd::FindNext.chord().unwrap_or_default()
 
-// startup: registers every action and accelerator.
+// startup: accelerators first, then the actions.
+crate::commands::install_accels(&gtk_app);
 crate::commands::install(&app);
 ```
 
@@ -65,12 +66,12 @@ commands! {
     },
     OpenFinder = "open-finder" => Spec {
         label: "Go to File…", short: Some("Open File"), keys: &["<Control>p"],
-        launcher: InLauncher::Key("down"),
+        launcher: InLauncher::Step(1),
         ..Spec::run(|a| a.open_finder())
     },
     ShowHiddenFiles = "show-hidden-files" => Spec {
         label: "Show Hidden Files",
-        ..Spec::toggle(|s| s.show_hidden, |a, on| a.set_show_hidden(on))
+        ..Spec::toggle(|a| a.sidebar.files.shows_hidden(), |a, on| a.sidebar.files.set_hidden(on))
     },
     OpenPathEditor = "open-path-editor" => Spec {
         label: "Open in Editor", palette: false, ..Spec::path(|a, p| a.open_path_editor(p))
@@ -94,11 +95,11 @@ pub(crate) struct Spec {
 
 enum Run {
     Plain(fn(&Rc<App>)),
-    Toggle { initial: fn(&AppSettings) -> bool, set: fn(&Rc<App>, bool) },
+    Toggle { initial: fn(&App) -> bool, set: fn(&Rc<App>, bool) },
     Path(fn(&Rc<App>, &Path)),
 }
 
-pub(crate) enum InLauncher { Blocked, Runs, Key(&'static str) }
+pub(crate) enum InLauncher { Blocked, Runs, Step(i32) }
 
 impl Cmd {
     pub fn label(self) -> &'static str;
@@ -112,12 +113,14 @@ impl Cmd {
     pub fn palette() -> impl Iterator<Item = Cmd>;
 }
 
-pub(crate) fn install(app: &Rc<App>);            // gio actions + set_accels_for_action, once
+pub(crate) fn install_accels(app: &gtk::Application); // set_accels_for_action, first
+pub(crate) fn install(app: &Rc<App>);            // gio actions, once
 ```
 
 - The table holds what a command is. Where it appears (header order, menu sections,
   empty-page lists) stays in the file that draws it, as `[Cmd; N]` arrays.
-- `chord()` reads the keys back from GTK after `install`, so the keys have one owner.
+- `chord()` reads the keys back from GTK after `install_accels`, so the keys have one
+  owner.
 - The launcher's block, pass-through and redirect rules become the `launcher` field.
 - Done check: `rg '"app\.'` in `crates/xenon/src` finds only `commands.rs`.
 
@@ -151,7 +154,3 @@ warrants.
 - `browse-workspace` and `remote-toggle` are deleted.
 - `adw::ShortcutsDialog` on Ctrl+? lists every shortcut, built from the table.
 - Add a Save As command (Ctrl+Shift+S). The editor's changed-on-disk banner offers it.
-
-## Next implementation step
-
-`commands.rs` with the macro and every command, then move each surface onto `Cmd`.

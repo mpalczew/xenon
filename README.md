@@ -126,20 +126,8 @@ scripts/health              # full gate: fmt + clippy + shape
 
 ## Keyboard (daily)
 
-| Action                      | Keys                               |
-| --------------------------- | ---------------------------------- |
-| New terminal                | Ctrl+N                             |
-| Open workspace / file       | Ctrl+Shift+O / Ctrl+P              |
-| Command palette / tasks     | Ctrl+Shift+P / Ctrl+Shift+R        |
-| Focus terminal / files      | Ctrl+1 / Ctrl+3                    |
-| Workspace next / previous   | Ctrl+Alt+↓ / Ctrl+Alt+↑            |
-| Tab next / previous / close | Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+W |
-| Save                        | Ctrl+S                             |
-| Save As                     | Ctrl+Shift+S                       |
-| Connect phone (QR)          | Ctrl+Shift+M                       |
-
-The full list is in the command palette (Ctrl+Shift+P) and
-[`commands.rs`](crates/xenon/src/commands.rs); Ctrl+? lists every shortcut.
+Ctrl+N new terminal, Ctrl+P open a file, Ctrl+Shift+P command palette. Ctrl+? lists
+every shortcut; the table is [`commands.rs`](crates/xenon/src/commands.rs).
 
 ---
 
