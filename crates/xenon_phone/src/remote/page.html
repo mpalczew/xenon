@@ -880,12 +880,15 @@ function worklistRow(it) {
 }
 
 function renderWorklist() {
+  const typed = {};
+  for (const f of document.querySelectorAll(".wl-add")) if (f.firstChild.value) typed[f.dataset.place] = f.firstChild.value;
   const lone = S.worklist.groups.length === 1 && S.worklist.groups[0].place === "top";
   $("worklist").innerHTML = S.worklist.groups.map((g) =>
     (lone ? "" : '<div class="sect">' + esc(g.label) + "</div>") + g.items.map(worklistRow).join("") +
     '<form class="wl-add" data-place="' + esc(g.place) + '"><input type="text" enterkeyhint="done" autocomplete="off" placeholder="Add item…" aria-label="Add item to ' + esc(g.label) +
     '"><button type="submit" class="keys-btn">Add</button></form>'
   ).join("");
+  for (const f of document.querySelectorAll(".wl-add")) if (typed[f.dataset.place]) f.firstChild.value = typed[f.dataset.place];
 }
 
 async function loadWorklist() {

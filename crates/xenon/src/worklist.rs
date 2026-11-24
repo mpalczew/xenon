@@ -16,7 +16,7 @@ mod list_ops;
 pub(crate) use list::WorklistList;
 
 use capture::Capture;
-use xenon_worklist::{Item, ItemKey, Op, Place, Undo, apply, ensure, read, revert};
+use xenon_worklist::{Effect, Item, ItemKey, Op, Place, Undo, apply, ensure, read, revert};
 
 #[derive(Default)]
 pub(crate) struct Worklist {
@@ -103,7 +103,13 @@ impl App {
             return;
         };
         match apply(&root, Op::Remove { item }) {
-            Ok(_) => self.toast("Poof. Capture undone."),
+            Ok(applied) if matches!(applied.effect, Effect::Saved { .. }) => {
+                self.toast("Poof. Capture undone.");
+            }
+            Ok(_) => {
+                let error = anyhow::anyhow!("that item changed since");
+                self.worklist_error("Can\u{2019}t undo just yet", &error);
+            }
             Err(error) => self.worklist_error("Can\u{2019}t undo just yet", &error),
         }
     }

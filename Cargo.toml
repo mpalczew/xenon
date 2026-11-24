@@ -39,6 +39,7 @@ serde_json_lenient = "0.2"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4", "serde"] }
 pulldown-cmark = { version = "0.12", default-features = false }
+unicode-segmentation = "1"
 nucleo = "0.5"
 ignore = "0.4"
 
