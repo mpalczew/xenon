@@ -1,22 +1,18 @@
 use std::net::Ipv4Addr;
 use std::process::Command;
 
-const TAILSCALE_CLIS: &[&str] = &["tailscale"];
-
 pub fn magic_dns_name() -> Option<String> {
-    TAILSCALE_CLIS.iter().find_map(|cli| {
-        let out = Command::new(cli)
-            .args(["status", "--json", "--peers=false"])
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-        let name = json.get("Self")?.get("DNSName")?.as_str()?;
-        let name = name.trim_end_matches('.');
-        (!name.is_empty()).then(|| name.to_string())
-    })
+    let out = Command::new("tailscale")
+        .args(["status", "--json", "--peers=false"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let name = json.get("Self")?.get("DNSName")?.as_str()?;
+    let name = name.trim_end_matches('.');
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 pub(crate) fn interface_ipv4s() -> Vec<Ipv4Addr> {

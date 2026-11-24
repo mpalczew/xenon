@@ -1820,10 +1820,12 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "nucleo",
+ "pulldown-cmark",
  "qrcode",
  "serde_json",
  "similar",
  "sourceview5",
+ "unicode-segmentation",
  "vte4",
  "xenon_core",
  "xenon_finder",
@@ -1909,13 +1911,10 @@ dependencies = [
 name = "xenon_store"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "log",
- "pulldown-cmark",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "unicode-segmentation",
  "xenon_core",
 ]
 

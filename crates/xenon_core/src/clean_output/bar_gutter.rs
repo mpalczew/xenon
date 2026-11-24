@@ -1,9 +1,5 @@
 const BAR_GLYPHS: [char; 11] = ['▎', '▍', '▌', '▋', '▊', '▉', '█', '│', '┃', '║', '|'];
 
-/// Strip a quote bar (whitespace, one bar glyph, optional space) that prefixes
-/// every non-empty line. The first line may lack it: a selection that starts
-/// mid-line skips the gutter. Skipped when any line also ends in a bar glyph
-/// (box, Markdown table, cursor block), where other logic owns the layout.
 pub(super) fn strip(lines: &mut [String]) -> bool {
     let mut bar = None;
     let mut content = lines.iter().filter(|l| !l.trim().is_empty()).peekable();

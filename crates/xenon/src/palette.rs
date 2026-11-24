@@ -52,7 +52,6 @@ pub(crate) struct Palette {
     handlers: RefCell<Option<Rc<Handlers>>>,
     open: Cell<bool>,
     epoch: Cell<u64>,
-    titles: RefCell<Vec<String>>,
     enabled: RefCell<Vec<bool>>,
 }
 
@@ -129,7 +128,6 @@ impl Palette {
             handlers: RefCell::new(None),
             open: Cell::new(false),
             epoch: Cell::new(0),
-            titles: RefCell::default(),
             enabled: RefCell::default(),
         });
         this.wire(Rc::downgrade(&this));
@@ -283,7 +281,6 @@ impl Palette {
         self.dialog.force_close();
         *self.handlers.borrow_mut() = None;
         self.store.remove_all();
-        self.titles.borrow_mut().clear();
         if let Some(widget) = self.restore.borrow_mut().take() {
             self.restoring.set(true);
             widget.grab_focus();
@@ -308,7 +305,6 @@ impl Palette {
 
     pub(crate) fn set_rows(&self, rows: Vec<PaletteRow>, empty_text: &str) {
         *self.enabled.borrow_mut() = rows.iter().map(|r| r.enabled).collect();
-        *self.titles.borrow_mut() = rows.iter().map(|r| r.title.clone()).collect();
         let first = rows.iter().position(|r| r.enabled).unwrap_or(0);
         let items: Vec<glib::BoxedAnyObject> =
             rows.into_iter().map(glib::BoxedAnyObject::new).collect();

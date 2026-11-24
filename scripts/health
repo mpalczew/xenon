@@ -4,9 +4,4 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 # shellcheck source=lib/checks.sh
 source "$root/scripts/lib/checks.sh"
-checks_quiet fmtcheck cargo fmt --all --check
-checks_quiet dprint dprint check
-checks_quiet lint cargo clippy --workspace --all-targets -- -D warnings \
-    -D clippy::cognitive_complexity
-checks_quiet lint-shape scripts/check-rust-shape
-checks_quiet gtk-events cargo run -q -p xenon_eventcheck
+checks_all

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::model::{GroupKind, InputKind, TaskDef, TaskSet};
 use super::plan::Orchestrator;
-use super::{Os, find_tasks_json, parse_task_set, required_inputs, workspace_for_tasks_json};
+use super::{find_tasks_json, parse_task_set, required_inputs, workspace_for_tasks_json};
 
 pub struct LoadedTasks {
     pub set: Arc<TaskSet>,
@@ -17,7 +17,7 @@ pub fn load_tasks(root: &Path) -> Result<LoadedTasks, String> {
     let folder = workspace_for_tasks_json(&path)
         .ok_or_else(|| format!("invalid tasks path {}", path.display()))?;
     let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let set = parse_task_set(&text, Os::current())?;
+    let set = parse_task_set(&text)?;
     Ok(LoadedTasks {
         set: Arc::new(set),
         folder,

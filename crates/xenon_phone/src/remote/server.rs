@@ -1,17 +1,17 @@
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use percent_encoding::percent_decode_str;
 
-use crate::remote::host::{ConnId, HostRequest, HostTx, PairError};
+use crate::Phone;
+use crate::remote::host::{ConnId, PairError};
 use crate::remote::http::{self, Request};
-use crate::remote::protocol::{PairRequest, PairResponse};
+use crate::remote::protocol::PairRequest;
 use crate::remote::rate_limit::RateLimiter;
 use crate::remote::uploads;
 use crate::remote::ws;
@@ -22,20 +22,23 @@ const ICON_180: &[u8] = include_bytes!("../../assets/icon-180.png");
 const ICON_192: &[u8] = include_bytes!("../../assets/icon-192.png");
 const ICON_512: &[u8] = include_bytes!("../../assets/icon-512.png");
 const UPLOAD_PATH: &str = "/api/uploads";
-const HOST_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_CONNECTIONS: usize = 32;
 const ACCEPT_POLL: Duration = Duration::from_millis(250);
 
 pub(crate) struct Shared {
-    pub(crate) host: HostTx,
+    pub(crate) phone: Weak<Phone>,
     pub(crate) enabled: AtomicBool,
     pub(crate) limiter: Mutex<RateLimiter>,
-    pub(crate) uploads_dir: OnceLock<PathBuf>,
+    pub(crate) uploads_dir: PathBuf,
     next_conn: AtomicU64,
     active: AtomicUsize,
 }
 
 impl Shared {
+    pub(crate) fn phone(&self) -> Result<Arc<Phone>, String> {
+        self.phone.upgrade().ok_or_else(|| HOST_GONE.to_string())
+    }
+
     pub(crate) fn next_conn(&self) -> ConnId {
         ConnId(self.next_conn.fetch_add(1, Ordering::Relaxed))
     }
@@ -45,27 +48,18 @@ impl Shared {
     }
 
     pub(crate) fn allow(&self, ip: IpAddr) -> bool {
-        self.limiter
-            .lock()
-            .expect("limiter lock")
-            .allow(ip, Instant::now())
+        crate::locked(&self.limiter).allow(ip, Instant::now())
     }
 
     pub(crate) fn fail(&self, ip: IpAddr) {
-        self.limiter
-            .lock()
-            .expect("limiter lock")
-            .record_failure(ip, Instant::now());
+        crate::locked(&self.limiter).record_failure(ip, Instant::now());
     }
 
     pub(crate) fn authenticate(&self, token: &str) -> Result<Option<String>, String> {
         if token.is_empty() {
             return Ok(None);
         }
-        ask(&self.host, |reply| HostRequest::Authenticate {
-            token: token.to_string(),
-            reply,
-        })
+        Ok(self.phone()?.authenticate(token))
     }
 }
 
@@ -92,13 +86,18 @@ pub struct RemoteServer {
 }
 
 impl RemoteServer {
-    pub fn start(ips: &[IpAddr], port: u16, host: HostTx) -> Result<Self, StartError> {
+    pub fn start(
+        ips: &[IpAddr],
+        port: u16,
+        phone: Weak<Phone>,
+        uploads_dir: PathBuf,
+    ) -> Result<Self, StartError> {
         let listeners = bind_all(ips, port)?;
         let shared = Arc::new(Shared {
-            host,
+            phone,
             enabled: AtomicBool::new(true),
             limiter: Mutex::new(RateLimiter::new()),
-            uploads_dir: OnceLock::new(),
+            uploads_dir,
             next_conn: AtomicU64::new(1),
             active: AtomicUsize::new(0),
         });
@@ -116,19 +115,11 @@ impl RemoteServer {
             accepts,
         })
     }
-
-    pub fn set_uploads_dir(&self, dir: PathBuf) {
-        let _ = self.shared.uploads_dir.set(dir);
-    }
-
-    pub fn stop(&self) {
-        self.shared.enabled.store(false, Ordering::SeqCst);
-    }
 }
 
 impl Drop for RemoteServer {
     fn drop(&mut self) {
-        self.stop();
+        self.shared.enabled.store(false, Ordering::SeqCst);
         for handle in self.accepts.drain(..) {
             let _ = handle.join();
         }
@@ -193,31 +184,36 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
     }
 }
 
-fn read_request(stream: &mut TcpStream, shared: &Shared) -> Result<Option<Request>> {
+type UploadAuth = Option<Result<Option<String>, String>>;
+
+fn read_request(stream: &mut TcpStream, shared: &Shared) -> Result<Option<(Request, UploadAuth)>> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
     let peer = stream.peer_addr()?.ip();
     let Some(mut req) = http::read_head(stream, peer)? else {
         return Ok(None);
     };
-    let upload = req.method == ::http::Method::POST
-        && req.path == UPLOAD_PATH
-        && matches!(shared.authenticate(bearer(&req)), Ok(Some(_)));
-    let limit = if upload {
-        uploads::MAX_UPLOAD
+    let (limit, upload_auth) = if req.method == ::http::Method::POST && req.path == UPLOAD_PATH {
+        let auth = shared.authenticate(bearer(&req));
+        let limit = if matches!(auth, Ok(Some(_))) {
+            uploads::MAX_UPLOAD
+        } else {
+            http::MAX_BODY
+        };
+        (limit, Some(auth))
     } else {
-        http::MAX_BODY
+        (http::MAX_BODY, None)
     };
     if req.content_length() > limit {
         http::write_json_error(stream, 413, "too large")?;
         return Ok(None);
     }
     http::read_body(&mut req, stream)?;
-    Ok(Some(req))
+    Ok(Some((req, upload_auth)))
 }
 
 fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
-    let Some(req) = read_request(&mut stream, shared)? else {
+    let Some((req, upload_auth)) = read_request(&mut stream, shared)? else {
         return Ok(());
     };
     let html = "text/html; charset=utf-8";
@@ -236,7 +232,9 @@ fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
         ("GET", "/icon-512.png") => http::write_http(&mut stream, 200, "image/png", ICON_512),
         ("POST", "/pair") => pair(&mut stream, &req, shared),
         ("GET", "/ws") => ws::serve(stream, &req, shared),
-        ("POST", UPLOAD_PATH) => uploads::serve(&mut stream, &req, shared),
+        ("POST", UPLOAD_PATH) => {
+            uploads::serve(&mut stream, &req, shared, upload_auth.unwrap_or(Ok(None)))
+        }
         ("GET" | "POST" | "DELETE", p) if p.starts_with("/api/") => api(&mut stream, &req, shared),
         _ => http::write_http(&mut stream, 404, "text/plain", b"not found"),
     }
@@ -249,12 +247,10 @@ fn pair(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
     let Ok(body) = serde_json::from_slice::<PairRequest>(&req.body) else {
         return http::write_json_error(stream, 400, "bad body");
     };
-    let result: Result<PairResponse, PairError> = ask(&shared.host, |reply| HostRequest::Pair {
-        code: body.code,
-        label: body.label,
-        reply,
-    })
-    .unwrap_or_else(|e| Err(PairError::Storage(e)));
+    let result = shared
+        .phone()
+        .map_err(PairError::Storage)
+        .and_then(|phone| phone.pair(&body.code, &body.label));
     match result {
         Ok(resp) => http::write_json(stream, &resp),
         Err(PairError::Rejected) => {
@@ -271,68 +267,33 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
         Ok(None) => return http::write_json_error(stream, 401, "unauthorized"),
         Err(e) => return http::write_json_error(stream, 503, &e),
     }
-    let host = &shared.host;
+    let phone = match shared.phone() {
+        Ok(phone) => phone,
+        Err(e) => return http::write_json_error(stream, 503, &e),
+    };
     let segments: Vec<&str> = req.path.split('/').skip(1).collect();
     match (req.method.as_str(), segments.as_slice()) {
-        ("GET", ["api", "workspaces"]) => reply(
-            stream,
-            ask(host, |reply| HostRequest::ListWorkspaces { reply }),
-        ),
-        ("GET", ["api", "workspaces", id, "terminals"]) => reply(
-            stream,
-            decode(id).and_then(|workspace_id| {
-                ask(host, |reply| HostRequest::ListTerminals {
-                    workspace_id,
-                    reply,
-                })
-                .flatten()
-            }),
-        ),
-        ("POST", ["api", "workspaces", id, "terminals"]) => reply(
-            stream,
-            decode(id).and_then(|workspace_id| {
-                ask(host, |reply| HostRequest::CreateTerminal {
-                    workspace_id,
-                    reply,
-                })
-                .flatten()
-            }),
-        ),
-        ("GET", ["api", "workspaces", id, "tasks"]) => reply(
-            stream,
-            decode(id).and_then(|workspace_id| {
-                ask(host, |reply| HostRequest::ListTasks {
-                    workspace_id,
-                    reply,
-                })
-                .flatten()
-            }),
-        ),
+        ("GET", ["api", "workspaces"]) => reply(stream, Ok(phone.workspaces())),
+        ("GET", ["api", "workspaces", id, "terminals"]) => {
+            reply(stream, decode(id).and_then(|ws| phone.terminals(&ws)))
+        }
+        ("POST", ["api", "workspaces", id, "terminals"]) => {
+            reply(stream, decode(id).and_then(|ws| phone.new_terminal(&ws)))
+        }
+        ("GET", ["api", "workspaces", id, "tasks"]) => {
+            reply(stream, decode(id).and_then(|ws| phone.list_tasks(&ws)))
+        }
         ("DELETE", ["api", "workspaces", id, "terminals", tab]) => {
-            let closed = decode(id).and_then(|workspace_id| {
+            let closed = decode(id).and_then(|ws| {
                 let tab_id = tab.parse::<u64>().map_err(|_| NOT_FOUND.to_string())?;
-                ask(host, |reply| HostRequest::CloseTerminal {
-                    workspace_id,
-                    tab_id,
-                    reply,
-                })
-                .flatten()
+                phone.close_terminal(&ws, tab_id)
             });
             reply(stream, closed.map(|()| serde_json::json!({})))
         }
         ("DELETE", ["api", "workspaces", id]) => {
-            let closed = decode(id).and_then(|workspace_id| {
-                ask(host, |reply| HostRequest::CloseWorkspace {
-                    workspace_id,
-                    reply,
-                })
-                .flatten()
-            });
+            let closed = decode(id).and_then(|ws| Phone::close_workspace(&ws));
             match closed {
                 Ok(()) => http::write_json(stream, &serde_json::json!({})),
-                Err(e) if e == HOST_GONE || e == HOST_SLOW => {
-                    http::write_json_error(stream, 503, &e)
-                }
                 Err(e) => http::write_json_error(stream, 409, &e),
             }
         }
@@ -342,7 +303,6 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
 
 const NOT_FOUND: &str = "not found";
 const HOST_GONE: &str = "host gone";
-const HOST_SLOW: &str = "host timeout";
 
 fn decode(segment: &str) -> Result<String, String> {
     percent_decode_str(segment)
@@ -356,7 +316,6 @@ fn decode(segment: &str) -> Result<String, String> {
 fn reply<T: serde::Serialize>(stream: &mut TcpStream, result: Result<T, String>) -> Result<()> {
     match result {
         Ok(value) => http::write_json(stream, &value),
-        Err(e) if e == HOST_GONE || e == HOST_SLOW => http::write_json_error(stream, 503, &e),
         Err(e) => http::write_json_error(stream, 404, &e),
     }
 }
@@ -369,15 +328,4 @@ pub(crate) fn bearer(req: &Request) -> &str {
         })
         .unwrap_or("")
         .trim()
-}
-
-pub(crate) fn ask<T>(
-    host: &HostTx,
-    make: impl FnOnce(mpsc::SyncSender<T>) -> HostRequest,
-) -> Result<T, String> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    host.send_blocking(make(tx))
-        .map_err(|_| HOST_GONE.to_string())?;
-    rx.recv_timeout(HOST_TIMEOUT)
-        .map_err(|_| HOST_SLOW.to_string())
 }

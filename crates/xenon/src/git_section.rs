@@ -61,7 +61,6 @@ impl GitView {
         let section = Section::new("GIT", Fold::Git, &list, Some(230), &app);
         section.fold.set_tooltip_text(Some(&Cmd::FocusGit.tip()));
         section.set_trailing(&trailing);
-        section.sep.set_visible(false);
         let root = section.root.clone();
         root.set_visible(false);
         let this = Rc::new(Self {
@@ -84,7 +83,6 @@ impl GitView {
 
     fn wire(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
-        // Deferred: rebuilding the list inside its own activate handler crashes GTK.
         self.list.connect_row_activated(move |_, row| {
             let index = row.index().max(0) as usize;
             defer(&weak, move |this| {

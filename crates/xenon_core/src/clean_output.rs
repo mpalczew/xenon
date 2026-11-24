@@ -80,8 +80,6 @@ pub fn extract_code(text: &str) -> String {
     }
 }
 
-/// Strip one leading/trailing box-drawing gutter. `true` means the line filled
-/// the TUI box (trailing border after padding) and the next line may wrap.
 fn strip_box_gutters(line: &str) -> (String, bool) {
     let is_border = |ch: char| matches!(ch, '│' | '┃' | '║');
     let trimmed = line.trim();

@@ -1,10 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::{Deserialize, Serialize};
 use xenon_store::RemoteDevice;
 
-use crate::remote::frame::Rgb;
-use crate::remote::protocol::ThemeWire;
+use crate::remote::labels::unix_now;
 
 pub const KEEP_AWAKE_LABEL: &str = "Keep this computer awake while a phone is connected";
 pub const KEEP_AWAKE_DETAIL: &str = "Ignores your sleep setting until the phone disconnects";
@@ -82,21 +79,8 @@ pub fn effective_port() -> u16 {
         })
 }
 
-pub fn theme_wire([bg, fg, cursor]: [[u8; 3]; 3]) -> ThemeWire {
-    let hex = |c: [u8; 3]| Rgb(c[0], c[1], c[2]).hex();
-    ThemeWire {
-        bg: hex(bg),
-        fg: hex(fg),
-        cursor: hex(cursor),
-    }
-}
-
 pub fn ago(unix: u64) -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let secs = now.saturating_sub(unix);
+    let secs = unix_now().saturating_sub(unix);
     match secs {
         0..60 => "just now".into(),
         60..3600 => format!("{} min ago", secs / 60),

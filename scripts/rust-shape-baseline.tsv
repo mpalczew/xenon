@@ -1,5 +1,0 @@
-crates/xenon_store/src/lib.rs	0	0	8
-crates/xenon_settings/src/lib.rs	0	0	8
-crates/xenon_core/src/content.rs	1082	55	7
-crates/xenon_store/src/worklist/draft.rs	0	0	9
-crates/xenon_store/src/worklist/sections.rs	0	0	13

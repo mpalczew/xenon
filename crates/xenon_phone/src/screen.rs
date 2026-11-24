@@ -14,25 +14,6 @@ use crate::remote::{
     Cell, CursorShapeWire, CursorWire, Rgb, Screen, Style, WIDE_SPACER, style_flags,
 };
 
-pub(crate) fn history_lines<L: EventListener>(term: &Term<L>, limit: usize) -> Vec<String> {
-    let grid = term.grid();
-    let count = grid.history_size().min(limit) as i32;
-    (-count..0)
-        .map(|line| {
-            let row = &grid[Line(line)];
-            let text: String = (0..term.columns())
-                .map(|c| &row[Column(c)])
-                .filter(|c| {
-                    !c.flags
-                        .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
-                })
-                .map(|c| c.c)
-                .collect();
-            text.trim_end().to_string()
-        })
-        .collect()
-}
-
 pub(crate) fn screen<L: EventListener>(term: &Term<L>, offset: usize, look: &Look) -> Screen {
     let (cols, rows) = (term.columns(), term.screen_lines());
     let offset = offset.min(term.grid().history_size());

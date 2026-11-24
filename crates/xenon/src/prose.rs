@@ -137,9 +137,6 @@ impl Prose {
                 defer(&this, move |this| this.caret_moved());
             }
         ));
-        // The column follows the width of the view. The page size changes
-        // during the text view's own layout pass; restyling then trips GTK's
-        // onscreen-validated assertion, so wait for the pass to finish.
         self.scroller
             .hadjustment()
             .connect_page_size_notify(glib::clone!(

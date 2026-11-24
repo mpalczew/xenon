@@ -1,16 +1,3 @@
-//! The socket protocol between a holder and its clients, shared by builds that live
-//! side by side for weeks. Private: only `hold`, `terminals` and `mirror` use it.
-//!
-//! A frame is `u32 length | kind u8 | body`. Kind 0 is control: a JSON object tagged
-//! `"t"`. Kind 1 is data: raw bytes, input going to the holder and output coming back.
-//! Other kinds are skipped.
-//!
-//! Three rules make growth free. A decoder ignores fields it does not know. A decoder
-//! skips control messages it does not know. A message's meaning and existing fields
-//! never change: that is a new major, with its decoder alone in `proto/v<N>.rs`.
-//! `Hello`, `Welcome` and `Close` are frozen in every major, so any window can always
-//! list, mark and close any holder.
-
 pub(crate) mod v1;
 
 use std::io::{self, Read, Write};
@@ -31,7 +18,6 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 const CONTROL: u8 = 0;
 const DATA: u8 = 1;
 
-/// The messages that never change, in any major.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub(crate) enum Frozen {
@@ -48,7 +34,6 @@ pub(crate) enum Frozen {
         #[serde(default)]
         cwd: String,
     },
-    /// Hang up the terminal's session, give it a grace period, then exit.
     Close,
 }
 
@@ -109,10 +94,11 @@ pub(crate) fn read_frame(input: &mut impl Read) -> io::Result<Frame> {
                 "bad frame length",
             ));
         }
-        let mut body = vec![0; len];
+        let mut kind = [0; 1];
+        input.read_exact(&mut kind)?;
+        let mut body = vec![0; len - 1];
         input.read_exact(&mut body)?;
-        let kind = body.remove(0);
-        match kind {
+        match kind[0] {
             CONTROL => return Ok(Frame::Control(body)),
             DATA => return Ok(Frame::Data(body)),
             _ => {}

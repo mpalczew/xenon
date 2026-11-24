@@ -45,8 +45,6 @@ impl App {
         }
     }
 
-    /// Shows a layout change made off the tab bar, once no tab bar is mid-drag.
-    /// If one is, its transfer-done idle calls back here when the drag ends.
     fn settle(self: &Rc<Self>, ws: WorkspaceId) {
         let busy = self
             .slots

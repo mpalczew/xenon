@@ -6,7 +6,7 @@ use std::sync::Arc;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use sourceview::prelude::*;
-use xenon_core::{TabId, WorkspaceId};
+use xenon_core::WorkspaceId;
 use xenon_git::status::GitFile;
 
 use crate::app::App;
@@ -65,13 +65,7 @@ fn mode_buttons() -> (adw::ToggleGroup, gtk::Box) {
 }
 
 impl DiffView {
-    pub(crate) fn new(
-        app: &Rc<App>,
-        ws: WorkspaceId,
-        _tab: TabId,
-        dir: PathBuf,
-        file: GitFile,
-    ) -> Rc<Self> {
+    pub(crate) fn new(app: &Rc<App>, ws: WorkspaceId, dir: PathBuf, file: GitFile) -> Rc<Self> {
         let path_label = gtk::Label::new(None);
         path_label.set_use_markup(true);
         path_label.set_xalign(0.0);
@@ -109,12 +103,10 @@ impl DiffView {
         note.set_visible(false);
 
         let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        body.add_css_class("xdiff-body");
         body.set_vexpand(true);
         body.set_hexpand(true);
 
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        root.add_css_class("xdiff");
         root.append(&head);
         root.append(&banner);
         root.append(&note);

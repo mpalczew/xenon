@@ -4,7 +4,6 @@ mod attention;
 mod clean_output;
 mod content;
 mod ids;
-pub mod outline_text;
 mod palette;
 mod pane_content;
 mod pane_find;

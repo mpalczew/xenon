@@ -12,7 +12,6 @@ use crate::look::Look;
 
 use super::{Phone, frames, locked};
 
-const HISTORY_LIMIT: usize = 1000;
 const WHEEL_LIMIT: i32 = 40;
 
 pub(crate) struct View {
@@ -54,18 +53,14 @@ impl Phone {
         }
     }
 
-    pub(super) fn connected(&self, conn: ConnId, device_id: String, out: Outbox) {
+    pub(crate) fn connected(&self, conn: ConnId, device_id: String, out: Outbox) {
         let host_name = locked(&self.server)
             .rt
             .as_ref()
             .map(|rt| rt.host_name.clone())
             .unwrap_or_default();
-        let theme = crate::remote::theme_wire(Look::of(self.dark(0)).theme());
-        out.try_send(ServerMsg::Ready {
-            theme,
-            device_id: device_id.clone(),
-            host_name,
-        });
+        let theme = Look::of(self.dark(0)).theme();
+        out.try_send(ServerMsg::Ready { theme, host_name });
         locked(&self.conns).insert(
             conn,
             Conn {
@@ -81,7 +76,7 @@ impl Phone {
         self.changed();
     }
 
-    pub(super) fn disconnected(&self, conn: ConnId) {
+    pub(crate) fn disconnected(&self, conn: ConnId) {
         self.detach(conn);
         self.task_gone(conn);
         locked(&self.conns).remove(&conn);
@@ -94,7 +89,7 @@ impl Phone {
         Some(Arc::clone(&a.mirror))
     }
 
-    pub(super) fn message(&self, conn: ConnId, msg: ClientMsg) {
+    pub(crate) fn message(&self, conn: ConnId, msg: ClientMsg) {
         match msg {
             ClientMsg::Attach {
                 workspace_id,
@@ -120,11 +115,6 @@ impl Phone {
         match msg {
             ClientMsg::Text { data } => mirror.input(&pty_text_bytes(&data)),
             ClientMsg::Key { key } => mirror.input(key.pty_bytes(mirror.modes().app_cursor)),
-            ClientMsg::History => {
-                let lines =
-                    mirror.read(|term, _| crate::screen::history_lines(term, HISTORY_LIMIT));
-                self.send_to(conn, ServerMsg::History { lines });
-            }
             ClientMsg::Wheel { rows } => mirror.scroll(rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT)),
             ClientMsg::Bottom => mirror.bottom(),
             ClientMsg::Click { col, row } => click(&mirror, col, row),
@@ -184,7 +174,7 @@ impl Phone {
         self.changed();
     }
 
-    fn closed_notice(&self, conn: ConnId) {
+    pub(super) fn closed_notice(&self, conn: ConnId) {
         self.send_to(
             conn,
             ServerMsg::Closed {
@@ -229,7 +219,7 @@ impl Phone {
                 .map(|a| (Arc::clone(&a.view), Arc::clone(&a.mirror)))
         };
         let code = look_code(appearance);
-        let theme = crate::remote::theme_wire(Look::of(self.dark(code)).theme());
+        let theme = Look::of(self.dark(code)).theme();
         self.send_to(conn, ServerMsg::Theme { theme });
         if let Some((view, mirror)) = attach {
             view.look.store(code, Ordering::Relaxed);

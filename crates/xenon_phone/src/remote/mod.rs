@@ -19,7 +19,7 @@ mod ws;
 
 pub(crate) use devices::DeviceBook;
 pub(crate) use frame::{Cell, FrameEncoder, Rgb, Screen, Style, WIDE_SPACER};
-pub(crate) use host::{ConnId, HostRequest, Outbox, PairError};
+pub(crate) use host::{ConnId, Outbox, PairError};
 pub(crate) use keys::pty_text_bytes;
 pub(crate) use labels::device_short_name;
 pub(crate) use listing::{list_workspaces, parse_workspace_id, tilde, wire_dot};
@@ -29,11 +29,11 @@ pub(crate) use network::{Reachability, base_url, pairing_url};
 
 pub(crate) use protocol::{
     AppearanceWire, ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, PairResponse,
-    Secret, ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo, WorkspaceInfo,
-    style_flags,
+    Secret, ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo, ThemeWire,
+    WorkspaceInfo, style_flags,
 };
 pub(crate) use server::{RemoteServer, StartError};
+pub(crate) use status::device_rows;
 pub use status::{
     DeviceRow, KEEP_AWAKE_DETAIL, KEEP_AWAKE_LABEL, RemoteStatus, ago, effective_port,
 };
-pub(crate) use status::{device_rows, theme_wire};

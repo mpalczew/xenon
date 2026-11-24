@@ -82,9 +82,6 @@ fn run_systemd(id: TermId) -> io::Result<()> {
     ]);
     command.arg(format!("--unit=xenon-term-{id}"));
     command.arg(format!("--slice={}", slice()));
-    // Type=notify: systemd-run returns when the holder says READY=1 (its socket is in
-    // place), or fails if the holder exits first. A unit stop then behaves like closing
-    // a terminal: hang up, then SIGKILL after 5 seconds.
     command.args([
         "-p",
         "Type=notify",

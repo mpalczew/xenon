@@ -151,7 +151,6 @@ impl TermView {
         self.term.feed(bytes);
     }
 
-    /// Whether this commit is the focus report VTE sends in answer to a replay.
     fn is_replay_focus_report(&self, text: &str) -> bool {
         matches!(text, "\x1b[I" | "\x1b[O") && self.skip_focus.replace(false)
     }

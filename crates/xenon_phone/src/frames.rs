@@ -43,7 +43,7 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
         let Some(phone) = phone.upgrade() else { return };
         let dark = phone.dark(view.look.load(Ordering::Relaxed));
         if shown_dark.replace(dark).is_some_and(|d| d != dark) {
-            let theme = crate::remote::theme_wire(Look::of(dark).theme());
+            let theme = Look::of(dark).theme();
             out.try_send(ServerMsg::Theme { theme });
             view.full.store(true, Ordering::Relaxed);
         }

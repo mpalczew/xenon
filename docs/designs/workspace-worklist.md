@@ -1,7 +1,7 @@
 # Workspace worklist
 
-Each workspace has one worklist at `.xenon/worklist.md`. Code: `crates/xenon_core`
-(parsing and edits), `crates/xenon/src/worklist*` and `crates/xenon/src/editor/list.rs`.
+Each workspace has one worklist at `.xenon/worklist.md`. Code:
+`crates/xenon/src/worklist*` and `crates/xenon/src/editor/list.rs`.
 
 ## Decisions
 

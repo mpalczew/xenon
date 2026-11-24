@@ -1,6 +1,3 @@
-//! dependsOn orchestration as a pure state machine. The app launches terminals
-//! for `Action::Launch` and reports back; nothing here spawns or waits.
-
 use std::collections::BTreeMap;
 
 use super::model::TaskSet;
@@ -8,12 +5,6 @@ use super::model::TaskSet;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     Launch(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outcome {
-    Succeeded,
-    Failed { label: String, reason: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,17 +126,12 @@ impl Orchestrator {
         Vec::new()
     }
 
-    pub fn outcome(&self) -> Option<Outcome> {
-        if let Some((label, reason)) = &self.failed {
-            return Some(Outcome::Failed {
-                label: label.clone(),
-                reason: reason.clone(),
-            });
-        }
-        self.nodes
-            .get(&self.root)
-            .is_some_and(|n| n.state == State::Satisfied)
-            .then_some(Outcome::Succeeded)
+    pub fn is_done(&self) -> bool {
+        self.failed.is_some()
+            || self
+                .nodes
+                .get(&self.root)
+                .is_some_and(|n| n.state == State::Satisfied)
     }
 
     fn advance(&mut self) -> Vec<Action> {

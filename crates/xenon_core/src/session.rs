@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::content::ContentLayout;
 
-pub(crate) const DEFAULT_SIDEBAR_WIDTH: f32 = 240.;
 /// Zero-based cursor position in characters.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Point {
@@ -10,33 +9,13 @@ pub struct Point {
     pub col: usize,
 }
 
-pub(crate) fn clamp_sidebar(width: f32) -> f32 {
-    width.clamp(140., 480.)
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct SessionState {
-    pub sidebar_visible: bool,
-    pub sidebar_width: f32,
     pub content: ContentLayout,
-}
-
-impl Default for SessionState {
-    fn default() -> Self {
-        SessionState {
-            sidebar_visible: true,
-            sidebar_width: DEFAULT_SIDEBAR_WIDTH,
-            content: ContentLayout::default(),
-        }
-    }
 }
 
 #[derive(Deserialize)]
 struct SessionStateDe {
-    #[serde(default)]
-    sidebar_visible: Option<bool>,
-    #[serde(default)]
-    sidebar_width: Option<f32>,
     #[serde(default)]
     content: ContentLayout,
 }
@@ -46,13 +25,8 @@ impl<'de> Deserialize<'de> for SessionState {
     where
         D: serde::Deserializer<'de>,
     {
-        let de = SessionStateDe::deserialize(deserializer)?;
-        let mut content = de.content;
+        let mut content = SessionStateDe::deserialize(deserializer)?.content;
         content.normalize();
-        Ok(SessionState {
-            sidebar_visible: de.sidebar_visible.unwrap_or(true),
-            sidebar_width: clamp_sidebar(de.sidebar_width.unwrap_or(DEFAULT_SIDEBAR_WIDTH)),
-            content,
-        })
+        Ok(SessionState { content })
     }
 }

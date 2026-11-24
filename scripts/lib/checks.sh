@@ -16,3 +16,12 @@ checks_quiet() {
   rm -f "$log"
   return $rc
 }
+
+checks_all() {
+  checks_quiet fmtcheck cargo fmt --all --check || return 1
+  checks_quiet dprint dprint check || return 1
+  checks_quiet lint-shape scripts/check-rust-shape || return 1
+  checks_quiet gtk-events cargo run -q -p xenon_eventcheck || return 1
+  checks_quiet lint cargo clippy --workspace --all-targets -- \
+    -D warnings -D clippy::cognitive_complexity || return 1
+}

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use xenon_core::{
     ContentLayout, PaneContent, PaneLeaf, PaneNode, PaneTab, PaneTree, Registry, SessionState,
@@ -11,7 +11,7 @@ use xenon_term::TermStatus;
 pub(crate) enum TabKind {
     Terminal,
     Diff { path: String },
-    Kept(TabState),
+    Editor { path: PathBuf },
 }
 
 #[derive(Clone)]
@@ -53,7 +53,7 @@ impl Tab {
                     None => label,
                 }
             }
-            TabKind::Kept(TabState::Editor { path, .. }) => {
+            TabKind::Editor { path } => {
                 let name = path
                     .file_name()
                     .map_or_else(|| "file".into(), |n| n.to_string_lossy().into_owned());
@@ -64,7 +64,6 @@ impl Tab {
                 }
             }
             TabKind::Diff { path } => path.rsplit('/').next().unwrap_or(path).to_string(),
-            TabKind::Kept(_) => "tab".into(),
         }
     }
 
@@ -79,7 +78,12 @@ impl Tab {
                 id: self.id,
                 path: path.clone(),
             }),
-            TabKind::Kept(state) => Some(state.clone()),
+            TabKind::Editor { path } => Some(TabState::Editor {
+                id: self.id,
+                path: path.clone(),
+                cursor: Default::default(),
+                scroll_top: 0,
+            }),
         }
     }
 }
@@ -214,10 +218,7 @@ impl Model {
             return Some(space.saved.clone());
         }
         let content: ContentLayout = space.content.snapshot(&|tab: &Tab| tab.state());
-        Some(SessionState {
-            content,
-            ..space.saved.clone()
-        })
+        Some(SessionState { content })
     }
 
     pub(crate) fn open_dir(&mut self, path: &Path) -> WorkspaceId {
@@ -341,9 +342,9 @@ fn live_node(node: &PaneNode) -> PaneTree<Tab> {
                         modified: false,
                         phone_device: None,
                     },
-                    TabState::Editor { id, .. } => Tab {
+                    TabState::Editor { id, path, .. } => Tab {
                         id: *id,
-                        kind: TabKind::Kept(state.clone()),
+                        kind: TabKind::Editor { path: path.clone() },
                         term: None,
                         title: String::new(),
                         exited: None,

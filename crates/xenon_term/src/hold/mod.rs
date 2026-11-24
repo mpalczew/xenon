@@ -3,7 +3,7 @@ mod emu;
 mod emu_replay;
 mod link;
 mod pen;
-pub(crate) mod pty;
+mod pty;
 mod reader;
 mod serve;
 mod status;

@@ -16,7 +16,7 @@ static DARK: AtomicBool = AtomicBool::new(true);
 pub struct PhoneLink;
 
 fn connect() -> Result<UnixStream, String> {
-    let path = xenon_term::phone_socket_path();
+    let path = crate::phone_socket_path();
     let stream = UnixStream::connect(&path).map_err(|e| {
         format!(
             "no phone server at {} ({e}); `scripts/release/install` sets up its units",

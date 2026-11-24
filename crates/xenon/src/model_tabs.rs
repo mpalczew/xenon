@@ -1,6 +1,5 @@
 use xenon_core::{
-    CloseOutcome, DropEdge, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, TabState,
-    WorkspaceId,
+    CloseOutcome, DropEdge, PaneId, PaneLeaf, PaneTree, ParkOutcome, SplitAxis, TabId, WorkspaceId,
 };
 
 use crate::model::{Model, Tab, TabKind};
@@ -68,7 +67,7 @@ impl Model {
     pub(crate) fn open_editor(&mut self, ws: WorkspaceId, path: &std::path::Path) -> Option<TabId> {
         let existing = self.find_tab_where(
             ws,
-            |tab| matches!(&tab.kind, TabKind::Kept(TabState::Editor { path: p, .. }) if p == path),
+            |tab| matches!(&tab.kind, TabKind::Editor { path: p } if p == path),
         );
         if let Some(id) = existing {
             self.select_tab(ws, id);
@@ -77,12 +76,7 @@ impl Model {
         let path = path.to_path_buf();
         self.push_tab(ws, |id| Tab {
             id,
-            kind: TabKind::Kept(TabState::Editor {
-                id,
-                path,
-                cursor: Default::default(),
-                scroll_top: 0,
-            }),
+            kind: TabKind::Editor { path },
             term: None,
             title: String::new(),
             exited: None,

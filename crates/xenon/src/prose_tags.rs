@@ -256,7 +256,6 @@ fn set(tag: &gtk::TextTag, props: &[(&str, &dyn ToValue)]) {
     }
 }
 
-/// The shading behind quotes and code blocks.
 pub(crate) fn tint(view: &impl IsA<gtk::Widget>) -> gdk::RGBA {
     let ink = view.color();
     gdk::RGBA::new(ink.red(), ink.green(), ink.blue(), 0.07)

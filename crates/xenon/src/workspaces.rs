@@ -106,10 +106,14 @@ impl App {
             .filter(|(w, _)| *w == id)
             .copied()
             .collect();
-        let ended: Vec<_> = keys
-            .into_iter()
-            .filter_map(|key| self.end_term(key))
-            .collect();
+        let ended: Vec<_> = keys.iter().filter_map(|&key| self.end_term(key)).collect();
+        for key in keys {
+            self.editors.borrow_mut().remove(&key);
+            self.images.borrow_mut().remove(&key);
+            self.diffs.borrow_mut().remove(&key);
+        }
+        self.recents.borrow_mut().remove(&id);
+        self.file_indexes.borrow_mut().remove(&id);
         for info in self.holders.list() {
             if info.workspace == id && !ended.contains(&info.id) {
                 self.end_holder(info.id);

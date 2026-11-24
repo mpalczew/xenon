@@ -2,26 +2,28 @@ use std::fs;
 use std::io;
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
 
 use crate::remote::http::{self, Request};
-use crate::remote::server::{self, Shared};
+use crate::remote::labels::unix_now;
+use crate::remote::server::Shared;
 
 pub(crate) const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 const KEEP: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
-/// `POST /api/uploads`: raw image body in, `{"path": …}` out.
-pub(crate) fn serve(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
-    match shared.authenticate(server::bearer(req)) {
+pub(crate) fn serve(
+    stream: &mut TcpStream,
+    req: &Request,
+    shared: &Shared,
+    auth: Result<Option<String>, String>,
+) -> Result<()> {
+    match auth {
         Ok(Some(_)) => {}
         Ok(None) => return http::write_json_error(stream, 401, "unauthorized"),
         Err(e) => return http::write_json_error(stream, 503, &e),
     }
-    let Some(dir) = shared.uploads_dir.get() else {
-        return http::write_json_error(stream, 503, "uploads are off");
-    };
     let content_type = req.header("content-type").unwrap_or("");
     let Some(ext) = extension(content_type) else {
         return http::write_json_error(stream, 415, "send a PNG, JPEG, GIF, WebP, or HEIC image");
@@ -29,7 +31,7 @@ pub(crate) fn serve(stream: &mut TcpStream, req: &Request, shared: &Shared) -> R
     if req.body.is_empty() {
         return http::write_json_error(stream, 400, "empty image");
     }
-    match save(dir, ext, &req.body) {
+    match save(&shared.uploads_dir, ext, &req.body) {
         Ok(path) => http::write_json(stream, &serde_json::json!({ "path": path })),
         Err(e) => http::write_json_error(stream, 500, &format!("couldn’t save: {e}")),
     }
@@ -50,10 +52,7 @@ pub(crate) fn extension(content_type: &str) -> Option<&'static str> {
 pub(crate) fn save(dir: &Path, ext: &str, bytes: &[u8]) -> io::Result<PathBuf> {
     fs::create_dir_all(dir)?;
     prune(dir, SystemTime::now());
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+    let secs = unix_now();
     let id = uuid::Uuid::new_v4().simple().to_string();
     let path = dir.join(format!("phone-{secs}-{}.{ext}", &id[..8]));
     fs::write(&path, bytes)?;

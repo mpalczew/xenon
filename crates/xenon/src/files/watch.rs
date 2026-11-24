@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 
-use super::{FilesView, draw_item, row_path, tree_row};
+use super::{FilesView, row_path, tree_row};
 
 impl FilesView {
     pub(crate) fn reveal(self: &Rc<Self>, dir: &Path) {
@@ -55,8 +55,6 @@ impl FilesView {
             return;
         }
         *self.open_file.borrow_mut() = path;
-        for item in self.bound.borrow().iter() {
-            draw_item(item, self.open_file.borrow().as_deref(), &self.ignores);
-        }
+        self.ignores.redraw();
     }
 }

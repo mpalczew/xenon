@@ -2,25 +2,16 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::remote::{DeviceBook, HostRequest, Reachability, RemoteServer, StartError};
+use crate::remote::{DeviceBook, Reachability, RemoteServer, StartError};
 
 use super::{Phone, Runtime, locked};
 
 const UPKEEP: Duration = Duration::from_secs(5);
 const REPROBE_TICKS: u32 = 6;
 
-pub(super) fn spawn_threads(phone: &Arc<Phone>, rx: async_channel::Receiver<HostRequest>) {
+pub(super) fn spawn_upkeep(phone: &Arc<Phone>) {
     let weak = Arc::downgrade(phone);
-    let requests = thread::Builder::new()
-        .name("xenon-phone-requests".into())
-        .spawn(move || {
-            while let Ok(req) = rx.recv_blocking() {
-                let Some(phone) = weak.upgrade() else { break };
-                phone.request(req);
-            }
-        });
-    let weak = Arc::downgrade(phone);
-    let upkeep = thread::Builder::new()
+    let spawned = thread::Builder::new()
         .name("xenon-phone-upkeep".into())
         .spawn(move || {
             let mut ticks = 0;
@@ -33,10 +24,8 @@ pub(super) fn spawn_threads(phone: &Arc<Phone>, rx: async_channel::Receiver<Host
                 }
             }
         });
-    for spawned in [requests, upkeep] {
-        if let Err(error) = spawned {
-            log::error!("phone thread: {error}");
-        }
+    if let Err(error) = spawned {
+        log::error!("phone upkeep thread: {error}");
     }
 }
 
@@ -55,7 +44,8 @@ impl Phone {
         let started = RemoteServer::start(
             &reach.bind_ips(),
             crate::remote::effective_port(),
-            self.tx.clone(),
+            self.self_ref(),
+            xenon_store::data_dir().join("remote").join("uploads"),
         );
         let server = match started {
             Ok(server) => server,
@@ -72,7 +62,6 @@ impl Phone {
                 return;
             }
         };
-        server.set_uploads_dir(xenon_store::data_dir().join("remote").join("uploads"));
         log::info!("phone remote on: {:?}", server.binds);
         {
             let mut guard = locked(&self.server);

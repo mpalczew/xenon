@@ -13,8 +13,9 @@ WebSocket, pairing and frames in its private `remote` module.
   terminal made from the phone shows up in the window as an unselected tab. Scrolling is
   per phone and never moves the computer.
 - **Terminals only.** No editors, diffs or file views on the phone.
-- **The phone never moves the computer.** Opening a workspace or tab, starting a task,
-  or closing a tab from the phone doesn't change what the computer shows.
+- **The phone never steals focus on the computer.** Opening a workspace or tab, starting
+  a task, or closing a tab doesn't change what the computer shows; closing a workspace
+  asks the window over `ipc.sock` without raising it.
 - **Pairing code in the URL fragment,** so it never reaches a request line or log. It
   stays valid after the sheet closes, because a home-screen app has its own storage and
   the user types the code there.

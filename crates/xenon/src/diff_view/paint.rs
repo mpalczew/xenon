@@ -3,12 +3,9 @@ use crate::diff_text::{Kind, Line};
 
 type Column = fn(&Line) -> u32;
 
-fn rgba(hex: &str, alpha: Option<f32>) -> gdk::RGBA {
+fn rgba(hex: &str, alpha: f32) -> gdk::RGBA {
     let c = gdk::RGBA::parse(hex).unwrap_or(gdk::RGBA::new(0.5, 0.5, 0.5, 1.0));
-    match alpha {
-        Some(a) => gdk::RGBA::new(c.red(), c.green(), c.blue(), a),
-        None => c,
-    }
+    gdk::RGBA::new(c.red(), c.green(), c.blue(), alpha)
 }
 
 fn rgba_of(c: gdk::RGBA, alpha: f32) -> gdk::RGBA {
@@ -84,15 +81,12 @@ impl DiffView {
         let accent = adw::StyleManager::default().accent_color_rgba();
         let (green, red) = ("#26a269", "#e01b24");
         let tints = [
-            ("added", rgba(green, Some(0.14))),
-            ("removed", rgba(red, Some(0.14))),
-            ("filler", rgba("#808080", Some(0.07))),
+            ("added", rgba(green, 0.14)),
+            ("removed", rgba(red, 0.14)),
+            ("filler", rgba("#808080", 0.07)),
             ("current", rgba_of(accent, 0.26)),
         ];
-        let words = [
-            ("w-add", rgba(green, Some(0.35))),
-            ("w-del", rgba(red, Some(0.35))),
-        ];
+        let words = [("w-add", rgba(green, 0.35)), ("w-del", rgba(red, 0.35))];
         let scheme = crate::theme::scheme(crate::theme::dark());
         let lang = sourceview::LanguageManager::default()
             .guess_language(Some(std::path::Path::new(&self.path)), None::<&str>);

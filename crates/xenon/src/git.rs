@@ -16,7 +16,6 @@ const MIN_GAP: Duration = Duration::from_millis(1500);
 const POLL: Duration = Duration::from_secs(5);
 
 type Roots = Vec<(WorkspaceId, PathBuf)>;
-type Batch = Vec<(WorkspaceId, Option<GitStatus>)>;
 
 pub(crate) struct GitHub {
     app: Weak<App>,
@@ -168,7 +167,7 @@ impl GitHub {
                 .ok();
             let Some(app) = weak.upgrade() else { return };
             if let Some(status) = status {
-                app.git_measured(vec![(ws, status)]);
+                app.git_measured(ws, status);
             }
             // The measure itself touches .git; let those queued monitor events drain first.
             glib::idle_add_local_once(move || {
@@ -178,29 +177,22 @@ impl GitHub {
     }
 }
 
-pub(crate) fn apply(hub: &GitHub, batch: Batch) -> Vec<WorkspaceId> {
-    let open: HashSet<WorkspaceId> = hub.roots.borrow().iter().map(|(id, _)| *id).collect();
-    let mut changed = Vec::new();
-    let mut status = hub.status.borrow_mut();
-    for (ws, next) in batch {
-        if !open.contains(&ws) {
-            continue;
-        }
-        match next {
-            Some(next) => {
-                if status.get(&ws) != Some(&next) {
-                    status.insert(ws, next);
-                    changed.push(ws);
-                }
-            }
-            None => {
-                if status.remove(&ws).is_some() {
-                    changed.push(ws);
-                }
-            }
-        }
+pub(crate) fn apply(hub: &GitHub, ws: WorkspaceId, next: Option<GitStatus>) -> bool {
+    if !hub.roots.borrow().iter().any(|(id, _)| *id == ws) {
+        return false;
     }
-    changed
+    let mut status = hub.status.borrow_mut();
+    match next {
+        Some(next) => {
+            if status.get(&ws) != Some(&next) {
+                status.insert(ws, next);
+                true
+            } else {
+                false
+            }
+        }
+        None => status.remove(&ws).is_some(),
+    }
 }
 
 pub(crate) fn listen(app: &Rc<App>) {

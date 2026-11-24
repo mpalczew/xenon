@@ -1,5 +1,4 @@
 use adw::prelude::*;
-use xenon_core::TabState;
 
 use crate::commands::Cmd;
 
@@ -93,22 +92,5 @@ pub(crate) fn all_clear(has_workspace: bool) -> gtk::Widget {
     clamp.set_maximum_size(420);
     clamp.set_child(Some(&card));
     page.set_child(Some(&clamp));
-    page.upcast()
-}
-
-pub(crate) fn placeholder(state: &TabState) -> gtk::Widget {
-    let (title, detail) = match state {
-        TabState::Editor { path, .. } => (
-            path.file_name()
-                .map_or_else(|| "file".into(), |n| n.to_string_lossy().into_owned()),
-            path.display().to_string(),
-        ),
-        TabState::Diff { path, .. } => (path.clone(), String::new()),
-        TabState::Terminal { .. } => ("terminal".into(), String::new()),
-    };
-    let page = adw::StatusPage::new();
-    page.set_icon_name(Some("text-x-generic-symbolic"));
-    page.set_title(&title);
-    page.set_description(Some(&detail));
     page.upcast()
 }

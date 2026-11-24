@@ -31,7 +31,6 @@ pub struct TerminalInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub cwd: String,
-    pub active: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dot: Option<Dot>,
 }
@@ -86,7 +85,6 @@ pub(crate) struct PairRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairResponse {
-    pub device_id: String,
     pub token: String,
     pub host_name: String,
 }
@@ -111,7 +109,6 @@ pub enum NamedKey {
     CtrlU,
 }
 
-/// Phone → Mac over `/ws`. The first message must be `hello`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "camelCase")]
 pub enum ClientMsg {
@@ -128,7 +125,6 @@ pub enum ClientMsg {
     Bandwidth {
         low_bandwidth: bool,
     },
-    /// The page's chosen appearance; `None` follows the Mac's active theme.
     Appearance {
         appearance: Option<AppearanceWire>,
     },
@@ -138,8 +134,6 @@ pub enum ClientMsg {
     Key {
         key: NamedKey,
     },
-    History,
-    /// Finger or trackpad wheel, in terminal rows. Positive shows older lines.
     Wheel {
         rows: i32,
     },
@@ -182,7 +176,6 @@ pub struct ThemeWire {
     pub cursor: String,
 }
 
-/// One interned text style. Colors are `#rrggbb`; `None` = theme default.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StyleWire {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -225,9 +218,7 @@ pub struct CursorWire {
     pub s: CursorShapeWire,
 }
 
-/// A run of text in one style: `[text, styleId]`.
 pub(crate) type SpanWire = (String, u32);
-/// A changed row: `[rowIndex, spans]`.
 pub(crate) type LineWire = (u16, Vec<SpanWire>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,7 +235,6 @@ pub enum ServerMsg {
     #[serde(rename_all = "camelCase")]
     Ready {
         theme: ThemeWire,
-        device_id: String,
         host_name: String,
     },
     Theme {
@@ -253,7 +243,6 @@ pub enum ServerMsg {
     Styles {
         add: BTreeMap<u32, StyleWire>,
     },
-    /// Screen patch. `full` = replace every row (first frame or resize).
     Frame {
         seq: u64,
         cols: u16,
@@ -264,9 +253,6 @@ pub enum ServerMsg {
         lines: Vec<LineWire>,
         #[serde(default, skip_serializing_if = "is_false")]
         scrolled: bool,
-    },
-    History {
-        lines: Vec<String>,
     },
     Dots {
         workspaces: BTreeMap<String, Dot>,

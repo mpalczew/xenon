@@ -21,8 +21,6 @@ pub struct OpenFileSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub column: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
 }
 

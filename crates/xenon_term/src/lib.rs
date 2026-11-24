@@ -15,14 +15,13 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub use builds::installed_build;
-pub use dir::{phone_socket_path, watch_dir};
+pub use dir::{runtime_dir, watch_dir};
 pub use end::end_all;
 pub use hold::run_holder;
 pub use mirror::{Gone, Mirror, Modes};
 pub use terminals::{Event, Terminals};
-pub use xenon_core::{TermId, WorkspaceId};
 
-use xenon_core::AttentionReason;
+use xenon_core::{AttentionReason, TermId, WorkspaceId};
 
 pub const BUILD: &str = env!("XENON_BUILD");
 
@@ -102,7 +101,6 @@ pub(crate) enum Claim {
     Phone { size: Size, label: String },
 }
 
-/// What dots, titles and exit marks are painted from. Derived in the holder.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TermStatus {
@@ -113,7 +111,6 @@ pub struct TermStatus {
     pub phone: Option<String>,
 }
 
-/// Which build a terminal runs on. Worked out when read, never stored.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Build {
     pub label: String,

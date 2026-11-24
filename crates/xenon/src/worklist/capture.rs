@@ -4,12 +4,11 @@ use std::rc::{Rc, Weak};
 use adw::prelude::*;
 use gtk::{gdk, glib};
 use xenon_core::WorkspaceId;
-use xenon_store::worklist::entries::Entry;
-use xenon_store::worklist::{
-    Edit, ItemDraft, TITLE_LIMIT, Target, WorkItem, read_source, title_length, write_draft,
-};
 
+use super::doc::{Entry, Target};
 use super::fields::{text_of, title_view};
+use super::file::commit_draft;
+use super::item::{Draft, DraftEdit, TITLE_LIMIT, WorkItem, title_length};
 use crate::app::{App, defer};
 
 const NEAR_LIMIT: isize = 12;
@@ -54,17 +53,14 @@ fn points_view(body: &gtk::Box) -> gtk::TextView {
 
 fn prefill(
     entry: &Entry,
-    source: &str,
     check: &gtk::CheckButton,
     title: &gtk::TextView,
     details: &gtk::TextView,
-) -> ItemDraft {
-    let done = entry.checked == Some(true);
-    check.set_active(done);
+) {
+    check.set_active(entry.checked == Some(true));
     check.set_visible(entry.checked.is_some());
     title.buffer().set_text(&entry.title);
     details.buffer().set_text(&entry.details);
-    ItemDraft::existing(source, entry.range.clone(), done)
 }
 
 pub(super) struct Capture {
@@ -86,8 +82,8 @@ pub(super) struct Capture {
     selected: Cell<usize>,
     task: bool,
     editing: bool,
-    draft: RefCell<ItemDraft>,
-    landed: RefCell<Option<(WorkItem, bool)>>,
+    draft: RefCell<Draft>,
+    landed: RefCell<Option<WorkItem>>,
     discarded: Cell<bool>,
 }
 
@@ -97,7 +93,7 @@ impl Capture {
         (ws, root): (WorkspaceId, std::path::PathBuf),
         name: &str,
         (targets, selected): (Vec<Target>, usize),
-        edit: Option<(Entry, String)>,
+        edit: Option<(Entry, Draft)>,
     ) -> Rc<Self> {
         let dialog = adw::Dialog::new();
         dialog.set_content_width(430);
@@ -151,17 +147,16 @@ impl Capture {
         dialog.set_child(Some(&body));
         crate::palette_list::close_on_outside_click(&dialog, &body);
 
-        let (draft, task) = match &edit {
-            Some((entry, source)) => {
+        let editing = edit.is_some();
+        let (draft, task) = match edit {
+            Some((entry, draft)) => {
                 chip.set_visible(false);
-                (
-                    prefill(entry, source, &check, &title, &details),
-                    entry.checked.is_some(),
-                )
+                prefill(&entry, &check, &title, &details);
+                (draft, entry.checked.is_some())
             }
-            None => (ItemDraft::default(), true),
+            None => (Draft::default(), true),
         };
-        let (delete, save) = buttons(&body, edit.is_some());
+        let (delete, save) = buttons(&body, editing);
 
         let this = Rc::new(Self {
             app: Rc::downgrade(app),
@@ -181,13 +176,13 @@ impl Capture {
             targets,
             selected: Cell::new(selected),
             task,
-            editing: edit.is_some(),
+            editing,
             draft: RefCell::new(draft),
             landed: RefCell::new(None),
             discarded: Cell::new(false),
         });
-        if edit.is_some() {
-            *this.landed.borrow_mut() = this.item().ok().map(|item| (item, this.check.is_active()));
+        if editing {
+            *this.landed.borrow_mut() = this.item().ok();
         }
         this.update_section();
         this.wire(&body, &length);
@@ -306,17 +301,13 @@ impl Capture {
     }
 
     fn item(&self) -> anyhow::Result<WorkItem> {
-        WorkItem::new(self.title_text().as_str(), &self.details_text(), self.task)
+        let checked = self.task.then(|| self.check.is_active());
+        WorkItem::new(self.title_text().as_str(), &self.details_text(), checked)
     }
 
     fn pending(&self) -> Option<WorkItem> {
         let item = self.item().ok()?;
-        let done = self.check.is_active();
-        let unchanged = self
-            .landed
-            .borrow()
-            .as_ref()
-            .is_some_and(|(landed, was_done)| *landed == item && *was_done == done);
+        let unchanged = self.landed.borrow().as_ref().is_some_and(|l| *l == item);
         (!unchanged).then_some(item)
     }
 
@@ -333,18 +324,16 @@ impl Capture {
     }
 
     fn save(&self, item: &WorkItem) {
-        let done = self.check.is_active();
         let result = {
             let mut draft = self.draft.borrow_mut();
-            draft.set_checked(done);
             if !draft.is_saved() {
                 draft.set_target(self.target());
             }
-            write_draft(&self.root, &mut draft, &Edit::Save(item))
+            commit_draft(&self.root, &mut draft, DraftEdit::Save(item))
         };
         match result {
-            Ok(()) => {
-                *self.landed.borrow_mut() = Some((item.clone(), done));
+            Ok(_) => {
+                *self.landed.borrow_mut() = Some(item.clone());
                 self.error.set_visible(false);
                 if let Some(app) = self.app.upgrade() {
                     app.worklist
@@ -410,17 +399,13 @@ impl Capture {
 
     fn discard(&self) {
         self.discarded.set(true);
-        let before = read_source(&self.root);
-        let result = write_draft(&self.root, &mut self.draft.borrow_mut(), &Edit::Remove);
+        let result = commit_draft(&self.root, &mut self.draft.borrow_mut(), DraftEdit::Remove);
         if let Some(app) = self.app.upgrade() {
             match result {
-                Ok(()) if self.editing => {
-                    let after = read_source(&self.root);
-                    if before != after {
-                        app.offer_worklist_undo(self.root.clone(), "Item deleted", before, after);
-                    }
+                Ok(Some(undo)) if self.editing => {
+                    app.offer_worklist_undo(self.root.clone(), "Item deleted", undo);
                 }
-                Ok(()) => {}
+                Ok(_) => {}
                 Err(error) => app.worklist_error("Couldn\u{2019}t delete that task", &error),
             }
         }

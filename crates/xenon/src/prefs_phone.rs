@@ -31,18 +31,16 @@ pub(crate) fn page(app: &Rc<App>) -> adw::PreferencesPage {
         .build();
     let group = adw::PreferencesGroup::new();
     let status = app.remote_status();
-    let on = crate::prefs_pages::switch_row(
-        "Phone remote",
-        &status.subtitle(&off_hint()),
-        status.on(),
-        |_| {},
-    );
-    let keep = crate::prefs_pages::switch_row(
-        xenon_phone::KEEP_AWAKE_LABEL,
-        xenon_phone::KEEP_AWAKE_DETAIL,
-        status.keep_awake,
-        |_| {},
-    );
+    let on = adw::SwitchRow::builder()
+        .title("Phone remote")
+        .subtitle(status.subtitle(&off_hint()))
+        .active(status.on())
+        .build();
+    let keep = adw::SwitchRow::builder()
+        .title(xenon_phone::KEEP_AWAKE_LABEL)
+        .subtitle(xenon_phone::KEEP_AWAKE_DETAIL)
+        .active(status.keep_awake)
+        .build();
     let network = adw::ActionRow::builder()
         .title("Network")
         .subtitle("Tailscale or Headscale carries the encryption; plain HTTP on Wi-Fi would not")
@@ -248,17 +246,16 @@ fn device_row(app: &Rc<App>, device: &DeviceRow) -> gtk::Widget {
 
 fn restart_server(button: &gtk::Button) {
     button.set_sensitive(false);
-    let (tx, rx) = async_channel::bounded::<bool>(1);
-    std::thread::spawn(move || {
-        let ok = std::process::Command::new("systemctl")
-            .args(["--user", "restart", "xenon-phone.service"])
-            .status()
-            .is_ok_and(|status| status.success());
-        let _ = tx.send_blocking(ok);
-    });
     let button = button.clone();
     gtk::glib::spawn_future_local(async move {
-        let ok = rx.recv().await.unwrap_or(false);
+        let ok = gtk::gio::spawn_blocking(|| {
+            std::process::Command::new("systemctl")
+                .args(["--user", "restart", "xenon-phone.service"])
+                .status()
+                .is_ok_and(|status| status.success())
+        })
+        .await
+        .unwrap_or(false);
         button.set_sensitive(true);
         button.set_label(if ok { "Restarted" } else { "Restart failed" });
     });

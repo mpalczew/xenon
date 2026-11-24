@@ -76,7 +76,6 @@ resolve_path_args() {
     done
 }
 
-# Start the app; it hands off to a running window by itself and then exits.
 launch() {
     mkdir -p "$DATA_DIR"
     ${DETACH[@]+"${DETACH[@]}"} "$APP" "$@" </dev/null >>"$DATA_DIR/xenon.log" 2>&1 &

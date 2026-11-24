@@ -4,13 +4,11 @@ use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
 use gtk::{gio, glib};
-use xenon_store::worklist::entries::parse;
-use xenon_store::worklist::view::inline_markup;
-use xenon_store::worklist::{Target, capture_targets, read_source};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
+use super::doc::{Doc, Entry, Target};
+use super::file::read_text;
 use crate::app::{App, defer};
-
-mod write;
 
 struct RowInfo {
     widget: gtk::Widget,
@@ -27,12 +25,12 @@ pub(crate) struct WorklistList {
     pub(crate) header: gtk::Box,
     pub(crate) root: gtk::Box,
     actions: gtk::Box,
-    workspace: PathBuf,
-    app: Weak<App>,
+    pub(super) workspace: PathBuf,
+    pub(super) app: Weak<App>,
     content: gtk::Box,
     error: gtk::Label,
     rows: RefCell<Vec<RowInfo>>,
-    source: RefCell<String>,
+    pub(super) doc: RefCell<Doc>,
     hide_done: Cell<bool>,
 }
 
@@ -49,6 +47,37 @@ fn item_with(label: &str, action: &str, target: Option<glib::Variant>) -> gio::M
     let item = gio::MenuItem::new(Some(label), None);
     item.set_action_and_target_value(Some(action), target.as_ref());
     item
+}
+
+fn inline_markup(line: &str) -> String {
+    let mut events = Parser::new_ext(line, Options::ENABLE_STRIKETHROUGH);
+    if !matches!(events.next(), Some(Event::Start(Tag::Paragraph))) {
+        return glib::markup_escape_text(line).into();
+    }
+    let mut out = String::new();
+    for event in events {
+        match event {
+            Event::Start(Tag::Strong) => out.push_str("<b>"),
+            Event::End(TagEnd::Strong) => out.push_str("</b>"),
+            Event::Start(Tag::Emphasis) => out.push_str("<i>"),
+            Event::End(TagEnd::Emphasis) => out.push_str("</i>"),
+            Event::Start(Tag::Strikethrough) => out.push_str("<s>"),
+            Event::End(TagEnd::Strikethrough) => out.push_str("</s>"),
+            Event::Start(Tag::Link { .. }) => out.push_str("<u>"),
+            Event::End(TagEnd::Link) => out.push_str("</u>"),
+            Event::Text(piece) | Event::Html(piece) | Event::InlineHtml(piece) => {
+                out.push_str(&glib::markup_escape_text(&piece));
+            }
+            Event::Code(piece) => {
+                out.push_str("<tt>");
+                out.push_str(&glib::markup_escape_text(&piece));
+                out.push_str("</tt>");
+            }
+            Event::SoftBreak | Event::HardBreak => out.push(' '),
+            _ => {}
+        }
+    }
+    out
 }
 
 impl WorklistList {
@@ -107,7 +136,7 @@ impl WorklistList {
             content,
             error,
             rows: RefCell::default(),
-            source: RefCell::default(),
+            doc: RefCell::default(),
             hide_done: Cell::new(false),
         });
         this.install_actions();
@@ -171,13 +200,13 @@ impl WorklistList {
     }
 
     pub(crate) fn show(self: &Rc<Self>) {
-        self.rebuild(read_source(&self.workspace), None);
+        self.rebuild(read_text(&self.workspace));
     }
 
     pub(crate) fn refresh(self: &Rc<Self>) {
-        let source = read_source(&self.workspace);
-        if source != *self.source.borrow() && !self.typing() {
-            self.rebuild(source, None);
+        let source = read_text(&self.workspace);
+        if source != self.doc.borrow().source() && !self.typing() {
+            self.rebuild(source);
         }
     }
 
@@ -197,12 +226,12 @@ impl WorklistList {
         })
     }
 
-    fn redraw(self: &Rc<Self>) {
-        let source = self.source.borrow().clone();
-        self.rebuild(source, None);
+    pub(super) fn redraw(self: &Rc<Self>) {
+        let source = self.doc.borrow().source().to_owned();
+        self.rebuild(source);
     }
 
-    fn set_error(&self, error: Option<&str>) {
+    pub(super) fn set_error(&self, error: Option<&str>) {
         self.error.set_text(error.unwrap_or(""));
         self.error.set_visible(error.is_some());
     }
@@ -219,7 +248,7 @@ impl WorklistList {
         })
     }
 
-    fn current_target(&self) -> Target {
+    pub(super) fn current_target(&self) -> Target {
         let focus = self.root.root().and_then(|root| root.focus());
         let rows = self.rows.borrow();
         let found = focus.and_then(|focus| {
@@ -230,19 +259,16 @@ impl WorklistList {
         found.unwrap_or_else(|| rows.first().map(|r| r.target.clone()).unwrap_or_default())
     }
 
-    fn rebuild(self: &Rc<Self>, source: String, focus: Option<Focus>) {
-        let focus = focus.or_else(|| self.current_focus());
+    pub(super) fn rebuild(self: &Rc<Self>, source: String) {
+        let focus = self.current_focus();
         while let Some(child) = self.content.first_child() {
             self.content.remove(&child);
         }
-        let parsed = parse(&source);
-        let targets = capture_targets(&source);
+        let doc = Doc::parse(source);
+        let targets = doc.targets();
         let mut rows = Vec::new();
         for target in &targets {
-            let region = match target {
-                Target::Top => None,
-                Target::Section { index, .. } => Some(*index),
-            };
+            let region = target.section_index();
             let group = gtk::Box::new(gtk::Orientation::Vertical, 8);
             group.set_margin_top(20);
             if let Target::Section { index, title } = target {
@@ -251,7 +277,7 @@ impl WorklistList {
             let list = gtk::ListBox::new();
             list.add_css_class("boxed-list");
             list.set_selection_mode(gtk::SelectionMode::None);
-            for (i, entry) in parsed.entries.iter().enumerate() {
+            for (i, entry) in doc.entries.iter().enumerate() {
                 if entry.section != region || (self.hide_done.get() && entry.checked == Some(true))
                 {
                     continue;
@@ -291,7 +317,7 @@ impl WorklistList {
             row.widget.grab_focus();
         }
         *self.rows.borrow_mut() = rows;
-        *self.source.borrow_mut() = source;
+        *self.doc.borrow_mut() = doc;
     }
 
     fn section_header(&self, index: usize, title: &str) -> gtk::Box {
@@ -313,7 +339,7 @@ impl WorklistList {
     fn item_row(
         self: &Rc<Self>,
         index: usize,
-        entry: &xenon_store::worklist::entries::Entry,
+        entry: &Entry,
         targets: &[Target],
     ) -> adw::ActionRow {
         let done = entry.checked == Some(true);
@@ -361,7 +387,7 @@ impl WorklistList {
             if targets.len() > 1 {
                 let moves = gio::Menu::new();
                 for (t, target) in targets.iter().enumerate() {
-                    if entry.section == target_index(target) {
+                    if entry.section == target.section_index() {
                         continue;
                     }
                     let to = Some((index as i32, t as i32).to_variant());
@@ -399,11 +425,4 @@ fn index(parameter: &Option<glib::Variant>) -> usize {
         .as_ref()
         .and_then(|p| p.get::<i32>())
         .unwrap_or_default() as usize
-}
-
-fn target_index(target: &Target) -> Option<usize> {
-    match target {
-        Target::Top => None,
-        Target::Section { index, .. } => Some(*index),
-    }
 }

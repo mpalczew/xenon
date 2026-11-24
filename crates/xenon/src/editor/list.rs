@@ -6,7 +6,7 @@ use gtk::{gdk, glib};
 use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 
 use super::EditorView;
-use crate::worklist_list::WorklistList;
+use crate::worklist::WorklistList;
 
 pub(super) fn is_worklist(path: &Path) -> bool {
     path.ends_with(".xenon/worklist.md")

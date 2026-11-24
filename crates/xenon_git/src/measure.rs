@@ -178,8 +178,6 @@ pub(crate) fn parse_numstat_z(raw: &[u8]) -> HashMap<String, (u32, u32)> {
     out
 }
 
-/// Count lines in file bytes the way git numstat does for new text files.
-/// Binary (NUL in content) yields `None`.
 pub(crate) fn count_text_lines(bytes: &[u8]) -> Option<u64> {
     if bytes.contains(&0) {
         return None;

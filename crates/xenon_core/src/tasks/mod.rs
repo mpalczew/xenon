@@ -43,8 +43,6 @@ pub(crate) fn workspace_for_tasks_json(tasks_json: &Path) -> Option<PathBuf> {
     tasks_json.parent()?.parent().map(|p| p.to_path_buf())
 }
 
-/// Input ids a run of `root` needs: every `${input:id}` in the task and its
-/// dependency closure, in first-seen order.
 pub(crate) fn required_inputs(set: &TaskSet, labels: &[String]) -> Vec<String> {
     let mut ids: Vec<String> = Vec::new();
     for label in labels {
@@ -60,5 +58,5 @@ pub(crate) fn required_inputs(set: &TaskSet, labels: &[String]) -> Vec<String> {
     ids
 }
 
-pub(crate) use parse::{Os, parse_task_set};
+pub(crate) use parse::parse_task_set;
 pub(crate) use vars::input_refs;

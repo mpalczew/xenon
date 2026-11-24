@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use gtk::glib;
 use vte::prelude::*;
-use xenon_core::{PaneId, TabId, TabState, WorkspaceId};
+use xenon_core::{PaneId, TabId, WorkspaceId};
 
 use crate::app::App;
 use crate::model::TabKind;
@@ -63,7 +63,7 @@ impl App {
 
     pub(crate) fn editor_saved_as(self: &Rc<Self>, ws: WorkspaceId, tab: TabId, path: &Path) {
         if let Some(t) = self.model.borrow_mut().tab_mut(ws, tab)
-            && let TabKind::Kept(TabState::Editor { path: old, .. }) = &mut t.kind
+            && let TabKind::Editor { path: old } = &mut t.kind
         {
             *old = path.to_path_buf();
             t.modified = false;

@@ -39,8 +39,6 @@ fn split_line(text: &str) -> (&str, Option<u32>) {
     (raw, numbers.last().copied())
 }
 
-/// A file hyperlink often carries only the path while its visible text ends in
-/// `:line`, so the line comes from the text.
 fn with_shown_line(uri: String, shown: Option<&str>) -> String {
     let bare = uri.starts_with("file://") && !uri.contains('#') && split_line(&uri).1.is_none();
     match shown.and_then(|s| split_line(s).1) {

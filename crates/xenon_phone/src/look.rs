@@ -1,4 +1,4 @@
-use crate::remote::Rgb;
+use crate::remote::{Rgb, ThemeWire};
 use xenon_core::terminal_palette;
 
 fn parse(hex: &str) -> Rgb {
@@ -41,9 +41,12 @@ impl Look {
         }
     }
 
-    pub fn theme(&self) -> [[u8; 3]; 3] {
-        let bytes = |c: Rgb| [c.0, c.1, c.2];
-        [bytes(self.bg), bytes(self.fg), bytes(self.fg)]
+    pub fn theme(&self) -> ThemeWire {
+        ThemeWire {
+            bg: self.bg.hex(),
+            fg: self.fg.hex(),
+            cursor: self.fg.hex(),
+        }
     }
 }
 

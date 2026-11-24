@@ -14,7 +14,6 @@ use xenon_core::{Registry, SessionState, WorkspaceId};
 
 mod cli;
 mod ipc;
-mod open_spec;
 mod prose;
 mod remote_devices;
 mod services;
@@ -22,7 +21,6 @@ mod settings;
 mod skill;
 mod task_trust;
 mod terminal;
-pub mod worklist;
 pub use cli::{CliCommand, parse_cli};
 pub use ipc::{Handoff, IpcRequest, OpenFileSpec, bind_server, serve_forever, try_handoff_request};
 pub use prose::{
@@ -38,7 +36,7 @@ pub use settings::{
     AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME,
     DEFAULT_UI_FONT_FAMILY, ThemeMode, WindowGeometry, WindowState,
 };
-pub use skill::{SkillStatus, install_skill, remove_skill, skill_status};
+pub use skill::{SKILL_HOMES, SkillStatus, install_skill, remove_skill, skill_status};
 pub use task_trust::{TaskTrust, set_task_trust, task_trust};
 pub use terminal::TerminalAutoClose;
 

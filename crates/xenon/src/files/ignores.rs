@@ -10,8 +10,6 @@ use xenon_finder::IgnoreMatcher;
 use super::{draw_item, is_dir, path_of};
 use crate::app::defer;
 
-/// What the sidebar hides: ignore-file matches, `.git` and dotfiles. With
-/// `show_hidden` on, they all show, dimmed. One filter serves every listing.
 pub(super) struct Ignores {
     matcher: RefCell<Option<Arc<IgnoreMatcher>>>,
     pub(super) root: RefCell<Option<PathBuf>>,
@@ -70,7 +68,6 @@ impl Ignores {
         self.redraw();
     }
 
-    /// Re-read the ignore files off the main thread, then re-filter.
     pub(super) fn refresh(self: &Rc<Self>) {
         let Some(root) = self.root.borrow().clone() else {
             self.matcher.take();
@@ -87,7 +84,6 @@ impl Ignores {
         });
     }
 
-    /// An ignore file appeared or something was removed: refresh once, after the event.
     pub(super) fn watch(self: &Rc<Self>, list: &gtk::DirectoryList) {
         let this = Rc::downgrade(self);
         // sync: event-time read: only looks at file names; the refresh is deferred.

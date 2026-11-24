@@ -260,7 +260,7 @@ fn fail_run(phone: &Phone, st: &mut TaskState, run_id: u64, label: &str, reason:
 }
 
 fn finish_if_done(st: &mut TaskState, run_id: u64) {
-    let done = run_of(st, run_id).is_some_and(|r| r.plan.orch.outcome().is_some());
+    let done = run_of(st, run_id).is_some_and(|r| r.plan.orch.is_done());
     if done {
         st.runs.retain(|r| r.id != run_id);
     }

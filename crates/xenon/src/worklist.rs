@@ -4,23 +4,31 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_core::WorkspaceId;
-use xenon_store::worklist::entries::Entry;
-use xenon_store::worklist::{
-    Edit, ItemDraft, Target, WorklistFile, capture_targets, read_source, write_draft,
-};
 
 use crate::app::App;
 use crate::commands::Cmd;
 
 mod capture;
+mod doc;
+mod edit;
 mod fields;
+mod file;
+mod item;
+mod list;
+mod list_ops;
+
+pub(crate) use list::WorklistList;
+
 use capture::Capture;
+use doc::{Doc, Entry, Target};
+use file::{UndoPair, commit_draft, ensure_exists, read_text, revert};
+use item::{Draft, DraftEdit};
 
 #[derive(Default)]
 pub(crate) struct Worklist {
     capture: RefCell<Option<Rc<Capture>>>,
     last_section: RefCell<HashMap<WorkspaceId, Target>>,
-    undo: RefCell<Option<(WorkspaceId, ItemDraft)>>,
+    undo: RefCell<Option<(WorkspaceId, Draft)>>,
     toast_serial: Cell<u64>,
 }
 
@@ -41,11 +49,7 @@ impl App {
         if let Some(capture) = capture {
             capture.dialog.close();
         }
-        let made = WorklistFile::new(&root).and_then(|file| match file.read()? {
-            Some(_) => Ok(()),
-            None => file.write(None, b"# Worklist\n"),
-        });
-        if let Err(error) = made {
+        if let Err(error) = ensure_exists(&root) {
             self.toast_failed("Couldn\u{2019}t open the worklist", &error.to_string());
             return;
         }
@@ -56,15 +60,15 @@ impl App {
         self.open_capture(None, None);
     }
 
-    pub(crate) fn capture_worklist_into(self: &Rc<Self>, section: Target) {
+    fn capture_worklist_into(self: &Rc<Self>, section: Target) {
         self.open_capture(Some(section), None);
     }
 
-    pub(crate) fn edit_worklist_item(self: &Rc<Self>, entry: Entry, source: String) {
-        self.open_capture(None, Some((entry, source)));
+    fn edit_worklist_item(self: &Rc<Self>, entry: Entry, draft: Draft) {
+        self.open_capture(None, Some((entry, draft)));
     }
 
-    fn open_capture(self: &Rc<Self>, section: Option<Target>, edit: Option<(Entry, String)>) {
+    fn open_capture(self: &Rc<Self>, section: Option<Target>, edit: Option<(Entry, Draft)>) {
         let open = self.worklist.capture.borrow().clone();
         if let Some(open) = open {
             open.dialog.close();
@@ -74,11 +78,17 @@ impl App {
             self.no_workspace_toast();
             return;
         };
-        let targets = capture_targets(&read_source(&root));
-        let preferred = section.or_else(|| self.worklist.last_section.borrow().get(&ws).cloned());
-        let selected = preferred
-            .and_then(|want| targets.iter().position(|t| t.label() == want.label()))
-            .unwrap_or(0);
+        let (targets, selected) = if edit.is_some() {
+            (Vec::new(), 0)
+        } else {
+            let targets = Doc::parse(read_text(&root)).targets();
+            let preferred =
+                section.or_else(|| self.worklist.last_section.borrow().get(&ws).cloned());
+            let selected = preferred
+                .and_then(|want| targets.iter().position(|t| t.label() == want.label()))
+                .unwrap_or(0);
+            (targets, selected)
+        };
         let capture = Capture::build(self, (ws, root), &name, (targets, selected), edit);
         *self.worklist.capture.borrow_mut() = Some(capture.clone());
         capture.dialog.present(Some(&self.win));
@@ -92,8 +102,8 @@ impl App {
         let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {
             return;
         };
-        match write_draft(&root, &mut draft, &Edit::Remove) {
-            Ok(()) => self.toast("Poof. Capture undone."),
+        match commit_draft(&root, &mut draft, DraftEdit::Remove) {
+            Ok(_) => self.toast("Poof. Capture undone."),
             Err(error) => self.worklist_error("Can\u{2019}t undo just yet", &error),
         }
     }
@@ -106,28 +116,15 @@ impl App {
         self.toasts.add_toast(toast);
     }
 
-    pub(crate) fn offer_worklist_undo(
-        &self,
-        root: std::path::PathBuf,
-        text: &str,
-        before: String,
-        after: String,
-    ) {
+    fn offer_worklist_undo(&self, root: std::path::PathBuf, text: &str, undo: UndoPair) {
         let toast = adw::Toast::new(text);
         toast.set_use_markup(false);
         toast.set_button_label(Some("Undo"));
+        let undo = Rc::new(undo);
         toast.connect_button_clicked(move |_| {
-            let (root, before, after) = (root.clone(), before.clone(), after.clone());
+            let (root, undo) = (root.clone(), Rc::clone(&undo));
             gtk::glib::idle_add_local_once(move || {
-                let result = WorklistFile::new(&root).and_then(|file| {
-                    let old = file.read()?;
-                    anyhow::ensure!(
-                        old.as_deref() == Some(after.as_bytes()),
-                        "the worklist changed since"
-                    );
-                    file.write(old.as_deref(), before.as_bytes())
-                });
-                if let Err(error) = result {
+                if let Err(error) = revert(&root, &undo) {
                     eprintln!("[xg] worklist undo failed: {error}");
                 }
             });
@@ -135,7 +132,7 @@ impl App {
         self.toasts.add_toast(toast);
     }
 
-    fn task_added_toast(self: &Rc<Self>, ws: WorkspaceId, draft: ItemDraft) {
+    fn task_added_toast(self: &Rc<Self>, ws: WorkspaceId, draft: Draft) {
         let text = match draft.title() {
             Some(title) => format!("Got it, task added \u{2014} {title}"),
             None => "Got it, task added".to_string(),

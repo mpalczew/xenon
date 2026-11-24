@@ -399,8 +399,6 @@ fn show_shortcuts(app: &Rc<App>) {
     dialog.present(Some(&app.win));
 }
 
-/// Registers every accelerator. GTK keeps them by action name, so this runs before any
-/// widget asks for a chord.
 pub(crate) fn install_accels(app: &gtk::Application) {
     for cmd in Cmd::ALL {
         app.set_accels_for_action(cmd.action(), cmd.spec().keys);

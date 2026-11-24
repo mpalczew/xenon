@@ -1,10 +1,6 @@
 use std::sync::mpsc::{Receiver, SyncSender};
 
-use async_channel::Sender;
-
-use crate::remote::protocol::{
-    ClientMsg, PairResponse, ServerMsg, TaskInfo, TerminalInfo, WorkspaceInfo,
-};
+use crate::remote::protocol::ServerMsg;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ConnId(pub u64);
@@ -30,53 +26,3 @@ pub enum PairError {
     Rejected,
     Storage(String),
 }
-
-pub enum HostRequest {
-    Authenticate {
-        token: String,
-        reply: SyncSender<Option<String>>,
-    },
-    Pair {
-        code: String,
-        label: String,
-        reply: SyncSender<Result<PairResponse, PairError>>,
-    },
-    ListWorkspaces {
-        reply: SyncSender<Vec<WorkspaceInfo>>,
-    },
-    ListTerminals {
-        workspace_id: String,
-        reply: SyncSender<Result<Vec<TerminalInfo>, String>>,
-    },
-    ListTasks {
-        workspace_id: String,
-        reply: SyncSender<Result<Vec<TaskInfo>, String>>,
-    },
-    CreateTerminal {
-        workspace_id: String,
-        reply: SyncSender<Result<TerminalInfo, String>>,
-    },
-    CloseWorkspace {
-        workspace_id: String,
-        reply: SyncSender<Result<(), String>>,
-    },
-    CloseTerminal {
-        workspace_id: String,
-        tab_id: u64,
-        reply: SyncSender<Result<(), String>>,
-    },
-    Connected {
-        conn: ConnId,
-        device_id: String,
-        out: Outbox,
-    },
-    Message {
-        conn: ConnId,
-        msg: ClientMsg,
-    },
-    Disconnected {
-        conn: ConnId,
-    },
-}
-
-pub(crate) type HostTx = Sender<HostRequest>;

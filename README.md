@@ -73,18 +73,17 @@ Linux only (Ubuntu 24.04+, Wayland or X11). Today you build from source.
 | Tool            | Notes                                                  |
 | --------------- | ------------------------------------------------------ |
 | **Rust**        | stable (`rustup`); edition 2024                        |
-| **Build tools** | `build-essential cmake clang lld pkg-config` and so on |
+| **Build tools** | `build-essential pkg-config curl git rsync`            |
 | **GTK 4 stack** | GTK 4, libadwaita, VTE and GtkSourceView 5 (dev files) |
 
 ### Build and install
 
 ```bash
-sudo apt install build-essential cmake clang lld pkg-config curl git rsync \
-  libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libgtksourceview-5-dev \
-  libssl-dev libzstd-dev libsqlite3-dev libgit2-dev
+sudo apt install build-essential pkg-config curl git rsync \
+  libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libgtksourceview-5-dev
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust stable
 git clone https://github.com/mpalczew/xenon.git && cd xenon
-./scripts/release/install
+./scripts/release/install --force
 ```
 
 Installs the GTK app as `~/.local/share/xenon/xenon-bin`, `xenon-term` (terminal holders
@@ -92,7 +91,7 @@ and the phone server) beside it, the launcher as `~/.local/bin/xenon` (and `~/bi
 when that directory exists), the `xenon-term.slice`, `xenon-phone.socket` and
 `xenon-phone.service` systemd user units, and a `.desktop` entry with an icon.
 `XENON_APP_DIR` and `XENON_BIN_DIR` override. Update with `git pull &&
-./scripts/release/install`. Quit is `ctrl-q`.
+./scripts/release/install --force`. Quit is `ctrl-q`.
 
 Each terminal runs in its own holder process, so closing the window keeps every shell
 and agent running; "Quit and End Terminals" in the header-bar menu, or `xenon quit
@@ -107,7 +106,7 @@ window. `xenon status` shows the window, the phone server and the terminal count
 cargo run -p xenon      # debug
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
-scripts/health              # full gate: fmt + clippy + shape
+scripts/health              # full gate: fmt + dprint + clippy + shape + gtk-events
 ```
 
 ---
@@ -174,8 +173,6 @@ chrome or positioning changes.
 
 [GPL-3.0-or-later](LICENSE) (SPDX). The `LICENSE` file is the GNU GPL version 3; Cargo
 and this project allow “or any later version.”
-
-Parts adapted from other projects are tracked in [`ATTRIBUTION.md`](ATTRIBUTION.md).
 
 ---
 

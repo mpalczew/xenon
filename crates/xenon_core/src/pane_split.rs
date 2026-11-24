@@ -77,9 +77,6 @@ impl<T> PaneTree<T> {
             .any(|c| c.set_boundary_for_split(key, pos))
     }
 
-    /// Remove leaf `empty` from its split, giving its slot to the previous
-    /// neighbour (else the next). Returns the neighbour's first leaf, or `None`
-    /// when `empty` is not under a split here.
     pub(crate) fn remove_leaf(&mut self, empty: PaneId) -> Option<PaneId> {
         let Self::Split {
             children, sizes, ..

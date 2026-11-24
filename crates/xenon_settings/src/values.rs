@@ -132,12 +132,6 @@ impl UiSettings {
         settings.terminal_auto_close = self.terminal_auto_close;
     }
 
-    pub fn snapshot(&self) -> AppSettings {
-        let mut settings = xenon_store::load_settings().unwrap_or_default();
-        self.write_into(&mut settings);
-        settings
-    }
-
     pub fn persist(&self) {
         if let Err(error) = xenon_store::update_settings(|settings| self.write_into(settings)) {
             log::error!("save settings failed: {error}");

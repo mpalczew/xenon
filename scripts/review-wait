@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Usage: scripts/review-wait [REV]  (default HEAD; REV must be pushed to main)
-# Exit: 0 no findings, 1 review run failed, 2 no review run, 3 findings.
 set -euo pipefail
 sha=$(git rev-parse "${1:-HEAD}")
 repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)

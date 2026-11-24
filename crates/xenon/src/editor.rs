@@ -11,7 +11,7 @@ use xenon_settings::{MarkdownMode, prose_file_prefs, set_prose_file_prefs};
 use crate::app::{App, defer};
 use crate::commands::Cmd;
 use crate::prose::{self, Prose};
-use crate::worklist_list::WorklistList;
+use crate::worklist::WorklistList;
 
 mod list;
 mod switch;

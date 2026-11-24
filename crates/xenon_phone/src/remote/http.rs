@@ -4,9 +4,6 @@ use std::net::{IpAddr, TcpStream};
 use anyhow::{Result, bail};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 
-// Parsed here with httparse rather than a server crate: tiny_http (checked
-// at 0.12) has no header size cap, connection cap or read timeout, and this
-// port reads requests before it checks the device token.
 const MAX_HEAD: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
 pub(crate) const MAX_BODY: usize = 8 * 1024;
@@ -31,7 +28,6 @@ impl Request {
     }
 }
 
-/// Reads the request line and headers; returns them with any body bytes read past them.
 pub(crate) fn read_head(stream: &mut TcpStream, peer: IpAddr) -> Result<Option<Request>> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 4096];
@@ -68,7 +64,6 @@ pub(crate) fn read_head(stream: &mut TcpStream, peer: IpAddr) -> Result<Option<R
     }
 }
 
-/// Completes `req.body` up to its Content-Length.
 pub(crate) fn read_body(req: &mut Request, stream: &mut TcpStream) -> Result<()> {
     let len = req.content_length();
     req.body.truncate(len);

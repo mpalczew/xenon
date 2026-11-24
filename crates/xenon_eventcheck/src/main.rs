@@ -1,18 +1,3 @@
-//! Commit check for the GTK event rule (every crash so far broke it): a GTK signal handler,
-//! here a closure passed to a `connect_*` method, may only read and defer. Outside a
-//! deferral (`glib::idle_add_local_once` and friends) every call in it must be a read:
-//! a getter or query (`get_*`, `is_*`, `has_*`, `upgrade`, `borrow`, `clone`, ...), an
-//! Option/Result/iterator combinator, a constructor like `Some(..)`, or a call that only
-//! updates our own Rust state (`Cell`, or a `borrow_mut()` collection). Anything else,
-//! including our own helpers, changes widgets, models, buffers or styles while GTK may
-//! be mid-layout, so it must move into a deferral.
-//! Escape: `// sync: <reason>` on the line of, or the line above, the call or the
-//! `connect_*` call (the latter covers the whole handler). Use it for exactly two reasons:
-//! GTK needs an answer or an ordering before the handler returns (a return value, a
-//! consumed key, an accepted drop, a list factory), or the read is tied to the moment of
-//! the event (text-iter positions, the row under the pointer, a list index that may shift).
-//! Otherwise move the work, reads included, into a deferral.
-
 use std::{fs, process::ExitCode};
 
 use proc_macro2::{Span, TokenStream, TokenTree};
@@ -159,7 +144,6 @@ const READS: &[&str] = &[
     "selected_page",
     "running",
     "on",
-    "termprop_string",
     "remote_status",
     "str",
     "active",

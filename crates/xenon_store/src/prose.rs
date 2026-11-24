@@ -56,9 +56,6 @@ pub enum MarkdownMode {
 #[serde(default)]
 pub struct ProseFilePrefs {
     pub mode: MarkdownMode,
-    pub paper: bool,
-    /// Leading `<!-- -->` lines shown instead of folded into the chip.
-    pub comments_open: bool,
     pub list: bool,
 }
 
@@ -66,8 +63,6 @@ impl Default for ProseFilePrefs {
     fn default() -> Self {
         Self {
             mode: MarkdownMode::Prose,
-            paper: true,
-            comments_open: false,
             list: true,
         }
     }

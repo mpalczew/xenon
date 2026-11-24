@@ -1,4 +1,4 @@
-use xenon_core::{TabId, TabState, WorkspaceId};
+use xenon_core::{TabId, WorkspaceId};
 
 use crate::model::{Model, TabKind};
 
@@ -15,7 +15,7 @@ impl Model {
             };
             root.for_each_leaf_mut(&mut |leaf| {
                 for tab in &mut leaf.tabs {
-                    if let TabKind::Kept(TabState::Editor { path, .. }) = &mut tab.kind
+                    if let TabKind::Editor { path } = &mut tab.kind
                         && !tab.modified
                         && let Some(moved) = xenon_finder::fileops::rebase(path, old, new)
                     {

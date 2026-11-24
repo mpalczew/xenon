@@ -354,7 +354,6 @@ impl PaneView {
             overlay.add_controller(click);
             let remove = gtk::Button::from_icon_name("window-close-symbolic");
             remove.add_css_class("flat");
-            remove.add_css_class("xremove-pane");
             remove.set_halign(gtk::Align::End);
             remove.set_valign(gtk::Align::Start);
             remove.set_margin_top(8);

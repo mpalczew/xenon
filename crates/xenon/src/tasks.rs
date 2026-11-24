@@ -12,7 +12,7 @@ use xenon_core::tasks::{
     self as shared, BuildChoice, LoadedTasks, RunVars, TaskQuestion, choose_build_task,
     resolve_for_run, terminal_command,
 };
-use xenon_core::{Action, EditorInfo, Orchestrator, TabId, TabState, TaskSet, WorkspaceId};
+use xenon_core::{Action, EditorInfo, Orchestrator, TabId, TaskSet, WorkspaceId};
 use xenon_term::Spawn;
 
 use crate::app::App;
@@ -171,7 +171,7 @@ impl App {
                 return None;
             }
             let tab = model.spaces.get(&ws)?.content.active_tab()?;
-            matches!(tab.kind, TabKind::Kept(TabState::Editor { .. })).then_some(tab.id)?
+            matches!(tab.kind, TabKind::Editor { .. }).then_some(tab.id)?
         };
         let editor = self.editors.borrow().get(&(ws, tab)).cloned()?;
         let buffer = &editor.buffer;
@@ -327,7 +327,7 @@ impl App {
 
     fn finish_if_done(&self, run_id: u64) {
         let done = self
-            .with_run(run_id, |r| r.plan.orch.outcome().is_some())
+            .with_run(run_id, |r| r.plan.orch.is_done())
             .unwrap_or(false);
         if done {
             self.tasks.runs.borrow_mut().retain(|r| r.id != run_id);

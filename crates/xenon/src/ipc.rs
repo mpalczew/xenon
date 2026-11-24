@@ -48,7 +48,6 @@ impl App {
                         path,
                         line: None,
                         column: None,
-                        end_line: None,
                         workspace: None,
                     });
                 }

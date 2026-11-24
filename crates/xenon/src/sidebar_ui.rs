@@ -9,7 +9,6 @@ use crate::pane::set_class;
 
 pub(crate) struct Section {
     pub root: gtk::Box,
-    pub sep: gtk::Separator,
     pub fold: gtk::Button,
     head: gtk::Box,
     arrow: gtk::Image,
@@ -60,15 +59,12 @@ impl Section {
         body.set_reveal_child(true);
         body.set_child(Some(&scroll));
 
-        let sep = gtk::Separator::new(gtk::Orientation::Horizontal);
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.set_vexpand(false);
-        root.append(&sep);
         root.append(&head);
         root.append(&body);
         Self {
             root,
-            sep,
             fold: button,
             head,
             arrow,
@@ -93,7 +89,6 @@ impl Section {
         }));
     }
 
-    /// Whether the section shows its body: unfolded, foldable and on screen.
     pub(crate) fn is_open(&self) -> bool {
         self.root.is_visible() && self.body.is_visible() && self.body.reveals_child()
     }

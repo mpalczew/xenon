@@ -1,8 +1,3 @@
-//! Per-workspace approval for `runOptions.runOn: "folderOpen"` tasks. Lives in
-//! Xenon's data dir, never in the repo. An approval names the hash of the
-//! tasks it covers (`xenon_core::folder_open_hash`), so an edited tasks.json
-//! asks again.
-
 use std::collections::BTreeMap;
 use std::path::Path;
 

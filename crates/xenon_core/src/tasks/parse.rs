@@ -4,25 +4,6 @@ use serde_json_lenient::{Map, Value};
 
 use super::model::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Os {
-    Linux,
-}
-
-impl Os {
-    pub fn current() -> Self {
-        Os::Linux
-    }
-
-    fn key(self) -> &'static str {
-        match self {
-            Os::Linux => "linux",
-        }
-    }
-}
-
-/// Override keys VS Code files may carry; only `linux` applies here, the rest
-/// are dropped.
 const OS_KEYS: [&str; 3] = ["osx", "linux", "windows"];
 const INHERITED: [&str; 5] = [
     "type",
@@ -32,12 +13,12 @@ const INHERITED: [&str; 5] = [
     "runOptions",
 ];
 
-pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
+pub(crate) fn parse_task_set(json: &str) -> Result<TaskSet, String> {
     let root: Value = serde_json_lenient::from_str(json).map_err(|e| e.to_string())?;
     let Value::Object(mut file) = root else {
         return Err("tasks.json must be a JSON object".into());
     };
-    apply_os(&mut file, os);
+    apply_os(&mut file);
     let mut set = TaskSet::default();
     for input in file
         .get("inputs")
@@ -60,7 +41,7 @@ pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
                 .push(format!("task {} is not an object", i + 1));
             continue;
         };
-        let merged = Value::Object(merge_task(&file, task, os));
+        let merged = Value::Object(merge_task(&file, task));
         match serde_json_lenient::from_value::<RawTask>(merged)
             .map_err(|e| e.to_string())
             .and_then(RawTask::into_def)
@@ -76,8 +57,8 @@ pub(crate) fn parse_task_set(json: &str, os: Os) -> Result<TaskSet, String> {
     Ok(set)
 }
 
-fn apply_os(obj: &mut Map<String, Value>, os: Os) {
-    let over = obj.get(os.key()).cloned();
+fn apply_os(obj: &mut Map<String, Value>) {
+    let over = obj.get("linux").cloned();
     for key in OS_KEYS {
         obj.remove(key);
     }
@@ -101,7 +82,7 @@ fn merge_key(obj: &mut Map<String, Value>, key: String, over: Value) {
     }
 }
 
-fn merge_task(file: &Map<String, Value>, task: &Map<String, Value>, os: Os) -> Map<String, Value> {
+fn merge_task(file: &Map<String, Value>, task: &Map<String, Value>) -> Map<String, Value> {
     let mut out = Map::new();
     for key in INHERITED {
         if let Some(v) = file.get(key) {
@@ -109,7 +90,7 @@ fn merge_task(file: &Map<String, Value>, task: &Map<String, Value>, os: Os) -> M
         }
     }
     let mut own = task.clone();
-    apply_os(&mut own, os);
+    apply_os(&mut own);
     let file_command = file.get("command").cloned();
     let file_args = file.get("args").and_then(Value::as_array).cloned();
     for (k, v) in own.clone() {
@@ -166,7 +147,6 @@ enum RawGroup {
     },
 }
 
-/// A label, or a task identifier object (unsupported).
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Dep {

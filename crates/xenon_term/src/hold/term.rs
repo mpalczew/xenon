@@ -132,10 +132,11 @@ impl Holder {
             st.apply_size(&self.master, now, None);
             changed = true;
         }
+        let label = st.claims.active_label(now);
+        changed |= st.status.set_phone(label);
         if changed {
             st.broadcast_status();
         }
-        st.sync_label(now);
     }
 
     pub(crate) fn seen(&self) {

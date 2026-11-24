@@ -1,7 +1,5 @@
 use crate::remote::protocol::NamedKey;
 
-/// Bytes to write to the PTY for typed or injected text. Enter is CR, so LF
-/// and CRLF become CR, as a real Enter press would send.
 pub fn pty_text_bytes(text: &str) -> Vec<u8> {
     text.replace("\r\n", "\r").replace('\n', "\r").into_bytes()
 }

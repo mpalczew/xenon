@@ -11,11 +11,6 @@ use crate::remote::protocol::PairResponse;
 
 const TOUCH_PERSIST_SECS: u64 = 60 * 60;
 
-pub(crate) struct NewDevice {
-    pub id: String,
-    pub token: String,
-}
-
 impl DeviceBook {
     pub fn pairing_code(&mut self, now: Instant) -> &PairingCode {
         if !self.pairing.as_ref().is_some_and(|c| c.is_live(now)) {
@@ -24,7 +19,7 @@ impl DeviceBook {
         self.pairing.as_ref().expect("just issued")
     }
 
-    pub(crate) fn pair(&mut self, code: &str, label: &str, now: Instant) -> Option<NewDevice> {
+    pub(crate) fn pair(&mut self, code: &str, label: &str, now: Instant) -> Option<String> {
         if !self.pairing.as_ref().is_some_and(|c| c.matches(code, now)) {
             return None;
         }
@@ -33,13 +28,13 @@ impl DeviceBook {
         let token = new_device_token();
         let stamp = unix_now();
         self.devices.devices.push(RemoteDevice {
-            id: id.clone(),
+            id,
             label: clean_label(label),
             token_sha256: hash_token(&token),
             created_at: stamp,
             last_seen_at: stamp,
         });
-        Some(NewDevice { id, token })
+        Some(token)
     }
 
     pub(crate) fn authenticate(&self, token: &str) -> Option<String> {
@@ -81,13 +76,12 @@ impl DeviceBook {
         host_name: &str,
     ) -> Result<PairResponse, PairError> {
         self.reload();
-        let device = self
+        let token = self
             .pair(code, label, Instant::now())
             .ok_or(PairError::Rejected)?;
         self.save().map_err(|e| PairError::Storage(e.to_string()))?;
         Ok(PairResponse {
-            device_id: device.id,
-            token: device.token,
+            token,
             host_name: host_name.to_string(),
         })
     }

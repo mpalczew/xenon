@@ -156,7 +156,6 @@ impl FilesView {
             drag: RefCell::default(),
         });
         *owner.0.borrow_mut() = Rc::downgrade(&this);
-        this.section.sep.set_visible(false);
         this.wire();
         this.wire_ops();
         this
@@ -164,8 +163,6 @@ impl FilesView {
 
     fn wire(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
-        // Act after the click or key has finished: changing the tree or the
-        // panes inside the list's own activate handler crashes GTK.
         // sync: event-time read: `tree_row` only reads the item; the work is deferred.
         self.list.connect_activate(move |_, pos| {
             let Some(this) = weak.upgrade() else { return };

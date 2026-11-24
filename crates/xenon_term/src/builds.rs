@@ -1,6 +1,3 @@
-//! Install replaces the binary by rename, so an older holder's `/proc/<pid>/exe` is a
-//! different inode from the installed one.
-
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;

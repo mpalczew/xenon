@@ -29,7 +29,7 @@ pub(crate) fn listener() -> io::Result<UnixListener> {
 }
 
 fn bind() -> io::Result<UnixListener> {
-    let path = xenon_term::phone_socket_path();
+    let path = crate::phone_socket_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

@@ -11,7 +11,6 @@ fn run(args: &[&str]) -> Option<String> {
 fn main() {
     let label = run(&["rev-parse", "--short=7", "HEAD"]).unwrap_or_else(|| "dev".into());
     println!("cargo:rustc-env=XENON_BUILD={label}");
-    // A new commit moves HEAD, or the branch ref it names, or packed refs.
     println!("cargo:rerun-if-changed=build.rs");
     let paths = [
         run(&["rev-parse", "--git-path", "HEAD"]),

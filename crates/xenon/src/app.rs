@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use adw::prelude::*;
 use gtk::glib;
-use xenon_core::{PaneId, TabId, TabState, TermId, WorkspaceId};
+use xenon_core::{PaneId, TabId, TermId, WorkspaceId};
 use xenon_settings::UiSettings;
 
 use crate::diff_view::DiffView;
@@ -205,14 +205,14 @@ impl App {
                     term = Some(id);
                     root
                 }
-                TabKind::Kept(TabState::Editor { path, .. }) if crate::image::is_image(path) => {
+                TabKind::Editor { path } if crate::image::is_image(path) => {
                     let (root, monitor) = crate::image::view(path);
                     if let Some(monitor) = monitor {
                         self.images.borrow_mut().insert(key, monitor);
                     }
                     root
                 }
-                TabKind::Kept(TabState::Editor { path, .. }) => {
+                TabKind::Editor { path } => {
                     let editor = EditorView::new(self, ws, tab.id, path);
                     let root = editor.root.clone();
                     self.editors.borrow_mut().insert(key, editor);
@@ -231,12 +231,11 @@ impl App {
                             added: 0,
                             removed: 0,
                         });
-                    let view = DiffView::new(self, ws, tab.id, cwd.clone(), file);
+                    let view = DiffView::new(self, ws, cwd.clone(), file);
                     let root = view.root.clone().upcast();
                     self.diffs.borrow_mut().insert(key, view);
                     root
                 }
-                TabKind::Kept(state) => crate::empty::placeholder(state),
             };
             self.bodies.borrow_mut().insert(key, Body { widget, term });
         }
@@ -267,12 +266,11 @@ impl App {
     ) -> Option<String> {
         let rec = model.rec(ws)?;
         match &tab.kind {
-            TabKind::Kept(TabState::Editor { path, .. }) => Some(path.display().to_string()),
+            TabKind::Editor { path } => Some(path.display().to_string()),
             TabKind::Diff { path } => Some(rec.root.join(path).display().to_string()),
             TabKind::Terminal => self
                 .term_view(ws, tab.id)
                 .map(|v| v.live_cwd().display().to_string()),
-            _ => None,
         }
     }
 
@@ -299,21 +297,21 @@ impl App {
                     });
                 }
             }
-            let name = model.rec(ws).map(|r| r.name.clone()).unwrap_or_default();
-            let local_root = model.rec(ws).map(|r| r.root.clone());
+            let (name, root) = model
+                .rec(ws)
+                .map(|r| (r.name.clone(), r.root.clone()))
+                .unwrap_or_default();
             let open_file = model
                 .spaces
                 .get(&ws)
                 .and_then(|s| s.content.active_tab())
                 .and_then(|t| match &t.kind {
-                    TabKind::Kept(TabState::Editor { path, .. }) => Some(path.clone()),
+                    TabKind::Editor { path } => Some(path.clone()),
                     _ => None,
                 });
-            let local_root_is_some = local_root.is_some();
-            self.sidebar.files.set_root(local_root);
+            self.sidebar.files.set_root(Some(root.clone()));
             self.sidebar.files.mark_open(open_file);
-            let status = self.git.status_of(ws).filter(|_| local_root_is_some);
-            let root = model.rec(ws).map(|r| r.root.clone()).unwrap_or_default();
+            let status = self.git.status_of(ws);
             self.sidebar.git.set(
                 Some(ws),
                 status.as_ref(),

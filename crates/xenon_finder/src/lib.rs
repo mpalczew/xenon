@@ -47,14 +47,6 @@ impl FileIndex {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     /// Files whose path ends with `reference` on whole path components, so
     /// `docs/a.md` matches `x/docs/a.md` but not `x/mydocs/a.md`. Leading `./`
     /// and `../` in the reference are ignored. Safe to call from a worker thread.
@@ -146,31 +138,11 @@ impl FileIndex {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-enum BasenameRank {
-    Exact = 0,
-    Prefix = 1,
-    Contains = 2,
-    Other = 3,
-}
-
-impl BasenameRank {
-    fn of(path: &Path, query: &str) -> Self {
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            return Self::Other;
-        };
-        let name_l = name.to_lowercase();
-        let query_l = query.to_lowercase();
-        if name_l == query_l {
-            Self::Exact
-        } else if name_l.starts_with(&query_l) {
-            Self::Prefix
-        } else if name_l.contains(&query_l) {
-            Self::Contains
-        } else {
-            Self::Other
-        }
-    }
+fn basename_rank(path: &Path, query: &str) -> u8 {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .and_then(|name| discover::MatchQuality::of_basename(name, query))
+        .map_or(3, |q| q as u8)
 }
 
 fn recent_ranks(recents: &[PathBuf]) -> HashMap<PathBuf, u32> {
@@ -195,7 +167,7 @@ fn compare_matches(
     let b_path_exact = path_eq_query(&b.path, query);
     b_path_exact
         .cmp(&a_path_exact)
-        .then_with(|| BasenameRank::of(&a.path, query).cmp(&BasenameRank::of(&b.path, query)))
+        .then_with(|| basename_rank(&a.path, query).cmp(&basename_rank(&b.path, query)))
         .then_with(|| recent_of(&a.path, recent).cmp(&recent_of(&b.path, recent)))
         .then_with(|| b.score.cmp(&a.score))
         .then_with(|| path_components(&a.path).cmp(&path_components(&b.path)))

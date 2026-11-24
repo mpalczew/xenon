@@ -41,14 +41,4 @@ impl TerminalAutoClose {
             Self::After5s => "After 5 seconds",
         }
     }
-
-    pub fn next(self) -> Self {
-        match self {
-            Self::Off => Self::Immediate,
-            Self::Immediate => Self::After1s,
-            Self::After1s => Self::After3s,
-            Self::After3s => Self::After5s,
-            Self::After5s => Self::Off,
-        }
-    }
 }

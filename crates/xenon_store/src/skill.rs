@@ -41,12 +41,10 @@ pub fn remove_skill() -> io::Result<()> {
     Ok(())
 }
 
+pub const SKILL_HOMES: [&str; 3] = [".agents", ".claude", ".grok"];
+
 fn skill_dirs(home: &Path) -> [PathBuf; 3] {
-    [
-        home.join(".agents/skills/xenon"),
-        home.join(".claude/skills/xenon"),
-        home.join(".grok/skills/xenon"),
-    ]
+    SKILL_HOMES.map(|dir| home.join(dir).join("skills/xenon"))
 }
 
 fn status_in(home: &Path) -> SkillStatus {

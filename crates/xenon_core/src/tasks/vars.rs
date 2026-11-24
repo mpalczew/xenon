@@ -8,14 +8,12 @@ pub struct EditorInfo {
     pub selected_text: String,
 }
 
-/// Everything variables can read.
 pub(crate) struct VarContext<'a> {
     pub workspace: &'a Path,
     pub editor: Option<&'a EditorInfo>,
     pub env: &'a dyn Fn(&str) -> Option<String>,
     pub config: &'a BTreeMap<String, String>,
     pub inputs: &'a BTreeMap<String, String>,
-    /// Input ids whose values must never be echoed.
     pub secret_inputs: &'a BTreeSet<String>,
     pub default_build_task: Option<&'a str>,
     pub exec_path: &'a str,
@@ -33,7 +31,6 @@ impl VarContext<'_> {
     }
 }
 
-/// Expand every `${...}` in `text`. Unknown variables are errors.
 pub(crate) fn expand(text: &str, ctx: &VarContext) -> Result<String, String> {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -77,7 +74,7 @@ fn lookup(name: &str, ctx: &VarContext) -> Result<String, String> {
                 .cloned()
                 .ok_or_else(|| format!("${{input:{arg}}}: no value was provided")),
             "workspaceFolder" | "workspaceRoot" if base(ctx.workspace) == arg => {
-                path_text(ctx.workspace)
+                Ok(path_text(ctx.workspace))
             }
             "workspaceFolder" | "workspaceRoot" => {
                 Err(format!("${{{name}}}: no workspace folder named {arg:?}"))
@@ -87,10 +84,10 @@ fn lookup(name: &str, ctx: &VarContext) -> Result<String, String> {
     }
     match name {
         "workspaceFolder" | "workspaceRoot" | "cwd" | "fileWorkspaceFolder" => {
-            path_text(ctx.workspace)
+            Ok(path_text(ctx.workspace))
         }
         "workspaceFolderBasename" | "workspaceRootFolderName" => Ok(base(ctx.workspace)),
-        "userHome" => path_text(ctx.user_home),
+        "userHome" => Ok(path_text(ctx.user_home)),
         "execPath" => Ok(ctx.exec_path.to_string()),
         "pathSeparator" | "/" => Ok(std::path::MAIN_SEPARATOR.to_string()),
         "defaultBuildTask" => Ok(ctx.default_build_task.unwrap_or_default().to_string()),
@@ -123,9 +120,9 @@ fn editor_var(name: &str, ctx: &VarContext) -> Result<String, String> {
     let rel = file.strip_prefix(ctx.workspace).unwrap_or(file);
     let rel_dir = rel.parent().unwrap_or(Path::new(""));
     match name {
-        "file" => path_text(file),
-        "relativeFile" => path_text(rel),
-        "relativeFileDirname" => Ok(match path_text(rel_dir)?.as_str() {
+        "file" => Ok(path_text(file)),
+        "relativeFile" => Ok(path_text(rel)),
+        "relativeFileDirname" => Ok(match path_text(rel_dir).as_str() {
             "" => ".".into(),
             other => other.to_string(),
         }),
@@ -135,7 +132,7 @@ fn editor_var(name: &str, ctx: &VarContext) -> Result<String, String> {
             .extension()
             .map(|e| format!(".{}", e.to_string_lossy()))
             .unwrap_or_default()),
-        "fileDirname" => path_text(dir),
+        "fileDirname" => Ok(path_text(dir)),
         "fileDirnameBasename" => Ok(base(dir)),
         "lineNumber" => Ok(editor.line.to_string()),
         _ => Ok(editor.selected_text.clone()),
@@ -151,6 +148,6 @@ fn os_text(s: Option<&std::ffi::OsStr>) -> String {
         .unwrap_or_default()
 }
 
-fn path_text(p: &Path) -> Result<String, String> {
-    Ok(p.to_string_lossy().into_owned())
+fn path_text(p: &Path) -> String {
+    p.to_string_lossy().into_owned()
 }

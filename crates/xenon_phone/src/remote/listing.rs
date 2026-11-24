@@ -45,8 +45,7 @@ pub fn list_workspaces(
 }
 
 pub fn parse_workspace_id(s: &str) -> Result<WorkspaceId, String> {
-    serde_json::from_value(serde_json::Value::String(s.to_string()))
-        .map_err(|_| "invalid workspace id".to_string())
+    s.parse().map_err(|_| "invalid workspace id".to_string())
 }
 
 pub fn tilde(path: &Path) -> String {

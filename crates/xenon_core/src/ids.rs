@@ -10,14 +10,6 @@ macro_rules! id_type {
             pub fn new() -> Self {
                 Self(Uuid::new_v4())
             }
-
-            pub fn as_u128(&self) -> u128 {
-                self.0.as_u128()
-            }
-
-            pub fn from_u128(bits: u128) -> Self {
-                Self(Uuid::from_u128(bits))
-            }
         }
 
         impl std::str::FromStr for $name {

@@ -22,28 +22,26 @@ impl App {
 
     pub(crate) fn git_measured(
         self: &Rc<Self>,
-        batch: Vec<(WorkspaceId, Option<xenon_git::status::GitStatus>)>,
+        ws: WorkspaceId,
+        next: Option<xenon_git::status::GitStatus>,
     ) {
-        let changed = crate::git::apply(&self.git, batch);
-        if changed.is_empty() {
+        if !crate::git::apply(&self.git, ws, next) {
             return;
         }
         self.paint_all();
-        for ws in changed {
-            let views: Vec<_> = self
-                .diffs
-                .borrow()
-                .iter()
-                .filter(|((w, _), _)| *w == ws)
-                .map(|(_, v)| v.clone())
-                .collect();
-            let status = self.git.status_of(ws);
-            for view in views {
-                let file = status
-                    .as_ref()
-                    .and_then(|s| s.files.iter().find(|f| f.path == view.path).cloned());
-                view.reload(file);
-            }
+        let views: Vec<_> = self
+            .diffs
+            .borrow()
+            .iter()
+            .filter(|((w, _), _)| *w == ws)
+            .map(|(_, v)| v.clone())
+            .collect();
+        let status = self.git.status_of(ws);
+        for view in views {
+            let file = status
+                .as_ref()
+                .and_then(|s| s.files.iter().find(|f| f.path == view.path).cloned());
+            view.reload(file);
         }
     }
 

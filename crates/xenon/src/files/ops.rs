@@ -131,7 +131,6 @@ impl FilesView {
         menu.set_halign(gtk::Align::Start);
         menu.set_parent(&self.list);
         menu.set_pointing_to(Some(&at));
-        // sync: answer or ordering before return: the popover is single-use and must leave its parent once closed; the unparent is deferred.
         menu.connect_closed(|menu| {
             let menu = menu.clone();
             glib::idle_add_local_once(move || menu.unparent());

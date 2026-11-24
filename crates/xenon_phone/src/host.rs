@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::remote::{
-    HostRequest, PairError, PairResponse, TaskInfo, TerminalInfo, WorkspaceInfo,
-    parse_workspace_id, tilde, wire_dot,
+    PairError, PairResponse, TaskInfo, TerminalInfo, WorkspaceInfo, parse_workspace_id, tilde,
+    wire_dot,
 };
 use xenon_core::tasks as shared;
 use xenon_core::{Registry, WorkspaceId};
@@ -11,65 +11,14 @@ use super::{Phone, locked};
 use xenon_term::{Spawn, TermInfo};
 
 impl Phone {
-    pub(super) fn request(&self, req: HostRequest) {
-        match req {
-            HostRequest::Authenticate { token, reply } => {
-                let id = locked(&self.server)
-                    .rt
-                    .as_mut()
-                    .and_then(|rt| rt.devices.authenticate_touch(&token));
-                let _ = reply.send(id);
-            }
-            HostRequest::Pair { code, label, reply } => {
-                let _ = reply.send(self.pair(&code, &label));
-            }
-            HostRequest::ListWorkspaces { reply } => {
-                let _ = reply.send(self.workspaces());
-            }
-            HostRequest::ListTerminals {
-                workspace_id,
-                reply,
-            } => {
-                let _ = reply.send(self.terminals(&workspace_id));
-            }
-            HostRequest::ListTasks {
-                workspace_id,
-                reply,
-            } => {
-                let _ = reply.send(self.list_tasks(&workspace_id));
-            }
-            HostRequest::CreateTerminal {
-                workspace_id,
-                reply,
-            } => {
-                let _ = reply.send(self.new_terminal(&workspace_id));
-            }
-            HostRequest::CloseWorkspace {
-                workspace_id,
-                reply,
-            } => {
-                std::thread::spawn(move || {
-                    let _ = reply.send(Self::close_workspace(&workspace_id));
-                });
-            }
-            HostRequest::CloseTerminal {
-                workspace_id,
-                tab_id,
-                reply,
-            } => {
-                let _ = reply.send(self.close_terminal(&workspace_id, tab_id));
-            }
-            HostRequest::Connected {
-                conn,
-                device_id,
-                out,
-            } => self.connected(conn, device_id, out),
-            HostRequest::Message { conn, msg } => self.message(conn, msg),
-            HostRequest::Disconnected { conn } => self.disconnected(conn),
-        }
+    pub(crate) fn authenticate(&self, token: &str) -> Option<String> {
+        locked(&self.server)
+            .rt
+            .as_mut()
+            .and_then(|rt| rt.devices.authenticate_touch(token))
     }
 
-    fn pair(&self, code: &str, label: &str) -> Result<PairResponse, PairError> {
+    pub(crate) fn pair(&self, code: &str, label: &str) -> Result<PairResponse, PairError> {
         let reply = {
             let mut guard = locked(&self.server);
             let rt = guard.rt.as_mut().ok_or(PairError::Rejected)?;
@@ -80,7 +29,7 @@ impl Phone {
         Ok(reply)
     }
 
-    fn workspaces(&self) -> Vec<WorkspaceInfo> {
+    pub(crate) fn workspaces(&self) -> Vec<WorkspaceInfo> {
         let registry = xenon_store::load_registry().unwrap_or_default();
         crate::remote::list_workspaces(&registry, |id| self.workspace_summary(id))
     }
@@ -110,13 +59,12 @@ impl Phone {
             tab_id: self.serial(term.id),
             title: Some(term.status.title.clone()),
             cwd: tilde(std::path::Path::new(&term.cwd)),
-            active: false,
             dot: xenon_core::workspace_dot(term.status.working, term.status.attention)
                 .map(wire_dot),
         }
     }
 
-    fn terminals(&self, workspace_id: &str) -> Result<Vec<TerminalInfo>, String> {
+    pub(crate) fn terminals(&self, workspace_id: &str) -> Result<Vec<TerminalInfo>, String> {
         let (ws, _) = Self::workspace_root(workspace_id)?;
         let mut terms: Vec<_> = self
             .terms
@@ -129,7 +77,7 @@ impl Phone {
         Ok(terms.iter().map(|(_, t)| self.terminal_info(t)).collect())
     }
 
-    fn new_terminal(&self, workspace_id: &str) -> Result<TerminalInfo, String> {
+    pub(crate) fn new_terminal(&self, workspace_id: &str) -> Result<TerminalInfo, String> {
         let (ws, root) = Self::workspace_root(workspace_id)?;
         let id = self.terms.open(ws, Spawn::shell(&root));
         if !self.terms.wait_ready(id, std::time::Duration::from_secs(5)) {
@@ -146,14 +94,14 @@ impl Phone {
             .find(|t| t.workspace == ws && self.serial(t.id) == serial)
     }
 
-    fn close_terminal(&self, workspace_id: &str, tab_id: u64) -> Result<(), String> {
+    pub(crate) fn close_terminal(&self, workspace_id: &str, tab_id: u64) -> Result<(), String> {
         let ws = parse_workspace_id(workspace_id)?;
         let found = self.find(ws, tab_id).ok_or("not found")?;
         self.terms.close(found.id);
         Ok(())
     }
 
-    fn close_workspace(workspace_id: &str) -> Result<(), String> {
+    pub(crate) fn close_workspace(workspace_id: &str) -> Result<(), String> {
         let workspace = parse_workspace_id(workspace_id)?;
         match xenon_store::try_handoff_request(&xenon_store::IpcRequest::CloseWorkspace {
             workspace,
@@ -166,7 +114,7 @@ impl Phone {
         }
     }
 
-    fn list_tasks(&self, workspace_id: &str) -> Result<Vec<TaskInfo>, String> {
+    pub(crate) fn list_tasks(&self, workspace_id: &str) -> Result<Vec<TaskInfo>, String> {
         let (_, root) = Self::workspace_root(workspace_id)?;
         let loaded = shared::load_tasks(&root)?;
         Ok(shared::task_rows(&loaded.set, &loaded.folder)

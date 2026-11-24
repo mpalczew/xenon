@@ -10,7 +10,6 @@ pub enum Quoting {
     Weak,
 }
 
-/// A plain string or `{value, quoting}`.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum QuotedRepr {
@@ -38,7 +37,6 @@ impl From<QuotedRepr> for Quoted {
 #[serde(from = "QuotedRepr")]
 pub struct Quoted {
     pub value: String,
-    /// `None`: the VS Code default (strong for shell arguments).
     pub quoting: Option<Quoting>,
 }
 
@@ -84,10 +82,8 @@ pub struct Presentation {
     pub reveal: Reveal,
     pub focus: bool,
     pub panel: Panel,
-    pub clear: bool,
     pub close: bool,
     pub echo: bool,
-    pub show_reuse_message: bool,
 }
 
 impl Default for Presentation {
@@ -96,10 +92,8 @@ impl Default for Presentation {
             reveal: Reveal::Always,
             focus: false,
             panel: Panel::Shared,
-            clear: false,
             close: false,
             echo: true,
-            show_reuse_message: true,
         }
     }
 }
@@ -134,7 +128,6 @@ pub struct TaskDef {
     pub unsupported: Option<String>,
 }
 
-/// A plain string or `{value, label}`.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum PickRepr {
@@ -169,13 +162,8 @@ pub struct PickOption {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum InputKind {
-    PromptString {
-        password: bool,
-    },
-    PickString {
-        options: Vec<PickOption>,
-    },
-    /// `command` inputs need a VS Code extension command: unsupported.
+    PromptString { password: bool },
+    PickString { options: Vec<PickOption> },
     Command,
 }
 

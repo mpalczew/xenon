@@ -18,7 +18,9 @@ xenon_git.workspace = true
 async-channel.workspace = true
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 nucleo.workspace = true
+pulldown-cmark.workspace = true
 serde_json.workspace = true
+unicode-segmentation = "1"
 gtk = { package = "gtk4", version = "0.11", features = ["v4_22"] }
 gio = { version = "0.22", features = ["v2_72"] }
 adw = { package = "libadwaita", version = "0.9", features = ["v1_9"] }

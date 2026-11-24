@@ -86,13 +86,12 @@ fn parse_open(args: &[String]) -> CliCommand {
     let Some(raw) = raw else {
         return CliCommand::Activate;
     };
-    let (path, line, column, end_line) = split_location(&raw);
+    let (path, line, column) = split_location(&raw);
     let path = abs_path(path);
     CliCommand::Open(OpenFileSpec {
         path,
         line,
         column,
-        end_line,
         workspace,
     })
 }
@@ -117,29 +116,22 @@ fn abs_path(raw: String) -> PathBuf {
     abs.canonicalize().unwrap_or(abs)
 }
 
-fn split_location(raw: &str) -> (String, Option<u32>, Option<u32>, Option<u32>) {
+fn split_location(raw: &str) -> (String, Option<u32>, Option<u32>) {
     let Some((path, rest)) = raw.rsplit_once(':') else {
-        return (raw.to_string(), None, None, None);
+        return (raw.to_string(), None, None);
     };
-    if let Some((a, b)) = rest.split_once('-')
-        && let (Ok(start), Ok(end)) = (a.parse::<u32>(), b.parse::<u32>())
-        && start > 0
-        && end > 0
-    {
-        return (path.to_string(), Some(start), None, Some(end));
-    }
     let Ok(n) = rest.parse::<u32>() else {
-        return (raw.to_string(), None, None, None);
+        return (raw.to_string(), None, None);
     };
     if n == 0 {
-        return (raw.to_string(), None, None, None);
+        return (raw.to_string(), None, None);
     }
-    let (inner, line, col, end) = split_location(path);
-    if col.is_some() || end.is_some() {
-        return (raw.to_string(), None, None, None);
+    let (inner, line, col) = split_location(path);
+    if col.is_some() {
+        return (raw.to_string(), None, None);
     }
     match line {
-        Some(line) => (inner, Some(line), Some(n), None),
-        None => (inner, Some(n), None, None),
+        Some(line) => (inner, Some(line), Some(n)),
+        None => (inner, Some(n), None),
     }
 }

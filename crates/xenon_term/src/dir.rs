@@ -5,16 +5,12 @@ use std::thread;
 use inotify::{Inotify, WatchMask};
 use xenon_core::TermId;
 
-pub(crate) fn runtime_dir() -> PathBuf {
+pub fn runtime_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("XENON_RUNTIME_DIR") {
         return PathBuf::from(dir);
     }
     let base = std::env::var_os("XDG_RUNTIME_DIR").map_or_else(std::env::temp_dir, PathBuf::from);
     base.join("xenon")
-}
-
-pub fn phone_socket_path() -> PathBuf {
-    runtime_dir().join("phone.sock")
 }
 
 pub(crate) fn term_dir() -> PathBuf {
@@ -42,8 +38,6 @@ pub(crate) fn ids() -> Vec<TermId> {
         .collect()
 }
 
-/// A socket that refuses connections belongs to a crashed holder: delete it.
-/// `ECONNREFUSED` on a Unix socket means nobody listens, so a live holder is never hit.
 pub(crate) fn sweep_if_dead(id: TermId, error: &io::Error) {
     if error.kind() == io::ErrorKind::ConnectionRefused {
         let _ = std::fs::remove_file(sock_path(id));

@@ -17,7 +17,7 @@ use std::io;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
-use crate::remote::{ConnId, DeviceBook, HostRequest, Reachability, RemoteServer};
+use crate::remote::{ConnId, DeviceBook, Reachability, RemoteServer};
 use xenon_core::TermId;
 use xenon_term::{Event, Exit, Terminals};
 
@@ -59,8 +59,11 @@ pub(crate) struct Phone {
     pub serials: Mutex<Serials>,
     pub dark: AtomicBool,
     me: Weak<Phone>,
-    tx: async_channel::Sender<HostRequest>,
     changes: Mutex<(u64, Vec<(u64, Listener)>)>,
+}
+
+pub(crate) fn phone_socket_path() -> std::path::PathBuf {
+    xenon_term::runtime_dir().join("phone.sock")
 }
 
 pub(crate) fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -77,7 +80,6 @@ pub fn run() -> io::Result<()> {
 
 impl Phone {
     fn start(terms: &Terminals) -> Arc<Self> {
-        let (tx, rx) = async_channel::unbounded();
         let phone = Arc::new_cyclic(|me| Self {
             me: me.clone(),
             terms: terms.clone(),
@@ -86,13 +88,12 @@ impl Phone {
             tasks: Mutex::new(tasks::TaskState::default()),
             serials: Mutex::default(),
             dark: AtomicBool::new(true),
-            tx,
             changes: Mutex::new((0, Vec::new())),
         });
         for info in terms.list() {
             phone.serial(info.id);
         }
-        server::spawn_threads(&phone, rx);
+        server::spawn_upkeep(&phone);
         phone.watch_events();
         phone.watch_settings();
         phone.apply_settings();
@@ -174,12 +175,7 @@ impl Phone {
             .collect();
         for conn in conns {
             self.detach(conn);
-            self.send_to(
-                conn,
-                crate::remote::ServerMsg::Closed {
-                    reason: crate::remote::ClosedReason::TabClosed,
-                },
-            );
+            self.closed_notice(conn);
         }
     }
 

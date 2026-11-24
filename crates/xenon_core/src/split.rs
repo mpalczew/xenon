@@ -1,7 +1,6 @@
 use crate::content::{MIN_SIZE, PaneNode, SplitAxis};
 
 pub(crate) trait SplitTree: Sized {
-    /// `self`'s children and sizes when it is a split on `axis`; else `self`.
     fn into_axis_parts(self, axis: SplitAxis) -> Result<(Vec<Self>, Vec<f32>), Self>;
 }
 
@@ -18,10 +17,6 @@ impl SplitTree for PaneNode {
     }
 }
 
-/// Enforce the split invariants. Splices same-axis child splits (scaling their
-/// sizes by their slot), renormalizes and clamps sizes. `Err(only)` when one
-/// child remains and the split should collapse to it; `Err` is never empty
-/// unless `children` was.
 pub(crate) fn flatten_split<T: SplitTree>(
     axis: SplitAxis,
     children: Vec<T>,
@@ -52,8 +47,6 @@ pub(crate) fn flatten_split<T: SplitTree>(
     Ok((out_children, out_sizes))
 }
 
-/// Make `sizes` exactly `n` positive fractions summing to 1, each at least
-/// `MIN_SIZE` (or `1/n` when that is smaller).
 pub(crate) fn normalize_sizes(sizes: &mut Vec<f32>, n: usize) {
     if n == 0 {
         sizes.clear();
@@ -74,8 +67,6 @@ pub(crate) fn normalize_sizes(sizes: &mut Vec<f32>, n: usize) {
     }
 }
 
-/// Drag boundary `i` (between children `i` and `i+1`) to fractional position
-/// `pos` of the whole split. Only sizes `i` and `i+1` change; their sum is fixed.
 pub(crate) fn move_boundary(sizes: &mut [f32], i: usize, pos: f32) -> bool {
     if i + 1 >= sizes.len() || !pos.is_finite() {
         return false;

@@ -1,4 +1,4 @@
-use xenon_store::SkillStatus;
+use xenon_store::{SKILL_HOMES, SkillStatus};
 
 pub fn skill_subtitle(status: &SkillStatus) -> String {
     match status {
@@ -28,7 +28,7 @@ pub fn skill_homes(status: &SkillStatus) -> String {
         SkillStatus::UpdateAvailable { installed } => format!("v{installed}"),
         SkillStatus::UserEdited => "edited".to_string(),
     };
-    ["~/.agents", "~/.claude", "~/.grok"]
-        .map(|home| format!("{:<22} {mark}", format!("{home}/skills/xenon")))
+    SKILL_HOMES
+        .map(|home| format!("{:<22} {mark}", format!("~/{home}/skills/xenon")))
         .join("\n")
 }

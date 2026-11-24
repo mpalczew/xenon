@@ -80,10 +80,15 @@ impl App {
 
     pub(crate) fn remote_revoke(self: &Rc<Self>, id: Option<&str>) {
         match xenon_phone::PhoneLink::revoke(id) {
-            Ok(status) => *self.remote.status.borrow_mut() = status,
-            Err(error) => self.toast(&format!("Couldn\u{2019}t update paired devices: {error}")),
+            Ok(status) => {
+                *self.remote.status.borrow_mut() = status;
+                self.remote_show();
+            }
+            Err(error) => {
+                self.toast(&format!("Couldn\u{2019}t update paired devices: {error}"));
+                self.remote_publish();
+            }
         }
-        self.remote_publish();
     }
 
     fn remote_keep_awake(&self, hold: bool) {

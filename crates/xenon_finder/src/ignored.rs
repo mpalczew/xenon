@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
-/// Ignore files of one folder, strongest first: `.ignore`, then `.gitignore`.
 type Folder = Arc<[Gitignore; 2]>;
 
 /// Answers "would the finder's walker skip this path?" for one workspace root,
@@ -14,7 +13,6 @@ type Folder = Arc<[Gitignore; 2]>;
 /// worker thread.
 pub struct IgnoreMatcher {
     root: PathBuf,
-    /// Weakest rules: `info/exclude`, then the global excludes.
     base: [Gitignore; 2],
     folders: Mutex<HashMap<PathBuf, Folder>>,
 }
@@ -39,15 +37,13 @@ impl IgnoreMatcher {
         let Some(parent) = path.parent().filter(|p| p.starts_with(&self.root)) else {
             return false;
         };
-        let mut dirs: Vec<&Path> = parent
+        let folders: Vec<Folder> = parent
             .ancestors()
             .take_while(|d| d.starts_with(&self.root))
+            .map(|d| self.folder(d))
             .collect();
-        dirs.reverse();
-        let folders: Vec<Folder> = dirs.iter().map(|d| self.folder(d)).collect();
         folders
             .iter()
-            .rev()
             .flat_map(|f| f.iter())
             .chain(&self.base)
             .map(|g| g.matched(path, is_dir))

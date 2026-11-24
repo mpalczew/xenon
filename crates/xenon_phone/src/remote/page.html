@@ -118,7 +118,6 @@ html.in-session { background:var(--chrome); }
 #term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
   padding:8px 10px 0; font-family:var(--mono); font-size:var(--fs); line-height:var(--lh); color:var(--term-fg); white-space:pre; }
 #term a { color:inherit; text-decoration:underline dotted; }
-#hist .row { opacity:.62; }
 #screen { position:relative; }
 .row { height:var(--lh); overflow:hidden; }
 #cursor { position:absolute; pointer-events:none; height:var(--lh); }
@@ -183,10 +182,6 @@ html.in-session { background:var(--chrome); }
   background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:12px; padding:10px 16px; font-size:14px; font-weight:600; box-shadow:0 10px 30px var(--shadow); }
 
 @media (prefers-reduced-motion: reduce) { .rail.working, .spin, .digit.focus:empty::after { animation:none; } }
-.fixture *, .fixture *::after { animation:none !important; transition:none !important; }
-/* Headless Chrome lays out at >=500px wide; pin fixtures to an iPhone 15 box. */
-.fixture #app { right:auto; width:390px; top:0; height:844px; }
-.fixture .sheet { right:auto; width:390px; height:844px; bottom:auto; }
 </style>
 </head>
 <body>
@@ -242,7 +237,7 @@ html.in-session { background:var(--chrome); }
     <div class="banner" id="reconnect" role="status" hidden><div class="spin" aria-hidden="true"></div><span id="reconnect-txt">Reconnecting…</span></div>
     <div class="remote-options"><button type="button" class="keys-btn" id="bandwidth-btn" aria-pressed="false" aria-label="Low bandwidth mode">Low bandwidth</button><button type="button" class="keys-btn" id="appearance-btn" aria-label="Appearance: Auto. Tap to change">Auto</button></div>
     <div id="termwrap">
-      <div id="term" role="log" aria-label="Terminal" aria-live="off"><div id="hist"></div><div id="screen"></div></div>
+      <div id="term" role="log" aria-label="Terminal" aria-live="off"><div id="screen"></div></div>
       <div id="starting" hidden>Starting…</div>
       <button type="button" id="live" hidden aria-label="Jump to live output">↓ Live</button>
       <textarea id="direct" hidden autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Terminal input"></textarea>
@@ -302,7 +297,7 @@ html.in-session { background:var(--chrome); }
 const Core = (() => {
   const COLOR = /^#[0-9a-fA-F]{3,8}$/;
   const LINK = /^(https?:\/\/|mailto:)/i;
-  const F = { BOLD: 1, ITALIC: 2, UNDERLINE: 4, DIM: 8, STRIKE: 16 };
+  const F = { BOLD: 1, ITALIC: 2, UNDERLINE: 4, STRIKE: 16 };
 
   function newTerm() { return { cols: 0, rows: 0, lines: [], cursor: null, seq: 0 }; }
 
@@ -374,7 +369,6 @@ const Core = (() => {
     if (f & F.ITALIC) d.push("font-style:italic");
     const deco = [(f & F.UNDERLINE) && "underline", (f & F.STRIKE) && "line-through"].filter(Boolean);
     if (deco.length) d.push("text-decoration:" + deco.join(" "));
-    if (f & F.DIM) d.push("opacity:.6");
     return ".s" + (id | 0) + "{" + d.join(";") + "}";
   }
 
@@ -462,19 +456,19 @@ const Core = (() => {
     return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
 
-  return { LINK, newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, luminance, contrast, scheme, backoff, deviceLabel, ago };
+  return { COLOR, LINK, newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, scheme, backoff, deviceLabel, ago };
 })();
 
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
-  fixture: false, themed: false, theme: null, view: null,
+  themed: false, theme: null, view: null,
   ws: null, connected: false, attempt: 0, retryTimer: 0, pongTimer: 0,
   workspaces: [], recentOpen: false, tasks: [], taskInput: null, runningTask: null,
   wsSel: null, terminals: [], skippedList: false,
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
-  follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0, fitWhy: "",
+  follow: true, cw: 0, scale: 1, lastFit: null, fitTimer: 0, fitWhy: "",
   wheelAcc: 0, repeat: null, creating: false, closing: false, suppressCloseToast: false,
   inputMode: "field",
   lowBandwidth: false,
@@ -530,7 +524,7 @@ function unpair(msg) {
 }
 
 function connect() {
-  if (!S.token || S.fixture || S.ws) return;
+  if (!S.token || S.ws) return;
   clearTimeout(S.retryTimer);
   const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
   S.ws = ws;
@@ -552,7 +546,7 @@ function dropSocket() {
   clearTimeout(S.pongTimer);
   if (ws) { ws.onclose = null; try { ws.close(); } catch (_) {} }
   setConnected(false);
-  if (S.token && !S.fixture) S.retryTimer = setTimeout(connect, Core.backoff(S.attempt++));
+  if (S.token) S.retryTimer = setTimeout(connect, Core.backoff(S.attempt++));
 }
 
 function ping() {
@@ -582,7 +576,6 @@ function onMsg(m) {
     case "theme": return applyTheme(m.theme);
     case "styles": return addStyles(m.add);
     case "frame": S.lastUpdate = Date.now(); return renderFrame(m);
-    case "history": return renderHistory(m.lines || []);
     case "dots": return onDots(m);
     case "closed": return onClosed(m.reason);
     case "taskInput": return onTaskInput(m);
@@ -625,7 +618,7 @@ function onClosed(reason) {
 }
 
 function onVisible() {
-  if (document.visibilityState !== "visible" || !S.token || S.fixture) return;
+  if (document.visibilityState !== "visible" || !S.token) return;
   if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
 }
 
@@ -759,7 +752,7 @@ function renderTerminals() {
   const rows = S.terminals.map((t, i) =>
     '<div class="termrow"><button type="button" class="ws" data-tab="' + i + '"><div class="rail ' + (t.dot || "") + '"></div>' +
     '<div class="body"><div class="name">' + esc(tabLabel(t, i)) + '</div><div class="path">' + esc(t.cwd || "") + "</div></div>" +
-    '<div class="meta">' + tagFor(t.dot) + (t.active ? "Active" : "") + '</div><div class="chev" aria-hidden="true">›</div></button>' +
+    '<div class="meta">' + tagFor(t.dot) + '</div><div class="chev" aria-hidden="true">›</div></button>' +
     '<button type="button" class="close-tab" data-close="' + i + '" aria-label="Close terminal">Close</button></div>'
   ).join("");
   const empty = S.terminals.length ? "" : '<div class="note">No terminal tabs in this workspace.</div>';
@@ -968,7 +961,7 @@ function sendAppearance() {
 
 function setAppearance(mode, persist) {
   S.appearance = mode === "dark" || mode === "light" ? mode : "auto";
-  if (persist && !S.fixture) store(KEY.appearance, S.appearance);
+  if (persist) store(KEY.appearance, S.appearance);
   const label = { auto: "Auto", dark: "Dark", light: "Light" }[S.appearance];
   const btn = $("appearance-btn");
   btn.textContent = label;
@@ -998,7 +991,7 @@ function applyTheme(th) {
   const sc = Core.scheme(th);
   setScheme(sc.light, sc.accent);
   const root = document.documentElement.style;
-  const ok = (c) => /^#[0-9a-fA-F]{3,8}$/.test(c || "");
+  const ok = (c) => Core.COLOR.test(c || "");
   for (const v of ["--term-bg", "--canvas", "--term-fg", "--cursor"]) root.removeProperty(v);
   if (ok(th.bg)) {
     root.setProperty("--term-bg", th.bg); root.setProperty("--canvas", th.bg);
@@ -1030,15 +1023,12 @@ function rowHtml(spans) {
 
 function resetScreen() {
   S.term = Core.newTerm();
-  S.follow = true; S.histAsked = false; S.lastUpdate = 0;
-  $("hist").innerHTML = "";
+  S.follow = true; S.lastUpdate = 0;
   $("screen").innerHTML = "";
   $("live").hidden = true;
   $("starting").hidden = false;
 }
 
-// Rewriting rows destroys the DOM nodes of a text selection, so while one is
-// held the frames only update the model; the screen repaints once it clears.
 function selecting() {
   const sel = getSelection();
   return !sel.isCollapsed && $("term").contains(sel.anchorNode);
@@ -1084,14 +1074,6 @@ function renderCursor() {
   el.style.width = cw + "px";
   const ch = Core.cellAt(S.term.lines[c.r], c.c);
   el.textContent = el.className === "block" ? ch : "";
-}
-
-function renderHistory(lines) {
-  if (!lines.length) return;
-  const term = $("term");
-  const before = term.scrollHeight;
-  $("hist").innerHTML = lines.map((l) => '<div class="row">' + esc(l) + "</div>").join("") + $("hist").innerHTML;
-  term.scrollTop += term.scrollHeight - before;
 }
 
 function scrollToLive() {
@@ -1190,7 +1172,7 @@ function setKeys(on) {
 }
 
 function renderStale() {
-  const stale = !S.connected && !S.fixtureLive;
+  const stale = !S.connected;
   // Disabling a focused input blurs it, and iOS never gives focus back, so put focus
   // back when the socket is live again. A new input disabled while stale needs the same.
   if (stale && !S.stale) {
@@ -1200,7 +1182,7 @@ function renderStale() {
   S.stale = stale;
   for (const id of ["termwrap", "keys", "input"]) $(id).classList.toggle("stale", stale);
   for (const el of document.querySelectorAll("#keys button, #input button, #input input, #keys-btn, #new-session, #new-term, #mode-btn, #hide-kb, #close-session, #direct, .close-tab")) el.disabled = stale;
-  $("reconnect").hidden = !stale || !S.token && !S.fixture;
+  $("reconnect").hidden = !stale || !S.token;
   if (!stale && S.refocus) {
     const id = S.refocus;
     S.refocus = null;
@@ -1270,7 +1252,7 @@ function sendFit() {
 
 function onViewport() {
   const vv = window.visualViewport;
-  if (vv && !S.fixture) {
+  if (vv) {
     const root = document.documentElement.style;
     root.setProperty("--app-h", vv.height + "px");
     root.setProperty("--app-top", vv.offsetTop + "px");
@@ -1420,7 +1402,6 @@ async function attachImage(file) {
   }
 }
 
-// Agents read PNG/JPEG/GIF/WebP; re-encode anything else (e.g. HEIC) as JPEG.
 async function agentReadable(file) {
   if (AGENT_IMAGE_TYPES.includes(file.type)) return file;
   try {
@@ -1612,194 +1593,9 @@ function wireEvents() {
     visualViewport.addEventListener("resize", onViewport);
     visualViewport.addEventListener("scroll", onViewport);
   }
-  setInterval(() => { if (!S.connected && S.view === "session" && !S.fixture) renderAgo(); }, 1000);
+  setInterval(() => { if (!S.connected && S.view === "session") renderAgo(); }, 1000);
   setInterval(ping, 15000);
 }
-
-const FX = {
-  tasks: [
-    { label: "demo-build", command: "cargo build --release", detail: "Build the demo", group: "build", default: true },
-    { label: "demo-test", command: "cargo test", group: "test" },
-    { label: "deploy", command: "./deploy.sh '${input:token}'", detail: "Needs a token" },
-    { label: "demo-ci", command: "(runs demo-build, demo-test)" },
-    { label: "demo-lint", command: "", unsupported: 'type "npm" comes from a VS Code extension; Xenon runs shell and process tasks' },
-  ],
-  styles: {
-    0: {}, 1: { fg: "#98c379" }, 2: { fg: "#dcdfe4", f: 1 }, 3: { fg: "#5c6370" }, 4: { fg: "#d19a66" },
-    5: { fg: "#c678dd", f: 1 }, 6: { fg: "#c678dd" }, 7: { fg: "#61afef" }, 8: { fg: "#e06c75" },
-    9: { fg: "#000000", bg: "#e5c07b", f: 1 },
-  },
-  dark: { bg: "#000000", fg: "#abb2bf", cursor: "#dcdfe4" },
-  light: { bg: "#ffffff", fg: "#2a2c33", cursor: "#5c78e2" },
-  stylesLight: {
-    0: {}, 1: { fg: "#50a14f" }, 2: { fg: "#2a2c33", f: 1 }, 3: { fg: "#a0a1a7" }, 4: { fg: "#c18401" },
-    5: { fg: "#a626a4", f: 1 }, 6: { fg: "#a626a4" }, 7: { fg: "#4078f2" }, 8: { fg: "#e45649" },
-  },
-  workspaces: [
-    { id: "w1", name: "xenon", open: true, root: "~/src/xenon", dot: "attention", terminals: 3 },
-    { id: "w3", name: "aipm", open: true, root: "~/src/aipm", dot: "working", terminals: 2 },
-    { id: "w2", name: "homelab", open: true, root: "~/src/homelab", dot: "attention", terminals: 1 },
-    { id: "w4", name: "dotfiles", open: true, root: "~/dotfiles", terminals: 1 },
-    { id: "w5", name: "blog", open: true, root: "~/src/web/blog", terminals: 2 },
-  ].concat(Array.from({ length: 14 }, (_, i) => ({ id: "r" + i, name: "old-" + i, open: false, root: "~/src/old-" + i, terminals: 0 }))),
-  permission: [
-    [["> ", 6], ["bind the remote to Tailscale only", 2]],
-    [],
-    [["● ", 1], ["Search", 2], ["(pattern: \"bind\", path: \"crates\")", 0]],
-    [["  ⎿  ", 3], ["Found 3 files", 0]],
-    [],
-    [["● ", 1], ["Read", 2], ["(xenon_phone/src/remote/server.rs)", 0]],
-    [["  ⎿  ", 3], ["Read 374 lines", 0]],
-    [],
-    [["● ", 1], ["I'll bind to the Tailscale address and", 0]],
-    [["  redact the pairing secret in logs.", 0]],
-    [],
-    [["● ", 1], ["Update", 2], ["(xenon_phone/src/remote/server.rs)", 0]],
-    [["  ⎿  ", 3], ["Updated server.rs with ", 0], ["12", 1], [" additions", 0]],
-    [["    117", 3], [" ", 0], ["- let l = bind_all(port)?;", 8]],
-    [["    118", 3], [" ", 0], ["+ let l = bind_tailscale(port)?;", 1]],
-    [["    119", 3], [" ", 0], ["+ log::info!(\"on {}\", redact(&a));", 1]],
-    [],
-    [["● ", 1], ["Bash", 2], ["(cargo test -p xenon_phone)", 0]],
-    [["  ⎿  ", 3], ["test result: ", 0], ["ok", 1], [". 24 passed; 0 failed", 0]],
-    [],
-    [["╭───────────────────────────────────────────╮", 4]],
-    [["│", 4], [" ", 0], ["Bash command", 2], ["                              ", 0], ["│", 4]],
-    [["│", 4], ["                                           ", 0], ["│", 4]],
-    [["│", 4], ["   cargo clippy --workspace -- -D warnings ", 0], ["│", 4]],
-    [["│", 4], ["   ", 0], ["Lint the whole workspace", 3], ["                ", 0], ["│", 4]],
-    [["│", 4], ["                                           ", 0], ["│", 4]],
-    [["│", 4], [" Do you want to proceed?                   ", 0], ["│", 4]],
-    [["│", 4], [" ", 0], ["❯ 1. Yes", 5], ["                                  ", 0], ["│", 4]],
-    [["│", 4], ["   2. Yes, don’t ask again for cargo       ", 0], ["│", 4]],
-    [["│", 4], ["   3. No, tell Claude what to do instead   ", 0], ["│", 4]],
-    [["╰───────────────────────────────────────────╯", 4]],
-    [["  ", 0], ["⏵⏵ accept edits on", 6], [" (shift+tab to cycle)", 3]],
-  ],
-  idle: [
-    [["● ", 1], ["Update", 2], ["(xenon_ui/src/app/remote/host.rs)", 0]],
-    [["  ⎿  ", 3], ["Updated host.rs: ", 0], ["+9", 1], [" ", 0], ["-4", 8]],
-    [["    185", 3], [" ", 0], ["-   *e = e.wrapping_add(1).max(1);", 8]],
-    [["    185", 3], [" ", 0], ["+   if hash != e.hash {", 1]],
-    [["    186", 3], [" ", 0], ["+       e.seq = e.seq.wrapping_add(1);", 1]],
-    [["    187", 3], [" ", 0], ["+       e.hash = hash;", 1]],
-    [["    188", 3], [" ", 0], ["+   }", 1]],
-    [],
-    [["● ", 1], ["The 204 path never fires because ", 0], ["seq", 7]],
-    [["  is bumped on every capture. It now only", 0]],
-    [["  advances when the grid hash changes.", 0]],
-    [],
-    [["● ", 1], ["Bash", 2], ["(cargo test -p xenon_ui remote)", 0]],
-    [["  ⎿  ", 3], ["test result: ", 0], ["ok", 1], [". 61 passed; 0 failed", 0]],
-    [],
-    [["● ", 1], ["All green. Summary:", 0]],
-    [["  • seq only advances on grid change", 0]],
-    [["  • idle terminals send nothing", 0]],
-    [["  • added ", 0], ["frame_seq_stable_when_idle", 7]],
-    [],
-    [["╭───────────────────────────────────────────╮", 3]],
-    [["│", 3], [" > ", 6], ["                                        ", 0], ["│", 3]],
-    [["╰───────────────────────────────────────────╯", 3]],
-    [["  ", 0], ["⏵⏵ accept edits on", 6], [" (shift+tab to cycle)", 3]],
-  ],
-};
-
-function fixtureSession(content, cursor, styles) {
-  S.workspaces = FX.workspaces;
-  S.wsSel = FX.workspaces[0];
-  S.terminals = [{ tabId: 7, title: "claude", cwd: "~/src/xenon", active: true, dot: "attention" }];
-  S.skippedList = false;
-  openSession(S.terminals[0]);
-  addStyles(styles || FX.styles);
-  measureChar();
-  const a = availSize();
-  const fit = Core.fitCells(a.w, a.h, S.cw, 18);
-  const pad = Math.max(0, fit.rows - content.length - 1);
-  const lines = content.slice(-fit.rows).map((spans, i) => [pad + i, spans]);
-  renderFrame({ t: "frame", seq: 1, cols: fit.cols, rows: fit.rows, full: true, cursor: cursor && { r: pad + cursor.r, c: cursor.c, s: "block" }, lines });
-}
-
-window.xenonFixture = function (name) {
-  S.fixture = true;
-  closeSocket();
-  document.documentElement.classList.add("fixture");
-  S.hostName = "MacBook Pro";
-  S.token = "fixture";
-  applyTheme(name === "session_light" ? FX.light : FX.dark);
-  const live = (on) => { S.fixtureLive = on; setConnected(on); };
-  switch (name) {
-    case "pair":
-      showPaired();
-      $("a2hs").hidden = false;
-      break;
-    case "code":
-      showCode();
-      $("code-input").value = "482";
-      $("code-input").focus();
-      renderDigits();
-      break;
-    case "workspaces":
-      live(true);
-      S.workspaces = FX.workspaces;
-      show("list"); renderHost(); renderWorkspaces();
-      break;
-    case "tasks":
-      live(true);
-      S.workspaces = FX.workspaces; S.wsSel = FX.workspaces[0];
-      S.tasks = FX.tasks;
-      $("tasks-title").textContent = S.wsSel.name + " › Tasks";
-      show("tasks"); renderTasks();
-      break;
-    case "task_input_password":
-      live(true);
-      S.workspaces = FX.workspaces; S.wsSel = FX.workspaces[0];
-      S.tasks = FX.tasks;
-      $("tasks-title").textContent = S.wsSel.name + " › Tasks";
-      show("tasks"); renderTasks();
-      onTaskInput({ token: 1, id: "token", description: "Deploy token", kind: "password" });
-      $("ti-field").value = "s3cret-value";
-      break;
-    case "task_input_pick":
-      live(true);
-      S.workspaces = FX.workspaces; S.wsSel = FX.workspaces[0];
-      S.tasks = FX.tasks;
-      $("tasks-title").textContent = S.wsSel.name + " › Tasks";
-      show("tasks"); renderTasks();
-      onTaskInput({ token: 2, id: "env", description: "Which environment?", kind: "pick", default: "staging",
-        options: [{ label: "development", value: "development" }, { label: "staging", value: "staging" }, { label: "production", value: "production" }] });
-      break;
-    case "session":
-      live(true);
-      fixtureSession(FX.permission, null);
-      break;
-    case "session_low_bandwidth":
-      live(true);
-      fixtureSession(FX.permission, null);
-      setLowBandwidth(true);
-      break;
-    case "session_light":
-      live(true);
-      fixtureSession(FX.permission, null, FX.stylesLight);
-      break;
-    case "session_appearance_dark":
-      live(true);
-      fixtureSession(FX.permission, null);
-      setAppearance("dark", false);
-      break;
-    case "reconnecting":
-      live(true);
-      fixtureSession(FX.idle, { r: FX.idle.length - 3, c: 4 });
-      live(false);
-      S.lastUpdate = Date.now() - 14000;
-      renderAgo();
-      break;
-    case "session_keys":
-      live(true);
-      fixtureSession(FX.permission, null);
-      setKeys(true);
-      break;
-  }
-};
 
 function boot() {
   const style = document.createElement("style");

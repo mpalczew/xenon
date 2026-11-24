@@ -1,6 +1,3 @@
-//! Paired phone-remote devices (`remote_devices.json`, mode 0600). Only a
-//! SHA-256 of each device token is stored.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};

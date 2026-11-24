@@ -9,8 +9,7 @@ impl Model {
     pub(crate) fn active_editor_key(&self) -> Option<(WorkspaceId, TabId)> {
         let ws = self.active()?;
         let tab = self.spaces.get(&ws)?.content.focused_leaf()?.active_tab()?;
-        matches!(tab.kind, TabKind::Kept(xenon_core::TabState::Editor { .. }))
-            .then_some((ws, tab.id))
+        matches!(tab.kind, TabKind::Editor { .. }).then_some((ws, tab.id))
     }
 
     pub(crate) fn active_editor_dirty(&self) -> bool {
@@ -28,7 +27,7 @@ impl Model {
                     .iter()
                     .find(|t| t.modified)
                     .map(|tab| match &tab.kind {
-                        TabKind::Kept(xenon_core::TabState::Editor { path, .. }) => path
+                        TabKind::Editor { path } => path
                             .file_name()
                             .map_or_else(|| "a file".into(), |n| n.to_string_lossy().into_owned()),
                         _ => tab.title.clone(),

@@ -38,7 +38,6 @@ impl App {
     }
 
     pub(crate) fn connect_phone(self: &Rc<Self>) {
-        self.remote_publish();
         let open = self.remote.connect_dialog.borrow().clone();
         if let Some(dialog) = open {
             dialog.close();
@@ -56,9 +55,8 @@ impl App {
             });
         });
         *self.remote.connect_dialog.borrow_mut() = Some(dialog.clone());
-        self.refresh_connect_dialog();
-        dialog.present(Some(&self.win));
         self.remote_publish();
+        dialog.present(Some(&self.win));
     }
 
     pub(crate) fn refresh_connect_dialog(&self) {

@@ -108,7 +108,6 @@ impl Sidebar {
 
         let workspaces = Section::new("WORKSPACES", Fold::Workspaces, &overlay, Some(300), &app);
         workspaces.set_trailing(&add);
-        workspaces.sep.set_visible(false);
         let files = FilesView::new(app.clone());
         let git = GitView::new(app.clone());
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
