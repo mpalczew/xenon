@@ -474,7 +474,7 @@ const S = {
   wsSel: null, terminals: [], skippedList: false,
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
-  follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0,
+  follow: true, histAsked: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0, fitWhy: "",
   wheelAcc: 0, repeat: null, creating: false, closing: false, suppressCloseToast: false,
   inputMode: "field",
   lowBandwidth: false,
@@ -633,7 +633,7 @@ function show(view) {
   S.view = view;
   for (const v of ["paired", "code", "list", "terms", "tasks", "session"]) $("v-" + v).hidden = v !== view;
   document.documentElement.classList.toggle("in-session", view === "session");
-  if (view === "session") scheduleFit(0);
+  if (view === "session") scheduleFit(0, "show");
 }
 
 function showCode(msg) {
@@ -696,7 +696,7 @@ function sendAttach() {
   send({ t: "bandwidth", lowBandwidth: S.lowBandwidth });
   send({ t: "attach", workspaceId: S.want.workspaceId, tabId: S.want.tabId });
   S.lastFit = null;
-  scheduleFit(0);
+  scheduleFit(0, "attach");
 }
 
 function leaveSession() {
@@ -1159,7 +1159,7 @@ function setInputMode(mode) {
   btn.setAttribute("aria-pressed", String(direct));
   btn.setAttribute("aria-label", direct ? "Direct typing" : "Editable field");
   if (!direct) $("direct").blur();
-  if (S.view === "session") scheduleFit(0);
+  if (S.view === "session") scheduleFit(0, "mode");
 }
 
 function hideKeyboard() {
@@ -1236,9 +1236,23 @@ function updateScale() {
   renderCursor();
 }
 
-function scheduleFit(delay) {
+function scheduleFit(delay, why) {
+  if (why) S.fitWhy = why;
   clearTimeout(S.fitTimer);
   S.fitTimer = setTimeout(sendFit, delay);
+}
+
+function fitDiag() {
+  const vv = window.visualViewport;
+  const t = $("term");
+  const act = document.activeElement;
+  const vvTxt = vv ? Math.round(vv.height) + "@" + Math.round(vv.offsetTop) + "x" + vv.scale.toFixed(2) : "none";
+  const cssH = document.documentElement.style.getPropertyValue("--app-h") || "auto";
+  const actTxt = act ? (act.id || act.tagName) : "none";
+  return "why=" + (S.fitWhy || "?") + " win=" + innerWidth + "x" + innerHeight + " vv=" + vvTxt +
+    " appH=" + $("app").clientHeight + " cssH=" + cssH + " wrapH=" + $("termwrap").clientHeight +
+    " term=" + t.clientWidth + "x" + t.clientHeight + " vis=" + document.visibilityState +
+    " mode=" + S.inputMode + " act=" + actTxt;
 }
 
 function sendFit() {
@@ -1249,7 +1263,7 @@ function sendFit() {
   if (S.term.cols) updateScale();
   if (!fit || !S.want) return;
   if (S.lastFit && S.lastFit.cols === fit.cols && S.lastFit.rows === fit.rows) return;
-  if (send({ t: "fit", cols: fit.cols, rows: fit.rows })) S.lastFit = fit;
+  if (send({ t: "fit", cols: fit.cols, rows: fit.rows, diag: fitDiag() })) S.lastFit = fit;
 }
 
 function onViewport() {
@@ -1259,7 +1273,7 @@ function onViewport() {
     root.setProperty("--app-h", vv.height + "px");
     root.setProperty("--app-top", vv.offsetTop + "px");
   }
-  if (S.view === "session") { scheduleFit(250); if (S.follow) scrollToLive(); }
+  if (S.view === "session") { scheduleFit(250, "viewport"); if (S.follow) scrollToLive(); }
 }
 
 function sendKeyButton(btn) {

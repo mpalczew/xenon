@@ -128,8 +128,10 @@ impl Phone {
             ClientMsg::Wheel { rows } => mirror.scroll(rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT)),
             ClientMsg::Bottom => mirror.bottom(),
             ClientMsg::Click { col, row } => click(&mirror, col, row),
-            ClientMsg::Fit { cols, rows } => {
+            ClientMsg::Fit { cols, rows, diag } => {
                 if let Some(size) = Size::new(cols, rows) {
+                    let detail = diag.as_deref().unwrap_or("");
+                    eprintln!("xenon-phone fit conn={} {cols}x{rows} {detail}", conn.0);
                     mirror.fit(size);
                     self.changed();
                 }

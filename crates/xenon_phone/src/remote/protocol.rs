@@ -151,6 +151,8 @@ pub enum ClientMsg {
     Fit {
         cols: u16,
         rows: u16,
+        #[serde(default)]
+        diag: Option<String>,
     },
     Ping,
     #[serde(rename_all = "camelCase")]
