@@ -1237,25 +1237,27 @@ function updateScale() {
 }
 
 function scheduleFit(delay, why) {
-  if (why) S.fitWhy = why;
+  S.fitWhy = why || "";
   clearTimeout(S.fitTimer);
   S.fitTimer = setTimeout(sendFit, delay);
 }
 
-function fitDiag() {
+function fitDiag(why) {
   const vv = window.visualViewport;
   const t = $("term");
   const act = document.activeElement;
   const vvTxt = vv ? Math.round(vv.height) + "@" + Math.round(vv.offsetTop) + "x" + vv.scale.toFixed(2) : "none";
   const cssH = document.documentElement.style.getPropertyValue("--app-h") || "auto";
   const actTxt = act ? (act.id || act.tagName) : "none";
-  return "why=" + (S.fitWhy || "?") + " win=" + innerWidth + "x" + innerHeight + " vv=" + vvTxt +
+  return "why=" + (why || "?") + " win=" + innerWidth + "x" + innerHeight + " vv=" + vvTxt +
     " appH=" + $("app").clientHeight + " cssH=" + cssH + " wrapH=" + $("termwrap").clientHeight +
     " term=" + t.clientWidth + "x" + t.clientHeight + " vis=" + document.visibilityState +
     " mode=" + S.inputMode + " act=" + actTxt;
 }
 
 function sendFit() {
+  const why = S.fitWhy;
+  S.fitWhy = "";
   if (S.view !== "session") return;
   measureChar();
   const a = availSize();
@@ -1263,7 +1265,7 @@ function sendFit() {
   if (S.term.cols) updateScale();
   if (!fit || !S.want) return;
   if (S.lastFit && S.lastFit.cols === fit.cols && S.lastFit.rows === fit.rows) return;
-  if (send({ t: "fit", cols: fit.cols, rows: fit.rows, diag: fitDiag() })) S.lastFit = fit;
+  if (send({ t: "fit", cols: fit.cols, rows: fit.rows, diag: fitDiag(why) })) S.lastFit = fit;
 }
 
 function onViewport() {

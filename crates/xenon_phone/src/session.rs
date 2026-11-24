@@ -130,7 +130,13 @@ impl Phone {
             ClientMsg::Click { col, row } => click(&mirror, col, row),
             ClientMsg::Fit { cols, rows, diag } => {
                 if let Some(size) = Size::new(cols, rows) {
-                    let detail = diag.as_deref().unwrap_or("");
+                    let detail: String = diag
+                        .as_deref()
+                        .unwrap_or("")
+                        .chars()
+                        .filter(|c| !c.is_control())
+                        .take(200)
+                        .collect();
                     eprintln!("xenon-phone fit conn={} {cols}x{rows} {detail}", conn.0);
                     mirror.fit(size);
                     self.changed();
