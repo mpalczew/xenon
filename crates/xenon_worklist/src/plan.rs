@@ -18,7 +18,6 @@ fn write(after: String) -> Step {
     Step::Write { after, item: None }
 }
 
-/// The block that now starts at `start`, as the item the write produced.
 fn written((after, start): (String, usize)) -> Step {
     let item = Doc::parse(after.clone())
         .entries

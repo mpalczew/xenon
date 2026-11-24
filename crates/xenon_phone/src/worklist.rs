@@ -9,7 +9,6 @@ use crate::{Phone, locked};
 const GONE: &str = "That changed on your computer.";
 const NO_UNDO: &str = "Can\u{2019}t undo \u{2014} the worklist changed since.";
 
-/// The last removal per workspace, so the phone can undo it.
 #[derive(Default)]
 pub(crate) struct Undos {
     next: u64,

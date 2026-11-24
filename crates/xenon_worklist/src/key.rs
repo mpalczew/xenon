@@ -5,7 +5,6 @@ use std::str::FromStr;
 use anyhow::{Context, Error, Result};
 use sha2::{Digest, Sha256};
 
-/// Content fingerprint plus how many earlier entries share it.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct Mark {
     fingerprint: u64,
@@ -30,7 +29,6 @@ impl FromStr for Mark {
     }
 }
 
-/// Marks for texts in file order: SHA-256 prefix, numbered among identical texts.
 pub(crate) fn number(texts: impl Iterator<Item = String>) -> Vec<Mark> {
     let mut seen: HashMap<u64, u32> = HashMap::new();
     texts
@@ -52,7 +50,6 @@ pub(crate) fn number(texts: impl Iterator<Item = String>) -> Vec<Mark> {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ItemKey(Mark);
 
-/// Names a section heading by its title and occurrence.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SectionKey(Mark);
 

@@ -18,15 +18,15 @@ impl WorklistFile {
                 workspace_root.display()
             )
         })?;
-        let dir = root.join(".xenon");
+        let requested = root.join(super::PATH);
+        let dir = requested.parent().context("worklist has no parent")?;
         if dir.exists() {
-            let resolved_dir = fs::canonicalize(&dir)?;
+            let resolved_dir = fs::canonicalize(dir)?;
             ensure!(
                 resolved_dir.starts_with(&root),
                 ".xenon resolves outside this workspace"
             );
         }
-        let requested = dir.join("worklist.md");
         let path = match fs::symlink_metadata(&requested) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 let resolved = fs::canonicalize(&requested)?;
@@ -90,12 +90,4 @@ impl WorklistFile {
         }
         result
     }
-}
-
-pub(super) fn ensure_exists(root: &Path) -> Result<()> {
-    let file = WorklistFile::new(root)?;
-    if file.read()?.is_none() {
-        file.write(None, b"# Worklist\n")?;
-    }
-    Ok(())
 }

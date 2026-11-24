@@ -166,7 +166,6 @@ impl WorklistList {
         let int = Some(glib::VariantTy::INT32);
         add("add", None, |this, _| this.add_via_form());
         add("new-section", None, |this, _| this.new_section());
-        // The i32 is a row (items) or group (sections) index in the snapshot rendered last.
         add("edit", int, |this, p| this.edit(index(&p)));
         add("delete", int, |this, p| this.delete(index(&p)));
         add("rename", int, |this, p| this.rename(index(&p)));

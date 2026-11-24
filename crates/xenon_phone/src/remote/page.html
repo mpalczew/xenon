@@ -632,7 +632,7 @@ function onClosed(reason) {
 
 function onVisible() {
   if (document.visibilityState !== "visible" || !S.token) return;
-  if (S.view === "worklist" && !wlTyping()) loadWorklist();
+  if (S.view === "worklist") loadWorklist();
   if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
 }
 
@@ -865,7 +865,6 @@ async function openTasks() {
 }
 
 const wlUrl = () => "/api/workspaces/" + encodeURIComponent(S.wsSel.id) + "/worklist";
-const wlTyping = () => [...document.querySelectorAll(".wl-add input")].some((i) => i.value);
 
 function worklistRow(it) {
   const task = it.done !== undefined && it.editable;

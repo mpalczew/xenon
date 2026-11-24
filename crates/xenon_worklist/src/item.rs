@@ -3,7 +3,6 @@ use unicode_segmentation::UnicodeSegmentation;
 
 pub const TITLE_LIMIT: usize = 80;
 
-/// Length of a title as the list counts it, in graphemes.
 pub fn title_length(title: &str) -> usize {
     title.graphemes(true).count()
 }
@@ -62,7 +61,6 @@ impl ItemText {
         })
     }
 
-    /// An unchecked task with no details: the quick-add row and the phone.
     pub fn task(title: &str) -> Result<Self> {
         Self::new(title, "", Some(false))
     }

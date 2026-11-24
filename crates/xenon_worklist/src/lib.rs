@@ -20,16 +20,13 @@ use plan::{Step, plan};
 pub use item::{ItemText, TITLE_LIMIT, title_length};
 pub use key::{ItemKey, Place, SectionKey};
 
-/// Worklist path relative to a workspace root.
 pub const PATH: &str = ".xenon/worklist.md";
 
-/// Parsed, render-ready view. Equality means "same rendering".
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Snapshot {
     pub groups: Vec<Group>,
 }
 
-/// One place items live, in file order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Group {
     pub place: Place,
@@ -174,6 +171,9 @@ pub fn revert(workspace_root: &Path, undo: &Undo) -> Result<()> {
 
 /// Creates the file with "# Worklist" if missing; returns its path for the editor.
 pub fn ensure(workspace_root: &Path) -> Result<PathBuf> {
-    file::ensure_exists(workspace_root)?;
+    let file = WorklistFile::new(workspace_root)?;
+    if file.read()?.is_none() {
+        file.write(None, b"# Worklist\n")?;
+    }
     Ok(workspace_root.join(PATH))
 }
