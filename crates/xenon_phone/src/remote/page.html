@@ -701,6 +701,7 @@ function leaveSession() {
 function goBack() {
   if (S.view === "session") leaveSession();
   else if (S.view === "terms") showWorkspaces();
+  else if (S.view === "tasks") { show("terms"); renderTerminals(); }
 }
 
 function renderHost() {

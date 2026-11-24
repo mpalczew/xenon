@@ -26,7 +26,7 @@ pub use texts::*;
 pub use trust::folder_open_hash;
 pub use vars::EditorInfo;
 
-pub(crate) fn find_tasks_json(start: &Path) -> Option<PathBuf> {
+pub fn find_tasks_json(start: &Path) -> Option<PathBuf> {
     let mut dir = start.to_path_buf();
     loop {
         let candidate = dir.join(".vscode").join("tasks.json");

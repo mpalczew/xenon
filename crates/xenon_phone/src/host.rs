@@ -116,6 +116,9 @@ impl Phone {
 
     pub(crate) fn list_tasks(&self, workspace_id: &str) -> Result<Vec<TaskInfo>, String> {
         let (_, root) = Self::workspace_root(workspace_id)?;
+        if shared::find_tasks_json(&root).is_none() {
+            return Ok(Vec::new());
+        }
         let loaded = shared::load_tasks(&root)?;
         Ok(shared::task_rows(&loaded.set, &loaded.folder)
             .into_iter()
