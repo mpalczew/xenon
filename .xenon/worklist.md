@@ -8,3 +8,7 @@
       the phone asks the window over `ipc.sock`, or the window keeps recovery drafts.
 - [ ] when no tasks. web ui gets stuck
 - [ ] web ui worklist support
+- [ ] Phone remote (iPadOS): terminal window occasionally shortens to 8 rows (`8 × 168`)
+      while navigating back and forth in Direct mode; pull the `xenon-phone fit` line
+      from `journalctl --user -u xenon-phone.service` on the next repro, fix the root
+      cause, and remove the temporary `diag` logging.

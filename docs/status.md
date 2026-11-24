@@ -7,9 +7,11 @@
   blocks is fixed (also inside list items) but not yet checked on screen; Enter inside a
   code block sometimes ends the block (cause unknown; suspected only inside a list
   item). `crates/xenon_prose`
-- Phone remote: healthy; its own process, `xenon-phone.service`, which works with no
-  window open. Closing a workspace from the phone works (asks the window over
-  `ipc.sock`). `docs/designs/mobile-remote-v2.md`
+- Phone remote: mostly healthy; its own process, `xenon-phone.service`, works with no
+  window open, and closing a workspace from the phone works over `ipc.sock`. Known
+  issue: on iPadOS in Direct mode, navigating back and forth occasionally shortens a
+  terminal to 8 rows (`fit` viewport diagnostics are live in the service journal to
+  catch the next repro). `docs/designs/mobile-remote-v2.md`
 - Keyboard: healthy. Zoom now follows the active tab (terminal, code editor, markdown);
   not yet tried by hand. `crates/xenon/src/commands.rs`
 - Terminal holders: healthy and in daily use; each terminal is its own `xenon-term hold`
