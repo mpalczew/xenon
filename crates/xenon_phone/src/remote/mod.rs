@@ -30,7 +30,7 @@ pub(crate) use network::{Reachability, base_url, pairing_url};
 pub(crate) use protocol::{
     AppearanceWire, ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, PairResponse,
     Secret, ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo, ThemeWire,
-    WorkspaceInfo, style_flags,
+    WorklistEdit, WorklistGroup, WorklistInfo, WorklistItem, WorkspaceInfo, style_flags,
 };
 pub(crate) use server::{RemoteServer, StartError};
 pub(crate) use status::device_rows;

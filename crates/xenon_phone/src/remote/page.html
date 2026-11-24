@@ -63,6 +63,14 @@ html.in-session { background:var(--chrome); }
 .termrow .ws { flex:1; border-bottom:0; min-width:0; }
 .close-tab { flex:none; padding:0 14px; color:var(--err); font-size:15px; font-weight:600; }
 #direct { position:absolute; left:0; top:0; width:1px; height:1px; opacity:0; border:0; padding:0; resize:none; font-size:16px; pointer-events:none; }
+.wl-check { padding:0 6px 0 16px; font-size:22px; color:var(--accent); }
+.ws.wl { align-items:flex-start; }
+.ws.wl .name, .ws.wl .path { white-space:normal; }
+.ws.wl .name.done { color:var(--muted); text-decoration:line-through; }
+.wl-add { display:flex; gap:8px; padding:8px 16px; border-bottom:1px solid var(--hair); }
+.wl-add input { flex:1; min-width:0; height:44px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--text); font:16px var(--ui); padding:0 12px; outline:0; }
+.wl-add input:focus { border-color:var(--focus-line); }
+.toast-act { margin-left:12px; padding:6px 8px; color:var(--accent); font-weight:600; }
 .newterm.danger { color:var(--err); }
 .newterm { width:100%; text-align:left; min-height:52px; padding:14px 16px; color:var(--accent); font-size:16px; font-weight:600; border-bottom:1px solid var(--hair); }
 .hdr .crumb { color:var(--muted); font-weight:500; }
@@ -230,6 +238,11 @@ html.in-session { background:var(--chrome); }
   <section id="v-tasks" class="view" hidden>
     <div class="hdr"><button type="button" class="back" data-back aria-label="Back to terminals">‹</button><div class="title" id="tasks-title">Tasks</div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
     <div class="scroll" id="tasks"></div>
+  </section>
+
+  <section id="v-worklist" class="view" hidden>
+    <div class="hdr"><button type="button" class="back" data-back aria-label="Back to terminals">‹</button><div class="title" id="worklist-title">Worklist</div><div class="conn off" role="img" aria-label="Disconnected"></div></div>
+    <div class="scroll" id="worklist"></div>
   </section>
 
   <section id="v-session" class="view" hidden>
@@ -464,7 +477,7 @@ const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
   themed: false, theme: null, view: null,
   ws: null, connected: false, attempt: 0, retryTimer: 0, pongTimer: 0,
-  workspaces: [], recentOpen: false, tasks: [], taskInput: null, runningTask: null,
+  workspaces: [], recentOpen: false, tasks: [], worklist: null, taskInput: null, runningTask: null,
   wsSel: null, terminals: [], skippedList: false,
   want: null, tabTitle: "",
   term: Core.newTerm(), styles: {}, lastUpdate: 0,
@@ -619,12 +632,13 @@ function onClosed(reason) {
 
 function onVisible() {
   if (document.visibilityState !== "visible" || !S.token) return;
+  if (S.view === "worklist" && !wlTyping()) loadWorklist();
   if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
 }
 
 function show(view) {
   S.view = view;
-  for (const v of ["paired", "code", "list", "terms", "tasks", "session"]) $("v-" + v).hidden = v !== view;
+  for (const v of ["paired", "code", "list", "terms", "tasks", "worklist", "session"]) $("v-" + v).hidden = v !== view;
   document.documentElement.classList.toggle("in-session", view === "session");
   if (view === "session") scheduleFit(0, "show");
 }
@@ -701,7 +715,7 @@ function leaveSession() {
 function goBack() {
   if (S.view === "session") leaveSession();
   else if (S.view === "terms") showWorkspaces();
-  else if (S.view === "tasks") { show("terms"); renderTerminals(); }
+  else if (S.view === "tasks" || S.view === "worklist") { show("terms"); renderTerminals(); }
 }
 
 function renderHost() {
@@ -759,7 +773,8 @@ function renderTerminals() {
   const empty = S.terminals.length ? "" : '<div class="note">No terminal tabs in this workspace.</div>';
   const closeWs = S.wsSel && S.wsSel.open ? '<button type="button" class="newterm danger" id="close-ws">Close workspace</button>' : "";
   $("terms").innerHTML = '<button type="button" class="newterm" id="new-term">New terminal</button>' +
-    '<button type="button" class="newterm" id="open-tasks">Tasks</button>' + closeWs + empty + rows;
+    '<button type="button" class="newterm" id="open-tasks">Tasks</button>' +
+    '<button type="button" class="newterm" id="open-worklist">Worklist</button>' + closeWs + empty + rows;
 }
 
 async function closeWorkspace(w) {
@@ -846,6 +861,63 @@ async function openTasks() {
     renderTasks();
   } catch (e) {
     if (e.message !== "unauthorized") $("tasks").innerHTML = '<div class="note err">' + esc(e.message) + "</div>";
+  }
+}
+
+const wlUrl = () => "/api/workspaces/" + encodeURIComponent(S.wsSel.id) + "/worklist";
+const wlTyping = () => [...document.querySelectorAll(".wl-add input")].some((i) => i.value);
+
+function worklistRow(it) {
+  const task = it.done !== undefined && it.editable;
+  const check = task
+    ? '<button type="button" class="close-tab wl-check" data-check="' + esc(it.key) + '" data-done="' + !it.done +
+      '" aria-label="' + (it.done ? "Mark not done" : "Mark done") + '">' + (it.done ? "☑" : "☐") + "</button>"
+    : "";
+  const sub = it.editable ? (it.details || "").split("\n").map((l) => l.trim()).join(" · ") : "Edit this on your computer";
+  const del = it.editable ? '<button type="button" class="close-tab" data-del="' + esc(it.key) + '" aria-label="Delete item">Delete</button>' : "";
+  return '<div class="termrow">' + check + '<div class="ws wl"><div class="body"><div class="name' + (it.done ? " done" : "") + '">' + esc(it.title) + "</div>" +
+    (sub ? '<div class="path">' + esc(sub) + "</div>" : "") + "</div></div>" + del + "</div>";
+}
+
+function renderWorklist() {
+  const lone = S.worklist.groups.length === 1 && S.worklist.groups[0].place === "top";
+  $("worklist").innerHTML = S.worklist.groups.map((g) =>
+    (lone ? "" : '<div class="sect">' + esc(g.label) + "</div>") + g.items.map(worklistRow).join("") +
+    '<form class="wl-add" data-place="' + esc(g.place) + '"><input type="text" enterkeyhint="done" autocomplete="off" placeholder="Add item…" aria-label="Add item to ' + esc(g.label) +
+    '"><button type="submit" class="keys-btn">Add</button></form>'
+  ).join("");
+}
+
+async function loadWorklist() {
+  try {
+    S.worklist = await api(wlUrl());
+    renderWorklist();
+  } catch (e) {
+    if (e.message !== "unauthorized") $("worklist").innerHTML = '<div class="note err">' + esc(e.message) + "</div>";
+  }
+}
+
+function openWorklist() {
+  if (!S.wsSel) return;
+  S.worklist = null;
+  $("worklist-title").textContent = S.wsSel.name + " › Worklist";
+  $("worklist").innerHTML = '<div class="note">Loading…</div>';
+  show("worklist");
+  loadWorklist();
+}
+
+async function worklistEdit(body, el) {
+  if (el) el.disabled = true;
+  try {
+    S.worklist = await api(wlUrl(), { method: "POST", body: JSON.stringify(body) });
+    renderWorklist();
+    const w = S.worklist;
+    if (w.undo) toast("Item deleted", () => worklistEdit({ op: "undo", token: w.undo }));
+    else if (w.notice) toast(w.notice);
+  } catch (e) {
+    if (e.message === "unauthorized") return;
+    toast(e.message);
+    loadWorklist();
   }
 }
 
@@ -1447,12 +1519,20 @@ function onMsgPaste(e) {
 }
 
 let toastTimer = 0;
-function toast(text) {
+function toast(text, undo) {
   const el = $("toast");
   el.textContent = text;
+  if (undo) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "toast-act";
+    b.textContent = "Undo";
+    b.onclick = () => { el.hidden = true; undo(); };
+    el.append(b);
+  }
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  toastTimer = setTimeout(() => { el.hidden = true; }, undo ? 7000 : 2600);
 }
 
 function wireEvents() {
@@ -1479,6 +1559,7 @@ function wireEvents() {
   $("terms").addEventListener("click", (e) => {
     if (e.target.closest("#new-term")) return createTerminal();
     if (e.target.closest("#open-tasks")) return openTasks();
+    if (e.target.closest("#open-worklist")) return openWorklist();
     if (e.target.closest("#close-ws")) return closeWorkspace(S.wsSel);
     const closer = e.target.closest("[data-close]");
     if (closer) return closeTerminal(S.terminals[+closer.dataset.close]);
@@ -1488,6 +1569,18 @@ function wireEvents() {
   $("tasks").addEventListener("click", (e) => {
     const row = e.target.closest("[data-task]");
     if (row) runTask(S.tasks[+row.dataset.task]);
+  });
+  $("worklist").addEventListener("click", (e) => {
+    const check = e.target.closest("[data-check]");
+    if (check) return worklistEdit({ op: "setDone", item: check.dataset.check, done: check.dataset.done === "true" }, check);
+    const del = e.target.closest("[data-del]");
+    if (del) worklistEdit({ op: "remove", item: del.dataset.del }, del);
+  });
+  $("worklist").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = e.target.querySelector("input");
+    const title = input.value.trim();
+    if (title) worklistEdit({ op: "add", place: e.target.dataset.place, title }, e.target.querySelector("button"));
   });
   wireTaskInput();
   $("new-session").addEventListener("click", createTerminal);

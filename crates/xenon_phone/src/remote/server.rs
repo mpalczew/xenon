@@ -283,6 +283,16 @@ fn api(stream: &mut TcpStream, req: &Request, shared: &Shared) -> Result<()> {
         ("GET", ["api", "workspaces", id, "tasks"]) => {
             reply(stream, decode(id).and_then(|ws| phone.list_tasks(&ws)))
         }
+        ("GET", ["api", "workspaces", id, "worklist"]) => {
+            reply(stream, decode(id).and_then(|ws| phone.worklist(&ws)))
+        }
+        ("POST", ["api", "workspaces", id, "worklist"]) => reply(
+            stream,
+            decode(id).and_then(|ws| {
+                let edit = serde_json::from_slice(&req.body).map_err(|_| "bad body".to_string())?;
+                phone.edit_worklist(&ws, edit)
+            }),
+        ),
         ("DELETE", ["api", "workspaces", id, "terminals", tab]) => {
             let closed = decode(id).and_then(|ws| {
                 let tab_id = tab.parse::<u64>().map_err(|_| NOT_FOUND.to_string())?;

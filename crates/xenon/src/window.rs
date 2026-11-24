@@ -246,6 +246,10 @@ fn connect_window(app: &Rc<App>, win: &adw::ApplicationWindow) {
         gtk::glib::idle_add_local_once(move || {
             if active {
                 app.git_refresh_active();
+                let editors: Vec<_> = app.editors.borrow().values().cloned().collect();
+                for editor in editors {
+                    editor.refresh_list();
+                }
             }
             app.dismiss_viewed();
             app.paint_all();

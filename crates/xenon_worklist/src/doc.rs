@@ -1,10 +1,12 @@
 use std::ops::Range;
 
-use anyhow::{Result, bail};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+
+use crate::key::{ItemKey, Place, SectionKey, number};
 
 #[derive(Clone, Debug)]
 pub(super) struct Section {
+    pub(super) key: SectionKey,
     pub(super) title: String,
     pub(super) start: usize,
     pub(super) title_range: Range<usize>,
@@ -28,6 +30,7 @@ impl Section {
         };
         let text_end = (start + line.len()).max(text_start);
         Self {
+            key: SectionKey::default(),
             title: source[text_start..text_end].to_owned(),
             start,
             title_range: text_start..text_end,
@@ -36,65 +39,9 @@ impl Section {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) enum Target {
-    #[default]
-    Top,
-    Section {
-        index: usize,
-        title: String,
-    },
-}
-
-impl Target {
-    pub(super) fn label(&self) -> &str {
-        match self {
-            Self::Top => "Top",
-            Self::Section { title, .. } if title.is_empty() => "Untitled",
-            Self::Section { title, .. } => title,
-        }
-    }
-
-    pub(super) fn is_section(&self) -> bool {
-        matches!(self, Self::Section { .. })
-    }
-
-    pub(super) fn section_index(&self) -> Option<usize> {
-        match self {
-            Self::Top => None,
-            Self::Section { index, .. } => Some(*index),
-        }
-    }
-
-    pub(super) fn of(sections: &[Section], section: Option<usize>) -> Self {
-        match section.and_then(|index| Some((index, sections.get(index)?))) {
-            Some((index, found)) => Self::Section {
-                index,
-                title: found.title.clone(),
-            },
-            None => Self::Top,
-        }
-    }
-
-    pub(super) fn resolve(&self, sections: &[Section]) -> Result<Option<usize>> {
-        let Self::Section { index, title } = self else {
-            return Ok(None);
-        };
-        if sections
-            .get(*index)
-            .is_some_and(|found| found.title == *title)
-        {
-            return Ok(Some(*index));
-        }
-        match sections.iter().position(|found| found.title == *title) {
-            Some(index) => Ok(Some(index)),
-            None => bail!("Section “{title}” is gone; pick another"),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(super) struct Entry {
+    pub(super) key: ItemKey,
     pub(super) range: Range<usize>,
     pub(super) title: String,
     pub(super) details: String,
@@ -120,21 +67,29 @@ impl Doc {
         }
     }
 
-    pub(super) fn source(&self) -> &str {
-        &self.source
+    pub(super) fn find(&self, key: &ItemKey) -> Option<usize> {
+        self.entries.iter().position(|entry| entry.key == *key)
     }
 
-    pub(super) fn targets(&self) -> Vec<Target> {
-        let mut targets = Vec::new();
-        if self.sections.is_empty() || self.entries.iter().any(|entry| entry.section.is_none()) {
-            targets.push(Target::Top);
+    /// The section index a place names: `None` if gone, `Some(None)` for the top region.
+    pub(super) fn region(&self, place: &Place) -> Option<Option<usize>> {
+        match place {
+            Place::Top => Some(None),
+            Place::Section(key) => self.section_index(key).map(Some),
         }
-        targets.extend((0..self.sections.len()).map(|i| Target::of(&self.sections, Some(i))));
-        targets
     }
 
-    pub(super) fn section_target(&self, index: usize) -> Target {
-        Target::of(&self.sections, Some(index))
+    pub(super) fn section_index(&self, key: &SectionKey) -> Option<usize> {
+        self.sections.iter().position(|section| section.key == *key)
+    }
+
+    /// The regions that get a group: the top when it has items or there are no sections.
+    pub(super) fn regions(&self) -> Vec<Option<usize>> {
+        let top = self.sections.is_empty() || self.entries.iter().any(|e| e.section.is_none());
+        top.then_some(None)
+            .into_iter()
+            .chain((0..self.sections.len()).map(Some))
+            .collect()
     }
 }
 
@@ -166,11 +121,9 @@ pub(super) fn parse_parts(source: &str) -> (Vec<Section>, Vec<Entry>) {
             Event::Start(Tag::Item) if list_depth == 1 => {
                 item = Some(Entry {
                     range: range.clone(),
-                    title: String::new(),
-                    details: String::new(),
-                    checked: None,
                     section: sections.len().checked_sub(1),
                     editable: true,
+                    ..Entry::default()
                 })
             }
             Event::TaskListMarker(checked) if item.is_some() && list_depth == 1 => {
@@ -192,11 +145,9 @@ pub(super) fn parse_parts(source: &str) -> (Vec<Section>, Vec<Entry>) {
             Event::Start(Tag::Paragraph) if list_depth == 0 => {
                 paragraph = Some(Entry {
                     range: range.clone(),
-                    title: String::new(),
-                    details: String::new(),
-                    checked: None,
                     section: sections.len().checked_sub(1),
                     editable: true,
+                    ..Entry::default()
                 })
             }
             Event::End(TagEnd::Paragraph) if list_depth == 0 => {
@@ -221,7 +172,30 @@ pub(super) fn parse_parts(source: &str) -> (Vec<Section>, Vec<Entry>) {
             .map_or(source.len(), |next| next.start);
         sections[index].end = end;
     }
+    let keys = number(sections.iter().map(|section| section.title.clone()));
+    for (section, key) in sections.iter_mut().zip(keys) {
+        section.key = SectionKey::from(key);
+    }
+    let keys = number(
+        found
+            .iter()
+            .map(|entry| item_identity(&source[entry.range.clone()])),
+    );
+    for (entry, key) in found.iter_mut().zip(keys) {
+        entry.key = ItemKey::from(key);
+    }
     (sections, found)
+}
+
+fn item_identity(raw: &str) -> String {
+    let raw = raw.trim();
+    match raw
+        .strip_prefix("- [x] ")
+        .or_else(|| raw.strip_prefix("- [X] "))
+    {
+        Some(rest) => format!("- [ ] {rest}"),
+        None => raw.to_owned(),
+    }
 }
 
 fn item_text(raw: &str) -> (String, String, bool) {

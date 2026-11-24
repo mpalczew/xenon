@@ -5,10 +5,11 @@ use adw::prelude::*;
 use gtk::{gdk, glib};
 use xenon_core::WorkspaceId;
 
-use super::doc::{Entry, Target};
+use xenon_worklist::{
+    Effect, Item, ItemKey, ItemText, Op, Place, TITLE_LIMIT, apply, title_length,
+};
+
 use super::fields::{text_of, title_view};
-use super::file::commit_draft;
-use super::item::{Draft, DraftEdit, TITLE_LIMIT, WorkItem, title_length};
 use crate::app::{App, defer};
 
 const NEAR_LIMIT: isize = 12;
@@ -51,16 +52,11 @@ fn points_view(body: &gtk::Box) -> gtk::TextView {
     details
 }
 
-fn prefill(
-    entry: &Entry,
-    check: &gtk::CheckButton,
-    title: &gtk::TextView,
-    details: &gtk::TextView,
-) {
-    check.set_active(entry.checked == Some(true));
-    check.set_visible(entry.checked.is_some());
-    title.buffer().set_text(&entry.title);
-    details.buffer().set_text(&entry.details);
+fn prefill(item: &Item, check: &gtk::CheckButton, title: &gtk::TextView, details: &gtk::TextView) {
+    check.set_active(item.done == Some(true));
+    check.set_visible(item.done.is_some());
+    title.buffer().set_text(&item.title);
+    details.buffer().set_text(&item.details);
 }
 
 pub(super) struct Capture {
@@ -78,12 +74,12 @@ pub(super) struct Capture {
     hint: gtk::Label,
     prev: gtk::Button,
     next: gtk::Button,
-    targets: Vec<Target>,
+    targets: Vec<(Place, String)>,
     selected: Cell<usize>,
     task: bool,
     editing: bool,
-    draft: RefCell<Draft>,
-    landed: RefCell<Option<WorkItem>>,
+    key: RefCell<Option<ItemKey>>,
+    landed: RefCell<Option<ItemText>>,
     discarded: Cell<bool>,
 }
 
@@ -92,8 +88,8 @@ impl Capture {
         app: &Rc<App>,
         (ws, root): (WorkspaceId, std::path::PathBuf),
         name: &str,
-        (targets, selected): (Vec<Target>, usize),
-        edit: Option<(Entry, Draft)>,
+        (targets, selected): (Vec<(Place, String)>, usize),
+        edit: Option<Item>,
     ) -> Rc<Self> {
         let dialog = adw::Dialog::new();
         dialog.set_content_width(430);
@@ -135,7 +131,7 @@ impl Capture {
         chip.append(&section);
         chip.append(&next);
         chip.append(&hint);
-        chip.set_visible(targets.iter().any(Target::is_section));
+        chip.set_visible(targets.iter().any(|(place, _)| *place != Place::Top));
         body.append(&chip);
 
         let error = gtk::Label::new(None);
@@ -148,13 +144,13 @@ impl Capture {
         crate::palette_list::close_on_outside_click(&dialog, &body);
 
         let editing = edit.is_some();
-        let (draft, task) = match edit {
-            Some((entry, draft)) => {
+        let (key, task) = match edit {
+            Some(item) => {
                 chip.set_visible(false);
-                prefill(&entry, &check, &title, &details);
-                (draft, entry.checked.is_some())
+                prefill(&item, &check, &title, &details);
+                (Some(item.key), item.done.is_some())
             }
-            None => (Draft::default(), true),
+            None => (None, true),
         };
         let (delete, save) = buttons(&body, editing);
 
@@ -177,7 +173,7 @@ impl Capture {
             selected: Cell::new(selected),
             task,
             editing,
-            draft: RefCell::new(draft),
+            key: RefCell::new(key),
             landed: RefCell::new(None),
             discarded: Cell::new(false),
         });
@@ -281,15 +277,15 @@ impl Capture {
         });
     }
 
-    fn target(&self) -> Target {
-        self.targets
-            .get(self.selected.get())
-            .cloned()
-            .unwrap_or_default()
+    fn target(&self) -> (Place, &str) {
+        match self.targets.get(self.selected.get()) {
+            Some((place, label)) => (place.clone(), label),
+            None => (Place::Top, "Top"),
+        }
     }
 
     fn locked(&self) -> bool {
-        self.draft.borrow().is_saved()
+        self.key.borrow().is_some()
     }
 
     fn details_text(&self) -> String {
@@ -300,12 +296,12 @@ impl Capture {
         text_of(&self.title).replace(['\n', '\r'], " ")
     }
 
-    fn item(&self) -> anyhow::Result<WorkItem> {
-        let checked = self.task.then(|| self.check.is_active());
-        WorkItem::new(self.title_text().as_str(), &self.details_text(), checked)
+    fn item(&self) -> anyhow::Result<ItemText> {
+        let done = self.task.then(|| self.check.is_active());
+        ItemText::new(self.title_text().as_str(), &self.details_text(), done)
     }
 
-    fn pending(&self) -> Option<WorkItem> {
+    fn pending(&self) -> Option<ItemText> {
         let item = self.item().ok()?;
         let unchanged = self.landed.borrow().as_ref().is_some_and(|l| *l == item);
         (!unchanged).then_some(item)
@@ -323,31 +319,49 @@ impl Capture {
         }
     }
 
-    fn save(&self, item: &WorkItem) {
-        let result = {
-            let mut draft = self.draft.borrow_mut();
-            if !draft.is_saved() {
-                draft.set_target(self.target());
-            }
-            commit_draft(&self.root, &mut draft, DraftEdit::Save(item))
+    fn save(&self, text: &ItemText) {
+        let known = self.key.borrow().clone();
+        let adding = known.is_none();
+        let op = match known {
+            Some(item) => Op::Replace {
+                item,
+                text: text.clone(),
+            },
+            None => Op::Add {
+                to: self.target().0,
+                text: text.clone(),
+            },
         };
-        match result {
-            Ok(_) => {
-                *self.landed.borrow_mut() = Some(item.clone());
-                self.error.set_visible(false);
-                if let Some(app) = self.app.upgrade() {
-                    app.worklist
-                        .last_section
-                        .borrow_mut()
-                        .insert(self.ws, self.target());
+        let error = match apply(&self.root, op) {
+            Ok(applied) => match applied.effect {
+                Effect::Saved { item, .. } => {
+                    self.key.replace_with(|old| item.or(old.take()));
+                    None
                 }
-                self.update_section();
-            }
-            Err(error) => {
-                self.error.set_text(&error.to_string());
-                self.error.set_visible(true);
-            }
+                Effect::Unchanged => None,
+                Effect::Gone if adding => {
+                    Some("That section is gone; reopen to pick another".into())
+                }
+                Effect::Gone => {
+                    Some("This item changed elsewhere; reopen it to keep editing".into())
+                }
+            },
+            Err(error) => Some(error.to_string()),
+        };
+        if let Some(error) = error {
+            self.error.set_text(&error);
+            self.error.set_visible(true);
+            return;
         }
+        *self.landed.borrow_mut() = Some(text.clone());
+        self.error.set_visible(false);
+        if let Some(app) = self.app.upgrade() {
+            app.worklist
+                .last_section
+                .borrow_mut()
+                .insert(self.ws, self.target().0);
+        }
+        self.update_section();
     }
 
     fn update_length(&self, length: &gtk::Box) {
@@ -361,7 +375,7 @@ impl Capture {
         }
         let note = if left >= 0 {
             ""
-        } else if self.draft.borrow().is_saved() && self.settled() {
+        } else if self.locked() && self.settled() {
             "Saved \u{b7} long titles wrap in the list"
         } else {
             "Long titles wrap in the list"
@@ -380,14 +394,14 @@ impl Capture {
             app.worklist
                 .last_section
                 .borrow_mut()
-                .insert(self.ws, self.target());
+                .insert(self.ws, self.target().0);
         }
         self.update_section();
     }
 
     fn update_section(&self) {
         let locked = self.locked();
-        self.section.set_text(self.target().label());
+        self.section.set_text(self.target().1);
         self.prev.set_sensitive(!locked);
         self.next.set_sensitive(!locked);
         self.hint.set_text(if locked {
@@ -399,13 +413,14 @@ impl Capture {
 
     fn discard(&self) {
         self.discarded.set(true);
-        let result = commit_draft(&self.root, &mut self.draft.borrow_mut(), DraftEdit::Remove);
-        if let Some(app) = self.app.upgrade() {
-            match result {
-                Ok(Some(undo)) if self.editing => {
-                    app.offer_worklist_undo(self.root.clone(), "Item deleted", undo);
+        let item = self.key.borrow_mut().take();
+        if let (Some(item), Some(app)) = (item, self.app.upgrade()) {
+            match apply(&self.root, Op::Remove { item }) {
+                Ok(applied) => {
+                    if let (Effect::Saved { undo, .. }, true) = (applied.effect, self.editing) {
+                        app.offer_worklist_undo(self.root.clone(), "Item deleted", undo);
+                    }
                 }
-                Ok(_) => {}
                 Err(error) => app.worklist_error("Couldn\u{2019}t delete that task", &error),
             }
         }
@@ -420,7 +435,9 @@ impl Capture {
         if self.editing || self.discarded.get() || !self.settled() || !self.locked() {
             return;
         }
-        let draft = self.draft.borrow().clone();
-        app.task_added_toast(self.ws, draft);
+        let item = self.key.borrow().clone();
+        if let Some(item) = item {
+            app.task_added_toast(self.ws, item, self.title_text().trim());
+        }
     }
 }

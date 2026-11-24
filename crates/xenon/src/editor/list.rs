@@ -9,7 +9,7 @@ use super::EditorView;
 use crate::worklist::WorklistList;
 
 pub(super) fn is_worklist(path: &Path) -> bool {
-    path.ends_with(".xenon/worklist.md")
+    path.ends_with(xenon_worklist::PATH)
 }
 
 pub(super) fn pages(
@@ -120,6 +120,14 @@ impl EditorView {
         self.sync_switch();
         self.focus();
         true
+    }
+
+    pub(crate) fn refresh_list(self: &Rc<Self>) {
+        if let Some(list) = self.list.get()
+            && self.list_showing()
+        {
+            list.refresh();
+        }
     }
 
     pub(crate) fn focus(&self) {

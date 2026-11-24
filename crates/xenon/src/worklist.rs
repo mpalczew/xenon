@@ -9,26 +9,20 @@ use crate::app::App;
 use crate::commands::Cmd;
 
 mod capture;
-mod doc;
-mod edit;
 mod fields;
-mod file;
-mod item;
 mod list;
 mod list_ops;
 
 pub(crate) use list::WorklistList;
 
 use capture::Capture;
-use doc::{Doc, Entry, Target};
-use file::{UndoPair, commit_draft, ensure_exists, read_text, revert};
-use item::{Draft, DraftEdit};
+use xenon_worklist::{Item, ItemKey, Op, Place, Undo, apply, ensure, read, revert};
 
 #[derive(Default)]
 pub(crate) struct Worklist {
     capture: RefCell<Option<Rc<Capture>>>,
-    last_section: RefCell<HashMap<WorkspaceId, Target>>,
-    undo: RefCell<Option<(WorkspaceId, Draft)>>,
+    last_section: RefCell<HashMap<WorkspaceId, Place>>,
+    undo: RefCell<Option<(WorkspaceId, ItemKey)>>,
     toast_serial: Cell<u64>,
 }
 
@@ -49,26 +43,27 @@ impl App {
         if let Some(capture) = capture {
             capture.dialog.close();
         }
-        if let Err(error) = ensure_exists(&root) {
-            self.toast_failed("Couldn\u{2019}t open the worklist", &error.to_string());
-            return;
+        match ensure(&root) {
+            Ok(path) => self.open_editor(ws, &path),
+            Err(error) => {
+                self.toast_failed("Couldn\u{2019}t open the worklist", &error.to_string());
+            }
         }
-        self.open_editor(ws, &root.join(".xenon/worklist.md"));
     }
 
     pub(crate) fn capture_worklist(self: &Rc<Self>) {
         self.open_capture(None, None);
     }
 
-    fn capture_worklist_into(self: &Rc<Self>, section: Target) {
+    fn capture_worklist_into(self: &Rc<Self>, section: Place) {
         self.open_capture(Some(section), None);
     }
 
-    fn edit_worklist_item(self: &Rc<Self>, entry: Entry, draft: Draft) {
-        self.open_capture(None, Some((entry, draft)));
+    fn edit_worklist_item(self: &Rc<Self>, item: Item) {
+        self.open_capture(None, Some(item));
     }
 
-    fn open_capture(self: &Rc<Self>, section: Option<Target>, edit: Option<(Entry, Draft)>) {
+    fn open_capture(self: &Rc<Self>, section: Option<Place>, edit: Option<Item>) {
         let open = self.worklist.capture.borrow().clone();
         if let Some(open) = open {
             open.dialog.close();
@@ -81,11 +76,16 @@ impl App {
         let (targets, selected) = if edit.is_some() {
             (Vec::new(), 0)
         } else {
-            let targets = Doc::parse(read_text(&root)).targets();
+            let targets: Vec<(Place, String)> = read(&root)
+                .unwrap_or_default()
+                .groups
+                .into_iter()
+                .map(|group| (group.place, group.label))
+                .collect();
             let preferred =
                 section.or_else(|| self.worklist.last_section.borrow().get(&ws).cloned());
             let selected = preferred
-                .and_then(|want| targets.iter().position(|t| t.label() == want.label()))
+                .and_then(|want| targets.iter().position(|(place, _)| *place == want))
                 .unwrap_or(0);
             (targets, selected)
         };
@@ -96,13 +96,13 @@ impl App {
     }
 
     pub(crate) fn undo_capture(self: &Rc<Self>) {
-        let Some((ws, mut draft)) = self.worklist.undo.borrow_mut().take() else {
+        let Some((ws, item)) = self.worklist.undo.borrow_mut().take() else {
             return;
         };
         let Some(root) = self.model.borrow().rec(ws).map(|r| r.root.clone()) else {
             return;
         };
-        match commit_draft(&root, &mut draft, DraftEdit::Remove) {
+        match apply(&root, Op::Remove { item }) {
             Ok(_) => self.toast("Poof. Capture undone."),
             Err(error) => self.worklist_error("Can\u{2019}t undo just yet", &error),
         }
@@ -116,7 +116,7 @@ impl App {
         self.toasts.add_toast(toast);
     }
 
-    fn offer_worklist_undo(&self, root: std::path::PathBuf, text: &str, undo: UndoPair) {
+    fn offer_worklist_undo(&self, root: std::path::PathBuf, text: &str, undo: Undo) {
         let toast = adw::Toast::new(text);
         toast.set_use_markup(false);
         toast.set_button_label(Some("Undo"));
@@ -132,10 +132,10 @@ impl App {
         self.toasts.add_toast(toast);
     }
 
-    fn task_added_toast(self: &Rc<Self>, ws: WorkspaceId, draft: Draft) {
-        let text = match draft.title() {
-            Some(title) => format!("Got it, task added \u{2014} {title}"),
-            None => "Got it, task added".to_string(),
+    fn task_added_toast(self: &Rc<Self>, ws: WorkspaceId, item: ItemKey, title: &str) {
+        let text = match title {
+            "" => "Got it, task added".to_string(),
+            title => format!("Got it, task added \u{2014} {title}"),
         };
         let toast = adw::Toast::new(&text);
         toast.set_use_markup(false);
@@ -143,7 +143,7 @@ impl App {
         toast.set_action_name(Some(Cmd::UndoCapture.action()));
         let serial = self.worklist.toast_serial.get() + 1;
         self.worklist.toast_serial.set(serial);
-        *self.worklist.undo.borrow_mut() = Some((ws, draft));
+        *self.worklist.undo.borrow_mut() = Some((ws, item));
         let weak = Rc::downgrade(self);
         toast.connect_dismissed(move |_| {
             if let Some(app) = weak.upgrade()

@@ -1825,7 +1825,6 @@ dependencies = [
  "serde_json",
  "similar",
  "sourceview5",
- "unicode-segmentation",
  "vte4",
  "xenon_core",
  "xenon_finder",
@@ -1835,6 +1834,7 @@ dependencies = [
  "xenon_settings",
  "xenon_store",
  "xenon_term",
+ "xenon_worklist",
 ]
 
 [[package]]
@@ -1890,6 +1890,7 @@ dependencies = [
  "xenon_core",
  "xenon_store",
  "xenon_term",
+ "xenon_worklist",
 ]
 
 [[package]]
@@ -1932,6 +1933,16 @@ dependencies = [
  "serde_json",
  "xenon_core",
  "xenon_store",
+]
+
+[[package]]
+name = "xenon_worklist"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "pulldown-cmark",
+ "sha2",
+ "unicode-segmentation",
 ]
 
 [[package]]

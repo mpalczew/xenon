@@ -1,7 +1,8 @@
 # Workspace worklist
 
-Each workspace has one worklist at `.xenon/worklist.md`. Code:
-`crates/xenon/src/worklist*` and `crates/xenon/src/editor/list.rs`.
+Each workspace has one worklist at `.xenon/worklist.md`. Code: `crates/xenon_worklist`
+(file logic), `crates/xenon/src/worklist*` and `crates/xenon/src/editor/list.rs`. The
+phone view and the shared write path: [worklist-remote.md](worklist-remote.md).
 
 ## Decisions
 

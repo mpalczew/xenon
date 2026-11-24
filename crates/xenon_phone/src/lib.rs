@@ -11,6 +11,7 @@ mod server;
 mod session;
 mod status;
 mod tasks;
+mod worklist;
 
 use std::collections::HashMap;
 use std::io;
@@ -56,6 +57,7 @@ pub(crate) struct Phone {
     pub server: Mutex<Server>,
     pub conns: Mutex<HashMap<ConnId, Conn>>,
     pub tasks: Mutex<tasks::TaskState>,
+    pub worklist_undo: Mutex<worklist::Undos>,
     pub serials: Mutex<Serials>,
     pub dark: AtomicBool,
     me: Weak<Phone>,
@@ -86,6 +88,7 @@ impl Phone {
             server: Mutex::new(Server::default()),
             conns: Mutex::new(HashMap::new()),
             tasks: Mutex::new(tasks::TaskState::default()),
+            worklist_undo: Mutex::default(),
             serials: Mutex::default(),
             dark: AtomicBool::new(true),
             changes: Mutex::new((0, Vec::new())),

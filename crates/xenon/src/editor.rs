@@ -224,11 +224,7 @@ impl EditorView {
                 if let Some(this) = this.upgrade() {
                     this.sync_pending.set(false);
                     this.sync_from_disk();
-                    if let Some(list) = this.list.get()
-                        && this.list_showing()
-                    {
-                        list.refresh();
-                    }
+                    this.refresh_list();
                 }
             });
         });

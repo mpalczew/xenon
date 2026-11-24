@@ -50,6 +50,47 @@ pub struct TaskInfo {
     pub unsupported: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorklistInfo {
+    pub groups: Vec<WorklistGroup>,
+    /// Set when the op hit a changed item.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
+    /// Token for `WorklistEdit::Undo` after a removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub undo: Option<u64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorklistGroup {
+    pub place: String,
+    pub label: String,
+    pub items: Vec<WorklistItem>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorklistItem {
+    pub key: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub details: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub done: Option<bool>,
+    pub editable: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "op", rename_all = "camelCase")]
+pub enum WorklistEdit {
+    SetDone { item: String, done: bool },
+    Add { place: String, title: String },
+    Remove { item: String },
+    Undo { token: u64 },
+}
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Secret(pub String);
