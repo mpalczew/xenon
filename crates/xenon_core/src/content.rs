@@ -85,9 +85,10 @@ pub struct LeafPane {
 }
 
 /// Saved pane tree. Splits are N-ary: `sizes` are fractions summing to 1 and no
-/// child is a split on its parent's axis.
+/// child is a split on its parent's axis. Old binary `first/second/ratio`
+/// layouts still load (see `PaneNodeRepr`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", from = "PaneNodeRepr")]
 pub enum PaneNode {
     Leaf(LeafPane),
     Split {
@@ -95,6 +96,43 @@ pub enum PaneNode {
         children: Vec<PaneNode>,
         sizes: Vec<f32>,
     },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum PaneNodeRepr {
+    Leaf(LeafPane),
+    Split(SplitRepr),
+}
+
+#[derive(Deserialize)]
+struct SplitRepr {
+    axis: SplitAxis,
+    #[serde(default)]
+    children: Vec<PaneNode>,
+    #[serde(default)]
+    sizes: Vec<f32>,
+    ratio: Option<f32>,
+    first: Option<Box<PaneNode>>,
+    second: Option<Box<PaneNode>>,
+}
+
+impl From<PaneNodeRepr> for PaneNode {
+    fn from(repr: PaneNodeRepr) -> Self {
+        match repr {
+            PaneNodeRepr::Leaf(leaf) => Self::Leaf(leaf),
+            PaneNodeRepr::Split(mut s) => {
+                if s.children.is_empty()
+                    && let (Some(first), Some(second)) = (s.first, s.second)
+                {
+                    let ratio = s.ratio.filter(|r| r.is_finite()).unwrap_or(0.5);
+                    s.children = vec![*first, *second];
+                    s.sizes = vec![ratio, 1.0 - ratio];
+                }
+                Self::split(s.axis, s.children, s.sizes)
+            }
+        }
+    }
 }
 
 impl PaneNode {
