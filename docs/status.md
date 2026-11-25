@@ -12,6 +12,9 @@
   issue: on iPadOS in Direct mode, navigating back and forth occasionally shortens a
   terminal to 8 rows (`fit` viewport diagnostics are live in the service journal to
   catch the next repro). `docs/designs/mobile-remote-v2.md`
+- Worklist: shared `crates/xenon_worklist` crate with content-keyed ops; phone view
+  (check, add, delete with undo) and the reworked desktop list and capture dialog are
+  not yet tried by hand. `docs/designs/workspace-worklist.md`
 - Keyboard: healthy. Zoom now follows the active tab (terminal, code editor, markdown);
   not yet tried by hand. `crates/xenon/src/commands.rs`
 - Terminal holders: healthy and in daily use; each terminal is its own `xenon-term hold`
