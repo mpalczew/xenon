@@ -1601,17 +1601,14 @@ function wireEvents() {
   for (const end of ["pointerup", "pointercancel", "pointerleave"]) keys.addEventListener(end, stopRepeat);
   $("msg").addEventListener("keydown", onMsgKeyDown);
   const direct = $("direct");
-  let composing = false;
   direct.addEventListener("keydown", onDirectKey);
-  direct.addEventListener("compositionstart", () => { composing = true; });
   direct.addEventListener("compositionend", (e) => {
-    composing = false;
     const text = e.data || direct.value;
     direct.value = "";
     if (text) send({ t: "text", data: text });
   });
-  direct.addEventListener("input", () => {
-    if (composing) return;
+  direct.addEventListener("input", (e) => {
+    if (e.isComposing) return;
     const text = direct.value;
     if (!text) return;
     direct.value = "";
