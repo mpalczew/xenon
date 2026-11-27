@@ -175,10 +175,20 @@ pub enum ClientMsg {
     Key {
         key: NamedKey,
     },
+    /// Alt screen only: the primary screen scrolls natively on the phone.
     Wheel {
         rows: i32,
+        #[serde(default)]
+        col: u16,
+        #[serde(default)]
+        row: u16,
     },
-    Bottom,
+    /// Where the phone is scrolled; `top` is the line at the top of its viewport.
+    Scroll {
+        epoch: u32,
+        top: u64,
+        follow: bool,
+    },
     Click {
         col: u16,
         row: u16,
@@ -260,7 +270,7 @@ pub struct CursorWire {
 }
 
 pub(crate) type SpanWire = (String, u32);
-pub(crate) type LineWire = (u16, Vec<SpanWire>);
+pub(crate) type LineWire = (u64, Vec<SpanWire>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -277,6 +287,8 @@ pub enum ServerMsg {
     Ready {
         theme: ThemeWire,
         host_name: String,
+        /// The page reloads itself when this differs from the build it was served by.
+        build: String,
     },
     Theme {
         theme: ThemeWire,
@@ -284,16 +296,23 @@ pub enum ServerMsg {
     Styles {
         add: BTreeMap<u32, StyleWire>,
     },
-    Frame {
-        seq: u64,
+    /// After applying, the phone holds exactly `[top, top + len)`; `set` is every line
+    /// in it that is new or changed. `full` drops everything first.
+    Lines {
+        epoch: u32,
+        full: bool,
         cols: u16,
         rows: u16,
-        full: bool,
+        alt: bool,
+        oldest: u64,
+        live: u64,
+        top: u64,
+        len: u32,
+        set: Vec<LineWire>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cursor: Option<CursorWire>,
-        lines: Vec<LineWire>,
-        #[serde(default, skip_serializing_if = "is_false")]
-        scrolled: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        anchor: Option<u64>,
     },
     Dots {
         workspaces: BTreeMap<String, Dot>,

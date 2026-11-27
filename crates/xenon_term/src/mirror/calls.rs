@@ -1,10 +1,7 @@
-use std::sync::atomic::Ordering;
-
 use alacritty_terminal::Term;
-use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::term::TermMode;
 
-use super::{Mirror, Modes, locked};
+use super::{Mirror, Modes, Numbering, locked};
 use crate::hold::Listener;
 use crate::proto::v1::ToHolder;
 use crate::{Size, proto};
@@ -22,28 +19,15 @@ impl Mirror {
         });
     }
 
-    /// Move the view `rows` up (negative: down) in the scrollback.
-    pub fn scroll(&self, rows: i32) {
-        let max = locked(&self.inner.emu).term.grid().history_size() as i64;
-        let now = self.inner.scroll.load(Ordering::Relaxed) as i64;
-        let next = (now + i64::from(rows)).clamp(0, max) as usize;
-        self.inner.scroll.store(next, Ordering::Relaxed);
-        self.inner.poke();
-    }
-
-    pub fn bottom(&self) {
-        self.inner.scroll.store(0, Ordering::Relaxed);
-        self.inner.poke();
-    }
-
-    /// Read the mirrored terminal and how many rows the view is scrolled up.
-    pub fn read<R>(&self, f: impl FnOnce(&Term<Listener>, usize) -> R) -> R {
-        let offset = self.inner.scroll.load(Ordering::Relaxed);
-        f(&locked(&self.inner.emu).term, offset)
+    /// Read the mirrored terminal at its live edge, with its line numbering.
+    pub fn read<R>(&self, f: impl FnOnce(&Term<Listener>, Numbering) -> R) -> R {
+        let counted = locked(&self.inner.emu);
+        f(&counted.emu.term, counted.numbering())
     }
 
     pub fn modes(&self) -> Modes {
-        let emu = locked(&self.inner.emu);
+        let counted = locked(&self.inner.emu);
+        let emu = &counted.emu;
         let mode = emu.mode();
         Modes {
             size: emu.size,
@@ -52,6 +36,8 @@ impl Mirror {
                 TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION,
             ),
             sgr_mouse: mode.contains(TermMode::SGR_MOUSE),
+            alt: mode.contains(TermMode::ALT_SCREEN),
+            alt_scroll: mode.contains(TermMode::ALTERNATE_SCROLL),
         }
     }
 }

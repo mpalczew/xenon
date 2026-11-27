@@ -8,10 +8,12 @@
   code block sometimes ends the block (cause unknown; suspected only inside a list
   item). `crates/xenon_prose`
 - Phone remote: mostly healthy; its own process, `xenon-phone.service`, works with no
-  window open, and closing a workspace from the phone works over `ipc.sock`. Known
-  issue: on iPadOS in Direct mode, navigating back and forth occasionally shortens a
-  terminal to 8 rows (`fit` viewport diagnostics are live in the service journal to
-  catch the next repro). `docs/designs/mobile-remote-v2.md`
+  window open, and closing a workspace from the phone works over `ipc.sock`. Scrollback
+  is now native (the browser scrolls a server-held line window), not yet tried by hand;
+  `docs/designs/phone-scrollback.md`. Known issue: on iPadOS in Direct mode, navigating
+  back and forth occasionally shortens a terminal to 8 rows (`fit` viewport diagnostics
+  are live in the service journal to catch the next repro).
+  `docs/designs/mobile-remote-v2.md`
 - Worklist: shared `crates/xenon_worklist` crate with content-keyed ops; phone view
   (check, add, delete with undo) and the reworked desktop list and capture dialog are
   not yet tried by hand. `docs/designs/workspace-worklist.md`

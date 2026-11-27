@@ -123,11 +123,11 @@ html.in-session { background:var(--chrome); }
 .spin { width:13px; height:13px; flex:none; border-radius:50%; border:2px solid var(--warn); border-right-color:transparent; animation:spin .9s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 #termwrap { flex:1; min-height:0; position:relative; background:var(--term-bg); --fs:13px; --lh:18px; }
-#term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+#term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; overflow-anchor:none;
   padding:8px 10px 0; font-family:var(--mono); font-size:var(--fs); line-height:var(--lh); color:var(--term-fg); white-space:pre; }
 #term a { color:inherit; text-decoration:underline dotted; }
-#screen { position:relative; }
-.row { height:var(--lh); overflow:hidden; }
+#screen { position:relative; height:calc(var(--n, 0) * var(--lh)); }
+.row { position:absolute; left:0; right:0; top:calc(var(--k) * var(--lh)); height:var(--lh); overflow:hidden; }
 #cursor { position:absolute; pointer-events:none; height:var(--lh); }
 #cursor.block { background:var(--cursor); color:var(--term-bg); }
 #cursor.bar { background:var(--cursor); width:2px !important; }
@@ -312,25 +312,22 @@ const Core = (() => {
   const LINK = /^(https?:\/\/|mailto:)/i;
   const F = { BOLD: 1, ITALIC: 2, UNDERLINE: 4, STRIKE: 16 };
 
-  function newTerm() { return { cols: 0, rows: 0, lines: [], cursor: null, seq: 0 }; }
+  function newWin() { return { epoch: -1, cols: 0, rows: 0, alt: false, oldest: 0, live: 0, top: 0, len: 0, lines: new Map(), cursor: null }; }
 
-  function applyFrame(term, f) {
-    const reset = f.full || f.cols !== term.cols || f.rows !== term.rows;
-    if (reset) {
-      term.cols = f.cols; term.rows = f.rows;
-      term.lines = Array.from({ length: f.rows }, () => []);
-    }
-    const changed = [];
-    for (const [r, spans] of f.lines || []) {
-      if (r < 0 || r >= term.rows) continue;
-      term.lines[r] = spans;
-      changed.push(r);
-    }
-    term.cursor = f.cursor || null;
-    term.seq = f.seq;
-    term.scrolled = !!f.scrolled;
-    return reset ? "all" : changed;
+  /** Apply one lines message: afterwards w holds exactly [top, top + len). */
+  function applyLines(w, m) {
+    const epoch = m.epoch !== w.epoch;
+    const reset = epoch || m.full;
+    if (reset) w.lines = new Map();
+    Object.assign(w, { epoch: m.epoch, cols: m.cols, rows: m.rows, alt: m.alt, oldest: m.oldest, live: m.live, top: m.top, len: m.len, cursor: m.cursor || null });
+    const end = m.top + m.len, gone = [], set = [];
+    for (const n of w.lines.keys()) if (n < m.top || n >= end) { w.lines.delete(n); gone.push(n); }
+    for (const [n, spans] of m.set || []) if (n >= m.top && n < end) { w.lines.set(n, spans); set.push(n); }
+    return { epoch, reset, gone, set };
   }
+
+  /** The line at the top of the viewport. */
+  function viewTop(origin, scrollTop, pad, lineH) { return origin + Math.max(0, Math.floor((scrollTop - pad) / lineH + 0.01)); }
 
   function cellAtPoint(x, y, originX, originY, cellW, lineH, cols, rows) {
     if (!(cellW > 0) || !(lineH > 0) || !(cols > 0) || !(rows > 0)) return null;
@@ -469,9 +466,10 @@ const Core = (() => {
     return s < 60 ? s + "s" : Math.floor(s / 60) + "m";
   }
 
-  return { COLOR, LINK, newTerm, applyFrame, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, scheme, backoff, deviceLabel, ago };
+  return { COLOR, LINK, newWin, applyLines, viewTop, styleRule, cellAt, cellAtPoint, fitCells, wheelRows, enterDelay, groupWorkspaces, applyDots, scheme, backoff, deviceLabel, ago };
 })();
 
+const BUILD = "__XENON_BUILD__";
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
@@ -480,8 +478,9 @@ const S = {
   workspaces: [], recentOpen: false, tasks: [], worklist: null, taskInput: null, runningTask: null,
   wsSel: null, terminals: [], skippedList: false,
   want: null, tabTitle: "",
-  term: Core.newTerm(), styles: {}, lastUpdate: 0,
-  follow: true, cw: 0, scale: 1, lastFit: null, fitTimer: 0, fitWhy: "",
+  win: Core.newWin(), origin: 0, rowEls: new Map(), cursorEl: null, styles: {}, lastUpdate: 0,
+  follow: true, touching: false, finger: false, moved: false, wasFollow: true, endTimer: 0,
+  sent: null, reportRaf: 0, reportForce: false, repaint: false, cw: 0, scale: 1, lastFit: null, fitTimer: 0, fitWhy: "",
   wheelAcc: 0, repeat: null, creating: false, closing: false, suppressCloseToast: false,
   inputMode: "field",
   lowBandwidth: false,
@@ -588,7 +587,7 @@ function onMsg(m) {
     case "ready": return onReady(m);
     case "theme": return applyTheme(m.theme);
     case "styles": return addStyles(m.add);
-    case "frame": S.lastUpdate = Date.now(); return renderFrame(m);
+    case "lines": S.lastUpdate = Date.now(); return renderLines(m);
     case "dots": return onDots(m);
     case "closed": return onClosed(m.reason);
     case "taskInput": return onTaskInput(m);
@@ -598,7 +597,18 @@ function onMsg(m) {
   }
 }
 
+function staleBuild(build) {
+  if (!build || build === BUILD) return false;
+  try {
+    if (sessionStorage.getItem("xenon.remote.reloadedFor") === build) return false;
+    sessionStorage.setItem("xenon.remote.reloadedFor", build);
+  } catch (_) { return false; }
+  location.reload();
+  return true;
+}
+
 function onReady(m) {
+  if (staleBuild(m.build)) return;
   S.attempt = 0;
   S.suppressCloseToast = false;
   S.styles = {};
@@ -702,6 +712,8 @@ function openSession(t) {
 function sendAttach() {
   send({ t: "bandwidth", lowBandwidth: S.lowBandwidth });
   send({ t: "attach", workspaceId: S.want.workspaceId, tabId: S.want.tabId });
+  S.win.epoch = -1;
+  S.sent = null;
   S.lastFit = null;
   scheduleFit(0, "attach");
 }
@@ -1096,10 +1108,18 @@ function rowHtml(spans) {
   return h;
 }
 
+function cursorEl() {
+  if (!S.cursorEl) { S.cursorEl = document.createElement("div"); S.cursorEl.id = "cursor"; S.cursorEl.hidden = true; }
+  return S.cursorEl;
+}
+
 function resetScreen() {
-  S.term = Core.newTerm();
-  S.follow = true; S.lastUpdate = 0;
-  $("screen").innerHTML = "";
+  S.win = Core.newWin();
+  S.origin = 0; S.sent = null; S.repaint = false;
+  S.follow = true; S.touching = false; S.lastUpdate = 0;
+  S.rowEls.clear();
+  $("screen").replaceChildren(cursorEl());
+  setHeight();
   $("live").hidden = true;
   $("starting").hidden = false;
 }
@@ -1109,45 +1129,90 @@ function selecting() {
   return !sel.isCollapsed && $("term").contains(sel.anchorNode);
 }
 
-function renderFrame(f) {
-  const changed = Core.applyFrame(S.term, f);
-  if (selecting()) { S.stale = true; return; }
-  paint(S.stale ? "all" : changed);
-}
-
-function paint(changed) {
-  S.stale = false;
-  const screen = $("screen");
-  if (changed === "all") {
-    let h = "";
-    for (const line of S.term.lines) h += '<div class="row">' + rowHtml(line) + "</div>";
-    screen.innerHTML = h + '<div id="cursor" hidden></div>';
-    updateScale();
-  } else {
-    for (const r of changed) screen.children[r].innerHTML = rowHtml(S.term.lines[r]);
-  }
+// Rows sit at (n - origin) * lh, so adding or dropping lines never moves the others.
+function renderLines(m) {
+  const d = Core.applyLines(S.win, m);
+  if (d.epoch) S.origin = m.oldest;
+  setHeight();
+  if (d.reset) updateScale();
   $("starting").hidden = true;
+  if (selecting() && !d.reset) { S.repaint = true; return; }
+  if (d.reset || S.repaint) paintAll();
+  else {
+    for (const n of d.gone) { S.rowEls.get(n)?.remove(); S.rowEls.delete(n); }
+    for (const n of d.set) rowEl(n).innerHTML = rowHtml(S.win.lines.get(n));
+  }
+  if (d.epoch) placeView(m.anchor);
   renderCursor();
   syncLive();
+  if (S.follow && !S.touching) maybeRebase();
+}
+
+function setHeight() {
+  $("screen").style.setProperty("--n", Math.max(0, S.win.live + S.win.rows - S.origin));
+}
+
+function rowEl(n) {
+  let el = S.rowEls.get(n);
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "row";
+    el.style.setProperty("--k", n - S.origin);
+    $("screen").appendChild(el);
+    S.rowEls.set(n, el);
+  }
+  return el;
+}
+
+function paintAll() {
+  S.repaint = false;
+  S.rowEls.clear();
+  $("screen").replaceChildren(cursorEl());
+  for (const [n, spans] of S.win.lines) rowEl(n).innerHTML = rowHtml(spans);
+}
+
+// A new epoch: re-anchor a reader where the server says, else go live.
+function placeView(anchor) {
+  if (anchor != null) {
+    S.follow = false;
+    $("term").scrollTop = 8 + (anchor - S.origin) * linePx();
+  } else {
+    S.follow = true;
+  }
+  S.sent = null;
+  scheduleReport(true);
+}
+
+// Drop dead space above the oldest held line, only while nothing moves.
+function maybeRebase() {
+  if (S.touching || S.win.alt || S.repaint) return;
+  const shift = S.win.oldest - S.origin;
+  if (shift < Math.max(1, S.win.rows)) return;
+  S.origin += shift;
+  for (const [n, el] of S.rowEls) el.style.setProperty("--k", n - S.origin);
+  setHeight();
+  $("term").scrollTop -= shift * linePx();
+  renderCursor();
 }
 
 document.addEventListener("selectionchange", () => {
-  if (S.stale && !selecting()) paint("all");
+  if (S.repaint && !selecting()) { paintAll(); renderCursor(); }
 });
 
 function renderCursor() {
   const el = $("cursor");
-  const c = S.term.cursor;
+  const c = S.win.cursor;
   if (!el) return;
-  if (selecting()) { S.stale = true; return; }
-  if (!c || c.r >= S.term.rows) { el.hidden = true; return; }
+  if (selecting()) { S.repaint = true; return; }
+  const n = c ? S.win.live + c.r : -1;
+  if (!c || n < S.win.top || n >= S.win.top + S.win.len) { el.hidden = true; return; }
   const cw = S.cw * S.scale;
   el.hidden = false;
   el.className = c.s || "block";
   el.style.left = c.c * cw + "px";
-  el.style.top = "calc(" + c.r + " * var(--lh))";
+  el.style.top = "calc(" + (n - S.origin) + " * var(--lh))";
   el.style.width = cw + "px";
-  const ch = Core.cellAt(S.term.lines[c.r], c.c);
+  const ch = Core.cellAt(S.win.lines.get(n), c.c);
   el.textContent = el.className === "block" ? ch : "";
 }
 
@@ -1156,14 +1221,11 @@ function scrollToLive() {
   term.scrollTop = term.scrollHeight;
 }
 
-function setFollow(on) {
-  S.follow = on;
-  if (on) {
-    S.term.scrolled = false;
-    scrollToLive();
-    send({ t: "bottom" });
-  }
+function goLive() {
+  S.follow = true;
+  S.touching = false;
   syncLive();
+  scheduleReport(true);
 }
 
 function atLiveEdge() {
@@ -1173,35 +1235,88 @@ function atLiveEdge() {
 
 // touch-action is fixed when a gesture starts, so choose it ahead of time.
 function syncTouchAction() {
-  $("term").style.touchAction = gridTallerThanView() ? "pan-y" : "none";
+  $("term").style.touchAction = S.win.alt ? "none" : "pan-y";
 }
 
 function syncLive() {
   syncTouchAction();
-  const away = !!S.term.scrolled || !atLiveEdge();
-  if (!away) S.follow = true;
-  $("live").hidden = !away;
-  if (S.follow && atLiveEdge()) scrollToLive();
+  if (S.follow && !S.touching) scrollToLive();
+  $("live").hidden = S.win.alt || atLiveEdge();
+}
+
+// Touching the terminal pauses follow; where the scroll ends decides whether it resumes.
+function onTouchStart() {
+  if (S.win.alt) return;
+  S.finger = true;
+  if (!S.touching) { S.touching = true; S.moved = false; S.wasFollow = S.follow; }
+  S.follow = false;
+}
+
+function onTouchEnd(e) {
+  if (e.touches.length) return;
+  S.finger = false;
+  armScrollEnd();
 }
 
 function onTermScroll() {
-  if (S.follow && !atLiveEdge()) S.follow = false;
+  if (S.touching) S.moved = true;
+  else if (S.follow && !atLiveEdge()) S.follow = false;
+  scheduleReport(false);
+  armScrollEnd();
   syncLive();
+}
+
+function armScrollEnd() {
+  clearTimeout(S.endTimer);
+  S.endTimer = setTimeout(scrollEnded, 150);
+}
+
+function scrollEnded() {
+  if (S.finger) return;
+  if (S.touching) { S.touching = false; S.follow = S.moved ? atLiveEdge() : S.wasFollow; }
+  else if (atLiveEdge()) S.follow = true;
+  syncLive();
+  maybeRebase();
+  scheduleReport(true);
+}
+
+// Tell the server where the view is: once a frame at most, per quarter screen of travel.
+function scheduleReport(force) {
+  S.reportForce = S.reportForce || force;
+  if (S.reportRaf) return;
+  S.reportRaf = requestAnimationFrame(() => {
+    S.reportRaf = 0;
+    const forced = S.reportForce;
+    S.reportForce = false;
+    const w = S.win;
+    if (w.alt || w.epoch < 0) return;
+    const top = Core.viewTop(S.origin, $("term").scrollTop, 8, linePx());
+    const last = S.sent;
+    const fresh = !last || last.epoch !== w.epoch || last.follow !== S.follow;
+    const moved = fresh || (!S.follow && Math.abs(top - last.top) >= Math.max(1, w.rows >> 2));
+    if (!forced && !moved) return;
+    if (send({ t: "scroll", epoch: w.epoch, top, follow: S.follow })) S.sent = { epoch: w.epoch, top, follow: S.follow };
+  });
 }
 
 function linePx() {
   return 18 * (S.scale || 1);
 }
 
-function gridTallerThanView() {
-  const t = $("term");
-  return t.scrollHeight - t.clientHeight > linePx();
+function screenCell(x, y) {
+  const rect = $("screen").getBoundingClientRect();
+  const lh = linePx();
+  const top = rect.top + (S.win.live - S.origin) * lh;
+  return Core.cellAtPoint(x, y, rect.left, top, (S.cw || 0) * (S.scale || 1), lh, S.win.cols, S.win.rows);
 }
 
-function pushWheel(dy) {
+// Alt screen only: the app gets wheel steps at the touched cell.
+function pushWheel(dy, x, y) {
   const step = Core.wheelRows(S.wheelAcc, dy, linePx());
   S.wheelAcc = step.acc;
-  if (step.rows) send({ t: "wheel", rows: step.rows });
+  if (!step.rows) return;
+  const cell = screenCell(x, y) || { col: 0, row: 0 };
+  send({ t: "wheel", rows: step.rows, col: cell.col, row: cell.row });
 }
 
 function setLowBandwidth(enabled) {
@@ -1236,8 +1351,7 @@ function focusDirect() {
 }
 
 function sendClick(x, y) {
-  const rect = $("screen").getBoundingClientRect();
-  const cell = Core.cellAtPoint(x, y, rect.left, rect.top, (S.cw || 0) * (S.scale || 1), linePx(), S.term.cols, S.term.rows);
+  const cell = screenCell(x, y);
   if (!cell) return false;
   send({ t: "click", col: cell.col, row: cell.row });
   return true;
@@ -1290,12 +1404,15 @@ function availSize() {
 
 function updateScale() {
   if (!S.cw) measureChar();
-  const natural = S.term.cols * S.cw;
+  const before = linePx();
+  const natural = S.win.cols * S.cw;
   const w = availSize().w;
   S.scale = natural > w && w > 0 ? w / natural : 1;
   const wrap = $("termwrap").style;
   wrap.setProperty("--fs", 13 * S.scale + "px");
   wrap.setProperty("--lh", 18 * S.scale + "px");
+  const t = $("term");
+  if (linePx() !== before) t.scrollTop = 8 + (t.scrollTop - 8) * linePx() / before;
   renderCursor();
 }
 
@@ -1325,7 +1442,7 @@ function sendFit() {
   measureChar();
   const a = availSize();
   const fit = Core.fitCells(a.w, a.h, S.cw, 18);
-  if (S.term.cols) updateScale();
+  if (S.win.cols) updateScale();
   if (!fit || !S.want) return;
   if (S.lastFit && S.lastFit.cols === fit.cols && S.lastFit.rows === fit.rows) return;
   if (send({ t: "fit", cols: fit.cols, rows: fit.rows, diag: fitDiag(why) })) S.lastFit = fit;
@@ -1629,30 +1746,23 @@ function wireEvents() {
   $("input").addEventListener("submit", submitText);
   const term = $("term");
   term.addEventListener("scroll", onTermScroll, { passive: true });
-  // Pointer events with capture: a redraw detaches the touched node, and touch events would stop
-  // reaching #term. Capture starts at the drag threshold, not at pointerdown, so taps still click.
+  term.addEventListener("touchstart", onTouchStart, { passive: true });
+  term.addEventListener("touchend", onTouchEnd, { passive: true });
+  term.addEventListener("touchcancel", onTouchEnd, { passive: true });
+  // The primary screen scrolls natively. In the alt screen there is nothing to scroll, so a
+  // drag sends wheel steps. Pointer capture: a redraw detaches the touched node, and touch
+  // events would stop reaching #term. Capture starts at the drag threshold, so taps click.
   let touch = null;
   let dragged = false;
-  let fling = 0;
-  // Momentum: the server scrolls, so the browser's own fling never runs; coast at the release speed.
-  const coast = (v, t) => {
-    fling = requestAnimationFrame((now) => {
-      const dt = now - t;
-      pushWheel(v * dt);
-      v *= Math.pow(0.95, dt / 16);
-      if (Math.abs(v) > 0.05) coast(v, now);
-    });
-  };
   term.addEventListener("pointerdown", (e) => {
     // A new primary touch replaces any old one: an up on a node a redraw detached never reaches here.
     if (e.pointerType !== "touch" || !e.isPrimary) return;
-    cancelAnimationFrame(fling);
-    touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false, trail: [{ y: e.clientY, t: e.timeStamp }] };
+    touch = S.win.alt ? { id: e.pointerId, x: e.clientX, y: e.clientY, drag: false } : null;
     dragged = false;
     S.wheelAcc = 0;
   });
   term.addEventListener("pointermove", (e) => {
-    if (!touch || e.pointerId !== touch.id || !touch.wheel) return;
+    if (!touch || e.pointerId !== touch.id) return;
     const dx = e.clientX - touch.x;
     const dy = e.clientY - touch.y;
     if (!touch.drag) {
@@ -1660,18 +1770,11 @@ function wireEvents() {
       touch.drag = dragged = true;
       term.setPointerCapture(e.pointerId);
     }
-    pushWheel(e.clientY - touch.y);
+    pushWheel(e.clientY - touch.y, touch.x, touch.y);
     touch.y = e.clientY;
-    touch.trail.push({ y: e.clientY, t: e.timeStamp });
-    while (e.timeStamp - touch.trail[0].t > 100) touch.trail.shift();
   });
   const endTouch = (e) => {
-    if (!touch || e.pointerId !== touch.id) return;
-    // Release speed over the last 100ms of the drag; a finger held still leaves no trail to coast on.
-    const first = touch.trail[0], last = touch.trail[touch.trail.length - 1];
-    const v = e.timeStamp - last.t < 100 && last.t > first.t ? (last.y - first.y) / (last.t - first.t) : 0;
-    if (e.type === "pointerup" && touch.drag && Math.abs(v) > 0.3) coast(v, performance.now());
-    touch = null;
+    if (touch && e.pointerId === touch.id) touch = null;
   };
   term.addEventListener("pointerup", endTouch);
   term.addEventListener("pointercancel", endTouch);
@@ -1682,11 +1785,11 @@ function wireEvents() {
     focusDirect();
   });
   term.addEventListener("wheel", (e) => {
-    if (gridTallerThanView()) return;
+    if (!S.win.alt) return;
     e.preventDefault();
-    pushWheel(-e.deltaY);
+    pushWheel(-e.deltaY, e.clientX, e.clientY);
   }, { passive: false });
-  $("live").onclick = () => setFollow(true);
+  $("live").onclick = goLive;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.view !== "session") goBack(); });
   document.addEventListener("keydown", onStrayKey);
   document.addEventListener("visibilitychange", onVisible);

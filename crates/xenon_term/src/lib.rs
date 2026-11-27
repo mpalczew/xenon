@@ -18,7 +18,7 @@ pub use builds::installed_build;
 pub use dir::{runtime_dir, watch_dir};
 pub use end::end_all;
 pub use hold::run_holder;
-pub use mirror::{Gone, Mirror, Modes};
+pub use mirror::{Gone, Mirror, Modes, Numbering};
 pub use terminals::{Event, Terminals};
 
 use xenon_core::{AttentionReason, TermId, WorkspaceId};

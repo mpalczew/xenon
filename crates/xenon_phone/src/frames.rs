@@ -3,7 +3,8 @@ use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::remote::{FrameEncoder, Outbox, ServerMsg};
+use crate::remote::{Outbox, ServerMsg, WindowEncoder};
+use crate::window::{self, Depth};
 use xenon_term::Mirror;
 
 use crate::look::Look;
@@ -27,15 +28,12 @@ pub(super) fn start(phone: &Phone, mirror: &Arc<Mirror>, view: &Arc<View>, out: 
 }
 
 fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
-    let mut encoder = FrameEncoder::default();
+    let mut encoder = WindowEncoder::default();
     let mut last = Instant::now();
     let mut shown_dark = None;
     loop {
-        let gap = if view.low_bandwidth.load(Ordering::Relaxed) {
-            LOW_GAP
-        } else {
-            GAP
-        };
+        let low = view.low_bandwidth.load(Ordering::Relaxed);
+        let gap = if low { LOW_GAP } else { GAP };
         if !mirror.wait_dirty(last, gap) {
             return;
         }
@@ -51,8 +49,13 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
             encoder.force_full();
         }
         let look = Look::of(dark);
-        let screen = mirror.read(|term, offset| crate::screen::screen(term, offset, &look));
-        let delivered = encoder.encode(&screen).into_iter().all(|m| out.try_send(m));
+        let report = view.report();
+        let snap = mirror.read(|term, at| {
+            let want = window::plan(at, report, encoder.held(), Depth::of(low));
+            let holds = |n| encoder.holds_history(n, at);
+            crate::screen::window(term, at, &want, holds, &look)
+        });
+        let delivered = encoder.encode(&snap).into_iter().all(|m| out.try_send(m));
         if !delivered {
             encoder.force_full();
             thread::sleep(RETRY_AFTER);

@@ -9,36 +9,49 @@ use alacritty_terminal::term::TermMode;
 use alacritty_terminal::term::cell::{Cell as GridCell, Flags};
 use alacritty_terminal::vte::ansi::{Color, CursorShape};
 
+use xenon_term::Numbering;
+
 use crate::look::{Look, dim};
 use crate::remote::{
-    Cell, CursorShapeWire, CursorWire, Rgb, Screen, Style, WIDE_SPACER, style_flags,
+    Cell, CursorShapeWire, CursorWire, Rgb, Snapshot, Style, WIDE_SPACER, style_flags,
 };
+use crate::window::Want;
 
-pub(crate) fn screen<L: EventListener>(term: &Term<L>, offset: usize, look: &Look) -> Screen {
-    let (cols, rows) = (term.columns(), term.screen_lines());
-    let offset = offset.min(term.grid().history_size());
+/// Render the lines of `want` the phone lacks (`holds` says which it has) and the cursor.
+pub(crate) fn window<L: EventListener>(
+    term: &Term<L>,
+    at: Numbering,
+    want: &Want,
+    holds: impl Fn(u64) -> bool,
+    look: &Look,
+) -> Snapshot {
+    let cols = term.columns();
     let grid = term.grid();
     let mut links = HashMap::new();
-    let mut out = Vec::with_capacity(rows);
-    for r in 0..rows {
-        let row = &grid[Line(r as i32 - offset as i32)];
-        out.push(
-            (0..cols)
+    let lines = want
+        .range
+        .clone()
+        .filter(|n| *n >= at.oldest && *n < at.bottom() && !holds(*n))
+        .map(|n| {
+            let row = &grid[Line((n as i64 - at.live as i64) as i32)];
+            let cells = (0..cols)
                 .map(|c| cell(term, &row[Column(c)], look, &mut links))
-                .collect(),
-        );
-    }
-    Screen {
-        cols: cols as u16,
-        rows: out,
-        cursor: cursor(term, offset),
-        scrolled: offset > 0,
+                .collect();
+            (n, cells)
+        })
+        .collect();
+    Snapshot {
+        at,
+        range: want.range.clone(),
+        anchor: want.anchor,
+        lines,
+        cursor: cursor(term),
         links,
     }
 }
 
-fn cursor<L: EventListener>(term: &Term<L>, offset: usize) -> Option<CursorWire> {
-    if offset > 0 || !term.mode().contains(TermMode::SHOW_CURSOR) {
+fn cursor<L: EventListener>(term: &Term<L>) -> Option<CursorWire> {
+    if !term.mode().contains(TermMode::SHOW_CURSOR) {
         return None;
     }
     let point = term.grid().cursor.point;

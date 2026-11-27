@@ -219,7 +219,8 @@ fn handle_connection(mut stream: TcpStream, shared: &Shared) -> Result<()> {
     let html = "text/html; charset=utf-8";
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/" | "/index.html" | "/pair") => {
-            http::write_http(&mut stream, 200, html, PAGE.as_bytes())
+            let page = PAGE.replace("__XENON_BUILD__", xenon_term::BUILD);
+            http::write_http(&mut stream, 200, html, page.as_bytes())
         }
         ("GET", "/manifest.webmanifest") => http::write_http(
             &mut stream,

@@ -11,6 +11,7 @@ mod server;
 mod session;
 mod status;
 mod tasks;
+mod window;
 mod worklist;
 
 use std::collections::HashMap;

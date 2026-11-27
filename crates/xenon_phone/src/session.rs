@@ -1,14 +1,15 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::remote::{
-    AppearanceWire, ClientMsg, ClosedReason, ConnId, Outbox, ServerMsg, device_short_name,
-    parse_workspace_id, pty_text_bytes,
+    AppearanceWire, ClientMsg, ClosedReason, ConnId, NamedKey, Outbox, ServerMsg,
+    device_short_name, parse_workspace_id, pty_text_bytes,
 };
 use xenon_core::{TermId, WorkspaceId};
-use xenon_term::{Mirror, Size};
+use xenon_term::{Mirror, Modes, Size};
 
 use crate::look::Look;
+use crate::window::Report;
 
 use super::{Phone, frames, locked};
 
@@ -18,6 +19,13 @@ pub(crate) struct View {
     pub low_bandwidth: AtomicBool,
     pub look: AtomicU8,
     pub full: AtomicBool,
+    report: Mutex<Option<Report>>,
+}
+
+impl View {
+    pub fn report(&self) -> Option<Report> {
+        *locked(&self.report)
+    }
 }
 
 pub(crate) struct Attach {
@@ -60,7 +68,12 @@ impl Phone {
             .map(|rt| rt.host_name.clone())
             .unwrap_or_default();
         let theme = Look::of(self.dark(0)).theme();
-        out.try_send(ServerMsg::Ready { theme, host_name });
+        let build = xenon_term::BUILD.to_owned();
+        out.try_send(ServerMsg::Ready {
+            theme,
+            host_name,
+            build,
+        });
         locked(&self.conns).insert(
             conn,
             Conn {
@@ -115,8 +128,10 @@ impl Phone {
         match msg {
             ClientMsg::Text { data } => mirror.input(&pty_text_bytes(&data)),
             ClientMsg::Key { key } => mirror.input(key.pty_bytes(mirror.modes().app_cursor)),
-            ClientMsg::Wheel { rows } => mirror.scroll(rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT)),
-            ClientMsg::Bottom => mirror.bottom(),
+            ClientMsg::Wheel { rows, col, row } => {
+                alt_wheel(&mirror, rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT), col, row);
+            }
+            ClientMsg::Scroll { epoch, top, follow } => self.scrolled(conn, epoch, top, follow),
             ClientMsg::Click { col, row } => click(&mirror, col, row),
             ClientMsg::Fit { cols, rows, diag } => {
                 if let Some(size) = Size::new(cols, rows) {
@@ -160,6 +175,7 @@ impl Phone {
                 low_bandwidth: AtomicBool::new(c.low_bandwidth),
                 look: AtomicU8::new(look_code(c.appearance)),
                 full: AtomicBool::new(false),
+                report: Mutex::new(None),
             });
             frames::start(self, &mirror, &view, c.out.clone());
             c.attach = Some(Attach {
@@ -196,6 +212,15 @@ impl Phone {
         if let Some(a) = attach {
             a.mirror.stop();
         }
+    }
+
+    fn scrolled(&self, conn: ConnId, epoch: u32, top: u64, follow: bool) {
+        let guard = locked(&self.conns);
+        let Some(a) = guard.get(&conn).and_then(|c| c.attach.as_ref()) else {
+            return;
+        };
+        *locked(&a.view.report) = Some(Report { epoch, top, follow });
+        a.mirror.wake();
     }
 
     fn bandwidth(&self, conn: ConnId, low: bool) {
@@ -248,30 +273,53 @@ impl Phone {
 
 fn click(mirror: &Mirror, col: u16, row: u16) {
     let modes = mirror.modes();
-    let size = modes.size;
-    if !modes.mouse || col >= size.cols() || row >= size.rows() {
+    if !modes.mouse {
         return;
     }
+    let press = mouse_report(&modes, 0, col, row, true);
+    let release = mouse_report(&modes, 3, col, row, false);
+    if let (Some(press), Some(release)) = (press, release) {
+        mirror.input(&[press, release].concat());
+    }
+}
+
+/// Wheel in the alt screen: wheel reports when the app asked for the mouse, else arrow
+/// keys when it asked for alternate scroll. `rows` above zero scrolls up.
+fn alt_wheel(mirror: &Mirror, rows: i32, col: u16, row: u16) {
+    let modes = mirror.modes();
+    let up = rows > 0;
+    let step = if modes.mouse {
+        mouse_report(&modes, if up { 64 } else { 65 }, col, row, true)
+    } else if modes.alt && modes.alt_scroll {
+        let key = if up { NamedKey::Up } else { NamedKey::Down };
+        Some(key.pty_bytes(modes.app_cursor).to_vec())
+    } else {
+        None
+    };
+    if let Some(step) = step {
+        mirror.input(&step.repeat(rows.unsigned_abs() as usize));
+    }
+}
+
+/// One mouse report at a cell; `button` 3 is a release in X10, which SGR spells as `m`.
+fn mouse_report(modes: &Modes, button: u8, col: u16, row: u16, press: bool) -> Option<Vec<u8>> {
+    let size = modes.size;
+    if col >= size.cols() || row >= size.rows() {
+        return None;
+    }
     let (c, r) = (u32::from(col) + 1, u32::from(row) + 1);
-    let bytes = if modes.sgr_mouse {
-        format!("\x1b[<0;{c};{r}M\x1b[<0;{c};{r}m").into_bytes()
-    } else if c <= 222 && r <= 222 {
+    if modes.sgr_mouse {
+        let (b, end) = if press { (button, 'M') } else { (0, 'm') };
+        return Some(format!("\x1b[<{b};{c};{r}{end}").into_bytes());
+    }
+    (c <= 222 && r <= 222).then(|| {
         vec![
             0x1b,
             b'[',
             b'M',
-            32,
-            (32 + c) as u8,
-            (32 + r) as u8,
-            0x1b,
-            b'[',
-            b'M',
-            35,
+            32 + button,
             (32 + c) as u8,
             (32 + r) as u8,
         ]
-    } else {
-        return;
-    };
-    mirror.input(&bytes);
+    })
 }

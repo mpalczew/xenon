@@ -1,8 +1,10 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use alacritty_terminal::grid::Dimensions;
+use alacritty_terminal::term::TermMode;
 use xenon_core::TermId;
 
 use crate::hold::{Emu, FIRST_SIZE};
@@ -15,6 +17,10 @@ use crate::{Size, Terminals, dir};
 pub struct Gone;
 
 mod calls;
+mod log;
+
+pub use log::Numbering;
+use log::{Cause, Log, Probe, SLACK, SLICE};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Modes {
@@ -22,6 +28,8 @@ pub struct Modes {
     pub app_cursor: bool,
     pub mouse: bool,
     pub sgr_mouse: bool,
+    pub alt: bool,
+    pub alt_scroll: bool,
 }
 
 #[derive(Default)]
@@ -30,13 +38,21 @@ struct Flags {
     stop: bool,
 }
 
+/// The emulator and its line numbering, behind one lock so a read can't tear.
+struct Counted {
+    emu: Emu,
+    log: Log,
+    tail: Vec<u8>,
+    /// Scrollback the phone can reach. The emulator holds `SLACK` more, trimmed back
+    /// after every slice, so growth within a slice is always measurable.
+    cap: usize,
+}
+
 struct Inner {
-    emu: Mutex<Emu>,
-    scroll: AtomicUsize,
+    emu: Mutex<Counted>,
     flags: Mutex<Flags>,
     wake: Condvar,
     closed: AtomicBool,
-    scrollback: usize,
 }
 
 pub struct Mirror {
@@ -65,12 +81,10 @@ impl Terminals {
             .unwrap_or_default()
             .terminal_scrollback_lines;
         let inner = Arc::new(Inner {
-            emu: Mutex::new(Emu::new(FIRST_SIZE, scrollback)),
-            scroll: AtomicUsize::new(0),
+            emu: Mutex::new(Counted::new(FIRST_SIZE, scrollback)),
             flags: Mutex::default(),
             wake: Condvar::new(),
             closed: AtomicBool::new(false),
-            scrollback,
         });
         let mirror = Mirror {
             out: Mutex::new(stream),
@@ -93,22 +107,82 @@ impl Terminals {
 fn read(inner: &Inner, input: &mut std::os::unix::net::UnixStream) {
     while let Ok(frame) = proto::read_frame(input) {
         match frame {
-            Frame::Data(bytes) => {
-                let _ = locked(&inner.emu).advance(&bytes);
-            }
+            Frame::Data(bytes) => locked(&inner.emu).advance(&bytes),
             Frame::Control(bytes) => match proto::decode::<FromHolder>(&bytes) {
                 Control::Body(FromHolder::Size(size)) => locked(&inner.emu).resize(size),
-                Control::Body(FromHolder::Screen) => {
-                    let mut emu = locked(&inner.emu);
-                    let size = emu.size;
-                    *emu = Emu::new(size, inner.scrollback);
-                }
+                Control::Body(FromHolder::Screen) => locked(&inner.emu).reset(),
                 Control::Body(FromHolder::Status(_)) | Control::Frozen(_) | Control::Unknown => {
                     continue;
                 }
             },
         }
         inner.poke();
+    }
+}
+
+impl Counted {
+    fn new(size: Size, cap: usize) -> Self {
+        Self {
+            emu: Emu::new(size, cap + SLACK),
+            log: Log { epoch: 0, live: 0 },
+            tail: Vec::new(),
+            cap,
+        }
+    }
+
+    fn probe(&self) -> Probe {
+        Probe {
+            history: self.emu.term.grid().history_size(),
+            alt: self.emu.mode().contains(TermMode::ALT_SCREEN),
+            size: self.emu.size,
+        }
+    }
+
+    /// Feed output a slice at a time, counting the lines each slice pushes into history.
+    fn advance(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(SLICE) {
+            let clears = log::clears(&self.tail, chunk);
+            self.tail = log::next_tail(&self.tail, chunk);
+            let before = self.probe();
+            let _ = self.emu.advance(chunk);
+            self.account(before, Cause::Bytes { clears });
+        }
+    }
+
+    fn resize(&mut self, size: Size) {
+        let before = self.probe();
+        self.emu.resize(size);
+        self.account(before, Cause::Resize);
+    }
+
+    fn reset(&mut self) {
+        let before = self.probe();
+        self.emu = Emu::new(self.emu.size, self.cap + SLACK);
+        self.tail.clear();
+        self.account(before, Cause::Reset);
+    }
+
+    fn account(&mut self, before: Probe, cause: Cause) {
+        self.log = log::step(self.log, before, self.probe(), cause, self.cap + SLACK);
+        // Drop the oldest lines past `cap`, then reopen the limit for the next slice.
+        if self.emu.term.grid().history_size() > self.cap {
+            let grid = self.emu.term.grid_mut();
+            grid.update_history(self.cap);
+            grid.update_history(self.cap + SLACK);
+        }
+    }
+
+    fn numbering(&self) -> Numbering {
+        let term = &self.emu.term;
+        let history = term.grid().history_size() as u64;
+        Numbering {
+            epoch: self.log.epoch,
+            oldest: self.log.live.saturating_sub(history),
+            live: self.log.live,
+            rows: term.screen_lines() as u16,
+            cols: term.columns() as u16,
+            alt: self.emu.mode().contains(TermMode::ALT_SCREEN),
+        }
     }
 }
 

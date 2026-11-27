@@ -18,7 +18,7 @@ mod uploads;
 mod ws;
 
 pub(crate) use devices::DeviceBook;
-pub(crate) use frame::{Cell, FrameEncoder, Rgb, Screen, Style, WIDE_SPACER};
+pub(crate) use frame::{Cell, Rgb, Snapshot, Style, WIDE_SPACER, WindowEncoder};
 pub(crate) use host::{ConnId, Outbox, PairError};
 pub(crate) use keys::pty_text_bytes;
 pub(crate) use labels::device_short_name;
@@ -28,9 +28,9 @@ pub use network::normalize_hostname;
 pub(crate) use network::{Reachability, base_url, pairing_url};
 
 pub(crate) use protocol::{
-    AppearanceWire, ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, PairResponse,
-    Secret, ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo, ThemeWire,
-    WorklistEdit, WorklistGroup, WorklistInfo, WorklistItem, WorkspaceInfo, style_flags,
+    AppearanceWire, ClientMsg, ClosedReason, CursorShapeWire, CursorWire, Dot, NamedKey,
+    PairResponse, Secret, ServerMsg, TaskInfo, TaskInputKind, TaskOptionWire, TerminalInfo,
+    ThemeWire, WorklistEdit, WorklistGroup, WorklistInfo, WorklistItem, WorkspaceInfo, style_flags,
 };
 pub(crate) use server::{RemoteServer, StartError};
 pub(crate) use status::device_rows;
