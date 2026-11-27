@@ -150,6 +150,8 @@ html.in-session { background:var(--chrome); }
 .k:active:not(:disabled) { outline:2px solid var(--accent); outline-offset:1px; }
 
 .input { flex:none; display:flex; gap:8px; align-items:center; padding:6px 10px max(10px, var(--sab)); background:var(--chrome); margin:0; }
+/* The keyboard covers the home indicator, so its safe area is just empty space. */
+.input:focus-within { padding-bottom:10px; }
 .field { flex:1; min-width:0; height:40px; border-radius:20px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; padding:0 5px 0 14px; gap:6px; }
 .field:focus-within { border-color:var(--focus-line); }
 .field input { flex:1; min-width:0; height:100%; background:none; border:0; outline:0; color:var(--text); font:16px var(--ui); padding:0; }
@@ -643,6 +645,7 @@ function onClosed(reason) {
 function onVisible() {
   if (document.visibilityState !== "visible" || !S.token) return;
   if (S.view === "worklist") loadWorklist();
+  if (S.view === "terms" && S.wsSel) showTerminals();
   if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
 }
 
@@ -721,13 +724,26 @@ function sendAttach() {
 function leaveSession() {
   if (S.want) send({ t: "detach" });
   S.want = null;
-  if (S.skippedList || !S.wsSel) showWorkspaces(); else { show("terms"); renderTerminals(); }
+  if (S.skippedList || !S.wsSel) showWorkspaces(); else showTerminals();
+}
+
+// Show the list at once, then refetch it: a terminal may have closed while it was hidden.
+async function showTerminals() {
+  show("terms");
+  renderTerminals();
+  const w = S.wsSel;
+  try {
+    const list = (await api("/api/workspaces/" + encodeURIComponent(w.id) + "/terminals")) || [];
+    if (S.wsSel !== w) return;
+    S.terminals = list;
+    if (S.view === "terms") renderTerminals();
+  } catch (_) { /* keep what's shown; api() already handles sign-out */ }
 }
 
 function goBack() {
   if (S.view === "session") leaveSession();
   else if (S.view === "terms") showWorkspaces();
-  else if (S.view === "tasks" || S.view === "worklist") { show("terms"); renderTerminals(); }
+  else if (S.view === "tasks" || S.view === "worklist") showTerminals();
 }
 
 function renderHost() {
