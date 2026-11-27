@@ -38,13 +38,10 @@ struct Flags {
     stop: bool,
 }
 
-/// The emulator and its line numbering, behind one lock so a read can't tear.
 struct Counted {
     emu: Emu,
     count: LineCount,
     tail: Vec<u8>,
-    /// Scrollback the phone can reach. The emulator holds `SLACK` more, trimmed back
-    /// after every slice, so growth within a slice is always measurable.
     cap: usize,
 }
 
@@ -138,7 +135,6 @@ impl Counted {
         }
     }
 
-    /// Feed output a slice at a time, counting the lines each slice pushes into history.
     fn advance(&mut self, bytes: &[u8]) {
         for chunk in bytes.chunks(SLICE) {
             let clears = numbering::clears(&self.tail, chunk);
@@ -164,7 +160,6 @@ impl Counted {
 
     fn account(&mut self, before: Probe, cause: Cause) {
         self.count = numbering::step(self.count, before, self.probe(), cause, self.cap + SLACK);
-        // Drop the oldest lines past `cap`, then reopen the limit for the next slice.
         if self.emu.term.grid().history_size() > self.cap {
             let grid = self.emu.term.grid_mut();
             grid.update_history(self.cap);

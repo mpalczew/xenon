@@ -54,10 +54,8 @@ pub struct TaskInfo {
 #[serde(rename_all = "camelCase")]
 pub struct WorklistInfo {
     pub groups: Vec<WorklistGroup>,
-    /// Set when the op hit a changed item.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notice: Option<String>,
-    /// Token for `WorklistEdit::Undo` after a removal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub undo: Option<u64>,
 }
@@ -175,18 +173,15 @@ pub enum ClientMsg {
     Key {
         key: NamedKey,
     },
-    /// Alt screen only: the primary screen scrolls natively on the phone.
     Wheel {
         rows: i32,
         col: u16,
         row: u16,
     },
-    /// Where the phone is scrolled; `top` is the line at the top of its viewport.
     Scroll {
         epoch: u32,
         top: u64,
         follow: bool,
-        /// Lines the phone's viewport shows; more than `rows` while it shrinks a wide terminal.
         lines: u16,
     },
     Click {
@@ -287,7 +282,6 @@ pub enum ServerMsg {
     Ready {
         theme: ThemeWire,
         host_name: String,
-        /// The page reloads itself when this differs from the build it was served by.
         build: String,
     },
     Theme {
@@ -296,8 +290,6 @@ pub enum ServerMsg {
     Styles {
         add: BTreeMap<u32, StyleWire>,
     },
-    /// After applying, the phone holds exactly `[top, top + len)`; `set` is every line
-    /// in it that is new or changed. `full` drops everything first.
     Lines {
         epoch: u32,
         full: bool,

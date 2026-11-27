@@ -17,7 +17,6 @@ use crate::remote::{
     Cell, CursorShapeWire, CursorWire, Rendered, Rgb, Style, WIDE_SPACER, style_flags,
 };
 
-/// Render the lines of `want` the phone lacks (`holds` says which it has) and the cursor.
 pub(crate) fn render<L: EventListener>(
     term: &Term<L>,
     at: Numbering,

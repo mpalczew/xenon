@@ -55,8 +55,6 @@ impl Default for Cell {
     }
 }
 
-/// Rendered lines for one tick: the lines of `range` the phone lacks, plus every live
-/// screen line in it.
 #[derive(Clone)]
 pub struct Rendered {
     pub at: Numbering,
@@ -67,7 +65,6 @@ pub struct Rendered {
     pub links: HashMap<u64, String>,
 }
 
-/// What the phone holds: exactly `range`, with a hash of each line's spans.
 struct Held {
     at: Numbering,
     range: Range<u64>,
@@ -85,7 +82,6 @@ impl Held {
         }
     }
 
-    /// Cut or extend to `to`, keeping the hashes of lines in both.
     fn reshape(&mut self, to: &Range<u64>) {
         if to.start >= self.range.end || to.end <= self.range.start {
             self.hashes.clear();
@@ -127,13 +123,10 @@ impl WindowEncoder {
         self.styles.clear();
     }
 
-    /// The numbering and range the phone was last sent.
     pub fn held(&self) -> Option<(Numbering, Range<u64>)> {
         self.held.as_ref().map(|h| (h.at, h.range.clone()))
     }
 
-    /// True for a history line the phone already has: it was history when last sent, so
-    /// it can't have changed since, and needs no rendering.
     pub fn holds_history(&self, n: u64, at: Numbering) -> bool {
         self.held.as_ref().is_some_and(|h| {
             h.at.epoch == at.epoch
@@ -161,7 +154,6 @@ impl WindowEncoder {
             let spans = self.encode_row(cells, &rendered.links, &mut new_styles);
             let hash = hash_of(&spans);
             let Some(slot) = held.slot(*n) else { continue };
-            // An unheld line is blank on the phone, so a blank one needs no sending.
             let blank_and_new = slot.is_none() && spans.is_empty();
             if *slot != Some(hash) && !blank_and_new {
                 set.push((*n, spans));

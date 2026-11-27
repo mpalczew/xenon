@@ -28,7 +28,6 @@ impl View {
     }
 }
 
-/// The view and mirror of a live attach.
 type Attached = (Arc<View>, Arc<Mirror>);
 
 pub(crate) struct Attach {
@@ -292,7 +291,6 @@ impl Phone {
     }
 }
 
-/// Where the phone is scrolled. The next frame tick plans from it.
 fn scrolled(view: &View, mirror: &Mirror, report: Report) {
     *locked(&view.report) = Some(report);
     mirror.wake();
@@ -310,8 +308,6 @@ fn click(mirror: &Mirror, col: u16, row: u16) {
     }
 }
 
-/// Wheel in the alt screen: wheel reports when the app asked for the mouse, else arrow
-/// keys when it asked for alternate scroll. `rows` above zero scrolls up.
 fn alt_wheel(mirror: &Mirror, rows: i32, col: u16, row: u16) {
     let modes = mirror.modes();
     let up = rows > 0;

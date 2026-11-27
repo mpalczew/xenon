@@ -314,7 +314,6 @@ const Core = (() => {
 
   function newWin() { return { epoch: -1, cols: 0, rows: 0, alt: false, oldest: 0, live: 0, top: 0, len: 0, lines: new Map(), cursor: null }; }
 
-  /** Apply one lines message: afterwards w holds exactly [top, top + len). */
   function applyLines(w, m) {
     const epoch = m.epoch !== w.epoch;
     const reset = epoch || m.full;
@@ -326,7 +325,6 @@ const Core = (() => {
     return { epoch, reset, gone, set };
   }
 
-  /** The line at the top of the viewport. */
   function viewTop(origin, scrollTop, pad, lineH) { return origin + Math.max(0, Math.floor((scrollTop - pad) / lineH + 0.01)); }
 
   function cellAtPoint(x, y, originX, originY, cellW, lineH, cols, rows) {
@@ -470,7 +468,6 @@ const Core = (() => {
 })();
 
 const BUILD = "__XENON_BUILD__";
-// Line height in px at scale 1, and the top padding of #term. updateScale writes both to CSS.
 const LH = 18;
 const PAD = 8;
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
@@ -730,7 +727,6 @@ function leaveSession() {
   if (S.skippedList || !S.wsSel) showWorkspaces(); else showTerminals();
 }
 
-// Show the list at once, then refetch it: a terminal may have closed while it was hidden.
 async function showTerminals() {
   show("terms");
   renderTerminals();
@@ -740,7 +736,7 @@ async function showTerminals() {
     if (S.wsSel !== w) return;
     S.terminals = list;
     if (S.view === "terms") renderTerminals();
-  } catch (_) { /* keep what's shown; api() already handles sign-out */ }
+  } catch (_) { }
 }
 
 function goBack() {
@@ -1148,7 +1144,6 @@ function selecting() {
   return !sel.isCollapsed && $("term").contains(sel.anchorNode);
 }
 
-// Rows sit at (n - origin) * lh, so adding or dropping lines never moves the others.
 function renderLines(m) {
   const d = Core.applyLines(S.win, m);
   if (d.epoch) S.origin = m.oldest;
@@ -1190,11 +1185,9 @@ function paintAll() {
   for (const [n, spans] of S.win.lines) rowEl(n).innerHTML = rowHtml(spans);
 }
 
-// Scroll position of line n's top edge, and the line at the top of the viewport.
 function lineTop(n) { return PAD + (n - S.origin) * linePx(); }
 function lineAt(scrollTop) { return Core.viewTop(S.origin, scrollTop, PAD, linePx()); }
 
-// A new epoch: re-anchor a reader where the server says, else go live.
 function placeView(anchor) {
   if (anchor != null) {
     S.follow = false;
@@ -1205,7 +1198,6 @@ function placeView(anchor) {
   scheduleReport(true);
 }
 
-// Drop dead space above the oldest held line, only while nothing moves.
 function maybeRebase() {
   if (S.touching || S.win.alt || S.repaint) return;
   const shift = S.win.oldest - S.origin;
@@ -1265,7 +1257,6 @@ function syncLive() {
   $("live").hidden = S.win.alt || atLiveEdge();
 }
 
-// Touching the terminal pauses follow; where the scroll ends decides whether it resumes.
 function onTouchStart() {
   if (S.win.alt) return;
   S.finger = true;
@@ -1301,7 +1292,6 @@ function scrollEnded() {
   scheduleReport(true);
 }
 
-// Tell the server where the view is: once a frame at most, per quarter screen of travel.
 function scheduleReport(force) {
   S.reportForce = S.reportForce || force;
   if (S.reportRaf) return;
@@ -1331,7 +1321,6 @@ function screenCell(x, y) {
   return Core.cellAtPoint(x, y, rect.left, top, (S.cw || 0) * (S.scale || 1), lh, S.win.cols, S.win.rows);
 }
 
-// Alt screen only: the app gets wheel steps at the touched cell.
 function pushWheel(dy, x, y) {
   const step = Core.wheelRows(S.wheelAcc, dy, linePx());
   S.wheelAcc = step.acc;
@@ -1423,7 +1412,6 @@ function availSize() {
   return { w: t.clientWidth - 20, h: t.clientHeight - PAD };
 }
 
-// Whole rows of height lh that fit in the terminal.
 function rowsIn(lh) { return Math.floor(availSize().h / lh); }
 
 function updateScale() {

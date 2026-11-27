@@ -27,14 +27,12 @@ impl Numbering {
     }
 }
 
-/// The counted state: everything else is derived from the grid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LineCount {
     pub epoch: u32,
     pub live: u64,
 }
 
-/// What the mirror measures around one step.
 #[derive(Clone, Copy)]
 pub(crate) struct Probe {
     pub history: usize,
@@ -43,23 +41,16 @@ pub(crate) struct Probe {
 }
 
 pub(crate) enum Cause {
-    /// A slice of output. `clears` is true when it held CSI 3J or RIS.
-    Bytes {
-        clears: bool,
-    },
+    Bytes { clears: bool },
     Resize,
-    /// The emulator was rebuilt before a replay.
     Reset,
 }
 
-/// History may grow by this much in one slice before the count is unknowable.
 pub(crate) const SLACK: usize = 4096;
 /// Bytes per slice. A byte adds at most one line, except `CSI n S`, which saturation
 /// catches.
 pub(crate) const SLICE: usize = SLACK;
 
-/// Accounts one step. Anything that can't be measured exactly starts a new epoch, so a
-/// wrong number is never served. `limit` is the emulator's scrollback limit.
 pub(crate) fn step(
     count: LineCount,
     before: Probe,
@@ -88,10 +79,8 @@ pub(crate) fn step(
     }
 }
 
-/// Bytes of the previous slice kept so a sequence split across slices is still seen.
 pub(crate) const TAIL: usize = 3;
 
-/// Does `tail ++ chunk` hold `ESC [ 3 J` or `ESC c`?
 pub(crate) fn clears(tail: &[u8], chunk: &[u8]) -> bool {
     let head = &chunk[..chunk.len().min(TAIL)];
     let seam: Vec<u8> = tail.iter().chain(head).copied().collect();
@@ -100,7 +89,6 @@ pub(crate) fn clears(tail: &[u8], chunk: &[u8]) -> bool {
         .any(|b| b.windows(4).any(|w| w == b"\x1b[3J") || b.windows(2).any(|w| w == b"\x1bc"))
 }
 
-/// The last `TAIL` bytes of `tail ++ chunk`.
 pub(crate) fn next_tail(tail: &[u8], chunk: &[u8]) -> Vec<u8> {
     let keep = TAIL.saturating_sub(chunk.len()).min(tail.len());
     let mut out = tail[tail.len() - keep..].to_vec();

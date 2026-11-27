@@ -327,8 +327,6 @@ impl PaneView {
                 other.transfer_page(&page, &self.view, at);
                 Some(page)
             }
-            // A page the bar holds mid-drag has a wrapper but no view: it
-            // comes back when the drag ends, and the next `sync` takes it.
             None if body.parent().is_some() => None,
             None => Some(self.view.insert(body, at)),
         }

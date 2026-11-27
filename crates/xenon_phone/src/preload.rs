@@ -1,22 +1,15 @@
-//! Which lines the phone should hold. Pure: the frame thread plans, renders what's
-//! missing and encodes it.
-
 use std::ops::Range;
 
 use xenon_term::Numbering;
 
-/// Where the phone is scrolled. Latest wins.
 #[derive(Clone, Copy)]
 pub(crate) struct Report {
     pub epoch: u32,
-    /// The line at the top of the phone's viewport.
     pub top: u64,
     pub follow: bool,
-    /// Lines the viewport shows.
     pub lines: u16,
 }
 
-/// Preload, in screens.
 #[derive(Clone, Copy)]
 pub(crate) struct Depth {
     above: u64,
@@ -45,19 +38,15 @@ impl Depth {
 #[derive(Clone)]
 pub(crate) struct Want {
     pub range: Range<u64>,
-    /// Put this line at the viewport top. Set only when a new epoch re-anchors a reader.
     pub anchor: Option<u64>,
 }
 
 enum Pos {
     Follow,
     At(u64),
-    /// The phone hasn't reported in this epoch yet: keep what it has.
     Stay,
 }
 
-/// One contiguous range around the phone's position. The current range is kept while it
-/// still covers a comfort zone around the view, so a slow scroll doesn't churn.
 pub(crate) fn plan(
     at: Numbering,
     report: Option<Report>,
@@ -102,7 +91,6 @@ pub(crate) fn plan(
             None => (at.live, true),
         },
     };
-    // A screen is what the phone shows: more than `rows` while it shrinks a wide terminal.
     let r = u64::from(at.rows.max(report.map_or(0, |p| p.lines)));
     let need = anchor.saturating_sub(d.above * r / 2).max(at.oldest)
         ..(anchor + r + d.below * r / 2).min(bottom);
@@ -128,8 +116,6 @@ pub(crate) fn plan(
     }
 }
 
-/// Carry a reading position into a new epoch by its distance from the live edge.
-/// Approximate across a reflow, where wrapped lines change count.
 fn carry(old: Numbering, new: Numbering, top: u64) -> u64 {
     let from_end = old.bottom().saturating_sub(top);
     new.bottom()

@@ -169,7 +169,6 @@ impl GitHub {
             if let Some(status) = status {
                 app.git_measured(ws, status);
             }
-            // The measure itself touches .git; let those queued monitor events drain first.
             glib::idle_add_local_once(move || {
                 app.git.running.borrow_mut().remove(&ws);
             });
