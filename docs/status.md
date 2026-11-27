@@ -9,7 +9,7 @@
   item). `crates/xenon_prose`
 - Phone remote: mostly healthy; its own process, `xenon-phone.service`, works with no
   window open, and closing a workspace from the phone works over `ipc.sock`. Scrollback
-  is now native (the browser scrolls a server-held line window), not yet tried by hand;
+  is now native (the browser scrolls a server-held line window);
   `docs/designs/phone-scrollback.md`. Known issue: on iPadOS in Direct mode, navigating
   back and forth occasionally shortens a terminal to 8 rows (`fit` viewport diagnostics
   are live in the service journal to catch the next repro).

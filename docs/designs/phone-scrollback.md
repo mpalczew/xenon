@@ -1,6 +1,6 @@
 # Phone scrollback: native scrolling over a server-held line window
 
-Status: approved. Sketches: server-pushed window (A, base) and client-pulled log (B).
+Status: implemented. Sketches: server-pushed window (A, base) and client-pulled log (B).
 
 ## Problem
 
@@ -34,8 +34,9 @@ is; the server decides what it holds.
 // page.html
 case "lines": return renderLines(m);          // replaces "frame"
 // on scroll (rAF-throttled, plus scrollend):
-send({ t: "scroll", epoch, top, follow });     // top = line number at the viewport top
-// "↓ Live": scrollToLive(); send({ t: "scroll", epoch, top, follow: true })
+send({ t: "scroll", epoch, top, follow, lines });  // top = line at the viewport top;
+                                                  // lines = rows the viewport shows
+// "↓ Live": scrollToLive(); send({ t: "scroll", epoch, top, follow: true, lines })
 ```
 
 ```rust
@@ -46,8 +47,8 @@ let msgs = mirror.read(|term, at| {
     encoder.encode(&screen::window(term, at, &want, |n| encoder.holds_history(n, at), &look))
 });
 
-// session.rs
-ClientMsg::Scroll { epoch, top, follow } => { view.set_report(Report { epoch, top, follow }); mirror.wake() }
+// session.rs: `scrolled` stores the report in the attach's View and wakes the mirror
+ClientMsg::Scroll { epoch, top, follow, lines } => self.scrolled(conn, Report { epoch, top, follow, lines }),
 ClientMsg::Wheel { rows, col, row } => alt_wheel(&mirror, rows, col, row),   // alt screen only
 ```
 
@@ -68,9 +69,9 @@ and the offset atomic are deleted.
 
 **The window (`xenon_phone/src/window.rs`, from A, pure).** `plan` picks one contiguous
 range: the live screen plus 3 screens above the reported top and 1 below (1 and 1 in low
-bandwidth), capped at 8 screens. It keeps the current range while it still covers a
-comfort zone around the view (hysteresis), so a slow scroll doesn't churn. While
-following, the range grows with output and is re-cut at the cap.
+bandwidth), capped at 8 screens (3 in low bandwidth). It keeps the current range while
+it still covers a comfort zone around the view (hysteresis), so a slow scroll doesn't
+churn. While following, the range grows with output and is re-cut at the cap.
 
 **Encoding (`remote/frame.rs`).** `FrameEncoder` becomes `WindowEncoder`. It keeps style
 interning and adds `Held` (range plus a `VecDeque` of line hashes) as the single record
@@ -150,8 +151,3 @@ cursor, as today.
 - How often does Claude Code clear scrollback (CSI 3J) during normal use? Each clear is
   a new epoch and a re-anchor, which would feel jumpy if it happens often while you
   read. The `fit` journal line could log epoch changes to check.
-
-## Next implementation step
-
-Build `mirror/log.rs` and the sliced, counted advance in `Mirror`, exposing `Numbering`
-through `Mirror::read`.
