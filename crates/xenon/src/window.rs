@@ -210,6 +210,10 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     crate::git::listen(&app);
     connect_window(&app, &win);
     app.sidebar.rebuild(&app.model.borrow());
+    let weak = Rc::downgrade(&app);
+    app.sidebar.root.connect_map(move |_| {
+        defer(&weak, |app| app.fit_workspaces());
+    });
     app.listen_holders();
     app.refresh_builds();
     start_workspace(&app);

@@ -387,11 +387,20 @@ impl App {
         }
         self.sidebar.reset_sizes();
         self.sidebar.apply_folds(&self.model.borrow());
-        if !self.model.borrow().folds.workspaces && self.sidebar.outer.resizes_end_child() {
-            self.sidebar.fit_workspaces();
-        }
+        self.fit_workspaces();
         if let Some(app) = self.sidebar.app.upgrade() {
             app.schedule_save();
+        }
+    }
+
+    /// Size the workspaces section to its rows unless a height is already set.
+    pub(crate) fn fit_workspaces(&self) {
+        let outer = &self.sidebar.outer;
+        if !self.model.borrow().folds.workspaces
+            && outer.resizes_end_child()
+            && !outer.is_position_set()
+        {
+            self.sidebar.fit_workspaces();
         }
     }
 
