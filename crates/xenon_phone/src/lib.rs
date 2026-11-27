@@ -5,13 +5,13 @@ mod frames;
 mod host;
 mod link;
 mod look;
+mod preload;
 mod remote;
 mod screen;
 mod server;
 mod session;
 mod status;
 mod tasks;
-mod window;
 mod worklist;
 
 use std::collections::HashMap;

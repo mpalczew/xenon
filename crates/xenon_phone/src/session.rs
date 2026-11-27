@@ -9,7 +9,7 @@ use xenon_core::{TermId, WorkspaceId};
 use xenon_term::{Mirror, Modes, Size};
 
 use crate::look::Look;
-use crate::window::Report;
+use crate::preload::Report;
 
 use super::{Phone, frames, locked};
 

@@ -19,7 +19,7 @@ What makes the shape non-obvious:
 - **Reflow.** A width change rewraps all history. Alt-screen apps (vim, htop) have no
   history.
 - **Callers that can't break.** Each phone attach has its own `Mirror` (`xenon_term`),
-  fed by the holder's replay including full history. `FrameEncoder` style interning,
+  fed by the holder's replay including full history. `WindowEncoder` style interning,
   low-bandwidth mode, the bounded `Outbox` with `force_full` on overflow, and click and
   cursor mapping all stay.
 - **Stale pages.** The page is embedded in the binary, but an open page can reconnect
@@ -43,8 +43,8 @@ send({ t: "scroll", epoch, top, follow, lines });  // top = line at the viewport
 // frames.rs, per tick
 let report = view.report();                    // latest phone position, latest wins
 let msgs = mirror.read(|term, at| {
-    let want = window::plan(at, report, encoder.held(), Depth::of(low_bandwidth));
-    encoder.encode(&screen::window(term, at, &want, |n| encoder.holds_history(n, at), &look))
+    let want = preload::plan(at, report, encoder.held(), Depth::of(low_bandwidth));
+    encoder.encode(&screen::render(term, at, &want, |n| encoder.holds_history(n, at), &look))
 });
 
 // session.rs: `scrolled` stores the report in the attach's View and wakes the mirror
@@ -54,26 +54,26 @@ ClientMsg::Wheel { rows, col, row } => alt_wheel(&mirror, rows, col, row),   // 
 
 ## Shape
 
-**Line numbers (`xenon_term/src/mirror/log.rs`, from B).** Every line gets a `u64`
+**Line numbers (`xenon_term/src/mirror/numbering.rs`, from B).** Every line gets a `u64`
 number, stable within an `epoch`: screen row r is `live + r`, history depth k is `live -
 k`, and `oldest = live - history_size` is derived, not stored. The mirror's `Emu` is
 created with scrollback `cap + SLACK` (SLACK = 4096). Bytes are advanced in 4 KB slices.
 After each slice, history growth is added to `live`, then history is trimmed back to
 `cap` with `Grid::update_history` (which drops the oldest lines). Growth per slice is
-therefore always measurable. A pure `step(log, before, after, cause)` starts a new epoch
-whenever the count can't be known exactly: reset, resize, alt switch, history shrinking,
-a CSI 3J or RIS in the slice, or growth past SLACK. Wrong numbers are never served; the
-cost is an occasional cache drop. `Numbering { epoch, oldest, live, rows, cols, alt }`
-lives under the same mutex as the grid, so reads can't tear. `Mirror::scroll`, `bottom`
-and the offset atomic are deleted.
+therefore always measurable. A pure `step(count, before, after, cause)` starts a new
+epoch whenever the count can't be known exactly: reset, resize, alt switch, history
+shrinking, a CSI 3J or RIS in the slice, or growth past SLACK. Wrong numbers are never
+served; the cost is an occasional cache drop. `Numbering { epoch, oldest, live, rows,
+cols, alt }` lives under the same mutex as the grid, so reads can't tear.
+`Mirror::scroll`, `bottom` and the offset atomic are deleted.
 
-**The window (`xenon_phone/src/window.rs`, from A, pure).** `plan` picks one contiguous
+**The window (`xenon_phone/src/preload.rs`, from A, pure).** `plan` picks one contiguous
 range: the live screen plus 3 screens above the reported top and 1 below (1 and 1 in low
 bandwidth), capped at 8 screens (3 in low bandwidth). It keeps the current range while
 it still covers a comfort zone around the view (hysteresis), so a slow scroll doesn't
 churn. While following, the range grows with output and is re-cut at the cap.
 
-**Encoding (`remote/frame.rs`).** `FrameEncoder` becomes `WindowEncoder`. It keeps style
+**Encoding (`remote/lines.rs`).** `WindowEncoder` (was `FrameEncoder`). It keeps style
 interning and adds `Held` (range plus a `VecDeque` of line hashes) as the single record
 of what the phone has. History is immutable within an epoch, so each history line is
 rendered once; per tick only the live screen is diffed, as today. A pure scroll sends

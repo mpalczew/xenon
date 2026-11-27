@@ -58,7 +58,7 @@ impl Default for Cell {
 /// Rendered lines for one tick: the lines of `range` the phone lacks, plus every live
 /// screen line in it.
 #[derive(Clone)]
-pub struct Snapshot {
+pub struct Rendered {
     pub at: Numbering,
     pub range: Range<u64>,
     pub anchor: Option<u64>,
@@ -143,22 +143,22 @@ impl WindowEncoder {
         })
     }
 
-    pub fn encode(&mut self, snap: &Snapshot) -> Vec<ServerMsg> {
-        let at = snap.at;
+    pub fn encode(&mut self, rendered: &Rendered) -> Vec<ServerMsg> {
+        let at = rendered.at;
         let full = self
             .held
             .as_ref()
             .is_none_or(|h| h.at.epoch != at.epoch || h.at.alt != at.alt || h.at.cols != at.cols);
         let mut held = match self.held.take() {
             Some(h) if !full => h,
-            _ => Held::new(at, snap.range.start),
+            _ => Held::new(at, rendered.range.start),
         };
-        let reshaped = held.range != snap.range;
-        held.reshape(&snap.range);
+        let reshaped = held.range != rendered.range;
+        held.reshape(&rendered.range);
         let mut new_styles = BTreeMap::new();
         let mut set = Vec::new();
-        for (n, cells) in &snap.lines {
-            let spans = self.encode_row(cells, &snap.links, &mut new_styles);
+        for (n, cells) in &rendered.lines {
+            let spans = self.encode_row(cells, &rendered.links, &mut new_styles);
             let hash = hash_of(&spans);
             let Some(slot) = held.slot(*n) else { continue };
             // An unheld line is blank on the phone, so a blank one needs no sending.
@@ -168,9 +168,9 @@ impl WindowEncoder {
             }
             *slot = Some(hash);
         }
-        let moved = held.at != at || held.cursor != snap.cursor;
+        let moved = held.at != at || held.cursor != rendered.cursor;
         held.at = at;
-        held.cursor = snap.cursor;
+        held.cursor = rendered.cursor;
         self.held = Some(held);
         if !full && !reshaped && !moved && set.is_empty() {
             return Vec::new();
@@ -187,11 +187,11 @@ impl WindowEncoder {
             alt: at.alt,
             oldest: at.oldest,
             live: at.live,
-            top: snap.range.start,
-            len: (snap.range.end - snap.range.start) as u32,
+            top: rendered.range.start,
+            len: (rendered.range.end - rendered.range.start) as u32,
             set,
-            cursor: snap.cursor,
-            anchor: snap.anchor,
+            cursor: rendered.cursor,
+            anchor: rendered.anchor,
         });
         out
     }

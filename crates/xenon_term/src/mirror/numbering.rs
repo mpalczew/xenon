@@ -29,7 +29,7 @@ impl Numbering {
 
 /// The counted state: everything else is derived from the grid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Log {
+pub(crate) struct LineCount {
     pub epoch: u32,
     pub live: u64,
 }
@@ -60,9 +60,15 @@ pub(crate) const SLICE: usize = SLACK;
 
 /// Accounts one step. Anything that can't be measured exactly starts a new epoch, so a
 /// wrong number is never served. `limit` is the emulator's scrollback limit.
-pub(crate) fn step(log: Log, before: Probe, after: Probe, cause: Cause, limit: usize) -> Log {
-    let fresh = Log {
-        epoch: log.epoch.wrapping_add(1),
+pub(crate) fn step(
+    count: LineCount,
+    before: Probe,
+    after: Probe,
+    cause: Cause,
+    limit: usize,
+) -> LineCount {
+    let fresh = LineCount {
+        epoch: count.epoch.wrapping_add(1),
         live: after.history as u64,
     };
     let unknowable = match cause {
@@ -74,9 +80,9 @@ pub(crate) fn step(log: Log, before: Probe, after: Probe, cause: Cause, limit: u
         return fresh;
     }
     match after.history.checked_sub(before.history) {
-        Some(grew) => Log {
-            live: log.live + grew as u64,
-            ..log
+        Some(grew) => LineCount {
+            live: count.live + grew as u64,
+            ..count
         },
         None => fresh,
     }

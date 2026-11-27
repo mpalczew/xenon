@@ -3,8 +3,8 @@ use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::preload::{self, Depth};
 use crate::remote::{Outbox, ServerMsg, WindowEncoder};
-use crate::window::{self, Depth};
 use xenon_term::Mirror;
 
 use crate::look::Look;
@@ -54,12 +54,15 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
             encoder.force_full();
         }
         let report = view.report();
-        let snap = mirror.read(|term, at| {
-            let want = window::plan(at, report, encoder.held(), Depth::of(low));
+        let rendered = mirror.read(|term, at| {
+            let want = preload::plan(at, report, encoder.held(), Depth::of(low));
             let holds = |n| encoder.holds_history(n, at);
-            crate::screen::window(term, at, &want, holds, &look)
+            crate::screen::render(term, at, &want, holds, &look)
         });
-        let delivered = encoder.encode(&snap).into_iter().all(|m| out.try_send(m));
+        let delivered = encoder
+            .encode(&rendered)
+            .into_iter()
+            .all(|m| out.try_send(m));
         if !delivered {
             encoder.force_full();
             thread::sleep(RETRY_AFTER);

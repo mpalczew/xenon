@@ -1,11 +1,11 @@
 mod auth;
 mod device_flow;
 mod devices;
-mod frame;
 mod host;
 mod http;
 mod keys;
 mod labels;
+mod lines;
 mod listing;
 mod names;
 mod network;
@@ -18,10 +18,10 @@ mod uploads;
 mod ws;
 
 pub(crate) use devices::DeviceBook;
-pub(crate) use frame::{Cell, Rgb, Snapshot, Style, WIDE_SPACER, WindowEncoder};
 pub(crate) use host::{ConnId, Outbox, PairError};
 pub(crate) use keys::pty_text_bytes;
 pub(crate) use labels::device_short_name;
+pub(crate) use lines::{Cell, Rendered, Rgb, Style, WIDE_SPACER, WindowEncoder};
 pub(crate) use listing::{list_workspaces, parse_workspace_id, tilde, wire_dot};
 pub(crate) use names::magic_dns_name;
 pub use network::normalize_hostname;

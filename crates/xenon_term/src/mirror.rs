@@ -17,10 +17,10 @@ use crate::{Size, Terminals, dir};
 pub struct Gone;
 
 mod calls;
-mod log;
+mod numbering;
 
-pub use log::Numbering;
-use log::{Cause, Log, Probe, SLACK, SLICE};
+pub use numbering::Numbering;
+use numbering::{Cause, LineCount, Probe, SLACK, SLICE};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Modes {
@@ -41,7 +41,7 @@ struct Flags {
 /// The emulator and its line numbering, behind one lock so a read can't tear.
 struct Counted {
     emu: Emu,
-    log: Log,
+    count: LineCount,
     tail: Vec<u8>,
     /// Scrollback the phone can reach. The emulator holds `SLACK` more, trimmed back
     /// after every slice, so growth within a slice is always measurable.
@@ -124,7 +124,7 @@ impl Counted {
     fn new(size: Size, cap: usize) -> Self {
         Self {
             emu: Emu::new(size, cap + SLACK),
-            log: Log { epoch: 0, live: 0 },
+            count: LineCount { epoch: 0, live: 0 },
             tail: Vec::new(),
             cap,
         }
@@ -141,8 +141,8 @@ impl Counted {
     /// Feed output a slice at a time, counting the lines each slice pushes into history.
     fn advance(&mut self, bytes: &[u8]) {
         for chunk in bytes.chunks(SLICE) {
-            let clears = log::clears(&self.tail, chunk);
-            self.tail = log::next_tail(&self.tail, chunk);
+            let clears = numbering::clears(&self.tail, chunk);
+            self.tail = numbering::next_tail(&self.tail, chunk);
             let before = self.probe();
             let _ = self.emu.advance(chunk);
             self.account(before, Cause::Bytes { clears });
@@ -163,7 +163,7 @@ impl Counted {
     }
 
     fn account(&mut self, before: Probe, cause: Cause) {
-        self.log = log::step(self.log, before, self.probe(), cause, self.cap + SLACK);
+        self.count = numbering::step(self.count, before, self.probe(), cause, self.cap + SLACK);
         // Drop the oldest lines past `cap`, then reopen the limit for the next slice.
         if self.emu.term.grid().history_size() > self.cap {
             let grid = self.emu.term.grid_mut();
@@ -176,9 +176,9 @@ impl Counted {
         let term = &self.emu.term;
         let history = term.grid().history_size() as u64;
         Numbering {
-            epoch: self.log.epoch,
-            oldest: self.log.live.saturating_sub(history),
-            live: self.log.live,
+            epoch: self.count.epoch,
+            oldest: self.count.live.saturating_sub(history),
+            live: self.count.live,
             rows: term.screen_lines() as u16,
             cols: term.columns() as u16,
             alt: self.emu.mode().contains(TermMode::ALT_SCREEN),

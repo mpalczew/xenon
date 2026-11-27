@@ -12,19 +12,19 @@ use alacritty_terminal::vte::ansi::{Color, CursorShape};
 use xenon_term::Numbering;
 
 use crate::look::{Look, dim};
+use crate::preload::Want;
 use crate::remote::{
-    Cell, CursorShapeWire, CursorWire, Rgb, Snapshot, Style, WIDE_SPACER, style_flags,
+    Cell, CursorShapeWire, CursorWire, Rendered, Rgb, Style, WIDE_SPACER, style_flags,
 };
-use crate::window::Want;
 
 /// Render the lines of `want` the phone lacks (`holds` says which it has) and the cursor.
-pub(crate) fn window<L: EventListener>(
+pub(crate) fn render<L: EventListener>(
     term: &Term<L>,
     at: Numbering,
     want: &Want,
     holds: impl Fn(u64) -> bool,
     look: &Look,
-) -> Snapshot {
+) -> Rendered {
     let cols = term.columns();
     let grid = term.grid();
     let mut links = HashMap::new();
@@ -40,7 +40,7 @@ pub(crate) fn window<L: EventListener>(
             (n, cells)
         })
         .collect();
-    Snapshot {
+    Rendered {
         at,
         range: want.range.clone(),
         anchor: want.anchor,
