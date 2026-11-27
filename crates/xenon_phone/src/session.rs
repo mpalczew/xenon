@@ -28,6 +28,9 @@ impl View {
     }
 }
 
+/// The view and mirror of a live attach.
+type Attached = (Arc<View>, Arc<Mirror>);
+
 pub(crate) struct Attach {
     pub term: TermId,
     pub workspace: WorkspaceId,
@@ -49,6 +52,14 @@ fn look_code(appearance: Option<AppearanceWire>) -> u8 {
         None => 0,
         Some(AppearanceWire::Dark) => 1,
         Some(AppearanceWire::Light) => 2,
+    }
+}
+
+impl Conn {
+    fn attached(&self) -> Option<Attached> {
+        self.attach
+            .as_ref()
+            .map(|a| (Arc::clone(&a.view), Arc::clone(&a.mirror)))
     }
 }
 
@@ -96,12 +107,6 @@ impl Phone {
         self.changed();
     }
 
-    fn attached(&self, conn: ConnId) -> Option<Arc<Mirror>> {
-        let guard = locked(&self.conns);
-        let a = guard.get(&conn)?.attach.as_ref()?;
-        Some(Arc::clone(&a.mirror))
-    }
-
     pub(crate) fn message(&self, conn: ConnId, msg: ClientMsg) {
         match msg {
             ClientMsg::Attach {
@@ -123,7 +128,7 @@ impl Phone {
 
     fn terminal_message(&self, conn: ConnId, msg: ClientMsg) {
         let typed = matches!(msg, ClientMsg::Text { .. } | ClientMsg::Key { .. });
-        let Some(mirror) = self.attached(conn) else {
+        let Some((view, mirror)) = locked(&self.conns).get(&conn).and_then(Conn::attached) else {
             if typed {
                 eprintln!("xenon-phone input dropped conn={}: not attached", conn.0);
             }
@@ -146,8 +151,9 @@ impl Phone {
                 top,
                 follow,
                 lines,
-            } => self.scrolled(
-                conn,
+            } => scrolled(
+                &view,
+                &mirror,
                 Report {
                     epoch,
                     top,
@@ -240,15 +246,6 @@ impl Phone {
         }
     }
 
-    fn scrolled(&self, conn: ConnId, report: Report) {
-        let guard = locked(&self.conns);
-        let Some(a) = guard.get(&conn).and_then(|c| c.attach.as_ref()) else {
-            return;
-        };
-        *locked(&a.view.report) = Some(report);
-        a.mirror.wake();
-    }
-
     fn bandwidth(&self, conn: ConnId, low: bool) {
         if let Some(c) = locked(&self.conns).get_mut(&conn) {
             c.low_bandwidth = low;
@@ -265,9 +262,7 @@ impl Phone {
                 return;
             };
             c.appearance = appearance;
-            c.attach
-                .as_ref()
-                .map(|a| (Arc::clone(&a.view), Arc::clone(&a.mirror)))
+            c.attached()
         };
         let code = look_code(appearance);
         let theme = Look::of(self.dark(code)).theme();
@@ -295,6 +290,12 @@ impl Phone {
             })
             .unwrap_or_else(|| "Phone".into())
     }
+}
+
+/// Where the phone is scrolled. The next frame tick plans from it.
+fn scrolled(view: &View, mirror: &Mirror, report: Report) {
+    *locked(&view.report) = Some(report);
+    mirror.wake();
 }
 
 fn click(mirror: &Mirror, col: u16, row: u16) {

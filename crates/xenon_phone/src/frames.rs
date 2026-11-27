@@ -43,15 +43,16 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
         last = Instant::now();
         let Some(phone) = phone.upgrade() else { return };
         let dark = phone.dark(view.look.load(Ordering::Relaxed));
+        let look = Look::of(dark);
         if shown_dark.replace(dark).is_some_and(|d| d != dark) {
-            let theme = Look::of(dark).theme();
-            out.try_send(ServerMsg::Theme { theme });
+            out.try_send(ServerMsg::Theme {
+                theme: look.theme(),
+            });
             view.full.store(true, Ordering::Relaxed);
         }
         if view.full.swap(false, Ordering::Relaxed) {
             encoder.force_full();
         }
-        let look = Look::of(dark);
         let report = view.report();
         let snap = mirror.read(|term, at| {
             let want = window::plan(at, report, encoder.held(), Depth::of(low));

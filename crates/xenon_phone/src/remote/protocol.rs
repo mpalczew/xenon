@@ -178,9 +178,7 @@ pub enum ClientMsg {
     /// Alt screen only: the primary screen scrolls natively on the phone.
     Wheel {
         rows: i32,
-        #[serde(default)]
         col: u16,
-        #[serde(default)]
         row: u16,
     },
     /// Where the phone is scrolled; `top` is the line at the top of its viewport.
@@ -189,7 +187,6 @@ pub enum ClientMsg {
         top: u64,
         follow: bool,
         /// Lines the phone's viewport shows; more than `rows` while it shrinks a wide terminal.
-        #[serde(default)]
         lines: u16,
     },
     Click {

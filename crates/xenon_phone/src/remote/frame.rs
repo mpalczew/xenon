@@ -57,7 +57,7 @@ impl Default for Cell {
 
 /// Rendered lines for one tick: the lines of `range` the phone lacks, plus every live
 /// screen line in it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct Snapshot {
     pub at: Numbering,
     pub range: Range<u64>,

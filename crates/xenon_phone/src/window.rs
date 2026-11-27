@@ -6,7 +6,7 @@ use std::ops::Range;
 use xenon_term::Numbering;
 
 /// Where the phone is scrolled. Latest wins.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub(crate) struct Report {
     pub epoch: u32,
     /// The line at the top of the phone's viewport.
@@ -42,7 +42,7 @@ impl Depth {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone)]
 pub(crate) struct Want {
     pub range: Range<u64>,
     /// Put this line at the viewport top. Set only when a new epoch re-anchors a reader.
