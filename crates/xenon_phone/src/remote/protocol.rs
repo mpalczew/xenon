@@ -190,6 +190,10 @@ pub enum ClientMsg {
         diag: Option<String>,
     },
     Ping,
+    /// Temporary touch-scroll diagnostics, logged to the journal.
+    Diag {
+        text: String,
+    },
     #[serde(rename_all = "camelCase")]
     RunTask {
         workspace_id: String,
