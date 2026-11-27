@@ -1647,7 +1647,7 @@ function wireEvents() {
     // A new primary touch replaces any old one: an up on a node a redraw detached never reaches here.
     if (e.pointerType !== "touch" || !e.isPrimary) return;
     cancelAnimationFrame(fling);
-    touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false, v: 0, t: e.timeStamp };
+    touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false, trail: [{ y: e.clientY, t: e.timeStamp }] };
     dragged = false;
     S.wheelAcc = 0;
   });
@@ -1661,14 +1661,16 @@ function wireEvents() {
       term.setPointerCapture(e.pointerId);
     }
     pushWheel(e.clientY - touch.y);
-    const dt = e.timeStamp - touch.t;
-    if (dt > 0) touch.v = 0.8 * touch.v + 0.2 * (e.clientY - touch.y) / dt;
     touch.y = e.clientY;
-    touch.t = e.timeStamp;
+    touch.trail.push({ y: e.clientY, t: e.timeStamp });
+    while (e.timeStamp - touch.trail[0].t > 100) touch.trail.shift();
   });
   const endTouch = (e) => {
     if (!touch || e.pointerId !== touch.id) return;
-    if (e.type === "pointerup" && touch.drag && e.timeStamp - touch.t < 100 && Math.abs(touch.v) > 0.3) coast(touch.v, performance.now());
+    // Release speed over the last 100ms of the drag; a finger held still leaves no trail to coast on.
+    const first = touch.trail[0], last = touch.trail[touch.trail.length - 1];
+    const v = e.timeStamp - last.t < 100 && last.t > first.t ? (last.y - first.y) / (last.t - first.t) : 0;
+    if (e.type === "pointerup" && touch.drag && Math.abs(v) > 0.3) coast(v, performance.now());
     touch = null;
   };
   term.addEventListener("pointerup", endTouch);
