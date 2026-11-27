@@ -645,7 +645,6 @@ function onClosed(reason) {
 function onVisible() {
   if (document.visibilityState !== "visible" || !S.token) return;
   if (S.view === "worklist") loadWorklist();
-  if (S.view === "terms" && S.wsSel) showTerminals();
   if (S.ws) ping(); else { clearTimeout(S.retryTimer); S.attempt = 0; connect(); }
 }
 
@@ -690,7 +689,7 @@ async function openWorkspace(w) {
   $("terms").innerHTML = '<div class="note">' + (w.open ? "Loading…" : "Opening workspace…") + "</div>";
   show("terms");
   try {
-    S.terminals = (await api("/api/workspaces/" + encodeURIComponent(w.id) + "/terminals")) || [];
+    S.terminals = await fetchTerminals(w.id);
   } catch (e) {
     if (e.message !== "unauthorized") $("terms").innerHTML = '<div class="note err">' + esc(e.message) + "</div>";
     return;
@@ -698,6 +697,10 @@ async function openWorkspace(w) {
   if (S.terminals.length === 1) { S.skippedList = true; return openSession(S.terminals[0]); }
   S.skippedList = false;
   renderTerminals();
+}
+
+async function fetchTerminals(wsId) {
+  return (await api("/api/workspaces/" + encodeURIComponent(wsId) + "/terminals")) || [];
 }
 
 function tabLabel(t, i) { return t.title || "Terminal " + (i + 1); }
@@ -733,7 +736,7 @@ async function showTerminals() {
   renderTerminals();
   const w = S.wsSel;
   try {
-    const list = (await api("/api/workspaces/" + encodeURIComponent(w.id) + "/terminals")) || [];
+    const list = await fetchTerminals(w.id);
     if (S.wsSel !== w) return;
     S.terminals = list;
     if (S.view === "terms") renderTerminals();
@@ -963,7 +966,7 @@ async function onTaskStarted(m) {
   if (S.runningTask !== m.label || !S.wsSel || S.wsSel.id !== m.workspaceId) return;
   S.runningTask = null;
   try {
-    S.terminals = (await api("/api/workspaces/" + encodeURIComponent(m.workspaceId) + "/terminals")) || [];
+    S.terminals = await fetchTerminals(m.workspaceId);
   } catch (e) { return; }
   const tab = S.terminals.find((t) => t.tabId === m.tabId);
   if (tab) { S.skippedList = false; openSession(tab); }
