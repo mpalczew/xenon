@@ -1633,10 +1633,21 @@ function wireEvents() {
   // reaching #term. Capture starts at the drag threshold, not at pointerdown, so taps still click.
   let touch = null;
   let dragged = false;
+  let fling = 0;
+  // Momentum: the server scrolls, so the browser's own fling never runs; coast at the release speed.
+  const coast = (v, t) => {
+    fling = requestAnimationFrame((now) => {
+      const dt = now - t;
+      pushWheel(v * dt);
+      v *= Math.pow(0.95, dt / 16);
+      if (Math.abs(v) > 0.05) coast(v, now);
+    });
+  };
   term.addEventListener("pointerdown", (e) => {
     // A new primary touch replaces any old one: an up on a node a redraw detached never reaches here.
     if (e.pointerType !== "touch" || !e.isPrimary) return;
-    touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false };
+    cancelAnimationFrame(fling);
+    touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false, v: 0, t: e.timeStamp };
     dragged = false;
     S.wheelAcc = 0;
   });
@@ -1650,10 +1661,15 @@ function wireEvents() {
       term.setPointerCapture(e.pointerId);
     }
     pushWheel(e.clientY - touch.y);
+    const dt = e.timeStamp - touch.t;
+    if (dt > 0) touch.v = 0.8 * touch.v + 0.2 * (e.clientY - touch.y) / dt;
     touch.y = e.clientY;
+    touch.t = e.timeStamp;
   });
   const endTouch = (e) => {
-    if (touch && e.pointerId === touch.id) touch = null;
+    if (!touch || e.pointerId !== touch.id) return;
+    if (e.type === "pointerup" && touch.drag && e.timeStamp - touch.t < 100 && Math.abs(touch.v) > 0.3) coast(touch.v, performance.now());
+    touch = null;
   };
   term.addEventListener("pointerup", endTouch);
   term.addEventListener("pointercancel", endTouch);
