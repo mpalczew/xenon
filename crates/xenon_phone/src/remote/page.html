@@ -1171,7 +1171,13 @@ function atLiveEdge() {
   return t.scrollHeight - t.scrollTop - t.clientHeight < 4;
 }
 
+// touch-action is fixed when a gesture starts, so choose it ahead of time.
+function syncTouchAction() {
+  $("term").style.touchAction = gridTallerThanView() ? "pan-y" : "none";
+}
+
 function syncLive() {
+  syncTouchAction();
   const away = !!S.term.scrolled || !atLiveEdge();
   if (!away) S.follow = true;
   $("live").hidden = !away;
@@ -1196,7 +1202,6 @@ function pushWheel(dy) {
   const step = Core.wheelRows(S.wheelAcc, dy, linePx());
   S.wheelAcc = step.acc;
   if (step.rows) send({ t: "wheel", rows: step.rows });
-  if (S.touchDiag) S.touchDiag.rows += step.rows;
 }
 
 function setLowBandwidth(enabled) {
@@ -1333,6 +1338,7 @@ function onViewport() {
     root.setProperty("--app-h", vv.height + "px");
     root.setProperty("--app-top", vv.offsetTop + "px");
   }
+  syncTouchAction();
   if (S.view === "session") { scheduleFit(250, "viewport"); if (S.follow) scrollToLive(); }
 }
 
@@ -1623,72 +1629,35 @@ function wireEvents() {
   $("input").addEventListener("submit", submitText);
   const term = $("term");
   term.addEventListener("scroll", onTermScroll, { passive: true });
-  term.addEventListener("scroll", () => { if (S.touchDiag) S.touchDiag.scrolls++; }, { passive: true });
-  let touchY = null;
-  let touchWheel = false;
-  let tap = null;
-  let ignoreClick = false;
-  const endDiag = (kind) => {
-    if (!S.touchDiag) return;
-    const d = S.touchDiag;
-    S.touchDiag = null;
-    send({ t: "diag", text: kind + " moves=" + d.moves + " prevented=" + d.prevented + " uncancelable=" + d.uncancelable +
-      " rowsSent=" + d.rows + " nativeScrolls=" + d.scrolls + " st=" + Math.round(d.top0) + "->" + Math.round(term.scrollTop) +
-      " ta=" + term.style.touchAction + " scrolled=" + !!S.term.scrolled });
-  };
-  term.addEventListener("touchstart", (e) => {
-    if (e.touches.length !== 1) { touchY = null; tap = null; return; }
-    touchY = e.touches[0].clientY;
-    tap = { x: e.touches[0].clientX, y: e.touches[0].clientY, drag: false };
+  // Pointer events with capture: a redraw detaches the touched node, and touch events would stop
+  // reaching #term. Capture starts at the drag threshold, not at pointerdown, so taps still click.
+  let touch = null;
+  let dragged = false;
+  term.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch" || touch) return;
+    touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false };
+    dragged = false;
     S.wheelAcc = 0;
-    const before = term.style.touchAction || "auto";
-    touchWheel = !gridTallerThanView();
-    term.style.touchAction = touchWheel ? "none" : "pan-y";
-    S.touchDiag = { moves: 0, prevented: 0, uncancelable: 0, rows: 0, scrolls: 0, top0: term.scrollTop };
-    send({ t: "diag", text: "start wheel=" + touchWheel + " ta=" + before + " sh=" + term.scrollHeight +
-      " ch=" + term.clientHeight + " st=" + Math.round(term.scrollTop) + " line=" + linePx().toFixed(1) +
-      " scrolled=" + !!S.term.scrolled + " follow=" + S.follow + " rows=" + S.term.rows +
-      " sel=" + selecting() + " stale=" + !!S.stale + " ignoreClick=" + ignoreClick +
-      " tgt=" + (e.target.id || e.target.className || e.target.tagName) });
-  }, { passive: true });
-  term.addEventListener("touchmove", (e) => {
-    if (tap && e.touches.length === 1) {
-      const dx = e.touches[0].clientX - tap.x;
-      const dy = e.touches[0].clientY - tap.y;
-      if (dx * dx + dy * dy > 64) tap.drag = true;
-    }
-    if (S.touchDiag) { S.touchDiag.moves++; if (!e.cancelable) S.touchDiag.uncancelable++; }
-    if (touchY == null || !touchWheel) return;
-    const y = e.touches[0].clientY;
-    const dy = y - touchY;
-    touchY = y;
-    e.preventDefault();
-    if (S.touchDiag && e.defaultPrevented) S.touchDiag.prevented++;
-    pushWheel(dy);
-  }, { passive: false });
-  term.addEventListener("touchend", (e) => {
-    endDiag("end");
-    const was = tap;
-    tap = null;
-    touchY = null;
-    if (!was) return;
-    // A drag still produces a click unless this swallows it.
-    ignoreClick = true;
-    if (was.drag) return;
-    if (e.target.closest && e.target.closest("a")) return;
-    const t = e.changedTouches[0];
-    if (!t) return;
-    sendClick(t.clientX, t.clientY);
-    focusDirect();
-  }, { passive: true });
-  term.addEventListener("touchcancel", () => {
-    endDiag("cancel");
-    tap = null;
-    touchY = null;
-    ignoreClick = true;
   });
+  term.addEventListener("pointermove", (e) => {
+    if (!touch || e.pointerId !== touch.id || !touch.wheel) return;
+    const dx = e.clientX - touch.x;
+    const dy = e.clientY - touch.y;
+    if (!touch.drag) {
+      if (dx * dx + dy * dy <= 64) return;
+      touch.drag = dragged = true;
+      term.setPointerCapture(e.pointerId);
+    }
+    pushWheel(e.clientY - touch.y);
+    touch.y = e.clientY;
+  });
+  const endTouch = (e) => {
+    if (touch && e.pointerId === touch.id) touch = null;
+  };
+  term.addEventListener("pointerup", endTouch);
+  term.addEventListener("pointercancel", endTouch);
   term.addEventListener("click", (e) => {
-    if (ignoreClick) { ignoreClick = false; return; }
+    if (dragged) return;
     if (e.target.closest && e.target.closest("a")) return;
     sendClick(e.clientX, e.clientY);
     focusDirect();

@@ -103,10 +103,6 @@ impl Phone {
                 label,
             } => self.run_task(conn, &workspace_id, label),
             ClientMsg::TaskInput { token, value } => self.task_answer(conn, token, value),
-            ClientMsg::Diag { text } => {
-                let text: String = text.chars().filter(|c| !c.is_control()).take(300).collect();
-                eprintln!("xenon-phone touch conn={} {text}", conn.0);
-            }
             ClientMsg::Hello { .. } | ClientMsg::Ping => {}
             other => self.terminal_message(conn, other),
         }
