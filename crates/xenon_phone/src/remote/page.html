@@ -1634,7 +1634,8 @@ function wireEvents() {
   let touch = null;
   let dragged = false;
   term.addEventListener("pointerdown", (e) => {
-    if (e.pointerType !== "touch" || touch) return;
+    // A new primary touch replaces any old one: an up on a node a redraw detached never reaches here.
+    if (e.pointerType !== "touch" || !e.isPrimary) return;
     touch = { id: e.pointerId, x: e.clientX, y: e.clientY, wheel: !gridTallerThanView(), drag: false };
     dragged = false;
     S.wheelAcc = 0;
