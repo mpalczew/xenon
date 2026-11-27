@@ -122,9 +122,19 @@ impl Phone {
     }
 
     fn terminal_message(&self, conn: ConnId, msg: ClientMsg) {
+        let typed = matches!(msg, ClientMsg::Text { .. } | ClientMsg::Key { .. });
         let Some(mirror) = self.attached(conn) else {
+            if typed {
+                eprintln!("xenon-phone input dropped conn={}: not attached", conn.0);
+            }
             return;
         };
+        if typed && mirror.is_gone() {
+            eprintln!(
+                "xenon-phone input dropped conn={}: terminal connection gone",
+                conn.0
+            );
+        }
         match msg {
             ClientMsg::Text { data } => mirror.input(&pty_text_bytes(&data)),
             ClientMsg::Key { key } => mirror.input(key.pty_bytes(mirror.modes().app_cursor)),
@@ -175,6 +185,7 @@ impl Phone {
         };
         let label = self.device_label(conn);
         let Ok(mirror) = self.terms.watch(info.id, &label) else {
+            eprintln!("xenon-phone attach conn={} failed", conn.0);
             self.closed_notice(conn);
             return;
         };
@@ -198,6 +209,7 @@ impl Phone {
                 mirror: Arc::clone(&mirror),
             });
         }
+        eprintln!("xenon-phone attach conn={} term={}", conn.0, info.id);
         mirror.wake();
         self.push_dots();
         self.changed();
@@ -223,6 +235,7 @@ impl Phone {
             .get_mut(&conn)
             .and_then(|c| c.attach.take());
         if let Some(a) = attach {
+            eprintln!("xenon-phone detach conn={} term={}", conn.0, a.term);
             a.mirror.stop();
         }
     }

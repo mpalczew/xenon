@@ -35,6 +35,9 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
         let low = view.low_bandwidth.load(Ordering::Relaxed);
         let gap = if low { LOW_GAP } else { GAP };
         if !mirror.wait_dirty(last, gap) {
+            if mirror.is_gone() {
+                eprintln!("xenon-phone frames stopped: terminal connection gone");
+            }
             return;
         }
         last = Instant::now();
