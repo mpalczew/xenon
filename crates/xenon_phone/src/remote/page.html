@@ -149,9 +149,7 @@ html.in-session { background:var(--chrome); }
 .k.enter { flex:none; width:52px; height:auto; background:var(--accent); color:var(--on-accent); border-color:var(--enter-line); font-size:20px; }
 .k:active:not(:disabled) { outline:2px solid var(--accent); outline-offset:1px; }
 
-.input { flex:none; display:flex; gap:8px; align-items:center; padding:6px 10px max(10px, var(--sab)); background:var(--chrome); margin:0; }
-/* The keyboard covers the home indicator, so its safe area is just empty space. */
-.input:focus-within { padding-bottom:10px; }
+.input { flex:none; display:flex; gap:8px; align-items:center; padding:6px 10px max(10px, calc(var(--sab) - var(--below, 0px))); background:var(--chrome); margin:0; }
 .field { flex:1; min-width:0; height:40px; border-radius:20px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; padding:0 5px 0 14px; gap:6px; }
 .field:focus-within { border-color:var(--focus-line); }
 .field input { flex:1; min-width:0; height:100%; background:none; border:0; outline:0; color:var(--text); font:16px var(--ui); padding:0; }
@@ -1467,20 +1465,15 @@ function sendFit() {
   if (send({ t: "fit", cols: fit.cols, rows: fit.rows, diag: fitDiag(why) })) S.lastFit = fit;
 }
 
-// iOS home-screen apps with a translucent status bar report a viewport one status bar
-// short of the screen while drawing from its very top, which leaves a blank strip at the
-// bottom. With the keyboard down, in portrait, use the screen height instead.
-function appHeight(vv) {
-  const portrait = innerHeight > innerWidth;
-  const keyboardDown = screen.height - vv.height < 120;
-  return isStandalone() && portrait && keyboardDown && vv.offsetTop === 0 ? screen.height : vv.height;
-}
-
 function onViewport() {
   const vv = window.visualViewport;
   if (vv) {
     const root = document.documentElement.style;
-    root.setProperty("--app-h", appHeight(vv) + "px");
+    root.setProperty("--app-h", vv.height + "px");
+    // Screen below the page: the keyboard, or a strip iOS leaves under a home-screen
+    // app. Either way the home indicator isn't over the page, so its safe area isn't padding.
+    const below = innerHeight > innerWidth ? screen.height - vv.offsetTop - vv.height : 0;
+    root.setProperty("--below", Math.max(0, below) + "px");
     root.setProperty("--app-top", vv.offsetTop + "px");
   }
   syncTouchAction();
