@@ -131,7 +131,20 @@ impl Phone {
             ClientMsg::Wheel { rows, col, row } => {
                 alt_wheel(&mirror, rows.clamp(-WHEEL_LIMIT, WHEEL_LIMIT), col, row);
             }
-            ClientMsg::Scroll { epoch, top, follow } => self.scrolled(conn, epoch, top, follow),
+            ClientMsg::Scroll {
+                epoch,
+                top,
+                follow,
+                lines,
+            } => self.scrolled(
+                conn,
+                Report {
+                    epoch,
+                    top,
+                    follow,
+                    lines,
+                },
+            ),
             ClientMsg::Click { col, row } => click(&mirror, col, row),
             ClientMsg::Fit { cols, rows, diag } => {
                 if let Some(size) = Size::new(cols, rows) {
@@ -214,12 +227,12 @@ impl Phone {
         }
     }
 
-    fn scrolled(&self, conn: ConnId, epoch: u32, top: u64, follow: bool) {
+    fn scrolled(&self, conn: ConnId, report: Report) {
         let guard = locked(&self.conns);
         let Some(a) = guard.get(&conn).and_then(|c| c.attach.as_ref()) else {
             return;
         };
-        *locked(&a.view.report) = Some(Report { epoch, top, follow });
+        *locked(&a.view.report) = Some(report);
         a.mirror.wake();
     }
 

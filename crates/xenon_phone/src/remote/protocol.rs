@@ -188,6 +188,9 @@ pub enum ClientMsg {
         epoch: u32,
         top: u64,
         follow: bool,
+        /// Lines the phone's viewport shows; more than `rows` while it shrinks a wide terminal.
+        #[serde(default)]
+        lines: u16,
     },
     Click {
         col: u16,

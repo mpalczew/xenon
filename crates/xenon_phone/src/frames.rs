@@ -31,7 +31,6 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
     let mut encoder = WindowEncoder::default();
     let mut last = Instant::now();
     let mut shown_dark = None;
-    let mut shown_shape = None;
     loop {
         let low = view.low_bandwidth.load(Ordering::Relaxed);
         let gap = if low { LOW_GAP } else { GAP };
@@ -52,14 +51,6 @@ fn run(phone: &Weak<Phone>, mirror: &Mirror, view: &View, out: &Outbox) {
         let look = Look::of(dark);
         let report = view.report();
         let snap = mirror.read(|term, at| {
-            // Temporary: find why the phone renders at a size it didn't fit.
-            let shape = (at.epoch, at.cols, at.rows, at.alt);
-            if shown_shape.replace(shape) != Some(shape) {
-                eprintln!(
-                    "xenon-phone shape epoch={} {}x{} alt={} oldest={} live={} report={report:?}",
-                    at.epoch, at.cols, at.rows, at.alt, at.oldest, at.live
-                );
-            }
             let want = window::plan(at, report, encoder.held(), Depth::of(low));
             let holds = |n| encoder.holds_history(n, at);
             crate::screen::window(term, at, &want, holds, &look)

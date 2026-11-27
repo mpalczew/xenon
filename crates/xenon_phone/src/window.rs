@@ -12,6 +12,8 @@ pub(crate) struct Report {
     /// The line at the top of the phone's viewport.
     pub top: u64,
     pub follow: bool,
+    /// Lines the viewport shows.
+    pub lines: u16,
 }
 
 /// Preload, in screens.
@@ -100,7 +102,8 @@ pub(crate) fn plan(
             None => (at.live, true),
         },
     };
-    let r = u64::from(at.rows);
+    // A screen is what the phone shows: more than `rows` while it shrinks a wide terminal.
+    let r = u64::from(at.rows.max(report.map_or(0, |p| p.lines)));
     let need = anchor.saturating_sub(d.above * r / 2).max(at.oldest)
         ..(anchor + r + d.below * r / 2).min(bottom);
     if let Some(range) = kept

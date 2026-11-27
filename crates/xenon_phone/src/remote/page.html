@@ -1295,7 +1295,7 @@ function scheduleReport(force) {
     const fresh = !last || last.epoch !== w.epoch || last.follow !== S.follow;
     const moved = fresh || (!S.follow && Math.abs(top - last.top) >= Math.max(1, w.rows >> 2));
     if (!forced && !moved) return;
-    if (send({ t: "scroll", epoch: w.epoch, top, follow: S.follow })) S.sent = { epoch: w.epoch, top, follow: S.follow };
+    if (send({ t: "scroll", epoch: w.epoch, top, follow: S.follow, lines: Math.ceil($("term").clientHeight / linePx()) })) S.sent = { epoch: w.epoch, top, follow: S.follow };
   });
 }
 
