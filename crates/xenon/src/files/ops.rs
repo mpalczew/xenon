@@ -128,8 +128,6 @@ impl FilesView {
         let menu = gtk::PopoverMenu::from_model(Some(&menu_model(target.is_some())));
         *self.ctx.borrow_mut() = target;
         menu.set_has_arrow(false);
-        // Open right of the pointer: GTK slides a side popover vertically to fit, but
-        // shrinks a below/above one into a scrolling menu.
         menu.set_position(gtk::PositionType::Right);
         menu.set_valign(gtk::Align::Start);
         menu.set_parent(&self.list);
