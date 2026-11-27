@@ -76,7 +76,7 @@ html.in-session { background:var(--chrome); }
 .hdr .crumb { color:var(--muted); font-weight:500; }
 .conn { flex:none; width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px var(--ok-halo); }
 .conn.off { background:var(--faint); box-shadow:none; }
-.scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:var(--sab); }
+.scroll { flex:1; min-height:0; overflow-y:auto; padding-bottom:var(--sab); }
 
 .sect { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:18px 16px 6px; }
 .ws { width:100%; text-align:left; display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--hair); min-height:64px; }
@@ -122,9 +122,9 @@ html.in-session { background:var(--chrome); }
 .banner { flex:none; margin:8px 10px 0; padding:9px 12px; border-radius:10px; background:var(--warn-dim); color:var(--warn); font-size:13px; font-weight:600; display:flex; gap:8px; align-items:center; }
 .spin { width:13px; height:13px; flex:none; border-radius:50%; border:2px solid var(--warn); border-right-color:transparent; animation:spin .9s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
-#termwrap { flex:1; min-height:0; position:relative; background:var(--term-bg); --fs:13px; --lh:18px; }
-#term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; overflow-anchor:none;
-  padding:8px 10px 0; font-family:var(--mono); font-size:var(--fs); line-height:var(--lh); color:var(--term-fg); white-space:pre; }
+#termwrap { flex:1; min-height:0; position:relative; background:var(--term-bg); --fs:13px; --lh:18px; --pad:8px; }
+#term { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; overflow-anchor:none;
+  padding:var(--pad) 10px 0; font-family:var(--mono); font-size:var(--fs); line-height:var(--lh); color:var(--term-fg); white-space:pre; }
 #term a { color:inherit; text-decoration:underline dotted; }
 #screen { position:relative; height:calc(var(--n, 0) * var(--lh)); }
 .row { position:absolute; left:0; right:0; top:calc(var(--k) * var(--lh)); height:var(--lh); overflow:hidden; }
@@ -470,6 +470,9 @@ const Core = (() => {
 })();
 
 const BUILD = "__XENON_BUILD__";
+// Line height in px at scale 1, and the top padding of #term. updateScale writes both to CSS.
+const LH = 18;
+const PAD = 8;
 const KEY = { token: "xenon.remote.token", host: "xenon.remote.host", a2hs: "xenon.remote.a2hsDismissed", mode: "xenon.remote.mode", bandwidth: "xenon.remote.lowBandwidth", appearance: "xenon.remote.appearance" };
 const S = {
   token: store(KEY.token), hostName: store(KEY.host) || "",
@@ -717,7 +720,6 @@ function sendAttach() {
   send({ t: "bandwidth", lowBandwidth: S.lowBandwidth });
   send({ t: "attach", workspaceId: S.want.workspaceId, tabId: S.want.tabId });
   S.win.epoch = -1;
-  S.sent = null;
   S.lastFit = null;
   scheduleFit(0, "attach");
 }
@@ -1162,7 +1164,7 @@ function renderLines(m) {
   if (d.epoch) placeView(m.anchor);
   renderCursor();
   syncLive();
-  if (S.follow && !S.touching) maybeRebase();
+  if (S.follow) maybeRebase();
 }
 
 function setHeight() {
@@ -1188,15 +1190,18 @@ function paintAll() {
   for (const [n, spans] of S.win.lines) rowEl(n).innerHTML = rowHtml(spans);
 }
 
+// Scroll position of line n's top edge, and the line at the top of the viewport.
+function lineTop(n) { return PAD + (n - S.origin) * linePx(); }
+function lineAt(scrollTop) { return Core.viewTop(S.origin, scrollTop, PAD, linePx()); }
+
 // A new epoch: re-anchor a reader where the server says, else go live.
 function placeView(anchor) {
   if (anchor != null) {
     S.follow = false;
-    $("term").scrollTop = 8 + (anchor - S.origin) * linePx();
+    $("term").scrollTop = lineTop(anchor);
   } else {
     S.follow = true;
   }
-  S.sent = null;
   scheduleReport(true);
 }
 
@@ -1217,9 +1222,8 @@ document.addEventListener("selectionchange", () => {
 });
 
 function renderCursor() {
-  const el = $("cursor");
+  const el = cursorEl();
   const c = S.win.cursor;
-  if (!el) return;
   if (selecting()) { S.repaint = true; return; }
   const n = c ? S.win.live + c.r : -1;
   if (!c || n < S.win.top || n >= S.win.top + S.win.len) { el.hidden = true; return; }
@@ -1307,17 +1311,17 @@ function scheduleReport(force) {
     S.reportForce = false;
     const w = S.win;
     if (w.alt || w.epoch < 0) return;
-    const top = Core.viewTop(S.origin, $("term").scrollTop, 8, linePx());
+    const top = lineAt($("term").scrollTop);
     const last = S.sent;
     const fresh = !last || last.epoch !== w.epoch || last.follow !== S.follow;
     const moved = fresh || (!S.follow && Math.abs(top - last.top) >= Math.max(1, w.rows >> 2));
     if (!forced && !moved) return;
-    if (send({ t: "scroll", epoch: w.epoch, top, follow: S.follow, lines: Math.ceil($("term").clientHeight / linePx()) })) S.sent = { epoch: w.epoch, top, follow: S.follow };
+    if (send({ t: "scroll", epoch: w.epoch, top, follow: S.follow, lines: rowsIn(linePx()) })) S.sent = { epoch: w.epoch, top, follow: S.follow };
   });
 }
 
 function linePx() {
-  return 18 * (S.scale || 1);
+  return LH * (S.scale || 1);
 }
 
 function screenCell(x, y) {
@@ -1416,8 +1420,11 @@ function measureChar() {
 
 function availSize() {
   const t = $("term");
-  return { w: t.clientWidth - 20, h: t.clientHeight - 8 };
+  return { w: t.clientWidth - 20, h: t.clientHeight - PAD };
 }
+
+// Whole rows of height lh that fit in the terminal.
+function rowsIn(lh) { return Math.floor(availSize().h / lh); }
 
 function updateScale() {
   if (!S.cw) measureChar();
@@ -1427,9 +1434,10 @@ function updateScale() {
   S.scale = natural > w && w > 0 ? w / natural : 1;
   const wrap = $("termwrap").style;
   wrap.setProperty("--fs", 13 * S.scale + "px");
-  wrap.setProperty("--lh", 18 * S.scale + "px");
+  wrap.setProperty("--lh", linePx() + "px");
+  wrap.setProperty("--pad", PAD + "px");
   const t = $("term");
-  if (linePx() !== before) t.scrollTop = 8 + (t.scrollTop - 8) * linePx() / before;
+  if (linePx() !== before) t.scrollTop = PAD + (t.scrollTop - PAD) * linePx() / before;
   renderCursor();
 }
 
@@ -1458,7 +1466,7 @@ function sendFit() {
   if (S.view !== "session") return;
   measureChar();
   const a = availSize();
-  const fit = Core.fitCells(a.w, a.h, S.cw, 18);
+  const fit = Core.fitCells(a.w, a.h, S.cw, LH);
   if (S.win.cols) updateScale();
   if (!fit || !S.want) return;
   if (S.lastFit && S.lastFit.cols === fit.cols && S.lastFit.rows === fit.rows) return;
@@ -1476,8 +1484,7 @@ function onViewport() {
     root.setProperty("--below", Math.max(0, below) + "px");
     root.setProperty("--app-top", vv.offsetTop + "px");
   }
-  syncTouchAction();
-  if (S.view === "session") { scheduleFit(250, "viewport"); if (S.follow) scrollToLive(); }
+  if (S.view === "session") { scheduleFit(250, "viewport"); syncLive(); }
 }
 
 function sendKeyButton(btn) {
