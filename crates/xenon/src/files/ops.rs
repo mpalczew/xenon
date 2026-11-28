@@ -81,7 +81,7 @@ impl FilesView {
             });
             group.add_action(&action);
         }
-        self.root.insert_action_group("files", Some(&group));
+        self.list.insert_action_group("files", Some(&group));
 
         let click = gtk::GestureClick::new();
         click.set_button(gdk::BUTTON_SECONDARY);
@@ -114,20 +114,17 @@ impl FilesView {
         *self.ctx.borrow_mut() = target;
         menu.set_has_arrow(false);
         menu.set_halign(gtk::Align::Start);
-        menu.set_parent(&self.root);
-        let at = self
-            .list
-            .compute_point(
-                &self.root,
-                &gtk::graphene::Point::new(at.x() as f32, at.y() as f32),
-            )
-            .map_or(at, |p| {
-                gdk::Rectangle::new(p.x() as i32, p.y() as i32, at.width(), at.height())
-            });
+        menu.set_parent(&self.list);
         menu.set_pointing_to(Some(&at));
         menu.connect_closed(|menu| {
             let menu = menu.clone();
             glib::idle_add_local_once(move || menu.unparent());
+        });
+        // The list doesn't re-present popovers on layout as GTK's own hosts do, so the
+        // first size misses the separators' margins and the menu scrolls.
+        menu.connect_map(|menu| {
+            let menu = menu.clone();
+            glib::idle_add_local_once(move || menu.present());
         });
         menu.popup();
     }
