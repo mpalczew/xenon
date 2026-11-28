@@ -19,7 +19,7 @@ goes.
 for cmd in [ToggleSidebar, SplitRight, SplitDown, ParkPane, Copy, CopyClean, Paste] {
     bar.pack_start(&button(cmd));
 }
-bar.pack_end(&main_menu()); // Settings is already in it
+app.sidebar.header.pack_start(&main_menu()); // Settings is already in it
 bar.pack_end(&app.save_button);
 for cmd in [RunTask, OpenWorklist] {
     bar.pack_end(&button(cmd));
@@ -32,11 +32,12 @@ app.sidebar.show(SidebarPage::Workspaces);
 ## Shape
 
 ```text
-header  [sidebar][split →][split ↓][park][copy][copy clean][paste]  title  [worklist][▶][save][☰]
+header  [sidebar][split →][split ↓][park][copy][copy clean][paste]  title  [worklist][▶][save]
+        (over the panes only; [☰] appears here at the end only while the sidebar is hidden)
 pane    tabs … [terminal icon]        (was "+", same action: new terminal in this pane)
 
-sidebar
-├── [ Workspaces | Files | Git ]        adw::ViewSwitcher
+sidebar  adw::ToolbarView, full window height (split header, as in Builder)
+├── adw::HeaderBar  [☰]  [ Workspaces | Files | Git ]   adw::InlineViewSwitcher, icons only
 └── adw::ViewStack (vexpand)
     ├── Workspaces   the existing list, full height (no 300 px cap, no "WORKSPACES" title)
     ├── Files
@@ -77,3 +78,12 @@ sidebar
 
 Trim `header()` in `window.rs`, delete the builds badge, swap the pane's add icon, then
 move Workspaces into the stack.
+
+## As built
+
+- `adw::ViewSwitcher` is meant for header bars; in the sidebar body it drew large tiles
+  and clipped the Git badge. `adw::InlineViewSwitcher` (icons only) replaced it; it has
+  no badge, so the Git changed-file count is gone.
+- Split header: each side of the width `Paned` is an `adw::ToolbarView` with its own
+  `adw::HeaderBar`; the content header shows start title buttons only while the sidebar
+  is hidden.
