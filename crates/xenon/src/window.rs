@@ -61,9 +61,10 @@ fn button(cmd: Cmd) -> gtk::Button {
     b
 }
 
-fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
+fn header(app: &Rc<App>, title: &adw::WindowTitle, menu: &gtk::MenuButton) -> adw::HeaderBar {
     let bar = adw::HeaderBar::new();
     bar.set_title_widget(Some(title));
+    bar.pack_end(menu);
     for cmd in [
         Cmd::ToggleSidebar,
         Cmd::SplitRight,
@@ -218,13 +219,22 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     app.split.set_wide_handle(false);
     app.sidebar.show(settings.sidebar_page);
     app.sidebar.header.pack_start(&main_menu());
-    let bar = header(&app, &title);
-    app.sidebar
-        .root
-        .bind_property("visible", &bar, "show-start-title-buttons")
-        .invert_boolean()
-        .sync_create()
-        .build();
+    let menu = main_menu();
+    let bar = header(&app, &title, &menu);
+    for (target, property) in [
+        (
+            bar.upcast_ref::<gtk::glib::Object>(),
+            "show-start-title-buttons",
+        ),
+        (menu.upcast_ref(), "visible"),
+    ] {
+        app.sidebar
+            .root
+            .bind_property("visible", target, property)
+            .invert_boolean()
+            .sync_create()
+            .build();
+    }
     let content = adw::ToolbarView::new();
     content.add_top_bar(&bar);
     content.set_content(Some(&app.stack));
