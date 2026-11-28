@@ -81,7 +81,7 @@ impl FilesView {
             });
             group.add_action(&action);
         }
-        self.list.insert_action_group("files", Some(&group));
+        self.root.insert_action_group("files", Some(&group));
 
         let click = gtk::GestureClick::new();
         click.set_button(gdk::BUTTON_SECONDARY);
