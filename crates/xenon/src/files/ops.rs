@@ -36,23 +36,18 @@ fn menu_model(on_item: bool) -> gio::Menu {
         item
     };
     let menu = gio::Menu::new();
-    let make = &menu;
-    make.append_item(&item("New File\u{2026}", "new-file", None));
-    make.append_item(&item("New Folder\u{2026}", "new-folder", None));
-    let view = &menu;
+    menu.append_item(&item("New File\u{2026}", "new-file", None));
+    menu.append_item(&item("New Folder\u{2026}", "new-folder", None));
     let hidden = Cmd::ShowHiddenFiles.menu_item();
     hidden.set_attribute_value("accel", Some(&"<Control>h".to_variant()));
-    view.append_item(&hidden);
+    menu.append_item(&hidden);
     if on_item {
-        let change = &menu;
-        change.append_item(&item("Rename\u{2026}", "rename", Some("F2")));
-        change.append_item(&item("Move to Trash", "trash", Some("Delete")));
-        let copy = &menu;
-        copy.append_item(&item("Copy Path", "copy-path", None));
-        copy.append_item(&item("Copy Relative Path", "copy-relative-path", None));
-        let open = &menu;
-        open.append_item(&item("Open in Default App", "open", None));
-        open.append_item(&item("Show in File Manager", "show", None));
+        menu.append_item(&item("Rename\u{2026}", "rename", Some("F2")));
+        menu.append_item(&item("Move to Trash", "trash", Some("Delete")));
+        menu.append_item(&item("Copy Path", "copy-path", None));
+        menu.append_item(&item("Copy Relative Path", "copy-relative-path", None));
+        menu.append_item(&item("Open in Default App", "open", None));
+        menu.append_item(&item("Show in File Manager", "show", None));
     }
     menu
 }
