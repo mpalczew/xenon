@@ -36,18 +36,28 @@ fn menu_model(on_item: bool) -> gio::Menu {
         item
     };
     let menu = gio::Menu::new();
-    menu.append_item(&item("New File\u{2026}", "new-file", None));
-    menu.append_item(&item("New Folder\u{2026}", "new-folder", None));
+    let make = gio::Menu::new();
+    make.append_item(&item("New File\u{2026}", "new-file", None));
+    make.append_item(&item("New Folder\u{2026}", "new-folder", None));
+    menu.append_section(None, &make);
+    let view = gio::Menu::new();
     let hidden = Cmd::ShowHiddenFiles.menu_item();
     hidden.set_attribute_value("accel", Some(&"<Control>h".to_variant()));
-    menu.append_item(&hidden);
+    view.append_item(&hidden);
+    menu.append_section(None, &view);
     if on_item {
-        menu.append_item(&item("Rename\u{2026}", "rename", Some("F2")));
-        menu.append_item(&item("Move to Trash", "trash", Some("Delete")));
-        menu.append_item(&item("Copy Path", "copy-path", None));
-        menu.append_item(&item("Copy Relative Path", "copy-relative-path", None));
-        menu.append_item(&item("Open in Default App", "open", None));
-        menu.append_item(&item("Show in File Manager", "show", None));
+        let change = gio::Menu::new();
+        change.append_item(&item("Rename\u{2026}", "rename", Some("F2")));
+        change.append_item(&item("Move to Trash", "trash", Some("Delete")));
+        menu.append_section(None, &change);
+        let copy = gio::Menu::new();
+        copy.append_item(&item("Copy Path", "copy-path", None));
+        copy.append_item(&item("Copy Relative Path", "copy-relative-path", None));
+        menu.append_section(None, &copy);
+        let open = gio::Menu::new();
+        open.append_item(&item("Open in Default App", "open", None));
+        open.append_item(&item("Show in File Manager", "show", None));
+        menu.append_section(None, &open);
     }
     menu
 }
@@ -104,31 +114,20 @@ impl FilesView {
         *self.ctx.borrow_mut() = target;
         menu.set_has_arrow(false);
         menu.set_halign(gtk::Align::Start);
-        menu.set_parent(&self.list);
+        menu.set_parent(&self.root);
+        let at = self
+            .list
+            .compute_point(
+                &self.root,
+                &gtk::graphene::Point::new(at.x() as f32, at.y() as f32),
+            )
+            .map_or(at, |p| {
+                gdk::Rectangle::new(p.x() as i32, p.y() as i32, at.width(), at.height())
+            });
         menu.set_pointing_to(Some(&at));
         menu.connect_closed(|menu| {
             let menu = menu.clone();
             glib::idle_add_local_once(move || menu.unparent());
-        });
-        menu.connect_map(|menu| {
-            let menu = menu.clone();
-            glib::timeout_add_local_once(std::time::Duration::from_millis(300), move || {
-                if !menu.is_mapped() {
-                    return;
-                }
-                let (min, nat, _, _) = menu.measure(gtk::Orientation::Vertical, -1);
-                let surface = menu.native().and_then(|n| n.surface());
-                let monitor = surface
-                    .as_ref()
-                    .and_then(|s| s.display().monitor_at_surface(s))
-                    .map(|m| m.geometry());
-                eprintln!(
-                    "[diag] files menu: want min={min} nat={nat} got={} surface={:?} monitor={:?}",
-                    menu.height(),
-                    surface.map(|s| (s.width(), s.height())),
-                    monitor.map(|g| (g.width(), g.height())),
-                );
-            });
         });
         menu.popup();
     }
