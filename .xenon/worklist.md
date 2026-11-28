@@ -10,7 +10,3 @@
       while navigating back and forth in Direct mode; pull the `xenon-phone fit` line
       from `journalctl --user -u xenon-phone.service` on the next repro, fix the root
       cause, and remove the temporary `diag` logging.
-- [ ] Files sidebar right-click menu shows as a short scrolling stub instead of the
-      whole menu (KDE/KWin). Opening it right of the pointer (`files/ops.rs` `popup`)
-      didn't help; it now opens on the tree, not a header. Next: a full-screen
-      screenshot with the menu open, to see where KWin places and sizes it.
