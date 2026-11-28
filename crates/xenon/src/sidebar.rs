@@ -112,9 +112,13 @@ impl Sidebar {
         stack.add_titled_with_icon(&files.root, Some("files"), "Files", "folder-symbolic");
         let git_page =
             stack.add_titled_with_icon(&git.root, Some("git"), "Git", "document-edit-symbolic");
-        let switcher = adw::ViewSwitcher::builder()
-            .policy(adw::ViewSwitcherPolicy::Narrow)
+        let switcher = adw::InlineViewSwitcher::builder()
+            .display_mode(adw::InlineViewSwitcherDisplayMode::Icons)
             .stack(&stack)
+            .margin_start(6)
+            .margin_end(6)
+            .margin_top(6)
+            .margin_bottom(6)
             .build();
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("sidebar-pane");

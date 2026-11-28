@@ -23,7 +23,6 @@ Constraints: stock gtk4 0.11 and libadwaita 0.9; the Files right-click on its he
 ```rust
 // git_section.rs: Git reports its state; the sidebar decides nothing else.
 app.sidebar.git_page.set_visible(status.is_some());
-app.sidebar.git_page.set_badge_number(status.map_or(0, |s| s.files.len() as u32));
 
 // commands: FocusFiles / FocusGit show their page.
 app.sidebar.show(SidebarPage::Files);
@@ -37,7 +36,7 @@ s.sidebar_page = app.sidebar.page();
 ```text
 sidebar root: gtk::Box (vertical)
 ├── Workspaces header + list   natural height, capped at 300 px, always visible
-├── adw::ViewSwitcher          (Narrow) Files | Git, badge = changed files
+├── adw::InlineViewSwitcher    icons only (ViewSwitcher is for header bars)
 └── adw::ViewStack             vexpand: takes all remaining height
     ├── Files page             the existing tree
     └── Git page               the existing list; status page "Clean" when clean

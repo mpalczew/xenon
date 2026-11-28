@@ -126,9 +126,7 @@ impl GitView {
         *self.status.borrow_mut() = status.cloned();
         *self.shown.borrow_mut() = shown;
         if let Some(app) = self.app.upgrade() {
-            let page = &app.sidebar.git_page;
-            page.set_visible(status.is_some());
-            page.set_badge_number(status.map_or(0, |s| s.files.len() as u32));
+            app.sidebar.git_page.set_visible(status.is_some());
         }
         let Some(status) = status else {
             self.clear();
