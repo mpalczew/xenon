@@ -3,6 +3,9 @@
 - App and crashes: healthy since the GTK event-rule fixes. `crates/xenon_eventcheck`
 - Files sidebar: now built on GTK's `DirectoryList`, not yet tried by hand; moving a
   folder to another disk fails. `PRODUCT.md`
+- Sidebar layout: Workspaces on top, then a Files | Git switcher (no folds or saved
+  heights); theme is in the main menu. Not yet tried by hand.
+  `docs/designs/sidebar-panels.md`
 - Markdown prose mode: task items show a stray bullet; shading of blank lines in code
   blocks is fixed (also inside list items) but not yet checked on screen; Enter inside a
   code block sometimes ends the block (cause unknown; suspected only inside a list

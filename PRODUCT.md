@@ -17,5 +17,6 @@ It is for people who run several agents across several checkouts.
   unit of work.
 - Each workspace has a tree of panes, and each pane holds a stack of tabs. Opening a
   file adds a tab in the focused pane.
-- The optional sidebar lists workspaces, then Files, then Git for the active workspace.
+- The optional sidebar lists workspaces, then a Files | Git switcher for the active
+  workspace.
 - The phone remote lets you see and use your terminals from a phone.

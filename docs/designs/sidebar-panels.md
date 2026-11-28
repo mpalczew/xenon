@@ -1,7 +1,7 @@
 # Sidebar: Builder-style panels instead of stacked sections
 
 Status: accepted. Sketches: plain box (A, C), VS Code solver (B), Builder patterns in
-stock libadwaita (D), libpanel throughout (E). Sources: `/tmp/sidebar-design/`.
+stock libadwaita (D), libpanel throughout (E).
 
 ## Problem
 
