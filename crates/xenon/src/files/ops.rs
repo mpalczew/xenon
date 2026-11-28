@@ -113,8 +113,7 @@ impl FilesView {
         let menu = gtk::PopoverMenu::from_model(Some(&menu_model(target.is_some())));
         *self.ctx.borrow_mut() = target;
         menu.set_has_arrow(false);
-        menu.set_position(gtk::PositionType::Right);
-        menu.set_valign(gtk::Align::Start);
+        menu.set_halign(gtk::Align::Start);
         menu.set_parent(&self.list);
         menu.set_pointing_to(Some(&at));
         menu.connect_closed(|menu| {
