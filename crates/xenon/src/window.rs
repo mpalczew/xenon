@@ -75,7 +75,6 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     ] {
         bar.pack_start(&button(cmd));
     }
-    bar.pack_end(&main_menu());
     bar.pack_end(&app.save_button);
     for cmd in [Cmd::RunTask, Cmd::OpenWorklist] {
         bar.pack_end(&button(cmd));
@@ -112,6 +111,7 @@ fn main_menu() -> gtk::MenuButton {
     button.set_icon_name("open-menu-symbolic");
     button.set_menu_model(Some(&menu));
     button.set_tooltip_text(Some("Main Menu"));
+    button.set_primary(true);
     button.set_focusable(false);
     button
 }
@@ -210,7 +210,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     app.stack
         .add_named(&crate::empty::all_clear(false), Some("none"));
     app.split.set_start_child(Some(&app.sidebar.root));
-    app.split.set_end_child(Some(&app.stack));
     app.split.set_shrink_start_child(false);
     app.split.set_shrink_end_child(false);
     app.split.set_resize_start_child(false);
@@ -218,11 +217,20 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         .set_position(settings.sidebar_width.clamp(140.0, 480.0) as i32);
     app.split.set_wide_handle(false);
     app.sidebar.show(settings.sidebar_page);
+    app.sidebar.header.pack_start(&main_menu());
+    let bar = header(&app, &title);
+    app.sidebar
+        .root
+        .bind_property("visible", &bar, "show-start-title-buttons")
+        .invert_boolean()
+        .sync_create()
+        .build();
+    let content = adw::ToolbarView::new();
+    content.add_top_bar(&bar);
+    content.set_content(Some(&app.stack));
+    app.split.set_end_child(Some(&content));
     toasts.set_child(Some(&app.split));
-    let view = adw::ToolbarView::new();
-    view.add_top_bar(&header(&app, &title));
-    view.set_content(Some(&toasts));
-    win.set_content(Some(&layered(&app, &view)));
+    win.set_content(Some(&layered(&app, &toasts)));
     crate::git::listen(&app);
     connect_window(&app, &win);
     app.sidebar.rebuild(&app.model.borrow());
@@ -232,7 +240,7 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     app
 }
 
-fn layered(app: &App, view: &adw::ToolbarView) -> gtk::Overlay {
+fn layered(app: &App, view: &adw::ToastOverlay) -> gtk::Overlay {
     let overlay = gtk::Overlay::new();
     overlay.set_child(Some(view));
     overlay.add_overlay(&app.trust_card.root);

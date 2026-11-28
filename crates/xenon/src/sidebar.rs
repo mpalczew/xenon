@@ -25,7 +25,8 @@ struct WsRow {
 }
 
 pub(crate) struct Sidebar {
-    pub root: gtk::Box,
+    pub root: adw::ToolbarView,
+    pub header: adw::HeaderBar,
     pub files: Rc<FilesView>,
     pub git: Rc<GitView>,
     pub git_page: adw::ViewStackPage,
@@ -115,17 +116,17 @@ impl Sidebar {
         let switcher = adw::InlineViewSwitcher::builder()
             .display_mode(adw::InlineViewSwitcherDisplayMode::Icons)
             .stack(&stack)
-            .margin_start(6)
-            .margin_end(6)
-            .margin_top(6)
-            .margin_bottom(6)
             .build();
-        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let header = adw::HeaderBar::new();
+        header.set_title_widget(Some(&switcher));
+        header.set_show_end_title_buttons(false);
+        let root = adw::ToolbarView::new();
         root.add_css_class("sidebar-pane");
-        root.append(&switcher);
-        root.append(&stack);
+        root.add_top_bar(&header);
+        root.set_content(Some(&stack));
         Self {
             root,
+            header,
             files,
             git,
             git_page,
