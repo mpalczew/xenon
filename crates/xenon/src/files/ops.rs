@@ -121,6 +121,23 @@ impl FilesView {
             let menu = menu.clone();
             glib::idle_add_local_once(move || menu.unparent());
         });
+        menu.connect_map(|menu| {
+            let menu = menu.clone();
+            glib::timeout_add_local_once(std::time::Duration::from_millis(300), move || {
+                let (min, nat, _, _) = menu.measure(gtk::Orientation::Vertical, -1);
+                let surface = menu.native().and_then(|n| n.surface());
+                let monitor = surface
+                    .as_ref()
+                    .and_then(|s| s.display().monitor_at_surface(s))
+                    .map(|m| m.geometry());
+                eprintln!(
+                    "[diag] files menu: want min={min} nat={nat} got={} surface={:?} monitor={:?}",
+                    menu.height(),
+                    surface.map(|s| (s.width(), s.height())),
+                    monitor.map(|g| (g.width(), g.height())),
+                );
+            });
+        });
         menu.popup();
     }
 
