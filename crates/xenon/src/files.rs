@@ -33,6 +33,7 @@ pub(crate) struct FilesView {
     open_file: Rc<RefCell<Option<PathBuf>>>,
     reveal_target: RefCell<Option<PathBuf>>,
     ctx: RefCell<Option<Target>>,
+    menus: [gtk::PopoverMenu; 2],
     drag: RefCell<Vec<PathBuf>>,
 }
 
@@ -139,6 +140,7 @@ impl FilesView {
         let root = gtk::ScrolledWindow::new();
         root.set_child(Some(&list));
         root.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        let menus = [false, true].map(|on_item| ops::menu(&list, on_item));
         let this = Rc::new(Self {
             root,
             list,
@@ -152,6 +154,7 @@ impl FilesView {
             open_file,
             reveal_target: RefCell::new(None),
             ctx: RefCell::new(None),
+            menus,
             drag: RefCell::default(),
         });
         *owner.0.borrow_mut() = Rc::downgrade(&this);

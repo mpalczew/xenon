@@ -62,6 +62,17 @@ fn menu_model(on_item: bool) -> gio::Menu {
     menu
 }
 
+pub(super) fn menu(list: &gtk::ListView, on_item: bool) -> gtk::PopoverMenu {
+    let menu = gtk::PopoverMenu::from_model(Some(&menu_model(on_item)));
+    menu.set_has_arrow(false);
+    menu.set_halign(gtk::Align::Start);
+    menu.set_parent(list);
+    let child = menu.clone();
+    // sync: answer or ordering before return: the popover must leave its parent while the parent is destroyed.
+    list.connect_destroy(move |_| child.unparent());
+    menu
+}
+
 pub(super) fn target_of(expander: &gtk::TreeExpander) -> Option<Target> {
     let item = expander.list_row()?.item()?;
     Some(Target {
@@ -110,22 +121,9 @@ impl FilesView {
         if let Some(target) = &target {
             self.select_path(&target.path, false);
         }
-        let menu = gtk::PopoverMenu::from_model(Some(&menu_model(target.is_some())));
+        let menu = &self.menus[usize::from(target.is_some())];
         *self.ctx.borrow_mut() = target;
-        menu.set_has_arrow(false);
-        menu.set_halign(gtk::Align::Start);
-        menu.set_parent(&self.list);
         menu.set_pointing_to(Some(&at));
-        menu.connect_closed(|menu| {
-            let menu = menu.clone();
-            glib::idle_add_local_once(move || menu.unparent());
-        });
-        // The list doesn't re-present popovers on layout as GTK's own hosts do, so the
-        // first size misses the separators' margins and the menu scrolls.
-        menu.connect_map(|menu| {
-            let menu = menu.clone();
-            glib::idle_add_local_once(move || menu.present());
-        });
         menu.popup();
     }
 
