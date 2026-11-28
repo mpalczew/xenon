@@ -124,6 +124,9 @@ impl FilesView {
         menu.connect_map(|menu| {
             let menu = menu.clone();
             glib::timeout_add_local_once(std::time::Duration::from_millis(300), move || {
+                if !menu.is_mapped() {
+                    return;
+                }
                 let (min, nat, _, _) = menu.measure(gtk::Orientation::Vertical, -1);
                 let surface = menu.native().and_then(|n| n.surface());
                 let monitor = surface
