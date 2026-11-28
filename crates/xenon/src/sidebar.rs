@@ -112,7 +112,7 @@ impl Sidebar {
         );
         stack.add_titled_with_icon(&files.root, Some("files"), "Files", "folder-symbolic");
         let git_page =
-            stack.add_titled_with_icon(&git.root, Some("git"), "Git", "document-edit-symbolic");
+            stack.add_titled_with_icon(&git.root, Some("git"), "Git", "xenon-git-symbolic");
         let switcher = adw::InlineViewSwitcher::builder()
             .display_mode(adw::InlineViewSwitcherDisplayMode::Icons)
             .stack(&stack)
