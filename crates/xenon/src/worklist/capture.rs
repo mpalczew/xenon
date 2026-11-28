@@ -70,12 +70,7 @@ pub(super) struct Capture {
     note: gtk::Label,
     count: gtk::Label,
     error: gtk::Label,
-    section: gtk::Label,
-    hint: gtk::Label,
-    prev: gtk::Button,
-    next: gtk::Button,
-    targets: Vec<(Place, String)>,
-    selected: Cell<usize>,
+    to: Place,
     task: bool,
     editing: bool,
     key: RefCell<Option<ItemKey>>,
@@ -88,7 +83,7 @@ impl Capture {
         app: &Rc<App>,
         (ws, root): (WorkspaceId, std::path::PathBuf),
         name: &str,
-        (targets, selected): (Vec<(Place, String)>, usize),
+        to: Place,
         edit: Option<Item>,
     ) -> Rc<Self> {
         let dialog = adw::Dialog::new();
@@ -117,23 +112,6 @@ impl Capture {
         length.set_visible(false);
         body.append(&length);
 
-        let section = gtk::Label::new(None);
-        section.set_width_chars(10);
-        let prev = gtk::Button::with_label("\u{2039}");
-        let next = gtk::Button::with_label("\u{203a}");
-        let hint = gtk::Label::new(None);
-        hint.add_css_class("dim-label");
-        hint.set_hexpand(true);
-        hint.set_xalign(1.0);
-        let chip = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        chip.append(&gtk::Label::new(Some("Into")));
-        chip.append(&prev);
-        chip.append(&section);
-        chip.append(&next);
-        chip.append(&hint);
-        chip.set_visible(targets.iter().any(|(place, _)| *place != Place::Top));
-        body.append(&chip);
-
         let error = gtk::Label::new(None);
         error.set_wrap(true);
         error.set_xalign(0.0);
@@ -146,7 +124,6 @@ impl Capture {
         let editing = edit.is_some();
         let (key, task) = match edit {
             Some(item) => {
-                chip.set_visible(false);
                 prefill(&item, &check, &title, &details);
                 (Some(item.key), item.done.is_some())
             }
@@ -165,12 +142,7 @@ impl Capture {
             note,
             count,
             error,
-            section,
-            hint,
-            prev,
-            next,
-            targets,
-            selected: Cell::new(selected),
+            to,
             task,
             editing,
             key: RefCell::new(key),
@@ -180,7 +152,6 @@ impl Capture {
         if editing {
             *this.landed.borrow_mut() = this.item().ok();
         }
-        this.update_section();
         this.wire(&body, &length);
         this.wire_buttons(&save, &delete);
         this
@@ -233,14 +204,6 @@ impl Capture {
             glib::Propagation::Proceed
         });
         self.title.add_controller(enter);
-        for (button, delta) in [(&self.prev, -1), (&self.next, 1)] {
-            button.set_focusable(false);
-            let weak = Rc::downgrade(self);
-            button.connect_clicked(move |_| {
-                defer(&weak, move |this| this.cycle(delta));
-            });
-        }
-
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let weak = Rc::downgrade(self);
@@ -248,15 +211,8 @@ impl Capture {
             let Some(this) = weak.upgrade() else {
                 return glib::Propagation::Proceed;
             };
-            let alt = state.contains(gdk::ModifierType::ALT_MASK);
             let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
             match key {
-                gdk::Key::Up if alt => {
-                    glib::idle_add_local_once(move || this.cycle(-1));
-                }
-                gdk::Key::Down if alt => {
-                    glib::idle_add_local_once(move || this.cycle(1));
-                }
                 gdk::Key::BackSpace if ctrl => {
                     glib::idle_add_local_once(move || this.discard());
                 }
@@ -275,13 +231,6 @@ impl Capture {
         self.dialog.connect_closed(move |_| {
             defer(&weak, move |this| this.closed());
         });
-    }
-
-    fn target(&self) -> (Place, &str) {
-        match self.targets.get(self.selected.get()) {
-            Some((place, label)) => (place.clone(), label),
-            None => (Place::Top, "Top"),
-        }
     }
 
     fn locked(&self) -> bool {
@@ -328,7 +277,7 @@ impl Capture {
                 text: text.clone(),
             },
             None => Op::Add {
-                to: self.target().0,
+                to: self.to.clone(),
                 text: text.clone(),
             },
         };
@@ -340,7 +289,7 @@ impl Capture {
                 }
                 Effect::Unchanged => None,
                 Effect::Gone if adding => {
-                    Some("That section is gone; reopen to pick another".into())
+                    Some("That section is gone; reopen to add it again".into())
                 }
                 Effect::Gone => {
                     Some("This item changed elsewhere; reopen it to keep editing".into())
@@ -355,13 +304,6 @@ impl Capture {
         }
         *self.landed.borrow_mut() = Some(text.clone());
         self.error.set_visible(false);
-        if let Some(app) = self.app.upgrade() {
-            app.worklist
-                .last_section
-                .borrow_mut()
-                .insert(self.ws, self.target().0);
-        }
-        self.update_section();
     }
 
     fn update_length(&self, length: &gtk::Box) {
@@ -381,34 +323,6 @@ impl Capture {
             "Long titles wrap in the list"
         };
         self.note.set_text(note);
-    }
-
-    fn cycle(&self, delta: isize) {
-        let count = self.targets.len() as isize;
-        if count < 2 || self.locked() {
-            return;
-        }
-        self.selected
-            .set((self.selected.get() as isize + delta).rem_euclid(count) as usize);
-        if let Some(app) = self.app.upgrade() {
-            app.worklist
-                .last_section
-                .borrow_mut()
-                .insert(self.ws, self.target().0);
-        }
-        self.update_section();
-    }
-
-    fn update_section(&self) {
-        let locked = self.locked();
-        self.section.set_text(self.target().1);
-        self.prev.set_sensitive(!locked);
-        self.next.set_sensitive(!locked);
-        self.hint.set_text(if locked {
-            "Saved here"
-        } else {
-            "Alt+\u{2191} Alt+\u{2193} section"
-        });
     }
 
     fn discard(&self) {

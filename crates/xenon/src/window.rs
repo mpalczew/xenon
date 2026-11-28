@@ -66,12 +66,9 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
     bar.set_title_widget(Some(title));
     for cmd in [
         Cmd::ToggleSidebar,
-        Cmd::PrevWorkspace,
-        Cmd::NextWorkspace,
         Cmd::SplitRight,
         Cmd::SplitDown,
         Cmd::ParkPane,
-        Cmd::Cut,
         Cmd::Copy,
         Cmd::CopyClean,
         Cmd::Paste,
@@ -79,16 +76,8 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
         bar.pack_start(&button(cmd));
     }
     bar.pack_end(&main_menu());
-    bar.pack_end(&app.builds.button);
-    bar.pack_end(&button(Cmd::Settings));
     bar.pack_end(&app.save_button);
-    for cmd in [
-        Cmd::RunTask,
-        Cmd::OpenWorklist,
-        Cmd::CaptureWorklist,
-        Cmd::OpenFinder,
-        Cmd::NewTerminal,
-    ] {
+    for cmd in [Cmd::RunTask, Cmd::OpenWorklist] {
         bar.pack_end(&button(cmd));
     }
     bar
@@ -96,6 +85,10 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
 
 fn main_menu() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
+    let workspaces = gtk::gio::Menu::new();
+    workspaces.append_item(&Cmd::NewWorkspace.menu_item());
+    workspaces.append_item(&Cmd::OpenWorkspace.menu_item());
+    menu.append_section(None, &workspaces);
     let theme = gtk::gio::Menu::new();
     for (label, nick) in [
         ("System", "default"),
@@ -181,7 +174,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
         save_button: save_button(),
         remote: crate::remote::Remote::new(),
         holders,
-        builds: crate::builds_ui::Builds::new(),
         tasks: crate::tasks::Tasks::default(),
         trust_card: crate::tasks_ui::TrustCard::new(weak.clone()),
         worklist: Default::default(),
@@ -235,7 +227,6 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     connect_window(&app, &win);
     app.sidebar.rebuild(&app.model.borrow());
     app.listen_holders();
-    app.refresh_builds();
     start_workspace(&app);
     app.remote_boot();
     app

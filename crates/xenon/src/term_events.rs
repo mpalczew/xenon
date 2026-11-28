@@ -43,7 +43,7 @@ impl App {
                     self.reopen_for_terminal(info.workspace);
                 }
                 self.adopt_orphans(info.workspace);
-                self.refresh_builds();
+                self.paint_all();
             }
             Event::Closed { id } => {
                 self.ended.borrow_mut().remove(&id);
@@ -51,8 +51,9 @@ impl App {
                 if let Some((ws, tab)) = tab {
                     self.close_tab_ui(ws, tab);
                 }
-                self.refresh_builds();
+                self.paint_all();
             }
+            Event::Builds => self.paint_all(),
             Event::Failed { id, error } => {
                 self.ended.borrow_mut().remove(&id);
                 self.toast(&format!(
@@ -63,7 +64,6 @@ impl App {
                     self.close_tab_ui(ws, tab);
                 }
             }
-            Event::Builds => self.refresh_builds(),
         }
     }
 

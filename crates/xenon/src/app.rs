@@ -71,7 +71,6 @@ pub(crate) struct App {
     pub save_button: gtk::Button,
     pub remote: crate::remote::Remote,
     pub holders: xenon_term::Terminals,
-    pub builds: crate::builds_ui::Builds,
     pub tasks: crate::tasks::Tasks,
     pub trust_card: crate::tasks_ui::TrustCard,
     pub worklist: crate::worklist::Worklist,

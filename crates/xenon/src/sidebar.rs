@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use adw::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, glib};
 use xenon_core::{WorkspaceDot, WorkspaceId};
 use xenon_git::status::DirtState;
 pub(crate) use xenon_store::SidebarPage;
@@ -47,16 +47,6 @@ pub(crate) fn short_path(path: &str) -> String {
 
 impl Sidebar {
     pub(crate) fn new(app: Weak<App>) -> Self {
-        let menu = gio::Menu::new();
-        menu.append_item(&Cmd::NewWorkspace.menu_item());
-        menu.append_item(&Cmd::OpenWorkspace.menu_item());
-        let add = gtk::MenuButton::new();
-        add.set_icon_name("list-add-symbolic");
-        add.set_menu_model(Some(&menu));
-        add.add_css_class("flat");
-        add.set_focusable(false);
-        add.set_tooltip_text(Some(&Cmd::OpenWorkspace.tip()));
-
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Browse);
         list.set_activate_on_single_click(true);
@@ -105,26 +95,20 @@ impl Sidebar {
         let dragging = Rc::new(Cell::new(None));
         Self::accept_drops(&list, &rule, &dragging, app.clone());
 
-        let title = gtk::Label::new(Some("WORKSPACES"));
-        title.add_css_class("caption-heading");
-        title.add_css_class("dim-label");
-        title.set_xalign(0.0);
-        title.set_hexpand(true);
-        let head = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        head.set_margin_start(12);
-        head.set_margin_end(6);
-        head.append(&title);
-        head.append(&add);
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_child(Some(&overlay));
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroll.set_propagate_natural_height(true);
-        scroll.set_max_content_height(300);
 
         let files = FilesView::new(app.clone());
         let git = GitView::new(app.clone());
         let stack = adw::ViewStack::new();
         stack.set_vexpand(true);
+        stack.add_titled_with_icon(
+            &scroll,
+            Some("workspaces"),
+            "Workspaces",
+            "view-grid-symbolic",
+        );
         stack.add_titled_with_icon(&files.root, Some("files"), "Files", "folder-symbolic");
         let git_page =
             stack.add_titled_with_icon(&git.root, Some("git"), "Git", "document-edit-symbolic");
@@ -134,8 +118,6 @@ impl Sidebar {
             .build();
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("sidebar-pane");
-        root.append(&head);
-        root.append(&scroll);
         root.append(&switcher);
         root.append(&stack);
         Self {
@@ -153,6 +135,7 @@ impl Sidebar {
 
     pub(crate) fn show(&self, page: SidebarPage) {
         let (name, visible) = match page {
+            SidebarPage::Workspaces => ("workspaces", true),
             SidebarPage::Files => ("files", true),
             SidebarPage::Git => ("git", self.git_page.is_visible()),
         };
@@ -164,7 +147,8 @@ impl Sidebar {
     pub(crate) fn page(&self) -> SidebarPage {
         match self.stack.visible_child_name().as_deref() {
             Some("git") => SidebarPage::Git,
-            _ => SidebarPage::Files,
+            Some("files") => SidebarPage::Files,
+            _ => SidebarPage::Workspaces,
         }
     }
 
@@ -357,22 +341,21 @@ impl App {
 
     pub(crate) fn focus_sidebar(&self) {
         self.sidebar.root.set_visible(true);
-        if self.sidebar.files.has_rows() {
-            self.sidebar.show(SidebarPage::Files);
-            self.sidebar.files.focus();
-            return;
-        }
-        let active = self.model.borrow().active();
-        let index = active.and_then(|id| {
-            self.model
-                .borrow()
-                .registry
-                .workspaces
-                .iter()
-                .position(|r| r.id == id)
-        });
-        if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
-            row.grab_focus();
+        match self.sidebar.page() {
+            SidebarPage::Files => self.sidebar.files.focus(),
+            SidebarPage::Git => self.sidebar.git.focus(),
+            SidebarPage::Workspaces => {
+                let model = self.model.borrow();
+                let active = model.active();
+                let index = model
+                    .registry
+                    .workspaces
+                    .iter()
+                    .position(|r| Some(r.id) == active);
+                if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
+                    row.grab_focus();
+                }
+            }
         }
     }
 }

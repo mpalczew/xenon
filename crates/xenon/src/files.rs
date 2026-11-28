@@ -310,10 +310,6 @@ impl FilesView {
             eprintln!("[xg] save settings: {error}");
         }
     }
-
-    pub(crate) fn has_rows(&self) -> bool {
-        self.tree.n_items() > 0
-    }
 }
 
 fn file_icon(name: &Path) -> String {

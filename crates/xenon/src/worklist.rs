@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -16,12 +15,11 @@ mod list_ops;
 pub(crate) use list::WorklistList;
 
 use capture::Capture;
-use xenon_worklist::{Effect, Item, ItemKey, Op, Place, Undo, apply, ensure, read, revert};
+use xenon_worklist::{Effect, Item, ItemKey, Op, Place, Undo, apply, ensure, revert};
 
 #[derive(Default)]
 pub(crate) struct Worklist {
     capture: RefCell<Option<Rc<Capture>>>,
-    last_section: RefCell<HashMap<WorkspaceId, Place>>,
     undo: RefCell<Option<(WorkspaceId, ItemKey)>>,
     toast_serial: Cell<u64>,
 }
@@ -51,19 +49,15 @@ impl App {
         }
     }
 
-    pub(crate) fn capture_worklist(self: &Rc<Self>) {
-        self.open_capture(None, None);
-    }
-
     fn capture_worklist_into(self: &Rc<Self>, section: Place) {
-        self.open_capture(Some(section), None);
+        self.open_capture(section, None);
     }
 
     fn edit_worklist_item(self: &Rc<Self>, item: Item) {
-        self.open_capture(None, Some(item));
+        self.open_capture(Place::default(), Some(item));
     }
 
-    fn open_capture(self: &Rc<Self>, section: Option<Place>, edit: Option<Item>) {
+    fn open_capture(self: &Rc<Self>, section: Place, edit: Option<Item>) {
         let open = self.worklist.capture.borrow().clone();
         if let Some(open) = open {
             open.dialog.close();
@@ -73,23 +67,7 @@ impl App {
             self.no_workspace_toast();
             return;
         };
-        let (targets, selected) = if edit.is_some() {
-            (Vec::new(), 0)
-        } else {
-            let targets: Vec<(Place, String)> = read(&root)
-                .unwrap_or_default()
-                .groups
-                .into_iter()
-                .map(|group| (group.place, group.label))
-                .collect();
-            let preferred =
-                section.or_else(|| self.worklist.last_section.borrow().get(&ws).cloned());
-            let selected = preferred
-                .and_then(|want| targets.iter().position(|(place, _)| *place == want))
-                .unwrap_or(0);
-            (targets, selected)
-        };
-        let capture = Capture::build(self, (ws, root), &name, (targets, selected), edit);
+        let capture = Capture::build(self, (ws, root), &name, section, edit);
         *self.worklist.capture.borrow_mut() = Some(capture.clone());
         capture.dialog.present(Some(&self.win));
         capture.title.grab_focus();

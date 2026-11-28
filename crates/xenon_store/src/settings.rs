@@ -15,6 +15,7 @@ pub enum ThemeMode {
 #[serde(rename_all = "snake_case")]
 pub enum SidebarPage {
     #[default]
+    Workspaces,
     Files,
     Git,
 }

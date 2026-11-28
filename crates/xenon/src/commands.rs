@@ -116,10 +116,6 @@ commands! {
         label: "Run Build Task", keys: &["<Control><Shift>b"],
         ..Spec::run(|a| a.run_build_task())
     },
-    CaptureWorklist = "capture-worklist" => Spec {
-        label: "Add to Worklist", icon: "document-edit-symbolic", keys: &["<Control><Shift>k"],
-        ..Spec::run(|a| a.capture_worklist())
-    },
     OpenWorklist = "open-worklist" => Spec {
         label: "Open Worklist", short: Some("Worklist"), icon: "view-list-symbolic",
         keys: &["<Control><Alt>k"],

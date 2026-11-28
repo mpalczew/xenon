@@ -28,7 +28,7 @@ pub(crate) struct TabNotes<'a> {
 
 impl PaneView {
     pub(crate) fn new(app: &Rc<App>, ws: WorkspaceId, pane: PaneId) -> Rc<Self> {
-        let add = gtk::Button::from_icon_name("list-add-symbolic");
+        let add = gtk::Button::from_icon_name(Cmd::NewTerminal.icon());
         add.add_css_class("flat");
         add.set_tooltip_text(Some(&Cmd::NewTerminal.tip()));
         add.set_focusable(false);
