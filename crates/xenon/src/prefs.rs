@@ -27,7 +27,6 @@ impl App {
             .content_width(860)
             .content_height(640)
             .build();
-        dialog.add(&prefs_pages::appearance(self));
         dialog.add(&prefs_pages::fonts(self));
         dialog.add(&prefs_pages::editor(self));
         let agents = prefs_agents::agents(&dialog);

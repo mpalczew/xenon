@@ -96,6 +96,17 @@ fn header(app: &Rc<App>, title: &adw::WindowTitle) -> adw::HeaderBar {
 
 fn main_menu() -> gtk::MenuButton {
     let menu = gtk::gio::Menu::new();
+    let theme = gtk::gio::Menu::new();
+    for (label, nick) in [
+        ("System", "default"),
+        ("Light", "force-light"),
+        ("Dark", "force-dark"),
+    ] {
+        let item = gtk::gio::MenuItem::new(Some(label), None);
+        item.set_action_and_target_value(Some("app.color-scheme"), Some(&nick.to_variant()));
+        theme.append_item(&item);
+    }
+    menu.append_section(None, &theme);
     let leave = gtk::gio::Menu::new();
     leave.append_item(&Cmd::Quit.menu_item());
     leave.append_item(&Cmd::QuitEndTerminals.menu_item());
@@ -182,6 +193,22 @@ pub(crate) fn build(gtk_app: &adw::Application) -> Rc<App> {
     );
     app.apply_theme();
     let style = adw::StyleManager::default();
+    gtk_app.add_action(&gtk::gio::PropertyAction::new(
+        "color-scheme",
+        &style,
+        "color-scheme",
+    ));
+    let weak = Rc::downgrade(&app);
+    style.connect_color_scheme_notify(move |_| {
+        defer(&weak, move |app| {
+            let mode = match adw::StyleManager::default().color_scheme() {
+                adw::ColorScheme::ForceLight => ThemeMode::Light,
+                adw::ColorScheme::ForceDark => ThemeMode::Dark,
+                _ => ThemeMode::System,
+            };
+            app.change_settings(|s| s.theme.mode = mode);
+        });
+    });
     let weak = Rc::downgrade(&app);
     style.connect_dark_notify(move |_| {
         defer(&weak, move |app| app.apply_theme());

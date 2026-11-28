@@ -2,8 +2,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use xenon_settings::{
-    MAX_FONT_SIZE, MIN_FONT_SIZE, ProseFont, ProseMarkers, Surface, TerminalAutoClose, ThemeMode,
-    UiSettings,
+    MAX_FONT_SIZE, MIN_FONT_SIZE, ProseFont, ProseMarkers, Surface, TerminalAutoClose, UiSettings,
 };
 
 use crate::app::App;
@@ -130,40 +129,6 @@ fn font_group(
     });
     group.add(&size);
     group
-}
-
-pub(crate) fn appearance(app: &Rc<App>) -> adw::PreferencesPage {
-    let page = page("appearance", "Appearance", "applications-graphics-symbolic");
-    let group = adw::PreferencesGroup::new();
-    let row = adw::ActionRow::builder()
-        .title("Mode")
-        .subtitle("System follows the desktop's light and dark")
-        .build();
-    let toggles = adw::ToggleGroup::new();
-    toggles.set_valign(gtk::Align::Center);
-    for (name, label) in [("system", "System"), ("light", "Light"), ("dark", "Dark")] {
-        toggles.add(adw::Toggle::builder().name(name).label(label).build());
-    }
-    toggles.set_active_name(Some(match app.settings.borrow().theme.mode {
-        ThemeMode::System => "system",
-        ThemeMode::Light => "light",
-        ThemeMode::Dark => "dark",
-    }));
-    let app = app.clone();
-    toggles.connect_active_name_notify(move |t| {
-        let mode = match t.active_name().as_deref() {
-            Some("light") => ThemeMode::Light,
-            Some("dark") => ThemeMode::Dark,
-            _ => ThemeMode::System,
-        };
-        let app = app.clone();
-        gtk::glib::idle_add_local_once(move || app.change_settings(|s| s.theme.mode = mode));
-    });
-    row.add_suffix(&toggles);
-    row.set_activatable_widget(Some(&toggles));
-    group.add(&row);
-    page.add(&group);
-    page
 }
 
 pub(crate) fn fonts(app: &Rc<App>) -> adw::PreferencesPage {
