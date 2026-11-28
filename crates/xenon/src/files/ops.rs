@@ -62,6 +62,8 @@ fn menu_model(on_item: bool) -> gio::Menu {
     menu
 }
 
+// Made once, as Nautilus does: a PopoverMenu built and popped in one go is sized before
+// its separators' margins apply, so it scrolls.
 pub(super) fn menu(list: &gtk::ListView, on_item: bool) -> gtk::PopoverMenu {
     let menu = gtk::PopoverMenu::from_model(Some(&menu_model(on_item)));
     menu.set_has_arrow(false);
