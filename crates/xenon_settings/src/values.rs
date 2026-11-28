@@ -1,9 +1,8 @@
 use xenon_store::{DEFAULT_FONT_FAMILY, DEFAULT_UI_FONT_FAMILY};
 
 use crate::{
-    AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_SIZE, DEFAULT_LIGHT_THEME,
-    DEFAULT_SHOW_LINE_NUMBERS, DEFAULT_VIM_MODE, MAX_FONT_SIZE, MIN_FONT_SIZE, ProseSettings,
-    TerminalAutoClose, ThemeMode,
+    AppSettings, DEFAULT_FONT_SIZE, DEFAULT_SHOW_LINE_NUMBERS, DEFAULT_VIM_MODE, MAX_FONT_SIZE,
+    MIN_FONT_SIZE, ProseSettings, TerminalAutoClose, ThemeMode,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,16 +36,12 @@ pub(crate) fn clamp_size(size: f32) -> f32 {
 #[derive(Clone, Debug)]
 pub struct ThemePreference {
     pub mode: ThemeMode,
-    pub light: String,
-    pub dark: String,
 }
 
 impl Default for ThemePreference {
     fn default() -> Self {
         Self {
             mode: ThemeMode::System,
-            light: DEFAULT_LIGHT_THEME.into(),
-            dark: DEFAULT_DARK_THEME.into(),
         }
     }
 }
@@ -106,8 +101,6 @@ impl UiSettings {
             terminal_auto_close: settings.terminal_auto_close,
             theme: ThemePreference {
                 mode: settings.theme,
-                light: settings.light_theme.clone(),
-                dark: settings.dark_theme.clone(),
             },
         }
     }
@@ -127,8 +120,6 @@ impl UiSettings {
         settings.prose = self.prose.clone();
         settings.vim_mode = self.vim_mode;
         settings.theme = self.theme.mode;
-        settings.light_theme.clone_from(&self.theme.light);
-        settings.dark_theme.clone_from(&self.theme.dark);
         settings.terminal_auto_close = self.terminal_auto_close;
     }
 

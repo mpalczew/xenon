@@ -5,15 +5,16 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 use xenon_core::{WorkspaceDot, WorkspaceId};
 use xenon_git::status::DirtState;
+pub(crate) use xenon_store::SidebarPage;
 
 use crate::app::{App, defer};
 use crate::commands::Cmd;
 use crate::files::FilesView;
 use crate::git::GitHub;
 use crate::git_section::GitView;
-use crate::model::{Fold, Model};
+use crate::model::Model;
 use crate::pane::set_class;
-use crate::sidebar_ui::{Row, Section};
+use crate::sidebar_ui::Row;
 
 struct WsRow {
     id: WorkspaceId,
@@ -27,10 +28,8 @@ pub(crate) struct Sidebar {
     pub root: gtk::Box,
     pub files: Rc<FilesView>,
     pub git: Rc<GitView>,
-    workspaces: Section,
-    rows_box: gtk::Overlay,
-    outer: gtk::Paned,
-    inner: gtk::Paned,
+    pub git_page: adw::ViewStackPage,
+    stack: adw::ViewStack,
     pub list: gtk::ListBox,
     app: Weak<App>,
     rows: RefCell<Vec<WsRow>>,
@@ -106,37 +105,66 @@ impl Sidebar {
         let dragging = Rc::new(Cell::new(None));
         Self::accept_drops(&list, &rule, &dragging, app.clone());
 
-        let workspaces = Section::new("WORKSPACES", Fold::Workspaces, &overlay, Some(300), &app);
-        workspaces.set_trailing(&add);
+        let title = gtk::Label::new(Some("WORKSPACES"));
+        title.add_css_class("caption-heading");
+        title.add_css_class("dim-label");
+        title.set_xalign(0.0);
+        title.set_hexpand(true);
+        let head = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        head.set_margin_start(12);
+        head.set_margin_end(6);
+        head.append(&title);
+        head.append(&add);
+        let scroll = gtk::ScrolledWindow::new();
+        scroll.set_child(Some(&overlay));
+        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        scroll.set_propagate_natural_height(true);
+        scroll.set_max_content_height(300);
+
         let files = FilesView::new(app.clone());
         let git = GitView::new(app.clone());
+        let stack = adw::ViewStack::new();
+        stack.set_vexpand(true);
+        stack.add_titled_with_icon(&files.root, Some("files"), "Files", "folder-symbolic");
+        let git_page =
+            stack.add_titled_with_icon(&git.root, Some("git"), "Git", "document-edit-symbolic");
+        let switcher = adw::ViewSwitcher::builder()
+            .policy(adw::ViewSwitcherPolicy::Narrow)
+            .stack(&stack)
+            .build();
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
         root.add_css_class("sidebar-pane");
-        let inner = gtk::Paned::new(gtk::Orientation::Vertical);
-        inner.set_shrink_start_child(false);
-        inner.set_shrink_end_child(false);
-        inner.set_start_child(Some(&files.root));
-        inner.set_end_child(Some(&git.root));
-        let outer = gtk::Paned::new(gtk::Orientation::Vertical);
-        outer.set_vexpand(true);
-        outer.set_shrink_start_child(false);
-        outer.set_shrink_end_child(false);
-        outer.set_resize_start_child(false);
-        outer.set_start_child(Some(&workspaces.root));
-        outer.set_end_child(Some(&inner));
-        root.append(&outer);
+        root.append(&head);
+        root.append(&scroll);
+        root.append(&switcher);
+        root.append(&stack);
         Self {
             root,
-            outer,
-            inner,
             files,
             git,
-            workspaces,
-            rows_box: overlay,
+            git_page,
+            stack,
             list,
             app,
             rows: RefCell::default(),
             dragging,
+        }
+    }
+
+    pub(crate) fn show(&self, page: SidebarPage) {
+        let (name, visible) = match page {
+            SidebarPage::Files => ("files", true),
+            SidebarPage::Git => ("git", self.git_page.is_visible()),
+        };
+        if visible {
+            self.stack.set_visible_child_name(name);
+        }
+    }
+
+    pub(crate) fn page(&self) -> SidebarPage {
+        match self.stack.visible_child_name().as_deref() {
+            Some("git") => SidebarPage::Git,
+            _ => SidebarPage::Files,
         }
     }
 
@@ -204,66 +232,7 @@ impl Sidebar {
         list.add_controller(target);
     }
 
-    pub(crate) fn apply_folds(&self, model: &Model) {
-        let folds = model.folds;
-        self.workspaces.show_fold(folds.workspaces);
-        self.files.show_fold(folds.files);
-        self.git.show_fold(folds.git);
-        self.fill();
-    }
-
-    pub(crate) fn fill(&self) {
-        let open = [
-            self.workspaces.is_open(),
-            self.files.section.is_open(),
-            self.git.section.is_open(),
-        ];
-        let [workspaces, files, git] = open;
-        self.inner.set_resize_start_child(files);
-        self.inner.set_resize_end_child(git || !files);
-        let alone = workspaces && !files && !git;
-        self.outer.set_resize_start_child(alone);
-        self.outer.set_resize_end_child(!alone);
-        if open.iter().filter(|&&o| o).count() <= 1 {
-            self.reset_sizes();
-        }
-    }
-
-    pub(crate) fn restore_sizes(&self, workspaces: Option<f32>, files: Option<f32>) {
-        for (paned, size) in [(&self.outer, workspaces), (&self.inner, files)] {
-            if let Some(size) = size {
-                paned.set_position(size as i32);
-            }
-            let app = self.app.clone();
-            paned.connect_position_notify(move |_| {
-                defer(&app, move |app| {
-                    app.schedule_save();
-                });
-            });
-        }
-        self.fill();
-    }
-
-    fn fit_workspaces(&self) {
-        let width = self.root.width();
-        let height = |w: &gtk::Widget| w.measure(gtk::Orientation::Vertical, width).1;
-        let rows = height(self.rows_box.upcast_ref());
-        let head = height(self.workspaces.head().upcast_ref());
-        self.outer.set_position(head + rows);
-    }
-
-    pub(crate) fn sizes(&self) -> (Option<f32>, Option<f32>) {
-        let size = |p: &gtk::Paned| p.is_position_set().then(|| p.position() as f32);
-        (size(&self.outer), size(&self.inner))
-    }
-
-    pub(crate) fn reset_sizes(&self) {
-        self.inner.set_property("position-set", false);
-        self.outer.set_property("position-set", false);
-    }
-
     pub(crate) fn rebuild(&self, model: &Model) {
-        self.apply_folds(model);
         let mut rows = self.rows.borrow_mut();
         self.list.remove_all();
         rows.clear();
@@ -376,41 +345,6 @@ impl Sidebar {
 }
 
 impl App {
-    pub(crate) fn set_fold(&self, fold: Fold, folded: bool) {
-        {
-            let mut model = self.model.borrow_mut();
-            if model.folds.get(fold) == folded {
-                return;
-            }
-            model.folds.set(fold, folded);
-            model.folds.save();
-        }
-        self.sidebar.reset_sizes();
-        self.sidebar.apply_folds(&self.model.borrow());
-        self.fit_workspaces();
-        if let Some(app) = self.sidebar.app.upgrade() {
-            app.schedule_save();
-        }
-    }
-
-    /// Size the workspaces section to its rows unless a height is already set.
-    pub(crate) fn fit_workspaces(&self) {
-        let outer = &self.sidebar.outer;
-        if !self.model.borrow().folds.workspaces
-            && outer.resizes_end_child()
-            && !outer.is_position_set()
-        {
-            self.sidebar.fit_workspaces();
-        }
-    }
-
-    pub(crate) fn toggle_fold(&self, fold: Fold) {
-        let folded = self.model.borrow().folds.get(fold);
-        self.set_fold(fold, !folded);
-    }
-}
-
-impl App {
     pub(crate) fn reveal_dir(self: &Rc<Self>, _ws: WorkspaceId, dir: &std::path::Path) {
         self.sidebar.root.set_visible(true);
         self.sidebar.files.reveal(dir);
@@ -424,6 +358,7 @@ impl App {
     pub(crate) fn focus_sidebar(&self) {
         self.sidebar.root.set_visible(true);
         if self.sidebar.files.has_rows() {
+            self.sidebar.show(SidebarPage::Files);
             self.sidebar.files.focus();
             return;
         }
@@ -436,7 +371,6 @@ impl App {
                 .iter()
                 .position(|r| r.id == id)
         });
-        self.set_fold(Fold::Workspaces, false);
         if let Some(row) = self.sidebar.list.row_at_index(index.unwrap_or(0) as i32) {
             row.grab_focus();
         }

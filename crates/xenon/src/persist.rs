@@ -42,16 +42,12 @@ impl App {
             self.save_session(id);
         }
         self.save_registry();
-        self.save_sizes();
+        self.save_sidebar_page();
     }
 
-    fn save_sizes(&self) {
-        let (workspaces, files) = self.sidebar.sizes();
-        let result = xenon_store::update_settings(|s| {
-            s.workspaces_section_height = workspaces;
-            s.files_section_height = files;
-        });
-        if let Err(error) = result {
+    fn save_sidebar_page(&self) {
+        let page = self.sidebar.page();
+        if let Err(error) = xenon_store::update_settings(|s| s.sidebar_page = page) {
             eprintln!("[xg] save settings: {error}");
         }
     }

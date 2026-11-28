@@ -33,8 +33,8 @@ pub use services::{
     service_settings_path, update_service_settings,
 };
 pub use settings::{
-    AppSettings, DEFAULT_DARK_THEME, DEFAULT_FONT_FAMILY, DEFAULT_LIGHT_THEME,
-    DEFAULT_UI_FONT_FAMILY, ThemeMode, WindowGeometry, WindowState,
+    AppSettings, DEFAULT_FONT_FAMILY, DEFAULT_UI_FONT_FAMILY, SidebarPage, ThemeMode,
+    WindowGeometry, WindowState,
 };
 pub use skill::{SKILL_HOMES, SkillStatus, install_skill, remove_skill, skill_status};
 pub use task_trust::{TaskTrust, set_task_trust, task_trust};

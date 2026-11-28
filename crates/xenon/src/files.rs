@@ -7,8 +7,7 @@ use gtk::{gdk, gio, glib, pango};
 
 use crate::app::{App, defer};
 use crate::commands::Cmd;
-use crate::model::Fold;
-use crate::sidebar_ui::{Row, Section};
+use crate::sidebar_ui::Row;
 
 const ATTRS: &str = "standard::name,standard::display-name,standard::type,standard::is-symlink,standard::symbolic-icon";
 
@@ -22,8 +21,7 @@ use ignores::Ignores;
 use ops::Target;
 
 pub(crate) struct FilesView {
-    pub root: gtk::Box,
-    pub section: Section,
+    pub root: gtk::ScrolledWindow,
     list: gtk::ListView,
     tree: gtk::TreeListModel,
     selection: gtk::SingleSelection,
@@ -138,10 +136,11 @@ impl FilesView {
         list.set_single_click_activate(true);
         list.add_css_class("navigation-sidebar");
         list.add_css_class("xfiles");
-        let section = Section::new("FILES", Fold::Files, &list, None, &app);
+        let root = gtk::ScrolledWindow::new();
+        root.set_child(Some(&list));
+        root.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         let this = Rc::new(Self {
-            root: section.root.clone(),
-            section,
+            root,
             list,
             tree,
             selection,
@@ -279,7 +278,6 @@ impl FilesView {
         *self.root_dir.borrow_mut() = root.clone();
         *self.ignores.root.borrow_mut() = root.clone();
         self.ignores.refresh();
-        self.root.set_visible(root.is_some());
         self.root_list
             .set_file(root.as_deref().map(gio::File::for_path).as_ref());
     }
@@ -293,14 +291,7 @@ impl FilesView {
         }
     }
 
-    pub(crate) fn show_fold(&self, folded: bool) {
-        self.section.show_fold(folded);
-    }
-
     pub(crate) fn focus(&self) {
-        if let Some(app) = self.app.upgrade() {
-            app.set_fold(Fold::Files, false);
-        }
         let at = if self.selection.selected() < self.tree.n_items() {
             self.selection.selected()
         } else {

@@ -7,20 +7,17 @@ use xenon_core::WorkspaceId;
 use xenon_git::status::{GitFile, GitStatus};
 
 use crate::app::{App, defer};
-use crate::commands::Cmd;
 use crate::git_rows::{make_row, more_row};
-use crate::model::Fold;
 use crate::pane::focus_inside;
-use crate::sidebar_ui::{Row, Section};
+use crate::sidebar_ui::Row;
 
 const MAX_ROWS: usize = 400;
 
 pub(crate) struct GitView {
     pub root: gtk::Box,
-    pub section: Section,
-    clean: gtk::Box,
+    scroll: gtk::ScrolledWindow,
+    clean: adw::StatusPage,
     branch: gtk::Label,
-    count: gtk::Label,
     list: gtk::ListBox,
     app: Weak<App>,
     ws: Cell<Option<WorkspaceId>>,
@@ -35,40 +32,32 @@ impl GitView {
         let branch = gtk::Label::new(None);
         branch.add_css_class("dim-label");
         branch.add_css_class("caption");
+        branch.set_xalign(0.0);
+        branch.set_margin_start(12);
+        branch.set_margin_end(12);
         branch.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        branch.set_max_width_chars(16);
-        let count = gtk::Label::new(None);
-        count.add_css_class("dim-label");
-        count.add_css_class("caption");
-        count.add_css_class("numeric");
-        let clean = gtk::Box::new(gtk::Orientation::Horizontal, 4);
-        let tick = gtk::Image::from_icon_name("object-select-symbolic");
-        tick.add_css_class("success");
-        let word = gtk::Label::new(Some("Clean"));
-        word.add_css_class("caption");
-        clean.append(&tick);
-        clean.append(&word);
-        clean.set_visible(false);
-        let trailing = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        trailing.append(&clean);
-        trailing.append(&branch);
-        trailing.append(&count);
-
         let list = gtk::ListBox::new();
         list.set_selection_mode(gtk::SelectionMode::Single);
         list.set_activate_on_single_click(true);
         list.add_css_class("navigation-sidebar");
-        let section = Section::new("GIT", Fold::Git, &list, Some(230), &app);
-        section.fold.set_tooltip_text(Some(&Cmd::FocusGit.tip()));
-        section.set_trailing(&trailing);
-        let root = section.root.clone();
-        root.set_visible(false);
+        let scroll = gtk::ScrolledWindow::new();
+        scroll.set_child(Some(&list));
+        scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+        scroll.set_vexpand(true);
+        let clean = adw::StatusPage::new();
+        clean.set_icon_name(Some("object-select-symbolic"));
+        clean.set_title("Clean");
+        clean.set_vexpand(true);
+        clean.set_visible(false);
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        root.append(&branch);
+        root.append(&scroll);
+        root.append(&clean);
         let this = Rc::new(Self {
             root,
-            section,
+            scroll,
             clean,
             branch,
-            count,
             list,
             app,
             ws: Cell::new(None),
@@ -106,10 +95,6 @@ impl GitView {
         self.root.add_controller(keys);
     }
 
-    pub(crate) fn show_fold(&self, collapsed: bool) {
-        self.section.show_fold(collapsed);
-    }
-
     fn open_row(&self, index: usize) {
         let path = self.files.borrow().get(index).map(|f| f.path.clone());
         if let (Some(path), Some(app)) = (path, self.app.upgrade()) {
@@ -140,9 +125,10 @@ impl GitView {
         self.ws.set(ws);
         *self.status.borrow_mut() = status.cloned();
         *self.shown.borrow_mut() = shown;
-        if self.root.is_visible() != status.is_some() {
-            self.root.set_visible(status.is_some());
-            defer(&self.app, |app| app.sidebar.fill());
+        if let Some(app) = self.app.upgrade() {
+            let page = &app.sidebar.git_page;
+            page.set_visible(status.is_some());
+            page.set_badge_number(status.map_or(0, |s| s.files.len() as u32));
         }
         let Some(status) = status else {
             self.clear();
@@ -163,14 +149,9 @@ impl GitView {
     fn rebuild(&self, status: &GitStatus, keep: Option<String>, had_focus: bool) {
         self.clear();
         self.branch.set_text(&status.branch);
-        self.count.set_text(&status.files.len().to_string());
-        self.count.set_visible(!status.files.is_empty());
         let is_clean = status.files.is_empty();
         self.clean.set_visible(is_clean);
-        if self.section.is_foldable() == is_clean {
-            self.section.set_foldable(!is_clean);
-            defer(&self.app, |app| app.sidebar.fill());
-        }
+        self.scroll.set_visible(!is_clean);
         if is_clean {
             return;
         }
@@ -226,22 +207,9 @@ impl GitView {
     }
 
     pub(crate) fn focus(&self) {
-        self.root.set_visible(self.status.borrow().is_some());
-        if let Some(app) = self.app.upgrade() {
-            app.set_fold(Fold::Git, false);
-        }
         let first = self.files.borrow().first().map(|f| f.path.clone());
-        match self.selected_path().or(first) {
-            Some(path) => self.select_path(&path, true),
-            None => {
-                self.section.fold.grab_focus();
-            }
-        }
-    }
-
-    pub(crate) fn fold(&self) {
-        if let Some(app) = self.app.upgrade() {
-            app.set_fold(Fold::Git, true);
+        if let Some(path) = self.selected_path().or(first) {
+            self.select_path(&path, true);
         }
     }
 }

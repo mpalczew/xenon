@@ -3,7 +3,7 @@ mod edits;
 mod setters;
 mod values;
 
-pub use xenon_store::{AppSettings, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME};
+pub use xenon_store::AppSettings;
 
 pub use agents::{skill_homes, skill_refresh_label, skill_subtitle};
 pub use setters::Surface;

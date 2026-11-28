@@ -6,6 +6,7 @@ use xenon_core::WorkspaceId;
 
 use crate::app::App;
 use crate::model::TabKind;
+use crate::sidebar::SidebarPage;
 
 impl App {
     pub(crate) fn sync_git_roots(&self) {
@@ -120,9 +121,9 @@ impl App {
         self.sidebar.root.set_visible(true);
         let git = &self.sidebar.git;
         if git.has_focus() {
-            git.fold();
             self.focus_terminal();
         } else {
+            self.sidebar.show(SidebarPage::Git);
             git.focus();
         }
     }

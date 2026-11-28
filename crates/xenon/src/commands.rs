@@ -7,7 +7,6 @@ use vte::prelude::*;
 use xenon_core::SplitAxis;
 
 use crate::app::{App, defer};
-use crate::model::Fold;
 
 #[derive(Clone, Copy)]
 pub(crate) enum InLauncher {
@@ -214,10 +213,6 @@ commands! {
     ToggleSidebar = "toggle-sidebar" => Spec {
         label: "Toggle Sidebar", icon: "sidebar-show-symbolic", keys: &["<Control><Alt>b"],
         ..Spec::run(|a| a.toggle_sidebar())
-    },
-    ToggleFiles = "toggle-files" => Spec {
-        label: "Toggle Files",
-        ..Spec::run(|a| a.toggle_fold(Fold::Files))
     },
     ShowHiddenFiles = "show-hidden-files" => Spec {
         label: "Show Hidden Files",
